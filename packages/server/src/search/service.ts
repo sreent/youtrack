@@ -8,6 +8,7 @@ import { fieldByName } from '../services/schema-cache';
 import { visibleProjectIds } from '../services/access';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { explainParsed } from './explain';
+import { withFixes } from './lexer';
 import { parseQuery, type ParsedQuery } from './parser';
 import { buildVocabulary } from './vocabulary';
 
@@ -44,8 +45,10 @@ function formatProblems(problems: QueryProblem[]): string {
 export async function compileOrThrow(ctx: Ctx, query: string, extra?: { projectId?: string }): Promise<PreparedQuery> {
   const prepared = await prepareQuery(ctx, query, extra);
   if (prepared.compiled.problems.length) {
+    const fixed = withFixes(query, prepared.compiled.problems);
     throw badRequest(`Invalid query: ${formatProblems(prepared.compiled.problems)}`, 'See GET /api/v1/search/suggest or the query language guide.', {
       problems: prepared.compiled.problems,
+      ...(fixed !== null ? { fixed } : {}),
     });
   }
   return prepared;

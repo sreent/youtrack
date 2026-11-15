@@ -10,6 +10,7 @@ import { runCommand } from '../commands/executor';
 import type { Ctx } from '../context';
 import type { Db } from '../db/client';
 import { AppError } from '../lib/errors';
+import { withFixes } from '../search/lexer';
 import { excerpt } from '../lib/text';
 import { countIssues, searchIssues } from '../search/service';
 import { eventFeed } from '../services/activity';
@@ -402,7 +403,10 @@ const applyCommandTool = defineTool({
   destructive: true,
   async preview(ctx, input) {
     const res = await runCommand(ctx, { issues: input.issues, command: input.command, comment: input.comment, dryRun: true });
-    if (res.problems.length) return `Command "${input.command}" has problems: ${res.problems.map((p) => p.message).join('; ')}`;
+    if (res.problems.length) {
+      const fixed = withFixes(input.command, res.problems);
+      return `Command "${input.command}" has problems: ${res.problems.map((p) => p.message).join('; ')}${fixed !== null ? `. With the fixes applied: ${fixed}` : ''}`;
+    }
     return res.results
       .map((r) => `${r.issue}: ${r.errors.length ? r.errors.join('; ') : r.changes.map((c) => `${c.field} ${c.from ?? '—'} → ${c.to ?? '—'}`).join('; ') || 'no changes'}`)
       .join('\n');
@@ -410,7 +414,11 @@ const applyCommandTool = defineTool({
   async run(ctx, input) {
     const res = await runCommand(ctx, { issues: input.issues, command: input.command, comment: input.comment, dryRun: input.dry_run });
     if (res.problems.length) {
-      throw new AppError(400, 'invalid_command', res.problems.map((p) => p.message).join('; '), res.problems.map((p) => p.hint).filter(Boolean).join(' ') || undefined);
+      const fixed = withFixes(input.command, res.problems);
+      throw new AppError(400, 'invalid_command', res.problems.map((p) => p.message).join('; '), res.problems.map((p) => p.hint).filter(Boolean).join(' ') || undefined, {
+        problems: res.problems,
+        ...(fixed !== null ? { fixed } : {}),
+      });
     }
     const changed = res.results.filter((r) => r.changes.length).length;
     return {
@@ -511,8 +519,15 @@ export function toolByName(name: string): ToolDef | undefined {
 /** Error text an agent can act on. */
 export function toolErrorText(e: unknown): string {
   if (e instanceof AppError) {
-    const details = (e.details as { problems?: { message: string; hint?: string }[] } | undefined)?.problems;
-    return [e.message, e.hint, details?.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ')].filter(Boolean).join('\n');
+    const d = e.details as { problems?: { message: string; hint?: string }[]; fixed?: string } | undefined;
+    return [
+      e.message,
+      e.hint,
+      d?.problems?.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; '),
+      d?.fixed !== undefined ? `With the fixes applied: ${d.fixed}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
   if (e instanceof z.ZodError) return `Invalid input: ${e.issues.map((i) => `${i.path.join('.') || 'input'}: ${i.message}`).join('; ')}`;
   return e instanceof Error ? e.message : String(e);

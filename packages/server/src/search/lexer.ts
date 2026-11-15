@@ -22,6 +22,14 @@ export function quoteValue(value: string): string {
   return value.includes('}') ? `"${value.replace(/"/g, '')}"` : `{${value}}`;
 }
 
+/** The text with every problem's fix applied, when each one has a fix; otherwise null. */
+export function withFixes(input: string, problems: { start: number; end: number; fix?: string }[]): string | null {
+  if (!problems.length || problems.some((p) => p.fix === undefined)) return null;
+  let out = input;
+  for (const p of [...problems].sort((a, b) => b.start - a.start)) out = out.slice(0, p.start) + p.fix + out.slice(p.end);
+  return out;
+}
+
 /**
  * What to type in place of input[start..end) to take a suggested value: the value,
  * quoted as needed, after the minus or # the person typed before it.

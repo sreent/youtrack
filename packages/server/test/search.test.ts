@@ -135,6 +135,8 @@ describe('query language', () => {
     let fixed = q;
     for (const p of [...r.problems].sort((a, b) => b.start - a.start)) fixed = fixed.slice(0, p.start) + p.fix + fixed.slice(p.end);
     expect((await parseQueryForApi(w.as(w.anna), fixed)).problems).toEqual([]);
+    // A search that fails says what the query would be with the fixes applied.
+    await expect(searchIssues(w.as(w.anna), 'State: Fixd', 0, 10)).rejects.toMatchObject({ details: { fixed: 'State: Fixed' } });
   });
 
   it('explains queries in words', async () => {
