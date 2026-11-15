@@ -56,6 +56,7 @@ export function SuggestionCard({
   onDone,
   summary,
   issue: given,
+  level,
 }: {
   suggestion: Suggestion;
   compact?: boolean;
@@ -65,6 +66,8 @@ export function SuggestionCard({
   summary?: string;
   /** The issue as it is now, when the page has it; otherwise it's read (from the cache on its page). */
   issue?: Pick<Issue, 'fields' | 'tags'>;
+  /** Its title's heading level: 3 under a page's section (the default), 2 where it is a section (compact's default). */
+  level?: 2 | 3;
 }) {
   const qc = useQueryClient();
   const me = useMe();
@@ -127,8 +130,9 @@ export function SuggestionCard({
       const n = picked.length;
       setAnswer(next);
       setUnticked(new Set());
-      if (next.status === 'applied') setSaid(n === items.length && !accepted ? 'You applied it.' : `You applied ${n === 1 ? 'the last of it' : 'the rest'}.`);
-      else setSaid(compact ? `You added ${n === 1 ? 'the tag' : `${n} tags`}.` : `You applied ${n}. The rest stays open.`);
+      if (compact) setSaid(`You added ${n === 1 ? 'the tag' : `${n} tags`}.`);
+      else if (next.status === 'applied') setSaid(n === items.length && !accepted ? 'You applied it.' : `You applied ${n === 1 ? 'the last of it' : 'the rest'}.`);
+      else setSaid(`You applied ${n}. The rest stays open.`);
       refresh();
       if (next.status === 'applied') onDone?.();
     },
@@ -147,13 +151,15 @@ export function SuggestionCard({
 
   if (compact && !open && !said && !p.duplicates.length && !p.tags.length) return null;
 
+  const tagWords = openTags.length === 1 ? 'a tag' : 'tags';
+  const likeWords = `${p.duplicates.length === 1 ? 'an issue' : 'issues'} like this one`;
   const title = compact
     ? openTags.length && p.duplicates.length
-      ? 'triage suggests tags, and found issues like this one'
+      ? `triage suggests ${tagWords}, and found ${likeWords}`
       : openTags.length
-        ? `triage suggests ${openTags.length === 1 ? 'a tag' : 'tags'}`
+        ? `triage suggests ${tagWords}`
         : p.duplicates.length
-          ? 'triage found issues like this one'
+          ? `triage found ${likeWords}`
           : 'triage suggests changes'
     : null;
   const about = [
@@ -182,6 +188,7 @@ export function SuggestionCard({
     );
 
   const showFields = !compact && fields.length > 0;
+  const Heading = (level ?? (compact ? 2 : 3)) === 2 ? 'h2' : 'h3';
   const hasWell = showFields || tags.length > 0 || p.duplicates.length > 0;
 
   return (
@@ -191,13 +198,13 @@ export function SuggestionCard({
         <div className="who">
           <Avatar kind="agent" name="triage" small={compact} />
           <span>
-            <h3 className="approval-title" id={titleId}>
+            <Heading className="approval-title" id={titleId}>
               {title ?? (
                 <>
                   triage {fields.length || tags.length ? 'suggests changes to' : 'found issues like'} <IssueLink id={s.issueId} />
                 </>
               )}
-            </h3>
+            </Heading>
             <span className="who-about">{about}</span>
           </span>
         </div>

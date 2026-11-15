@@ -53,7 +53,7 @@ export function dateRead(isoDate: string | null | undefined): string {
 export function money(amount: number | null | undefined, currency = 'USD'): string {
   if (amount === null || amount === undefined) return '';
   try {
-    return new Intl.NumberFormat('en-GB', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
   } catch {
     return `${Math.round(amount).toLocaleString('en-GB')} ${currency}`;
   }

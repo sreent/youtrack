@@ -57,6 +57,7 @@ export function ChangeCard({
   asked,
   decided,
   busy,
+  blocked,
   fieldNames,
   onDecide,
 }: {
@@ -67,6 +68,8 @@ export function ChangeCard({
   asked?: string;
   decided?: boolean;
   busy?: boolean;
+  /** Why it can't be decided here now, if it can't. */
+  blocked?: string;
   fieldNames: string[];
   onDecide: (approve: boolean) => void;
 }) {
@@ -95,14 +98,17 @@ export function ChangeCard({
           </p>
         ) : null}
         {decided === undefined ? (
-          <div className="approval-actions">
-            <button type="button" className="primary" disabled={busy} onClick={() => onDecide(true)}>
-              Approve
-            </button>
-            <button type="button" disabled={busy} onClick={() => onDecide(false)}>
-              Decline
-            </button>
-          </div>
+          <>
+            {blocked ? <p className="note a4p-card-note">{blocked}</p> : null}
+            <div className="approval-actions">
+              <button type="button" className="primary" disabled={busy || Boolean(blocked)} onClick={() => onDecide(true)}>
+                Approve
+              </button>
+              <button type="button" disabled={busy || Boolean(blocked)} onClick={() => onDecide(false)}>
+                Decline
+              </button>
+            </div>
+          </>
         ) : (
           <p className="approval-done" role="status">
             {decided ? 'You approved it.' : 'You declined it. Nothing changed.'}

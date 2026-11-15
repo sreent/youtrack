@@ -1,5 +1,5 @@
 import type { ChatMessage, ConversationDetail } from '@a4a/shared';
-import { Fragment, useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '../../components/Icon';
 import { Markdown } from '../../components/Markdown';
 import { Avatar } from '../../components/Who';
@@ -12,7 +12,7 @@ import { stepOf, ToolRun, type RunStep } from './ToolRun';
 type Row =
   | { kind: 'day'; key: string; label: string }
   | { kind: 'you'; key: string; text: string; unsent?: boolean }
-  | { kind: 'agent'; key: string; text: string; typing?: boolean }
+  | { kind: 'agent'; key: string; text: string }
   | { kind: 'note'; key: string; text: string; live?: boolean }
   | { kind: 'run'; key: string; steps: RunStep[] }
   | { kind: 'own'; key: string; text: string }
@@ -60,7 +60,7 @@ function liveRows(live: LiveTurn, hasToday: boolean): Row[] {
   live.parts.forEach((p: LivePart, i) => {
     const key = `live-${i}`;
     const lastPart = i === live.parts.length - 1;
-    if (p.kind === 'text') rows.push({ kind: 'agent', key, text: p.text, typing: live.running && lastPart });
+    if (p.kind === 'text') rows.push({ kind: 'agent', key, text: p.text });
     else if (p.kind === 'progress') rows.push({ kind: 'note', key, text: p.text, live: live.running && lastPart });
     else if (p.kind === 'notice') rows.push({ kind: 'own', key, text: p.text });
     else if (p.kind === 'error') rows.push({ kind: 'bad', key, text: p.text });
@@ -130,8 +130,9 @@ export function Talk(props: TalkProps) {
 
   const stored = detail?.messages ?? [];
   const shown = live ? stored.slice(0, live.base) : stored;
-  const rows = storedRows(shown, live);
-  if (live) rows.push(...liveRows(live, rows.some((r) => r.kind === 'day' && r.label === 'Today')));
+  const before = storedRows(shown, live);
+  const after = live ? liveRows(live, before.some((r) => r.kind === 'day' && r.label === 'Today')) : [];
+  const rows = [...before, ...after];
 
   const pendingFromDetail = !live && detail ? detail.pendingApprovals : [];
   const approvals: Approval[] = live ? live.approvals : pendingFromDetail;
@@ -144,19 +145,24 @@ export function Talk(props: TalkProps) {
   const canSend = aiOn && !running && !awaiting && detail?.status !== 'running';
   const placeholder = !aiOn
     ? 'The assistant is off on this server'
-    : running
+    : running || detail?.status === 'running'
       ? 'assistant is answering…'
       : awaiting
         ? 'Decide on the change above first'
         : 'Ask about your issues, boards and plans';
 
-  // Keep the newest in view as it streams.
-  const lastKey = rows.length ? rows[rows.length - 1]!.key : '';
-  const lastLength = live?.parts.length ? JSON.stringify(live.parts[live.parts.length - 1]).length : 0;
-  useEffect(() => {
+  // Keep the newest in view as it streams, unless the person has scrolled back to read.
+  const stick = useRef(true);
+  useLayoutEffect(() => {
     const el = body.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lastKey, lastLength, approvals.length, detail?.id]);
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  });
+  useEffect(() => {
+    void document.fonts?.ready.then(() => {
+      const el = body.current;
+      if (el && stick.current) el.scrollTop = el.scrollHeight;
+    });
+  }, []);
 
   // A message that didn't go goes back in the box.
   useEffect(() => {
@@ -178,6 +184,7 @@ export function Talk(props: TalkProps) {
   const send = async (words: string) => {
     const t = words.trim();
     if (!t || !canSend) return;
+    stick.current = true;
     setText('');
     const ok = await props.onSend(t);
     if (!ok) setText(t);
@@ -190,6 +197,51 @@ export function Talk(props: TalkProps) {
   const quick = context.issue
     ? [`What is ${context.issue} about, and how does it stand?`, `What blocks ${context.issue}?`, `Find issues like ${context.issue}`]
     : ['What changed since yesterday?', 'Which open issues are critical?', 'Who has the most open work?'];
+
+  const row = (r: Row) => (
+    <Fragment key={r.key}>
+      {r.kind === 'day' ? <span className="talk-day">{r.label}</span> : null}
+      {r.kind === 'you' ? (
+        <p className={r.unsent ? 'say you a4p-unsent' : 'say you'}>
+          {r.text}
+          {r.unsent ? <span className="a4p-unsent-word">Not sent</span> : null}
+        </p>
+      ) : null}
+      {r.kind === 'agent' ? (
+        <div className="say agent">
+          <Markdown text={r.text} />
+        </div>
+      ) : null}
+      {r.kind === 'note' ? <Note text={r.text} live={r.live} /> : null}
+      {r.kind === 'run' ? <ToolRun steps={r.steps} tools={tools} onAskFirst={props.mode === 'auto' ? props.onAskFirst : undefined} /> : null}
+      {r.kind === 'own' ? (
+        <p className="say own">
+          <Icon name="audit" />
+          <span>{r.text}</span>
+        </p>
+      ) : null}
+      {r.kind === 'bad' ? (
+        <p className="say own a4p-say-bad" role="alert">
+          <Icon name="cross" />
+          <span>{r.text}</span>
+        </p>
+      ) : null}
+    </Fragment>
+  );
+  const card = (a: Approval) => (
+    <ChangeCard
+      key={a.toolUseId}
+      approval={a}
+      tool={tools.get(a.name)}
+      forName={props.forName}
+      asked={lastYou?.text}
+      decided={live?.decisions?.[a.toolUseId] ?? decisions[a.toolUseId]}
+      busy={running}
+      blocked={aiOn ? undefined : "The assistant is off on this server, so it can't make this change or carry on."}
+      fieldNames={props.fieldNames}
+      onDecide={(yes) => props.onDecide(a, yes)}
+    />
+  );
 
   return (
     <section className="talk a4p-talk" aria-label="A conversation with assistant">
@@ -271,7 +323,14 @@ export function Talk(props: TalkProps) {
         </section>
       ) : null}
 
-      <div className="talk-body" ref={body}>
+      <div
+        className="talk-body"
+        ref={body}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+        }}
+      >
         {empty ? (
           <>
             <p className="say own">
@@ -293,55 +352,16 @@ export function Talk(props: TalkProps) {
           </>
         ) : null}
         {props.loading && !rows.length ? <p className="talk-day">Loading the conversation…</p> : null}
-        {rows.map((r) => (
-          <Fragment key={r.key}>
-            {r.kind === 'day' ? <span className="talk-day">{r.label}</span> : null}
-            {r.kind === 'you' ? (
-              <p className={r.unsent ? 'say you a4p-unsent' : 'say you'}>
-                {r.text}
-                {r.unsent ? <span className="a4p-unsent-word">Not sent</span> : null}
-              </p>
-            ) : null}
-            {r.kind === 'agent' ? (
-              <div className={r.typing ? 'say agent a4p-typing' : 'say agent'}>
-                <Markdown text={r.text} />
-              </div>
-            ) : null}
-            {r.kind === 'note' ? <Note text={r.text} live={r.live} /> : null}
-            {r.kind === 'run' ? <ToolRun steps={r.steps} tools={tools} onAskFirst={props.mode === 'auto' ? props.onAskFirst : undefined} /> : null}
-            {r.kind === 'own' ? (
-              <p className="say own">
-                <Icon name="audit" />
-                <span>{r.text}</span>
-              </p>
-            ) : null}
-            {r.kind === 'bad' ? (
-              <p className="say own a4p-say-bad" role="alert">
-                <Icon name="cross" />
-                <span>{r.text}</span>
-              </p>
-            ) : null}
-          </Fragment>
-        ))}
+        {before.map(row)}
+        {decidedCards.map(card)}
+        {after.map(row)}
         {running && (!live?.parts.length || live.parts[live.parts.length - 1]!.kind === 'tool') ? (
           <p className="a4p-working" role="status">
             <span className="spin" aria-hidden="true" />
             assistant is working on it
           </p>
         ) : null}
-        {[...decidedCards, ...approvals].map((a) => (
-          <ChangeCard
-            key={a.toolUseId}
-            approval={a}
-            tool={tools.get(a.name)}
-            forName={props.forName}
-            asked={lastYou?.text}
-            decided={live?.decisions?.[a.toolUseId] ?? decisions[a.toolUseId]}
-            busy={running}
-            fieldNames={props.fieldNames}
-            onDecide={(yes) => props.onDecide(a, yes)}
-          />
-        ))}
+        {approvals.map(card)}
         {approvals.length > 1 && awaiting ? (
           <p className="talk-day">Decide on each change; assistant carries on once you have.</p>
         ) : null}

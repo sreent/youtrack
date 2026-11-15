@@ -1,4 +1,5 @@
-import { FIELD_TYPES, type Field, type FieldType, type FieldValue, type Tone } from '@a4a/shared';
+import type { Field, FieldType, FieldValue, Tone } from '@a4a/shared';
+import { FIELD_TYPES } from '@a4a/shared/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -17,11 +18,11 @@ const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];
 const MULTI_TYPES: FieldType[] = ['enum', 'user', 'version'];
 
 const TONES: { tone: Tone | null; word: string }[] = [
-  { tone: null, word: 'No colour: a plain fact' },
-  { tone: 'good', word: 'Going well, with a tick' },
-  { tone: 'warn', word: 'Waiting on someone, with a clock' },
-  { tone: 'bad', word: 'Failed or late, with a cross' },
-  { tone: 'idle', word: 'Not needed, with a pause' },
+  { tone: null, word: 'A plain fact' },
+  { tone: 'good', word: 'Going well' },
+  { tone: 'warn', word: 'Waiting on someone' },
+  { tone: 'bad', word: 'Failed or late' },
+  { tone: 'idle', word: 'Not needed' },
 ];
 
 function ToneSelect({ value, onChange, label }: { value: Tone | null; onChange: (t: Tone | null) => void; label: string }) {
@@ -76,48 +77,42 @@ function ValueRow({
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   return (
-    <tr className={value.archived ? 'a4p-archived' : undefined}>
-      <td className="a4p-tight">
-        <span className="a4p-order">
-          <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} up`} disabled={first} onClick={() => onMove(-1)}>
-            <Icon name="chevron" className="a4p-up" />
-          </button>
-          <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} down`} disabled={last} onClick={() => onMove(1)}>
-            <Icon name="chevron" />
-          </button>
-        </span>
-      </td>
-      <td>
-        <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} aria-label={`Name of ${value.name}`} maxLength={80} />
-      </td>
-      <td>
-        <span className="a4p-tone">
-          <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label={`How ${value.name} shows`} />
-          <Badge tone={form.tone}>{form.name || value.name}</Badge>
-        </span>
-      </td>
-      {field.type === 'state' ? (
-        <td>
+    <li className={value.archived ? 'a4p-value a4p-archived' : 'a4p-value'}>
+      <span className="a4p-order">
+        <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} up`} disabled={first} onClick={() => onMove(-1)}>
+          <Icon name="chevron" className="a4p-up" />
+        </button>
+        <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} down`} disabled={last} onClick={() => onMove(1)}>
+          <Icon name="chevron" />
+        </button>
+      </span>
+      <input
+        className="a4p-value-name"
+        value={form.name}
+        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        aria-label={`Name of ${value.name}`}
+        maxLength={80}
+      />
+      <span className="a4p-tone">
+        <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label={`How ${value.name} shows`} />
+        <Badge tone={form.tone}>{form.name || value.name}</Badge>
+      </span>
+      <span className="a4p-value-more">
+        {field.type === 'state' ? (
           <label className="a4p-check">
             <input type="checkbox" checked={form.isResolved} onChange={(e) => setForm((f) => ({ ...f, isResolved: e.target.checked }))} />
-            <span>
-              <span aria-hidden="true">Resolved</span>
-              <span className="a4-sr-only">{value.name} resolves an issue</span>
-            </span>
+            <span>Resolves</span>
           </label>
-        </td>
-      ) : null}
-      <td>
+        ) : null}
         <label className="a4p-check">
           <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
-          <span>
-            <span aria-hidden="true">Archived</span>
-            <span className="a4-sr-only">{value.name} is archived</span>
-          </span>
+          <span>Archived</span>
         </label>
-      </td>
-      <td>{value.projectId ? <span className="chip mono">{projects.get(value.projectId) ?? 'one project'}</span> : <span className="a4p-muted">Every project</span>}</td>
-      <td className="a4p-tight">
+        {value.projectId ? (
+          <span className="chip mono" title="Only in this project">
+            {projects.get(value.projectId) ?? 'one project'} only
+          </span>
+        ) : null}
         <span className="a4p-actions">
           <button type="button" className="a4p-small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? 'Saving…' : 'Save'}
@@ -132,9 +127,9 @@ function ValueRow({
             onConfirm={() => remove.mutate()}
           />
         </span>
-        <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-      </td>
-    </tr>
+      </span>
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </li>
   );
 }
 
@@ -307,38 +302,19 @@ function FieldEditor({ field }: { field: Field }) {
             decoration.
           </p>
           {values.length ? (
-            <div className="a4p-scroll">
-              <table className="figures a4p-values">
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      <span className="a4-sr-only">Order</span>
-                    </th>
-                    <th scope="col">Value</th>
-                    <th scope="col">Shows as</th>
-                    {field.type === 'state' ? <th scope="col">Resolves</th> : null}
-                    <th scope="col">Archived</th>
-                    <th scope="col">For</th>
-                    <th scope="col">
-                      <span className="a4-sr-only">Change</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {values.map((v, i) => (
-                    <ValueRow
-                      key={v.id}
-                      field={field}
-                      value={v}
-                      projects={projectKeys}
-                      first={i === 0 || move.isPending}
-                      last={i === values.length - 1 || move.isPending}
-                      onMove={(dir) => move.mutate({ index: i, dir })}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ol className="a4p-values" aria-label={`Values of ${field.name}`}>
+              {values.map((v, i) => (
+                <ValueRow
+                  key={v.id}
+                  field={field}
+                  value={v}
+                  projects={projectKeys}
+                  first={i === 0 || move.isPending}
+                  last={i === values.length - 1 || move.isPending}
+                  onMove={(dir) => move.mutate({ index: i, dir })}
+                />
+              ))}
+            </ol>
           ) : (
             <p className="note">No values yet.</p>
           )}

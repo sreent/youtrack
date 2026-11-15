@@ -7,7 +7,7 @@ import { keys, useMe, useProjects, useUsers } from '../api/queries';
 import { Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
-import { errorText } from '../features/common/bits';
+import { errorText, Scroll } from '../features/common/bits';
 import { TRIAGE_WORDS } from '../features/projects/triage';
 import '../features/common/pages.css';
 
@@ -131,7 +131,7 @@ export default function ProjectsPage() {
       {projects.data ? (
         <section className="card a4p-flush" aria-label="Projects">
           {projects.data.length ? (
-            <div className="a4p-scroll">
+            <Scroll label="Table of projects">
               <table className="figures a4p-projects">
                 <thead>
                   <tr>
@@ -177,7 +177,7 @@ export default function ProjectsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Scroll>
           ) : (
             <p className="note">There are no projects yet.{isAdmin ? ' Create the first one below.' : ' An administrator can create one.'}</p>
           )}

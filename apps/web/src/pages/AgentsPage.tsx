@@ -5,7 +5,7 @@ import { del, post } from '../api/client';
 import { keys, useMe, useTokens } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { errorText, Said } from '../features/common/bits';
+import { errorText, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { dateRead } from '../features/common/format';
@@ -140,7 +140,7 @@ export default function AgentsPage() {
                     create.mutate();
                   }}
                 >
-                  <div className="a4p-fields">
+                  <div className="a4p-fields a4p-token-fields">
                     <label className="a4p-field">
                       <span>Name</span>
                       <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby="token-name-help" />
@@ -231,7 +231,7 @@ export default function AgentsPage() {
             {tokens.error ? <ErrorNote error={tokens.error} /> : null}
             {tokens.data && !tokens.data.length ? <p className="note">You have no tokens yet. Create one above for each agent or script.</p> : null}
             {tokens.data?.length ? (
-              <div className="a4p-scroll">
+              <Scroll label="Table of your tokens">
                 <table className="figures a4p-tokens">
                   <thead>
                     <tr>
@@ -281,7 +281,7 @@ export default function AgentsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Scroll>
             ) : null}
           </section>
 
@@ -344,7 +344,7 @@ export default function AgentsPage() {
             <h3>Agent facts</h3>
             <div className="per">
               <span>An agent over MCP</span>
-              <span className="mono">{origin.replace(/^https?:\/\//, '')}/mcp</span>
+              <span className="mono">/mcp</span>
             </div>
             <div className="rule" />
             <dl>
@@ -354,7 +354,7 @@ export default function AgentsPage() {
               </div>
               <div className="pair">
                 <dt>Autonomy</dt>
-                <dd>its client’s: writes are marked, so it can ask you first</dd>
+                <dd>asks first, if its client does</dd>
               </div>
               <div className="pair">
                 <dt>Reads</dt>
@@ -362,7 +362,7 @@ export default function AgentsPage() {
               </div>
               <div className="pair">
                 <dt>Changes</dt>
-                <dd>issues, comments, links, work, with write</dd>
+                <dd>issues, comments, links, work</dd>
               </div>
               <div className="pair">
                 <dt>Deletes</dt>
@@ -388,12 +388,16 @@ export default function AgentsPage() {
                 <dd>50 at most</dd>
               </div>
               <div className="pair">
-                <dt>Tools</dt>
-                <dd>{tools.data ? `${reads.length} read, ${changes.length} change` : '…'}</dd>
+                <dt>Tools that read</dt>
+                <dd>{tools.data ? reads.length : '…'}</dd>
+              </div>
+              <div className="pair">
+                <dt>Tools that change</dt>
+                <dd>{tools.data ? changes.length : '…'}</dd>
               </div>
             </dl>
             <div className="thin" />
-            <p className="foot">Every change it makes is kept in the activity as yours, with the token's name. Revoke the token and it stops at once.</p>
+            <p className="foot">It changes things only with a write token. Every change is kept in the activity as yours, with the token's name; revoke the token and it stops at once.</p>
           </section>
         </aside>
       </div>

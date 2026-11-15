@@ -28,6 +28,15 @@ export function Said({ text, tone }: { text: string | null | undefined; tone?: '
   );
 }
 
+/** A table that may be wider than the page: it scrolls on its own, and a keyboard reaches it to scroll it. */
+export function Scroll({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="a4p-scroll" role="region" aria-label={label} tabIndex={0}>
+      {children}
+    </div>
+  );
+}
+
 /** For a page only administrators use, when someone else opens it. */
 export function AdminOnly({ title, children }: { title: string; children: React.ReactNode }) {
   const me = useMe();

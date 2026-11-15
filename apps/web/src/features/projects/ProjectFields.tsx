@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { del, put } from '../../api/client';
 import { keys } from '../../api/queries';
 import { Badge } from '../../components/Badges';
-import { errorText, Said } from '../common/bits';
+import { errorText, Said, Scroll } from '../common/bits';
 
 export const TYPE_WORDS: Record<FieldType, string> = {
   enum: 'a choice from a list',
@@ -250,7 +250,7 @@ export function ProjectFields({
   const available = all.filter((f) => !attached.has(f.id));
   return (
     <>
-      <div className="a4p-scroll">
+      <Scroll label="Table of the project's fields">
         <table className="figures a4p-project-fields">
           <thead>
             <tr>
@@ -273,7 +273,7 @@ export function ProjectFields({
               ))}
           </tbody>
         </table>
-      </div>
+      </Scroll>
       {canEdit ? (
         <>
           <p className="note">Detaching hides a field from the project's issues; attach it again and their values come back.</p>

@@ -1,11 +1,12 @@
-import { EVENT_TYPES, type Webhook } from '@a4a/shared';
+import type { Webhook } from '@a4a/shared';
+import { EVENT_TYPES } from '@a4a/shared/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, patch, post } from '../api/client';
 import { keys, useProjects, useWebhooks } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { AdminOnly, errorText, Said } from '../features/common/bits';
+import { AdminOnly, errorText, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
@@ -29,12 +30,12 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';
 
-// rawBody: the request's bytes, exactly as they arrived.
-const expected = 'sha256=' + createHmac('sha256', process.env.A4A_WEBHOOK_SECRET)
-  .update(rawBody).digest('hex');
-const given = request.headers['x-a4a-signature'];
-const genuine = given?.length === expected.length
-  && timingSafeEqual(Buffer.from(given), Buffer.from(expected));`;
+// body: the request's raw bytes, as they arrived
+const mac = createHmac('sha256', secret).update(body);
+const expected = 'sha256=' + mac.digest('hex');
+const given = req.headers['x-a4a-signature'] ?? '';
+const genuine = given.length === expected.length &&
+  timingSafeEqual(Buffer.from(given), Buffer.from(expected));`;
 
 function Deliveries({ hook }: { hook: Webhook }) {
   const deliveries = useDeliveries(hook.id, true);
@@ -42,7 +43,7 @@ function Deliveries({ hook }: { hook: Webhook }) {
   if (deliveries.error) return <ErrorNote error={deliveries.error} />;
   if (!deliveries.data?.length) return <p className="note">Nothing sent yet. Send a test, or wait for the next change.</p>;
   return (
-    <div className="a4p-scroll">
+    <Scroll label="Table of recent deliveries">
       <table className="figures a4p-deliveries">
         <thead>
           <tr>
@@ -79,7 +80,7 @@ function Deliveries({ hook }: { hook: Webhook }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Scroll>
   );
 }
 
@@ -275,56 +276,56 @@ export default function WebhooksPage() {
         title="Webhooks"
         about="a4a posts each change to the addresses here as it happens, signed, so your systems can act on it: CI, chat, a dashboard."
       />
-      <div className="a4-split">
-        <div className="a4-stack">
-          <section className="card a4p-flush-list" aria-labelledby="hooks">
-            <h2 id="hooks">Where it sends</h2>
-            {hooks.isLoading ? <Loading what="webhooks" /> : null}
-            {hooks.error ? <ErrorNote error={hooks.error} /> : null}
-            {hooks.data && !hooks.data.length ? <p className="note">Nowhere yet. Add a webhook, then send it a test.</p> : null}
-            {hooks.data?.length ? (
-              <ul className="a4p-hooks">
-                {hooks.data.map((h) => (
-                  <HookCard key={h.id} hook={h} projectName={h.project ? names.get(h.project) : undefined} />
-                ))}
-              </ul>
-            ) : null}
-          </section>
-          <AddHook />
-        </div>
-        <aside className="a4p-side" aria-labelledby="how">
-          <section className="card">
-            <h2 id="how">How deliveries work</h2>
-            <p className="note">Each delivery is a POST of the change as JSON, the same as GET /api/v1/events gives.</p>
-            <dl className="a4p-facts">
-              <div className="pair">
-                <dt>Signed</dt>
-                <dd>
-                  <code>X-A4A-Signature: sha256=&lt;HMAC of the body&gt;</code>, an HMAC-SHA256 of the raw body, with the webhook's secret.
-                </dd>
-              </div>
-              <div className="pair">
-                <dt>At least once</dt>
-                <dd>
-                  A change can arrive twice. Keep the <code>X-A4A-Event-Id</code> of what you've handled, and skip it when it comes again.
-                </dd>
-              </div>
-              <div className="pair">
-                <dt>Retried</dt>
-                <dd>Up to 3 tries, a second and then four seconds apart. An answer in the 400s other than 408 or 429 isn't retried.</dd>
-              </div>
-              <div className="pair">
-                <dt>Also sent</dt>
-                <dd>
-                  <code>X-A4A-Event</code> (its kind) and <code>X-A4A-Delivery</code> (this try).
-                </dd>
-              </div>
-            </dl>
-            <h3>Checking the signature, in Node</h3>
-            <pre className="a4p-snippet">{VERIFY}</pre>
+      <section className="card" aria-labelledby="hooks">
+        <h2 id="hooks">Where it sends</h2>
+        {hooks.isLoading ? <Loading what="webhooks" /> : null}
+        {hooks.error ? <ErrorNote error={hooks.error} /> : null}
+        {hooks.data && !hooks.data.length ? <p className="note">Nowhere yet. Add a webhook, then send it a test.</p> : null}
+        {hooks.data?.length ? (
+          <ul className="a4p-hooks">
+            {hooks.data.map((h) => (
+              <HookCard key={h.id} hook={h} projectName={h.project ? names.get(h.project) : undefined} />
+            ))}
+          </ul>
+        ) : null}
+      </section>
+      <div className="a4p-two-col">
+        <AddHook />
+        <section className="card" aria-labelledby="how">
+          <h2 id="how">How deliveries work</h2>
+          <p className="note">Each delivery is a POST of the change as JSON, the same as GET /api/v1/events gives.</p>
+          <dl className="a4p-facts">
+            <div className="pair">
+              <dt>Signed</dt>
+              <dd>
+                <code>X-A4A-Signature: sha256=&lt;HMAC of the body&gt;</code>: an HMAC-SHA256 of the raw body, with the webhook's secret.
+              </dd>
+            </div>
+            <div className="pair">
+              <dt>At least once</dt>
+              <dd>
+                A change can arrive twice. Keep the <code>X-A4A-Event-Id</code> of what you've handled, and skip it when it comes again.
+              </dd>
+            </div>
+            <div className="pair">
+              <dt>Retried</dt>
+              <dd>Up to 3 tries, a second and then four seconds apart. An answer in the 400s other than 408 or 429 isn't retried.</dd>
+            </div>
+            <div className="pair">
+              <dt>Also sent</dt>
+              <dd>
+                <code>X-A4A-Event</code>, its kind, and <code>X-A4A-Delivery</code>, the try's own id.
+              </dd>
+            </div>
+          </dl>
+          <h3>Checking the signature, in Node</h3>
+          <pre className="a4p-snippet a4p-code" tabIndex={0} aria-label="Checking the signature, in Node">
+            {VERIFY}
+          </pre>
+          <div className="a4p-actions a4p-snippet-actions">
             <CopyButton text={VERIFY} label="Copy it" what="the check" />
-          </section>
-        </aside>
+          </div>
+        </section>
       </div>
     </AdminOnly>
   );

@@ -67,7 +67,8 @@ export function ToolRun({
           const tool = tools?.get(s.name);
           const kind = tool?.kind ?? (s.write ? 'changes' : 'reads');
           const tone = s.status === 'error' ? 'bad' : s.status === 'rejected' ? 'idle' : s.status === 'pending_approval' ? 'changes' : kind;
-          const what = s.summary ?? (aboutInput(s.input) || tool?.title || '');
+          // Declined, it did nothing: say what it would have done.
+          const what = (s.status === 'rejected' ? null : s.summary) ?? (aboutInput(s.input) || tool?.title || '');
           return (
             <li key={s.id}>
               <time dateTime={s.at}>{s.at ? clock(s.at) : ''}</time>
@@ -81,7 +82,7 @@ export function ToolRun({
                   {s.status === 'error' ? <Badge tone="bad">failed</Badge> : null}
                   {s.status === 'rejected' ? <Badge tone="idle">you declined it</Badge> : null}
                   {s.status === 'done' && s.onItsOwn ? <span>on its own, as you let it</span> : null}
-                  {s.status === 'done' && s.ms !== undefined ? <span className="a4p-ms">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span> : null}
+                  {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? <span className="a4p-ms">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span> : null}
                   {tool?.destructive && s.status !== 'done' ? <span className="chip">can overwrite</span> : null}
                 </span>
               </span>

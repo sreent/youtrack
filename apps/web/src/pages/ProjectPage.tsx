@@ -7,7 +7,7 @@ import { keys, useAIStatus, useFields, useMe, useProject, useProjectFields, useU
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
-import { errorText, Said } from '../features/common/bits';
+import { errorText, Said, Scroll } from '../features/common/bits';
 import { count, dateRead, money } from '../features/common/format';
 import { LadderChoice } from '../features/common/Ladder';
 import { useBaselines } from '../features/common/queries';
@@ -117,7 +117,7 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
       <LadderChoice
         legend="How far triage may go with new issues"
         rungs={TRIAGE_RUNGS}
-        value={project.settings.triageMode}
+        value={save.isPending && save.variables ? save.variables : project.settings.triageMode}
         onChange={canEdit && !save.isPending ? (m) => save.mutate(m) : undefined}
         note={
           aiOn
@@ -142,7 +142,7 @@ function Baselines({ project }: { project: Project }) {
       </p>
     );
   return (
-    <div className="a4p-scroll">
+    <Scroll label="Table of baselines">
       <table className="figures a4p-baselines">
         <thead>
           <tr>
@@ -177,7 +177,7 @@ function Baselines({ project }: { project: Project }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </Scroll>
   );
 }
 

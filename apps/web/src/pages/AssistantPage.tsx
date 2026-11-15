@@ -109,9 +109,11 @@ export default function AssistantPage() {
         title="Assistant"
         about="Ask about your projects in your own words. It reads what it needs, and asks before it changes anything unless you let it act."
         actions={
-          <Link className="button" to={`/assistant${keep}`}>
-            Start a new conversation
-          </Link>
+          aiOn && id ? (
+            <Link className="button" to={`/assistant${keep}`}>
+              Start a new conversation
+            </Link>
+          ) : null
         }
       />
       {status.data && !status.data.enabled ? (

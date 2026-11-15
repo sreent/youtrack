@@ -81,6 +81,7 @@ export default function SuggestionsPage() {
       {shown.length && summaries.isLoading ? <Loading what="the issues they're about" /> : null}
       {shown.length && !summaries.isLoading ? (
         <div className="a4p-grid a4p-decisions">
+          <h2 className="a4-sr-only">Waiting on you</h2>
           {shown.map((s) => {
             const issue = summaries.data?.get(s.issueId);
             return (
