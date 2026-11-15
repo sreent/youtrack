@@ -20,9 +20,9 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, workItems } from '../db/schema';
-import { publishActivities, recordActivity } from '../events/activity';
+import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { todayISO } from '../lib/dates';
-import { badRequest, notFound } from '../lib/errors';
+import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import {
   computeCosts,
@@ -42,7 +42,7 @@ import {
 import { searchIssueRows } from '../search/service';
 import { assertCanReadProject } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
-import { updateIssue } from './issues';
+import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
@@ -303,7 +303,11 @@ export async function getResourceLoad(ctx: Ctx, key: string, opts: { from?: stri
 }
 
 /** Propose (dryRun) or apply levelling. Applying writes each moved task's Start date, never its due date. */
-export async function level(ctx: Ctx, key: string, opts: { query?: string; mode: LevelingMode; dryRun: boolean }): Promise<LevelingResult> {
+export async function level(
+  ctx: Ctx,
+  key: string,
+  opts: { query?: string; mode: LevelingMode; dryRun: boolean; expect?: Record<string, string> },
+): Promise<LevelingResult> {
   if (!opts.dryRun) requireScope(ctx, 'write');
   const l = await loadPlan(ctx, key, { query: opts.query });
   const p = levelResources(l.input, opts.mode);
@@ -316,23 +320,56 @@ export async function level(ctx: Ctx, key: string, opts: { query?: string; mode:
     toStart: c.toStart,
     toFinish: c.toFinish,
     delayDays: c.delayDays,
+    movedBy: c.movedBy,
   }));
-  if (!opts.dryRun && changes.length) {
-    if (!(l.s.projectFields.get(l.project.id) ?? []).some((pf) => pf.fieldId === fieldByName(l.s, WELL_KNOWN_FIELDS.startDate)?.id)) {
+  // Applying writes the starts of the tasks levelling moved, and only those: a task that
+  // moved because its predecessors did follows them by itself, and pinning its start
+  // would turn a task with a due date and no estimate into a start-to-due window.
+  const starts = p.levelledStarts;
+  const writes = Object.entries(starts);
+  if (!opts.dryRun && opts.expect && !sameStarts(opts.expect, starts)) {
+    throw conflict(
+      `The plan of ${l.project.key} changed since this levelling was proposed`,
+      'Review the new proposal, then level again.',
+      { starts },
+    );
+  }
+  if (!opts.dryRun && writes.length) {
+    const startField = fieldByName(l.s, WELL_KNOWN_FIELDS.startDate);
+    if (!startField || !(l.s.projectFields.get(l.project.id) ?? []).some((pf) => pf.fieldId === startField.id)) {
       throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.');
     }
-    for (const c of changes) await updateIssue(ctx, c.issue, { fields: { [WELL_KNOWN_FIELDS.startDate]: c.toStart } });
+    // One transaction: the person agreed to the whole proposal, so it lands whole or not at all.
+    const activities = await ctx.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      const out: ActivityRow[] = [];
+      for (const [id, start] of writes) {
+        const row = l.rowsById.get(id);
+        if (!row) throw notFound(`Issue ${id}`);
+        const fields = resolveFieldsInput(l.s, l.project, { [WELL_KNOWN_FIELDS.startDate]: start }, ctx.actor.user.id);
+        const res = await applyChanges(tx, ctx, row, { fields });
+        out.push(...res.activities);
+      }
+      return out;
+    });
+    await publishActivities(ctx.app, activities);
   }
   return {
     mode: p.mode,
-    applied: !opts.dryRun && changes.length > 0,
+    applied: !opts.dryRun && writes.length > 0,
     finishBefore: p.finishBefore,
     finishAfter: p.finishAfter,
     overallocatedDaysBefore: p.overallocatedDaysBefore,
     overallocatedDaysAfter: p.overallocatedDaysAfter,
     changes,
+    starts,
     unresolved: p.unresolved,
   };
+}
+
+function sameStarts(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => b[k] === a[k]);
 }
 
 export async function getCostReport(ctx: Ctx, key: string, opts: { baseline?: string } = {}): Promise<CostReport> {

@@ -37,20 +37,42 @@ describe('planning over the demo data', () => {
     expect((await getSchedule(ctx, 'MIG')).finish).toBe(s.finish);
   });
 
-  it('finds Chloé over capacity and levels within slack without moving the finish', async () => {
+  it('finds Chloé over capacity; within_slack keeps the finish date', async () => {
     const ctx = adminCtx(w.app, w.admin);
     const load = await getResourceLoad(ctx, 'MIG');
-    const chloe = load.resources.find((r) => r.user.login === 'chloe')!;
-    expect(chloe.overallocatedDays).toBeGreaterThan(0);
-    const before = await getSchedule(ctx, 'MIG');
-    const proposal = await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: true });
+    expect(load.resources.find((r) => r.user.login === 'chloe')!.overallocatedDays).toBeGreaterThan(0);
+    const proposal = await level(ctx, 'MIG', { mode: 'within_slack', dryRun: true });
     expect(proposal.applied).toBe(false);
+    expect(proposal.finishAfter).toBe(proposal.finishBefore);
+  });
+
+  it('applies exactly the proposal it was shown, all at once, or nothing', async () => {
+    const ctx = adminCtx(w.app, w.admin);
+    const chloeBefore = (await getResourceLoad(ctx, 'MIG')).resources.find((r) => r.user.login === 'chloe')!.overallocatedDays;
+    const proposal = await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: true });
     expect(proposal.overallocatedDaysAfter).toBeLessThan(proposal.overallocatedDaysBefore);
-    const applied = await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: false });
+    const moved = proposal.changes.filter((c) => c.movedBy === 'resources');
+    expect(Object.keys(proposal.starts).sort()).toEqual(moved.map((c) => c.issue).sort());
+
+    // A proposal that no longer holds is refused, and nothing is written.
+    const [first] = Object.keys(proposal.starts);
+    const stale = { ...proposal.starts, [first!]: '2001-01-01' };
+    await expect(level(ctx, 'MIG', { mode: 'allow_delay', dryRun: false, expect: stale })).rejects.toMatchObject({ status: 409 });
+    expect((await getSchedule(ctx, 'MIG')).finish).toBe(proposal.finishBefore);
+
+    const applied = await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: false, expect: proposal.starts });
     expect(applied.applied).toBe(true);
-    const after = await getResourceLoad(ctx, 'MIG');
-    expect(after.resources.find((r) => r.user.login === 'chloe')!.overallocatedDays).toBeLessThan(chloe.overallocatedDays);
-    expect((await getSchedule(ctx, 'MIG')).finish >= before.finish).toBe(true);
+    // The plan now is the plan proposed: every task moved, for resources or by following, lands where it was shown.
+    const after = await getSchedule(ctx, 'MIG');
+    expect(after.finish).toBe(proposal.finishAfter);
+    const byId = new Map(after.tasks.map((t) => [t.issue.id, t]));
+    for (const c of proposal.changes) {
+      expect([c.issue, byId.get(c.issue)!.start, byId.get(c.issue)!.finish]).toEqual([c.issue, c.toStart, c.toFinish]);
+    }
+    const chloeAfter = (await getResourceLoad(ctx, 'MIG')).resources.find((r) => r.user.login === 'chloe')!.overallocatedDays;
+    expect(chloeAfter).toBeLessThan(chloeBefore);
+    // Levelled again, there is nothing left to move.
+    expect(Object.keys((await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: true })).starts)).toHaveLength(0);
   });
 
   it('reports costs and earned value against the baseline', async () => {

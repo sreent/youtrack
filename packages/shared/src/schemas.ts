@@ -842,8 +842,14 @@ export const ResourceQuery = z.object({
 
 export const LevelBody = z.object({
   query: z.string().optional(),
-  mode: z.enum(LEVELING_MODES).default('allow_delay'),
+  mode: z.enum(LEVELING_MODES).default('within_slack').describe('within_slack never moves the finish date; allow_delay may'),
   dryRun: z.boolean().default(true),
+  expect: z
+    .record(z.string(), isoDate)
+    .optional()
+    .describe(
+      "The `starts` of the proposal you were shown. When given, nothing is applied if levelling would now write anything else (the plan changed since): you get 409 and can review the new proposal.",
+    ),
 });
 export const LevelingResultSchema = z
   .object({
@@ -863,8 +869,12 @@ export const LevelingResultSchema = z
         toStart: isoDate,
         toFinish: isoDate,
         delayDays: z.number(),
+        movedBy: z.enum(['resources', 'dependencies']).describe('resources: levelling moved it; dependencies: it follows a task that moved'),
       }),
     ),
+    starts: z
+      .record(z.string(), isoDate)
+      .describe('What applying writes: the new Start date of each task moved for resources. The others follow from their dependencies.'),
     unresolved: z.array(z.string()).describe('Tasks that could not be levelled within the chosen mode'),
   })
   .meta({ id: 'LevelingResult' });

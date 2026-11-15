@@ -137,20 +137,33 @@ const levelResourcesTool = defineTool({
   name: 'level_resources',
   title: 'Level resources',
   description:
-    'Resolve over-allocation by moving task starts. With dry_run (the default) it only proposes; apply only after the person agrees. within_slack never moves the finish date; allow_delay may.',
-  input: z.object({ project: z.string(), mode: z.enum(['within_slack', 'allow_delay']).default('within_slack'), dry_run: z.boolean().default(true) }),
+    'Resolve over-allocation by moving task starts. With dry_run (the default) it only proposes; apply only after the person agrees, passing the proposal\'s `starts` as `expect` so that nothing is applied if the plan changed in between. within_slack never moves the finish date; allow_delay may.',
+  input: z.object({
+    project: z.string(),
+    mode: z.enum(['within_slack', 'allow_delay']).default('within_slack'),
+    dry_run: z.boolean().default(true),
+    expect: z.record(z.string(), z.string()).optional().describe('The `starts` of the dry run the person agreed to'),
+  }),
   kind: 'changes',
   destructive: true,
   async preview(ctx, input) {
     const p = await level(ctx, input.project, { mode: input.mode, dryRun: true });
-    if (!p.changes.length) return `Levelling ${input.project.toUpperCase()} would move nothing`;
-    return `Move ${p.changes.length} task starts in ${input.project.toUpperCase()} (finish ${p.finishBefore} → ${p.finishAfter}):\n${p.changes.map((c) => `${c.issue}: ${c.fromStart} → ${c.toStart}`).join('\n')}`;
+    const key = input.project.toUpperCase();
+    if (!p.changes.length) return `Levelling ${key} would move nothing`;
+    const moved = p.changes.filter((c) => c.movedBy === 'resources');
+    const follow = p.changes.length - moved.length;
+    return [
+      `Move ${moved.length} task starts in ${key} (finish ${p.finishBefore} → ${p.finishAfter}):`,
+      ...moved.map((c) => `${c.issue}: ${c.fromStart} → ${c.toStart}`),
+      ...(follow ? [`${follow} more follow their predecessors`] : []),
+    ].join('\n');
   },
   async run(ctx, input) {
-    const res = await level(ctx, input.project, { mode: input.mode, dryRun: input.dry_run });
+    const res = await level(ctx, input.project, { mode: input.mode, dryRun: input.dry_run, expect: input.expect });
+    const moved = Object.keys(res.starts).length;
     return {
       data: res,
-      summary: input.dry_run ? `Levelling would move ${res.changes.length} tasks` : `Levelled ${res.changes.length} tasks`,
+      summary: input.dry_run ? `Levelling would move ${moved} task starts` : `Levelled: moved ${moved} task starts`,
     };
   },
 });
