@@ -1,4 +1,5 @@
-import { formatPeriod, type FieldValue, type IssueDetail, type IssueField, type ProjectField, type User } from '@a4a/shared';
+import type { FieldValue, IssueDetail, IssueField, ProjectField, User } from '@a4a/shared';
+import { formatPeriod } from '@a4a/shared/periods';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Avatar, Who } from '../../components/Who';

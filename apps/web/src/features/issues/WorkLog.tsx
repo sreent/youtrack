@@ -1,4 +1,5 @@
-import { formatPeriod, type IssueDetail, type UserRef } from '@a4a/shared';
+import type { IssueDetail, UserRef } from '@a4a/shared';
+import { formatPeriod } from '@a4a/shared/periods';
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { del, post } from '../../api/client';
