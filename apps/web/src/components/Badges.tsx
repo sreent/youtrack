@@ -38,21 +38,26 @@ export function StateBadge({ fields }: { fields: IssueField[] }) {
   return <Badge tone={state.tone}>{state.name}</Badge>;
 }
 
-const PRIORITY_STEPS = 5;
+/** Five levels, highest first: Show-stopper 5 … Minor 1, from the option's place in its list. */
+export function priorityLevel(p: OptionValue): number {
+  return Math.max(1, Math.min(5, 5 - p.ordinal));
+}
 
-/** Priority as a five-step meter beside its word: shape, never colour. */
-export function PriorityMeter({ fields, compact }: { fields: IssueField[]; compact?: boolean }) {
-  const p = optionOf(fields, 'Priority');
+/** Priority as five rising steps beside its word: a shape, never a colour (Ocean's PriorityMeter). */
+export function PriorityMeter({ fields, value }: { fields?: IssueField[]; value?: OptionValue | null }) {
+  const p = value ?? (fields ? optionOf(fields, 'Priority') : null);
   if (!p) return null;
-  const filled = Math.max(1, PRIORITY_STEPS - p.ordinal);
+  const level = priorityLevel(p);
   return (
-    <span className="priority" role="img" aria-label={`Priority: ${p.name}`}>
-      <span className="priority-meter" aria-hidden="true">
-        {Array.from({ length: PRIORITY_STEPS }, (_, i) => (
-          <span key={i} className={i < filled ? 'on' : undefined} />
-        ))}
+    <span className="priority" role="meter" aria-label="Priority" aria-valuemin={1} aria-valuemax={5} aria-valuenow={level} aria-valuetext={p.name}>
+      <span className="priority-steps" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+        <i />
+        <i />
       </span>
-      {compact ? null : <span className="priority-word">{p.name}</span>}
+      <span className="priority-word">{p.name}</span>
     </span>
   );
 }

@@ -11,27 +11,28 @@ export function initials(name: string): string {
 export type WhoKind = 'person' | 'agent' | 'service' | 'own';
 
 /** People are round with initials; agents are lagoon squares with the agent's mark; services, the tool. */
-export function Avatar({ kind, name }: { kind: WhoKind; name: string }) {
+export function Avatar({ kind, name, small }: { kind: WhoKind; name: string; small?: boolean }) {
+  const sm = small ? ' small' : '';
   if (kind === 'agent')
     return (
-      <span className="avatar agent" aria-hidden="true">
+      <span className={`avatar agent${sm}`} aria-hidden="true">
         <Icon name="agent" />
       </span>
     );
   if (kind === 'service')
     return (
-      <span className="avatar service" aria-hidden="true">
+      <span className={`avatar service${sm}`} aria-hidden="true">
         <Icon name="tool" />
       </span>
     );
   if (kind === 'own')
     return (
-      <span className="avatar own" aria-hidden="true">
+      <span className={`avatar own${sm}`} aria-hidden="true">
         <Icon name="audit" />
       </span>
     );
   return (
-    <span className="avatar" aria-hidden="true">
+    <span className={`avatar${sm}`} aria-hidden="true">
       {initials(name)}
     </span>
   );
@@ -39,8 +40,8 @@ export function Avatar({ kind, name }: { kind: WhoKind; name: string }) {
 
 export function Who({ kind, name, about, small }: { kind: WhoKind; name: string; about?: string; small?: boolean }) {
   return (
-    <span className={small ? 'who who-sm' : 'who'} data-kind={kind}>
-      <Avatar kind={kind} name={name} />
+    <span className="who" data-kind={kind}>
+      <Avatar kind={kind} name={name} small={small} />
       <span>
         <span className="who-name">{name}</span>
         {about ? <span className="who-about"> {about}</span> : null}

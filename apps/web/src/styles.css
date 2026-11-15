@@ -185,3 +185,68 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* A listbox with the focus in it (an issue's field choices) shows which option the arrows are on. */
+.options:focus-visible {
+  outline: none;
+}
+.options:focus [role="option"][data-active] {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+/* A tag that links to its issues reads as a chip, not a link. */
+a.chip {
+  color: inherit;
+  text-decoration: none;
+}
+a.chip:hover {
+  border-color: var(--line-strong);
+}
+
+/* Text that turns into a field when chosen (an issue's summary). */
+.a4-editable {
+  cursor: text;
+  border-radius: var(--radius-sm);
+}
+.a4-editable:hover {
+  background: var(--sunken);
+}
+.a4-editable:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The field panel sits at the page's right edge: its choices open towards the page, not off it. */
+.a4-split .fields-row .popover.options {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+/* A heading that shares a row with its actions sits on the row's line. */
+.a4-row > h2,
+.a4-row > h3 {
+  margin: 0;
+}
+
+/* Issues like the one being reported, in a narrow column: id and state, then the summary. */
+.a4-similar {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.a4-similar li {
+  display: grid;
+  gap: 0.2rem;
+}
+.a4-similar a {
+  color: var(--text);
+  text-decoration: none;
+}
+.a4-similar a:hover {
+  text-decoration: underline;
+}
+.a4-similar .resolved a {
+  color: var(--muted);
+}
