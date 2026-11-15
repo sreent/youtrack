@@ -305,6 +305,9 @@ class CommandParser {
         }
       }
       if (best !== null && bestD > 0 && bestD <= Math.max(1, Math.floor(typed.length / 4))) return { value: best, words: k };
+      // Still being typed: the start of a value of several words.
+      const started = k > 1 ? values.find((v) => v.toLowerCase().startsWith(typed)) : undefined;
+      if (started) return { value: started, words: k };
     }
     return null;
   }
@@ -412,43 +415,66 @@ export function describeCommand(ops: CommandOp[]): string {
 }
 
 /** Completions for the command dialog. */
+/**
+ * What could come next at the caret. A value can be several words ("In Progress"), so the
+ * text being typed may start a few words back: each start is tried, longest first, and
+ * the first that something fits replaces from there.
+ */
 export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, projectIds: string[], limit = 20): SuggestItem[] {
   const before = input.slice(0, caret);
-  const m = /(\S*)$/.exec(before);
-  const prefix = (m?.[1] ?? '').toLowerCase();
-  const replaceStart = caret - (m?.[1]?.length ?? 0);
-  const out: SuggestItem[] = [];
-  const push = (label: string, insert: string, kind: SuggestItem['kind'], description?: string) => {
-    if (out.length < limit && (!prefix || label.toLowerCase().startsWith(prefix) || label.toLowerCase().split(/\s+/).some((w) => w.startsWith(prefix)))) {
-      out.push({ label, insert, kind, description, replaceStart, replaceEnd: caret });
-    }
-  };
+  const words = [...before.matchAll(/\S+/g)].map((m) => ({ text: m[0], start: m.index! }));
+  const typing = words.length > 0 && !/\s$/.test(before); // the caret is at the end of a word
+
   const fieldIds = new Set<string>();
   for (const pid of projectIds) for (const pf of s.projectFields.get(pid) ?? []) fieldIds.add(pf.fieldId);
   const fields = [...fieldIds].map((id) => s.fields.get(id)!).filter(Boolean);
-  // After a field name -> its values
-  const words = before.toLowerCase().trimEnd().split(/\s+/);
-  const prevText = (prefix ? words.slice(0, -1) : words).join(' ');
-  const afterField = fields.find((f) => prevText.endsWith(f.name.toLowerCase()));
-  if (afterField) {
-    if (afterField.type === 'user') {
-      push('me', 'me ', 'user');
-      for (const u of s.users.values()) if (!u.banned) push(u.login, `${u.login} `, 'user', u.name);
-    } else {
-      const names = new Set<string>();
-      for (const pid of projectIds) for (const v of allowedValues(s, afterField.id, pid)) names.add(v.name);
-      for (const n of names) push(n, `${n} `, 'value', afterField.name);
-    }
-    if (out.length) return out;
-  }
-  for (const f of fields) push(f.name, `${f.name} `, 'field', f.type);
-  for (const f of fields) {
-    if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+  const valuesOf = (fieldId: string) => {
     const names = new Set<string>();
-    for (const pid of projectIds) for (const v of allowedValues(s, f.id, pid)) names.add(v.name);
-    for (const n of names) push(n, `${n} `, 'value', f.name);
+    for (const pid of projectIds) for (const v of allowedValues(s, fieldId, pid)) names.add(v.name);
+    return [...names];
+  };
+  const people = (): [string, SuggestItem['kind'], string?][] => [
+    ['me', 'user'],
+    ...[...s.users.values()].filter((u) => !u.banned).map((u): [string, SuggestItem['kind'], string] => [u.login, 'user', u.name]),
+  ];
+
+  /** What fits after the given words (lower case), or null when they say nothing about it. */
+  const after = (prev: string): [string, SuggestItem['kind'], string?][] | null => {
+    const last = prev.split(' ').pop() ?? '';
+    if (last === 'for') return people();
+    if (last === 'tag' || last === 'untag') return [...s.tags.values()].map((t): [string, SuggestItem['kind']] => [t.name, 'tag']);
+    const field = fields
+      .filter((f) => prev === f.name.toLowerCase() || prev.endsWith(` ${f.name.toLowerCase()}`))
+      .sort((a, b) => b.name.length - a.name.length)[0];
+    if (field) return field.type === 'user' ? people() : valuesOf(field.id).map((n): [string, SuggestItem['kind'], string] => [n, 'value', field.name]);
+    return null;
+  };
+  const anything = (): [string, SuggestItem['kind'], string?][] => [
+    ...fields.map((f): [string, SuggestItem['kind'], string] => [f.name, 'field', f.type]),
+    ...fields
+      .filter((f) => f.type === 'enum' || f.type === 'state' || f.type === 'version')
+      .flatMap((f) => valuesOf(f.id).map((n): [string, SuggestItem['kind'], string] => [n, 'value', f.name])),
+    ...s.linkPhrases.map((p): [string, SuggestItem['kind'], string] => [p.display, 'keyword', 'Link to another issue']),
+    ...['tag', 'untag', 'for me', 'remove', 'add', 'comment'].map((k): [string, SuggestItem['kind']] => [k, 'keyword']),
+  ];
+
+  // Try the typed text as the last k words (k = 0 when a new word starts at the caret).
+  const most = typing ? Math.min(3, words.length) : 0;
+  for (let k = most; k >= 0; k--) {
+    if (typing && k === 0) continue;
+    const from = words.length - k;
+    const typed = words.slice(from).map((w) => w.text).join(' ').toLowerCase();
+    const prev = words.slice(0, from).map((w) => w.text.toLowerCase()).join(' ');
+    const options = after(prev) ?? (k <= 1 ? anything() : null);
+    if (!options) continue;
+    const replaceStart = k ? words[from]!.start : caret;
+    const fits = options.filter(([label]) => {
+      const l = label.toLowerCase();
+      return !typed || l.startsWith(typed) || (k === 1 && l.split(/\s+/).some((w) => w.startsWith(typed)));
+    });
+    // A word that is already complete and fits nothing more isn't worth a list.
+    if (!fits.length || (fits.length === 1 && fits[0]![0].toLowerCase() === typed)) continue;
+    return fits.slice(0, limit).map(([label, kind, description]) => ({ label, insert: `${label} `, kind, description, replaceStart, replaceEnd: caret }));
   }
-  for (const p of s.linkPhrases) push(p.display, `${p.display} `, 'keyword', 'Link to another issue');
-  for (const k of ['tag', 'untag', 'for me', 'remove', 'add', 'comment']) push(k, `${k} `, 'keyword');
-  return out;
+  return [];
 }

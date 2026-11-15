@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runCommand } from '../src/commands/executor';
+import { suggestCommand } from '../src/commands/parser';
 import { parseQuery } from '../src/search/parser';
 import { countIssues, parseQueryForApi, searchIssues } from '../src/search/service';
 import { suggest } from '../src/search/suggest';
@@ -196,6 +197,23 @@ describe('commands', () => {
     expect(await found('Fix versions: 1.1')).toEqual([ids.rate]);
     expect(await found('Fix versions: 2.0')).toEqual([ids.rate, ids.sso].sort());
     expect(await found('commenter: anna')).toEqual([ids.rate, ids.sso].sort());
+  });
+
+  it('suggests what fits at the caret, replacing all of a value of several words', async () => {
+    const s = await w.app.schema.get();
+    const projectIds = [...s.projects.values()].map((p) => p.id);
+    const at = (text: string) => suggestCommand(text, text.length, s, projectIds);
+    const apply = (text: string, i = 0) => {
+      const item = at(text)[i]!;
+      return text.slice(0, item.replaceStart) + item.insert + text.slice(item.replaceEnd);
+    };
+    expect(apply('State In Prog')).toBe('State In Progress ');
+    expect(apply('State In Progres')).toBe('State In Progress ');
+    expect(at('State ').map((x) => x.label)).toContain('Fixed');
+    expect(apply('for an')).toBe('for anna ');
+    expect(apply('State Fixed tag needs-r')).toBe('State Fixed tag needs-release ');
+    expect(at('State Fixed').length).toBe(0); // complete, nothing more to say
+    expect(at('').length).toBeGreaterThan(0);
   });
 
   it('reports unknown words with suggestions and changes nothing', async () => {

@@ -324,7 +324,7 @@ class Parser {
           if (words.length !== k) continue;
           const joined = words.map((w) => w.value.toLowerCase()).join(' ');
           const d = Math.min(...known.map((v) => editDistance(joined, v)));
-          if (d > 0 && d <= Math.max(1, Math.floor(joined.length / 4))) {
+          if ((d > 0 && d <= Math.max(1, Math.floor(joined.length / 4))) || known.some((v) => v.startsWith(joined))) {
             this.pos += k;
             return { raw: words.map((w) => w.value).join(' '), end: words[k - 1]!.end };
           }
