@@ -1,5 +1,5 @@
 import type { Sprint } from '@a4a/shared';
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoardView } from '../features/board/api';
@@ -16,10 +16,11 @@ function sprintOption(s: Sprint): string {
 function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {
   const open = sprints.filter((s) => !s.archived);
   const archived = sprints.filter((s) => s.archived);
+  const id = useId();
   return (
-    <label className="a4-sprint-pick">
-      Sprint
-      <select value={current ?? ''} onChange={(e) => onPick(e.target.value)}>
+    <span className="a4-sprint-pick">
+      <label htmlFor={id}>Sprint</label>
+      <select id={id} value={current ?? ''} onChange={(e) => onPick(e.target.value)}>
         {open.map((s) => (
           <option key={s.id} value={s.id}>
             {sprintOption(s)}
@@ -35,7 +36,7 @@ function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current
           </optgroup>
         ) : null}
       </select>
-    </label>
+    </span>
   );
 }
 
@@ -46,6 +47,30 @@ export default function BoardPage() {
   const view = useBoardView(id, sprintParam);
   const [ask, setAsk] = useState<CommandAsk | null>(null);
   const v = view.data;
+
+  // A command moves the card to another column, so the button that opened it is gone when the
+  // dialog closes. Put the focus back on the card's id, wherever it now is, whichever comes
+  // last: the dialog closing or the board being read again.
+  const refocus = useRef<{ id: string; until: number } | null>(null);
+  const askFor = (a: CommandAsk) => {
+    refocus.current = { id: a.issues[0]!.id, until: Infinity };
+    setAsk(a);
+  };
+  const closeAsk = () => {
+    if (refocus.current) refocus.current.until = Date.now() + 3000;
+    setAsk(null);
+  };
+  useEffect(() => {
+    const r = refocus.current;
+    if (!r || ask) return;
+    if (Date.now() > r.until) {
+      refocus.current = null;
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    document.querySelector<HTMLElement>(`li[data-issue="${r.id}"] button.issue-id`)?.focus();
+  }, [ask, v]);
 
   const crumbs = (
     <>
@@ -93,9 +118,9 @@ export default function BoardPage() {
       <div className="a4-stack">
         {v.board.sprintsEnabled && !v.sprint ? <p className="note">This board has no sprint yet, so it shows every issue on it.</p> : null}
         {total === 0 ? <p className="note">{v.sprint ? `Nothing is in ${v.sprint.name} yet.` : 'There are no issues on this board yet.'}</p> : null}
-        <Board view={v} onCommand={setAsk} />
+        <Board view={v} onCommand={askFor} />
       </div>
-      <CommandBar issues={ask?.issues ?? []} open={ask !== null} initial={ask?.initial} onClose={() => setAsk(null)} />
+      <CommandBar issues={ask?.issues ?? []} open={ask !== null} initial={ask?.initial} onClose={closeAsk} />
     </>
   );
 }

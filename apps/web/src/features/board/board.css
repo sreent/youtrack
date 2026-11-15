@@ -13,6 +13,9 @@
 .a4-dragging a {
   cursor: grabbing;
 }
+.board-drop .board-card-summary:hover {
+  text-decoration: none;
+}
 
 /* A card's id is its way to a command from the keyboard: it reads as the id until it's
    pointed at or has the focus, and then as what it is. */

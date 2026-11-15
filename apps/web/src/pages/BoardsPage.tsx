@@ -24,7 +24,7 @@ export default function BoardsPage() {
         </Empty>
       ) : null}
       {boards.data && boards.data.length > 0 ? (
-        <section className="card" aria-labelledby="boards-title">
+        <section className="card a4-boards-card" aria-labelledby="boards-title">
           <h2 id="boards-title" className="hidden">
             All boards
           </h2>

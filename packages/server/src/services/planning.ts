@@ -194,6 +194,7 @@ function taskDto(l: Loaded, t: ScheduledTask): ScheduleTask {
     parent: t.parent,
     depth: t.depth,
     isSummary: t.isSummary,
+    isMilestone: t.isMilestone,
     start: t.start,
     finish: t.finish,
     durationDays: t.durationDays,

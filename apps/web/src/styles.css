@@ -3,9 +3,15 @@
  * Ocean's CSS is unlayered, so it wins over everything Tailwind emits; Tailwind
  * gives layout utilities only (no preflight), and its palette is replaced by
  * Ocean's meanings, so a colour of our own can't creep in.
+ *
+ * Tailwind's utilities carry a prefix (tw:grid, tw:text-muted). Tailwind makes a
+ * utility of every word in the sources that names one, and Ocean's classes are
+ * plain words: without the prefix, Ocean's .hidden (off the page, still read
+ * aloud) picked up Tailwind's display: none, and screen readers lost every
+ * hidden label. With it, no word in the code can become a rule.
  */
 @layer theme, utilities;
-@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @import "@sreent/ocean/tokens.css";

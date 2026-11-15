@@ -218,7 +218,7 @@ export default function NewIssuePage() {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder={'Steps, what you expected, what happened instead.\nMarkdown works here.'} />
           </label>
           {asked.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="tw:grid tw:gap-3 tw:sm:grid-cols-2">
               {asked.map((f) => (
                 <FieldInput key={f.fieldId} field={f} value={fields[f.name] ?? ''} onChange={(v) => setFields((x) => ({ ...x, [f.name]: v }))} />
               ))}

@@ -737,6 +737,7 @@ export const ScheduleTaskSchema = z
     parent: z.string().nullable().describe('Readable id of the parent (summary) task'),
     depth: z.number().int(),
     isSummary: z.boolean(),
+    isMilestone: z.boolean().describe('A point in time (Type Milestone, or no duration), drawn as a diamond'),
     start: isoDate,
     finish: isoDate,
     durationDays: z.number().describe('Working days'),

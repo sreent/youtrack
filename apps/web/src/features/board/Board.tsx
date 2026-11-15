@@ -4,7 +4,7 @@
  * shows where it would land and what dropping it does, or from the keyboard by a command
  * (its id opens the CommandBar). A move shows at once and is taken back if the server refuses it.
  */
-import type { BoardView, UserRef } from '@a4a/shared';
+import type { BoardView } from '@a4a/shared';
 import {
   DndContext,
   MeasuringStrategy,
@@ -30,6 +30,7 @@ import { localToday, spanWords, workCalendar } from '../plan/dates';
 import { plural } from '../plan/format';
 import { useCardMoves, useProjectFieldLists } from './api';
 import {
+  asMoved,
   assigneeOf,
   cellId,
   columnLoad,
@@ -150,7 +151,7 @@ function Card({ card, moving, onCommand }: { card: Placed; moving: boolean; onCo
   });
   const cls = ['board-card', card.resolved ? 'resolved' : '', moving ? 'moving' : ''].filter(Boolean).join(' ');
   return (
-    <li ref={setNodeRef} className={cls} aria-hidden={moving || undefined} {...listeners}>
+    <li ref={setNodeRef} className={cls} data-issue={card.issue.id} aria-hidden={moving || undefined} {...listeners}>
       <CardInside card={card} onCommand={onCommand} quiet={moving} />
     </li>
   );
@@ -258,7 +259,7 @@ function failureWords(failed: { move: { issue: string; fields: Record<string, st
 export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: CommandAsk) => void }) {
   const users = useUsers();
   const projectFields = useProjectFieldLists(useMemo(() => view.board.projects.map((p) => p.key), [view.board.projects]));
-  const book = useMemo(() => valueBook(view, projectFields, (users.data ?? []) as UserRef[]), [view, projectFields, users.data]);
+  const book = useMemo(() => valueBook(view, projectFields, users.data ?? []), [view, projectFields, users.data]);
   const kind = laneKindOf(view, book);
   const lanes = useMemo(() => lanesOf(view, kind, book), [view, kind, book]);
   const { pending, failed, move, dismiss } = useCardMoves();
@@ -344,6 +345,12 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
   const failedCard = failed ? view.columns.findIndex((c) => c.issues.some((i) => i.id === failed.move.issue)) : -1;
   const failure = failed ? failureWords(failed, failedCard >= 0 ? `in ${view.columns[failedCard]!.name}` : 'where it was') : null;
 
+  /** The card as dropping it there would leave it: its lane's value, and resolved in a column that resolves it. */
+  const landed = (card: Placed, to: Target): Placed => {
+    const m = moveFor(view, lanes, card, to.column, lanes.length ? to.lane : card.lane);
+    return m ? asMoved(card, m, book) : card;
+  };
+
   const renderCell = (lane: number, column: number, laneLabel: string | null) => {
     const col = view.columns[column]!;
     const here = byCell.get(cellId(lane, column)) ?? [];
@@ -359,7 +366,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
             onCommand={() => onCommand({ issues: [{ id: card.issue.id, summary: card.issue.summary }], initial: nextColumnCommand(view, card) })}
           />
         ))}
-        {isTarget && active ? <DropSlot card={active} words={dropWords(view, lanes, kind, counts, active, over)} /> : null}
+        {isTarget && active ? <DropSlot card={landed(active, over)} words={dropWords(view, lanes, kind, counts, active, over)} /> : null}
       </Cell>
     );
   };

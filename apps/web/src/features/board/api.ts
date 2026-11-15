@@ -11,16 +11,19 @@ import type { PendingMove } from './model';
 
 export { useBoardView, useBoards } from '../../api/queries';
 
+/** Stable, so the lists are combined once per change, not on every render. */
+const allFields = (results: { data?: ProjectField[] }[]): ProjectField[] => results.flatMap((r) => r.data ?? []);
+
 /** The fields of the board's projects: their values, to show a card where it's going before the server says so. */
 export function useProjectFieldLists(projectKeys: string[]): ProjectField[] {
-  const results = useQueries({
+  return useQueries({
     queries: projectKeys.map((key) => ({
       queryKey: keys.projectFields(key),
       queryFn: () => get<ProjectField[]>(`/projects/${key}/fields`),
       staleTime: 60_000,
     })),
+    combine: allFields,
   });
-  return results.flatMap((r) => r.data ?? []);
 }
 
 export interface FailedMove {

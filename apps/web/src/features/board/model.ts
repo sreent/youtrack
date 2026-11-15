@@ -153,6 +153,12 @@ function moved(issue: Issue, move: PendingMove, book: ValueBook): { issue: Issue
   return { issue: { ...issue, fields }, resolved };
 }
 
+/** The card as it would be once `move` is saved: for the copy that shows where it would land. */
+export function asMoved(card: Placed, move: PendingMove, book: ValueBook): Placed {
+  const m = moved(card.issue, move, book);
+  return { ...card, issue: m.issue, column: move.column, lane: move.lane, resolved: m.resolved ?? card.resolved };
+}
+
 /** Every card, where it is or where the person just put it. */
 export function placeCards(view: BoardView, lanes: Lane[], pending: ReadonlyMap<string, PendingMove>, book: ValueBook): Placed[] {
   const laneField = view.board.swimlaneField;
