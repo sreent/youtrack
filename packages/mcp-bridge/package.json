@@ -1,0 +1,24 @@
+{
+  "name": "tracklet-mcp",
+  "version": "0.1.0",
+  "description": "stdio bridge to a Tracklet MCP server (for MCP clients that only support stdio)",
+  "type": "module",
+  "bin": {
+    "tracklet-mcp": "./dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --platform node --target node20 --clean",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

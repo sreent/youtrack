@@ -1,0 +1,24 @@
+{
+  "name": "tracklet",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A YouTrack-style issue tracker with a REST API, an MCP server and Claude-powered AI features",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm --filter @tracklet/server dev\" \"pnpm --filter @tracklet/web dev\"",
+    "build": "pnpm --filter @tracklet/web build && pnpm --filter @tracklet/server build && pnpm --filter tracklet-mcp build",
+    "start": "pnpm --filter @tracklet/server start",
+    "test": "pnpm --filter @tracklet/server test",
+    "typecheck": "pnpm -r typecheck",
+    "db:seed": "pnpm --filter @tracklet/server db:seed",
+    "db:generate": "pnpm --filter @tracklet/server db:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "5.9.3"
+  }
+}
