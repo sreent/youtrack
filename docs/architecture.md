@@ -167,9 +167,15 @@ Schedules are computed on request, never stored, so they can't go stale. Only **
 
 Levelling is a priority-based serial heuristic, the same family MS Project uses. It is not an optimiser, and the docs say so.
 
+Levelling is proposed before it is applied, and applying writes exactly what was proposed:
+
+- Only the starts of tasks moved *for resources* are written. A task that moved because its predecessors did follows them by itself. Pinning its start would turn a task with a due date and no estimate into a start-to-due window, so the plan after applying would differ from the proposal.
+- Applying is one transaction: the whole proposal or none of it.
+- The caller sends back the proposal's `starts` as `expect`. If levelling would now write anything else, because the plan changed between seeing and applying, nothing is written and the answer is 409 with the new proposal. The web app, the API and the MCP tool all work this way.
+
 ### D11. The UI follows Ocean
 
-The UI takes `@sreent/ocean` pinned to a commit and imports its tokens and component CSS. Tailwind's theme is mapped to Ocean's *meanings* (never its primitives), as `docs/products.md` in Ocean prescribes.
+The UI takes `@sreent/ocean` pinned to a commit and imports its tokens and component CSS. a4a's own pieces (the issue list, query and command bars, field panel, links, history, board, Gantt, load grid and cost panel) were added to Ocean first, each with its markup contract, and a4a's components emit that markup. Until that change merges (sreent/ocean#7), the pin is the branch's head commit. Tailwind's theme is mapped to Ocean's *meanings* (never its primitives), as `docs/products.md` in Ocean prescribes.
 
 Consequences for the data model:
 
@@ -179,11 +185,28 @@ Consequences for the data model:
 - Agents (the assistant, triage, MCP clients) appear as lagoon squares with the agent mark and their lower-case name, never a sparkle.
 - Pages ship with a strict CSP and no inline styles. Bars and meters are SVG attributes, not `style=`.
 
+### D12. Agents propose; people decide, a value at a time
+
+What an agent works out is never in force until a person accepts it. Triage stores its fields, tags and possible duplicates as a suggestion.
+
+- **Applied in parts.** A suggestion can be accepted one value at a time. It stays open while anything in it is still open on the issue *as it is now*, and is applied once nothing is. Status is derived from the issue, not counted, so a value someone set by hand also closes its part.
+- **Its history says where it came from.** The change carries `acceptedFrom: "triage"` in its activity, so the issue's history reads "Anna Schmidt accepted what triage worked out".
+- **Commands read from words.** When the assistant turns words into a command (`POST /ai/command`), the person sees what it would change on each issue first. Applying it records the channel as the assistant.
+
+### D13. Problems carry their fix
+
+A query or command problem names its span and, when there is a likely fix, the text that fixes it (`fix`). The text keeps the `-` or `#` typed before a value, and braces a value that needs it.
+
+- The UI offers the fix as one click ("Did you mean Fixed?"), with no parsing of hint text.
+- Agents over MCP or the API can apply it the same way.
+- A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
 | --- | --- |
-| Two people edit one issue | Changes serialise on the issue row. With `expectedVersion`, the second gets 409 and the current version |
+| Two people edit one issue | Changes serialise on the issue row. With `expectedVersion`, the second gets 409 and the current version. The web app always sends it and re-reads the issue on 409 |
+| Levelling while the plan changes | `expect` (the proposal's starts) makes applying conditional: 409 instead of a different plan than the one agreed |
 | Issue numbers | `UPDATE projects SET next_number = next_number + 1 … RETURNING` inside the creating transaction: gap-free per project, safe under concurrency |
 | A history entry without its change, or the reverse | Impossible: same transaction |
 | Webhooks and triage | At least once, from the outbox, by one worker at a time |
