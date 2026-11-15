@@ -247,4 +247,6 @@ Planned, with the seams already in place:
 - notifications;
 - a VCS integration (`BACK-12 #Fixed` in commits);
 - `LISTEN/NOTIFY` for multi-instance live events;
-- agents as assignees.
+- agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
+- undo for a change an agent made on its own (the assistant at Acts);
+- in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).
