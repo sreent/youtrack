@@ -2,22 +2,25 @@
 
 A YouTrack-style tracker of issues, boards and plans, with a REST API, an MCP server for agents, and AI built in. It joins **a7c** (autonomic), **a5s** (agentos) and **a3t** (ambit), and wears their shared look, [Ocean](https://github.com/sreent/ocean).
 
+a4a's own pieces (issue list, query and command bars, field panel, board, Gantt, load grid, cost panel and more) are proposed to Ocean in [sreent/ocean#7](https://github.com/sreent/ocean/pull/7). The app pins that branch until it merges.
+
 ## What it does
 
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
 - **The query language**, as in YouTrack: `project: BACK #Unresolved for: me Priority: Critical, Major sort by: updated desc`.
   - Autocomplete as you type.
-  - Problems point at the character, with a hint: *Unknown value "Fixd" for State · Did you mean "Fixed"?*
-- **Commands** change many issues at once: `State Fixed Assignee anna tag regression`, `subtask of BACK-3`. Every command can be previewed first.
+  - Problems are underlined where they are, with the fix one click away: *Unknown value "Fixd" for State · Did you mean Fixed?* The API gives agents the same fix as data.
+  - Or ask in words: an agent turns them into a query, and shows the query it read before it runs.
+- **Commands** change many issues at once: `State Fixed Assignee anna tag regression`, `subtask of BACK-3`. The web app shows what a command changes on each issue before it applies. It can also take the command in words.
 - **Agile boards** with sprints, WIP limits and swimlanes.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
-  - resource load and levelling;
+  - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
 - **AI with Claude**:
-  - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults.
+  - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
   - Search and commands in plain words.
   - Issue summaries.
