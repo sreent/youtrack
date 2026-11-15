@@ -1,5 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent } from '@a4a/shared';
+import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent,
+  patchBody,
+} from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { requireScope } from '../../context';
@@ -104,7 +106,7 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, body }) => createWebhook(ctx, body),
   );
-  route(app, { method: 'patch', path: '/webhooks/{id}', tags: hooks, summary: 'Change a webhook', params: Id, body: WebhookBody.partial(), response: WebhookSchema }, ({ ctx, params, body }) => updateWebhook(ctx, params.id, body));
+  route(app, { method: 'patch', path: '/webhooks/{id}', tags: hooks, summary: 'Change a webhook', params: Id, body: patchBody(WebhookBody), response: WebhookSchema }, ({ ctx, params, body }) => updateWebhook(ctx, params.id, body));
   route(app, { method: 'delete', path: '/webhooks/{id}', tags: hooks, summary: 'Delete a webhook', params: Id, status: 204 }, async ({ ctx, params }) => {
     await deleteWebhook(ctx, params.id);
     return null;

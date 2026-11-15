@@ -63,7 +63,7 @@ async function teamSummary(db: Db, projectId: string, assigneeFieldId: string | 
   return rows
     .map((r) => {
       const u = s.users.get(r.user_id);
-      return u ? `${u.login} (${u.name}): ${r.n} issues in this project` : null;
+      return u ? `${u.login} (${u.name}): ${r.n} ${r.n === 1 ? "issue" : "issues"} in this project` : null;
     })
     .filter(Boolean)
     .join('; ');

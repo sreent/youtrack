@@ -21,6 +21,7 @@ import {
   UpdateIssueBody,
   WorkItemBody,
   WorkItemSchema,
+  patchBody,
 } from '@a4a/shared';
 import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
@@ -180,7 +181,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
   const saved = ['Saved searches'];
   route(app, { method: 'get', path: '/saved-searches', tags: saved, summary: 'Your saved searches and shared ones', response: z.array(SavedSearchSchema) }, ({ ctx }) => listSavedSearches(ctx));
   route(app, { method: 'post', path: '/saved-searches', tags: saved, summary: 'Save a search', body: SavedSearchBody, response: SavedSearchSchema }, ({ ctx, body }) => createSavedSearch(ctx, body));
-  route(app, { method: 'patch', path: '/saved-searches/{id}', tags: saved, summary: 'Change a saved search', params: z.object({ id: z.string() }), body: SavedSearchBody.partial(), response: SavedSearchSchema }, ({ ctx, params, body }) => updateSavedSearch(ctx, params.id, body));
+  route(app, { method: 'patch', path: '/saved-searches/{id}', tags: saved, summary: 'Change a saved search', params: z.object({ id: z.string() }), body: patchBody(SavedSearchBody), response: SavedSearchSchema }, ({ ctx, params, body }) => updateSavedSearch(ctx, params.id, body));
   route(app, { method: 'delete', path: '/saved-searches/{id}', tags: saved, summary: 'Delete a saved search', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteSavedSearch(ctx, params.id);
     return null;

@@ -13,6 +13,20 @@ import {
   TRIAGE_MODES,
 } from './constants';
 
+/**
+ * The body of a PATCH: every field of the create body, optional, and none filled in by a
+ * default. `.partial()` keeps defaults, so a PATCH that left out `sprintsEnabled` or
+ * `active` would quietly reset it; with this, what isn't sent isn't changed.
+ */
+export function patchBody<T extends z.ZodRawShape>(schema: z.ZodObject<T>): z.ZodObject<{ [K in keyof T]: z.ZodOptional<T[K]> }> {
+  const shape: Record<string, z.ZodType> = {};
+  for (const [key, field] of Object.entries(schema.shape)) {
+    const inner = field instanceof z.ZodDefault ? (field.unwrap() as z.ZodType) : (field as z.ZodType);
+    shape[key] = inner.optional();
+  }
+  return z.object(shape) as unknown as z.ZodObject<{ [K in keyof T]: z.ZodOptional<T[K]> }>;
+}
+
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date as YYYY-MM-DD');
 
 /**

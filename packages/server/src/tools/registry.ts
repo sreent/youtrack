@@ -32,6 +32,11 @@ import { defineTool, type ToolDef } from './types';
 // Presentation helpers
 // ---------------------------------------------------------------------------
 
+/** "1 issue", "3 issues". */
+function count(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function presentField(f: IssueField): string | null {
   const v = f.value;
   if (v === null || v === undefined) return null;
@@ -156,7 +161,7 @@ const searchIssuesTool = defineTool({
         updated: i.updatedAt.slice(0, 16).replace('T', ' '),
       };
     });
-    return { data: { total: res.total, returned: rows.length, issues: rows }, summary: `${res.total} issues match "${input.query}"` };
+    return { data: { total: res.total, returned: rows.length, issues: rows }, summary: `${count(res.total, 'issue')} match "${input.query}"` };
   },
 });
 
@@ -205,7 +210,7 @@ const countIssuesTool = defineTool({
   kind: 'reads',
   async run(ctx, input) {
     const res = await countIssues(ctx, input.query, input.group_by);
-    return { data: res, summary: `${res.total} issues${input.group_by ? ` by ${input.group_by}` : ''}` };
+    return { data: res, summary: `${count(res.total, 'issue')}${input.group_by ? ` by ${input.group_by}` : ''}` };
   },
 });
 
@@ -254,7 +259,7 @@ const findSimilarTool = defineTool({
     const items = await findSimilar(ctx, { summary: summary!.slice(0, 500), description: rest.join('\n'), project: input.project, excludeIssue: input.exclude, limit: input.limit });
     return {
       data: items.map((i) => ({ id: i.issue.id, summary: i.issue.summary, state: i.issue.state, resolved: i.issue.resolved, similarity: i.score })),
-      summary: `${items.length} similar issues`,
+      summary: `${count(items.length, 'similar issue')}`,
     };
   },
 });
@@ -423,7 +428,7 @@ const applyCommandTool = defineTool({
     const changed = res.results.filter((r) => r.changes.length).length;
     return {
       data: { applied: res.applied, dryRun: input.dry_run, results: res.results },
-      summary: input.dry_run ? `Previewed "${input.command}" on ${input.issues.length} issues` : `Applied "${input.command}" to ${changed} issues`,
+      summary: input.dry_run ? `Previewed "${input.command}" on ${count(input.issues.length, 'issue')}` : `Applied "${input.command}" to ${count(changed, 'issue')}`,
     };
   },
 });

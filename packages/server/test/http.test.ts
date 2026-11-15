@@ -161,6 +161,32 @@ describe('issues over REST', () => {
     expect(view.columns.map((c: { name: string }) => c.name)).toContain('Done');
     expect(view.columns.reduce((n: number, c: { count: number }) => n + c.count, 0)).toBe(7);
   });
+
+  it('changes only what a PATCH sends: no defaults fill in the rest', async () => {
+    const boards = (await call('GET', '/boards')).body;
+    const board = boards.find((b: { name: string }) => b.name === 'Backend sprints');
+    const renamed = await call('PATCH', `/boards/${board.id}`, { body: { name: 'Backend sprints (renamed)' } });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body).toMatchObject({ name: 'Backend sprints (renamed)', sprintsEnabled: true, columnField: board.columnField });
+
+    const view = (await call('GET', `/boards/${board.id}/view`)).body;
+    const sprint = view.sprint;
+    expect(sprint.goal).not.toBe('');
+    const sprintRenamed = await call('PATCH', `/sprints/${sprint.id}`, { body: { name: 'Sprint 14b' } });
+    expect(sprintRenamed.body).toMatchObject({ name: 'Sprint 14b', goal: sprint.goal });
+
+    // Webhooks are for admins: the cookie is the administrator's session.
+    const hook = await call('POST', '/webhooks', { auth: 'cookie', body: { url: 'https://example.com/hook', events: ['issue.created'] } });
+    expect(hook.status).toBe(201);
+    const paused = await call('PATCH', `/webhooks/${hook.body.id}`, { auth: 'cookie', body: { active: false } });
+    expect(paused.body).toMatchObject({ active: false, events: ['issue.created'] });
+    const moved = await call('PATCH', `/webhooks/${hook.body.id}`, { auth: 'cookie', body: { url: 'https://example.com/other' } });
+    expect(moved.body).toMatchObject({ active: false, url: 'https://example.com/other', events: ['issue.created'] });
+
+    const saved = await call('POST', '/saved-searches', { body: { name: 'Shared one', query: '#Unresolved', shared: true } });
+    const savedRenamed = await call('PATCH', `/saved-searches/${saved.body.id}`, { body: { name: 'Shared, renamed' } });
+    expect(savedRenamed.body).toMatchObject({ name: 'Shared, renamed', shared: true });
+  });
 });
 
 describe('MCP', () => {

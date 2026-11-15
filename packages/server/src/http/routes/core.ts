@@ -18,6 +18,7 @@ import {
   UpdateProjectBody,
   UpdateUserBody,
   UserSchema,
+  patchBody,
 } from '@a4a/shared';
 import { z } from 'zod';
 import { notFound } from '../../lib/errors';
@@ -91,7 +92,7 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
     return null;
   });
   route(app, { method: 'post', path: '/fields/{id}/values', tags: fields, summary: 'Add a value (optionally scoped to one project)', params: Id, body: FieldValueBody, response: FieldValueSchema }, ({ ctx, params, body }) => addFieldValue(ctx, params.id, body));
-  route(app, { method: 'patch', path: '/fields/{id}/values/{valueId}', tags: fields, summary: 'Change a value: rename, tone, order, archive', params: z.object({ id: z.string(), valueId: z.string() }), body: FieldValueBody.partial(), response: FieldValueSchema }, ({ ctx, params, body }) => updateFieldValue(ctx, params.id, params.valueId, body));
+  route(app, { method: 'patch', path: '/fields/{id}/values/{valueId}', tags: fields, summary: 'Change a value: rename, tone, order, archive', params: z.object({ id: z.string(), valueId: z.string() }), body: patchBody(FieldValueBody), response: FieldValueSchema }, ({ ctx, params, body }) => updateFieldValue(ctx, params.id, params.valueId, body));
   route(app, { method: 'delete', path: '/fields/{id}/values/{valueId}', tags: fields, summary: 'Delete an unused value', params: z.object({ id: z.string(), valueId: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteFieldValue(ctx, params.id, params.valueId);
     return null;
@@ -100,7 +101,7 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
   // Tags & link types --------------------------------------------------------------
   route(app, { method: 'get', path: '/tags', tags: ['Tags'], summary: 'List tags', response: z.array(TagSchema) }, ({ ctx }) => listTags(ctx));
   route(app, { method: 'post', path: '/tags', tags: ['Tags'], summary: 'Create a tag', body: TagBody, response: TagSchema }, ({ ctx, body }) => createTag(ctx, body));
-  route(app, { method: 'patch', path: '/tags/{id}', tags: ['Tags'], summary: 'Rename a tag', params: Id, body: TagBody.partial(), response: TagSchema }, ({ ctx, params, body }) => updateTag(ctx, params.id, body));
+  route(app, { method: 'patch', path: '/tags/{id}', tags: ['Tags'], summary: 'Rename a tag', params: Id, body: patchBody(TagBody), response: TagSchema }, ({ ctx, params, body }) => updateTag(ctx, params.id, body));
   route(app, { method: 'delete', path: '/tags/{id}', tags: ['Tags'], summary: 'Delete a tag', params: Id, status: 204 }, async ({ ctx, params }) => {
     await deleteTag(ctx, params.id);
     return null;
