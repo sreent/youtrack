@@ -1,5 +1,5 @@
 import type { QueryProblem } from '@a4a/shared';
-import { didYouMean } from '../lib/text';
+import { didYouMean, editDistance } from '../lib/text';
 import { lex, type Token } from './lexer';
 import { SORT_ATTRIBUTES, type TermDef, type Vocabulary } from './vocabulary';
 
@@ -29,6 +29,7 @@ export interface SortItem {
 }
 
 export interface ParsedQuery {
+  input: string;
   root: QueryNode | null;
   sort: SortItem[];
   problems: QueryProblem[];
@@ -86,7 +87,7 @@ class Parser {
     return null;
   }
 
-  parse(): ParsedQuery {
+  parse(): Omit<ParsedQuery, 'input'> {
     let root: QueryNode | null = null;
     if (this.peek() && !this.atSortBy()) root = this.parseOr();
     while (this.peek() && !this.atSortBy()) {
@@ -199,6 +200,7 @@ class Parser {
         start: first.start,
         end: colon.start,
         hint: guess ? `Did you mean "${guess}"?` : undefined,
+        fix: guess ?? undefined,
       });
       this.parseValues(undefined); // consume values to keep going
       return null;
@@ -309,6 +311,25 @@ class Parser {
           return { raw: words.map((w) => w.value).join(' '), end: words[k - 1]!.end };
         }
       }
+      // Not a value as typed. A misspelt value of several words ("In Progres") is read as one,
+      // so the problem and its fix cover all of it, rather than one word and some loose text.
+      if (!knownSet.has(t.value.toLowerCase())) {
+        for (let k = Math.min(3, maxWords); k >= 2; k--) {
+          const words: Token[] = [];
+          for (let i = 0; i < k; i++) {
+            const w = this.peek(i);
+            if (w?.kind !== 'word' || (i > 0 && this.isStopWord(i))) break;
+            words.push(w);
+          }
+          if (words.length !== k) continue;
+          const joined = words.map((w) => w.value.toLowerCase()).join(' ');
+          const d = Math.min(...known.map((v) => editDistance(joined, v)));
+          if (d > 0 && d <= Math.max(1, Math.floor(joined.length / 4))) {
+            this.pos += k;
+            return { raw: words.map((w) => w.value).join(' '), end: words[k - 1]!.end };
+          }
+        }
+      }
     }
     this.pos++;
     return { raw: t.value, end: t.end };
@@ -404,5 +425,5 @@ export function parseQuery(input: string, vocab: Vocabulary): ParsedQuery {
   const { tokens, problems } = lex(input);
   const parser = new Parser(tokens, vocab);
   const result = parser.parse();
-  return { ...result, problems: [...problems, ...result.problems] };
+  return { ...result, input, problems: [...problems, ...result.problems] };
 }

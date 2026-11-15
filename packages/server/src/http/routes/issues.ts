@@ -16,6 +16,7 @@ import {
   ParseQueryResultSchema,
   SavedSearchBody,
   SavedSearchSchema,
+  QueryProblemSchema,
   SuggestItemSchema,
   UpdateIssueBody,
   WorkItemBody,
@@ -32,7 +33,7 @@ import { createIssue, deleteIssue, getIssue, resolveIssue, updateIssue } from '.
 import { deleteLinkById, linkIssues, listLinks } from '../../services/links';
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
 import { deleteWorkItem, listWorkItems, logWork } from '../../services/workitems';
-import { requireScope } from '../../context';
+import { requireScope, withChannel } from '../../context';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -151,7 +152,8 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       response: CommandResultSchema.extend({ description: z.string() }),
       status: 200,
     },
-    ({ ctx, body }) => runCommand(ctx, body),
+    // The person applies what the assistant read from their words: record it as theirs, via the assistant.
+    ({ ctx, body }) => runCommand(body.readBy === 'assistant' && ctx.actor.channel === 'web' ? withChannel(ctx, 'assistant') : ctx, body),
   );
   route(
     app,
@@ -161,7 +163,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       tags: ['Commands'],
       summary: 'Check a command and get completions at the caret',
       body: z.object({ issues: z.array(z.string()).min(1).max(50), command: z.string(), caret: z.number().int().min(0).optional() }),
-      response: z.object({ problems: z.array(z.any()), description: z.string(), suggestions: z.array(SuggestItemSchema) }),
+      response: z.object({ problems: z.array(QueryProblemSchema), description: z.string(), suggestions: z.array(SuggestItemSchema) }),
       status: 200,
     },
     async ({ ctx, body }) => {

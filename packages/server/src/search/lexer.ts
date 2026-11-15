@@ -16,6 +16,22 @@ export interface LexProblem {
 
 const WORD_STOP = new Set([' ', '\t', '\n', '\r', ':', ',', '(', ')', '"', '{', '}', '#']);
 
+/** A value as it must be typed to read as one value: braced when it has a space or a stop. */
+export function quoteValue(value: string): string {
+  if (![...value].some((ch) => WORD_STOP.has(ch))) return value;
+  return value.includes('}') ? `"${value.replace(/"/g, '')}"` : `{${value}}`;
+}
+
+/**
+ * What to type in place of input[start..end) to take a suggested value: the value,
+ * quoted as needed, after the minus or # the person typed before it.
+ */
+export function fixValue(input: string, start: number, end: number, value: string): string {
+  const typed = input.slice(start, end);
+  const before = /^-?\s*#?/.exec(typed)?.[0] ?? '';
+  return before + quoteValue(value);
+}
+
 /**
  * Tokenize a query or command. Never throws: unterminated quotes/braces are
  * reported as problems and closed at end of input.

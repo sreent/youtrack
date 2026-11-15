@@ -1,6 +1,6 @@
 import type { QueryProblem, SuggestItem } from '@a4a/shared';
-import { lex, type Token } from '../search/lexer';
-import { didYouMean } from '../lib/text';
+import { fixValue, lex, type Token } from '../search/lexer';
+import { didYouMean, editDistance } from '../lib/text';
 import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
 
@@ -69,9 +69,10 @@ class CommandParser {
     return t?.kind === 'word' ? t.value.toLowerCase() : null;
   }
 
-  private problem(message: string, t: Token | undefined, hint?: string) {
+  /** `fix` is the text to put in the token's place, when there's a likely one. */
+  private problem(message: string, t: Token | undefined, hint?: string, fix?: string | null) {
     const start = t?.start ?? this.input.length;
-    this.problems.push({ message, start, end: t?.end ?? start, hint });
+    this.problems.push({ message, start, end: t?.end ?? start, hint, ...(fix ? { fix } : {}) });
   }
 
   /** Longest phrase matching the upcoming words. */
@@ -181,8 +182,13 @@ class CommandParser {
     if (field) {
       const fieldTok = this.peek()!;
       this.pos += field.length;
+      const reported = this.problems.length;
       const raw = this.readFieldValue(field.item);
-      if (raw === null) return this.problem(`Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
+      if (raw === null) {
+        // Say a value is missing only if reading it didn't already say what was wrong with it.
+        if (this.problems.length === reported) this.problem(`Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
+        return;
+      }
       const effective = mode === 'set' && field.item.multi ? 'add' : mode;
       this.ops.push({ kind: 'field', field: field.item, mode: effective, raw: [raw], display: `${field.item.name} ${raw}` });
       return;
@@ -220,7 +226,7 @@ class CommandParser {
       'comment',
     ];
     const guess = didYouMean(tok.value, vocabulary);
-    this.problem(`Unknown command "${tok.value}"`, tok, guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".');
+    this.problem(`Unknown command "${tok.value}"`, tok, guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".', guess);
   }
 
   /** quoted / braced / single word */
@@ -266,6 +272,43 @@ class CommandParser {
     return null;
   }
 
+  /**
+   * The value nearest to the next one to three words, for a value that didn't match: the
+   * run of words is taken only while none of them starts a command of its own, and the
+   * longest run that is close enough to a value wins.
+   */
+  private nearestValue(values: string[]): { value: string; words: number } | null {
+    const stops = new Set([
+      ...this.fieldsInScope.map((f) => f.name.toLowerCase().split(' ')[0]!),
+      'tag',
+      'untag',
+      'for',
+      'add',
+      'remove',
+      'comment',
+    ]);
+    const words: string[] = [];
+    for (let k = 0; k < 3; k++) {
+      const tok = this.tokens[this.pos + k];
+      if (!tok || tok.kind !== 'word' || (k > 0 && stops.has(tok.value.toLowerCase()))) break;
+      words.push(tok.value);
+    }
+    for (let k = words.length; k >= 1; k--) {
+      const typed = words.slice(0, k).join(' ').toLowerCase();
+      let best: string | null = null;
+      let bestD = Infinity;
+      for (const v of values) {
+        const d = editDistance(typed, v.toLowerCase());
+        if (d < bestD) {
+          bestD = d;
+          best = v;
+        }
+      }
+      if (best !== null && bestD > 0 && bestD <= Math.max(1, Math.floor(typed.length / 4))) return { value: best, words: k };
+    }
+    return null;
+  }
+
   private readFieldValue(field: FieldRow): string | null {
     const t = this.peek();
     if (!t) return null;
@@ -288,9 +331,19 @@ class CommandParser {
           this.pos += hit.length;
           return hit.item.value;
         }
-        const guess = didYouMean(t.value, candidates.map((c) => c.item.value));
-        this.problem(`Unknown value "${t.value}" for ${field.name}`, t, guess ? `Did you mean "${guess}"?` : `Values: ${candidates.map((c) => c.item.value).join(', ')}`);
-        this.pos++;
+        // A misspelt value can run over several words ("In Progres"): read it as one, with one fix.
+        const near = this.nearestValue(candidates.map((c) => c.item.value));
+        const last = this.tokens[this.pos + Math.max(near?.words ?? 1, 1) - 1]!;
+        const typed = this.input.slice(t.start, last.end);
+        const guess = near?.value ?? didYouMean(t.value, candidates.map((c) => c.item.value));
+        const span = { ...t, end: last.end };
+        this.problem(
+          `Unknown value "${typed}" for ${field.name}`,
+          span,
+          guess ? `Did you mean "${guess}"?` : `Values: ${candidates.map((c) => c.item.value).join(', ')}`,
+          guess ? fixValue(this.input, t.start, last.end, guess) : null,
+        );
+        this.pos += near?.words ?? 1;
         return null;
       }
       case 'user':

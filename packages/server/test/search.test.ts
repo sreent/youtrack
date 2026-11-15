@@ -119,6 +119,23 @@ describe('query language', () => {
     await expect(searchIssues(w.as(w.anna), 'State: Fixd', 0, 10)).rejects.toThrow(/Unknown value/);
   });
 
+  it('carries the text that fixes a problem, keeping what was typed around it', async () => {
+    const fixOf = async (q: string) => (await parseQueryForApi(w.as(w.anna), q)).problems.map((p) => [q.slice(p.start, p.end), p.fix]);
+    expect(await fixOf('State: Fixd')).toEqual([['Fixd', 'Fixed']]);
+    expect(await fixOf('State: -Fixd')).toEqual([['-Fixd', '-Fixed']]);
+    expect(await fixOf('State: {In Progres}')).toEqual([['{In Progres}', '{In Progress}']]);
+    expect(await fixOf('#Fixd')).toEqual([['#Fixd', '#Fixed']]);
+    expect(await fixOf('Stat: Open')).toEqual([['Stat', 'State']]);
+    expect(await fixOf('Assignee: anan')).toEqual([['anan', 'anna']]);
+    expect(await fixOf('State: In Progres #Unresolved')).toEqual([['In Progres', '{In Progress}']]);
+    // Applying every fix gives a query with no problems.
+    const q = 'State: Fixd Stat: Open';
+    const r = await parseQueryForApi(w.as(w.anna), q);
+    let fixed = q;
+    for (const p of [...r.problems].sort((a, b) => b.start - a.start)) fixed = fixed.slice(0, p.start) + p.fix + fixed.slice(p.end);
+    expect((await parseQueryForApi(w.as(w.anna), fixed)).problems).toEqual([]);
+  });
+
   it('explains queries in words', async () => {
     const r = await parseQueryForApi(w.as(w.anna), 'project: BACK #Unresolved for: me sort by: updated desc');
     expect(r.explanation).toBe('Issues in project BACK, unresolved, assigned to you sorted by updated (descending)');
@@ -185,6 +202,14 @@ describe('commands', () => {
     const res = await runCommand(w.as(w.anna), { issues: [ids.migr!], command: 'Stat Fixed' });
     expect(res.applied).toBe(false);
     expect(res.problems[0]!.hint).toContain('State');
+    expect(res.problems[0]!.fix?.toLowerCase()).toBe('state');
+    const value = await runCommand(w.as(w.anna), { issues: [ids.migr!], command: 'State Fixd', dryRun: true });
+    expect(value.problems[0]).toMatchObject({ message: 'Unknown value "Fixd" for State', fix: 'Fixed' });
+    // A misspelt value of several words is one problem with one fix, and stops before the next command.
+    const words = await runCommand(w.as(w.anna), { issues: [ids.migr!], command: 'State In Progres for me', dryRun: true });
+    expect(words.problems).toEqual([expect.objectContaining({ message: 'Unknown value "In Progres" for State', fix: '{In Progress}' })]);
+    const fixed = await runCommand(w.as(w.anna), { issues: [ids.migr!], command: 'State {In Progress} for me', dryRun: true });
+    expect(fixed.problems).toEqual([]);
   });
 
   it('links via phrases and refuses ambiguous values', async () => {

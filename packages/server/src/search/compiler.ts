@@ -6,6 +6,7 @@ import { didYouMean } from '../lib/text';
 import { parseReadableId } from '../services/issue-refs';
 import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
+import { fixValue } from './lexer';
 import type { ParsedQuery, QueryNode, SortItem, Span, ValueNode } from './parser';
 import { HAS_ATTRIBUTES, type TermDef } from './vocabulary';
 
@@ -62,12 +63,17 @@ class Compiler {
   problems: QueryProblem[] = [];
   private today: string;
 
-  constructor(private cc: CompileContext) {
+  constructor(
+    private cc: CompileContext,
+    private input = '',
+  ) {
     this.today = cc.today ?? todayISO();
   }
 
-  private problem(message: string, span: Span, hint?: string) {
-    this.problems.push({ message, start: span.start, end: span.end, hint });
+  /** `guess` is a value that would fix it; the problem then carries the text to put in the span's place. */
+  private problem(message: string, span: Span, hint?: string, guess?: string | null) {
+    const fix = guess && this.input ? fixValue(this.input, span.start, span.end, guess) : undefined;
+    this.problems.push({ message, start: span.start, end: span.end, hint, ...(fix ? { fix } : {}) });
   }
 
   compile(node: QueryNode): SQL {
@@ -152,7 +158,7 @@ class Compiler {
       ...[...s.values.values()].map((v) => v.name),
     ];
     const guess = didYouMean(raw, options);
-    this.problem(`Unknown value "#${raw}"`, span, guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.');
+    this.problem(`Unknown value "#${raw}"`, span, guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.', guess);
     return FALSE;
   }
 
@@ -226,7 +232,7 @@ class Compiler {
           if (!ids.length) {
             const names = [...new Set((s.valuesByField.get(field.id) ?? []).map((x) => x.name))];
             const guess = didYouMean(v.raw, names);
-            this.problem(`Unknown value "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : `Values: ${names.join(', ')}`);
+            this.problem(`Unknown value "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : `Values: ${names.join(', ')}`, guess);
             return FALSE;
           }
           return this.optionIn(field.id, ids);
@@ -239,7 +245,7 @@ class Compiler {
           const u = findUser(s, v.raw, this.cc.meId);
           if (!u) {
             const guess = didYouMean(v.raw, [...s.usersByLogin.keys()]);
-            this.problem(`Unknown user "${v.raw}"`, v.span, guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".');
+            this.problem(`Unknown user "${v.raw}"`, v.span, guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".', guess);
             return FALSE;
           }
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.user_id = ${u.id})`;
@@ -524,7 +530,7 @@ class Compiler {
 }
 
 export function compileQuery(parsed: ParsedQuery, cc: CompileContext): CompiledQuery {
-  const c = new Compiler(cc);
+  const c = new Compiler(cc, parsed.input);
   const where = parsed.root ? c.compile(parsed.root) : null;
   const orderBy = c.orderBy(parsed.sort);
   // Report problems left to right, whichever stage found them.

@@ -301,6 +301,7 @@ export type OptionValue = z.infer<typeof OptionValueSchema>;
 export const PeriodValueSchema = z
   .object({ minutes: z.number().int(), presentation: z.string() })
   .meta({ id: 'PeriodValue' });
+export type PeriodValue = z.infer<typeof PeriodValueSchema>;
 
 export const IssueFieldValueSchema = z.union([
   z.null(),
@@ -519,6 +520,7 @@ export const QueryProblemSchema = z
     start: z.number().int(),
     end: z.number().int(),
     hint: z.string().optional(),
+    fix: z.string().optional().describe('Text that fixes it, to put in place of start..end'),
   })
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
@@ -560,6 +562,10 @@ export const CommandBody = z.object({
   command: z.string().default(''),
   comment: z.string().max(50_000).optional(),
   dryRun: z.boolean().default(false),
+  readBy: z
+    .literal('assistant')
+    .optional()
+    .describe("In the web app: the assistant read this command from the person's words (POST /ai/command), so each issue's history says it came via the assistant"),
 });
 export const CommandIssueResultSchema = z
   .object({

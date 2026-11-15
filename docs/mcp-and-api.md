@@ -182,7 +182,7 @@ Deliberately **not** exposed over MCP in v1: deleting issues, user and permissio
 
 ### 5.4 Example agent sessions
 
-- **Claude Code, end to end.** `/mcp__tracklet__work_on_issue BACK-12` → `get_issue` → `apply_command("for me In Progress")` → work in the repo → `add_comment("Root cause: …")` → `create_issue(... parent BACK-12)` for a follow-up → `apply_command("State Fixed", comment: "Fixed in PR #123")`.
+- **Claude Code, end to end.** `/mcp__a4a__work_on_issue BACK-12` → `get_issue` → `apply_command("for me In Progress")` → work in the repo → `add_comment("Root cause: …")` → `create_issue(... parent BACK-12)` for a follow-up → `apply_command("State Fixed", comment: "Fixed in PR #123")`.
 - **Bug intake.** "Users can't log in with SSO on Safari" → `find_similar_issues` → `BACK-40` looks the same → `link_issues(BACK-40 relates to ...)` or `add_comment` with the new report instead of filing a duplicate.
 - **Monday report.** `count_issues(project: BACK #Unresolved, group_by: State)` + `get_activity(since: -7d)` → a summary.
 
