@@ -197,9 +197,9 @@ export default function NewIssuePage() {
             if (summary.trim() && project) void create();
           }}
         >
-          <label>
+          <label htmlFor="new-issue-project">
             Project
-            <select value={project} onChange={(e) => setProject(e.target.value)} required>
+            <select id="new-issue-project" value={project} onChange={(e) => setProject(e.target.value)} required>
               {(projects.data ?? [])
                 .filter((p) => !p.archived)
                 .map((p) => (

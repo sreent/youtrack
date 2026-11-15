@@ -110,17 +110,18 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
           <fieldset className="link-add" id={`${id}-add`}>
             <legend>A link from {issue.id}</legend>
             <div className="link-add-fields">
-              <label>
+              <label htmlFor={`${id}-relation`}>
                 What it says
-                <select value={relation} onChange={(e) => setRelation(e.target.value)}>
+                <select id={`${id}-relation`} value={relation} onChange={(e) => setRelation(e.target.value)}>
                   {phrases.map((p) => (
                     <option key={p}>{p}</option>
                   ))}
                 </select>
               </label>
-              <label>
+              <label htmlFor={`${id}-to`}>
                 To
                 <input
+                  id={`${id}-to`}
                   type="text"
                   value={target}
                   placeholder="BACK-46"
