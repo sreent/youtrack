@@ -1,0 +1,77 @@
+import type { TrackerEvent, UserRef } from '@a4a/shared';
+import { Icon } from './Icon';
+
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
+}
+
+export type WhoKind = 'person' | 'agent' | 'service' | 'own';
+
+/** People are round with initials; agents are lagoon squares with the agent's mark; services, the tool. */
+export function Avatar({ kind, name }: { kind: WhoKind; name: string }) {
+  if (kind === 'agent')
+    return (
+      <span className="avatar agent" aria-hidden="true">
+        <Icon name="agent" />
+      </span>
+    );
+  if (kind === 'service')
+    return (
+      <span className="avatar service" aria-hidden="true">
+        <Icon name="tool" />
+      </span>
+    );
+  if (kind === 'own')
+    return (
+      <span className="avatar own" aria-hidden="true">
+        <Icon name="audit" />
+      </span>
+    );
+  return (
+    <span className="avatar" aria-hidden="true">
+      {initials(name)}
+    </span>
+  );
+}
+
+export function Who({ kind, name, about, small }: { kind: WhoKind; name: string; about?: string; small?: boolean }) {
+  return (
+    <span className={small ? 'who who-sm' : 'who'} data-kind={kind}>
+      <Avatar kind={kind} name={name} />
+      <span>
+        <span className="who-name">{name}</span>
+        {about ? <span className="who-about"> {about}</span> : null}
+      </span>
+    </span>
+  );
+}
+
+export function UserWho({ user, small, about }: { user: UserRef | null | undefined; small?: boolean; about?: string }) {
+  if (!user) return <span className="faint">Nobody</span>;
+  return <Who kind={user.isBot ? 'agent' : 'person'} name={user.isBot ? user.login : user.name} small={small} about={about} />;
+}
+
+/**
+ * Who acted, in Ocean's grammar: a person on the web; an agent (the assistant, an
+ * MCP client) acting for a person; a service (a script with an API token).
+ */
+export function actorWho(actor: TrackerEvent['actor']): { kind: WhoKind; name: string; about: string } {
+  const name = actor.name ?? actor.login ?? 'a4a';
+  switch (actor.channel) {
+    case 'assistant':
+      return { kind: 'agent', name: 'assistant', about: `for ${name}` };
+    case 'mcp':
+      return { kind: 'agent', name: actor.token ?? 'an agent', about: `over MCP, for ${name}` };
+    case 'api':
+      return { kind: 'service', name: actor.token ?? 'a script', about: `through the API, as ${name}` };
+    case 'automation':
+      return { kind: 'agent', name: actor.login ?? 'automation', about: 'on its own' };
+    case 'system':
+      return { kind: 'own', name: 'a4a', about: '' };
+    default:
+      return { kind: 'person', name, about: '' };
+  }
+}

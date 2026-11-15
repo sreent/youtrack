@@ -39,8 +39,16 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   worker.start();
 
   const app = createHttpApp(runtime);
-  const server = await new Promise<Server>((resolve) => {
+  const server = await new Promise<Server>((resolve, reject) => {
     const s = serve({ fetch: app.fetch, port: config.port, hostname: process.env.HOST ?? '0.0.0.0' }, () => resolve(s as Server));
+    (s as Server).once('error', (err: NodeJS.ErrnoException) => {
+      reject(err.code === 'EADDRINUSE' ? new Error(`Port ${config.port} is already in use; set PORT to another one`) : err);
+    });
+  }).catch(async (err) => {
+    runtime.live.stop();
+    await worker.stop();
+    await database.close();
+    throw err;
   });
 
   let stopping: Promise<void> | null = null;

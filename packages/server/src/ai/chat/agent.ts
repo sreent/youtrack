@@ -8,7 +8,7 @@
  *   "auto". All results of one assistant turn go back in a single user message.
  */
 import Anthropic from '@anthropic-ai/sdk';
-import type { ChatMessage, ChatPart, ChatStreamEvent, Conversation, ConversationDetail } from '@tracklet/shared';
+import type { ChatMessage, ChatPart, ChatStreamEvent, Conversation, ConversationDetail } from '@a4a/shared';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { requireScope, withChannel, type Ctx } from '../../context';
 import { aiConversations, aiMessages } from '../../db/schema';

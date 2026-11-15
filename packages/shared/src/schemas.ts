@@ -414,7 +414,7 @@ export const UpdateIssueBody = z.object({
 export type UpdateIssueInput = z.infer<typeof UpdateIssueBody>;
 
 export const IssueListQuery = z.object({
-  query: z.string().default('').describe('Search query in Tracklet query language'),
+  query: z.string().default('').describe('Search query in a4a query language'),
   offset: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });

@@ -1,4 +1,4 @@
-import type { QueryProblem, SuggestItem } from '@tracklet/shared';
+import type { QueryProblem, SuggestItem } from '@a4a/shared';
 import { lex, type Token } from '../search/lexer';
 import { didYouMean } from '../lib/text';
 import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';

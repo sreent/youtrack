@@ -1,4 +1,4 @@
-import type { SuggestItem } from '@tracklet/shared';
+import type { SuggestItem } from '@a4a/shared';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { lex, type Token } from './lexer';
 import { buildVocabulary, SORT_ATTRIBUTES, type TermDef, type Vocabulary } from './vocabulary';

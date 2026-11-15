@@ -1,4 +1,4 @@
-import type { FieldType } from '@tracklet/shared';
+import type { FieldType } from '@a4a/shared';
 import { allowedValues, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 
 /** What a query term targets. */

@@ -54,7 +54,7 @@ describe('setup and authentication', () => {
     });
     expect(res.status).toBe(201);
     cookie = (res.headers.get('set-cookie') ?? '').split(';')[0]!;
-    expect(cookie).toMatch(/^tracklet_session=/);
+    expect(cookie).toMatch(/^a4a_session=/);
     expect((await call('GET', '/auth/setup', { auth: 'none' })).body.needsSetup).toBe(false);
     const again = await call('POST', '/auth/setup', { auth: 'none', body: { login: 'eve', name: 'Eve', password: 'password123' } });
     expect(again.status).toBe(409);
@@ -79,7 +79,7 @@ describe('setup and authentication', () => {
     const full = await call('POST', '/me/tokens', { auth: 'cookie', body: { name: 'ci', scopes: ['read', 'write'] } });
     expect(full.status).toBe(201);
     token = full.body.token;
-    expect(token).toMatch(/^trk_/);
+    expect(token).toMatch(/^a4a_/);
     const ro = await call('POST', '/me/tokens', { auth: 'cookie', body: { name: 'explorer', scopes: ['read'] } });
     readToken = ro.body.token;
     const me = await call('GET', '/me', { auth: 'read' });
@@ -90,7 +90,7 @@ describe('setup and authentication', () => {
     const list = await call('GET', '/me/tokens', { auth: 'cookie' });
     expect(list.body.map((t: { name: string }) => t.name).sort()).toEqual(['ci', 'explorer']);
     expect(JSON.stringify(list.body)).not.toContain(token);
-    expect((await call('GET', '/me', { auth: 'none', headers: { authorization: 'Bearer trk_wrong' } })).status).toBe(401);
+    expect((await call('GET', '/me', { auth: 'none', headers: { authorization: 'Bearer a4a_wrong' } })).status).toBe(401);
   });
 });
 
@@ -189,7 +189,7 @@ describe('MCP', () => {
     expect(tools.find((t) => t.name === 'search_issues')!.annotations).toMatchObject({ readOnlyHint: true });
     expect(tools.find((t) => t.name === 'apply_command')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     const { resources } = await c.listResources();
-    expect(resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['tracklet://guide/query-language', 'tracklet://guide/commands']));
+    expect(resources.map((r) => r.uri)).toEqual(expect.arrayContaining(['a4a://guide/query-language', 'a4a://guide/commands']));
     const { prompts } = await c.listPrompts();
     expect(prompts.map((p) => p.name)).toEqual(expect.arrayContaining(['work_on_issue', 'triage_backlog', 'report_bug', 'status_report']));
     await c.close();
@@ -210,7 +210,7 @@ describe('MCP', () => {
     const issue = JSON.parse((created.content as { text: string }[])[0]!.text);
     const history = await call('GET', `/issues/${issue.id}/activity`);
     expect(history.body[0].actor).toMatchObject({ login: 'ada', channel: 'mcp', token: 'ci' });
-    const doc = await c.readResource({ uri: `tracklet://issues/${issue.id}` });
+    const doc = await c.readResource({ uri: `a4a://issues/${issue.id}` });
     expect((doc.contents[0] as { text: string }).text).toContain('Filed by an agent');
     await c.close();
   });

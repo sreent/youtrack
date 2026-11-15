@@ -1,4 +1,4 @@
-import type { ApiToken, Scope } from '@tracklet/shared';
+import type { ApiToken, Scope } from '@a4a/shared';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -8,8 +8,8 @@ import { notFound, unauthorized } from '../lib/errors';
 import { newId } from '../lib/ids';
 import type { UserRow } from './schema-cache';
 
-export const SESSION_COOKIE = 'tracklet_session';
-const TOKEN_PREFIX = 'trk_';
+export const SESSION_COOKIE = 'a4a_session';
+const TOKEN_PREFIX = 'a4a_';
 
 export async function login(
   db: Db,

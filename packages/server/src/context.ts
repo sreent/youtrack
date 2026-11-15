@@ -1,4 +1,4 @@
-import type { Channel, Role, Scope } from '@tracklet/shared';
+import type { Channel, Role, Scope } from '@a4a/shared';
 import type { Config } from './config';
 import type { Db } from './db/client';
 import type { users } from './db/schema';

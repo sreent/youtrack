@@ -1,4 +1,4 @@
-import { APP_NAME } from '@tracklet/shared';
+import { APP_NAME } from '@a4a/shared';
 import { needsSetup } from './services/auth';
 import { startServer } from './server';
 import './ai/register';

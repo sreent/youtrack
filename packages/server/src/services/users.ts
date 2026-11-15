@@ -1,4 +1,4 @@
-import type { Role, User } from '@tracklet/shared';
+import type { Role, User } from '@a4a/shared';
 import { eq, sql } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

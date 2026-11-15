@@ -1,5 +1,5 @@
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
-import { ErrorSchema } from '@tracklet/shared';
+import { ErrorSchema } from '@a4a/shared';
 import type { Context } from 'hono';
 import type { z } from 'zod';
 import type { Ctx } from '../context';

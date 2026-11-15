@@ -1,0 +1,187 @@
+/*
+ * a4a's look is Ocean (github.com/sreent/ocean, pinned in package.json).
+ * Ocean's CSS is unlayered, so it wins over everything Tailwind emits; Tailwind
+ * gives layout utilities only (no preflight), and its palette is replaced by
+ * Ocean's meanings, so a colour of our own can't creep in.
+ */
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@import "@sreent/ocean/tokens.css";
+@import "@sreent/ocean/components.css";
+@import "@sreent/ocean/charts.css";
+
+@theme inline {
+  --color-*: initial;
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-focus: var(--focus);
+  --color-agent: var(--agent-tone);
+  --color-agent-soft: var(--agent-tone-soft);
+  --color-reads: var(--reads);
+  --color-reads-bg: var(--reads-bg);
+  --color-writes: var(--writes);
+  --color-writes-bg: var(--writes-bg);
+  --color-changes: var(--changes);
+  --color-changes-bg: var(--changes-bg);
+  --color-outside: var(--outside);
+  --color-outside-bg: var(--outside-bg);
+  --color-own: var(--own);
+  --color-own-bg: var(--own-bg);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-idle: var(--idle);
+  --color-idle-bg: var(--idle-bg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+/* --- a4a's page layouts (meanings only) ------------------------------ */
+
+/* React mounts the frame in #root; let the sidebar and page be body.app's grid items. */
+#root {
+  display: contents;
+}
+
+.a4-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: var(--space-6);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .a4-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.a4-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.a4-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.a4-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.a4-actions {
+  justify-content: flex-end;
+}
+
+.a4-navgroup {
+  display: contents;
+}
+
+.a4-me-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.a4-center {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--page);
+}
+
+.a4-auth {
+  width: min(26rem, 100%);
+}
+
+.a4-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.a4-form label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.a4-error {
+  color: var(--bad);
+  font-size: var(--text-sm);
+}
+
+.a4-markdown {
+  overflow-wrap: anywhere;
+}
+.a4-markdown > :first-child {
+  margin-top: 0;
+}
+.a4-markdown > :last-child {
+  margin-bottom: 0;
+}
+.a4-markdown pre,
+.a4-markdown code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.a4-markdown pre {
+  background: var(--sunken);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+.a4-markdown table {
+  border-collapse: collapse;
+}
+.a4-markdown th,
+.a4-markdown td {
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-1) var(--space-3);
+  text-align: left;
+}
+
+.a4-issue-id {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.a4-issue-id:hover {
+  text-decoration: underline;
+}
+
+.a4-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

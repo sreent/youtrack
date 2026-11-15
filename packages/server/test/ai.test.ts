@@ -1,4 +1,4 @@
-import type { ChatStreamEvent } from '@tracklet/shared';
+import type { ChatStreamEvent } from '@a4a/shared';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createConversation, decide, getConversation, sanitizeFallback, sendMessage } from '../src/ai/chat/agent';
@@ -22,7 +22,7 @@ const script = { parsed: [] as unknown[], turns: [] as Turn[], requests: [] as R
 
 function fakeStream(turn: Turn) {
   const message = { id: 'msg_fake', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: turn.content, stop_reason: turn.stop_reason, stop_details: null, usage: { input_tokens: 10, output_tokens: 5 } };
-  const events = turn.content.flatMap((b, index) =>
+  const events = turn.content.flatMap((b, index): Record<string, unknown>[] =>
     b.type === 'text' ? [{ type: 'content_block_delta', index, delta: { type: 'text_delta', text: b.text } }] : b.type === 'thinking' ? [{ type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking: b.thinking } }] : [],
   );
   return {

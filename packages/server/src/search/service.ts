@@ -1,4 +1,4 @@
-import type { CountResult, IssueList, QueryProblem } from '@tracklet/shared';
+import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';

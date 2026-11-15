@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent } from '@tracklet/shared';
+import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent } from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { requireScope } from '../../context';
@@ -98,7 +98,7 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
       tags: hooks,
       summary: 'Create a webhook (admin)',
       description:
-        'Deliveries are POSTs of an Event, signed with `X-Tracklet-Signature: sha256=<HMAC-SHA256 of the body with the secret>`, retried up to 3 times, at least once: dedupe on `X-Tracklet-Event-Id`.',
+        'Deliveries are POSTs of an Event, signed with `X-A4A-Signature: sha256=<HMAC-SHA256 of the body with the secret>`, retried up to 3 times, at least once: dedupe on `X-A4A-Event-Id`.',
       body: WebhookBody,
       response: WebhookCreatedSchema,
     },

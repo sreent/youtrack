@@ -1,6 +1,6 @@
 # Architecture
 
-This is how tracklet is put together, and why. Each decision says what it costs and when to revisit it, so the next change can argue with it instead of guessing.
+This is how a4a is put together, and why. Each decision says what it costs and when to revisit it, so the next change can argue with it instead of guessing.
 
 ## The system
 
@@ -9,7 +9,7 @@ This is how tracklet is put together, and why. Each decision says what it costs 
   browser ──────▶│ /            web UI (React SPA, Ocean)            static files, strict CSP   │
   scripts ──────▶│ /api/v1/*    REST + OpenAPI (Hono, zod)  ─┐                                   │
   MCP clients ──▶│ /mcp         MCP, Streamable HTTP          ├─▶ services ──▶ Postgres / PGlite│
-  stdio clients ─│  (tracklet-mcp bridge ─▶ /mcp)            │      ▲  │                         │
+  stdio clients ─│  (a4a-mcp bridge ─▶ /mcp)            │      ▲  │                         │
                  │ assistant    Claude tool loop ─────────────┘      │  └─▶ activities (outbox)  │
                  │ worker       webhooks · AI triage · live events ◀─┘                            │
                  └────────────────────────────────────────────────────────────────────────────┘
@@ -19,7 +19,7 @@ This is how tracklet is put together, and why. Each decision says what it costs 
 | --- | --- |
 | `packages/shared` | The contract: zod schemas for every request and response, constants, period parsing. The server validates with them, generates OpenAPI from them, and the UI types itself from them. |
 | `packages/server` | Services (the domain), the query and command languages, the planning engine, AI, MCP, HTTP, and the background worker. |
-| `packages/mcp-bridge` | `tracklet-mcp`: a 60-line stdio-to-HTTP bridge for MCP clients that only speak stdio. |
+| `packages/mcp-bridge` | `a4a-mcp`: a 60-line stdio-to-HTTP bridge for MCP clients that only speak stdio. |
 | `apps/web` | The SPA, on the Ocean design system, pinned to a commit. |
 
 ## Decisions
@@ -76,7 +76,7 @@ The worker:
 - keeps a cursor per consumer in `settings`, and advances it only after it handled the rows;
 - is woken immediately after local commits and polls every few seconds otherwise, for changes made by other instances.
 
-Delivery is **at least once**. Webhook receivers dedupe on the event `id` in the payload and the `X-Tracklet-Event-Id` header.
+Delivery is **at least once**. Webhook receivers dedupe on the event `id` in the payload and the `X-A4A-Event-Id` header.
 
 - **Costs:** live events can lag by up to the poll interval across instances.
 - **Revisit when:** multiple instances need sub-second fan-out. Use `LISTEN/NOTIFY` then.
@@ -195,7 +195,7 @@ Consequences for the data model:
 - **Passwords:** scrypt with a per-user salt.
 - **Sessions:** random 256-bit tokens, stored as SHA-256 hashes. The cookie is `HttpOnly; SameSite=Lax`, plus `Secure` behind HTTPS.
 - **CSRF:** cookie-authenticated unsafe requests must come from the server's own origin (Origin/Referer check). Bearer-token requests are not CSRF-able.
-- **API tokens:** `trk_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
+- **API tokens:** `a4a_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
 - **Login:** throttled per IP and login.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).

@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { BoardBody, BoardSchema, BoardViewSchema, SprintBody, SprintIssuesBody, SprintSchema } from '@tracklet/shared';
+import { BoardBody, BoardSchema, BoardViewSchema, SprintBody, SprintIssuesBody, SprintSchema } from '@a4a/shared';
 import { z } from 'zod';
 import {
   boardView,

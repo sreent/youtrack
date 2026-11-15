@@ -1,4 +1,4 @@
-import type { Board, BoardColumn, BoardView, Sprint } from '@tracklet/shared';
+import type { Board, BoardColumn, BoardView, Sprint } from '@a4a/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

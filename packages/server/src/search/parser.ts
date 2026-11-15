@@ -1,4 +1,4 @@
-import type { QueryProblem } from '@tracklet/shared';
+import type { QueryProblem } from '@a4a/shared';
 import { didYouMean } from '../lib/text';
 import { lex, type Token } from './lexer';
 import { SORT_ATTRIBUTES, type TermDef, type Vocabulary } from './vocabulary';

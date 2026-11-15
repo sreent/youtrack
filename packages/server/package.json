@@ -1,5 +1,5 @@
 {
-  "name": "@tracklet/server",
+  "name": "@a4a/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -21,7 +21,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@scalar/api-reference": "^1.78.1",
     "@scalar/hono-api-reference": "^0.12.20",
-    "@tracklet/shared": "workspace:*",
+    "@a4a/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
     "pg": "^8.23.1",

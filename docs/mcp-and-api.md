@@ -1,6 +1,6 @@
 # What the API and MCP server can do
 
-Working name for the product: **Tracklet** (a YouTrack-style issue tracker; rename freely).
+The product is **a4a** (agenda): a YouTrack-style tracker of issues, boards and plans, in the family of a7c (autonomic), a5s (agentos) and a3t (ambit).
 
 This document is the capability design for the two programmatic surfaces:
 
@@ -11,7 +11,7 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 
 ---
 
-## 1. Who talks to Tracklet
+## 1. Who talks to a4a
 
 | Client | Surface | Typical jobs |
 |---|---|---|
@@ -77,7 +77,7 @@ remove tag needs-info duplicates BACK-7
 **Authentication**
 
 - Session cookie for the web UI.
-- `Authorization: Bearer trk_…` for API tokens.
+- `Authorization: Bearer a4a_…` for API tokens.
 
 **Conventions**
 
@@ -129,8 +129,8 @@ remove tag needs-info duplicates BACK-7
 
 **Transport and auth**
 
-- **Endpoint:** `POST /mcp` on the same server, using Streamable HTTP (stateless) with `Authorization: Bearer trk_…`. The tool calls act as the token's user.
-- **stdio:** for clients that only speak stdio, the `tracklet-mcp` bridge connects stdio to `/mcp` using `TRACKLET_URL` + `TRACKLET_TOKEN`.
+- **Endpoint:** `POST /mcp` on the same server, using Streamable HTTP (stateless) with `Authorization: Bearer a4a_…`. The tool calls act as the token's user.
+- **stdio:** for clients that only speak stdio, the `a4a-mcp` bridge connects stdio to `/mcp` using `A4A_URL` + `A4A_TOKEN`.
 
 ### 5.1 Tools
 
@@ -164,10 +164,10 @@ Deliberately **not** exposed over MCP in v1: deleting issues, user and permissio
 
 | URI | Content |
 |---|---|
-| `tracklet://guide/query-language` | The search syntax reference, with examples |
-| `tracklet://guide/commands` | The command syntax reference |
-| `tracklet://projects/{key}` | A project's schema: fields, values, link types |
-| `tracklet://issues/{id}` | An issue rendered as Markdown (lists the 50 most recently updated) |
+| `a4a://guide/query-language` | The search syntax reference, with examples |
+| `a4a://guide/commands` | The command syntax reference |
+| `a4a://projects/{key}` | A project's schema: fields, values, link types |
+| `a4a://issues/{id}` | An issue rendered as Markdown (lists the 50 most recently updated) |
 
 ### 5.3 Prompts (reusable workflows; appear as slash commands in Claude Code)
 
@@ -190,18 +190,18 @@ Deliberately **not** exposed over MCP in v1: deleting issues, user and permissio
 
 ```bash
 # Claude Code
-claude mcp add --transport http tracklet http://localhost:3000/mcp \
-  --header "Authorization: Bearer trk_your_token"
+claude mcp add --transport http a4a http://localhost:3000/mcp \
+  --header "Authorization: Bearer a4a_your_token"
 ```
 
 ```jsonc
 // Cursor / other HTTP clients (mcp.json)
-{ "mcpServers": { "tracklet": { "url": "http://localhost:3000/mcp",
-    "headers": { "Authorization": "Bearer trk_your_token" } } } }
+{ "mcpServers": { "a4a": { "url": "http://localhost:3000/mcp",
+    "headers": { "Authorization": "Bearer a4a_your_token" } } } }
 
 // Claude Desktop and other stdio-only clients (claude_desktop_config.json)
-{ "mcpServers": { "tracklet": { "command": "npx", "args": ["tracklet-mcp"],
-    "env": { "TRACKLET_URL": "http://localhost:3000", "TRACKLET_TOKEN": "trk_your_token" } } } }
+{ "mcpServers": { "a4a": { "command": "npx", "args": ["a4a-mcp"],
+    "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
 ```
 
 The web UI has a **Connect an agent** page that creates a token and fills in these snippets for you.
@@ -229,7 +229,7 @@ An agent or integration can react to changes instead of polling.
 
 **Delivery**
 
-- **Webhooks:** filtered by event type and project, signed with `X-Tracklet-Signature: sha256=<HMAC of body>`, retried up to 3 times with backoff, every attempt logged.
+- **Webhooks:** filtered by event type and project, signed with `X-A4A-Signature: sha256=<HMAC of body>`, retried up to 3 times with backoff, every attempt logged.
 - **`GET /events/stream`:** the same payloads over SSE.
 - **`GET /events?after=<id>`:** a durable feed to catch up after downtime.
 
@@ -250,7 +250,7 @@ These are powered by Claude (`claude-opus-5-5`) and enabled when `ANTHROPIC_API_
 ## 8. Security model for agents
 
 - **Tokens.**
-  - Random, prefixed `trk_`, and shown once; only a SHA-256 hash is stored.
+  - Random, prefixed `a4a_`, and shown once; only a SHA-256 hash is stored.
   - Each has a name, scopes, an optional expiry and a last-used time, and can be revoked at any time.
   - A read-only token is the safest way to let an agent explore.
 - **Prompt injection.** Issue text is untrusted, since anyone who can file an issue can write instructions into it.

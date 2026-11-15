@@ -4,7 +4,7 @@ import {
   type Project,
   type ProjectSettings,
   type TriageMode,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { eq, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

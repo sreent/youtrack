@@ -63,7 +63,7 @@ export async function freshPostgres(): Promise<{ url: string; drop(): Promise<vo
   const base = process.env.TEST_DATABASE_URL;
   if (!base) return null;
   const { default: pgLib } = await import('pg');
-  const name = `tracklet_t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const name = `a4a_t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const admin = new pgLib.Client({ connectionString: base });
   await admin.connect();
   await admin.query(`CREATE DATABASE ${name}`);

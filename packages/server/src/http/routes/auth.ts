@@ -9,7 +9,7 @@ import {
   SetupStatusSchema,
   UpdateMeBody,
   type Me,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { adminCtx } from '../../app-services';
@@ -19,7 +19,7 @@ import { AppError, badRequest } from '../../lib/errors';
 import { createToken, listTokens, login, logout, needsSetup, revokeToken, SESSION_COOKIE } from '../../services/auth';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
-import { APP_NAME } from '@tracklet/shared';
+import { APP_NAME } from '@a4a/shared';
 import { getCookie } from 'hono/cookie';
 import type { HttpEnv } from '../env';
 import { clientIp, errorBody, RateLimiter } from '../middleware';

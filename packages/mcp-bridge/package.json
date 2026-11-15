@@ -1,10 +1,10 @@
 {
-  "name": "tracklet-mcp",
+  "name": "a4a-mcp",
   "version": "0.1.0",
-  "description": "stdio bridge to a Tracklet MCP server (for MCP clients that only support stdio)",
+  "description": "stdio bridge to an a4a MCP server (for MCP clients that only support stdio)",
   "type": "module",
   "bin": {
-    "tracklet-mcp": "./dist/index.js"
+    "a4a-mcp": "./dist/index.js"
   },
   "files": ["dist"],
   "scripts": {

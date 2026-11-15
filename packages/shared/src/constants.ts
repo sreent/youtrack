@@ -1,4 +1,6 @@
-export const APP_NAME = 'Tracklet';
+/** The product's name, in the family's numeronyms (a7c, a5s, a3t): a4a, for agenda. */
+export const APP_NAME = 'a4a';
+export const APP_FULL_NAME = 'agenda';
 
 export const ROLES = ['admin', 'member', 'viewer'] as const;
 export type Role = (typeof ROLES)[number];

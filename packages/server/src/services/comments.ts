@@ -1,4 +1,4 @@
-import type { Comment } from '@tracklet/shared';
+import type { Comment } from '@a4a/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

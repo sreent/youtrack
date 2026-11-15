@@ -8,7 +8,7 @@ import {
   type IssueLink,
   type IssueRef,
   type UpdateIssueInput,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

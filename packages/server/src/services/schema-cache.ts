@@ -1,4 +1,4 @@
-import type { FieldType } from '@tracklet/shared';
+import type { FieldType } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { fields, fieldValues, linkTypes, projectFields, projects, tags, users } from '../db/schema';

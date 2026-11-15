@@ -1,4 +1,4 @@
-import type { SavedSearch } from '@tracklet/shared';
+import type { SavedSearch } from '@a4a/shared';
 import { and, asc, eq, or } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import { savedSearches } from '../db/schema';

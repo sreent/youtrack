@@ -1,4 +1,4 @@
-import type { SimilarIssue } from '@tracklet/shared';
+import type { SimilarIssue } from '@a4a/shared';
 import { sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { prefixTsQuery } from '../search/compiler';

@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
-import { APP_NAME } from '@tracklet/shared';
+import { APP_NAME } from '@a4a/shared';
 import { Hono } from 'hono';
 import type { Runtime } from '../app-services';
 import { handleMcp } from '../mcp/http';
@@ -19,9 +19,9 @@ import { eventRoutes } from './routes/events';
 import { issueRoutes } from './routes/issues';
 import { planningRoutes } from './routes/planning';
 
-const API_DESCRIPTION = `The tracklet REST API: everything the web UI does, for scripts and integrations.
+const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
-**Authentication.** Send \`Authorization: Bearer trk_…\` with a token from Profile → API tokens. A token's scopes (read, write, admin) narrow what it may do and never exceed its owner's role.
+**Authentication.** Send \`Authorization: Bearer a4a_…\` with a token from Profile → API tokens. A token's scopes (read, write, admin) narrow what it may do and never exceed its owner's role.
 
 **Conventions.** Issues are addressed by readable ids (\`BACK-12\`). Custom fields are set by name: \`{"fields": {"Priority": "Critical", "Assignee": "anna"}}\`. Errors are \`{"error": {"code", "message", "hint"}}\`; the hint says how to fix the request. Send \`Idempotency-Key\` on POSTs to make retries safe, and \`expectedVersion\` on updates to avoid overwriting someone else's change.
 
@@ -45,7 +45,7 @@ export function createHttpApp(runtime: Runtime) {
     },
   });
   api.onError((err, c) => toErrorResponse(c, err));
-  api.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', { type: 'http', scheme: 'bearer', description: 'An API token (trk_…)' });
+  api.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', { type: 'http', scheme: 'bearer', description: 'An API token (a4a_…)' });
   api.openAPIRegistry.registerComponent('securitySchemes', 'cookieAuth', { type: 'apiKey', in: 'cookie', name: SESSION_COOKIE });
 
   authRoutes(api);
@@ -98,13 +98,20 @@ export function createHttpApp(runtime: Runtime) {
 
   const dist = runtime.config.webDist;
   if (dist) {
-    const index = readFileSync(path.join(dist, 'index.html'), 'utf8');
+    // Re-read index.html when a new build replaces it, so it never points at deleted assets.
+    const indexPath = path.join(dist, 'index.html');
+    let indexCache = { mtime: 0, html: '' };
+    const index = () => {
+      const mtime = statSync(indexPath).mtimeMs;
+      if (mtime !== indexCache.mtime) indexCache = { mtime, html: readFileSync(indexPath, 'utf8') };
+      return indexCache.html;
+    };
     root.use('/assets/*', async (c, next) => {
       await next();
       c.header('cache-control', 'public, max-age=31536000, immutable');
     });
     root.use('*', serveStatic({ root: path.relative(process.cwd(), dist) || '.' }));
-    root.get('*', (c) => c.html(index));
+    root.get('*', (c) => c.html(index()));
   } else {
     root.get('/', (c) =>
       c.text(`${APP_NAME} API is running. The web UI is not built: run "pnpm build", or "pnpm dev" for development. API docs: /api/docs`),

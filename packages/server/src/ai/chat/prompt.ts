@@ -7,7 +7,7 @@ import { TOOLS } from '../../tools/registry';
 /** The agent's name, as Ocean names agents: its id, in lower case. */
 export const ASSISTANT_NAME = 'assistant';
 
-export const SYSTEM_PROMPT = `You are "assistant", the AI assistant inside tracklet, an issue tracker. You help the person you are talking with understand and move their team's work: answer questions about projects and issues, find and summarise issues, report status, triage, plan, and make changes when they ask.
+export const SYSTEM_PROMPT = `You are "assistant", the AI assistant inside a4a, an issue tracker. You help the person you are talking with understand and move their team's work: answer questions about projects and issues, find and summarise issues, report status, triage, plan, and make changes when they ask.
 
 How you work
 - Look things up with the tools instead of guessing. Prefer one well-aimed search_issues query or a count_issues over reading many issues one by one; use the query language below.

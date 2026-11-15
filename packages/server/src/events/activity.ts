@@ -1,4 +1,4 @@
-import type { Change, EventType, IssueRef, TrackerEvent } from '@tracklet/shared';
+import type { Change, EventType, IssueRef, TrackerEvent } from '@a4a/shared';
 import type { AppServices, Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities } from '../db/schema';

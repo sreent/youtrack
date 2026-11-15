@@ -3,7 +3,7 @@
  * external agents, and to Claude by the in-app assistant. Tools are task-shaped,
  * take readable ids and names, and answer with compact JSON.
  */
-import { formatPeriod, MAX_BULK_ISSUES, type IssueField } from '@tracklet/shared';
+import { formatPeriod, MAX_BULK_ISSUES, type IssueField } from '@a4a/shared';
 import { z } from 'zod';
 import { findSimilar } from '../ai/similar';
 import { runCommand } from '../commands/executor';
@@ -91,7 +91,7 @@ const FieldsArg = z
 const getCurrentUser = defineTool({
   name: 'get_current_user',
   title: 'Who am I',
-  description: 'Who you are acting as in tracklet, your role and what your token may do. Call it first if unsure whether you can make changes.',
+  description: 'Who you are acting as in a4a, your role and what your token may do. Call it first if unsure whether you can make changes.',
   input: z.object({}),
   kind: 'reads',
   async run(ctx) {
@@ -157,7 +157,7 @@ const searchIssuesTool = defineTool({
   name: 'search_issues',
   title: 'Search issues',
   description:
-    'Find issues with the tracklet query language. Examples: "project: BACK #Unresolved for: me", "Type: Bug Priority: Critical, Major sort by: updated desc", "created: -7d .. today login". Read the resource tracklet://guide/query-language for the full syntax. Invalid queries return the problem and a hint: fix the query and call again.',
+    'Find issues with the a4a query language. Examples: "project: BACK #Unresolved for: me", "Type: Bug Priority: Critical, Major sort by: updated desc", "created: -7d .. today login". Read the resource a4a://guide/query-language for the full syntax. Invalid queries return the problem and a hint: fix the query and call again.',
   input: z.object({
     query: z.string().describe('A query, e.g. "project: BACK State: In Progress"'),
     limit: z.number().int().min(1).max(100).default(20),
@@ -415,7 +415,7 @@ const updateIssueTool = defineTool({
 const applyCommandTool = defineTool({
   name: 'apply_command',
   title: 'Apply a command',
-  description: `Change one or more issues (up to ${MAX_BULK_ISSUES}) with a tracklet command, e.g. "State Fixed", "for me In Progress", "Critical tag regression", "subtask of BACK-3", "remove tag needs-info". Set dry_run to see exactly what would change without changing anything. See tracklet://guide/commands.`,
+  description: `Change one or more issues (up to ${MAX_BULK_ISSUES}) with an a4a command, e.g. "State Fixed", "for me In Progress", "Critical tag regression", "subtask of BACK-3", "remove tag needs-info". Set dry_run to see exactly what would change without changing anything. See a4a://guide/commands.`,
   input: z.object({
     issues: z.array(z.string()).min(1).max(MAX_BULK_ISSUES),
     command: z.string().describe('e.g. "State In Progress Assignee anna"'),

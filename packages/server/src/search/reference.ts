@@ -1,6 +1,6 @@
 /** Reference guides served to people (docs), agents (MCP resources) and the assistant. */
 
-export const QUERY_LANGUAGE_GUIDE = `# tracklet query language
+export const QUERY_LANGUAGE_GUIDE = `# a4a query language
 
 A query is a list of terms; terms side by side must all match ("and").
 
@@ -40,7 +40,7 @@ Other words search summaries, descriptions and comments, by prefix: \`login saf\
 - Blockers of BACK-3: \`is required for: BACK-3 #Unresolved\`
 `;
 
-export const COMMAND_GUIDE = `# tracklet commands
+export const COMMAND_GUIDE = `# a4a commands
 
 A command changes one or more issues at once. Clauses are applied in order.
 

@@ -20,7 +20,7 @@ import {
   UpdateIssueBody,
   WorkItemBody,
   WorkItemSchema,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
 import { suggestCommand } from '../../commands/parser';

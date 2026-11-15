@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
@@ -59,15 +59,61 @@ export async function openDatabase(opts: OpenOptions): Promise<Database> {
   }
 
   let client: PGlite;
+  let release = () => {};
   if (opts.memory) {
     client = new PGlite({ extensions: { pg_trgm } });
   } else {
     const dir = path.resolve(opts.dataDir ?? './data', 'pglite');
     mkdirSync(dir, { recursive: true });
+    release = lockDataDir(dir);
     client = new PGlite(dir, { extensions: { pg_trgm } });
   }
   await client.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm');
   const db = drizzlePglite(client, { schema }) as unknown as Db;
   await migratePglite(db as never, { migrationsFolder: folder });
-  return { db, kind: 'pglite', close: () => client.close() };
+  return {
+    db,
+    kind: 'pglite',
+    close: async () => {
+      await client.close();
+      release();
+    },
+  };
+}
+
+/**
+ * PGlite is one process's database: a second process opening the same directory
+ * would corrupt it. Hold a lock file with our pid, and take over only a lock whose
+ * process is gone.
+ */
+function lockDataDir(dir: string): () => void {
+  const lock = path.join(dir, '..', 'pglite.lock');
+  if (existsSync(lock)) {
+    const pid = Number(readFileSync(lock, 'utf8').trim());
+    let alive = false;
+    if (pid && pid !== process.pid) {
+      try {
+        process.kill(pid, 0);
+        alive = true;
+      } catch {
+        alive = false;
+      }
+    }
+    if (alive) {
+      throw new Error(`The embedded database in ${dir} is in use by process ${pid}. Stop it first, or use Postgres (DATABASE_URL) to run several servers.`);
+    }
+  }
+  writeFileSync(lock, String(process.pid));
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    try {
+      if (readFileSync(lock, 'utf8').trim() === String(process.pid)) rmSync(lock);
+    } catch {
+      // already gone
+    }
+  };
+  process.once('exit', release);
+  return release;
 }

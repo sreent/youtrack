@@ -1,4 +1,4 @@
-import { parsePeriod, type QueryProblem } from '@tracklet/shared';
+import { parsePeriod, type QueryProblem } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { issues } from '../db/schema';
 import { parseDateExpression, todayISO, type DateRange } from '../lib/dates';

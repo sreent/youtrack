@@ -1,4 +1,4 @@
-import type { TrackerEvent } from '@tracklet/shared';
+import type { TrackerEvent } from '@a4a/shared';
 import { and, asc, desc, eq, gt, gte, inArray, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { activities } from '../db/schema';

@@ -1,4 +1,4 @@
-import type { IssueRef } from '@tracklet/shared';
+import type { IssueRef } from '@a4a/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { issueFieldValues, issues } from '../db/schema';

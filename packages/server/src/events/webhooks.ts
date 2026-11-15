@@ -1,4 +1,4 @@
-import { EVENT_TYPES, type TrackerEvent, type Webhook } from '@tracklet/shared';
+import { EVENT_TYPES, type TrackerEvent, type Webhook } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import { webhookDeliveries, webhooks } from '../db/schema';
@@ -136,11 +136,11 @@ export async function deliver(app: AppServices, hook: WebhookRow, event: Tracker
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'user-agent': 'tracklet-webhooks/1',
-          'x-tracklet-event': event.type,
-          'x-tracklet-event-id': String(event.id),
-          'x-tracklet-delivery': deliveryId,
-          'x-tracklet-signature': signature,
+          'user-agent': 'a4a-webhooks/1',
+          'x-a4a-event': event.type,
+          'x-a4a-event-id': String(event.id),
+          'x-a4a-delivery': deliveryId,
+          'x-a4a-signature': signature,
         },
         body,
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -205,7 +205,7 @@ export async function testWebhook(ctx: Ctx, id: string): Promise<{ delivered: bo
     project: null,
     issue: null,
     changes: [],
-    data: { test: true, message: 'This is a test delivery from tracklet.' },
+    data: { test: true, message: 'This is a test delivery from a4a.' },
   };
   return { delivered: await deliver(ctx.app, hook, event) };
 }

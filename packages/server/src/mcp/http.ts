@@ -10,8 +10,8 @@ import { errorBody } from '../http/middleware';
 export async function handleMcp(c: Context<HttpEnv>): Promise<Response> {
   const ctx = c.get('ctx');
   if (!ctx) {
-    c.header('www-authenticate', 'Bearer realm="tracklet"');
-    return c.json(errorBody('unauthorized', 'MCP needs "Authorization: Bearer <token>"', 'Create a token in tracklet: Profile → API tokens.'), 401);
+    c.header('www-authenticate', 'Bearer realm="a4a"');
+    return c.json(errorBody('unauthorized', 'MCP needs "Authorization: Bearer <token>"', 'Create a token in a4a: Profile → API tokens.'), 401);
   }
   if (c.req.method === 'GET' || c.req.method === 'DELETE') {
     // No server-initiated streams or sessions in stateless mode.

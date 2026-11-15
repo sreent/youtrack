@@ -1,4 +1,4 @@
-import type { TrackerEvent } from '@tracklet/shared';
+import type { TrackerEvent } from '@a4a/shared';
 import { and, asc, eq, gt, lt, or, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { activities, outboxCursors, workerLeases } from '../db/schema';

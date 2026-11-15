@@ -1,4 +1,4 @@
-import { MAX_BULK_ISSUES, type CommandResult } from '@tracklet/shared';
+import { MAX_BULK_ISSUES, type CommandResult } from '@a4a/shared';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { publishActivities, type ActivityRow } from '../events/activity';

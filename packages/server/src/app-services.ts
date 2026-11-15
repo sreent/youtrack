@@ -1,4 +1,4 @@
-import type { Channel } from '@tracklet/shared';
+import type { Channel } from '@a4a/shared';
 import type { Config } from './config';
 import { effectiveScopes, type Actor, type AppServices, type Ctx, type UserRow } from './context';
 import type { Database } from './db/client';

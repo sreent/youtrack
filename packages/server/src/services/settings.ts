@@ -1,5 +1,5 @@
-import type { Settings, TriageMode } from '@tracklet/shared';
-import { APP_NAME } from '@tracklet/shared';
+import type { Settings, TriageMode } from '@a4a/shared';
+import { APP_NAME } from '@a4a/shared';
 import { eq } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

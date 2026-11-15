@@ -1,4 +1,4 @@
-import type { NLCommandResult, NLQueryResult, SimilarIssue } from '@tracklet/shared';
+import type { NLCommandResult, NLQueryResult, SimilarIssue } from '@a4a/shared';
 import { z } from 'zod';
 import { runCommand } from '../commands/executor';
 import { requireScope, type Ctx } from '../context';
@@ -21,7 +21,7 @@ const VOICE = 'Write plainly and briefly, from the reader\'s side. No emoji, no 
 // ---------------------------------------------------------------------------
 
 const QueryOut = z.object({
-  query: z.string().describe('The tracklet query'),
+  query: z.string().describe('The a4a query'),
   explanation: z.string().describe('One short sentence saying what the query finds'),
 });
 
@@ -29,7 +29,7 @@ export async function wordsToQuery(ctx: Ctx, text: string, projectKey?: string):
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const project = projectKey ? projectByKey(s, projectKey) : undefined;
-  const system = `You turn a request in plain words into a search query in tracklet's query language. Reply with the query and one sentence explaining it. Use only fields, values, people, tags and projects that exist. Prefer field values over free text when the request names a state, priority, type or person. ${VOICE}
+  const system = `You turn a request in plain words into a search query in a4a's query language. Reply with the query and one sentence explaining it. Use only fields, values, people, tags and projects that exist. Prefer field values over free text when the request names a state, priority, type or person. ${VOICE}
 
 ${QUERY_LANGUAGE_GUIDE}`;
   const context = `${await schemaSummary(ctx)}${project ? `\nThe person is looking at project ${project.key}; assume it unless they name another or say "all projects".` : ''}`;
@@ -53,7 +53,7 @@ ${QUERY_LANGUAGE_GUIDE}`;
 // ---------------------------------------------------------------------------
 
 const CommandOut = z.object({
-  command: z.string().describe('The tracklet command, without any comment text'),
+  command: z.string().describe('The a4a command, without any comment text'),
   comment: z.string().nullable().describe('A comment to post with the change, only if the request asks for one'),
   explanation: z.string().describe('One short sentence saying what will change'),
 });
@@ -66,7 +66,7 @@ export async function wordsToCommand(ctx: Ctx, text: string, issueIds: string[])
   const issuesText = dtos
     .map((i) => `- ${i.id} "${i.summary}": ${i.fields.map((f) => `${f.name}=${presentField(f) ?? '—'}`).join(', ')}${i.tags.length ? `; tags ${i.tags.map((t) => t.name).join(', ')}` : ''}`)
     .join('\n');
-  const system = `You turn an instruction in plain words into one tracklet command that changes the given issues. Use only fields, values, people and link phrases that exist. If the instruction cannot be expressed as a command, return an empty command and explain why. ${VOICE}
+  const system = `You turn an instruction in plain words into one a4a command that changes the given issues. Use only fields, values, people and link phrases that exist. If the instruction cannot be expressed as a command, return an empty command and explain why. ${VOICE}
 
 ${COMMAND_GUIDE}`;
   const projectIds = [...new Set(rows.map((r) => r.projectId))];

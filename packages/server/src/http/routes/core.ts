@@ -18,7 +18,7 @@ import {
   UpdateProjectBody,
   UpdateUserBody,
   UserSchema,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { z } from 'zod';
 import { notFound } from '../../lib/errors';
 import {

@@ -1,4 +1,4 @@
-import { formatPeriod, parsePeriod, type WorkItem } from '@tracklet/shared';
+import { formatPeriod, parsePeriod, type WorkItem } from '@a4a/shared';
 import { asc, eq } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';

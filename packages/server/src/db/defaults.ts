@@ -1,4 +1,4 @@
-import { WELL_KNOWN_FIELDS, type Tone } from '@tracklet/shared';
+import { WELL_KNOWN_FIELDS, type Tone } from '@a4a/shared';
 import { eq, sql } from 'drizzle-orm';
 import { fields, linkTypes, users } from './schema';
 import type { Db } from './client';

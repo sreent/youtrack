@@ -16,7 +16,7 @@ import {
   SuggestionSchema,
   SummarizeResultSchema,
   type ChatStreamEvent,
-} from '@tracklet/shared';
+} from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { createConversation, decide, deleteConversation, getConversation, listConversations, sendMessage, type Emit } from '../../ai/chat/agent';

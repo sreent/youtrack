@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import type { TrackerEvent } from '@tracklet/shared';
+import type { TrackerEvent } from '@a4a/shared';
 
 /** In-process pub/sub for tracker events (after they are committed). */
 export class EventBus {

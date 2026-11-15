@@ -1,4 +1,4 @@
-import type { IssueLink, LinkType } from '@tracklet/shared';
+import type { IssueLink, LinkType } from '@a4a/shared';
 import { eq } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
