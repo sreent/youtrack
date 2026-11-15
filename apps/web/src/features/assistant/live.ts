@@ -132,7 +132,17 @@ function onEvent(id: string, e: ChatStreamEvent) {
           fresh: true,
           parts: [
             ...t.parts,
-            { kind: 'tool', id: e.id, name: e.name, input: e.input, write: e.write, status: 'running', summary: null, at: new Date().toISOString(), onItsOwn: t.auto && e.write },
+            {
+              kind: 'tool',
+              id: e.id,
+              name: e.name,
+              input: e.input,
+              write: e.write,
+              status: 'running',
+              summary: null,
+              at: new Date().toISOString(),
+              onItsOwn: t.auto && e.write,
+            },
           ],
         };
       case 'tool_result': {
@@ -185,9 +195,9 @@ export async function runTurn(
     body: unknown;
     decisions?: Record<string, boolean>;
   },
-): Promise<void> {
+): Promise<{ ok: boolean; message?: string }> {
   const id = opts.conversationId;
-  if (turns.get(id)?.running) return;
+  if (turns.get(id)?.running) return { ok: false };
   const seq = ++seqs;
   const mine = () => turns.get(id)?.seq === seq;
   set(id, {
@@ -208,7 +218,10 @@ export async function runTurn(
   try {
     await postStream<ChatStreamEvent>(`/ai/conversations/${id}/${opts.path}`, opts.body, (e) => onEvent(id, e));
   } catch (err) {
-    failed = err instanceof ApiError ? { message: err.message, hint: err.hint } : { message: err instanceof Error ? err.message : 'The assistant could not be reached' };
+    failed =
+      err instanceof ApiError
+        ? { message: err.message, hint: err.hint }
+        : { message: err instanceof Error ? err.message : 'The assistant could not be reached' };
   }
   const wrote = turns.get(id)?.wrote ?? false;
   // The turn stays "running" until the stored conversation is read back, so nobody answers a
@@ -216,9 +229,10 @@ export async function runTurn(
   try {
     const detail = await get<ConversationDetail>(`/ai/conversations/${id}`);
     qc.setQueryData(keys.conversation(id), detail);
-    // A failed request stored nothing: keep it in view, so the person sees why.
+    // A message that failed stored nothing: keep it in view, so the person sees why. A decision
+    // that failed leaves the changes waiting, as stored: the page says why.
     if (mine()) {
-      if (failed) update(id, (t) => ({ ...t, running: false, failed }));
+      if (failed && opts.path === 'messages') update(id, (t) => ({ ...t, running: false, failed }));
       else set(id, undefined);
     }
   } catch {
@@ -226,7 +240,10 @@ export async function runTurn(
     if (mine()) update(id, (t) => ({ ...t, running: false, failed }));
   }
   void qc.invalidateQueries({ queryKey: keys.conversations });
-  if (wrote) {
+  if (wrote && !failed) {
     for (const k of [['issues'], ['boards'], ['events'], ['plan'], ['ai', 'suggestions']]) void qc.invalidateQueries({ queryKey: k });
   }
+  if (!failed) return { ok: true };
+  const message = failed.message.replace(/[.\s]+$/, '');
+  return { ok: false, message: failed.hint ? `${message}. ${failed.hint}` : `${message}.` };
 }

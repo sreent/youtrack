@@ -79,6 +79,7 @@ export default function AssistantPage() {
     setDecisions(next);
     if (!waiting.every((w) => next[w.toolUseId] !== undefined)) return;
     const chosen = Object.fromEntries(waiting.map((w) => [w.toolUseId, next[w.toolUseId]!]));
+    setSaid(null);
     void runTurn(qc, {
       conversationId: id,
       base: detail.data?.messages.length ?? 0,
@@ -86,6 +87,11 @@ export default function AssistantPage() {
       path: 'approve',
       body: { decisions: waiting.map((w) => ({ toolUseId: w.toolUseId, approve: chosen[w.toolUseId] })) },
       decisions: chosen,
+    }).then((r) => {
+      if (r.ok) return;
+      // Nothing was decided: the changes wait again, and the page says why.
+      setDecisions((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !(k in chosen))));
+      if (r.message) setSaid({ text: `Your decision didn't go through: ${r.message}`, bad: true });
     });
   };
 
@@ -120,8 +126,8 @@ export default function AssistantPage() {
         <section className="card a4p-off">
           <h2>The assistant is off on this server</h2>
           <p className="note">
-            To turn it on, set <code>ANTHROPIC_API_KEY</code> in the server's environment and restart it. Until then you can read your past
-            conversations, and delete them.
+            To turn it on, set <code>ANTHROPIC_API_KEY</code> in the server's environment and restart it. Until then you can read your past conversations, and
+            delete them.
           </p>
         </section>
       ) : null}

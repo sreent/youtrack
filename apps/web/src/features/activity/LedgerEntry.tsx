@@ -87,21 +87,18 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           </>
         ),
         badge: ['changes', 'logs work'],
-        more: str(e.data.description) || str(e.data.date) ? (
-          <span className="a4p-ledger-note">
-            {[str(e.data.date) ? `for ${dateRead(str(e.data.date))}` : '', str(e.data.description)].filter(Boolean).join(': ')}
-          </span>
-        ) : null,
+        more:
+          str(e.data.description) || str(e.data.date) ? (
+            <span className="a4p-ledger-note">
+              {[str(e.data.date) ? `for ${dateRead(str(e.data.date))}` : '', str(e.data.description)].filter(Boolean).join(': ')}
+            </span>
+          ) : null,
       };
     case 'work.deleted':
       return { text: <>removed logged work from {issue}</>, badge: ['changes', 'removes work'] };
     case 'ai.triage.completed':
       return {
-        text: (
-          <>
-            suggested changes to {issue}
-          </>
-        ),
+        text: <>suggested changes to {issue}</>,
         badge: ['writes', 'suggests'],
         more: (
           <span className="a4p-ledger-note">
@@ -119,12 +116,21 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         badge: ['changes', 'saves a baseline'],
         more: (
           <span className="a4p-ledger-note">
-            {[e.data.tasks !== undefined ? `${str(e.data.tasks)} tasks` : '', str(e.data.finish) ? `finishing ${dateRead(str(e.data.finish))}` : ''].filter(Boolean).join(', ')}
+            {[e.data.tasks !== undefined ? `${str(e.data.tasks)} tasks` : '', str(e.data.finish) ? `finishing ${dateRead(str(e.data.finish))}` : '']
+              .filter(Boolean)
+              .join(', ')}
           </span>
         ),
       };
     default:
-      return { text: <>{String(e.type)} {issue}</>, badge: null };
+      return {
+        text: (
+          <>
+            {String(e.type)} {issue}
+          </>
+        ),
+        badge: null,
+      };
   }
 }
 

@@ -102,7 +102,15 @@ function Password({ me }: { me: Me }) {
         </label>
         <label className="a4p-field">
           <span>New password</span>
-          <input type="password" value={next} onChange={(e) => setNext(e.target.value)} required minLength={8} autoComplete="new-password" aria-describedby="pw-help" />
+          <input
+            type="password"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            aria-describedby="pw-help"
+          />
           <small id="pw-help">At least 8 characters.</small>
         </label>
         <label className="a4p-field">
@@ -170,8 +178,7 @@ export default function ProfilePage() {
       <section className="card" aria-labelledby="agents">
         <h2 id="agents">Tokens for agents and scripts</h2>
         <p className="note">
-          An agent or a script acts as you with a token of its own, which you can revoke at any time. They're on{' '}
-          <Link to="/agents">Agents and tokens</Link>.
+          An agent or a script acts as you with a token of its own, which you can revoke at any time. They're on <Link to="/agents">Agents and tokens</Link>.
         </p>
       </section>
     </>

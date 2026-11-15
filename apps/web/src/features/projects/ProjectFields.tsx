@@ -195,10 +195,14 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
         <div className="a4p-fields">
           <label className="a4p-field">
             <span>Field</span>
-            <select value={fieldId} onChange={(e) => {
+            <select
+              value={fieldId}
+              onChange={(e) => {
                 setFieldId(e.target.value);
                 setDef('');
-              }} required>
+              }}
+              required
+            >
               <option value="">Choose one</option>
               {available.map((f) => (
                 <option key={f.id} value={f.id}>

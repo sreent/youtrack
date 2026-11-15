@@ -22,9 +22,6 @@ button.a4p-small, .a4p-small { padding: 0.2rem 0.6rem; font-size: var(--text-sm)
 table.figures td.a4p-tight, table.figures th.a4p-tight { width: 1%; white-space: nowrap; }
 table.figures td .chips { flex-wrap: wrap; }
 table.figures tr:last-child th { border-bottom: 0; }
-/* The ledger lays out its own rows; lists inside an entry are plain lists */
-.ledger .ledger-body li { display: list-item; padding: 0; border-bottom: 0; }
-.ledger .ledger-body .change-lines li { display: block; }
 /* A tick beside its words, wherever Ocean lays labels out as a grid */
 .link-add label.a4p-check, label.a4p-check { display: inline-flex; }
 .a4p-muted { color: var(--muted); }
@@ -255,7 +252,7 @@ button.a4p-chip-x .icon { width: 0.75rem; height: 0.75rem; stroke-width: 2.2; }
 .a4p-field-list { max-height: none; }
 .card.a4p-field-editor { margin: 0; }
 .a4p-tone { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.a4p-tone select { max-width: 12rem; }
+.a4p-tone select { max-width: 13rem; }
 .a4p-preview { display: block; margin-top: 0.15rem; }
 .a4p-order { display: inline-flex; gap: 0.2rem; }
 button.round.a4p-round-sm { width: 1.75rem; height: 1.75rem; }
@@ -306,7 +303,7 @@ ol.a4p-values { display: grid; margin: 0 0 var(--space-4); padding: 0; list-styl
              border-bottom: 1px solid var(--line); }
 .a4p-value:last-child { border-bottom: 0; }
 .a4p-value .a4p-value-name { width: 10rem; }
-.a4p-value .a4p-tone select { width: 11rem; }
+.a4p-value .a4p-tone select { width: 12.75rem; }
 .a4p-value-more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin-inline-start: auto; }
 .a4p-value > .a4p-said { flex-basis: 100%; }
 .a4p-value > .a4p-said:empty { display: none; }
@@ -319,3 +316,7 @@ ol.a4p-values { display: grid; margin: 0 0 var(--space-4); padding: 0; list-styl
 h2.approval-title { margin: 0; color: var(--text); font-size: var(--text-lg); font-weight: 600; }
 .a4p-compact h2.approval-title { font-size: var(--text-md); }
 .a4p-scroll:focus-visible { outline-offset: 2px; }
+/* What the agent did on its own, said at once (Ocean's Status), beside its run */
+.a4p-talk .draft.a4p-acted { justify-self: start; width: min(100%, 28rem); box-shadow: none; }
+.a4p-acted > button.link { justify-self: start; font-size: var(--text-sm); }
+.a4p-acted .facts-sm dd { text-align: start; }

@@ -27,9 +27,12 @@ async function copyText(text: string): Promise<boolean> {
 export function CopyButton({ text, label = 'Copy', what }: { text: string; label?: string; what: string }) {
   const [said, setSaid] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
   const copy = async () => {
     const ok = await copyText(text);
     setSaid(ok ? `Copied ${what}.` : `Couldn't copy ${what}: select it and copy it yourself.`);

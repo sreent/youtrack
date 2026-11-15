@@ -17,7 +17,6 @@ const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: 
   { id: 'blank', name: 'Blank', about: 'State and Assignee only. You attach the rest.' },
 ];
 
-
 function CreateProject() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -64,7 +63,10 @@ function CreateProject() {
               aria-describedby="key-help"
               autoComplete="off"
             />
-            <small id="key-help">2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {(form.key || 'BACK').toUpperCase()}-12, and can't change later.</small>
+            <small id="key-help">
+              2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {(form.key || 'BACK').toUpperCase()}-12, and can't change
+              later.
+            </small>
           </label>
           <label className="a4p-field">
             <span>Name</span>

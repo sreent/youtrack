@@ -234,7 +234,7 @@ export default function ProjectPage() {
         }
         actions={
           <>
-            <Link className="button" to={`/issues?query=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>
+            <Link className="button" to={`/issues?q=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>
               Open its issues
             </Link>
             <Link className="button" to={`/plan/${p.key}`}>

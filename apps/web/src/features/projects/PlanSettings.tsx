@@ -117,7 +117,13 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
           </label>
           <label className="a4p-field">
             <span>Currency</span>
-            <input value={form.currency} maxLength={8} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))} className="a4p-key-input" required />
+            <input
+              value={form.currency}
+              maxLength={8}
+              onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
+              className="a4p-key-input"
+              required
+            />
           </label>
         </div>
         <fieldset className="a4p-checks a4p-days">

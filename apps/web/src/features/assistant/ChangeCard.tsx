@@ -32,13 +32,7 @@ function PreviewWell({ preview, fieldNames }: { preview: string; fieldNames: str
         return (
           <div className="pair" key={i}>
             <dt>{p.id ? <IssueLink id={p.id} /> : 'Change'}</dt>
-            <dd>
-              {changes.every(Boolean) ? (
-                <ChangeLines changes={changes.map((c) => c!)} />
-              ) : (
-                <Linked text={p.rest} />
-              )}
-            </dd>
+            <dd>{changes.every(Boolean) ? <ChangeLines changes={changes.map((c) => c!)} /> : <Linked text={p.rest} />}</dd>
           </div>
         );
       })}

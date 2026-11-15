@@ -70,7 +70,7 @@
 
 .a4-split {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 19rem;
+  grid-template-columns: minmax(0, 1fr) 21rem;
   gap: var(--space-6);
   align-items: start;
 }
@@ -183,12 +183,14 @@
   text-decoration: underline;
 }
 
+/* Words for screen readers alone, as Ocean's .hidden: off to the left, so that inside
+   something that scrolls sideways they can't widen the page. */
 .a4-sr-only {
   position: absolute;
+  left: -10000px;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 
@@ -255,4 +257,14 @@ a.chip:hover {
 }
 .a4-similar .resolved a {
   color: var(--muted);
+}
+
+/* Triage says why in a sentence, not a phrase: its words take the row, and Accept goes beneath them. */
+.fields-proposed {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+.fields-proposed > button {
+  grid-column: 2;
+  justify-self: start;
 }

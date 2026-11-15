@@ -6,7 +6,7 @@ import { useIssue, useMe } from '../../api/queries';
 import { ago, IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Who';
-import { errorText } from '../common/bits';
+import { errorText, Linked } from '../common/bits';
 import '../common/pages.css';
 
 /** A field's value as the server compares it with a suggestion: logins, names, presentations. */
@@ -131,7 +131,8 @@ export function SuggestionCard({
       setAnswer(next);
       setUnticked(new Set());
       if (compact) setSaid(`You added ${n === 1 ? 'the tag' : `${n} tags`}.`);
-      else if (next.status === 'applied') setSaid(n === items.length && !accepted ? 'You applied it.' : `You applied ${n === 1 ? 'the last of it' : 'the rest'}.`);
+      else if (next.status === 'applied')
+        setSaid(n === items.length && !accepted ? 'You applied it.' : `You applied ${n === 1 ? 'the last of it' : 'the rest'}.`);
       else setSaid(`You applied ${n}. The rest stays open.`);
       refresh();
       if (next.status === 'applied') onDone?.();
@@ -162,11 +163,7 @@ export function SuggestionCard({
           ? `triage found ${likeWords}`
           : 'triage suggests changes'
     : null;
-  const about = [
-    compact ? null : summary,
-    ago(s.createdAt),
-    accepted && open ? `${accepted} of ${fields.length + tags.length} accepted` : null,
-  ]
+  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? `${accepted} of ${fields.length + tags.length} accepted` : null]
     .filter(Boolean)
     .join(' · ');
 
@@ -209,7 +206,11 @@ export function SuggestionCard({
           </span>
         </div>
 
-        {compact && p.summary ? <p className="a4p-compact-summary">{p.summary}</p> : null}
+        {compact && p.summary ? (
+          <p className="a4p-compact-summary">
+            <Linked text={p.summary} />
+          </p>
+        ) : null}
         {compact && open && openFields.length === 0 && fields.some((f) => f.open) ? (
           <p className="note a4p-card-note">Its values are dashed in the fields: accept each one you agree with.</p>
         ) : null}
@@ -229,7 +230,7 @@ export function SuggestionCard({
                               <del>{before(f.name, f.now)}</del> → <ins className="a4p-worked">{f.value}</ins>
                             </span>
                             <span className="a4p-reason">
-                              <span className="source inferred">{CONFIDENCE[f.confidence]}</span> {f.reason}
+                              <span className="source inferred">{CONFIDENCE[f.confidence]}</span> <Linked text={f.reason} />
                             </span>
                           </>
                         ) : (
@@ -272,7 +273,9 @@ export function SuggestionCard({
                   <span className="a4p-change">
                     <IssueLink id={d.issue} /> {d.summary}
                   </span>
-                  <span className="a4p-reason">{d.reason}</span>
+                  <span className="a4p-reason">
+                    <Linked text={d.reason} />
+                  </span>
                 </dd>
               </div>
             ))}
@@ -282,14 +285,16 @@ export function SuggestionCard({
         {!compact && p.summary ? (
           <p className="approval-why">
             <strong>Why: </strong>
-            {p.summary}
+            <Linked text={p.summary} />
           </p>
         ) : null}
 
         {open ? (
           <>
             {choosing && picked.length === 0 ? <p className="note a4p-card-note">Tick what to {compact ? 'add' : 'apply'}, or dismiss it.</p> : null}
-            {!compact && !items.length ? <p className="note a4p-card-note">There's nothing here left to apply. Open the issues it found, then dismiss it.</p> : null}
+            {!compact && !items.length ? (
+              <p className="note a4p-card-note">There's nothing here left to apply. Open the issues it found, then dismiss it.</p>
+            ) : null}
             <div className={compact ? 'a4p-actions' : 'approval-actions'}>
               {items.length ? (
                 <button type="button" className={compact ? undefined : 'primary'} disabled={busy || picked.length === 0} onClick={() => apply.mutate()}>

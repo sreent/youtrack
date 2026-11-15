@@ -1,7 +1,8 @@
 import type { ChatPart } from '@a4a/shared';
 import { Badge } from '../../components/Badges';
+import { Avatar } from '../../components/Who';
 import { Linked } from '../common/bits';
-import { clock, excerpt } from '../common/format';
+import { clock, excerpt, ISSUE_ID } from '../common/format';
 import type { AITool } from '../common/queries';
 import type { ToolStatus } from './live';
 
@@ -59,45 +60,90 @@ export function ToolRun({
   label?: string;
 }) {
   if (!steps.length) return null;
-  const actedAlone = steps.some((s) => s.onItsOwn && s.status === 'done');
+  const alone = steps.filter((s) => s.onItsOwn && s.status === 'done');
   return (
-    <div className="a4p-run">
-      <ol className="timeline" aria-label={label}>
-        {steps.map((s) => {
-          const tool = tools?.get(s.name);
-          const kind = tool?.kind ?? (s.write ? 'changes' : 'reads');
-          const tone = s.status === 'error' ? 'bad' : s.status === 'rejected' ? 'idle' : s.status === 'pending_approval' ? 'changes' : kind;
-          // Declined, it did nothing: say what it would have done.
-          const what = (s.status === 'rejected' ? null : s.summary) ?? (aboutInput(s.input) || tool?.title || '');
-          return (
-            <li key={s.id}>
-              <time dateTime={s.at}>{s.at ? clock(s.at) : ''}</time>
-              {s.status === 'running' ? <span className="spin a4p-run-spin" aria-hidden="true" /> : <span className={`node tone-${tone}`} aria-hidden="true" />}
-              <span className="a4p-run-what">
-                <code>{s.name}</code> {what ? <Linked text={what} /> : null}
-                <span className="step-detail">
-                  <Badge grammar={kind}>{kind}</Badge>
-                  {s.status === 'running' ? <span>{kind === 'reads' ? 'reading…' : 'changing…'}</span> : null}
-                  {s.status === 'pending_approval' ? <Badge tone="warn">waiting on you</Badge> : null}
-                  {s.status === 'error' ? <Badge tone="bad">failed</Badge> : null}
-                  {s.status === 'rejected' ? <Badge tone="idle">you declined it</Badge> : null}
-                  {s.status === 'done' && s.onItsOwn ? <span>on its own, as you let it</span> : null}
-                  {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? <span className="a4p-ms">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span> : null}
-                  {tool?.destructive && s.status !== 'done' ? <span className="chip">can overwrite</span> : null}
+    <>
+      <div className="a4p-run">
+        <ol className="timeline" aria-label={label}>
+          {steps.map((s) => {
+            const tool = tools?.get(s.name);
+            const kind = tool?.kind ?? (s.write ? 'changes' : 'reads');
+            const tone = s.status === 'error' ? 'bad' : s.status === 'rejected' ? 'idle' : s.status === 'pending_approval' ? 'changes' : kind;
+            // Declined, it did nothing: say what it would have done.
+            const what = (s.status === 'rejected' ? null : s.summary) ?? (aboutInput(s.input) || tool?.title || '');
+            return (
+              <li key={s.id}>
+                <time dateTime={s.at}>{s.at ? clock(s.at) : ''}</time>
+                {s.status === 'running' ? (
+                  <span className="spin a4p-run-spin" aria-hidden="true" />
+                ) : (
+                  <span className={`node tone-${tone}`} aria-hidden="true" />
+                )}
+                <span className="a4p-run-what">
+                  <code>{s.name}</code> {what ? <Linked text={what} /> : null}
+                  <span className="step-detail">
+                    <Badge grammar={kind}>{kind}</Badge>
+                    {s.status === 'running' ? <span>{kind === 'reads' ? 'reading…' : 'changing…'}</span> : null}
+                    {s.status === 'pending_approval' ? <Badge tone="warn">waiting on you</Badge> : null}
+                    {s.status === 'error' ? <Badge tone="bad">failed</Badge> : null}
+                    {s.status === 'rejected' ? <Badge tone="idle">you declined it</Badge> : null}
+                    {s.status === 'done' && s.onItsOwn ? <span>on its own, as you let it</span> : null}
+                    {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? (
+                      <span className="a4p-ms">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span>
+                    ) : null}
+                    {tool?.destructive && s.status !== 'done' ? <span className="chip">can overwrite</span> : null}
+                  </span>
                 </span>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      {actedAlone && onAskFirst ? (
-        <p className="a4p-run-foot">
-          <span>It changed this on its own, because you let it act.</span>
-          <button type="button" className="link" onClick={onAskFirst}>
-            Ask me first next time
-          </button>
-        </p>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      {alone.length ? <ActedAlone steps={alone} onAskFirst={onAskFirst} /> : null}
+    </>
+  );
+}
+
+/**
+ * Ocean's Status for what the agent did on its own, at the ladder's top rung: what it did, in the
+ * colour of what it did, at once; what allowed it; and a way to take the autonomy back.
+ */
+function ActedAlone({ steps, onAskFirst }: { steps: RunStep[]; onAskFirst?: () => void }) {
+  const last = steps[steps.length - 1]!;
+  // The issues it changed, from what each step said and what it was given.
+  const ids = [...new Set(steps.flatMap((s) => `${s.summary ?? ''} ${JSON.stringify(s.input ?? '')}`.match(ISSUE_ID) ?? []))];
+  return (
+    <section className="draft a4p-acted" aria-label="What it did on its own">
+      <div className="acted-head">
+        <Avatar kind="agent" name="assistant" />
+        <div>
+          <strong>
+            <Linked text={steps.length === 1 ? (last.summary ?? 'Made a change') : `Made ${steps.length} changes`} />
+          </strong>
+          <p>assistant · on its own{last.at ? ` · ${clock(last.at)}` : ''}</p>
+        </div>
+      </div>
+      <p className="commits">
+        <span className="badge changes">changes</span>
+        <span>
+          {ids.length ? (
+            <>
+              It changed <Linked text={ids.join(', ')} />, and {ids.length === 1 ? 'its' : 'their'} history says so.
+            </>
+          ) : (
+            'It changed what you asked, and the history says so.'
+          )}
+        </span>
+      </p>
+      <dl className="facts-sm">
+        <dt>Allowed by</dt>
+        <dd>You let it act, in this conversation</dd>
+      </dl>
+      {onAskFirst ? (
+        <button type="button" className="link" onClick={onAskFirst}>
+          Ask me first next time
+        </button>
       ) : null}
-    </div>
+    </section>
   );
 }

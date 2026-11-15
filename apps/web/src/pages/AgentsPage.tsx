@@ -32,12 +32,24 @@ const RESOURCES: { uri: string; about: string }[] = [
 ];
 
 const PROMPTS: { name: string; args: string; about: string }[] = [
-  { name: 'work_on_issue', args: 'issue_id', about: 'Read the issue and its links, take it and move it to In Progress, comment as it goes, link follow-ups, and resolve it with a summary.' },
-  { name: 'triage_backlog', args: 'project', about: 'Review untriaged issues, propose Type, Priority, Assignee and tags, flag duplicates, and apply what you confirm.' },
+  {
+    name: 'work_on_issue',
+    args: 'issue_id',
+    about: 'Read the issue and its links, take it and move it to In Progress, comment as it goes, link follow-ups, and resolve it with a summary.',
+  },
+  {
+    name: 'triage_backlog',
+    args: 'project',
+    about: 'Review untriaged issues, propose Type, Priority, Assignee and tags, flag duplicates, and apply what you confirm.',
+  },
   { name: 'report_bug', args: 'description', about: 'Look for duplicates first, then file a well-made bug: steps, expected and actual, environment.' },
   { name: 'status_report', args: 'project, since?', about: 'Progress, blockers and risks, from the activity and the counts.' },
   { name: 'release_notes', args: 'project, query?', about: 'Release notes from resolved issues, grouped by type.' },
-  { name: 'schedule_review', args: 'project, baseline?', about: 'The critical path, people booked over their day, slipping tasks and cost against the baseline, with what to do about them.' },
+  {
+    name: 'schedule_review',
+    args: 'project, baseline?',
+    about: 'The critical path, people booked over their day, slipping tasks and cost against the baseline, with what to do about them.',
+  },
 ];
 
 function snippet(client: Client, origin: string, token: string): string {
@@ -49,7 +61,11 @@ function snippet(client: Client, origin: string, token: string): string {
 const CLIENTS: { id: Client; label: string; where: string }[] = [
   { id: 'claude-code', label: 'Claude Code', where: 'Run this in a terminal, in the folder you work in.' },
   { id: 'http', label: 'Cursor and other HTTP clients', where: 'Put this in your client’s MCP settings, such as .cursor/mcp.json.' },
-  { id: 'desktop', label: 'Claude Desktop', where: 'Put this in claude_desktop_config.json, then restart Claude Desktop. It runs the a4a-mcp bridge over stdio, with Node.js.' },
+  {
+    id: 'desktop',
+    label: 'Claude Desktop',
+    where: 'Put this in claude_desktop_config.json, then restart Claude Desktop. It runs the a4a-mcp bridge over stdio, with Node.js.',
+  },
 ];
 
 function ToolRow({ tool }: { tool: AITool }) {
@@ -144,7 +160,9 @@ export default function AgentsPage() {
                     <label className="a4p-field">
                       <span>Name</span>
                       <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby="token-name-help" />
-                      <small id="token-name-help">Name it after the agent, in lower case: the activity shows its changes as “{name.trim() || 'claude-code'} for {me.data?.name ?? 'you'}”.</small>
+                      <small id="token-name-help">
+                        Name it after the agent, in lower case: the activity shows its changes as “{name.trim() || 'claude-code'} for {me.data?.name ?? 'you'}”.
+                      </small>
                     </label>
                     <label className="a4p-field">
                       <span>Expires</span>
@@ -288,11 +306,14 @@ export default function AgentsPage() {
           <section className="card" aria-labelledby="what-agents-get">
             <div className="a4p-section-head">
               <h2 id="what-agents-get">What agents get</h2>
-              <Hint label="What do the colours mean?" hint="Grey means a tool only reads. Coral means it changes a record, so a client can ask you before it runs." />
+              <Hint
+                label="What do the colours mean?"
+                hint="Grey means a tool only reads. Coral means it changes a record, so a client can ask you before it runs."
+              />
             </div>
             <p className="note a4p-lead">
-              The same tools the assistant uses, task-shaped and named for people: they take ids such as BACK-12 and values by name. None of them
-              deletes, and a command stops at 50 issues and can be previewed first.
+              The same tools the assistant uses, task-shaped and named for people: they take ids such as BACK-12 and values by name. None of them deletes, and a
+              command stops at 50 issues and can be previewed first.
             </p>
             {tools.isLoading ? <Loading what="the tools" /> : null}
             {tools.error ? <ErrorNote error={tools.error} /> : null}
@@ -397,7 +418,10 @@ export default function AgentsPage() {
               </div>
             </dl>
             <div className="thin" />
-            <p className="foot">It changes things only with a write token. Every change is kept in the activity as yours, with the token's name; revoke the token and it stops at once.</p>
+            <p className="foot">
+              It changes things only with a write token. Every change is kept in the activity as yours, with the token's name; revoke the token and it stops at
+              once.
+            </p>
           </section>
         </aside>
       </div>

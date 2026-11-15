@@ -65,13 +65,28 @@ function liveRows(live: LiveTurn, hasToday: boolean): Row[] {
     else if (p.kind === 'notice') rows.push({ kind: 'own', key, text: p.text });
     else if (p.kind === 'error') rows.push({ kind: 'bad', key, text: p.text });
     else {
-      const step: RunStep = { id: p.id, name: p.name, status: p.status, summary: p.summary, write: p.write, input: p.input, at: p.at, ms: p.ms, onItsOwn: p.onItsOwn };
+      const step: RunStep = {
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        summary: p.summary,
+        write: p.write,
+        input: p.input,
+        at: p.at,
+        ms: p.ms,
+        onItsOwn: p.onItsOwn,
+      };
       const last = rows[rows.length - 1];
       if (last?.kind === 'run') last.steps.push(step);
       else rows.push({ kind: 'run', key, steps: [step] });
     }
   });
-  if (live.failed) rows.push({ kind: 'bad', key: 'live-failed', text: live.failed.hint ? `${live.failed.message.replace(/[.\s]+$/, '')}. ${live.failed.hint}` : live.failed.message });
+  if (live.failed)
+    rows.push({
+      kind: 'bad',
+      key: 'live-failed',
+      text: live.failed.hint ? `${live.failed.message.replace(/[.\s]+$/, '')}. ${live.failed.hint}` : live.failed.message,
+    });
   return rows;
 }
 
@@ -131,7 +146,12 @@ export function Talk(props: TalkProps) {
   const stored = detail?.messages ?? [];
   const shown = live ? stored.slice(0, live.base) : stored;
   const before = storedRows(shown, live);
-  const after = live ? liveRows(live, before.some((r) => r.kind === 'day' && r.label === 'Today')) : [];
+  const after = live
+    ? liveRows(
+        live,
+        before.some((r) => r.kind === 'day' && r.label === 'Today'),
+      )
+    : [];
   const rows = [...before, ...after];
 
   const pendingFromDetail = !live && detail ? detail.pendingApprovals : [];
@@ -142,7 +162,7 @@ export function Talk(props: TalkProps) {
   const running = Boolean(live?.running);
   const lastYou = [...rows].reverse().find((r) => r.kind === 'you') as { text: string } | undefined;
 
-  const canSend = aiOn && !running && !awaiting && detail?.status !== 'running';
+  const canSend = aiOn && !running && !awaiting && !props.loading && detail?.status !== 'running';
   const placeholder = !aiOn
     ? 'The assistant is off on this server'
     : running || detail?.status === 'running'
@@ -251,14 +271,7 @@ export function Talk(props: TalkProps) {
           <strong>assistant</strong>
           <span>Works on your issues, boards and plans, for {props.forName}</span>
         </span>
-        <button
-          type="button"
-          className="link"
-          ref={factsButton}
-          aria-expanded={facts}
-          aria-controls={factsId}
-          onClick={() => setFacts((f) => !f)}
-        >
+        <button type="button" className="link" ref={factsButton} aria-expanded={facts} aria-controls={factsId} onClick={() => setFacts((f) => !f)}>
           What it may do
         </button>
         {props.remove}
@@ -319,7 +332,9 @@ export function Talk(props: TalkProps) {
             </div>
           </dl>
           <div className="thin" />
-          <p className="foot">Issue text is data to it, never instructions. Every change it makes is in the issue's history, as yours, through the assistant.</p>
+          <p className="foot">
+            Issue text is data to it, never instructions. Every change it makes is in the issue's history, as yours, through the assistant.
+          </p>
         </section>
       ) : null}
 
@@ -336,8 +351,13 @@ export function Talk(props: TalkProps) {
             <p className="say own">
               <Icon name="audit" />
               <span>
-                assistant reads what you may read for this, and {props.mode === 'ask' ? 'asks before it changes anything.' : 'changes what you ask on its own, and says so.'}
-                {context.issue ? ` It starts from ${context.issue}, the issue you came from.` : context.project ? ` It starts from project ${context.project}.` : ''}
+                assistant reads what you may read for this, and{' '}
+                {props.mode === 'ask' ? 'asks before it changes anything.' : 'changes what you ask on its own, and says so.'}
+                {context.issue
+                  ? ` It starts from ${context.issue}, the issue you came from.`
+                  : context.project
+                    ? ` It starts from project ${context.project}.`
+                    : ''}
               </span>
             </p>
             {aiOn ? (
@@ -362,9 +382,7 @@ export function Talk(props: TalkProps) {
           </p>
         ) : null}
         {approvals.map(card)}
-        {approvals.length > 1 && awaiting ? (
-          <p className="talk-day">Decide on each change; assistant carries on once you have.</p>
-        ) : null}
+        {approvals.length > 1 && awaiting ? <p className="talk-day">Decide on each change; assistant carries on once you have.</p> : null}
       </div>
 
       <form

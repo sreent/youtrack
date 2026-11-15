@@ -71,7 +71,11 @@ function Deliveries({ hook }: { hook: Webhook }) {
                 {d.eventId !== null ? <span className="a4p-row-about">event {d.eventId}</span> : <span className="a4p-row-about">a test</span>}
               </td>
               <td>
-                {d.success ? <Badge tone="good">delivered{d.statusCode ? `, ${d.statusCode}` : ''}</Badge> : <Badge tone="bad">failed{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>}
+                {d.success ? (
+                  <Badge tone="good">delivered{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>
+                ) : (
+                  <Badge tone="bad">failed{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>
+                )}
                 {d.error && !d.success ? <span className="a4p-row-about">{d.error}</span> : null}
               </td>
               <td className="num">{d.attempt} of 3</td>
@@ -89,7 +93,8 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
   const [open, setOpen] = useState(false);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const toggle = useMutation({
-    mutationFn: (active: boolean) => patch<Webhook>(`/webhooks/${hook.id}`, { active }),
+    // Send its events too: the PATCH body's defaults would otherwise reset them to every event.
+    mutationFn: (active: boolean) => patch<Webhook>(`/webhooks/${hook.id}`, { active, events: hook.events }),
     onSuccess: (h) => {
       void qc.invalidateQueries({ queryKey: keys.webhooks });
       setSaid({ text: h.active ? 'It sends again, from the next change.' : 'It is paused: nothing is sent until you turn it back on.' });
@@ -192,7 +197,14 @@ function AddHook() {
         <div className="a4p-fields">
           <label className="a4p-field a4p-wide">
             <span>Where to send</span>
-            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} required placeholder="https://ci.example.com/a4a" className="a4p-mono-input" />
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              required
+              placeholder="https://ci.example.com/a4a"
+              className="a4p-mono-input"
+            />
             <small>a4a posts to it from the server, so it can reach addresses inside your network: add only ones you trust.</small>
           </label>
           <label className="a4p-field">

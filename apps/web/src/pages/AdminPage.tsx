@@ -79,7 +79,13 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
         </span>
       </th>
       <td>
-        <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} aria-label={label('Email')} placeholder="None" />
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          aria-label={label('Email')}
+          placeholder="None"
+        />
       </td>
       <td>
         <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label('Role')} disabled={isMe}>
@@ -178,7 +184,16 @@ function AddPerson() {
           </label>
           <label className="a4p-field">
             <span>Login</span>
-            <input value={form.login} onChange={set('login')} required minLength={2} maxLength={40} pattern="[a-zA-Z0-9._\-]+" className="a4p-mono-input" autoComplete="off" />
+            <input
+              value={form.login}
+              onChange={set('login')}
+              required
+              minLength={2}
+              maxLength={40}
+              pattern="[a-zA-Z0-9._\-]+"
+              className="a4p-mono-input"
+              autoComplete="off"
+            />
           </label>
           <label className="a4p-field">
             <span>Email</span>
@@ -293,18 +308,14 @@ export default function AdminPage() {
         <div className="a4p-section-head">
           <h2 id="people">People</h2>
           <span className="note">
-            {[
-              `${humans} ${humans === 1 ? 'person' : 'people'}`,
-              bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null,
-              banned ? `${banned} banned` : null,
-            ]
+            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? `${banned} banned` : null]
               .filter(Boolean)
               .join(', ')}
           </span>
         </div>
         <p className="note a4p-lead">
-          A rate and hours a day drive the plan: cost is time logged times the rate, and levelling books each person up to their hours. A
-          banned person can't sign in, and their tokens stop working; their work stays.
+          A rate and hours a day drive the plan: cost is time logged times the rate, and levelling books each person up to their hours. A banned person can't
+          sign in, and their tokens stop working; their work stays.
         </p>
         {users.isLoading ? <Loading what="people" /> : null}
         {users.error ? <ErrorNote error={users.error} /> : null}
@@ -333,8 +344,8 @@ export default function AdminPage() {
           </Scroll>
         ) : null}
         <p className="note">
-          Roles: {ROLES.map((r) => ROLE_WORDS[r]).join(', ')}. A token never does more than its person's role. A bot is an account
-          for automation, such as triage, and shows as an agent.
+          Roles: {ROLES.map((r) => ROLE_WORDS[r]).join(', ')}. A token never does more than its person's role. A bot is an account for automation, such as
+          triage, and shows as an agent.
         </p>
         <AddPerson />
       </section>

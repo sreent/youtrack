@@ -298,8 +298,7 @@ function FieldEditor({ field }: { field: Field }) {
         <>
           <h3>Its values ({values.length})</h3>
           <p className="note">
-            In order: the first comes first in lists and sorts first. A value shows as the badge beside it, its colour a meaning, never a
-            decoration.
+            In order: the first comes first in lists and sorts first. A value shows as the badge beside it, its colour a meaning, never a decoration.
           </p>
           {values.length ? (
             <ol className="a4p-values" aria-label={`Values of ${field.name}`}>
@@ -321,9 +320,7 @@ function FieldEditor({ field }: { field: Field }) {
           <AddValue field={field} projects={projects.data ?? []} />
         </>
       ) : (
-        <p className="note">
-          {field.type === 'user' ? 'Its values are the people of a4a.' : 'People type its values, so it has no list.'}
-        </p>
+        <p className="note">{field.type === 'user' ? 'Its values are the people of a4a.' : 'People type its values, so it has no list.'}</p>
       )}
     </section>
   );
@@ -404,10 +401,7 @@ export default function FieldsPage() {
   const chosen = fields.data?.find((f) => f.id === chosenId) ?? fields.data?.[0];
   return (
     <AdminOnly title="Fields">
-      <PageHead
-        title="Fields"
-        about="The fields issues can have, and their values. Each project chooses the ones it uses, on its own page."
-      />
+      <PageHead title="Fields" about="The fields issues can have, and their values. Each project chooses the ones it uses, on its own page." />
       {fields.isLoading ? <Loading what="fields" /> : null}
       {fields.error ? <ErrorNote error={fields.error} /> : null}
       {fields.data ? (

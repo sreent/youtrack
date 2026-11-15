@@ -7,11 +7,7 @@ import { ISSUE_ID } from './format';
 /** Plain text with its issue ids linked ("Created BACK-14 …"). */
 export function Linked({ text }: { text: string }) {
   const parts = text.split(new RegExp(ISSUE_ID.source, 'g'));
-  return (
-    <>
-      {parts.map((p, i) => (i % 2 === 1 ? <IssueLink key={i} id={p} /> : <Fragment key={i}>{p}</Fragment>))}
-    </>
-  );
+  return <>{parts.map((p, i) => (i % 2 === 1 ? <IssueLink key={i} id={p} /> : <Fragment key={i}>{p}</Fragment>))}</>;
 }
 
 export function useIsAdmin(): boolean {

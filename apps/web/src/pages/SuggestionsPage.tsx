@@ -59,13 +59,11 @@ export default function SuggestionsPage() {
         <section className="card a4p-empty">
           <h2>{project ? `Nothing waits on you in ${projectName ?? project}` : 'Nothing waits on you'}</h2>
           <p className="note">
-            When triage reads a new issue, what it suggests (fields, tags and issues it looks like) waits here until someone applies it or
-            dismisses it.
+            When triage reads a new issue, what it suggests (fields, tags and issues it looks like) waits here until someone applies it or dismisses it.
           </p>
           {ai.data && !ai.data.enabled ? (
             <p className="note">
-              Triage needs AI, which is off on this server. To turn it on, set <code>ANTHROPIC_API_KEY</code> where the server runs, and
-              restart it.
+              Triage needs AI, which is off on this server. To turn it on, set <code>ANTHROPIC_API_KEY</code> where the server runs, and restart it.
             </p>
           ) : projects.data && !triageOn.length ? (
             <p className="note">
