@@ -101,6 +101,27 @@ export function suggest(s: SchemaSnapshot, query: string, caret: number, limit =
     return out;
   }
 
+  // A value of several words being typed ("State: In Prog"): offer the values it starts,
+  // replacing from its first word.
+  if (partial?.kind === 'word') {
+    let j = tokens.length - 1;
+    while (j >= 0 && tokens[j]!.kind === 'word') j--;
+    const sep = tokens[j];
+    if (sep && (sep.kind === 'colon' || sep.kind === 'comma') && tokens.length - 1 - j >= 2) {
+      const ctx = termBefore(tokens, j, vocab);
+      const from = tokens[j + 1]!.start;
+      const typed = before.slice(from).toLowerCase();
+      if (ctx) {
+        for (const v of vocab.values(ctx.def)) {
+          if (v.toLowerCase().startsWith(typed)) {
+            push({ label: v, insert: `${quoteValue(v)} `, kind: ctx.def.valueType === 'user' ? 'user' : 'value', description: ctx.def.name, replaceStart: from, replaceEnd: caret });
+          }
+        }
+        if (out.length) return out;
+      }
+    }
+  }
+
   // Value context: right after "field:" or inside a value list
   const idx = partial ? tokens.length - 1 : tokens.length - 1;
   const valueCtx =

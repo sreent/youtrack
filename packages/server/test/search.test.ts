@@ -199,6 +199,17 @@ describe('commands', () => {
     expect(await found('commenter: anna')).toEqual([ids.rate, ids.sso].sort());
   });
 
+  it('suggests a query value of several words as it is typed', async () => {
+    const s = await w.app.schema.get();
+    const take = (q: string) => {
+      const item = suggest(s, q, q.length)[0]!;
+      return q.slice(0, item.replaceStart) + item.insert + q.slice(item.replaceEnd);
+    };
+    expect(take('State: In Prog')).toBe('State: {In Progress} ');
+    expect(take('State: Open, In Pro')).toBe('State: Open, {In Progress} ');
+    expect(take('State: Fi')).toBe('State: Fixed ');
+  });
+
   it('suggests what fits at the caret, replacing all of a value of several words', async () => {
     const s = await w.app.schema.get();
     const projectIds = [...s.projects.values()].map((p) => p.id);
