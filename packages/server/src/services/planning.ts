@@ -1,0 +1,472 @@
+/**
+ * Planning: loads a project into the pure engine (src/planning) and maps its
+ * results to API shapes. Schedules are computed on request and never stored;
+ * baselines are stored snapshots.
+ */
+import {
+  parsePeriod,
+  WELL_KNOWN_FIELDS,
+  type Baseline,
+  type CostReport,
+  type IssueRef,
+  type LevelingMode,
+  type LevelingResult,
+  type ResourceLoad,
+  type Schedule,
+  type ScheduleTask,
+  type WhatIfResult,
+} from '@a4a/shared';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { requireScope, type Ctx } from '../context';
+import type { Db } from '../db/client';
+import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, workItems } from '../db/schema';
+import { publishActivities, recordActivity } from '../events/activity';
+import { todayISO } from '../lib/dates';
+import { badRequest, notFound } from '../lib/errors';
+import { newId } from '../lib/ids';
+import {
+  computeCosts,
+  computeLoad,
+  computeSchedule,
+  levelResources,
+  whatIf,
+  type PlanBaseline,
+  type PlanInput,
+  type PlanOverride,
+  type PlanResource,
+  type PlanTaskInput,
+  type PlanWorkItem,
+  type ScheduledTask,
+  type ScheduleResult,
+} from '../planning';
+import { searchIssueRows } from '../search/service';
+import { assertCanReadProject } from './access';
+import { readableId, stateNames, type IssueRow } from './issue-refs';
+import { updateIssue } from './issues';
+import { projectSettings } from './projects';
+import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
+import { userRefDto } from './values';
+
+const MAX_PLAN_ISSUES = 2000;
+
+interface Loaded {
+  input: PlanInput;
+  project: ProjectRow;
+  s: SchemaSnapshot;
+  refs: Map<string, IssueRef>;
+  rowsById: Map<string, IssueRow>;
+  priorityName: Map<string, string | null>;
+}
+
+function localDate(d: Date): string {
+  return todayISO(d);
+}
+
+async function projectFor(ctx: Ctx, key: string): Promise<{ s: SchemaSnapshot; project: ProjectRow }> {
+  requireScope(ctx, 'read');
+  const s = await ctx.app.schema.get();
+  const project = projectByKey(s, key);
+  if (!project) throw notFound(`Project ${key}`);
+  await assertCanReadProject(ctx, project.id);
+  return { s, project };
+}
+
+/** Everything the engine needs about a project, as plain data. */
+export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; baselineId?: string; today?: string } = {}): Promise<Loaded> {
+  const { s, project } = await projectFor(ctx, key);
+  const rows: IssueRow[] = opts.query?.trim()
+    ? (await searchIssueRows(ctx, opts.query, { projectId: project.id, limit: MAX_PLAN_ISSUES })).rows
+    : await ctx.db.select().from(issues).where(eq(issues.projectId, project.id)).orderBy(asc(issues.number)).limit(MAX_PLAN_ISSUES);
+  const ids = rows.map((r) => r.id);
+  const rid = new Map(rows.map((r) => [r.id, readableId(s, r)]));
+
+  const field = (name: string) => fieldByName(s, name);
+  const fAssignee = field(WELL_KNOWN_FIELDS.assignee);
+  const fEstimate = field(WELL_KNOWN_FIELDS.estimation);
+  const fStart = field(WELL_KNOWN_FIELDS.startDate);
+  const fDue = field(WELL_KNOWN_FIELDS.dueDate);
+  const fCost = field(WELL_KNOWN_FIELDS.fixedCost);
+  const fPriority = field(WELL_KNOWN_FIELDS.priority);
+  const fType = field(WELL_KNOWN_FIELDS.type);
+
+  const values = ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : [];
+  const byIssue = new Map<string, typeof values>();
+  for (const v of values) byIssue.set(v.issueId, [...(byIssue.get(v.issueId) ?? []), v]);
+  const val = (issueId: string, fieldId: string | undefined) => (fieldId ? byIssue.get(issueId)?.find((v) => v.fieldId === fieldId) : undefined);
+
+  const aggregation = new Set(s.linkTypes.filter((t) => t.aggregation).map((t) => t.id));
+  const depends = s.linkPhrases.find((p) => p.phrase === 'depends on');
+  const links = ids.length
+    ? await ctx.db.select().from(issueLinks).where(inArray(issueLinks.sourceId, ids))
+    : [];
+  const incoming = ids.length ? await ctx.db.select().from(issueLinks).where(inArray(issueLinks.targetId, ids)) : [];
+  const parentOf = new Map<string, string>();
+  for (const l of [...links, ...incoming]) if (aggregation.has(l.typeId) && rid.has(l.sourceId)) parentOf.set(l.targetId, l.sourceId);
+  const predecessors = new Map<string, Set<string>>();
+  const externalIds = new Set<string>();
+  if (depends) {
+    for (const l of links) {
+      if (l.typeId !== depends.type.id) continue;
+      // "source depends on target": target must finish first.
+      const set = predecessors.get(l.sourceId) ?? new Set();
+      set.add(l.targetId);
+      predecessors.set(l.sourceId, set);
+      if (!rid.has(l.targetId)) externalIds.add(l.targetId);
+    }
+  }
+  if (externalIds.size) {
+    const ext = await ctx.db.select().from(issues).where(inArray(issues.id, [...externalIds]));
+    for (const e of ext) rid.set(e.id, readableId(s, e));
+  }
+
+  const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
+  const spent = new Map<string, number>();
+  const firstWork = new Map<string, string>();
+  for (const w of work) {
+    spent.set(w.issueId, (spent.get(w.issueId) ?? 0) + w.minutes);
+    if (!firstWork.has(w.issueId) || w.date < firstWork.get(w.issueId)!) firstWork.set(w.issueId, w.date);
+  }
+
+  const states = await stateNames(ctx.db, s, ids);
+  const refs = new Map<string, IssueRef>();
+  const priorityName = new Map<string, string | null>();
+  const tasks: PlanTaskInput[] = rows.map((r) => {
+    const id = rid.get(r.id)!;
+    refs.set(id, { id, summary: r.summary, resolved: r.resolvedAt !== null, state: states.get(r.id) ?? null });
+    const prio = val(r.id, fPriority?.id)?.valueId;
+    const prioValue = prio ? s.values.get(prio) : undefined;
+    priorityName.set(id, prioValue?.name ?? null);
+    const typeValue = val(r.id, fType?.id)?.valueId;
+    const parent = parentOf.get(r.id);
+    return {
+      id,
+      summary: r.summary,
+      parent: parent && rid.has(parent) && ids.includes(parent) ? rid.get(parent)! : null,
+      assigneeId: val(r.id, fAssignee?.id)?.userId ?? null,
+      effortMinutes: val(r.id, fEstimate?.id)?.numberValue ?? null,
+      startConstraint: val(r.id, fStart?.id)?.dateValue ?? null,
+      deadline: val(r.id, fDue?.id)?.dateValue ?? null,
+      resolved: r.resolvedAt !== null,
+      resolvedAt: r.resolvedAt ? localDate(r.resolvedAt) : null,
+      firstWorkDate: firstWork.get(r.id) ?? null,
+      spentMinutes: spent.get(r.id) ?? 0,
+      priorityOrdinal: prioValue?.ordinal ?? null,
+      fixedCost: val(r.id, fCost?.id)?.numberValue ?? null,
+      predecessors: [...(predecessors.get(r.id) ?? [])].map((p) => rid.get(p)!).filter(Boolean),
+      isMilestone: typeValue ? s.values.get(typeValue)?.name.toLowerCase() === 'milestone' : false,
+    };
+  });
+
+  const people = new Set<string>();
+  for (const t of tasks) if (t.assigneeId) people.add(t.assigneeId);
+  for (const w of work) if (w.authorId) people.add(w.authorId);
+  const resources: PlanResource[] = [...people]
+    .map((id) => s.users.get(id))
+    .filter((u): u is NonNullable<typeof u> => Boolean(u))
+    .map((u) => ({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate }));
+  const items: PlanWorkItem[] = work.map((w) => ({ taskId: rid.get(w.issueId)!, authorId: w.authorId, date: w.date, minutes: w.minutes, hourlyRate: w.hourlyRate }));
+
+  let baseline: PlanBaseline | null = null;
+  if (opts.baselineId) {
+    const [b] = await ctx.db.select().from(baselines).where(and(eq(baselines.id, opts.baselineId), eq(baselines.projectId, project.id)));
+    if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`);
+    const bt = await ctx.db.select().from(baselineTasks).where(eq(baselineTasks.baselineId, b.id));
+    baseline = { id: b.id, name: b.name, tasks: bt.map((t) => ({ id: t.readableId, start: t.start, finish: t.finish, effortMinutes: t.effortMinutes, cost: t.cost })) };
+  }
+
+  const plan = projectSettings(project).plan;
+  return {
+    input: { today: opts.today ?? todayISO(), calendar: plan, tasks, resources, workItems: items, baseline },
+    project,
+    s,
+    refs,
+    rowsById: new Map(rows.map((r) => [rid.get(r.id)!, r])),
+    priorityName,
+  };
+}
+
+function taskDto(l: Loaded, t: ScheduledTask): ScheduleTask {
+  const u = t.assigneeId ? l.s.users.get(t.assigneeId) : undefined;
+  return {
+    issue: l.refs.get(t.id) ?? { id: t.id, summary: t.summary, resolved: t.resolved, state: null },
+    assignee: u ? userRefDto(u) : null,
+    priority: l.priorityName.get(t.id) ?? null,
+    parent: t.parent,
+    depth: t.depth,
+    isSummary: t.isSummary,
+    start: t.start,
+    finish: t.finish,
+    durationDays: t.durationDays,
+    effortMinutes: t.effortMinutes,
+    spentMinutes: t.spentMinutes,
+    percentComplete: t.percentComplete,
+    earlyStart: t.earlyStart,
+    earlyFinish: t.earlyFinish,
+    lateStart: t.lateStart,
+    lateFinish: t.lateFinish,
+    slackDays: t.slackDays,
+    critical: t.critical,
+    deadline: t.deadline,
+    late: t.late,
+    scheduledFrom: t.scheduledFrom,
+    predecessors: t.predecessors,
+    plannedCost: t.plannedCost,
+    actualCost: t.actualCost,
+    baseline: t.baseline,
+    variance: t.variance,
+  };
+}
+
+function scheduleDto(l: Loaded, r: ScheduleResult): Schedule {
+  return {
+    project: { id: l.project.id, key: l.project.key, name: l.project.name },
+    calendar: l.input.calendar,
+    start: r.start,
+    finish: r.finish,
+    today: r.today,
+    criticalPath: r.criticalPath,
+    tasks: r.tasks.map((t) => taskDto(l, t)),
+    warnings: r.warnings,
+    baseline: r.baseline,
+  };
+}
+
+export async function getSchedule(ctx: Ctx, key: string, opts: { query?: string; baseline?: string } = {}): Promise<Schedule> {
+  const l = await loadPlan(ctx, key, { query: opts.query, baselineId: opts.baseline });
+  return scheduleDto(l, computeSchedule(l.input));
+}
+
+export interface OverrideInput {
+  issue: string;
+  delayDays?: number;
+  estimate?: string;
+  assignee?: string | null;
+  start?: string;
+}
+
+function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[] {
+  return list.map((o) => {
+    const id = o.issue.toUpperCase();
+    if (!l.refs.has(id)) throw badRequest(`${o.issue} is not in this plan`);
+    const out: PlanOverride = { id };
+    if (o.delayDays !== undefined) out.delayDays = o.delayDays;
+    if (o.estimate !== undefined) {
+      const m = parsePeriod(o.estimate);
+      if (m === null) throw badRequest(`"${o.estimate}" is not a duration`);
+      out.effortMinutes = m;
+    }
+    if (o.assignee !== undefined) {
+      if (o.assignee === null) out.assigneeId = null;
+      else {
+        const u = findUser(l.s, o.assignee, ctx.actor.user.id);
+        if (!u) throw badRequest(`Unknown user "${o.assignee}"`);
+        out.assigneeId = u.id;
+        if (!l.input.resources.some((r) => r.id === u.id)) {
+          l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate });
+        }
+      }
+    }
+    if (o.start !== undefined) out.start = o.start;
+    return out;
+  });
+}
+
+export async function whatIfSchedule(ctx: Ctx, key: string, body: { query?: string; baseline?: string; overrides: OverrideInput[] }): Promise<WhatIfResult> {
+  const l = await loadPlan(ctx, key, { query: body.query, baselineId: body.baseline });
+  const res = whatIf(l.input, toOverrides(l, ctx, body.overrides));
+  return { before: res.before, after: scheduleDto(l, res.after), finishDeltaDays: res.finishDeltaDays, impacted: res.impacted.map((i) => ({ issue: i.id, summary: i.summary, startDeltaDays: i.startDeltaDays, finishDeltaDays: i.finishDeltaDays })) };
+}
+
+export async function getResourceLoad(ctx: Ctx, key: string, opts: { from?: string; to?: string; query?: string } = {}): Promise<ResourceLoad> {
+  const l = await loadPlan(ctx, key, { query: opts.query });
+  const schedule = computeSchedule(l.input);
+  const load = computeLoad(l.input, schedule, opts.from, opts.to);
+  return {
+    from: load.from,
+    to: load.to,
+    unassignedHours: load.unassignedHours,
+    resources: load.resources
+      .map((r) => {
+        const u = l.s.users.get(r.resourceId);
+        if (!u) return null;
+        return {
+          user: userRefDto(u),
+          capacityHoursPerDay: r.capacityHoursPerDay,
+          totalHours: r.totalHours,
+          overallocatedDays: r.overallocatedDays,
+          peakLoadPct: r.peakLoadPct,
+          days: r.days,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null),
+  };
+}
+
+/** Propose (dryRun) or apply levelling. Applying writes each moved task's Start date, never its due date. */
+export async function level(ctx: Ctx, key: string, opts: { query?: string; mode: LevelingMode; dryRun: boolean }): Promise<LevelingResult> {
+  if (!opts.dryRun) requireScope(ctx, 'write');
+  const l = await loadPlan(ctx, key, { query: opts.query });
+  const p = levelResources(l.input, opts.mode);
+  const changes = p.changes.map((c) => ({
+    issue: c.id,
+    summary: c.summary,
+    assignee: c.assigneeId ? (l.s.users.get(c.assigneeId)?.login ?? null) : null,
+    fromStart: c.fromStart,
+    fromFinish: c.fromFinish,
+    toStart: c.toStart,
+    toFinish: c.toFinish,
+    delayDays: c.delayDays,
+  }));
+  if (!opts.dryRun && changes.length) {
+    if (!(l.s.projectFields.get(l.project.id) ?? []).some((pf) => pf.fieldId === fieldByName(l.s, WELL_KNOWN_FIELDS.startDate)?.id)) {
+      throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.');
+    }
+    for (const c of changes) await updateIssue(ctx, c.issue, { fields: { [WELL_KNOWN_FIELDS.startDate]: c.toStart } });
+  }
+  return {
+    mode: p.mode,
+    applied: !opts.dryRun && changes.length > 0,
+    finishBefore: p.finishBefore,
+    finishAfter: p.finishAfter,
+    overallocatedDaysBefore: p.overallocatedDaysBefore,
+    overallocatedDaysAfter: p.overallocatedDaysAfter,
+    changes,
+    unresolved: p.unresolved,
+  };
+}
+
+export async function getCostReport(ctx: Ctx, key: string, opts: { baseline?: string } = {}): Promise<CostReport> {
+  const l = await loadPlan(ctx, key, { baselineId: opts.baseline });
+  const schedule = computeSchedule(l.input);
+  const c = computeCosts(l.input, schedule);
+  return {
+    project: { id: l.project.id, key: l.project.key, name: l.project.name },
+    currency: c.currency,
+    budget: c.budget,
+    plannedCost: c.plannedCost,
+    actualCost: c.actualCost,
+    forecastCost: c.forecastCost,
+    budgetVariance: c.budgetVariance,
+    byTask: c.byTask.map((t) => ({
+      issue: t.id,
+      summary: t.summary,
+      assignee: t.assigneeId ? (l.s.users.get(t.assigneeId)?.login ?? null) : null,
+      plannedCost: t.plannedCost,
+      actualCost: t.actualCost,
+      fixedCost: t.fixedCost,
+      effortMinutes: t.effortMinutes,
+      spentMinutes: t.spentMinutes,
+      resolved: t.resolved,
+    })),
+    byPerson: c.byPerson
+      .map((p) => {
+        const u = l.s.users.get(p.resourceId);
+        return u ? { user: userRefDto(u), hourlyRate: p.hourlyRate, plannedHours: p.plannedHours, actualHours: p.actualHours, plannedCost: p.plannedCost, actualCost: p.actualCost } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null),
+    evm: c.evm,
+    warnings: c.warnings,
+  };
+}
+
+// Baselines ------------------------------------------------------------------
+
+async function baselineDto(ctx: Ctx, s: SchemaSnapshot, row: typeof baselines.$inferSelect, count?: number): Promise<Baseline> {
+  const by = row.createdById ? s.users.get(row.createdById) : undefined;
+  const n =
+    count ?? (await ctx.db.select({ id: baselineTasks.issueId }).from(baselineTasks).where(eq(baselineTasks.baselineId, row.id))).length;
+  return {
+    id: row.id,
+    projectKey: s.projects.get(row.projectId)?.key ?? '',
+    name: row.name,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+    createdBy: by ? userRefDto(by) : null,
+    taskCount: n,
+    start: row.start,
+    finish: row.finish,
+    plannedCost: row.plannedCost,
+  };
+}
+
+export async function listBaselines(ctx: Ctx, key: string): Promise<Baseline[]> {
+  const { s, project } = await projectFor(ctx, key);
+  const rows = await ctx.db.select().from(baselines).where(eq(baselines.projectId, project.id)).orderBy(desc(baselines.createdAt));
+  return Promise.all(rows.map((r) => baselineDto(ctx, s, r)));
+}
+
+export async function getBaseline(ctx: Ctx, id: string): Promise<Baseline> {
+  requireScope(ctx, 'read');
+  const s = await ctx.app.schema.get();
+  const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
+  if (!row) throw notFound('Baseline');
+  await assertCanReadProject(ctx, row.projectId);
+  return baselineDto(ctx, s, row);
+}
+
+/**
+ * Snapshot the plan as it stands. `asOf` lets the demo seed record a plan of
+ * record as it looked on the project's first day.
+ */
+export async function createBaseline(
+  ctx: Ctx,
+  key: string,
+  input: { name: string; note?: string; query?: string },
+  internal: { asOf?: string; createdAt?: Date } = {},
+): Promise<Baseline> {
+  requireScope(ctx, 'write');
+  const l = await loadPlan(ctx, key, { query: input.query, today: internal.asOf });
+  const schedule = computeSchedule(l.input);
+  const leaves = schedule.tasks.filter((t) => !t.isSummary);
+  const plannedCost = leaves.reduce((sum, t) => sum + t.plannedCost, 0);
+  const id = newId();
+  const { row, activity } = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const [row] = await tx
+      .insert(baselines)
+      .values({
+        id,
+        projectId: l.project.id,
+        name: input.name,
+        note: input.note ?? '',
+        createdById: ctx.actor.user.id,
+        start: schedule.start,
+        finish: schedule.finish,
+        plannedCost: Math.round(plannedCost * 100) / 100,
+        ...(internal.createdAt ? { createdAt: internal.createdAt } : {}),
+      })
+      .returning();
+    if (leaves.length) {
+      await tx.insert(baselineTasks).values(
+        leaves.map((t) => ({
+          baselineId: id,
+          issueId: l.rowsById.get(t.id)?.id ?? t.id,
+          readableId: t.id,
+          summary: t.summary,
+          start: t.start,
+          finish: t.finish,
+          effortMinutes: Math.round(t.effortMinutes),
+          cost: t.plannedCost,
+          assigneeId: t.assigneeId,
+        })),
+      );
+    }
+    const activity = await recordActivity(tx, ctx, {
+      type: 'baseline.created',
+      projectId: l.project.id,
+      issueId: null,
+      payload: { data: { baselineId: id, name: input.name, tasks: leaves.length, finish: schedule.finish, plannedCost } },
+    });
+    return { row: row!, activity };
+  });
+  await publishActivities(ctx.app, [activity]);
+  return baselineDto(ctx, l.s, row, leaves.length);
+}
+
+export async function deleteBaseline(ctx: Ctx, id: string): Promise<void> {
+  requireScope(ctx, 'write');
+  const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
+  if (!row) throw notFound('Baseline');
+  await assertCanReadProject(ctx, row.projectId);
+  await ctx.db.delete(baselines).where(eq(baselines.id, id));
+}

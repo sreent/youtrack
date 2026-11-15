@@ -19,15 +19,16 @@ export interface TestWorld {
 }
 
 /** A fresh in-memory database with defaults, three people and two projects (BACK, WEB). */
-export async function createWorld(opts: { projects?: boolean } = {}): Promise<TestWorld> {
+export async function createWorld(opts: { projects?: boolean; people?: boolean } = {}): Promise<TestWorld> {
   const config = loadConfig({ aiEnabled: false, seedDemo: false });
   const pg = await freshPostgres();
   const database = await openDatabase(pg ? { url: pg.url } : { memory: true });
   const app = await createRuntime(config, database);
   const admin = await insertUser(app.db, { login: 'admin', name: 'Ada Admin', role: 'admin', password: 'password-admin' });
-  const anna = await insertUser(app.db, { login: 'anna', name: 'Anna Schmidt', role: 'member', hourlyRate: 90 });
-  const ben = await insertUser(app.db, { login: 'ben', name: 'Ben Okafor', role: 'member', hourlyRate: 80 });
-  const viewer = await insertUser(app.db, { login: 'vera', name: 'Vera Viewer', role: 'viewer' });
+  const people = opts.people !== false;
+  const anna = people ? await insertUser(app.db, { login: 'anna', name: 'Anna Schmidt', role: 'member', hourlyRate: 90 }) : admin;
+  const ben = people ? await insertUser(app.db, { login: 'ben', name: 'Ben Okafor', role: 'member', hourlyRate: 80 }) : admin;
+  const viewer = people ? await insertUser(app.db, { login: 'vera', name: 'Vera Viewer', role: 'viewer' }) : admin;
   app.schema.invalidate();
   const ctx = adminCtx(app, admin, 'api');
   if (opts.projects !== false) {

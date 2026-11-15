@@ -14,6 +14,7 @@ import { linkIssues } from '../services/links';
 import { createProject } from '../services/projects';
 import { createSavedSearch } from '../services/saved-searches';
 import { createBoard, createSprint, setSprintIssues } from '../services/boards';
+import { createBaseline } from '../services/planning';
 import { fieldByName } from '../services/schema-cache';
 import { insertUser } from '../services/users';
 import { logWork } from '../services/workitems';
@@ -146,6 +147,9 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   await phase('p4', 'Closure', 21);
   await task('decom', 'Decommission the Leeds data center', { Assignee: 'chloe', Estimation: '3d', 'Fixed cost': '3000', Subsystem: 'Compute' }, 'p4', ['cutover']);
   await task('complete', 'Migration complete', { Type: 'Milestone', 'Due date': addDays(today, 40) }, 'p4', ['decom']);
+
+  // The plan of record, as it stood on the first day, before any progress.
+  await createBaseline(as(people.chloe), 'MIG', { name: 'Plan of record', note: 'Approved at kickoff' }, { asOf: start, createdAt: new Date(Date.now() - 21 * 86_400_000) });
 
   // Progress so far: assessment done (a little late), network design under way.
   await logWork(as(people.chloe), ids.inventory!, { duration: '4d', date: start, description: 'Inventory of 140 servers' });

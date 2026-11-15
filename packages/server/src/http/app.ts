@@ -86,7 +86,8 @@ export function createHttpApp(runtime: Runtime) {
   const require = createRequire(import.meta.url);
   let scalarBundle: string | null = null;
   root.get('/api/docs/scalar.js', (c) => {
-    scalarBundle ??= readFileSync(path.join(path.dirname(require.resolve('@scalar/api-reference/package.json')), 'dist/browser/standalone.js'), 'utf8');
+    // The package exports only its entry (dist/index.js); the browser bundle sits beside it.
+    scalarBundle ??= readFileSync(path.join(path.dirname(require.resolve('@scalar/api-reference')), 'browser', 'standalone.js'), 'utf8');
     c.header('cache-control', 'public, max-age=86400');
     return c.body(scalarBundle, 200, { 'content-type': 'application/javascript; charset=utf-8' });
   });

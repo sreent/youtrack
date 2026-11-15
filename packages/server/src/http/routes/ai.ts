@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { createConversation, decide, deleteConversation, getConversation, listConversations, sendMessage, type Emit } from '../../ai/chat/agent';
 import { aiService, requireAI } from '../../ai/client';
 import { similarWithJudgement, summarizeIssue, wordsToCommand, wordsToQuery } from '../../ai/nl';
-import { applySuggestion, dismissSuggestion, listSuggestions, triageIssue } from '../../ai/triage';
+import { applySuggestion, dismissSuggestion, listPendingSuggestions, listSuggestions, triageIssue } from '../../ai/triage';
 import { requireScope, type Ctx } from '../../context';
 import { TOOLS } from '../../tools/registry';
 import type { HttpEnv } from '../env';
@@ -103,6 +103,18 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(app, { method: 'post', path: '/issues/{id}/triage', tags, summary: 'Triage an issue now: suggested fields, tags and possible duplicates', params: Id, response: SuggestionSchema }, ({ ctx, params }) => triageIssue(ctx, params.id));
   route(app, { method: 'get', path: '/issues/{id}/suggestions', tags, summary: "An issue's AI suggestions, newest first", params: Id, response: z.array(SuggestionSchema) }, ({ ctx, params }) => listSuggestions(ctx, params.id));
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/ai/suggestions',
+      tags,
+      summary: 'Suggestions waiting for a person, across issues',
+      query: z.object({ project: z.string().optional(), limit: z.coerce.number().int().min(1).max(200).default(100) }),
+      response: z.array(SuggestionSchema),
+    },
+    ({ ctx, query }) => listPendingSuggestions(ctx, query),
+  );
   route(app, { method: 'post', path: '/suggestions/{id}/apply', tags, summary: 'Apply a suggestion, or some of it', params: Id, body: ApplySuggestionBody, response: SuggestionSchema, status: 200 }, ({ ctx, params, body }) => applySuggestion(ctx, params.id, body));
   route(app, { method: 'post', path: '/suggestions/{id}/dismiss', tags, summary: 'Dismiss a suggestion', params: Id, response: SuggestionSchema, status: 200 }, ({ ctx, params }) => dismissSuggestion(ctx, params.id));
   route(app, { method: 'post', path: '/issues/{id}/summarize', tags, summary: 'Summarise an issue and its discussion', params: Id, response: SummarizeResultSchema, status: 200 }, ({ ctx, params }) => summarizeIssue(ctx, params.id));

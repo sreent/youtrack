@@ -156,6 +156,23 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
   return dto(ctx, saved!);
 }
 
+/** Everything agents propose that waits on a person (the Decide page), newest first. */
+export async function listPendingSuggestions(ctx: Ctx, opts: { project?: string; limit?: number } = {}): Promise<Suggestion[]> {
+  requireScope(ctx, 'read');
+  const s = await ctx.app.schema.get();
+  const project = opts.project ? s.projectsByKey.get(opts.project.toUpperCase()) : undefined;
+  if (opts.project && !project) throw notFound(`Project ${opts.project}`);
+  const res = await ctx.db.execute(sql`
+    SELECT s.id FROM ai_suggestions s JOIN issues i ON i.id = s.issue_id
+    WHERE s.status = 'pending' ${project ? sql`AND i.project_id = ${project.id}` : sql``}
+    ORDER BY s.created_at DESC LIMIT ${Math.min(opts.limit ?? 100, 200)}`);
+  const ids = (res as unknown as { rows: { id: string }[] }).rows.map((r) => r.id);
+  if (!ids.length) return [];
+  const rows = await ctx.db.select().from(aiSuggestions).where(sql`${aiSuggestions.id} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return Promise.all(ids.map((id) => dto(ctx, byId.get(id)!)));
+}
+
 export async function listSuggestions(ctx: Ctx, issueId: string): Promise<Suggestion[]> {
   requireScope(ctx, 'read');
   const row = await resolveIssue(ctx, issueId);
