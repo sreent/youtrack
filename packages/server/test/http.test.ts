@@ -146,7 +146,7 @@ describe('issues over REST', () => {
 
   it('serves an OpenAPI 3.1 document', async () => {
     const res = await app.request('/api/v1/openapi.json');
-    const doc = await res.json();
+    const doc = (await res.json()) as { openapi: string; paths: Record<string, unknown>; components: { schemas: Record<string, unknown>; securitySchemes: Record<string, unknown> } };
     expect(doc.openapi).toBe('3.1.0');
     expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(['/issues', '/issues/{id}', '/commands', '/search/count', '/boards/{id}/view', '/events', '/webhooks']));
     expect(doc.components.schemas.Issue).toBeDefined();
@@ -167,7 +167,7 @@ describe('MCP', () => {
   async function client(bearer: string) {
     const transport = new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`), {
       requestInit: { headers: { authorization: `Bearer ${bearer}` } },
-      fetch: (input, init) => app.request(String(input), init as RequestInit),
+      fetch: async (input, init) => app.request(String(input), init as RequestInit),
     });
     const c = new Client({ name: 'test', version: '1.0.0' });
     await c.connect(transport);

@@ -626,6 +626,9 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
           data: {
             summary,
             fields: fieldsPresentation,
+            // Which fields the reporter chose (the rest are project defaults), so an
+            // agent filling fields on its own never overrides a person's choice.
+            explicitFields: specs.map((sp) => sp.field.name),
             tags: tagRows.map((t) => t.name),
             description: excerpt(input.description ?? '', 1000),
           },

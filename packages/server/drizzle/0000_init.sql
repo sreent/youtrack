@@ -29,6 +29,7 @@ CREATE TABLE "ai_messages" (
 	"role" text NOT NULL,
 	"content" jsonb NOT NULL,
 	"usage" jsonb,
+	"meta" jsonb,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

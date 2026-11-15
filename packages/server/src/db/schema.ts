@@ -505,8 +505,11 @@ export const aiMessages = pgTable(
       .notNull()
       .references(() => aiConversations.id, { onDelete: 'cascade' }),
     role: text('role').notNull(),
+    /** Content blocks exactly as sent to / received from the API (append-only). */
     content: jsonb('content').notNull(),
     usage: jsonb('usage'),
+    /** For people, not the model: one-line summaries of tool results, page context shown, etc. */
+    meta: jsonb('meta'),
     createdAt: created(),
   },
   (t) => [index('ai_messages_conversation').on(t.conversationId, t.id)],
