@@ -284,6 +284,8 @@ export interface ChangeSpec {
   links?: LinkSpec[];
   comment?: string;
   expectedVersion?: number;
+  /** Said about the change in its activity, e.g. that it accepts what triage worked out. */
+  data?: Record<string, unknown>;
 }
 
 export interface ApplyResult {
@@ -472,7 +474,7 @@ export async function applyChanges(
         type: 'issue.updated',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment') },
+        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(spec.data ? { data: spec.data } : {}) },
       }),
     );
   }
@@ -651,7 +653,7 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
   return issueDetail(ctx, created);
 }
 
-export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateIssueInput): Promise<IssueDetail> {
+export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateIssueInput, opts: { data?: Record<string, unknown> } = {}): Promise<IssueDetail> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, idOrReadable);
@@ -663,6 +665,7 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
     addTags: input.addTags,
     removeTags: input.removeTags,
     expectedVersion: input.expectedVersion,
+    data: opts.data,
   };
   const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, spec));
   await publishActivities(ctx.app, result.activities);

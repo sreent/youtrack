@@ -5,6 +5,7 @@ import { createConversation, decide, getConversation, sanitizeFallback, sendMess
 import { setClaudeClientForTests, type ClaudeClient } from '../src/ai/client';
 import { wordsToQuery } from '../src/ai/nl';
 import { applySuggestion, triageConsumer, triageIssue } from '../src/ai/triage';
+import { issueActivity } from '../src/services/activity';
 import { systemCtx } from '../src/app-services';
 import { aiMessages, users } from '../src/db/schema';
 import { createIssue, getIssue } from '../src/services/issues';
@@ -110,6 +111,15 @@ describe('triage', () => {
     const issue = await getIssue(w.as(w.ben), issueId);
     expect(issue.fields.find((f) => f.name === 'Priority')!.value).toMatchObject({ name: 'Critical' });
     expect(issue.fields.find((f) => f.name === 'Assignee')!.value).toBeNull();
+    // The rest stays open, to accept one value at a time; once nothing is left, it's applied.
+    const again = await applySuggestion(w.as(w.ben), s.id, { fields: ['Assignee'] });
+    const typeOpen = (issue.fields.find((f) => f.name === 'Type')!.value as { name: string } | null)?.name !== 'Bug';
+    expect(again.status).toBe(typeOpen ? 'partially_applied' : 'applied');
+    const history = await issueActivity(w.as(w.ben), issueId);
+    const accepted = history.find((e) => e.type === 'issue.updated' && e.changes.some((c) => c.field === 'Assignee'));
+    expect(accepted?.data).toMatchObject({ acceptedFrom: 'triage', suggestionId: s.id });
+    if (typeOpen) expect((await applySuggestion(w.as(w.ben), s.id)).status).toBe('applied');
+    await expect(applySuggestion(w.as(w.ben), s.id)).rejects.toThrow(/already applied/);
   });
 
   it('in auto mode fills only what the reporter left at its default', async () => {

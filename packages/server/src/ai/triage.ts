@@ -1,5 +1,5 @@
 import type { Suggestion, TriageMode, TriagePayload } from '@a4a/shared';
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { systemCtx, type Runtime } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
@@ -136,11 +136,11 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
     summary: out.summary,
   };
 
-  // A new triage replaces any pending one.
+  // A new triage replaces any still open.
   await ctx.db
     .update(aiSuggestions)
     .set({ status: 'dismissed', resolvedAt: new Date() })
-    .where(and(eq(aiSuggestions.issueId, row.id), eq(aiSuggestions.status, 'pending')));
+    .where(and(eq(aiSuggestions.issueId, row.id), inArray(aiSuggestions.status, ['pending', 'partially_applied'])));
   const [saved] = await ctx.db
     .insert(aiSuggestions)
     .values({ id: newId(), issueId: row.id, kind: 'triage', status: 'pending', payload, model })
@@ -164,7 +164,7 @@ export async function listPendingSuggestions(ctx: Ctx, opts: { project?: string;
   if (opts.project && !project) throw notFound(`Project ${opts.project}`);
   const res = await ctx.db.execute(sql`
     SELECT s.id FROM ai_suggestions s JOIN issues i ON i.id = s.issue_id
-    WHERE s.status = 'pending' ${project ? sql`AND i.project_id = ${project.id}` : sql``}
+    WHERE s.status IN ('pending', 'partially_applied') ${project ? sql`AND i.project_id = ${project.id}` : sql``}
     ORDER BY s.created_at DESC LIMIT ${Math.min(opts.limit ?? 100, 200)}`);
   const ids = (res as unknown as { rows: { id: string }[] }).rows.map((r) => r.id);
   if (!ids.length) return [];
@@ -180,28 +180,54 @@ export async function listSuggestions(ctx: Ctx, issueId: string): Promise<Sugges
   return Promise.all(rows.map((r) => dto(ctx, r)));
 }
 
-async function loadPending(ctx: Ctx, id: string): Promise<SuggestionRow> {
+/** A suggestion someone can still decide on: pending, or partly accepted with more to decide. */
+async function loadOpen(ctx: Ctx, id: string): Promise<SuggestionRow> {
   const [row] = await ctx.db.select().from(aiSuggestions).where(eq(aiSuggestions.id, id));
   if (!row) throw notFound('Suggestion');
-  if (row.status !== 'pending') throw badRequest(`This suggestion was already ${row.status.replace('_', ' ')}`);
+  if (row.status !== 'pending' && row.status !== 'partially_applied') throw badRequest(`This suggestion was already ${row.status}`);
   await resolveIssue(ctx, row.issueId); // access check
   return row;
 }
 
-/** Apply some or all of a suggestion as the person deciding (or the triage agent in auto mode). */
+/**
+ * What of a suggestion is still open on the issue as it is now: the fields whose value
+ * isn't the one suggested, and the tags it doesn't have. Someone may have set a value by
+ * hand since, or accepted some of it already.
+ */
+async function stillOpen(ctx: Ctx, row: SuggestionRow) {
+  const payload = row.payload as TriagePayload;
+  const issue = await getIssue(ctx, row.issueId);
+  const now = new Map(issue.fields.map((f) => [f.name, presentField(f)]));
+  const has = new Set(issue.tags.map((t) => t.name.toLowerCase()));
+  return {
+    fields: payload.fields.filter((f) => f.value !== (now.get(f.name) ?? null)),
+    tags: payload.tags.filter((t) => !has.has(t.name.toLowerCase())),
+  };
+}
+
+/**
+ * Apply some or all of a suggestion as the person deciding (or the triage agent in auto
+ * mode). Accepting part of it leaves the rest to decide later, one value at a time if need
+ * be; it is applied once nothing of it is left open.
+ */
 export async function applySuggestion(ctx: Ctx, id: string, pick: { fields?: string[]; tags?: string[] } = {}): Promise<Suggestion> {
   requireScope(ctx, 'write');
-  const row = await loadPending(ctx, id);
-  const payload = row.payload as TriagePayload;
-  const fields = payload.fields.filter((f) => !pick.fields || pick.fields.includes(f.name)).filter((f) => f.value !== f.current);
-  const tags = payload.tags.filter((t) => !pick.tags || pick.tags.includes(t.name)).map((t) => t.name);
+  const row = await loadOpen(ctx, id);
+  const open = await stillOpen(ctx, row);
+  const fields = open.fields.filter((f) => !pick.fields || pick.fields.includes(f.name));
+  const tags = open.tags.filter((t) => !pick.tags || pick.tags.includes(t.name)).map((t) => t.name);
   if (fields.length || tags.length) {
-    await updateIssue(ctx, row.issueId, { fields: Object.fromEntries(fields.map((f) => [f.name, f.value])), addTags: tags });
+    await updateIssue(
+      ctx,
+      row.issueId,
+      { fields: Object.fromEntries(fields.map((f) => [f.name, f.value])), addTags: tags },
+      { data: { acceptedFrom: 'triage', suggestionId: id } },
+    );
   }
-  const everything = fields.length === payload.fields.filter((f) => f.value !== f.current).length && tags.length === payload.tags.length;
+  const left = open.fields.length - fields.length + open.tags.length - tags.length;
   const [updated] = await ctx.db
     .update(aiSuggestions)
-    .set({ status: everything ? 'applied' : 'partially_applied', resolvedAt: new Date(), resolvedById: ctx.actor.user.id })
+    .set(left === 0 ? { status: 'applied', resolvedAt: new Date(), resolvedById: ctx.actor.user.id } : { status: 'partially_applied', resolvedById: ctx.actor.user.id })
     .where(eq(aiSuggestions.id, id))
     .returning();
   return dto(ctx, updated!);
@@ -209,7 +235,7 @@ export async function applySuggestion(ctx: Ctx, id: string, pick: { fields?: str
 
 export async function dismissSuggestion(ctx: Ctx, id: string): Promise<Suggestion> {
   requireScope(ctx, 'write');
-  await loadPending(ctx, id);
+  await loadOpen(ctx, id);
   const [updated] = await ctx.db
     .update(aiSuggestions)
     .set({ status: 'dismissed', resolvedAt: new Date(), resolvedById: ctx.actor.user.id })
