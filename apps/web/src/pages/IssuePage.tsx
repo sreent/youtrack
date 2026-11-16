@@ -319,7 +319,7 @@ export default function IssuePage() {
             <SuggestionCard key={s.id} suggestion={s} compact />
           ))}
           <IssueLinks issue={data} canEdit={canWrite} />
-          <IssueHistory issue={data} me={me.data} />
+          <IssueHistory issue={data} me={me.data} canReply={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
           <WorkLog issue={data} me={me.data} />
         </div>
         <div className="stack">

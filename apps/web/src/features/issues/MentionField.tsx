@@ -15,7 +15,8 @@ function matches(u: User, typed: string): boolean {
 /**
  * A text area for Markdown that offers people after an "@", as Ocean's composer draws it: the people
  * whose login or name starts with what's typed, under the field; the arrows choose, Enter or Tab takes
- * one (as "@login "), Escape puts them away. A screen reader hears how many there are.
+ * one (as "@login "), Escape puts them away. A screen reader hears how many there are. `people` limits
+ * who is offered (a members-only project's people: nobody else would be told).
  */
 export function MentionField({
   id,
@@ -25,6 +26,7 @@ export function MentionField({
   placeholder,
   describedBy,
   autoFocus,
+  people: offered,
 }: {
   id: string;
   value: string;
@@ -33,8 +35,10 @@ export function MentionField({
   placeholder?: string;
   describedBy?: string;
   autoFocus?: boolean;
+  people?: User[];
 }) {
-  const users = useUsers();
+  const everyone = useUsers({ enabled: !offered });
+  const users = { data: offered ?? everyone.data };
   const listId = useId();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [caret, setCaret] = useState(value.length);

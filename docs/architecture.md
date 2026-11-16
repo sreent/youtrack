@@ -337,7 +337,7 @@ People watch what they report, are assigned, comment on or are mentioned in (`@l
 
 The change's activity says what notifications need, as logins, worked out against the issue before the change: `data.assigned` (new assignees), `data.mentions` (people newly mentioned, not those mentioned already), and on deletion `data.watchers`, whose rows go with the issue. Text from a help desk's requester mentions nobody.
 
-The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `watching`), and leaves out whoever acted and whoever can't read the project (`canReadProject`, the seam). Each person's delivery is one transaction:
+The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `watching`), and leaves out whoever acted and whoever can't see the project as they would signing in (`projectRolesOf`), and, for a link, the issue at its other end. Each person's delivery is one transaction:
 
 1. **Once.** `notification_events (user_id, event_id)` is the key. An event the outbox hands over twice, or two instances deliver at once, reaches a person once.
 2. **A burst is one.** An unread notification about the same issue, begun within `NOTIFY_WINDOW_SECONDS` of this event (by the events' own times, so a replay folds the same way) and not yet sealed by its email, takes the event under `FOR UPDATE`; otherwise a new one starts. A read one never takes more: what came after you read it is new.
@@ -347,7 +347,14 @@ What a notification shows is its events, read from the activity log, so there's 
 
 Watching, reading and email preferences are the person's own, like their tokens: no activity, no webhook, nothing in the issue's history. A viewer may watch what they can read; a token needs `write` to change any of it, and `read` to see the inbox.
 
-The unread count is live: the notifier tells this process's open streams (`GET /notifications/stream`), and each stream also counts again every 15 seconds for what other instances delivered.
+**Access.** What reaches a person is checked against their own access, never the actor's:
+
+- Someone mentioned in a members-only project they aren't in is told nothing and doesn't watch it; the change's `data.mentions` names only the people it told. The composer offers only the project's people.
+- A watcher who loses sight of a project keeps their row, but isn't listed or told, its notifications leave their inbox, and their queued email isn't sent (it's checked again as it's rendered). Given access again, it all comes back.
+- A notification's events are shown as the issue's history would show them to its reader: a link to an issue they can't see is left out.
+- A token limited to some projects reads and marks only those projects' notifications. An issue the caller can't see answers 404, in the words used for one that doesn't exist.
+
+The unread count is live on every instance: a change tells this process's open streams (`GET /notifications/stream`) and, by `NOTIFY` on `a4a_inbox` with the people's ids only, every other instance's. Each stream also counts again every 15 seconds, and after `LISTEN` reconnects, for a notification that was lost. A stream ends when its instance stops, and the client reconnects, to any instance: it carries a count, not events, so there's nothing to resume.
 
 - **Costs:** a row per person per event in `notification_events`; read notifications are kept 180 days.
 - **Revisit when:** a team wants per-project or per-kind subscriptions. Today it's per issue, plus the email level.
@@ -356,7 +363,7 @@ The unread count is live: the notifier tells this process's open streams (`GET /
 
 Mail is a row in `mail_outbox` first, written in the transaction that calls for it, with a `dedupe_key` that makes queueing idempotent: one mail per notification, per person per digest day, per help desk event. Without `SMTP_URL` nothing is queued and nothing is sent; no request ever waits on SMTP.
 
-- **Sending.** A sender (`MailWorker`, one per process) claims a few due rows with `FOR UPDATE SKIP LOCKED` and a two-minute lease, so instances never send one at once, and a sender that dies loses its lease to another. At least once: a crash after the server accepted a mail sends it again, under the same `Message-ID`, so clients show one.
+- **Sending.** A sender (`MailWorker`, one per instance) claims a few due rows with `FOR UPDATE SKIP LOCKED` and a two-minute lease, so instances never send one at once, and a sender that dies loses its lease to another. At least once: a crash after the server accepted a mail sends it again, under the same `Message-ID`, so clients show one. Queueing the day's digests and pruning are the lease holder's chores, done once for every instance.
 - **Retries.** A failure waits 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours, then gives up; a permanent refusal (SMTP 5xx) gives up at once.
 - **Rendered when sent,** from the row's payload, so a mail says what is true then: a notification's email seals it first (it takes no more events), and isn't sent if it was read in the app meanwhile, or the person no longer wants that kind. A digest with nothing unread isn't sent.
 - **Plain text and simple HTML,** the same lines, the HTML escaped, links only: no images, scripts or styles, nothing loaded. What people wrote is quoted as written, never rendered.
@@ -370,12 +377,14 @@ Mail is a row in `mail_outbox` first, written in the transaction that calls for 
 
 A project can open a help desk: a public form at `/help/<KEY>` that files an issue, and a page per request (`/request#<token>`) where the requester follows the public conversation and answers it.
 
-- **A requester isn't a user.** They're a row of their own (`requesters`: email and name), so they can't sign in, never appear among people to assign or mention, and can be found and forgotten by email. Their issue is reported by the `helpdesk` agent through the `helpdesk` channel, and its history names them. The help desk acts with an elevated system context, in the one project whose help desk is open.
+- **A requester isn't a user.** They're a row of their own (`requesters`: email and name), so they can't sign in, never appear among people to assign or mention, and can be found and forgotten by email. Their issue is reported by the `helpdesk` agent through the `helpdesk` channel, and its history names them. The agent acts with an elevated system context that reaches the request's project only (`actor.projectIds`), so it works in a members-only project and nowhere else.
 - **Tracking tokens are hashed, and minted as they're sent.** Each email to the requester carries a fresh 256-bit token, made while the email is rendered and kept only as its SHA-256 hash, so no token waits in plain text, in the outbox or anywhere; one minted for a failed attempt is deleted. Every token stays good for the request. Only without SMTP does the form's answer carry one, once, since no email will. In a link the token sits in the fragment; to the API, in a header.
 - **Comments are internal unless made public.** A comment's `visibility` is `internal` by default, on every channel; `public` is allowed only on a request, and is the only thing the requester's page and email show. The requester's own replies are public comments by the `helpdesk` agent, with `requester_id`, and tell the issue's watchers. The project's lead watches each new request and is told of it (`request`).
 - **The first-response target** is per project, in hours round the clock; the deadline in force when a request was filed is kept on it. The first public reply from the team answers it, and so does resolving it without one; it's worked out when read (`slaOf`, and the same in SQL for `sla:`), so nothing has to be updated when a reply comes.
 - **Public routes reveal nothing beyond the one request,** and answer alike whether a project, request or token is missing or just not theirs. The form's posts need an `Origin` of this server and a signed form token tied to a `SameSite=Strict` cookie; anything anonymous may post is small (body limits), limited per address, per email and per help desk, and a hidden field catches bots. Turning the help desk off closes the form; requests already filed keep their pages.
-- **Costs:** no captcha, no proof the email is the requester's, limits per instance (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
+- **Who does what.** A project's managers set its help desk up, like its other settings. A public reply answers the requester for the project and counts as the first response, so it takes someone who may change the project's issues; a viewer's comments on a request stay internal. On a members-only project the form shows the project's name and intro to anyone with its address; that is what opening it means, and the settings say so.
+- **Limits are shared** by every instance, in Postgres (`help_throttle`, fixed windows, emails and tokens counted by their hash), as the sign-in throttle is, so a spammer behind a load balancer gets what one instance would give.
+- **Costs:** no captcha, no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
 - **Revisit when:** a desk gets spam a honeypot doesn't stop (add a captcha), or requesters want to reply by email (inbound mail into the same reply path).
 
 ## Consistency and concurrency

@@ -1,4 +1,4 @@
-import type { Comment, CommentVisibility, IssueDetail, TrackerEvent, UserRef } from '@a4a/shared';
+import type { Comment, CommentVisibility, IssueDetail, TrackerEvent, User, UserRef } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -178,8 +178,12 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
   );
 }
 
-/** Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then a comment of your own. */
-export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | undefined }) {
+/**
+ * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then a
+ * comment of your own. Replying to a help desk's requester takes `canReply` (someone who may change
+ * the issue); `people` are those a mention would reach.
+ */
+export function IssueHistory({ issue, me, canReply = true, people }: { issue: IssueDetail; me: UserRef | undefined; canReply?: boolean; people?: User[] }) {
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
@@ -206,7 +210,7 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
     setBusy(true);
     setError(null);
     try {
-      await post(`/issues/${issue.id}/comments`, { text, ...(requester ? { visibility } : {}) });
+      await post(`/issues/${issue.id}/comments`, { text, ...(requester && canReply ? { visibility } : {}) });
       setText('');
       setVisibility('internal');
       await Promise.all([
@@ -258,14 +262,20 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
           if (text.trim()) void send();
         }}
       >
-        {requester ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
-        <FormField label={`${requester && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
+        {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+        {requester && !canReply ? (
+          <p className="field-help" id="visibility-help">
+            Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
+          </p>
+        ) : null}
+        <FormField label={`${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
           {(id) => (
             <MentionField
               id={id}
               value={text}
               onChange={setText}
               describedBy={requester ? 'visibility-help' : undefined}
+              people={people}
               placeholder="Markdown works here. Mention someone with @ and their login, and an issue by its id, like BACK-12."
             />
           )}
@@ -275,7 +285,7 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
         ) : null}
         <div className="cluster end">
           <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Sending…' : requester ? (visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
+            {busy ? 'Sending…' : requester ? (canReply && visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
           </button>
         </div>
       </form>

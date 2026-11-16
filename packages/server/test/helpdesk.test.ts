@@ -101,7 +101,7 @@ afterAll(async () => {
 });
 
 describe('the help desk', () => {
-  it('is set on the project, by an administrator', async () => {
+  it('is set on the project, by its managers', async () => {
     const res = await http.request('/api/v1/projects/WEB', {
       method: 'PATCH',
       headers: { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' },
@@ -109,7 +109,9 @@ describe('the help desk', () => {
     });
     expect(res.status).toBe(200);
     expect(((await res.json()) as { settings: { helpdesk: unknown } }).settings.helpdesk).toEqual({ enabled: false, firstResponseHours: 8, intro: '' });
+    // Anna is a member of WEB, not a manager; she leads BACK, so she manages it.
     await expect(updateProject(as(w.anna), 'WEB', { settings: { helpdesk: { enabled: true } } })).rejects.toMatchObject({ status: 403 });
+    expect((await updateProject(as(w.anna), 'BACK', { settings: { helpdesk: { intro: 'Ask the backend team.' } } })).settings.helpdesk.enabled).toBe(true);
     // Changing something else keeps it.
     const p = await updateProject(w.adminCtx, 'BACK', { description: 'APIs and data.' });
     expect(p.settings.helpdesk).toEqual({ enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.' });

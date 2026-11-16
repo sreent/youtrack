@@ -44,6 +44,9 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
             <small className="field-help">
               Each becomes an issue here, reported by the help desk for whoever asked, who follows it on a page of its own. Comments stay internal unless you make one
               public.
+              {project.visibility === 'members'
+                ? ` ${project.key} is members only: its form shows its name and these words to anyone with the address, and each requester sees their own request, nothing else.`
+                : ''}
             </small>
           </span>
         </label>
