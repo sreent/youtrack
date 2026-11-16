@@ -440,7 +440,7 @@ An article's id can't be read as an issue's, and the reverse:
 - **Who:** importing writes history as others made it, so it is managing the project: its managers, and administrators. In a members-only project, only its people can be its reporters, assignees and comment authors; anyone else in the file is left empty, and choosing them is refused.
 
 - **Costs:** an upload is kept as rows until it is forgotten (`DELETE /imports/{id}`), about the file's size again.
-- **Revisit when:** a YouTrack REST importer is wanted (not done): it would fill the same rows from the API instead of a file, and the rest stays.
+- **Reading YouTrack's and Jira's APIs** fills the same rows instead of a file, and the rest stays: D29.
 
 ### D22. Notifications come from the outbox, once per person per event, a burst at a time
 
@@ -548,6 +548,43 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D29. Importing from YouTrack's and Jira's APIs: the CSV importer's rows, read with a token nobody keeps
+
+D21's revisit. An import can read the issues a YouTrack query or a Jira JQL matches, from the tracker's REST API, instead of a file. The readers (`imports/readers.ts`) turn each issue into the columns its CSV export would have (YouTrack's `Issue Id`, `State` and link phrases; Jira's `Issue key`, `Status`, `Outward issue link (Blocks)`, custom fields by their names) and write them into `import_rows`. So the mapping finds them as it finds an export's, and the check, the run, running again and undo are the CSV importer's, unchanged.
+
+- **What a file's cells can't hold** comes beside them, in the row's `extra`: comments, work items (YouTrack) or worklogs (Jira), and files, each with its id there.
+  - A comment is known by that id, so one edited there since isn't added twice.
+  - Work items come one by one, so the total of spent time doesn't come too.
+  - Files are settled on the issue's record one by one as they're stored, so a run that stops part-way brings the rest next time and downloads nothing twice. A file over the size limit, or one an issue has no room for, is left out and says so. A file on a YouTrack comment goes on that comment here.
+  - Jira's rich text becomes Markdown (`imports/markup.ts`): Atlassian Document Format from Cloud, wiki markup from Data Center. YouTrack writes Markdown already.
+- **Paging as each API does:** YouTrack's `$top` and `$skip`, the query sorted by creation so pages don't shift; Jira Cloud's `/rest/api/3/search/jql` by `nextPageToken`; Data Center's `/rest/api/2/search` by `startAt`. Comments and worklogs past what a Jira search embeds are read from the issue.
+  - 429 and 503 are waited out as `Retry-After` asks, ten minutes at most at a time; asked for longer, the fetch stops and says to carry on later.
+  - A dropped connection, a 502 or a 504 is tried again.
+- **The fetch is a job,** as the run is. Its progress and heartbeat are on the import, and each page's rows and the place after it commit together. A fetch that stopped (a restart, the other tracker gone quiet) carries on from its last page when someone gives the token again: it reads a page back and skips the keys it has, so nothing is read twice.
+- **The token is used, never kept.** It lives in the job's memory while the fetch reads, and again while a run downloads files: `POST /imports/{id}/run` takes it, and won't start without it when files are to come. It is never in the database, a log, an error or an answer, and what the other tracker says back is shown with it taken out. The web app holds it in the page's memory, so nobody is asked twice; a reload forgets it.
+- **Where the server may go.** The address is someone's to give, and the server fetches it: https only, and public addresses only.
+  - The check is made as the connection is made: `dns.lookup` runs inside the request, every address it answers is checked, and only those allowed are offered to the connection. So a name can't resolve to one thing for a check and another for the request.
+  - Redirects are followed by hand, each hop checked the same way.
+  - Refused: private, loopback, link-local and reserved ranges, IPv4 inside IPv6 (mapped and NAT64), and with them the cloud's metadata service.
+  - An administrator names the hosts inside the network that may be read (`IMPORT_ALLOW_HOSTS`). Plain http goes only to this machine, and only when `IMPORT_ALLOW_HTTP_LOOPBACK` is set, which is for tests.
+  - The credentials go only to the origin they were given for: a redirect elsewhere (Jira Cloud serves files from Atlassian's media service) goes without them.
+- **What only some may see there stays there.** Left out, with how many and which issues said:
+  - YouTrack's issues and comments with limited visibility;
+  - Jira's issues with a security level, and comments with a visibility.
+
+  a4a can't tell whom they were for, and here they would reach everyone who can see the project.
+- **Who:** as an upload, the project's managers and administrators. The token's account decides what is read; a4a's access decides where it goes.
+- **Not over MCP.** An agent would pass the other tracker's token through a model's context. The web app and the REST API take it.
+
+**Costs.**
+- The issues are read into rows before anything is mapped, as a file's are: about their size again, until the import is forgotten.
+- Files come during the run, so a run that brings them needs the token again and the other tracker reachable.
+- A fetch reads every issue the query matches, up to the 50,000 an import takes. Jira comments past the search's page are read one issue at a time.
+
+**Left out:** YouTrack's agile sprints (not an issue field; a sprint column, if there is one, maps as any), votes, watchers and visibility groups; Jira's changelog (an issue's own dates come, its states in between don't), votes, watchers, and Service Management's request types and timers.
+
+**Revisit when:** a project should be kept in step rather than imported. Then a schedule fetches what changed since (YouTrack's `updated:`, Jira's `updated >=`) with a token the server keeps, encrypted: the decision this one avoids.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -588,6 +625,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
+- **Imports from an API:** the server reads only public https addresses, checked as it connects and at each redirect, unless an administrator allows a host inside by name; the other tracker's token is used and never kept, logged or shown (D29).
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
@@ -610,7 +648,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
-- **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
+- **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time. One from an API reads up to 50,000 issues, each page of its answers 64 MB at most, and waits out a `Retry-After` of up to ten minutes at a time.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
 
@@ -620,7 +658,6 @@ Planned, with the seams already in place:
 
 - groups of people with a role in a project (D15);
 - OAuth 2.1 for remote MCP (what it takes is in D16);
-- an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
 - an S3-compatible store for files, so several instances need no shared volume (D18);

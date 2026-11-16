@@ -37,10 +37,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - time logged by person, issue, project and week, against estimates.
   - Each chart has its figures as a table beside it, and the tables download as CSV.
 - **Dashboards**: a page of your own reports, saved searches and notes, private or shared. Each viewer sees what they may.
-- **Importing from Jira or YouTrack** (CSV), for a project's managers:
+- **Importing from Jira or YouTrack**, from a CSV export or straight from their APIs, for a project's managers:
   - columns and values are mapped for you where their names say what they are, and you map the rest;
   - a check says what would happen, row by row, before anything changes;
   - issues keep their original dates, reporters, comments, time and links;
+  - from an API, each issue's comments, work items and files come too: a query (YouTrack) or a JQL (Jira Cloud or Data Center) says which issues, and the token is used and never kept;
   - running it again updates what changed and never makes an issue twice, and an import nobody has worked on since can be undone.
 - **Notifications** of what concerns you:
   - You watch what you report, are assigned, comment on or are mentioned in (`@anna`), and what you choose to; `watcher: me` finds it.
@@ -168,6 +169,8 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
 | `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
+| `IMPORT_ALLOW_HOSTS` | empty | Comma-separated host names an import may read from although they are inside the network, such as a YouTrack or Jira of your own. Every other host must be public; https always |
+| `IMPORT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets an import read over plain http from this machine |
 
 ## Production
 
