@@ -53,7 +53,11 @@ export function authorByEmail(s: SchemaSnapshot, email: string | null): Author {
   return { user: null, why: 'a4a doesn’t know who wrote it', detail: `nobody in a4a has the verified email ${email}` };
 }
 
-/** Changes made from version control: as the commit's author when a4a knows them, else as nobody, through the integration. */
+/**
+ * Changes made from version control: as the commit's author when a4a knows them (with their own
+ * access, as they would sign in), else as nobody, through the integration. Like a token limited to
+ * projects, it reaches only the integration's projects, when it lists some.
+ */
 function vcsCtx(app: AppServices, integration: IntegrationRow, person: UserRow | null): Ctx {
   const nobody = {
     id: 'system',
@@ -73,6 +77,7 @@ function vcsCtx(app: AppServices, integration: IntegrationRow, person: UserRow |
   } satisfies UserRow;
   const ctx = systemCtx(app, person ?? nobody, 'vcs');
   ctx.actor.tokenName = integration.name;
+  ctx.actor.projectIds = integration.projectIds.length ? [...integration.projectIds] : null;
   return ctx;
 }
 

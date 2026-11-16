@@ -10,8 +10,8 @@ import { RuleRuns } from '../features/rules/RuleRuns';
 
 /**
  * A project's workflow rules: each read as a sentence, made and changed with the query and command
- * languages, previewed before they're saved, and what they did. Its manager or an administrator
- * changes them; anyone who can see the project can see them.
+ * languages, previewed before they're saved, and what they did. Its managers (administrators
+ * among them) change them; anyone who can see the project can see them.
  */
 export default function RulesPage() {
   const { project: param } = useParams();
@@ -30,8 +30,8 @@ export default function RulesPage() {
 
   const scopes = me.data?.auth.scopes ?? [];
   const isAdmin = scopes.includes('admin');
-  // As the server decides it (services/access.ts): the project's lead stands for its manager.
-  const manages = scopes.includes('write') && (isAdmin || (project?.lead !== null && project?.lead?.id === me.data?.id));
+  // As the server decides it (services/access.ts): the project's managers make its rules.
+  const manages = project?.access.manage ?? false;
 
   if (projects.isLoading) return <Loading what="projects" />;
   if (projects.error) return <ErrorNote error={projects.error} />;
@@ -72,9 +72,7 @@ export default function RulesPage() {
         }
       />
       {!manages ? (
-        <p className="note">
-          {project.lead ? `${project.lead.name}, its lead,` : 'Its lead'} or an administrator makes and changes {project.key}’s rules. You can see what they do, and preview them.
-        </p>
+        <p className="note">{project.key}’s managers make and change its rules. You can see what they do, and preview them.</p>
       ) : null}
 
       <section className="card" aria-labelledby="rules-title">

@@ -29,7 +29,7 @@ import type { SQL } from 'drizzle-orm';
 import { AppError } from '../lib/errors';
 import { readableId, type IssueRow } from '../services/issue-refs';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
-import { condition, meets } from './match';
+import { condition, meets, ruleWorld } from './match';
 
 export interface GuardCheck {
   rule: RuleRow;
@@ -42,8 +42,9 @@ export function guardChecks(ctx: Ctx, s: SchemaSnapshot, projectId: string): Gua
   const out: GuardCheck[] = [];
   for (const rule of rulesFor(s, projectId)) {
     if (rule.kind !== 'guard' || !rule.enabled) continue;
-    const when = condition(s, rule.query, { meId: ctx.actor.user.id });
-    const requires = condition(s, rule.requires ?? '', { meId: ctx.actor.user.id });
+    const world = ruleWorld(s, rule.projectId);
+    const when = condition(world, rule.query, { meId: ctx.actor.user.id });
+    const requires = condition(world, rule.requires ?? '', { meId: ctx.actor.user.id });
     // A guard that no longer reads (a value was renamed since) must neither refuse every change nor
     // let a misread query decide: it refuses nothing until someone fixes it, and says so.
     if (when.problems.length || requires.problems.length) {

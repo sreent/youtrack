@@ -1,19 +1,23 @@
-import type { IssueDetail } from '@a4a/shared';
+import type { IssueDetail, RulePreview, RuleRun } from '@a4a/shared';
 import { and, count, eq, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { adminCtx } from '../src/app-services';
 import { runCommand } from '../src/commands/executor';
+import type { UserRow } from '../src/context';
 import { activities, comments, issues, projects, ruleRuns, rules } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
-import { issueActivity } from '../src/services/activity';
+import { AppError } from '../src/lib/errors';
+import { eventFeed, issueActivity } from '../src/services/activity';
 import { addComment } from '../src/services/comments';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
-import { updateProject } from '../src/services/projects';
+import { addMember } from '../src/services/members';
+import { createProject, updateProject } from '../src/services/projects';
 import { addFieldValue } from '../src/services/fields';
 import { fieldByName } from '../src/services/schema-cache';
+import { insertUser } from '../src/services/users';
 import { presentField } from '../src/tools/registry';
 import { MAX_DEPTH, RuleEngine } from '../src/workflow/engine';
-import { createRule, deleteRule, listRuleRuns, listRules, previewRule, updateRule } from '../src/workflow/rules';
+import { checkRulePart, createRule, deleteRule, getRule, listRuleRuns, listRules, previewRule, updateRule } from '../src/workflow/rules';
 import { nextRunAfter } from '../src/workflow/words';
 import { addDays, todayISO } from '../src/lib/dates';
 import { createHttpApp } from '../src/http/app';
@@ -473,5 +477,190 @@ describe('over REST and MCP', () => {
     expect(previewed.data).toMatchObject({ ok: false, fixed: { query: '#Unresolved Priority: Critical' } });
     expect(toolByName('preview_rule')!.kind).toBe('reads');
     expect(['create_rule', 'update_rule', 'delete_rule'].map((n) => toolByName(n))).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+/** What an error says, with one key or id put back as a placeholder, to compare "hidden" with "missing". */
+async function failure(p: Promise<unknown>, word?: string): Promise<{ status: number; code: string; message: string; hint?: string }> {
+  try {
+    await p;
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e;
+    const strip = (t?: string) => (word && t ? t.split(word).join('<X>') : t);
+    return { status: e.status, code: e.code, message: strip(e.message)!, hint: strip(e.hint) };
+  }
+  throw new Error('expected it to fail');
+}
+
+describe('a members-only project, through rules', () => {
+  // SECRET: only its people see it. Anna manages it and Dana is one of its viewers; Ben is outside it (he leads WEB).
+  let dana: UserRow;
+  let secretIssue = '';
+  let backId = '';
+  const byIssue = (runs: RuleRun[]) => runs.map((r) => r.issue).sort();
+
+  beforeAll(async () => {
+    await createProject(w.adminCtx, { key: 'SECRET', name: 'Merger', template: 'software', visibility: 'members' });
+    dana = await insertUser(w.app.db, { login: 'dana', name: 'Dana Reyes', role: 'member' });
+    w.app.schema.invalidate();
+    await addMember(w.adminCtx, 'SECRET', { user: 'anna', role: 'manager' });
+    await addMember(w.adminCtx, 'SECRET', { user: 'dana', role: 'viewer' });
+    const s = await w.app.schema.get();
+    backId = s.projectsByKey.get('BACK')!.id;
+    await addFieldValue(w.adminCtx, fieldByName(s, 'Subsystem')!.id, { name: 'Diligence', project: 'SECRET' });
+    secretIssue = (await createIssue(w.as(w.anna), { project: 'SECRET', summary: 'Acquire Initech', fields: { Subsystem: 'Diligence' } })).id;
+    await settle();
+  });
+
+  it('answers for its rules, their runs and its name exactly as for ones that do not exist', async () => {
+    const ben = w.as(w.ben);
+    const rule = await createRule(w.as(w.anna), { project: 'SECRET', name: 'Diligence is urgent', kind: 'change', trigger: 'created', query: 'Subsystem: Diligence', command: 'tag urgent' });
+    const sneak = { project: 'SECRET', name: 'x', kind: 'change' as const, trigger: 'created' as const, query: '', command: 'tag x' };
+    const alike = async (hidden: Promise<unknown>, missing: Promise<unknown>, word: string, other: string) => {
+      const [a, b] = [await failure(hidden, word), await failure(missing, other)];
+      expect(a).toEqual(b);
+      expect(a.status).toBe(404);
+    };
+    await alike(listRules(ben, { project: 'SECRET' }), listRules(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(getRule(ben, rule.id), getRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
+    await alike(listRuleRuns(ben, { rule: rule.id }), listRuleRuns(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
+    await alike(listRuleRuns(ben, { project: 'SECRET' }), listRuleRuns(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(updateRule(ben, rule.id, { enabled: false }), updateRule(ben, 'no-such-rule', { enabled: false }), rule.id, 'no-such-rule');
+    await alike(deleteRule(ben, rule.id), deleteRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
+    await alike(createRule(ben, sneak), createRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(previewRule(ben, sneak), previewRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(
+      checkRulePart(ben, { project: 'SECRET', kind: 'change', part: 'query', text: '' }),
+      checkRulePart(ben, { project: 'SECRAT', kind: 'change', part: 'query', text: '' }),
+      'SECRET',
+      'SECRAT',
+    );
+    await alike(toolByName('list_rules')!.run(ben, { project: 'SECRET' }), toolByName('list_rules')!.run(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(toolByName('preview_rule')!.run(ben, { rule: rule.id }), toolByName('preview_rule')!.run(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
+    expect((await listRules(ben)).map((r) => r.id)).not.toContain(rule.id);
+    expect((await listRules(w.as(w.anna))).map((r) => r.id)).toContain(rule.id);
+    // Over REST too.
+    const http = createHttpApp(w.app);
+    const token = (await issueTokenFor(w.app.db, w.ben.id, { name: 'ben-cli', scopes: ['read', 'write'] })).token;
+    const get = async (path: string) => {
+      const res = await http.request(`/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
+      return { status: res.status, body: JSON.stringify(await res.json()) };
+    };
+    expect((await get(`/rules/${rule.id}`)).status).toBe(404);
+    const [hidden, missing] = [await get('/rules?project=SECRET'), await get('/rules?project=SECRAT')];
+    expect(hidden.status).toBe(404);
+    expect(hidden.body.split('SECRET').join('<X>')).toBe(missing.body.split('SECRAT').join('<X>'));
+  });
+
+  it("gives a rule elsewhere nothing of it: its names are unknown words, its issues unknown issues, its count no one's", async () => {
+    const ben = w.as(w.ben);
+    const web = { project: 'WEB', name: 'Probe', kind: 'change' as const, trigger: 'created' as const, query: '', command: 'tag x' };
+    const said = async (p: Promise<RulePreview>, word: string) => JSON.stringify((await p).problems).split(word).join('<X>');
+    expect(await said(previewRule(ben, { ...web, query: 'project: SECRET' }), 'SECRET')).toBe(await said(previewRule(ben, { ...web, query: 'project: SECRAT' }), 'SECRAT'));
+    expect(await said(previewRule(ben, { ...web, query: 'Subsystem: Diligence' }), 'Diligence')).toBe(await said(previewRule(ben, { ...web, query: 'Subsystem: Diligance' }), 'Diligance'));
+    expect(await said(previewRule(ben, { ...web, command: `relates to ${secretIssue}` }), secretIssue)).toBe(await said(previewRule(ben, { ...web, command: 'relates to BACK-999' }), 'BACK-999'));
+    const hiddenRule = await failure(createRule(ben, { ...web, command: `relates to ${secretIssue}` }), secretIssue);
+    expect(hiddenRule).toEqual(await failure(createRule(ben, { ...web, command: 'relates to BACK-999' }), 'BACK-999'));
+    expect(JSON.stringify(await previewRule(ben, { ...web, query: 'project: SECRAT' }))).not.toContain('SECRET');
+    // A rule for every project, previewed by someone outside it, counts and shows only what they can see.
+    const all = { project: null, name: 'All', kind: 'schedule' as const, schedule: { every: 'hour' as const }, query: '', command: 'tag x' };
+    const [outside, inside] = [await previewRule(ben, all), await previewRule(w.adminCtx, all)];
+    const secretCount = Number((await w.app.db.select({ n: count() }).from(issues).where(eq(issues.projectId, (await w.app.schema.get()).projectsByKey.get('SECRET')!.id)))[0]!.n);
+    expect(secretCount).toBeGreaterThan(0);
+    expect(inside.matching - outside.matching).toBe(secretCount);
+    expect(JSON.stringify(outside)).not.toContain('SECRET');
+    expect(JSON.stringify((await previewRule(ben, { ...all, query: 'Subsystem: Diligence' })).problems).split('Diligence').join('<X>')).toBe(
+      JSON.stringify((await previewRule(ben, { ...all, query: 'Subsystem: Diligance' })).problems).split('Diligance').join('<X>'),
+    );
+    const typed = (who: typeof ben) => checkRulePart(who, { project: null, kind: 'change', part: 'query', text: 'project: SE', caret: 11 });
+    expect((await typed(ben)).suggestions.map((x) => x.label)).not.toContain('SECRET');
+    expect((await typed(w.as(w.anna))).suggestions.map((x) => x.label)).toContain('SECRET');
+  });
+
+  it('is acted in by a rule for every project, and what it did there stays there', async () => {
+    const everywhere = await createRule(w.adminCtx, { project: null, name: 'Merger watch', kind: 'change', trigger: 'created', query: 'summary: merger', command: 'tag watched' });
+    const inside = await createIssue(w.as(w.anna), { project: 'SECRET', summary: 'Merger timeline' });
+    const outside = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Merger of two caches' });
+    await settle();
+    expect(tagsOf(await getIssue(w.as(w.anna), inside.id))).toEqual(['watched']);
+    expect(tagsOf(await getIssue(w.as(w.anna), outside.id))).toEqual(['watched']);
+    expect(byIssue(await listRuleRuns(w.as(w.ben), { rule: everywhere.id }))).toEqual([outside.id]);
+    expect(byIssue(await listRuleRuns(w.as(w.anna), { rule: everywhere.id }))).toEqual([inside.id, outside.id].sort());
+    expect(JSON.stringify(await listRules(w.as(w.ben)))).not.toContain(inside.id);
+    expect((await eventFeed(w.as(w.ben), { limit: 500 })).some((e) => e.project === 'SECRET')).toBe(false);
+    expect((await eventFeed(w.as(w.anna), { limit: 500 })).some((e) => e.project === 'SECRET' && e.data.automation)).toBe(true);
+  });
+
+  it("shows how a scheduled rule for every project went only to those who see every project", async () => {
+    const sweep = await createRule(w.adminCtx, { project: null, name: 'Sweep', kind: 'schedule', schedule: { every: 'hour' }, query: 'summary: acquisition', command: 'tag swept' });
+    const inside = await createIssue(w.as(w.anna), { project: 'SECRET', summary: 'Acquisition costs' });
+    const outside = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Acquisition of tokens' });
+    await w.app.db.update(rules).set({ nextRunAt: new Date(Date.now() - 1000) }).where(eq(rules.id, sweep.id));
+    await engine.runDue();
+    expect(tagsOf(await getIssue(w.as(w.anna), inside.id))).toEqual(['swept']);
+    // The run's summary counts SECRET's issues too, so Ben sees only what it did in BACK.
+    const theirs = await listRuleRuns(w.as(w.ben), { rule: sweep.id });
+    expect(byIssue(theirs)).toEqual([outside.id]);
+    const all = await listRuleRuns(w.adminCtx, { rule: sweep.id });
+    expect(all.find((r) => r.issue === null)?.message).toBe('Checked 2 issues, changed 2.');
+    expect((await listRules(w.as(w.ben))).find((r) => r.id === sweep.id)?.lastRun?.issue).toBe(outside.id);
+  });
+
+  it('keeps a rule to its own project, members only or not', async () => {
+    const back = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'A cache' });
+    // Anna manages SECRET and can see BACK, and still a rule of SECRET can't link to BACK's issues, nor one for every project to one issue.
+    await expect(createRule(w.as(w.anna), { project: 'SECRET', name: 'x', kind: 'change', trigger: 'created', query: '', command: `relates to ${back.id}` })).rejects.toMatchObject({
+      status: 400,
+      details: { problems: [{ part: 'command', message: `${back.id} is in BACK, and a rule of SECRET changes only SECRET's issues` }] },
+    });
+    await expect(createRule(w.adminCtx, { project: null, name: 'x', kind: 'change', trigger: 'created', query: '', command: `relates to ${secretIssue}` })).rejects.toMatchObject({
+      status: 400,
+      details: { problems: [{ part: 'command', hint: 'Make it a rule of SECRET.' }] },
+    });
+    // Even a rule that got past those checks: the workflow agent reaches only the project of the issue it acts on.
+    await w.app.db.insert(rules).values({ id: 'reach', projectId: backId, name: 'Reach', kind: 'change', trigger: 'created', query: '', command: `relates to ${secretIssue}` });
+    w.app.schema.invalidate();
+    const probe = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Probe' });
+    await settle();
+    expect((await getIssue(w.adminCtx, probe.id)).links).toEqual([]);
+    expect((await getIssue(w.adminCtx, secretIssue)).links).toEqual([]);
+    expect((await listRuleRuns(w.adminCtx, { rule: 'reach' }))[0]).toMatchObject({ outcome: 'failed', issue: probe.id, message: `Unknown issue ${secretIssue}` });
+    // A token for some projects reaches no further, and makes no rule for every project.
+    const limited = adminCtx(w.app, w.admin, 'api');
+    limited.actor.projectIds = [backId];
+    expect(await failure(listRules(limited, { project: 'SECRET' }), 'SECRET')).toEqual(await failure(listRules(limited, { project: 'SECRAT' }), 'SECRAT'));
+    await expect(createRule(limited, { project: null, name: 'x', kind: 'change', trigger: 'created', query: '', command: 'tag x' })).rejects.toMatchObject({ status: 403 });
+    await createRule(limited, { project: 'BACK', name: 'Fine', kind: 'change', trigger: 'created', query: '', command: 'tag x' });
+  });
+
+  it('lets a viewer read its rules and set them off, but make, change or stop none of them', async () => {
+    const viewer = w.as(dana);
+    const issue = await createIssue(w.as(w.anna), { project: 'SECRET', summary: 'Who signs?', tags: ['waiting'] });
+    await settle();
+    const draft = { project: 'SECRET', name: 'An answer clears waiting', kind: 'change' as const, trigger: 'commented' as const, query: 'tag: waiting', command: 'remove tag waiting' };
+    await expect(createRule(viewer, draft)).rejects.toMatchObject({ status: 403 });
+    await expect(createRule(viewer, { ...draft, project: null })).rejects.toMatchObject({ status: 403 });
+    const rule = await createRule(w.as(w.anna), draft);
+    expect((await listRules(viewer, { project: 'SECRET' })).map((r) => r.id)).toEqual([rule.id]);
+    for (const change of [{ enabled: false }, { command: 'State Fixed' }, { name: 'Mine now' }]) {
+      await expect(updateRule(viewer, rule.id, change)).rejects.toMatchObject({ status: 403 });
+    }
+    await expect(deleteRule(viewer, rule.id)).rejects.toMatchObject({ status: 403 });
+    expect(await getRule(w.as(w.anna), rule.id)).toMatchObject({ enabled: true, command: 'remove tag waiting', version: rule.version });
+
+    // Previewing, which a viewer may, changes nothing.
+    const before = await getIssue(w.as(w.anna), issue.id);
+    const preview = await previewRule(viewer, { ...draft, command: 'State Fixed' });
+    expect(preview.sample.find((x) => x.issue.id === issue.id)?.changes).toEqual([{ field: 'State', from: 'Open', to: 'Fixed' }]);
+    expect((await getIssue(w.as(w.anna), issue.id)).version).toBe(before.version);
+    // She can't change the issue herself. She may comment, and the managers' rule acts on that, as the
+    // workflow agent: what it changes is theirs to say, and "me" is all she brings to it.
+    await expect(updateIssue(viewer, issue.id, { summary: 'Mine now' })).rejects.toMatchObject({ status: 403 });
+    await addComment(viewer, issue.id, 'Chloé signs.');
+    await settle();
+    expect(tagsOf(await getIssue(w.as(w.anna), issue.id))).toEqual([]);
+    const byRule = (await issueActivity(w.as(w.anna), issue.id)).find((e) => e.type === 'issue.updated' && e.data.automation);
+    expect(byRule!.actor).toMatchObject({ login: 'workflow', channel: 'automation' });
+    expect(byRule!.data.automation).toMatchObject({ rule: rule.id, by: dana.id });
   });
 });

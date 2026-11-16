@@ -45,8 +45,11 @@ export interface Incoming {
 
 export interface Answer {
   status: number;
+  /** What the provider is told. */
   body: Record<string, unknown>;
   retryAfter?: number;
+  /** What a4a's own log says, for a4a's callers (a test from the Integrations page). */
+  said?: string;
 }
 
 const refuse = (status: number, code: string, message: string, hint?: string): Answer => ({
@@ -139,9 +142,20 @@ const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? on
 
 interface Done {
   outcome: VcsDeliveryOutcome;
+  /** For a4a's log of deliveries, which only administrators read. */
   message: string;
+  /**
+   * For the provider, when the log's words would say more than it should know: the provider shows
+   * its replies to the repository's administrators, who aren't a4a's, so a reply names no issue
+   * and no person, and says nothing of who can do what in a4a.
+   */
+  reply?: string;
   linked: number;
   applied: number;
+}
+
+function replyWords(linked: number, applied: number): string {
+  return `Read: ${count(linked, 'link')} made, ${count(applied, 'command')} applied. a4a's log of this integration's deliveries says what each was.`;
 }
 
 /** The projects whose issue ids this integration looks for, by key. */
@@ -186,9 +200,9 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
       }
       const more = delivery.commits.length > commits.length ? ` Read the first ${MAX_COMMITS} of ${delivery.commits.length} commits.` : '';
       if (!said.length) {
-        return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}; none mentions an issue.${more}`, linked, applied };
+        return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}; none mentions an issue.${more}`, reply: replyWords(0, 0), linked, applied };
       }
-      return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}. ${said.join('; ')}.${more}`, linked, applied };
+      return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}. ${said.join('; ')}.${more}`, reply: replyWords(linked, applied), linked, applied };
     }
     case 'pull_request': {
       const found = mentions([delivery.title, delivery.branch ?? '', delivery.body].join('\n'), keySet, false);
@@ -202,11 +216,12 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
         return {
           outcome: 'processed',
           message: found.length ? `#${delivery.number} (${delivery.state}): nothing new.` : `#${delivery.number} (${delivery.state}) mentions no issue.`,
+          reply: replyWords(0, 0),
           linked: 0,
           applied: 0,
         };
       }
-      return { outcome: 'processed', message: `#${delivery.number} (${delivery.state}). ${r.said.join('; ')}.`, linked: r.linked, applied: 0 };
+      return { outcome: 'processed', message: `#${delivery.number} (${delivery.state}). ${r.said.join('; ')}.`, reply: replyWords(r.linked, 0), linked: r.linked, applied: 0 };
     }
   }
 }
@@ -271,6 +286,6 @@ export async function receive(app: AppServices, integrationId: string, req: Inco
   await app.db
     .delete(vcsDeliveries)
     .where(and(eq(vcsDeliveries.integrationId, integration.id), lt(vcsDeliveries.createdAt, new Date(Date.now() - KEEP_DAYS * 86_400_000))));
-  if (status >= 400) return refuse(status, status === 400 ? 'bad_request' : 'internal', message);
-  return { status, body: { ok: true, outcome: done.outcome, message, linked: done.linked, applied: done.applied } };
+  if (status >= 400) return { ...refuse(status, status === 400 ? 'bad_request' : 'internal', message), said: message };
+  return { status, body: { ok: true, outcome: done.outcome, message: done.reply ?? message, linked: done.linked, applied: done.applied }, said: message };
 }

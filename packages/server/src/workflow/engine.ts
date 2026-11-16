@@ -17,10 +17,14 @@
  *
  * Failures. A rule that fails (its command no longer fits, a guard refuses its change, a value it
  * names is gone) is written in the run log with why, and never stops the other rules or the outbox.
+ *
+ * Reach. The workflow agent has administrator scopes, as triage's agent does, but acts on one issue
+ * at a time and reaches only that issue's project (`actor.projectIds`), members only or not: a
+ * rule never reads, links to or changes another project's issues. A project's rule reads only its
+ * own project's names (match.ts, ruleWorld), as it was checked when it was made.
  */
 import type { Change, RuleSchedule, TrackerEvent } from '@a4a/shared';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
-import { adminCtx } from '../app-services';
 import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
 import type { AppServices, AutomationCause, Ctx } from '../context';
@@ -33,8 +37,8 @@ import { AppError } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { applyChanges, findIssue, type ChangeSpec, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
-import { condition, meets } from './match';
-import { draftOf, pruneRuleRuns, readingProblems } from './rules';
+import { condition, meets, ruleWorld } from './match';
+import { botCtx, draftOf, pruneRuleRuns, readingProblems } from './rules';
 import { nextRunAfter } from './words';
 
 /** How many rules deep a chain may go: a rule's change sets off rules, whose changes set off rules… */
@@ -150,7 +154,7 @@ export class RuleEngine {
     const matched = await meets(
       this.app.db,
       issue.id,
-      readable.map((r) => condition(s, r.query, { meId: chain.me, projectId: r.projectId }).where),
+      readable.map((r) => condition(ruleWorld(s, r.projectId), r.query, { meId: chain.me, projectId: r.projectId }).where),
     );
     for (const [i, rule] of readable.entries()) {
       if (!matched[i]) continue;
@@ -170,7 +174,7 @@ export class RuleEngine {
 
   /** Whether a rule still reads; one that doesn't does nothing, and says so once an hour. */
   private async reads(s: SchemaSnapshot, rule: RuleRow): Promise<boolean> {
-    const problems = readingProblems(s, draftOf(rule));
+    const problems = readingProblems(ruleWorld(s, rule.projectId), draftOf(rule));
     if (!problems.length) return true;
     const last = this.brokenNoted.get(rule.id) ?? 0;
     if (Date.now() - last >= BROKEN_NOTE_EVERY_MS) {
@@ -188,10 +192,7 @@ export class RuleEngine {
   async apply(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<Outcome> {
     const bot = s.usersByLogin.get(WORKFLOW_BOT);
     if (!bot) throw new Error('The workflow agent is missing: restart the server to create it');
-    const ctx: Ctx = {
-      ...adminCtx(this.app, bot, 'automation'),
-      automation: { rule: rule.id, name: rule.name, origin: chain.origin, depth: chain.depth + 1, by: chain.me },
-    };
+    const ctx: Ctx = { ...botCtx(this.app, bot, issue.projectId), automation: { rule: rule.id, name: rule.name, origin: chain.origin, depth: chain.depth + 1, by: chain.me } };
     // A replayed event, or a loop come round: this rule already acted on this issue for this change.
     if (chain.origin !== null && (await this.actedFor(rule, issue, chain.origin))) return 'duplicate';
 
@@ -308,7 +309,7 @@ export class RuleEngine {
   async runScheduled(rule: RuleRow, stillHolder: StillHolder = () => true): Promise<void> {
     const s = await this.app.schema.get();
     if (!(await this.reads(s, rule))) return;
-    const where = condition(s, rule.query, { meId: null, projectId: rule.projectId }).where ?? sql`TRUE`;
+    const where = condition(ruleWorld(s, rule.projectId), rule.query, { meId: null, projectId: rule.projectId }).where ?? sql`TRUE`;
     let checked = 0;
     let changed = 0;
     let failed = 0;

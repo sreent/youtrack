@@ -4,7 +4,9 @@
  *
  * A rule is project-scoped (its query only ever matches its project's issues), or global, for
  * every project, which only administrators manage. Managing a project's rules needs its manager
- * or an administrator (services/access.ts); reading them needs only to read the project.
+ * or an administrator (services/access.ts); reading them needs only to read the project. A rule of
+ * a project someone can't see answers as one that doesn't exist, and a project's rule reads only
+ * its own project's names (match.ts, ruleWorld), so nothing in it can probe another.
  */
 import {
   RULE_TRIGGERS,
@@ -24,7 +26,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql, type SQL } from 'driz
 import { adminCtx } from '../app-services';
 import { runCommand } from '../commands/executor';
 import { describeCommand, parseCommand, suggestCommand } from '../commands/parser';
-import { requireScope, type Ctx } from '../context';
+import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules } from '../db/schema';
@@ -34,12 +36,12 @@ import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
 import { lex } from '../search/lexer';
 import { suggest } from '../search/suggest';
-import { assertCanManageProject, assertCanReadProject, canReadProject, visibleProjectIds } from '../services/access';
+import { assertCanManageProject, canReadProject, projectAccess, requireProject, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
 import { issueRefsById } from '../services/issue-refs';
-import { resolveIssue } from '../services/issues';
-import { projectByKey, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
+import { findVisibleIssue } from '../services/issues';
+import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
 import { resolveFieldInput, userRefDto } from '../services/values';
-import { condition, parsedQuery } from './match';
+import { condition, parsedQuery, ruleWorld } from './match';
 import { DEFAULT_AT, nextRunAfter, ruleSentence, scheduleWords, triggerWords } from './words';
 
 /** A rule as the service works with it: names resolved, every part present. */
@@ -56,6 +58,16 @@ export interface Draft {
   requires: string | null;
   message: string | null;
   enabled: boolean;
+}
+
+/**
+ * The workflow agent, as it acts on an issue of `projectId`: with administrator scopes, as triage's
+ * agent has, but in that project only, members only or not (engine.ts, "Reach").
+ */
+export function botCtx(app: AppServices, bot: UserRow, projectId: string): Ctx {
+  const ctx = adminCtx(app, bot, 'automation');
+  ctx.actor.projectIds = [projectId];
+  return ctx;
 }
 
 /** Fields an "updated" rule can wait for besides the project's own. */
@@ -100,16 +112,22 @@ function tidy(d: Draft): Draft {
   };
 }
 
-function projectIdOf(s: SchemaSnapshot, key: string | null | undefined): string | null {
-  if (!key) return null;
-  const p = projectByKey(s, key);
-  if (!p) throw notFound(`Project ${key}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`);
-  return p.id;
+/** A rule's project, by key, if the caller may do `need` in it: one they can't see answers as one that doesn't exist. */
+async function projectIdOf(ctx: Ctx, key: string | null | undefined, need: ProjectNeed = 'read'): Promise<string | null> {
+  return key ? (await requireProject(ctx, key, need)).id : null;
 }
 
-function draftFrom(s: SchemaSnapshot, input: RuleInput): Draft {
+/**
+ * The tracker as a rule reads it, for someone checking or reading it: a project's rule reads its
+ * own project (which they can see); a rule for every project, the projects they can see.
+ */
+async function worldFor(ctx: Ctx, projectId: string | null): Promise<SchemaSnapshot> {
+  return projectId ? ruleWorld(await ctx.app.schema.get(), projectId) : visibleSchema(ctx);
+}
+
+function draftFrom(projectId: string | null, input: RuleInput): Draft {
   return tidy({
-    projectId: projectIdOf(s, input.project),
+    projectId,
     name: input.name,
     kind: input.kind,
     trigger: input.trigger ?? null,
@@ -189,6 +207,7 @@ export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
 /**
  * Everything that must be fixed before the rule is saved: what doesn't read, and what its command
  * names that the person making it can't use (an issue they can't see, a value the project lacks).
+ * `s` is the tracker as the rule reads it (worldFor).
  */
 export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promise<RuleProblem[]> {
   const out = readingProblems(s, d);
@@ -197,11 +216,21 @@ export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promi
   for (const op of parsed.ops) {
     if (op.kind === 'link') {
       for (const t of op.targets) {
-        try {
-          await resolveIssue(ctx, t);
-        } catch {
+        const target = await findVisibleIssue(ctx, t);
+        if (!target) {
           out.push({ part: 'command', message: `There is no issue ${t}, or you can't see it`, ...whole(d.command) });
+          continue;
         }
+        // The workflow agent reaches only the project of the issue it acts on (engine.ts), and a
+        // link changes both issues, so a rule links only within one project.
+        if (target.projectId === d.projectId) continue;
+        const theirs = (await ctx.app.schema.get()).projects.get(target.projectId)?.key ?? 'another project';
+        const mine = d.projectId ? (s.projects.get(d.projectId)?.key ?? 'its project') : null;
+        out.push(
+          mine
+            ? { part: 'command', message: `${t} is in ${theirs}, and a rule of ${mine} changes only ${mine}'s issues`, hint: `Link to an issue of ${mine}: a link changes both issues.`, ...whole(d.command) }
+            : { part: 'command', message: `A rule for every project can't link to ${t}: it would change ${theirs} from every other project`, hint: `Make it a rule of ${theirs}.`, ...whole(d.command) },
+        );
       }
     }
     // Values are resolved per project when it runs; a project rule's can be checked now.
@@ -243,7 +272,11 @@ function runDto(s: SchemaSnapshot, row: RunRow, ruleName: string): RuleRun {
   };
 }
 
-export function ruleDto(s: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undefined): Rule {
+/**
+ * A rule as a reader sees it. `seen` is the tracker as they see it: a rule for every project is
+ * read over it, so what it says is wrong with the rule names nothing they can't see.
+ */
+export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undefined): Rule {
   const d = draftOf(row);
   const by = row.createdById ? s.users.get(row.createdById) : undefined;
   return {
@@ -261,7 +294,7 @@ export function ruleDto(s: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undef
     message: row.message,
     enabled: row.enabled,
     sentence: ruleSentence(d),
-    problems: readingProblems(s, d),
+    problems: readingProblems(row.projectId ? ruleWorld(s, row.projectId) : seen, d),
     nextRunAt: row.kind === 'schedule' && row.enabled ? (row.nextRunAt?.toISOString() ?? null) : null,
     lastRunAt: row.lastRunAt?.toISOString() ?? null,
     lastRun: lastRun ? runDto(s, lastRun, row.name) : null,
@@ -274,12 +307,14 @@ export function ruleDto(s: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undef
 
 /**
  * The runs a reader may see: those in projects they can read, through the access seam. A rule for
- * every project runs in all of them, and its runs name their issues.
+ * every project runs in all of them, and its runs name their issues. What such a rule writes for no
+ * one project (how a scheduled run went everywhere, that it no longer reads) counts and names
+ * things in every project, so only those who see every project see it.
  */
 async function visibleRuns(ctx: Ctx): Promise<SQL | null> {
   const visible = await visibleProjectIds(ctx);
   if (visible === null) return null;
-  return visible.length ? or(inArray(ruleRuns.projectId, visible), isNull(ruleRuns.projectId))! : isNull(ruleRuns.projectId);
+  return visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`;
 }
 
 async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {
@@ -300,13 +335,10 @@ async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {
 // ---------------------------------------------------------------------------
 
 async function loadRule(ctx: Ctx, id: string): Promise<RuleRow> {
+  requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(rules).where(eq(rules.id, id));
-  if (!row) throw notFound('Rule');
-  if (row.projectId) {
-    await assertCanReadProject(ctx, row.projectId).catch(() => {
-      throw notFound('Rule');
-    });
-  }
+  // A rule of a project the caller can't see answers as one that doesn't exist.
+  if (!row || (row.projectId && !(await canReadProject(ctx, row.projectId)))) throw notFound('Rule');
   return row;
 }
 
@@ -316,27 +348,25 @@ export async function listRules(ctx: Ctx, opts: { project?: string } = {}): Prom
   const s = await ctx.app.schema.get();
   let rows: RuleRow[];
   if (opts.project) {
-    const projectId = projectIdOf(s, opts.project)!;
-    await assertCanReadProject(ctx, projectId);
+    const projectId = (await projectIdOf(ctx, opts.project))!;
     rows = await ctx.db
       .select()
       .from(rules)
       .where(or(eq(rules.projectId, projectId), isNull(rules.projectId)))
       .orderBy(asc(rules.createdAt), asc(rules.id));
   } else {
+    const view = await projectAccess(ctx);
     const all = await ctx.db.select().from(rules).orderBy(asc(rules.createdAt), asc(rules.id));
-    rows = [];
-    for (const r of all) if (!r.projectId || (await canReadProject(ctx, r.projectId))) rows.push(r);
+    rows = all.filter((r) => !r.projectId || view.canRead(r.projectId));
   }
   const last = await lastRuns(ctx, rows.map((r) => r.id));
-  return rows.map((r) => ruleDto(s, r, last.get(r.id)));
+  const seen = await visibleSchema(ctx);
+  return rows.map((r) => ruleDto(s, seen, r, last.get(r.id)));
 }
 
 export async function getRule(ctx: Ctx, id: string): Promise<Rule> {
-  requireScope(ctx, 'read');
   const row = await loadRule(ctx, id);
-  const s = await ctx.app.schema.get();
-  return ruleDto(s, row, (await lastRuns(ctx, [row.id])).get(row.id));
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row, (await lastRuns(ctx, [row.id])).get(row.id));
 }
 
 /** What rules did: a rule's runs, or those in a project, newest first. */
@@ -349,11 +379,7 @@ export async function listRuleRuns(ctx: Ctx, opts: { project?: string; rule?: st
     const rule = await loadRule(ctx, opts.rule);
     conds.push(eq(ruleRuns.ruleId, rule.id));
   }
-  if (opts.project) {
-    const projectId = projectIdOf(s, opts.project)!;
-    await assertCanReadProject(ctx, projectId);
-    conds.push(eq(ruleRuns.projectId, projectId));
-  }
+  if (opts.project) conds.push(eq(ruleRuns.projectId, (await projectIdOf(ctx, opts.project))!));
   const seen = await visibleRuns(ctx);
   if (seen) conds.push(seen);
   const rows = await ctx.db
@@ -376,6 +402,10 @@ async function assertCanManage(ctx: Ctx, projectId: string | null): Promise<void
   if (!ctx.actor.scopes.includes('admin')) {
     throw forbidden('Only administrators can make or change a rule for every project', 'Make it a rule of one project instead.');
   }
+  // A rule for every project reaches all of them, so a token limited to some can't make one.
+  if ((await visibleProjectIds(ctx)) !== null) {
+    throw forbidden('A rule for every project reaches every project, and this token reaches only some', 'Make it a rule of one project, or use a token for every project.');
+  }
 }
 
 function refuseProblems(problems: RuleProblem[]): never {
@@ -384,10 +414,9 @@ function refuseProblems(problems: RuleProblem[]): never {
 
 export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
   requireScope(ctx, 'write');
-  const s = await ctx.app.schema.get();
-  const d = draftFrom(s, input);
+  const d = draftFrom(await projectIdOf(ctx, input.project, 'manage'), input);
   await assertCanManage(ctx, d.projectId);
-  const problems = await ruleProblems(ctx, s, d);
+  const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
   if (problems.length) refuseProblems(problems);
   const [row] = await ctx.db
     .insert(rules)
@@ -411,7 +440,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
     })
     .returning();
   ctx.app.schema.invalidate();
-  return ruleDto(await ctx.app.schema.get(), row!, undefined);
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row!, undefined);
 }
 
 export type RuleChange = Partial<Omit<RuleInput, 'project' | 'kind'>> & { expectedVersion?: number };
@@ -423,7 +452,6 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
     throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.', { currentVersion: row.version });
   }
-  const s = await ctx.app.schema.get();
   const before = draftOf(row);
   const d = tidy({
     ...before,
@@ -442,7 +470,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
   // must be easy to stop. What it does, and turning it on, is checked.
   const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires'] as const).some((k) => input[k] !== undefined);
   if (reworked || (d.enabled && !before.enabled)) {
-    const problems = await ruleProblems(ctx, s, d);
+    const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
     if (problems.length) refuseProblems(problems);
   } else if (!d.name) {
     refuseProblems([{ part: 'name', message: 'Give it a name that says what it is for', start: 0, end: 0 }]);
@@ -470,7 +498,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     .returning();
   if (!updated) throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.');
   ctx.app.schema.invalidate();
-  return ruleDto(await ctx.app.schema.get(), updated, (await lastRuns(ctx, [updated.id])).get(updated.id));
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), updated, (await lastRuns(ctx, [updated.id])).get(updated.id));
 }
 
 export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
@@ -497,9 +525,9 @@ async function visibleScope(ctx: Ctx): Promise<SQL> {
  */
 export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePreview> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const d = draftFrom(s, input);
-  if (d.projectId) await assertCanReadProject(ctx, d.projectId);
+  const d = draftFrom(await projectIdOf(ctx, input.project), input);
+  // A rule for every project is previewed over the projects the caller can see, and counts only their issues.
+  const s = await worldFor(ctx, d.projectId);
   const problems = await ruleProblems(ctx, s, d);
   const sentence = ruleSentence(d);
   const empty = { matching: 0, breaking: null, sample: [] };
@@ -538,16 +566,20 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
   let sample: RulePreview['sample'] = rows.map((r) => ({ issue: refs.get(r.id)!, changes: [], errors: [] }));
   if (rows.length && !problems.some((p) => p.part === 'command')) {
     // Exactly what it would do: the executor's dry run, as the workflow agent, with "me" as you.
+    // The agent reaches only the project of the issue it acts on, so each project's issues get their own.
     const bot = s.usersByLogin.get(WORKFLOW_BOT);
     if (bot) {
-      const dry = await runCommand(adminCtx(ctx.app, bot, 'automation'), {
-        issues: rows.map((r) => r.id),
-        command: d.command,
-        comment: d.comment ?? undefined,
-        dryRun: true,
-        meId: me,
-      });
-      const byId = new Map(dry.results.map((r) => [r.issue, r]));
+      const byId = new Map<string, { changes: Change[]; errors: string[] }>();
+      for (const projectId of new Set(rows.map((r) => r.projectId))) {
+        const dry = await runCommand(botCtx(ctx.app, bot, projectId), {
+          issues: rows.filter((r) => r.projectId === projectId).map((r) => r.id),
+          command: d.command,
+          comment: d.comment ?? undefined,
+          dryRun: true,
+          meId: me,
+        });
+        for (const r of dry.results) byId.set(r.issue, r);
+      }
       sample = sample.map((x) => {
         const r = byId.get(x.issue.id);
         return r ? { issue: x.issue, changes: r.changes, errors: r.errors } : x;
@@ -573,9 +605,8 @@ export async function checkRulePart(
   body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command'; text: string; caret?: number },
 ): Promise<{ problems: QueryProblem[]; description: string; suggestions: SuggestItem[] }> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const projectId = projectIdOf(s, body.project);
-  if (projectId) await assertCanReadProject(ctx, projectId);
+  const projectId = await projectIdOf(ctx, body.project);
+  const s = await worldFor(ctx, projectId);
   const caret = Math.min(body.caret ?? body.text.length, body.text.length);
   const scheduled = body.kind === 'schedule';
   if (body.part === 'command') {

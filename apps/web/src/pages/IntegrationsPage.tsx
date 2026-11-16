@@ -265,7 +265,7 @@ function AddIntegration() {
           <legend>Issues it looks for</legend>
           <label className="choice tw:col-span-full">
             <input type="checkbox" checked={every} onChange={(e) => setEvery(e.target.checked)} />
-            <span>Of every project, including ones added later</span>
+            <span>Of every project, members-only ones and ones added later too</span>
           </label>
           {!every
             ? (projects.data ?? []).map((p) => (

@@ -10,12 +10,29 @@ import { issues } from '../db/schema';
 import { compileQuery } from '../search/compiler';
 import { parseQuery, type ParsedQuery } from '../search/parser';
 import { buildVocabulary, type Vocabulary } from '../search/vocabulary';
+import { scopeSchema } from '../services/access';
 import type { SchemaSnapshot } from '../services/schema-cache';
 
 // Parsing depends only on the snapshot's names, so it is kept for as long as the snapshot lives.
 const vocabularies = new WeakMap<SchemaSnapshot, Vocabulary>();
 const parsed = new WeakMap<SchemaSnapshot, Map<string, ParsedQuery>>();
 const KEPT_PER_SNAPSHOT = 500;
+
+const worlds = new WeakMap<SchemaSnapshot, Map<string, SchemaSnapshot>>();
+
+/**
+ * The tracker as a rule reads it. A project's rule reads its own project and what belongs to no
+ * project: another project, members only or not, is an unknown word to it, as it is to someone
+ * who can't see it. A rule for every project reads them all. Kept as long as the snapshot lives.
+ */
+export function ruleWorld(s: SchemaSnapshot, projectId: string | null): SchemaSnapshot {
+  if (!projectId) return s;
+  let byProject = worlds.get(s);
+  if (!byProject) worlds.set(s, (byProject = new Map()));
+  let world = byProject.get(projectId);
+  if (!world) byProject.set(projectId, (world = scopeSchema(s, [projectId])));
+  return world;
+}
 
 export function vocabularyOf(s: SchemaSnapshot): Vocabulary {
   let v = vocabularies.get(s);

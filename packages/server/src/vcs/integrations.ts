@@ -168,5 +168,5 @@ export async function testIntegration(ctx: Ctx, id: string): Promise<VcsTestResu
   const answer = await receive(ctx.app, row.id, { header: (n) => headers[n.toLowerCase()], body, ip: 'a4a' }, { test: true, trusted: !github });
   const outcome = (answer.body.outcome as VcsTestResult['outcome'] | undefined) ?? 'failed';
   const error = answer.body.error as { message?: string } | undefined;
-  return { delivered: answer.status < 300, outcome, message: String(answer.body.message ?? error?.message ?? '') };
+  return { delivered: answer.status < 300, outcome, message: answer.said ?? String(answer.body.message ?? error?.message ?? '') };
 }

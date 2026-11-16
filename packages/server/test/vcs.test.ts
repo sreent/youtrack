@@ -3,13 +3,18 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { count, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Ctx } from '../src/context';
 import { activities, vcsDeliveries } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
-import { issueActivity } from '../src/services/activity';
+import { AppError } from '../src/lib/errors';
+import { eventFeed, issueActivity } from '../src/services/activity';
 import { createIssue, getIssue } from '../src/services/issues';
-import { updateMe, updateUser } from '../src/services/users';
+import { addMember } from '../src/services/members';
+import { createProject } from '../src/services/projects';
+import { insertUser, updateMe, updateUser } from '../src/services/users';
 import { presentField, toolByName } from '../src/tools/registry';
 import { createIntegration, listIntegrations, listVcsDeliveries, rotateIntegrationSecret, testIntegration, updateIntegration } from '../src/vcs/integrations';
+import { issueVcs } from '../src/vcs/links';
 import { mentions } from '../src/vcs/mentions';
 import { createWorld, type TestWorld } from './helpers';
 
@@ -268,6 +273,95 @@ describe('GitLab', () => {
     const body = JSON.stringify({ ...JSON.parse(fixture('gitlab-push')), commits: [] });
     expect((await fromGitlab('Push Hook', body, gitlab.secret, key)).body).toMatchObject({ outcome: 'processed' });
     expect((await fromGitlab('Push Hook', body, gitlab.secret, key)).body).toMatchObject({ outcome: 'duplicate' });
+  });
+});
+
+/** What an error says, with one id put back as a placeholder, to compare "hidden" with "missing". */
+async function failure(p: Promise<unknown>, word: string): Promise<{ status: number; code: string; message: string; hint?: string }> {
+  try {
+    await p;
+  } catch (e) {
+    if (!(e instanceof AppError)) throw e;
+    const strip = (t?: string) => t?.split(word).join('<X>');
+    return { status: e.status, code: e.code, message: strip(e.message)!, hint: strip(e.hint) };
+  }
+  throw new Error('expected it to fail');
+}
+
+describe('a members-only project, and people who may only read', () => {
+  // SECRET: only its people see it. Anna is one of its members and Dana one of its viewers; Cleo is outside it.
+  // An administrator confirmed all three emails.
+  let anna: Ctx;
+  let dana: Ctx;
+  let cleo: Ctx;
+  const commit = (sha: string, message: string, name: string, email: string) => ({
+    id: sha,
+    message,
+    title: message.split('\n')[0],
+    timestamp: '2026-11-16T12:00:00+02:00',
+    url: `https://gitlab.example.com/acme/web/-/commit/${sha}`,
+    author: { name, email },
+    added: [],
+    modified: [],
+    removed: [],
+  });
+  const push = (...commits: unknown[]) => JSON.stringify({ ...JSON.parse(fixture('gitlab-push')), commits, total_commits_count: commits.length });
+
+  beforeAll(async () => {
+    await createProject(w.adminCtx, { key: 'SECRET', name: 'Merger', template: 'software', visibility: 'members' });
+    const danaRow = await insertUser(w.app.db, { login: 'dana', name: 'Dana Reyes', role: 'member', email: 'dana@example.com', emailVerified: true });
+    const cleoRow = await insertUser(w.app.db, { login: 'cleo', name: 'Cleo Park', role: 'member', email: 'cleo@example.com', emailVerified: true });
+    w.app.schema.invalidate();
+    await addMember(w.adminCtx, 'SECRET', { user: 'anna', role: 'member' });
+    await addMember(w.adminCtx, 'SECRET', { user: 'dana', role: 'viewer' });
+    anna = w.as(w.anna);
+    dana = w.as(danaRow);
+    cleo = w.as(cleoRow);
+    await createIssue(anna, { project: 'SECRET', summary: 'Acquire Initech' });
+  });
+
+  it('links its issues for an integration of every project, and runs a command only as one of its people who may change issues', async () => {
+    const res = await fromGitlab(
+      'Push Hook',
+      push(
+        commit('c0ffee0000000000000000000000000000000001', 'Draft the term sheet\n\nSECRET-1 #In Progress', 'Anna Schmidt', 'anna@example.com'),
+        commit('c0ffee0000000000000000000000000000000002', 'Sign it\n\nSECRET-1 #Fixed', 'Dana Reyes', 'dana@example.com'),
+        commit('c0ffee0000000000000000000000000000000003', 'Reopen it\n\nSECRET-1 #Open', 'Cleo Park', 'cleo@example.com'),
+      ),
+    );
+    expect(res.body).toMatchObject({ outcome: 'processed', linked: 3, applied: 1 });
+    // GitLab shows its replies to the repository's maintainers, who aren't a4a's: the reply names no issue and no one.
+    for (const word of ['SECRET', 'Anna', 'Dana', 'Cleo', 'In Progress', 'change issues']) expect(String(res.body.message)).not.toContain(word);
+    expect(value(await getIssue(anna, 'SECRET-1'), 'State')).toBe('In Progress');
+    // A viewer reads them; only the member's command was applied.
+    const { commits } = await issueVcs(dana, 'SECRET-1');
+    expect(commits.map((c) => [c.author.user?.login, c.applied, c.note]).sort()).toEqual([
+      ['anna', true, 'State: Open → In Progress'],
+      ['cleo', false, 'Not applied: Cleo Park can’t change issues in SECRET'],
+      ['dana', false, 'Not applied: Dana Reyes can’t change issues in SECRET'],
+    ]);
+    // a4a's own log of deliveries, which administrators read, says why.
+    expect((await listVcsDeliveries(w.adminCtx, gitlab.id))[0]!.message).toContain('Dana Reyes can’t change issues in SECRET');
+  });
+
+  it('stays hidden from someone outside it, wherever commits show', async () => {
+    const hidden = await failure(issueVcs(cleo, 'SECRET-1'), 'SECRET-1');
+    expect(hidden).toEqual(await failure(issueVcs(cleo, 'BACK-999'), 'BACK-999'));
+    expect(hidden.status).toBe(404);
+    const tool = toolByName('get_issue')!;
+    expect(await failure(tool.run(cleo, { issue: 'SECRET-1' }), 'SECRET-1')).toEqual(await failure(tool.run(cleo, { issue: 'BACK-999' }), 'BACK-999'));
+    expect((await eventFeed(cleo, { limit: 500 })).some((e) => e.project === 'SECRET')).toBe(false);
+    expect((await eventFeed(anna, { limit: 500 })).filter((e) => e.type === 'commit.linked' && e.project === 'SECRET')).toHaveLength(3);
+  });
+
+  it("runs a command no further than the integration's projects", async () => {
+    // acme/backend is for BACK: Anna can change WEB's issues, but a command that comes through it can't reach them.
+    const base = JSON.parse(fixture('github-push'));
+    const body = JSON.stringify({ ...base, commits: [{ ...base.commits[0], id: '293a4b5c6d7e8f9012345678a1b2c3d4e5f60718', message: 'Share the cache\n\nBACK-4 #relates to WEB-1' }] });
+    const res = await fromGithub('push', body);
+    expect(res.body).toMatchObject({ outcome: 'processed', linked: 1, applied: 0 });
+    expect((await vcsOf('BACK-4')).commits[0]).toMatchObject({ command: 'relates to WEB-1', applied: false, note: 'Not applied: Unknown issue WEB-1' });
+    expect((await getIssue(w.adminCtx, 'WEB-1')).links).toEqual([]);
   });
 });
 
