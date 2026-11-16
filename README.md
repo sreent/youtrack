@@ -27,6 +27,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a4a knows a commit's author by any of their confirmed emails, or by their login at the provider (an administrator records it). People add emails on their profile and confirm each by a link a4a mails; an administrator can confirm one instead. When the email and the login name two people, it's nobody.
   - Deliveries are checked (each provider's signature, GitLab's token), handled once, rate-limited and logged.
   - Bitbucket Data Center's pushes don't say what their commits say, and Bitbucket Cloud's carry the latest five a branch got: given an access token, a4a reads the rest from Bitbucket.
+- **Writing as it reads.** Descriptions, comments, help desk replies and articles are written in a visual editor, or as Markdown by a switch that's remembered; Markdown is what's kept, and a text opened and saved untouched is the same to the byte.
+  - Bold, italic, struck through, code, headings, quotes, lists, checklists and tables from its toolbar, or by typing Markdown's own marks.
+  - A screenshot pasted or dropped is uploaded as one of the issue's or the article's files, and goes in the text where it was put. Pictures show in place, only a4a's own raster files: never SVG, never another site's.
+  - A checklist is ticked where it's read, by whoever may change the text, and saved against the version read: if someone changed it meanwhile, the page says so and reloads.
+  - "@" offers people, as the comment box always has.
 - **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");

@@ -920,6 +920,27 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 
 **Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
 
+### D39. A visual editor over the Markdown a4a keeps
+
+Descriptions, comments (help desk replies among them) and articles are written as they read, in a visual editor, or as Markdown, by a switch each person's browser remembers. Markdown stays the stored text: the API, MCP, search, mentions, email and the history all read what they read before.
+
+- **The editor is Milkdown** (7.23, MIT), on ProseMirror, in its headless kit: no theme of its own, so Ocean draws it, and React 19 only hosts it.
+  - It reads and writes Markdown with remark and remark-gfm, the parser a4a's pages render with (react-markdown), so a table, a checklist or a mention reads the same in the editor, on the page and to an agent.
+  - Considered: TipTap with its Markdown extension, whose Markdown is a second grammar beside the page's; Lexical, whose Markdown transformers miss GFM tables. Both are maintained and work with React 19.
+  - It's loaded on its own (110 KB gzipped), when someone first writes; pages that only read never fetch it.
+- **Round trip.** A text nobody changed is handed back as it came, to the byte: the editor compares its document with the one the text read as, and writes Markdown only once something changed. What it writes is one style (`-` bullets, `_` and `**`, fenced code, padded tables). Milkdown writes an empty line as `<br />`; the editor writes it as a blank line, since a4a's pages show raw HTML as written.
+- **Handed over as typed.** A text up to about 12,000 characters reaches the form as it's typed, as a text area's does, so Save, or a new issue's retry key, never acts on what was there before; a longer one when typing settles, and at once when the editor loses focus.
+- **Under the CSP** (no style attributes): Milkdown's GFM tables say a cell's alignment with `style="text-align"`, so the editor's cells say it with `data-align`, which Ocean aligns by; ProseMirror's own styling goes through the CSSOM, which the policy allows. The browser suite fails on any violation, with the editor open.
+- **Pictures within text** are a4a's own raster files and nothing else: `GET /attachments/{id}/image` serves PNG, JPEG, GIF and WebP, as `/content` does, and answers anything else (SVG included) as a missing file. The page draws `<img>` only for that path on its own origin; a picture from elsewhere is named, a link to it, never fetched, and any other is its name. The image path keeps the file's access: a members-only project's picture is missing to who can't see the project.
+- **Pasted or dropped**, a picture is uploaded as one of the issue's or the article's files, through the upload a4a already has (sizes, room, kinds read from the bytes), and goes in the text where it was put, `Uploading…` marking the place meanwhile. A new comment's pictures are the issue's files, since the comment doesn't exist yet; other files dropped on the comment box are attached to the comment, as before. A file that isn't a picture, in a description or an article, goes in as a link to download it. A picture copied from a page comes with its HTML and no words, and is uploaded; words copied with a picture of them (from a sheet) paste as words. A new issue's description takes pictures once it's created.
+- **Checklists** are ticked where they're read, by whoever may change the text: an issue's writers, a comment's author or the project's managers, an article's writers. A box is found by its place among the text's checklist items, read with the page's own grammar (`@a4a/shared/markdown`), so code blocks, quotes and nested lists can't throw the count; the tick changes that one character and is saved against the version read. If the text changed meanwhile, the tick is refused (409), the page says so and reloads. So comments now have a version, raised by every edit, and `PATCH /comments/{id}` takes `expectedVersion`, as issues and articles do. A ticked article item is a new version of it.
+- **Mentions** work as the composer's always have: "@" offers the people a mention would reach, the arrows choose and Enter or Tab takes one, as `@login`.
+- **Kept plain:** the public pages of the help desk (a requester's own replies), and the fields that aren't prose (rules, settings, the assistant).
+
+**What it costs.** A dependency of some weight, loaded only to write. Serialising on each keystroke, for texts under the threshold. Milkdown's Markdown has its own opinions (a table's alignment row, its padding), applied whenever a text is changed in the editor. A picture pasted in a comment never sent stays among the issue's files.
+
+**Revisit when:** someone needs to write something Markdown can't say (coloured text, merged cells), which would mean another stored format; or people write together in one text, which would mean collaborative editing (Milkdown's Yjs binding).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1012,4 +1033,5 @@ Planned, with the seams already in place:
 - client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
-- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36).
+- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
+- the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39).

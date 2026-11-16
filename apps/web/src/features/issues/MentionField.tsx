@@ -16,7 +16,8 @@ function matches(u: User, typed: string): boolean {
  * A text area for Markdown that offers people after an "@", as Ocean's composer draws it: the people
  * whose login or name starts with what's typed, under the field; the arrows choose, Enter or Tab takes
  * one (as "@login "), Escape puts them away. A screen reader hears how many there are. `people` limits
- * who is offered (a members-only project's people: nobody else would be told).
+ * who is offered (a members-only project's people: nobody else would be told). With `onFiles`, files
+ * pasted or dropped on it are handed over with where the caret is, to go in the text there (D39).
  */
 export function MentionField({
   id,
@@ -27,6 +28,7 @@ export function MentionField({
   describedBy,
   autoFocus,
   people: offered,
+  onFiles,
 }: {
   id: string;
   value: string;
@@ -36,6 +38,7 @@ export function MentionField({
   describedBy?: string;
   autoFocus?: boolean;
   people?: User[];
+  onFiles?: (files: File[], start: number, end: number) => void;
 }) {
   const everyone = useUsers({ enabled: !offered });
   const users = { data: offered ?? everyone.data };
@@ -108,6 +111,36 @@ export function MentionField({
         onKeyDown={onKeyDown}
         onBlur={() => setDismissed(typing?.at ?? null)}
         onFocus={() => setDismissed(null)}
+        onPaste={
+          onFiles
+            ? (e) => {
+                const files = [...e.clipboardData.files];
+                // Words copied with a picture of them (from a sheet, say) paste as the words.
+                if (!files.length || e.clipboardData.getData('text/plain').trim()) return;
+                e.preventDefault();
+                onFiles(files, e.currentTarget.selectionStart, e.currentTarget.selectionEnd);
+              }
+            : undefined
+        }
+        onDragOver={
+          onFiles
+            ? (e) => {
+                if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+              }
+            : undefined
+        }
+        onDrop={
+          onFiles
+            ? (e) => {
+                const files = [...e.dataTransfer.files];
+                if (!files.length) return;
+                // Taken here, where the caret is: not by the form around it too.
+                e.preventDefault();
+                e.stopPropagation();
+                onFiles(files, e.currentTarget.selectionStart, e.currentTarget.selectionEnd);
+              }
+            : undefined
+        }
       />
       {open ? (
         <ul className="popover options" id={listId} role="listbox" aria-label="People to mention">

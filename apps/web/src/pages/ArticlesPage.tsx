@@ -1,4 +1,5 @@
 import type { Article, ArticleDetail } from '@a4a/shared';
+import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { Fragment, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -6,6 +7,7 @@ import { ApiError, del, patch, post } from '../api/client';
 import { useProject, useProjects } from '../api/queries';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
+import { RichField } from '../features/editor/RichField';
 import { Empty, ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { actorWho, Who } from '../components/Who';
 import { articleKeys, subtreeOf, useArticle, useArticleSearch, useArticleTree, useArticleVersion, useArticleVersions } from '../features/articles/api';
@@ -390,12 +392,31 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
 function ArticleView() {
   const { id = '' } = useParams();
   const location = useLocation();
+  const qc = useQueryClient();
   const article = useArticle(id);
   const canWrite = useCanWrite(article.data?.project.key);
   const said = (location.state as { said?: string } | null)?.said;
+  // A box ticked shows ticked while it's saved, as a new version, against the version read (D39).
+  const [ticked, setTicked] = useState<string | null>(null);
+  const [tickSaid, setTickSaid] = useState<string | null>(null);
   if (article.isLoading) return <Loading what={id} />;
   if (article.error || !article.data) return <NotHere id={id} error={article.error} />;
   const a = article.data;
+  const tick = async (index: number, checked: boolean) => {
+    const next = toggleTask(a.body, index, checked);
+    if (next === null) return;
+    setTickSaid(null);
+    setTicked(next);
+    try {
+      const saved = await patch<ArticleDetail>(`/articles/${a.id}`, { body: next, expectedVersion: a.version });
+      qc.setQueryData(articleKeys.one(saved.id), saved);
+    } catch (e) {
+      setTickSaid(e instanceof ApiError && e.status === 409 ? 'Someone saved a newer version just now. It’s been reloaded: check it and tick again.' : errorText(e));
+    } finally {
+      await qc.invalidateQueries({ queryKey: articleKeys.all });
+      setTicked(null);
+    }
+  };
   const by = a.updatedBy?.name ?? 'someone';
   return (
     <>
@@ -437,13 +458,14 @@ function ArticleView() {
         <Beside project={a.project.key} name={a.project.name} current={a.id}>
           <article className="card" aria-label={a.title}>
             {a.body.trim() ? (
-              <Markdown text={a.body} className="article-body" headingsFrom={2} />
+              <Markdown text={ticked ?? a.body} className="article-body" headingsFrom={2} onToggleTask={canWrite && ticked === null ? (i, on) => void tick(i, on) : undefined} />
             ) : (
               <p className="article-empty">
                 Nothing written yet.{' '}
                 {canWrite ? <Link to={`/articles/${a.id}/edit`}>Write it</Link> : null}
               </p>
             )}
+            {tickSaid ? <ErrorLine>{tickSaid}</ErrorLine> : null}
           </article>
           {a.children.length ? (
             <section className="card stack" aria-labelledby="under-title">
@@ -598,8 +620,16 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
         </div>
         <div className="article-editor-panes">
           <div className="form-field article-editor-write">
-            <label htmlFor={bodyId}>Markdown</label>
-            <textarea id={bodyId} value={body} onChange={(e) => setBody(e.target.value)} maxLength={200_000} spellCheck />
+            <label htmlFor={bodyId}>What it says</label>
+            <RichField
+              id={bodyId}
+              label="What it says"
+              value={body}
+              onChange={setBody}
+              tall
+              uploadTo={mode === 'edit' && id ? `/articles/${id}/attachments` : undefined}
+              onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.article(id ?? '') })}
+            />
           </div>
           <div className="article-preview" role="region" aria-label="How it will read">
             {body.trim() ? <Markdown text={body} className="article-body" headingsFrom={2} /> : <p className="article-empty">How it reads shows here as you write.</p>}

@@ -98,6 +98,8 @@ test('a comment is posted, and time is logged against the estimate', async ({ pa
   const fields = await open(page, issue);
   const history = page.getByRole('region', { name: 'History and comments' });
 
+  // Written as Markdown itself: the editor's other way (D39).
+  await history.getByRole('group', { name: 'How to write it' }).getByRole('button', { name: 'Markdown' }).click();
   const comment = page.getByLabel(`A comment, as ${ADMIN.name}`);
   await comment.fill('Reproduced on staging: the gateway gives up after **30 seconds**.');
   await page.getByRole('button', { name: 'Comment', exact: true }).click();

@@ -48,6 +48,11 @@ const A4A: Record<string, string[]> = {
   person: ['M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M5.5 20a6.5 6.5 0 0 1 13 0'],
   dashboard: ['M4.5 4.5h6.5v8H4.5z', 'M13 4.5h6.5v4.5H13z', 'M13 11.5h6.5v8H13z', 'M4.5 15h6.5v4.5H4.5z'],
   import: ['M12 4v10', 'M7.5 9.5L12 14l4.5-4.5', 'M4.5 15v4.5h15V15'],
+  // The visual editor's tools (D39).
+  quote: ['M5 7h4v5H5z', 'M9 12c0 3-1.5 4.5-4 5.5', 'M14 7h4v5h-4z', 'M18 12c0 3-1.5 4.5-4 5.5'],
+  numbered: ['M10.5 6.5h9.5', 'M10.5 12h9.5', 'M10.5 17.5h9.5', 'M4.5 5l1.5-1v5', 'M4 14h2.5L4 18h2.5'],
+  table: ['M4 5h16v14H4z', 'M4 10h16', 'M4 14.5h16', 'M10 5v14'],
+  picture: ['M4 5h16v14H4z', 'M4 16l4.5-4.5 4 4 2.5-2.5L19 17', 'M15.5 8.5h.01'],
 };
 
 const PATHS: Record<string, string[]> = { ...OCEAN, ...A4A };
