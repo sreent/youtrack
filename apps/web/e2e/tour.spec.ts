@@ -103,6 +103,25 @@ const withRules = async (api: Api) => {
   return `/rules/${key}`;
 };
 
+/** A project of the tour's own with a state machine, an action and a scripted rule (D40), and an issue to move on. */
+const withWorkflows = async (api: Api) => {
+  const key = uniqueKey('TW');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await api.post('/state-machines', {
+    project: key,
+    field: 'State',
+    transitions: [
+      { name: 'Start work', from: ['Submitted', 'Open'], to: 'In Progress' },
+      { name: 'Decline', from: ['Submitted', 'Open'], to: "Won't fix", condition: 'has: comments' },
+    ],
+  });
+  await api.post('/workflow-actions', { project: key, name: 'Escalate', command: 'Priority Critical tag escalated', condition: '#Unresolved' });
+  await api.post('/rules', { project: key, name: 'Critical bugs get triaged', kind: 'change', trigger: 'updated', field: 'Priority', script: "if (issue.fields.Priority === 'Critical') apply('tag triaged');" });
+  const issue = await api.createIssue({ project: key, summary: 'Rotate the signing keys', fields: { State: 'Open' } });
+  return `/issues/${issue.id}`;
+};
+const workflowRules = (api: Api) => withWorkflows(api).then((path) => `/rules/${path.split('/').pop()!.split('-')[0]}`);
+
 /** An integration of the tour's own: it only waits for deliveries. */
 /**
  * The guide subscribes, in their own session, to a project of the tour's own and to a saved search
@@ -251,6 +270,8 @@ const STOPS: Stop[] = [
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
   { name: 'an import from YouTrack', path: fromYouTrack, ready: (p) => p.getByRole('heading', { name: 'Its columns' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
+  { name: 'state machines and actions', path: workflowRules, ready: (p) => p.getByRole('heading', { name: 'Escalate' }) },
+  { name: "an issue's moves and actions", path: withWorkflows, ready: (p) => p.getByRole('group', { name: 'Move it on' }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
   { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },
   { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
