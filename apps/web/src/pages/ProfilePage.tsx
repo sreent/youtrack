@@ -11,6 +11,7 @@ import { DaysAway } from '../features/away/DaysAway';
 import { EmailSettings } from '../features/notifications/EmailSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
+import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
@@ -233,6 +234,7 @@ export default function ProfilePage() {
         </div>
         <YourEmails />
       </section>
+      <CodeHostAccounts />
       <section className="card" aria-labelledby="notifications">
         <h2 id="notifications">Notifications</h2>
         <EmailSettings />

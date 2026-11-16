@@ -5,6 +5,7 @@ import { keys } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { whenRead } from '../common/format';
+import { IssueBuilds } from '../builds/Builds';
 
 /** Under the issue's own key, so the live feed refreshes it with the issue. */
 export const useIssueVcs = (id: string) => useQuery({ queryKey: keys.issueSub(id, 'vcs'), queryFn: () => get<IssueVcs>(`/issues/${id}/vcs`) });
@@ -128,6 +129,7 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
           ))}
         </ul>
       ) : null}
+      <IssueBuilds issue={issue} />
     </section>
   );
 }
