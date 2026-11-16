@@ -129,6 +129,14 @@ export interface Config {
   helpdeskMailMaxBytes: number;
   /** How hard a help desk's proof of work is: the most numbers a browser may have to try (HELPDESK_CAPTCHA_MAX_NUMBER). */
   helpdeskCaptchaMaxNumber: number;
+  /**
+   * Hosts an import may read from although their addresses are inside the network
+   * (IMPORT_ALLOW_HOSTS, comma-separated names): a YouTrack or Jira of the company's own.
+   * Every other host must be public. https always.
+   */
+  importAllowHosts: string[];
+  /** For tests: an import may read over plain http from this machine (IMPORT_ALLOW_HTTP_LOOPBACK). Never in production. */
+  importAllowHttpLoopback: boolean;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -363,6 +371,11 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     helpdeskImapPollMs: intEnv(env.HELPDESK_IMAP_POLL_SECONDS, 60, 10) * 1000,
     helpdeskMailMaxBytes: megabytes(env.HELPDESK_MAIL_MAX_MB, 25),
     helpdeskCaptchaMaxNumber: intEnv(env.HELPDESK_CAPTCHA_MAX_NUMBER, 100_000, 100),
+    importAllowHosts: (env.IMPORT_ALLOW_HOSTS ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+    importAllowHttpLoopback: truthy(env.IMPORT_ALLOW_HTTP_LOOPBACK, false),
     ...overrides,
   };
 }

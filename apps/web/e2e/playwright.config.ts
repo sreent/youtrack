@@ -106,6 +106,10 @@ export default defineConfig({
       // asks too much shows up as a 429 in its console.
       API_RATE_LIMIT: '1200',
       TRUST_PROXY: '0',
+      // Importing from an API reads from a YouTrack the tests start on this machine, over plain
+      // http: allowed for tests alone (support/youtrack.ts).
+      IMPORT_ALLOW_HTTP_LOOPBACK: 'true',
+      IMPORT_ALLOW_HOSTS: '',
     },
   },
 });

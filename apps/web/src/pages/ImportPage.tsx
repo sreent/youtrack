@@ -1,4 +1,4 @@
-import type { Import, ImportCheck, ImportUndo } from '@a4a/shared';
+import type { Import, ImportCheck, ImportCredentials, ImportUndo } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -8,26 +8,48 @@ import { Icon } from '../components/Icon';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Said, errorText } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
-import { checkImport, importKeys, putMapping, runImport, undoImport, uploadFile, useImport, useImportRows, useImports } from '../features/imports/api';
-import { ColumnsTable, ProblemsTable, Tally, ValuesTable } from '../features/imports/MappingTable';
+import {
+  checkImport,
+  continueFetch,
+  heldCredentials,
+  holdCredentials,
+  importKeys,
+  putMapping,
+  runImport,
+  undoImport,
+  uploadFile,
+  useImport,
+  useImportRows,
+  useImports,
+} from '../features/imports/api';
+import { FromApiForm, OriginSummary, SOURCE_NAME, TokenFields } from '../features/imports/FromApi';
+import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../features/imports/MappingTable';
 import { whenRead } from '../features/common/format';
 import { plural } from '../features/plan/format';
 
 const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file' };
+const FIRST = {
+  start: { name: 'Bring the issues', about: "Jira's or YouTrack's export as CSV, or read over their API." },
+  file: { name: 'Upload the export', about: "Jira's or YouTrack's, as CSV." },
+  api: { name: 'Read the issues', about: "From YouTrack's or Jira's API, with a token a4a doesn't keep." },
+};
 const STAGES = [
-  { name: 'Upload the export', about: "Jira's or YouTrack's, as CSV." },
+  FIRST.file,
   { name: 'Map it', about: 'Its columns to the project\'s fields, and its states, priorities and people to a4a\'s.' },
   { name: 'Check it', about: 'What it would create and update, and each row\'s problems. Nothing changes.' },
   { name: 'Import it', about: 'As a job you can leave. Running it again never makes an issue twice.' },
   { name: 'Read what it did', about: 'What it made, what it left out, and why; and undo it, if you need to.' },
 ];
 
+/** Where an import's issues come from, in the list: a file, or a tracker's API. */
+const fromWords = (i: Import) => (i.origin ? `${SOURCE_NAME[i.origin.kind]}'s API` : SOURCES[i.source]);
+
 /** Ocean's JourneyPath: the stages of an import, each done, now or later. */
-function Stages({ now }: { now: number }) {
+function Stages({ now, first = 'file' }: { now: number; first?: keyof typeof FIRST }) {
   return (
     <div className="journey-box">
       <ol className="journey" aria-label="The import's steps">
-        {STAGES.map((s, i) => {
+        {[FIRST[first], ...STAGES.slice(1)].map((s, i) => {
           const state = i < now ? 'done' : i === now ? 'now' : 'later';
           return (
             <li key={s.name} className={state} aria-current={state === 'now' ? 'step' : undefined}>
@@ -61,7 +83,7 @@ function Upload() {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <>
-      <Stages now={0} />
+      <Stages now={0} first="start" />
       <section className="card" aria-labelledby={`${id}-h`}>
         <h2 id={`${id}-h`}>Upload an export</h2>
         <form
@@ -120,6 +142,7 @@ function Upload() {
           </div>
         </form>
       </section>
+      <FromApiForm />
       {past.data?.length ? (
         <section className="card" aria-labelledby={`${id}-past`}>
           <h2 id={`${id}-past`}>Imports so far</h2>
@@ -131,7 +154,7 @@ function Upload() {
                   <span className="issue-id">{i.project.key}</span>
                 </span>
                 <p className="note">
-                  From {SOURCES[i.source]}, {plural(i.rows, 'row')}, {whenRead(i.createdAt)}
+                  From {fromWords(i)}, {plural(i.rows, i.origin ? 'issue' : 'row')}, {whenRead(i.createdAt)}
                   {i.result ? `, ${i.result.created} created, ${i.result.updated} updated` : ''} · {i.status}
                 </p>
               </li>
@@ -145,8 +168,16 @@ function Upload() {
 
 function Progress({ imp }: { imp: Import }) {
   const { done, total, phase } = imp.progress;
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  const words = phase === 'links' ? `Linking: ${done} of ${plural(total, 'issue')}` : `Importing: ${done} of ${plural(total, 'row')}`;
+  const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const from = imp.origin ? SOURCE_NAME[imp.origin.kind] : '';
+  const words =
+    phase === 'fetching'
+      ? total
+        ? `Reading the issues from ${from}: ${done} of about ${total}`
+        : `Reading the issues from ${from}: ${done} so far`
+      : phase === 'links'
+        ? `Linking: ${done} of ${plural(total, 'issue')}`
+        : `Importing: ${done} of ${plural(total, imp.origin ? 'issue' : 'row')}`;
   return (
     <div className="import-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={words} aria-label="How far the import is">
       <svg aria-hidden="true">
@@ -174,7 +205,11 @@ function Report({ imp }: { imp: Import }) {
           {imp.status === 'undone' ? <Badge tone="idle">Undone</Badge> : <Badge tone="good">Done</Badge>}
         </div>
         <Tally counts={r} label="What it did" />
-        {r.linksMissing ? <p className="note">{plural(r.linksMissing, 'link')} named issues neither in the file nor imported before, so they were left out.</p> : null}
+        {r.linksMissing ? (
+          <p className="note">
+            {plural(r.linksMissing, 'link')} named issues neither {imp.origin ? 'among those read' : 'in the file'} nor imported before, so they were left out.
+          </p>
+        ) : null}
         {created.data?.items.length ? (
           <p className="note">
             It made{' '}
@@ -253,6 +288,49 @@ function Report({ imp }: { imp: Import }) {
   );
 }
 
+/** A read from an API that stopped before the end: carry on, with the token again. */
+function CarryOn({ imp }: { imp: Import }) {
+  const qc = useQueryClient();
+  const o = imp.origin!;
+  const [credentials, setCredentials] = useState<ImportCredentials>(() => heldCredentials(imp.id) ?? { token: '' });
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <section className="card stack" aria-labelledby="carry-on">
+      <h2 id="carry-on">Carry on reading</h2>
+      <p className="note">
+        {plural(o.fetch.issues, 'issue')} read so far{o.fetch.total ? `, of about ${o.fetch.total}` : ''}. Carrying on starts where it stopped, and reads nothing twice. a4a doesn't keep the
+        token: give it again.
+      </p>
+      <form
+        className="form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setProblem(null);
+          try {
+            const next = await continueFetch(imp.id, credentials);
+            holdCredentials(imp.id, credentials);
+            qc.setQueryData(importKeys.one(imp.id), next);
+          } catch (err) {
+            setProblem(errorText(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <TokenFields source={o.kind} cloud={o.kind === 'jira' ? o.deployment === 'cloud' : false} credentials={credentials} onChange={setCredentials} />
+        {problem ? <Said text={problem} tone="bad" /> : null}
+        <div className="cluster end">
+          <button type="submit" className="primary" disabled={busy}>
+            {busy ? 'Starting…' : 'Carry on'}
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function ImportSteps({ imp }: { imp: Import }) {
   const qc = useQueryClient();
   const fields = useProjectFields(imp.project.key);
@@ -261,9 +339,15 @@ function ImportSteps({ imp }: { imp: Import }) {
   const [check, setCheck] = useState<ImportCheck | null>(null);
   const [said, setSaid] = useState<{ text: string; tone?: 'bad' } | null>(null);
   const [busy, setBusy] = useState(false);
+  // An import from an API that brings files runs with the token again; this page may hold it already.
+  const needsToken = Boolean(imp.origin?.bring.files && imp.origin.fetch.files > 0);
+  const [credentials, setCredentials] = useState<ImportCredentials>(() => heldCredentials(imp.id) ?? { token: '' });
+  const holding = Boolean(heldCredentials(imp.id));
   const running = imp.status === 'running';
+  const reading = imp.status === 'fetching';
+  const unread = Boolean(imp.origin && !imp.origin.fetch.complete && !reading);
   const finished = imp.status === 'done' || imp.status === 'undone';
-  const stage = running ? 3 : finished ? 4 : check ? 3 : 1;
+  const stage = reading || unread ? 0 : running ? 3 : finished ? 4 : check ? 3 : 1;
 
   const change = async (body: Parameters<typeof putMapping>[1]) => {
     try {
@@ -278,15 +362,23 @@ function ImportSteps({ imp }: { imp: Import }) {
 
   return (
     <>
-      <Stages now={stage} />
+      <Stages now={stage} first={imp.origin ? 'api' : 'file'} />
       <Said text={said?.text} tone={said?.tone} />
       {imp.status === 'stopped' ? (
         <p className="error-note" role="alert">
           <Icon name="cross" />
-          <strong>The import stopped before it finished, as when the server restarts.</strong>
+          <strong>{unread ? 'Reading the issues stopped before the end, as when the server restarts.' : 'The import stopped before it finished, as when the server restarts.'}</strong>
         </p>
       ) : null}
       {imp.error ? <ErrorNote error={new Error(imp.error)} /> : null}
+      {reading ? (
+        <section className="card stack" aria-label="Reading the issues">
+          <h2>Reading the issues for {imp.project.name}</h2>
+          <OriginSummary imp={imp} />
+          <Progress imp={imp} />
+        </section>
+      ) : null}
+      {unread ? <CarryOn imp={imp} /> : null}
       {running ? (
         <section className="card stack" aria-label="Importing">
           <h2>Importing into {imp.project.name}</h2>
@@ -294,14 +386,18 @@ function ImportSteps({ imp }: { imp: Import }) {
         </section>
       ) : null}
       {finished && imp.result ? <Report imp={imp} /> : null}
-      {!running && !finished ? (
+      {!running && !finished && !reading && !unread ? (
         <>
           <section className="card stack" aria-labelledby="map-columns">
             <div className="section-head">
               <h2 id="map-columns">Its columns</h2>
-              <p className="note">
-                {imp.fileName}, from {SOURCES[imp.source]}: {plural(imp.rows, 'row')}, {plural(imp.columns.length, 'column')}.
-              </p>
+              {imp.origin ? (
+                <OriginSummary imp={imp} />
+              ) : (
+                <p className="note">
+                  {imp.fileName}, from {SOURCES[imp.source]}: {plural(imp.rows, 'row')}, {plural(imp.columns.length, 'column')}.
+                </p>
+              )}
             </div>
             {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what="the project's fields" />}
           </section>
@@ -309,9 +405,11 @@ function ImportSteps({ imp }: { imp: Import }) {
             <section key={map.target} className="card stack" aria-labelledby={`values-${map.target}`}>
               <div className="section-head">
                 <h2 id={`values-${map.target}`}>{map.label}</h2>
-                <p className="note">What each {map.label === 'Sprint' ? 'sprint' : 'value'} in the file becomes here.</p>
+                <p className="note">
+                  What each {map.label === 'Sprint' ? 'sprint' : 'value'} in {whereFrom(imp)} becomes here.
+                </p>
               </div>
-              <ValuesTable map={map} onValue={(value, to) => change({ values: { [map.target]: { [value]: to } } })} />
+              <ValuesTable map={map} from={whereFrom(imp)} onValue={(value, to) => change({ values: { [map.target]: { [value]: to } } })} />
             </section>
           ))}
           <section className="card stack" aria-labelledby="check-it">
@@ -326,6 +424,14 @@ function ImportSteps({ imp }: { imp: Import }) {
               ))}
             </fieldset>
             <p className="note">Dates without a time zone are read in {imp.options.timeZone}.</p>
+            {needsToken && !holding ? (
+              <div className="stack">
+                <p className="note">
+                  It brings {plural(imp.origin!.fetch.files, 'file')} from {SOURCE_NAME[imp.origin!.kind]}, downloaded as it runs. a4a doesn't keep the token: give it again to import.
+                </p>
+                <TokenFields source={imp.origin!.kind} cloud={imp.origin!.kind === 'jira' ? imp.origin!.deployment === 'cloud' : false} credentials={credentials} onChange={setCredentials} />
+              </div>
+            ) : null}
             <div className="cluster">
               <button
                 type="button"
@@ -348,11 +454,14 @@ function ImportSteps({ imp }: { imp: Import }) {
                 <button
                   type="button"
                   className="primary"
-                  disabled={busy || check.counts.created + check.counts.updated === 0}
+                  disabled={busy || check.counts.created + check.counts.updated === 0 || (needsToken && !holding && !credentials.token.trim())}
                   onClick={async () => {
                     setBusy(true);
                     try {
-                      qc.setQueryData(importKeys.one(imp.id), await runImport(imp.id));
+                      const token = needsToken ? (heldCredentials(imp.id) ?? { ...credentials, token: credentials.token.trim() }) : undefined;
+                      const started = await runImport(imp.id, token);
+                      if (token) holdCredentials(imp.id, token);
+                      qc.setQueryData(importKeys.one(imp.id), started);
                     } catch (e) {
                       setSaid({ text: errorText(e), tone: 'bad' });
                     } finally {

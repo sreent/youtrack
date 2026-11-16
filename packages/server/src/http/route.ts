@@ -18,6 +18,8 @@ export interface RouteSpec<P extends AnyObject | undefined, Q extends AnyObject 
   params?: P;
   query?: Q;
   body?: B;
+  /** The body may be left out: a request without one reads as {}. */
+  bodyOptional?: boolean;
   response?: z.ZodType;
   status?: 200 | 201 | 202 | 204 | 302;
   /** 'required' (default): 401 without a user. 'none': public. */
@@ -66,7 +68,7 @@ export function route<P extends AnyObject | undefined, Q extends AnyObject | und
     request: {
       ...(spec.params ? { params: spec.params } : {}),
       ...(spec.query ? { query: spec.query } : {}),
-      ...(spec.body ? { body: { content: { 'application/json': { schema: spec.body } }, required: true } } : {}),
+      ...(spec.body ? { body: { content: { 'application/json': { schema: spec.body } }, required: !spec.bodyOptional } } : {}),
     },
     responses: {
       [status]:

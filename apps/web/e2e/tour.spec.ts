@@ -11,6 +11,7 @@
  * What the server can't show without AI (a conversation, suggestions waiting) is stood in for.
  */
 import type { TrackerEvent } from '@a4a/shared';
+import type { Import } from '@a4a/shared';
 import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import { Api, unique, uniqueKey } from './support/api';
@@ -18,6 +19,7 @@ import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { BASE_URL, TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 import { deskTakingMail, message, postMail } from './support/helpdesk';
+import { startYouTrack, YT_TOKEN } from './support/youtrack';
 
 /** A project of the tour's own whose help desk takes mail, with what came in: a request, and an auto-reply set aside. */
 const deskWithMail = async (api: Api) => {
@@ -177,6 +179,20 @@ const agentsChanges = async (api: Api) => {
   return `/issues/${issue.id}`;
 };
 
+/** Issues read from a YouTrack the tour starts, into a project of its own, ready to map. */
+const fromYouTrack = async (api: Api) => {
+  const yt = await startYouTrack();
+  try {
+    const key = uniqueKey('TY');
+    await api.createProject({ key, name: `Tour ${key}` });
+    const imp = await api.post<Import>('/imports/from-api', { project: key, source: 'youtrack', url: yt.url, query: 'project: OLD', credentials: { token: YT_TOKEN } });
+    await expect.poll(async () => (await api.get<Import>(`/imports/${imp.id}`)).status, { timeout: 20_000 }).toBe('ready');
+    return `/import/${imp.id}`;
+  } finally {
+    await yt.close();
+  }
+};
+
 const board = (name: string) => async (api: Api) => {
   const found = (await api.boards()).find((b) => b.name === name);
   if (!found) throw new Error(`The demo data has no board "${name}"`);
@@ -233,6 +249,7 @@ const STOPS: Stop[] = [
   { name: 'cycle time', path: '/reports/cycle-time', ready: (p) => p.getByRole('group', { name: 'Issues by how long they took' }) },
   { name: 'your dashboard', path: '/dashboard', ready: (p) => p.getByRole('heading', { name: 'How long work takes, the last 90 days' }) },
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
+  { name: 'an import from YouTrack', path: fromYouTrack, ready: (p) => p.getByRole('heading', { name: 'Its columns' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
   { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },

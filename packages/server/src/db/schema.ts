@@ -1004,6 +1004,12 @@ export const imports = pgTable(
     finishedAt: ts('finished_at'),
     error: text('error'),
     result: jsonb('result'),
+    /**
+     * An import from another tracker's API: where it reads (base address, query), whom the token
+     * signed in as, what it brings, and how far the fetch has come. Never the token itself.
+     * Null for a file.
+     */
+    origin: jsonb('origin'),
   },
   (t) => [index('imports_project').on(t.projectId, t.createdAt)],
 );
@@ -1023,6 +1029,11 @@ export const importRows = pgTable(
     issueId: text('issue_id'),
     readableId: text('readable_id'),
     problems: jsonb('problems'),
+    /**
+     * An issue read from an API brings what a file's cells can't hold: its comments, work items
+     * and files, each with its id there, so running again adds only what's new. Null for a file.
+     */
+    extra: jsonb('extra'),
   },
   (t) => [primaryKey({ columns: [t.importId, t.n] })],
 );

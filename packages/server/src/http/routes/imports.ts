@@ -2,9 +2,12 @@ import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
 import {
   ErrorSchema,
   ImportCheckSchema,
+  ImportFetchBody,
+  ImportFromApiBody,
   ImportMappingBody,
   ImportRowSchema,
   ImportRowsQuery,
+  ImportRunBody,
   ImportSchema,
   ImportUndoBody,
   ImportUndoSchema,
@@ -14,6 +17,7 @@ import {
 import type { Context } from 'hono';
 import { z } from 'zod';
 import { badRequest, unauthorized } from '../../lib/errors';
+import { continueFetch, importFromApi } from '../../services/api-imports';
 import { checkImport, deleteImport, getImport, importRowsOf, listImports, runImport, undoImport, updateMapping, uploadImport } from '../../services/imports';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -59,6 +63,36 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
     return c.json(result, 201);
   });
 
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/imports/from-api',
+      tags,
+      summary: "Read issues from YouTrack's or Jira's API, to import into a project",
+      description:
+        "The token is tried and the query counted first, so a wrong address, token or query says so at once. Then the issues the query matches are read as a job (status fetching; follow it with GET /imports/{id}): their fields, links and tags as the columns an export would have, and their comments, work items and files beside them. The address must be https and public (an administrator may allow hosts inside the network: IMPORT_ALLOW_HOSTS). The token is used and not kept: running the import asks for it again when files are to come. Issues and comments only some people may see there are left out. Then map, check and run it as an upload. For the project's managers, and administrators.",
+      body: ImportFromApiBody,
+      response: ImportSchema,
+      status: 202,
+    },
+    ({ ctx, body }) => importFromApi(ctx, body),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/imports/{id}/fetch',
+      tags,
+      summary: 'Carry on reading an import from an API that stopped, with the token again',
+      description: 'From the page it stopped at: nothing is read twice.',
+      params: Id,
+      body: ImportFetchBody,
+      response: ImportSchema,
+      status: 202,
+    },
+    ({ ctx, params, body }) => continueFetch(ctx, params.id, body.credentials),
+  );
   route(app, { method: 'get', path: '/imports', tags, summary: 'Imports, newest first', query: z.object({ project: z.string().optional() }), response: z.array(ImportSchema) }, ({ ctx, query }) =>
     listImports(ctx, query.project),
   );
@@ -101,12 +135,14 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Run the import as a job; follow it with GET /imports/{id}',
       description:
-        'Each row becomes an issue with its original created and updated dates and reporter, recorded in its history as imported, with its comments; links and parents follow in a second pass. Running it again updates what changed in the export since, and never makes an issue twice: an issue is known by its key there.',
+        "Each row becomes an issue with its original created and updated dates and reporter, recorded in its history as imported, with its comments; links and parents follow in a second pass. Running it again updates what changed in the export since, and never makes an issue twice: an issue is known by its key there. An import from an API that brings files takes the token again (credentials), to download them as it runs; a4a doesn't keep it.",
       params: Id,
+      body: ImportRunBody,
+      bodyOptional: true,
       response: ImportSchema,
       status: 202,
     },
-    ({ ctx, params }) => runImport(ctx, params.id),
+    ({ ctx, params, body }) => runImport(ctx, params.id, { credentials: body?.credentials }),
   );
   route(app, { method: 'get', path: '/imports/{id}/rows', tags, summary: 'What each row became, with its problems', params: Id, query: ImportRowsQuery, response: ImportRowList }, ({ ctx, params, query }) =>
     importRowsOf(ctx, params.id, query),

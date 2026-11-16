@@ -96,6 +96,8 @@ export const ImportCountsSchema = z
     skipped: z.number().int(),
     failed: z.number().int(),
     comments: z.number().int(),
+    work: z.number().int().optional().describe("Work items brought from the other tracker's API"),
+    files: z.number().int().optional().describe("Files brought from the other tracker's API"),
     links: z.number().int().describe('Links and parents made, by external key'),
     linksMissing: z.number().int().describe('Links to keys neither in this file nor imported before'),
     problems: z.number().int(),
@@ -103,7 +105,84 @@ export const ImportCountsSchema = z
   .meta({ id: 'ImportCounts' });
 export type ImportCounts = z.infer<typeof ImportCountsSchema>;
 
-export const IMPORT_STATUSES = ['ready', 'running', 'stopped', 'done', 'failed', 'undone'] as const;
+// ---------------------------------------------------------------------------
+// Imports from another tracker's API (YouTrack's, Jira's): the same rows as a file's, read over
+// HTTPS with a token that is used for the fetch and the run, and never kept.
+// ---------------------------------------------------------------------------
+
+export const API_IMPORT_SOURCES = ['youtrack', 'jira'] as const;
+export type ApiImportSource = (typeof API_IMPORT_SOURCES)[number];
+
+export const ImportCredentialsSchema = z
+  .object({
+    token: z
+      .string()
+      .min(1)
+      .max(4096)
+      .describe('YouTrack: a permanent token. Jira Cloud: an API token, with the email of its account. Jira Data Center: a personal access token'),
+    email: z
+      .string()
+      .email()
+      .max(320)
+      .optional()
+      .describe('Jira Cloud: the email of the Atlassian account the API token belongs to. Without it, the token goes as a bearer token, as Jira Data Center takes it'),
+  })
+  .meta({ id: 'ImportCredentials' });
+export type ImportCredentials = z.infer<typeof ImportCredentialsSchema>;
+
+export const ImportBringSchema = z
+  .object({
+    comments: z.boolean().default(true),
+    work: z.boolean().default(true).describe('Work items (YouTrack) and worklogs (Jira), each as it was logged; without them, the time spent comes as one total'),
+    files: z.boolean().default(true).describe('Attachments, downloaded as the import runs, within the size limits'),
+  })
+  .meta({ id: 'ImportBring' });
+export type ImportBring = z.infer<typeof ImportBringSchema>;
+
+export const ImportFromApiBody = z.object({
+  project: z.string().describe('Project key to import into'),
+  source: z.enum(API_IMPORT_SOURCES),
+  url: z.string().min(1).max(2000).describe("The tracker's base address, https: e.g. https://example.youtrack.cloud or https://example.atlassian.net"),
+  query: z.string().trim().min(1).max(4000).describe('Which issues: a YouTrack query (project: BACK) or a JQL (project = BACK)'),
+  credentials: ImportCredentialsSchema,
+  bring: ImportBringSchema.optional(),
+});
+
+export const ImportFetchBody = z.object({
+  credentials: ImportCredentialsSchema,
+});
+
+export const ImportRunBody = z.object({
+  credentials: ImportCredentialsSchema.optional().describe("For an import from an API that brings files: the token again, to download them. a4a doesn't keep it"),
+});
+
+export const ImportOriginSchema = z
+  .object({
+    kind: z.enum(API_IMPORT_SOURCES),
+    deployment: z.enum(['cloud', 'datacenter']).nullable().describe('Jira: Cloud (an email and an API token) or Data Center (a personal access token); null for YouTrack'),
+    url: z.string().describe('The base address it reads from'),
+    query: z.string(),
+    account: z.string().nullable().describe('Whom the token signed in as, there'),
+    bring: ImportBringSchema,
+    fetch: z.object({
+      complete: z.boolean().describe('Every issue has been read: false while fetching, or when it stopped before the end'),
+      issues: z.number().int(),
+      comments: z.number().int(),
+      work: z.number().int(),
+      files: z.number().int(),
+      fileBytes: z.number().int(),
+      total: z.number().int().nullable().describe('How many issues the query matched there, when it says'),
+      left: z.object({
+        issues: z.number().int().describe('Issues only some people may see there, left out'),
+        comments: z.number().int().describe('Comments only some people may see there, left out'),
+        keys: z.array(z.string()).describe('The first issues left out'),
+      }),
+    }),
+  })
+  .meta({ id: 'ImportOrigin' });
+export type ImportOrigin = z.infer<typeof ImportOriginSchema>;
+
+export const IMPORT_STATUSES = ['fetching', 'ready', 'running', 'stopped', 'done', 'failed', 'undone'] as const;
 
 export const ImportSchema = z
   .object({
@@ -113,16 +192,25 @@ export const ImportSchema = z
     fileName: z.string(),
     createdBy: UserRefSchema.nullable(),
     createdAt: timestamp,
-    status: z.enum(IMPORT_STATUSES).describe('stopped: it was running and stopped answering, as when the server restarted; run it again to carry on'),
+    status: z
+      .enum(IMPORT_STATUSES)
+      .describe(
+        "fetching: reading the issues from the other tracker's API. stopped: it was fetching or running and stopped answering, as when the server restarted; fetch or run it again to carry on",
+      ),
     rows: z.number().int(),
     columns: z.array(ImportColumnSchema),
     values: z.array(ImportValueMapSchema),
     options: ImportOptionsSchema,
-    progress: z.object({ phase: z.enum(['issues', 'links']).nullable(), done: z.number().int(), total: z.number().int() }),
+    progress: z.object({
+      phase: z.enum(['fetching', 'issues', 'links']).nullable().describe("fetching: issues read from the other tracker so far, of about total (0 when it can't say)"),
+      done: z.number().int(),
+      total: z.number().int(),
+    }),
     startedAt: timestamp.nullable(),
     finishedAt: timestamp.nullable(),
     error: z.string().nullable(),
     result: ImportCountsSchema.nullable(),
+    origin: ImportOriginSchema.nullable().describe("Where an import from another tracker's API reads from; null for a file"),
   })
   .meta({ id: 'Import' });
 export type Import = z.infer<typeof ImportSchema>;
