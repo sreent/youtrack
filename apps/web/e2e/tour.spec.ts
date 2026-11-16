@@ -50,6 +50,8 @@ const withRules = async (api: Api) => {
 /** An integration of the tour's own: it only waits for deliveries. */
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
+  // One of Bitbucket Data Center's, with its address and no token yet: it says what it lacks.
+  await api.post('/vcs/integrations', { provider: 'bitbucket-dc', name: `PROJ/${unique()}`, projects: [], baseUrl: 'https://bitbucket.acme.example' });
   return '/integrations';
 };
 

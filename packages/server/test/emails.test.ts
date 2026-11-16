@@ -225,12 +225,19 @@ describe('without email set up', () => {
   it('adds an email unconfirmed, sends no link, and leaves confirming to an administrator', async () => {
     const quiet = await createWorld();
     try {
+      // Her first email is her primary one.
       const added = await addMyEmail(quiet.as(quiet.anna), 'anna@quiet.example');
-      expect(added).toMatchObject({ canSendLinks: false, emails: [{ email: 'anna@quiet.example', confirmed: false, linkSentAt: null }] });
-      const send = await failure(sendEmailLink(quiet.as(quiet.anna), 'anna@quiet.example'));
+      expect(added).toMatchObject({ canSendLinks: false, emails: [{ id: null, email: 'anna@quiet.example', primary: true, confirmed: false, linkSentAt: null }] });
+      const other = await addMyEmail(quiet.as(quiet.anna), 'anna@side.example');
+      expect(other.emails[1]).toMatchObject({ email: 'anna@side.example', primary: false, confirmed: false, linkSentAt: null });
+      const send = await failure(sendEmailLink(quiet.as(quiet.anna), 'anna@side.example'));
       expect([send.status, send.message]).toEqual([400, 'a4a can’t send email here']);
-      const confirmed = await addEmailFor(quiet.adminCtx, 'anna', 'anna@quiet.example');
-      expect(confirmed.emails[0]).toMatchObject({ email: 'anna@quiet.example', confirmed: true, confirmedBy: { login: 'admin' } });
+      await addEmailFor(quiet.adminCtx, 'anna', 'anna@quiet.example');
+      const confirmed = await addEmailFor(quiet.adminCtx, 'anna', 'anna@side.example');
+      expect(confirmed.emails).toMatchObject([
+        { email: 'anna@quiet.example', primary: true, confirmed: true },
+        { email: 'anna@side.example', confirmed: true, confirmedBy: { login: 'admin' } },
+      ]);
     } finally {
       await quiet.close();
     }

@@ -142,6 +142,18 @@ export async function addMyEmail(ctx: Ctx, email: string): Promise<PersonEmails>
     if (u.emailVerified) throw badRequest('That’s your primary email, and it’s confirmed');
     return sendEmailLink(ctx, e);
   }
+  if (!u.email) {
+    // Someone's first email is their primary one, waiting to be confirmed as any other.
+    let sent = false;
+    await ctx.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      await tx.update(users).set({ email: e, emailVerified: false, updatedAt: new Date() }).where(eq(users.id, u.id));
+      sent = await queueLink(ctx, tx, u, e);
+    });
+    ctx.app.schema.invalidate();
+    if (sent) kickMail(ctx.app);
+    return emailsOf(ctx, await target(ctx, u.id));
+  }
   const mine = await others(ctx.db, u.id);
   if (mine.some((o) => lower(o.email) === lower(e))) throw badRequest('You’ve added that email already', 'Send its link again from your list of emails.');
   if (mine.length >= MAX_OTHER_EMAILS) throw badRequest(`You have ${MAX_OTHER_EMAILS} other emails already`, 'Remove one you no longer use first.');

@@ -8,6 +8,7 @@ import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
 import { EmailSettings } from '../features/notifications/EmailSettings';
+import { emailKeys, YourEmails } from '../features/vcs/People';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -30,6 +31,7 @@ function You({ me }: { me: Me }) {
     onSuccess: (m) => {
       qc.setQueryData(keys.me, m);
       void qc.invalidateQueries({ queryKey: keys.users });
+      void qc.invalidateQueries({ queryKey: emailKeys.mine });
       setSaid({ text: 'Saved. People see your new name from now on.' });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -46,7 +48,7 @@ function You({ me }: { me: Me }) {
         <FormField label="Name">
           {(id) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />}
         </FormField>
-        <FormField label="Email" help="Optional.">
+        <FormField label="Email" help="Your primary email, where a4a writes. Confirm it, and add others, under Emails.">
           {(id, help) => <input id={id} aria-describedby={help} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />}
         </FormField>
       </div>
@@ -170,6 +172,13 @@ export default function ProfilePage() {
       <section className="card" aria-labelledby="you">
         <h2 id="you">You</h2>
         <You me={m} />
+      </section>
+      <section className="card" aria-labelledby="emails">
+        <div className="section-head">
+          <h2 id="emails">Emails</h2>
+          <span className="note">Whose commits are yours</span>
+        </div>
+        <YourEmails />
       </section>
       <section className="card" aria-labelledby="notifications">
         <h2 id="notifications">Notifications</h2>

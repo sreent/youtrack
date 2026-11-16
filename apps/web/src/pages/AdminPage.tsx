@@ -10,6 +10,7 @@ import { ago } from '../components/Badges';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
+import { PeopleAtProviders } from '../features/vcs/People';
 
 const ROLE_WORDS: Record<Role, string> = {
   admin: 'an administrator changes everything',
@@ -121,7 +122,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
         />
         {unconfirmed ? (
           <span className="item-about">
-            They set it themselves, so single sign-on won’t find them by it, and their commits run no commands.{' '}
+            Not confirmed: single sign-on won’t find them by it, and their commits run no commands, until they confirm it by the link a4a mails, or you do.{' '}
             <button type="button" className="link" onClick={() => confirm.mutate()} disabled={confirm.isPending}>
               Confirm it
             </button>
@@ -406,6 +407,13 @@ export default function AdminPage() {
           triage, and shows as an agent.
         </p>
         <AddPerson />
+      </section>
+      <section className="card" aria-labelledby="vcs-people">
+        <div className="section-head">
+          <h2 id="vcs-people">Who wrote which commits</h2>
+          <span className="note">Emails and logins at version control</span>
+        </div>
+        <PeopleAtProviders />
       </section>
       <section className="card" aria-labelledby="instance">
         <h2 id="instance">This instance</h2>
