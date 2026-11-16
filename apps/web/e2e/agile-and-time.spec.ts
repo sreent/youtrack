@@ -63,7 +63,8 @@ test('plans a sprint from the backlog: ranks, moves into the sprint, and weighs 
   const load = page.getByRole('region', { name: 'Sprint A: load against capacity' });
   await expect(load.getByRole('row', { name: new RegExp(SECOND.name) })).toContainText('16h');
   await expect(page.getByRole('heading', { name: 'Velocity' })).toBeVisible();
-  await expect(page.getByRole('table').filter({ hasText: 'Committed' }).getByRole('row', { name: /Sprint A/ })).toBeVisible();
+  // It began today and everything joined it since, so nothing was committed yet: said in words, not drawn.
+  await expect(page.getByText('Nothing was committed to or done in Sprint A yet, in points.')).toBeVisible();
   await expectNoSidewaysScroll(page);
   await expectAccessible(page);
 
