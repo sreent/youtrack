@@ -26,6 +26,7 @@ import { helpHit } from '../services/help-throttle';
 import { botCtx, openRequest, postRequesterReply, requestWithRequester } from '../services/helpdesk';
 import { projectSettings } from '../services/projects';
 import type { ProjectRow } from '../services/schema-cache';
+import { handleTeamReply, teamReplyProject, teamReplyTokensOf } from '../services/team-replies';
 import { deskRecipient, requestOfReplyTokens, splitAddress } from './addresses';
 import { clip, readMail, stripSignature, type MailFile, type ReadMail } from './reading';
 
@@ -69,6 +70,10 @@ export async function receiveMail(app: AppServices, raw: Buffer, inbound: Inboun
     return { outcome: 'refused', reason };
   }
 
+  // The team answering a notification email (D45): to the reply address, whatever desk it reached.
+  const teamTokens = teamReplyTokensOf(app, mail);
+  if (teamTokens.length) return receiveTeamReply(app, mail, inbound, teamTokens);
+
   const s = await app.schema.get();
   const boxes: Mailbox[] = await app.db.select({ projectId: helpdeskMailboxes.projectId, address: helpdeskMailboxes.address }).from(helpdeskMailboxes);
   const { desk, tokens } = deskOf(s.projects, boxes, mail, inbound.desk);
@@ -82,6 +87,29 @@ export async function receiveMail(app: AppServices, raw: Buffer, inbound: Inboun
   if (claim === null) return { outcome: 'duplicate', reason: 'it came in before' };
   try {
     const result = await handle(app, desk, boxes, mail, tokens);
+    await finish(app.db, claim, result);
+    return result;
+  } catch (e) {
+    await finish(app.db, claim, { outcome: 'failed', reason: errorText(e) }).catch(() => {});
+    throw e;
+  }
+}
+
+/** A team member's answer to a notification email, once, logged with the issue's project. */
+async function receiveTeamReply(app: AppServices, mail: ReadMail, inbound: Inbound, tokens: string[]): Promise<InboundResult> {
+  const sender = mail.from?.address ?? '';
+  const mailFrom = /<([^>]+)>/.exec(app.config.mailFrom)?.[1] ?? app.config.mailFrom;
+  if (!sender || sender === mailFrom.toLowerCase()) {
+    await note(app.db, inbound, null, mail, 'ignored', 'sent by a4a itself, or by no one');
+    return { outcome: 'ignored', reason: 'sent by a4a itself, or by no one' };
+  }
+  // Claimed under the project the token names, so the desk's managers' log is theirs alone.
+  const projectId = await teamReplyProject(app.db, tokens);
+  const claim = await claimMessage(app.db, projectId, mail, inbound.via);
+  if (claim === null) return { outcome: 'duplicate', reason: 'it came in before' };
+  try {
+    const r = await handleTeamReply(app, mail, tokens);
+    const result: InboundResult = { outcome: r.outcome, reason: r.reason, issueId: r.issueId ?? null, commentId: r.commentId ?? null };
     await finish(app.db, claim, result);
     return result;
   } catch (e) {
@@ -210,7 +238,7 @@ function firstLine(text: string): string {
 // The log: claimed before the work, finished after
 // ---------------------------------------------------------------------------
 
-async function claimMessage(db: Db, projectId: string, mail: ReadMail, via: Inbound['via']): Promise<number | null> {
+async function claimMessage(db: Db, projectId: string | null, mail: ReadMail, via: Inbound['via']): Promise<number | null> {
   const res = await db.execute(sql`
     INSERT INTO helpdesk_inbound (project_id, message_id, via, sender, subject, outcome)
     VALUES (${projectId}, ${mail.messageId}, ${via}, ${mail.from?.address ?? ''}, ${mail.subject.slice(0, 300)}, 'received')
