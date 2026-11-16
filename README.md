@@ -74,6 +74,9 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Single sign-on** with your identity provider, by OpenID Connect or SAML 2.0 (or both), with password sign-in optional.
   - Accounts are linked by a verified email, can be made on first sign-in, and can be kept to your email domains.
   - Groups can come from the provider: who is in them follows its groups claim or attribute, at each sign-in.
+  - **LDAP**: the login form checks passwords against your directory too, over ldaps or StartTLS, makes accounts at the first sign-in, and fills groups from memberOf or a group search.
+  - **Provisioning by SCIM 2.0**: Microsoft Entra ID (or another provider) adds people and groups, changes them, and bans those it deactivates, between sign-ins.
+- **Two-factor sign-in** for passwords: a code from an authenticator app after the password, set up from a QR code, with single-use recovery codes. An administrator can ask it of everyone who signs in with a password.
 - **For integrations**:
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
@@ -200,7 +203,23 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `SAML_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
 | `SAML_NAMEID_FORMAT` | empty | The NameID format to ask for; empty takes the provider's (a persistent one is best) |
 | `SAML_ALLOW_IDP_INITIATED` | `false` | Take sign-ins started at the provider, which answer no request of a4a's |
-| `PASSWORD_LOGIN` | `true` | `false` turns password sign-in off, while single sign-on is on |
+| `PASSWORD_LOGIN` | `true` | `false` turns a4a's own passwords off, while single sign-on or LDAP is on (LDAP's form stays) |
+| `SECRET_KEY` | a key file | Seals two-factor secrets in the database: any text, or 32 bytes in hex or base64. Without it, a4a writes a key to `DATA_DIR/secret.key` the first time; several instances need the same `SECRET_KEY` |
+| `LDAP_URL` | empty | Check passwords against an LDAP directory too: `ldaps://host:636`, or `ldap://host:389` with `LDAP_STARTTLS=true` (docs/architecture.md, D38) |
+| `LDAP_STARTTLS` | `false` | Upgrade a plain `ldap://` connection with StartTLS before anything is sent |
+| `LDAP_BIND_DN`, `LDAP_BIND_PASSWORD` | empty | The service account a4a searches as; empty binds anonymously |
+| `LDAP_BASE_DN` | (required) | Where to look for people, e.g. `dc=acme,dc=example` |
+| `LDAP_USER_FILTER` | uid, sAMAccountName, userPrincipalName or mail | The filter that finds someone; `{login}` is what they typed, escaped |
+| `LDAP_LOGIN_ATTRIBUTE`, `LDAP_EMAIL_ATTRIBUTE`, `LDAP_NAME_ATTRIBUTE` | `uid`, `mail`, `displayName` | Their a4a login (the first time), email and name |
+| `LDAP_ID_ATTRIBUTE` | objectGUID or entryUUID | Their id there, which keeps finding them after a rename; else their DN |
+| `LDAP_GROUPS_ATTRIBUTE` | empty | An attribute listing their groups' DNs, such as `memberOf`: it fills the groups that follow the provider |
+| `LDAP_GROUP_BASE_DN`, `LDAP_GROUP_FILTER`, `LDAP_GROUP_NAME_ATTRIBUTE` | empty, `(\|(member={dn})(uniqueMember={dn}))`, `cn` | Or find their groups by a search, where `{dn}` is theirs |
+| `LDAP_CA_CERT` | empty | A PEM file (or PEM text) of the certificate authority the directory's certificate comes from |
+| `LDAP_NAME` | the host | What the sign-in page calls the directory |
+| `LDAP_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
+| `LDAP_TRUST_EMAIL` | `false` | Count the directory's email as verified, so it links existing accounts |
+| `LDAP_ALLOWED_DOMAINS` | empty | Comma-separated email domains allowed in (needs `LDAP_TRUST_EMAIL`) |
+| `MCP_OAUTH_CLIENT_DOCUMENTS` | `true` | Take MCP clients whose client_id is the https address of their metadata document, read with the same guard as imports |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
 | `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
 | `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
@@ -294,6 +313,8 @@ OIDC_GROUPS_CLAIM=groups
 ```
 
 Entra's groups claim names each group by its object id, not its name: give each a4a group that follows the provider the Entra group's Object ID as its provider name. Or define app roles in the registration, assign groups to them, and set `OIDC_GROUPS_CLAIM=roles` to have names instead. Once sign-in works, `PASSWORD_LOGIN=false` leaves sign-in, and its multi-factor checks, to Entra.
+
+To have Entra add and remove people between sign-ins, make a SCIM token in Administration → Provisioning. In Entra, open the enterprise application, then Provisioning, and set the mode to Automatic: the tenant URL is `https://a4a.example.com/scim/v2` and the secret token is the SCIM token. Entra's default mappings work as they are. A group it provisions follows it under its object id, as the groups claim names it, so provisioning and sign-in agree; someone it deactivates is banned, and keeps their history.
 
 ## Development
 
