@@ -179,7 +179,7 @@ pnpm test:e2e
 
 What it covers, in `apps/web/e2e`:
 
-- **The tour**: every page, light, dark and at 390px, with no console errors, no CSP violations, no sideways scroll, and nothing axe finds against WCAG 2.2 AA.
+- **The tour**: every page, light, dark and at 390px, with no console errors, no CSP violations, no sideways scroll, and nothing axe finds against WCAG 2.2 AA. It includes what only the AI fills (a conversation waiting on its approvals, triage's suggestions), stood in for.
 - **Issues**: a query's problem and its fix, suggestions from the keyboard, rows chosen from the keyboard and a command previewed then applied, saved searches, a query read from words.
 - **An issue**: a field changed from the keyboard, links, comments, logged time, triage's values accepted one at a time, the summary, and a save refused (409) when someone changed the issue first.
 - **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
