@@ -88,11 +88,15 @@ export function machineProblems(s: SchemaSnapshot, projectId: string, field: Fie
       else if (to && state(f) === to) at('from', `It leaves ${to} for ${to}`, f, 'A transition goes from one state to another.');
     }
     if (to) {
-      const leaves = from.includes('*') ? states.filter((x) => x !== to) : from.map(state).filter((x): x is string => Boolean(x) && x !== to);
+      // One move between two states has one transition. A transition from any state (*) gives way
+      // to one that names its state, so "Reopen from anywhere" sits beside "Accept from Submitted".
+      const leaves = from.includes('*') ? ['*'] : from.map(state).filter((x): x is string => Boolean(x) && x !== to);
       for (const f of leaves) {
         const pair = `${f.toLowerCase()}→${to.toLowerCase()}`;
         const other = pairs.get(pair);
-        if (other !== undefined && other !== key) at('from', `“${t.name.trim()}” and another transition both go from ${f} to ${to}`, f, 'One move between two states has one transition.');
+        if (other !== undefined && other !== key) {
+          at('from', f === '*' ? `Two transitions go from any state to ${to}` : `“${t.name.trim()}” and another transition both go from ${f} to ${to}`, f, 'One move between two states has one transition.');
+        }
         pairs.set(pair, key);
       }
     }
@@ -271,9 +275,9 @@ export async function machineMoves(
     const to = named(s, u.values);
     // From no state, or to none: free. A new issue starts where it's put.
     if (!from || !to) continue;
-    const fits = live.transitions.filter(
-      (t) => t.to.toLowerCase() === to.toLowerCase() && (t.from.includes('*') || t.from.some((f) => f.toLowerCase() === from.toLowerCase())),
-    );
+    // One that names the state it leaves first, then one from any state.
+    const toHere = live.transitions.filter((t) => t.to.toLowerCase() === to.toLowerCase());
+    const fits = [...toHere.filter((t) => t.from.some((f) => f.toLowerCase() === from.toLowerCase())), ...toHere.filter((t) => t.from.includes('*'))];
     let t: StateTransition | undefined;
     if (chosen && chosen.fieldId === u.field.id) {
       t = live.transitions.find((x) => x.name.toLowerCase() === chosen.name.toLowerCase());
