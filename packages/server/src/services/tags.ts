@@ -40,7 +40,8 @@ export async function ensureTags(tx: Db, ctx: Ctx, names: string[]): Promise<Tag
       if (again) out.push(again);
     }
   }
-  if (created) ctx.app.schema.invalidate();
+  // Inside the caller's transaction: other instances must reload once it commits, not before.
+  if (created) await ctx.app.schema.invalidateOnCommit(tx);
   return out;
 }
 

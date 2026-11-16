@@ -17,15 +17,14 @@ import { effectiveScopes, type Ctx } from '../../context';
 import { seedDemo } from '../../db/seed';
 import { AppError, badRequest } from '../../lib/errors';
 import { createToken, listTokens, login, logout, needsSetup, revokeToken, SESSION_COOKIE } from '../../services/auth';
+import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
 import { APP_NAME } from '@a4a/shared';
 import { getCookie } from 'hono/cookie';
 import type { HttpEnv } from '../env';
-import { clientIp, errorBody, RateLimiter } from '../middleware';
+import { clientIp, errorBody } from '../middleware';
 import { route } from '../route';
-
-const loginLimiter = new RateLimiter(10, 15 * 60_000);
 
 export function meDto(ctx: Ctx): Me {
   return {
@@ -62,10 +61,14 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, body }) => {
       const runtime = c.get('runtime');
-      if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator');
-      const admin = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, password: body.password, role: 'admin' });
-      runtime.schema.invalidate();
-      if (body.seedDemo) await seedDemo(runtime, admin);
+      // Exclusive across instances: two setups at once must not make two first administrators.
+      const admin = await runtime.database.exclusive(async () => {
+        if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator');
+        const created = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, password: body.password, role: 'admin' });
+        runtime.schema.invalidate();
+        if (body.seedDemo) await seedDemo(runtime, created);
+        return created;
+      });
       await setSetting(runtime.db, 'setupAt', new Date().toISOString());
       const session = await login(runtime.db, body.login, body.password, runtime.config.sessionTtlDays, c.req.header('user-agent'));
       setSessionCookie(c, runtime.config.publicUrl, session.token, session.expiresAt);
@@ -77,14 +80,15 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'post', path: '/auth/login', tags, summary: 'Sign in with login and password (sets a session cookie)', auth: 'none', body: LoginBody, response: MeSchema, status: 200 }, async ({ c, body }) => {
     const runtime = c.get('runtime');
-    const key = `${clientIp(c)}|${body.login.toLowerCase()}`;
-    const wait = loginLimiter.hit(key);
-    if (wait) {
-      c.header('retry-after', String(wait));
-      return c.json(errorBody('rate_limited', 'Too many sign-in attempts', `Try again in ${Math.ceil(wait / 60)} minutes`), 429);
+    // Counted in Postgres before the password is checked, so the limit holds across
+    // instances, restarts and parallel guesses; a wrong password leaves its count.
+    const attempt = await beginLoginAttempt(runtime.db, clientIp(c, runtime.config.trustProxy), body.login);
+    if (attempt.wait) {
+      c.header('retry-after', String(attempt.wait));
+      return c.json(errorBody('rate_limited', 'Too many sign-in attempts', `Try again in ${waitInWords(attempt.wait)}`), 429);
     }
     const session = await login(runtime.db, body.login, body.password, runtime.config.sessionTtlDays, c.req.header('user-agent'));
-    loginLimiter.reset(key);
+    await attempt.succeeded();
     setSessionCookie(c, runtime.config.publicUrl, session.token, session.expiresAt);
     return meDto({
       app: runtime,

@@ -1,5 +1,5 @@
 import type { ApiToken, Scope } from '@a4a/shared';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { apiTokens, sessions, users } from '../db/schema';
@@ -31,6 +31,11 @@ export async function logout(db: Db, token: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sha256(token)));
 }
 
+/** Housekeeping: expired sessions are refused already; this only keeps the table small. */
+export async function pruneSessions(db: Db): Promise<void> {
+  await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
+}
+
 export async function actorFromSession(db: Db, token: string): Promise<Actor | null> {
   const [row] = await db
     .select({ user: users, expiresAt: sessions.expiresAt })
@@ -48,6 +53,10 @@ export async function actorFromSession(db: Db, token: string): Promise<Actor | n
   };
 }
 
+/**
+ * Per instance on purpose: it only spares the database a write per request. With N
+ * instances a token's last-used time is written at most N times a minute.
+ */
 const lastUsedWrites = new Map<string, number>();
 
 export async function actorFromToken(db: Db, bearer: string, channel: 'api' | 'mcp'): Promise<Actor | null> {

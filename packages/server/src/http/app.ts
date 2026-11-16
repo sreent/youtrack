@@ -63,7 +63,20 @@ export function createHttpApp(runtime: Runtime) {
     } catch {
       db = false;
     }
-    return c.json({ ok: db, db: runtime.database.kind, ai: runtime.config.aiEnabled }, db ? 200 : 503);
+    // Only the database decides `ok`: without LISTEN this instance still serves, and its
+    // live events fall back to polling. The rest says which instance answered and what it does.
+    const signals = runtime.signals;
+    return c.json(
+      {
+        ok: db,
+        db: runtime.database.kind,
+        ai: runtime.config.aiEnabled,
+        instance: runtime.instanceId,
+        live: signals.mode === 'local' ? 'local' : signals.listening ? 'listening' : 'reconnecting',
+        worker: runtime.worker ? (runtime.worker.active ? 'active' : 'standby') : 'off',
+      },
+      db ? 200 : 503,
+    );
   });
   api.doc31('/openapi.json', {
     openapi: '3.1.0',
@@ -76,8 +89,8 @@ export function createHttpApp(runtime: Runtime) {
   root.use('*', securityHeaders());
   root.use('*', authenticate(runtime));
   root.use('/api/*', csrfGuard(runtime.config.publicUrl));
-  root.use('/api/*', rateLimit(new RateLimiter(1200, 60_000)));
-  root.use('/mcp', rateLimit(new RateLimiter(600, 60_000)));
+  root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
+  root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
   root.use('/api/*', idempotency(runtime));
 
   root.route('/api/v1', api);
