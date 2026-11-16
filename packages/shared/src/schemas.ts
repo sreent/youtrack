@@ -2059,6 +2059,11 @@ export const OAuthAuthorizationSchema = z
         name: z.string().nullable().describe('What the app calls itself. It said so when it registered, and a4a can’t check it'),
         redirectUri: z.string().describe('Where the browser goes back with the answer'),
         redirectHost: z.string(),
+        documentHost: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('For an app known by its client ID metadata document (D38): the host that document is at, which vouches for the app'),
         local: z.boolean().describe('Whether that is a program on this computer (a loopback address)'),
         registeredAt: timestamp,
       }),

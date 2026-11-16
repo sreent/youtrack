@@ -13,6 +13,7 @@ import type { Db } from '../db/client';
 import { oauthClients, oauthCodes, oauthGrants, oauthTokens, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
 import { newId } from '../lib/ids';
+import { findClient } from './client-documents';
 import { refreshes, type ClientRow } from './clients';
 import { ACCESS_PREFIX, ACCESS_TTL_S, OAuthError, oauthOn, oauthUrls, REFRESH_PREFIX, REFRESH_TTL_MS, resourceMatches } from './common';
 
@@ -40,7 +41,8 @@ const clientLabel = (client: ClientRow) => client.name ?? `app ${client.id.slice
 
 async function appOf(app: AppServices, clientId: string | undefined): Promise<ClientRow> {
   if (!clientId) throw new OAuthError('invalid_client', 'Say which app you are: client_id', 401);
-  const [client] = await app.db.select().from(oauthClients).where(eq(oauthClients.id, clientId));
+  // An app known by its metadata document was read at authorization; its tokens don't read it again.
+  const client = await findClient(app, clientId, { read: false });
   if (!client) throw new OAuthError('invalid_client', 'This app isn’t registered with a4a; register it again', 401);
   return client;
 }

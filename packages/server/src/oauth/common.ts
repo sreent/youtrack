@@ -102,9 +102,10 @@ export function resourceMatches(urls: OAuthUrls, resource: string): boolean {
  * The WWW-Authenticate challenge of a 401 from /mcp: with OAuth on, it names the protected resource
  * metadata (RFC 9728), so a client can find where to sign in, and the scopes there are.
  */
-export function mcpChallenge(config: Config, error?: { code: 'invalid_token'; description: string }): string {
+export function mcpChallenge(config: Config, error?: { code: 'invalid_token' | 'insufficient_scope'; description: string; scope?: string }): string {
   const parts = ['Bearer realm="a4a"'];
   if (error) parts.push(`error="${error.code}"`, `error_description="${error.description.replace(/["\\]/g, '')}"`);
-  if (oauthOn(config)) parts.push(`resource_metadata="${oauthUrls(config).resourceMetadata}"`, `scope="${OAUTH_SCOPES.join(' ')}"`);
+  // The scopes to ask for: all of them, or, to step up (D38), those the call needs.
+  if (oauthOn(config)) parts.push(`resource_metadata="${oauthUrls(config).resourceMetadata}"`, `scope="${error?.scope ?? OAUTH_SCOPES.join(' ')}"`);
   return parts.join(', ');
 }

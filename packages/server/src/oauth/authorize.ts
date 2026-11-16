@@ -12,8 +12,9 @@ import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, badRequest, forbidden } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { projectAccess, requireProject } from '../services/access';
+import { findClient, isDocumentId } from './client-documents';
 import { isLoopback, matchRedirect, type ClientRow } from './clients';
-import { askedScopes, clip, CODE_PREFIX, CODE_TTL_MS, oauthOn, oauthUrls, REMEMBER_MS, resourceMatches } from './common';
+import { askedScopes, clip, CODE_PREFIX, CODE_TTL_MS, OAuthError, oauthOn, oauthUrls, REMEMBER_MS, resourceMatches } from './common';
 
 export type GrantRow = typeof oauthGrants.$inferSelect;
 
@@ -40,7 +41,14 @@ async function check(app: AppServices, req: OAuthRequest): Promise<Checked> {
   }
   const clientId = req.client_id?.trim();
   if (!clientId) return fatal('invalid_request', 'The app didn’t say which app it is (client_id)', 'Start connecting again, from the app.');
-  const [client] = await app.db.select().from(oauthClients).where(eq(oauthClients.id, clientId));
+  // An app that registered, or one whose client_id is its metadata document's address (D38).
+  let client: ClientRow | null;
+  try {
+    client = await findClient(app, clientId, { read: true });
+  } catch (e) {
+    if (e instanceof OAuthError) return fatal('invalid_client', e.message, 'The app’s maker can fix its metadata document; meanwhile, connect it with an API token, from Agents and tokens.');
+    throw e;
+  }
   if (!client) {
     return fatal(
       'invalid_client',
@@ -120,6 +128,7 @@ export async function checkAuthorization(ctx: Ctx, req: OAuthRequest): Promise<O
       name: c.client.name,
       redirectUri: c.redirectUri,
       redirectHost: target.host,
+      documentHost: isDocumentId(c.client.id) ? new URL(c.client.id).host : null,
       local: isLoopback(target),
       registeredAt: c.client.createdAt.toISOString(),
     },
