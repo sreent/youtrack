@@ -76,6 +76,14 @@ describe('a moved issue in the history reports (D41)', () => {
   it('keeps its age from its creation, and its time in a state only where it spent it', async () => {
     const age = await averageAgeReport(anna, { project: 'MVB', from: '2026-11-04', to: '2026-11-04', ...UTC }, NOW);
     expect(age.days).toEqual([{ date: '2026-11-04', open: 1, averageDays: 3.6, medianDays: 3.6 }]);
+    // Its values are its own from before the move: in progress since MVA, unchanged by moving.
+    const byState = await averageAgeReport(anna, { project: 'MVB', from: '2026-11-04', to: '2026-11-04', field: 'State', ...UTC }, NOW);
+    expect(byState.values.map((v) => [v.label, v.open, v.averageDays])).toEqual([['In Progress', 1, 3.6]]);
+    const byProject = await averageAgeReport(anna, { query: `issue id: ${moved}`, from: '2026-11-02', to: '2026-11-04', field: 'Project', ...UTC }, NOW);
+    expect(byProject.values.map((v) => [v.key, v.days])).toEqual([
+      ['MVB', [null, 2.6, 3.6]], // most open at the end first
+      ['MVA', [1.6, null, null]],
+    ]);
     const tis = await timeInStateReport(anna, { project: 'MVB', from: '2026-11-01', to: '2026-11-05', ...UTC }, NOW);
     const inProgress = tis.states.findIndex((s) => s.name === 'In Progress');
     expect(tis.issues).toHaveLength(1);

@@ -98,10 +98,13 @@ export async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project
     sql`${activities.payload}->'data'->>'fromProject'`,
     projects.map((p) => p.key),
   )})`;
+  // And what came before an issue moved in, so its values, standing and age are its own; while it
+  // was elsewhere, it doesn't count.
+  const movedIn = sql`${activities.issueId} IN (SELECT a2.issue_id FROM activities a2 WHERE a2.type = 'issue.moved' AND ${inList(sql`a2.project_id`, ids)})`;
   return {
     projects,
     query: null,
-    activityWhere: sql`(${inList(activities.projectId, ids)} OR ${movedAway})`,
+    activityWhere: sql`(${inList(activities.projectId, ids)} OR ${movedAway} OR ${movedIn})`,
     issueWhere: inList(sql`${issues.projectId}`, ids),
     includesDeleted: true,
     inScope: keySet(projects),

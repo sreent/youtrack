@@ -373,14 +373,13 @@ export async function averageAgeReport(ctx: Ctx, input: WindowInput & { field?: 
   const prefix = scopeQuery(scope);
   // A value's open issues now: only when the window ends today, so "now" is the last day.
   const live = w.to === w.today;
-  const merged = new Map<string, AverageAge['values'][number] & { sums: number[] }>();
+  const merged = new Map<string, AverageAge['values'][number]>();
   for (const v of res.values) {
-    const b = v.value === '' ? { ...noValue(d!), clause: noValue(d!).clause } : historyBucket(s, d!, v.value);
+    const b = v.value === '' ? noValue(d!) : historyBucket(s, d!, v.value);
     const query = live && b.clause ? joinQuery(prefix, b.clause, '#Unresolved') : null;
-    merged.set(b.key, { key: b.key, label: b.label, tone: b.tone, open: v.open, averageDays: round1(v.averageDays), oldestDays: round1(v.oldestDays), days: v.days.map(round1), query, sums: [] });
+    merged.set(b.key, { key: b.key, label: b.label, tone: b.tone, open: v.open, averageDays: round1(v.averageDays), oldestDays: round1(v.oldestDays), days: v.days.map(round1), query });
   }
   const values = [...merged.values()]
-    .map(({ sums: _s, ...rest }) => rest)
     .sort((a, b) => Number(a.key === '') - Number(b.key === '') || b.open - a.open || a.label.localeCompare(b.label));
   return {
     scope: scopeDto(scope, w, counted.length),
