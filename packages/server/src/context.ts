@@ -78,6 +78,8 @@ export interface Ctx {
   automation?: AutomationCause;
   /** The language of what this request's answer says to a person (D49): the page's, theirs, or their browser's. */
   locale?: Locale;
+  /** The language a page asked for (`x-a4a-locale`), and nothing for an agent or a script: the API's words follow only a page (D49). */
+  pageLocale?: Locale;
 }
 
 export function withChannel(ctx: Ctx, channel: Channel): Ctx {

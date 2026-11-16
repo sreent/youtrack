@@ -9,6 +9,7 @@ import { fieldByName } from '../services/schema-cache';
 import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../services/access';
 import { zoneOf } from '../services/time-zones';
 import { compileQuery, type CompiledQuery } from './compiler';
+import { translatorFor } from '../i18n';
 import { explainParsed } from './explain';
 import { withFixes } from './lexer';
 import { parseQuery, type ParsedQuery } from './parser';
@@ -49,8 +50,10 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
   const seen = issueSeenSql(view, full);
   if (seen) compiled.where = compiled.where ? (and(seen, compiled.where) ?? seen) : seen;
   // A search whose dates depend on where you are says where it read them.
-  const explained = explainParsed(parsed);
-  return { parsed, compiled, explanation: compiled.readsDates ? `${explained} (dates in ${zone})` : explained };
+  // In the page's language when a page asks (D49); English for an agent or a script.
+  const tr = translatorFor(ctx.pageLocale ?? 'en');
+  const explained = explainParsed(parsed, tr);
+  return { parsed, compiled, explanation: compiled.readsDates ? tr.t('server.query.datesIn', { explanation: explained, zone }) : explained };
 }
 
 function formatProblems(problems: QueryProblem[]): string {

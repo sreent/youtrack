@@ -14,6 +14,7 @@ import { createHttpApp } from '../src/http/app';
 import { localeOfPerson, translatorFor } from '../src/i18n';
 import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
+import { prepareQuery } from '../src/search/service';
 import { emailTime } from '../src/notify/words';
 import { createIssue } from '../src/services/issues';
 import { createProject } from '../src/services/projects';
@@ -54,6 +55,15 @@ afterAll(async () => {
 });
 
 describe('a4a in each person’s language (D49)', () => {
+  it('says a query in the language its page asks for, and in English to an agent or a script', async () => {
+    const query = 'project: SPR #Unresolved for: me sort by: updated desc';
+    const page = await prepareQuery({ ...w.as(lena), pageLocale: 'de' }, query);
+    expect(page.explanation).toBe('Vorgänge: im Projekt SPR, unerledigt und Ihnen zugewiesen, sortiert nach updated (absteigend)');
+    // Lena reads a4a in German, but what a script of hers reads is the API's words: English.
+    const script = await prepareQuery(w.as(lena), query);
+    expect(script.explanation).toBe('Issues in project SPR, unresolved, assigned to you sorted by updated (descending)');
+  });
+
   it('has a catalog for every language it speaks, with every English message in it', () => {
     expect(LOCALES).toContain('de');
     expect(Object.keys(de).sort()).toEqual(Object.keys(en).sort());
