@@ -307,7 +307,7 @@ export async function personFromProvider(app: AppServices, p: ProviderPolicy, wh
 }
 
 /** A login like theirs that nobody has: "anna", or "anna2" and on. */
-async function freeLogin(db: Db, wanted: string): Promise<string> {
+export async function freeLogin(db: Db, wanted: string): Promise<string> {
   const base = (wanted.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '').replace(/^[._-]+/, '').slice(0, 36) || 'user').toLowerCase();
   const padded = base.length >= 2 ? base : `${base}user`;
   const taken = new Set(

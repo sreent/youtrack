@@ -1793,6 +1793,8 @@ export const scimUsers = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     userName: text('user_name').notNull(),
     externalId: text('external_id'),
+    /** The parts of their name as the provider sent them, so they read back as sent. */
+    nameParts: jsonb('name_parts').$type<{ givenName?: string; familyName?: string; formatted?: string; displayName?: string }>().notNull().default({}),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
