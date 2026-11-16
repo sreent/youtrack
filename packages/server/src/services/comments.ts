@@ -1,4 +1,4 @@
-import type { Comment, CommentVisibility } from '@a4a/shared';
+import type { Comment, CommentVisibility, VisibleToInput } from '@a4a/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -6,11 +6,12 @@ import { comments, helpdeskRequests, requesters } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { excerpt } from '../lib/text';
-import { assertCanCommentProject, assertCanWriteProject, projectAccess } from './access';
+import { assertCanCommentProject, assertCanWriteProject, projectAccess, seesCommentRow } from './access';
 import { issueRefsById, readableId } from './issue-refs';
 import { applyChanges, findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
 import { addWatchers, mentionsAdded, whoSees } from './watchers';
+import { resolveVisibleTo, sameLimits, visibleToDtos } from './visibility';
 
 type CommentRow = typeof comments.$inferSelect;
 
@@ -25,6 +26,7 @@ export async function commentDto(ctx: Ctx, row: CommentRow, issueReadable?: stri
   const s = await ctx.app.schema.get();
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
   const requesterName = row.requesterId ? ((names ?? (await requesterNames(ctx.db, [row]))).get(row.requesterId) ?? 'The requester') : null;
+  const [visibleTo] = await visibleToDtos(ctx.db, s, [row]);
   return {
     id: row.id,
     issueId: issueReadable ?? row.issueId,
@@ -35,6 +37,7 @@ export async function commentDto(ctx: Ctx, row: CommentRow, issueReadable?: stri
     updatedAt: row.updatedAt.toISOString(),
     visibility: row.visibility as CommentVisibility,
     requester: requesterName !== null ? { name: requesterName } : null,
+    visibleTo: visibleTo ?? null,
   };
 }
 
@@ -48,8 +51,11 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
     .where(and(eq(comments.issueId, issue.id), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
   const rid = readableId(s, issue);
-  const names = await requesterNames(ctx.db, rows);
-  return Promise.all(rows.map((r) => commentDto(ctx, r, rid, names)));
+  // A comment limited away from the caller (D37) isn't there for them.
+  const view = await projectAccess(ctx);
+  const seen = rows.filter((r) => seesCommentRow(view, issue.projectId, r));
+  const names = await requesterNames(ctx.db, seen);
+  return Promise.all(seen.map((r) => commentDto(ctx, r, rid, names)));
 }
 
 /**
@@ -57,7 +63,12 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
  * A public comment answers a help desk's requester for the project and counts as its first
  * response, so it takes someone who may change the project's issues.
  */
-export async function addComment(ctx: Ctx, issueId: string, text: string, opts: { visibility?: CommentVisibility } = {}): Promise<Comment> {
+export async function addComment(
+  ctx: Ctx,
+  issueId: string,
+  text: string,
+  opts: { visibility?: CommentVisibility; visibleTo?: VisibleToInput | null } = {},
+): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
@@ -71,7 +82,13 @@ export async function addComment(ctx: Ctx, issueId: string, text: string, opts: 
     }
     await assertCanWriteProject(ctx, issue.projectId);
   }
-  const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility }));
+  const commentVisibleTo = await resolveVisibleTo(ctx.db, s, opts.visibleTo);
+  if (commentVisibleTo.limited && visibility === 'public') {
+    throw badRequest('A public comment goes to the requester, so it can’t be limited to some people too', 'Send it as internal to limit it, or leave out "visibleTo".');
+  }
+  const result = await ctx.db.transaction(async (tx) =>
+    applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility, commentVisibleTo }),
+  );
   await publishActivities(ctx.app, result.activities);
   const created = result.activities.find((a) => a.type === 'comment.created');
   const commentId = (created?.payload as { data?: { commentId?: string } } | undefined)?.data?.commentId;
@@ -87,7 +104,7 @@ export async function addComment(ctx: Ctx, issueId: string, text: string, opts: 
 async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
   const [row] = await ctx.db.select().from(comments).where(and(eq(comments.id, id), isNull(comments.deletedAt)));
   const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue) throw notFound('Comment');
+  if (!row || !issue || !seesCommentRow(await projectAccess(ctx), issue.projectId, row)) throw notFound('Comment');
   await assertCanCommentProject(ctx, issue.projectId);
   if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
     throw forbidden('You can only change your own comments', 'Managers of the project can change anyone’s.');
@@ -106,7 +123,7 @@ export async function updateComment(ctx: Ctx, id: string, text: string): Promise
     const tx = txRaw as unknown as Db;
     const [updated] = await tx.update(comments).set({ text, updatedAt: new Date() }).where(eq(comments.id, id)).returning();
     const issueRow = await resolveIssue(ctx, row.issueId, tx);
-    const seeing = await whoSees(tx, s, issueRow.projectId, added);
+    const seeing = await whoSees(tx, s, issueRow.projectId, added, issueRow, row);
     const mentions = added.filter((l) => seeing.has(l.toLowerCase()));
     await addWatchers(tx, s, issueRow, mentions.map((login) => ({ login, reason: 'mentioned' as const })), seeing);
     const activity = await recordActivity(tx, ctx, {
@@ -138,4 +155,34 @@ export async function deleteComment(ctx: Ctx, id: string): Promise<void> {
     });
   });
   await publishActivities(ctx.app, [activity]);
+}
+
+/**
+ * Limit who sees a comment to some people and groups, or lift the limit (D37). Its author may, and
+ * whoever manages the project. A public comment went to a help desk's requester: it isn't limited.
+ */
+export async function setCommentVisibility(ctx: Ctx, id: string, input: VisibleToInput | null): Promise<Comment> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const row = await loadOwnComment(ctx, id);
+  const limits = await resolveVisibleTo(ctx.db, s, input);
+  if (limits.limited && row.visibility === 'public') {
+    throw badRequest('This comment went to the requester, so it can’t be limited to some people', 'Leave it as it is, or delete it.');
+  }
+  const ref = (await issueRefsById(ctx.db, s, [row.issueId])).get(row.issueId);
+  if (sameLimits(limits, row)) return commentDto(ctx, row, ref?.id);
+  const { updated, activity } = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const [updated] = await tx.update(comments).set(limits).where(eq(comments.id, id)).returning();
+    const issueRow = await resolveIssue(ctx, row.issueId, tx);
+    const activity = await recordActivity(tx, ctx, {
+      type: 'comment.updated',
+      projectId: issueRow.projectId,
+      issueId: row.issueId,
+      payload: { issue: ref, data: { commentId: id, text: excerpt(row.text, 1000), visibilityChanged: true, ...(limits.limited ? { limited: true } : {}) } },
+    });
+    return { updated: updated!, activity };
+  });
+  await publishActivities(ctx.app, [activity]);
+  return commentDto(ctx, updated, ref?.id);
 }

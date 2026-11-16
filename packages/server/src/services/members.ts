@@ -2,26 +2,25 @@
  * A project's people and their roles. Anyone who can see a project can see who is in it;
  * its managers (and administrators) change who is.
  */
-import type { ProjectMember, ProjectRole } from '@a4a/shared';
+import type { ProjectMember } from '@a4a/shared';
 import { and, eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import type { Db } from '../db/client';
 import { projectMembers } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import { badRequest, conflict, notFound } from '../lib/errors';
-import { accessChanged, isProjectRole, requireProject } from './access';
+import { accessChanged, loadRoles, requireProject, resolveRole, roleOrder, type RoleDefn } from './access';
 import { findUser, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 import { userRefDto } from './values';
 
 type MemberRow = typeof projectMembers.$inferSelect;
 
-const ORDER: Record<ProjectRole, number> = { manager: 0, member: 1, viewer: 2 };
-
-function memberDto(s: SchemaSnapshot, project: ProjectRow, user: UserRow, row: MemberRow | undefined): ProjectMember {
+function memberDto(s: SchemaSnapshot, all: ReadonlyMap<string, RoleDefn>, project: ProjectRow, user: UserRow, row: MemberRow | undefined): ProjectMember {
   const by = row?.addedById ? s.users.get(row.addedById) : undefined;
   return {
     user: userRefDto(user),
-    role: row && isProjectRole(row.role) ? row.role : 'manager',
+    role: row && all.has(row.role) ? row.role : 'manager',
+    roleName: all.get(row && all.has(row.role) ? row.role : 'manager')?.name ?? row?.role ?? 'Manager',
     lead: project.leadId === user.id,
     addedAt: row ? row.createdAt.toISOString() : null,
     addedBy: by ? userRefDto(by) : null,
@@ -32,16 +31,16 @@ function memberDto(s: SchemaSnapshot, project: ProjectRow, user: UserRow, row: M
 export async function listMembers(ctx: Ctx, key: string): Promise<ProjectMember[]> {
   const project = await requireProject(ctx, key);
   const s = await ctx.app.schema.get();
-  const rows = await ctx.db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id));
+  const [rows, all] = await Promise.all([ctx.db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id)), loadRoles(ctx.db)]);
   const out: ProjectMember[] = [];
   for (const r of rows) {
     const u = s.users.get(r.userId);
-    if (u) out.push(memberDto(s, project, u, r));
+    if (u) out.push(memberDto(s, all, project, u, r));
   }
   const lead = project.leadId ? s.users.get(project.leadId) : undefined;
-  if (lead && !rows.some((r) => r.userId === lead.id)) out.push(memberDto(s, project, lead, undefined));
+  if (lead && !rows.some((r) => r.userId === lead.id)) out.push(memberDto(s, all, project, lead, undefined));
   return out.sort(
-    (a, b) => Number(b.lead) - Number(a.lead) || ORDER[a.role] - ORDER[b.role] || a.user.name.localeCompare(b.user.name),
+    (a, b) => Number(b.lead) - Number(a.lead) || roleOrder(a.role) - roleOrder(b.role) || a.roleName.localeCompare(b.roleName) || a.user.name.localeCompare(b.user.name),
   );
 }
 
@@ -61,12 +60,11 @@ async function write(ctx: Ctx, project: ProjectRow, fn: (tx: Db) => Promise<{ ty
   await publishActivities(ctx.app, [activity]);
 }
 
-export async function addMember(ctx: Ctx, key: string, input: { user: string; role?: ProjectRole }): Promise<ProjectMember> {
+export async function addMember(ctx: Ctx, key: string, input: { user: string; role?: string }): Promise<ProjectMember> {
   const project = await requireProject(ctx, key, 'manage');
   const s = await ctx.app.schema.get();
   const user = personFor(s, input.user);
-  const role = input.role ?? 'member';
-  if (!isProjectRole(role)) throw badRequest(`Unknown role "${role}"`, 'Use viewer, member or manager.');
+  const role = (await resolveRole(ctx.db, input.role ?? 'member')).id;
   await write(ctx, project, async (tx) => {
     const [row] = await tx
       .insert(projectMembers)
@@ -81,11 +79,11 @@ export async function addMember(ctx: Ctx, key: string, input: { user: string; ro
   return (await listMembers(ctx, project.key)).find((m) => m.user.id === user.id)!;
 }
 
-export async function updateMember(ctx: Ctx, key: string, login: string, input: { role: ProjectRole }): Promise<ProjectMember> {
+export async function updateMember(ctx: Ctx, key: string, login: string, input: { role: string }): Promise<ProjectMember> {
   const project = await requireProject(ctx, key, 'manage');
   const s = await ctx.app.schema.get();
   const user = personFor(s, login);
-  if (!isProjectRole(input.role)) throw badRequest(`Unknown role "${input.role}"`, 'Use viewer, member or manager.');
+  const role = (await resolveRole(ctx.db, input.role)).id;
   await write(ctx, project, async (tx) => {
     const [before] = await tx
       .select()
@@ -93,8 +91,8 @@ export async function updateMember(ctx: Ctx, key: string, login: string, input: 
       .where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, user.id)))
       .for('update');
     if (!before) throw notFound(`${user.login} among ${project.key}'s people`, `Add them first: POST /projects/${project.key}/members.`);
-    await tx.update(projectMembers).set({ role: input.role }).where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, user.id)));
-    return { type: 'project.member.changed', data: { user: user.login, name: user.name, from: before.role, to: input.role } };
+    await tx.update(projectMembers).set({ role }).where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, user.id)));
+    return { type: 'project.member.changed', data: { user: user.login, name: user.name, from: before.role, to: role } };
   });
   return (await listMembers(ctx, project.key)).find((m) => m.user.id === user.id)!;
 }

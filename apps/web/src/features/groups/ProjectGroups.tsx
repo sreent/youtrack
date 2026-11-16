@@ -1,14 +1,13 @@
-import type { Project, ProjectGroup, ProjectRole } from '@a4a/shared';
-import { PROJECT_ROLES } from '@a4a/shared/constants';
+import type { Project, ProjectGroup } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { del, patch, post } from '../../api/client';
-import { keys } from '../../api/queries';
+import { keys, useRoles } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { ROLE_NAMES, ROLE_WORDS } from '../projects/PeopleAndAccess';
+import { aRole, BUILTIN_ROLES, isBuiltinRole, roleHelp } from '../roles/words';
 import { groupKeys, useGroups, useProjectGroups } from './api';
 
 function useInvalidate(project: Project) {
@@ -26,10 +25,11 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
   const invalidate = useInvalidate(project);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const g = row.group;
+  const roles = useRoles().data ?? BUILTIN_ROLES;
   const change = useMutation({
-    mutationFn: (role: ProjectRole) => patch<ProjectGroup>(`/projects/${project.key}/groups/${g.id}`, { role }),
+    mutationFn: (role: string) => patch<ProjectGroup>(`/projects/${project.key}/groups/${g.id}`, { role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${g.name} is at least a ${ROLE_NAMES[r.role].toLowerCase()} now.` });
+      setSaid({ text: `Everyone in ${g.name} is ${aRole(r.roleName, isBuiltinRole(r.role))} now, at least.` });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -50,15 +50,15 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
       </th>
       <td>
         {canEdit ? (
-          <select value={row.role} onChange={(e) => change.mutate(e.target.value as ProjectRole)} aria-label={`Role of ${g.name} in ${project.key}`} disabled={change.isPending}>
-            {PROJECT_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_NAMES[r]}
+          <select value={row.role} onChange={(e) => change.mutate(e.target.value)} aria-label={`Role of ${g.name} in ${project.key}`} disabled={change.isPending}>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
               </option>
             ))}
           </select>
         ) : (
-          ROLE_NAMES[row.role]
+          row.roleName
         )}
       </td>
       <td className="fit">
@@ -89,12 +89,13 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
   const groups = useGroups();
   const choices = (groups.data ?? []).filter((g) => !listed.has(g.id));
   const [group, setGroup] = useState('');
-  const [role, setRole] = useState<ProjectRole>('member');
+  const roles = useRoles().data ?? BUILTIN_ROLES;
+  const [role, setRole] = useState<string>('member');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const add = useMutation({
     mutationFn: () => post<ProjectGroup>(`/projects/${project.key}/groups`, { group, role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${r.group.name} is at least a ${ROLE_NAMES[r.role].toLowerCase()} of ${project.key} now.` });
+      setSaid({ text: `Everyone in ${r.group.name} is ${aRole(r.roleName, isBuiltinRole(r.role))} of ${project.key} now, at least.` });
       setGroup('');
       void invalidate();
     },
@@ -126,12 +127,12 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
               </select>
             )}
           </FormField>
-          <FormField label="Its role" help={`Everyone in it is at least a ${ROLE_NAMES[role].toLowerCase()}, who ${ROLE_WORDS[role]}.`}>
+          <FormField label="Its role" help={roleHelp(roles, role, 'Everyone in it')}>
             {(id, help) => (
-              <select id={id} value={role} onChange={(e) => setRole(e.target.value as ProjectRole)} aria-describedby={help}>
-                {PROJECT_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_NAMES[r]}
+              <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
                   </option>
                 ))}
               </select>

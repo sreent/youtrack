@@ -35,6 +35,7 @@ import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
 import { absenceRoutes } from './routes/absences';
 import { groupRoutes } from './routes/groups';
+import { roleRoutes } from './routes/roles';
 import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
 
@@ -89,6 +90,7 @@ export function createHttpApp(runtime: Runtime) {
   oauthRoutes(api);
   absenceRoutes(api);
   groupRoutes(api);
+  roleRoutes(api);
   samlRoutes(api);
   agentRoutes(api);
   emailRoutes(api);

@@ -10,7 +10,7 @@ import { activities } from '../../db/schema';
 import type { EventFilter } from '../../events/sse';
 import { createWebhook, deleteWebhook, listDeliveries, listWebhooks, testWebhook, updateWebhook } from '../../events/webhooks';
 import { AppError, badRequest } from '../../lib/errors';
-import { eventVisible, eventsVisibleSql, projectAccess, visibleSchema } from '../../services/access';
+import { eventSeen, eventsVisibleSql, projectAccess, visibleSchema } from '../../services/access';
 import { eventFeed } from '../../services/activity';
 import { projectByKey } from '../../services/schema-cache';
 import type { HttpEnv } from '../env';
@@ -50,7 +50,7 @@ async function streamFilter(ctx: Ctx, project: string | undefined, types: string
 /** Whether the caller may see an event now: access is worked out again as events go (at most two seconds old). */
 async function visibleNow(ctx: Ctx, event: TrackerEvent): Promise<boolean> {
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
-  return eventVisible(view, s, event);
+  return eventSeen(view, ctx.db, s, event);
 }
 
 export function eventRoutes(app: OpenAPIHono<HttpEnv>) {

@@ -12,6 +12,26 @@ export type Role = (typeof ROLES)[number];
 export const PROJECT_ROLES = ['viewer', 'member', 'manager'] as const;
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
+/**
+ * What a role in a project lets someone do (D37). A role is a set of these; the built-in viewer,
+ * member and manager are three such sets, and an administrator can define more.
+ * read: see the project and its issues. comment: comment. create: report issues. edit: change
+ * issues (fields, words, tags, links, and who sees them). delete: delete issues. time: log time.
+ * costs: see time logged and costs. boards: make and change boards and sprints. manage: the
+ * project's settings, people, rules, plan and baselines, imports and help desk, and seeing every
+ * issue in it, whoever it's limited to.
+ */
+export const PERMISSIONS = ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs', 'boards', 'manage'] as const;
+export type Permission = (typeof PERMISSIONS)[number];
+/** Permissions that change something, which a read-only account or token never has whatever its role. */
+export const WRITING_PERMISSIONS: readonly Permission[] = ['comment', 'create', 'edit', 'delete', 'time', 'boards', 'manage'];
+export const BUILTIN_ROLE_PERMISSIONS: Record<ProjectRole, readonly Permission[]> = {
+  viewer: ['read', 'comment', 'costs'],
+  member: ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs'],
+  manager: PERMISSIONS,
+};
+export const BUILTIN_ROLE_NAMES: Record<ProjectRole, string> = { viewer: 'Viewer', member: 'Member', manager: 'Manager' };
+
 /** Who sees a project: everyone (open), or only its people and administrators (members). */
 export const PROJECT_VISIBILITIES = ['open', 'members'] as const;
 export type ProjectVisibility = (typeof PROJECT_VISIBILITIES)[number];

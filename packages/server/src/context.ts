@@ -4,7 +4,7 @@ import type { Db } from './db/client';
 import type { users } from './db/schema';
 import type { EventBus } from './events/bus';
 import type { Signals } from './events/signals';
-import { forbidden } from './lib/errors';
+import { forbidden, unauthorized } from './lib/errors';
 import type { SchemaCache } from './services/schema-cache';
 
 export type UserRow = typeof users.$inferSelect;
@@ -22,6 +22,8 @@ export interface Actor {
    * its access is its person's access to these projects alone. Absent or null: no such limit.
    */
   projectIds?: string[] | null;
+  /** A guest, not signed in, reading the projects open to guests (D37). */
+  guest?: boolean;
 }
 
 /** Long-lived services shared by every request. */
@@ -87,6 +89,7 @@ export function can(ctx: Ctx, scope: Scope): boolean {
 
 export function requireScope(ctx: Ctx, scope: Scope): void {
   if (can(ctx, scope)) return;
+  if (ctx.actor.guest) throw unauthorized('Sign in to do that', 'Guests can read the projects open to them, and nothing else.');
   if (scope === 'admin') throw forbidden('This action requires an administrator');
   if (ctx.actor.authMethod === 'token') {
     throw forbidden(`This token lacks the "${scope}" scope`, 'Create a token with the required scope in Profile → API tokens.');

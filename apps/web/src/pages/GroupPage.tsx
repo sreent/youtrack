@@ -11,7 +11,6 @@ import { errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { comesFrom, groupKeys, useGroup } from '../features/groups/api';
 import { providerNameOf } from '../features/groups/GroupsSection';
-import { ROLE_NAMES } from '../features/projects/PeopleAndAccess';
 
 function useRefresh(id: string) {
   const qc = useQueryClient();
@@ -176,7 +175,7 @@ function Roles({ group }: { group: GroupDetail }) {
                     <Link to={`/projects/${r.project.key}`}>{r.project.name}</Link>
                     <span className="item-about mono">{r.project.key}</span>
                   </th>
-                  <td>{ROLE_NAMES[r.role]}</td>
+                  <td>{r.roleName}</td>
                 </tr>
               ))}
             </tbody>

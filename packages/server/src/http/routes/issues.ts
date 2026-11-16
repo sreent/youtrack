@@ -17,6 +17,7 @@ import {
   ParseQueryResultSchema,
   SavedSearchBody,
   SavedSearchSchema,
+  SetVisibilityBody,
   QueryProblemSchema,
   SuggestItemSchema,
   UpdateIssueBody,
@@ -30,8 +31,8 @@ import { suggestCommand } from '../../commands/parser';
 import { countIssues, parseQueryForApi, searchIssues } from '../../search/service';
 import { suggest } from '../../search/suggest';
 import { issueActivity } from '../../services/activity';
-import { addComment, deleteComment, listComments, updateComment } from '../../services/comments';
-import { createIssue, deleteIssue, getIssue, resolveIssue, updateIssue } from '../../services/issues';
+import { addComment, deleteComment, listComments, setCommentVisibility, updateComment } from '../../services/comments';
+import { createIssue, deleteIssue, getIssue, resolveIssue, setIssueVisibility, updateIssue } from '../../services/issues';
 import { deleteLinkById, linkIssues, listLinks } from '../../services/links';
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
 import { deleteWorkItem, listWorkItems, logWork } from '../../services/workitems';
@@ -78,6 +79,21 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     await deleteIssue(ctx, params.id);
     return null;
   });
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/issues/{id}/visibility',
+      tags,
+      summary: 'Limit who sees an issue',
+      description:
+        "Limit it to some people and groups (D37), or send `visibleTo: null` to lift the limit. Its reporter, its assignee, the project's managers and administrators always see it; to anyone else it's missing, in the same words as an issue that doesn't exist. Takes the edit permission, and you can't limit it away from yourself.",
+      params: Id,
+      body: SetVisibilityBody,
+      response: IssueDetailSchema,
+    },
+    ({ ctx, params, body }) => setIssueVisibility(ctx, params.id, body),
+  );
   route(app, { method: 'get', path: '/issues/{id}/activity', tags, summary: "An issue's history: who changed what, when, and through which channel", params: Id, response: z.array(EventSchema) }, ({ ctx, params }) => issueActivity(ctx, params.id));
 
   // Comments
@@ -89,14 +105,29 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/issues/{id}/comments',
       tags: ['Comments'],
       summary: 'Add a comment (Markdown)',
-      description: '`@login` mentions a person: they are told, and watch the issue. On a help desk request, `visibility: "public"` also sends it to the requester, by email and on their tracking page; comments are internal unless you say so.',
+      description:
+        '`@login` mentions a person: they are told, and watch the issue. On a help desk request, `visibility: "public"` also sends it to the requester, by email and on their tracking page; comments are internal unless you say so. `visibleTo` limits it to some people and groups (D37): its author, the project\'s managers and administrators still see it.',
       params: Id,
       body: NewCommentBody,
       response: CommentSchema,
     },
-    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility }),
+    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility, visibleTo: body.visibleTo }),
   );
   route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment', params: z.object({ id: z.string() }), body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text));
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/comments/{id}/visibility',
+      tags: ['Comments'],
+      summary: 'Limit who sees a comment',
+      description: "Its author or a manager of the project may. Send `visibleTo: null` to lift the limit. A public comment, which went to a help desk's requester, can't be limited.",
+      params: z.object({ id: z.string() }),
+      body: SetVisibilityBody,
+      response: CommentSchema,
+    },
+    ({ ctx, params, body }) => setCommentVisibility(ctx, params.id, body.visibleTo),
+  );
   route(app, { method: 'delete', path: '/comments/{id}', tags: ['Comments'], summary: 'Delete your comment', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteComment(ctx, params.id);
     return null;

@@ -1,11 +1,11 @@
 import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
-import { sql, type SQL } from 'drizzle-orm';
+import { and, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';
 import { badRequest } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
-import { projectAccess, scopeSchema } from '../services/access';
+import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../services/access';
 import { zoneOf } from '../services/time-zones';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { explainParsed } from './explain';
@@ -22,17 +22,19 @@ export interface PreparedQuery {
 /**
  * Parse and compile a query as the caller sees the tracker: a project they can't see, and its
  * own values, are unknown words to them, exactly as ones that don't exist; and only issues in
- * projects they can see ever match.
+ * projects they can see ever match, and of those only the ones not limited away from them (D37),
+ * whose words match only in comments they see.
  */
 export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string }): Promise<PreparedQuery> {
   const view = await projectAccess(ctx);
   const visible = view.visibleIds();
-  const s = scopeSchema(await ctx.app.schema.get(), visible);
+  const full = await ctx.app.schema.get();
+  const s = scopeSchema(full, visible);
   const vocab = buildVocabulary(s);
   const parsed = parseQuery(query, vocab);
   // Dates are read where the asker is (D31): "today" is their today.
   const zone = zoneOf(ctx);
-  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone });
+  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone, commentSeen: commentSeenSql(view) });
   if (extra?.projectId) {
     const scope = sql`${issues.projectId} = ${extra.projectId}`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
@@ -43,6 +45,8 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
       : sql`FALSE`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
   }
+  const seen = issueSeenSql(view, full);
+  if (seen) compiled.where = compiled.where ? (and(seen, compiled.where) ?? seen) : seen;
   // A search whose dates depend on where you are says where it read them.
   const explained = explainParsed(parsed);
   return { parsed, compiled, explanation: compiled.readsDates ? `${explained} (dates in ${zone})` : explained };

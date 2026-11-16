@@ -10,7 +10,7 @@
  * - A project's managers give groups roles in it, as they give people roles; each change is in the
  *   project's history (`project.group.*`).
  */
-import type { Group, GroupDetail, GroupMember, GroupRef, ProjectGroup, ProjectRole } from '@a4a/shared';
+import type { Group, GroupDetail, GroupMember, GroupRef, ProjectGroup } from '@a4a/shared';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -18,13 +18,12 @@ import { groupMembers, groups, projectGroupRoles } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { accessChanged, isProjectRole, projectAccess, requireProject } from './access';
+import { accessChanged, loadRoles, projectAccess, requireProject, resolveRole, roleOrder } from './access';
 import { findUser, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 import { userRefDto } from './values';
 
 type GroupRow = typeof groups.$inferSelect;
 
-const ROLE_WORDS = 'Use viewer, member or manager.';
 
 // ---------------------------------------------------------------------------
 // Reading
@@ -89,10 +88,11 @@ export async function getGroup(ctx: Ctx, ref: string): Promise<GroupDetail> {
     members.push({ user: userRefDto(u), addedAt: m.createdAt.toISOString(), addedBy: by ? userRefDto(by) : null });
   }
   members.sort((a, b) => a.user.name.localeCompare(b.user.name));
+  const all = await loadRoles(ctx.db);
   const roles = (await visibleRoles(ctx, [g.id]))
     .map((r) => ({ project: s.projects.get(r.projectId), role: r.role }))
-    .filter((r): r is { project: ProjectRow; role: ProjectRole } => Boolean(r.project) && isProjectRole(r.role))
-    .map((r) => ({ project: { id: r.project.id, key: r.project.key, name: r.project.name }, role: r.role }))
+    .filter((r): r is { project: ProjectRow; role: string } => Boolean(r.project) && all.has(r.role))
+    .map((r) => ({ project: { id: r.project.id, key: r.project.key, name: r.project.name }, role: r.role, roleName: all.get(r.role)!.name }))
     .sort((a, b) => a.project.key.localeCompare(b.project.key));
   return {
     ...refDto(g, members.length),
@@ -278,9 +278,9 @@ export async function listProjectGroups(ctx: Ctx, key: string): Promise<ProjectG
   // Who is in each, in one read: anyone who sees a project sees who is in it, through a group too.
   const ids = rows.map((r) => r.group.id);
   const inThem = ids.length ? await ctx.db.select().from(groupMembers).where(inArray(groupMembers.groupId, ids)) : [];
-  const order: Record<ProjectRole, number> = { manager: 0, member: 1, viewer: 2 };
+  const all = await loadRoles(ctx.db);
   return rows
-    .filter((r) => isProjectRole(r.role.role))
+    .filter((r) => all.has(r.role.role))
     .map((r) => {
       const by = r.role.addedById ? s.users.get(r.role.addedById) : undefined;
       const people = inThem
@@ -289,9 +289,9 @@ export async function listProjectGroups(ctx: Ctx, key: string): Promise<ProjectG
         .filter((u): u is UserRow => Boolean(u))
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(userRefDto);
-      return { group: refDto(r.group, people.length), role: r.role.role as ProjectRole, people, addedAt: r.role.createdAt.toISOString(), addedBy: by ? userRefDto(by) : null };
+      return { group: refDto(r.group, people.length), role: r.role.role, roleName: all.get(r.role.role)!.name, people, addedAt: r.role.createdAt.toISOString(), addedBy: by ? userRefDto(by) : null };
     })
-    .sort((a, b) => order[a.role] - order[b.role] || a.group.name.localeCompare(b.group.name));
+    .sort((a, b) => roleOrder(a.role) - roleOrder(b.role) || a.roleName.localeCompare(b.roleName) || a.group.name.localeCompare(b.group.name));
 }
 
 async function writeProjectGroup(
@@ -308,10 +308,9 @@ async function writeProjectGroup(
   await publishActivities(ctx.app, [activity]);
 }
 
-export async function addProjectGroup(ctx: Ctx, key: string, input: { group: string; role?: ProjectRole }): Promise<ProjectGroup> {
+export async function addProjectGroup(ctx: Ctx, key: string, input: { group: string; role?: string }): Promise<ProjectGroup> {
   const project = await requireProject(ctx, key, 'manage');
-  const role = input.role ?? 'member';
-  if (!isProjectRole(role)) throw badRequest(`Unknown role "${role}"`, ROLE_WORDS);
+  const role = (await resolveRole(ctx.db, input.role ?? 'member')).id;
   const g = await requireGroup(ctx.db, input.group);
   await writeProjectGroup(ctx, project, async (tx) => {
     const [row] = await tx.insert(projectGroupRoles).values({ projectId: project.id, groupId: g.id, role, addedById: ctx.actor.user.id }).onConflictDoNothing().returning();
@@ -321,9 +320,9 @@ export async function addProjectGroup(ctx: Ctx, key: string, input: { group: str
   return (await listProjectGroups(ctx, project.key)).find((r) => r.group.id === g.id)!;
 }
 
-export async function updateProjectGroup(ctx: Ctx, key: string, ref: string, input: { role: ProjectRole }): Promise<ProjectGroup> {
+export async function updateProjectGroup(ctx: Ctx, key: string, ref: string, input: { role: string }): Promise<ProjectGroup> {
   const project = await requireProject(ctx, key, 'manage');
-  if (!isProjectRole(input.role)) throw badRequest(`Unknown role "${input.role}"`, ROLE_WORDS);
+  const role = (await resolveRole(ctx.db, input.role)).id;
   const g = await requireGroup(ctx.db, ref);
   await writeProjectGroup(ctx, project, async (tx) => {
     const [before] = await tx
@@ -332,8 +331,8 @@ export async function updateProjectGroup(ctx: Ctx, key: string, ref: string, inp
       .where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)))
       .for('update');
     if (!before) throw notFound(`${g.name} among ${project.key}'s groups`, `Give it a role first: POST /projects/${project.key}/groups.`);
-    await tx.update(projectGroupRoles).set({ role: input.role }).where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)));
-    return { type: 'project.group.changed', data: { group: g.id, name: g.name, from: before.role, to: input.role } };
+    await tx.update(projectGroupRoles).set({ role: role }).where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)));
+    return { type: 'project.group.changed', data: { group: g.id, name: g.name, from: before.role, to: role } };
   });
   return (await listProjectGroups(ctx, project.key)).find((r) => r.group.id === g.id)!;
 }

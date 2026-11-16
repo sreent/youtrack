@@ -5,7 +5,7 @@ import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSection, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
-import { accessFor, eventVisible } from '../services/access';
+import { accessFor, eventSeen } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
 import { aboutInline, aboutSubscriptions } from '../services/subscriptions';
 import { zoneOfUser } from '../services/time-zones';
@@ -50,7 +50,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const view = await accessFor(app.db, user);
   if (!n.projectId || !view.canRead(n.projectId)) return null;
 
-  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventVisible(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
+  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const title = notificationTitle(kind, events, reasons);
@@ -121,16 +121,22 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
     return null;
   }
   const s = await app.schema.get();
-  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventVisible(view, s, e) });
+  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e) });
   const l = links(app);
   const token = await unsubscribeToken(app, 'digest', userId);
   const byIssue = new Map<string, { issue: IssueRef; lines: string[] }>();
   for (const r of rows) {
     const issue = r.issue as IssueRef;
-    const entry = byIssue.get(issue.id) ?? { issue, lines: [] };
     const e = events.get(r.id) ?? { events: [], reasons: new Map() };
+    // Nothing in it they may see now (an issue limited away from them, D37): not theirs to read of.
+    if (!e.events.length) continue;
+    const entry = byIssue.get(issue.id) ?? { issue, lines: [] };
     entry.lines.push(`${notificationTitle(r.kind as NotificationKind, e.events, e.reasons)} · ${emailTime(r.lastEventAt.toISOString(), zoneOfUser(user))}`);
     byIssue.set(issue.id, entry);
+  }
+  if (!byIssue.size) {
+    await done();
+    return null;
   }
   const subject = `Your a4a digest: ${rows.length} unread ${rows.length === 1 ? 'notification' : 'notifications'}`;
   const { text, html } = composeMail(subject, {

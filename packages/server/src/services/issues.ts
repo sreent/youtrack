@@ -9,6 +9,7 @@ import {
   type IssueLink,
   type IssueRef,
   type UpdateIssueInput,
+  type VisibleToInput,
 } from '@a4a/shared';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
@@ -27,12 +28,17 @@ import {
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import {
   assertCanCommentProject,
+  assertCanProject,
   assertCanReadProject,
   assertCanWriteProject,
   canReadProject,
+  commentSeenSql,
   projectAccess,
   projectRolesOf,
+  seenIssueIds,
+  seesIssueRow,
 } from './access';
+import { describeLimits, resolveVisibleTo, sameLimits, UNLIMITED, visibleToDtos, type Limits } from './visibility';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
@@ -98,6 +104,8 @@ export async function findVisibleIssue(ctx: Ctx, idOrReadable: string, db: Db = 
   const s = await ctx.app.schema.get(db);
   const row = await findIssue(db, s, idOrReadable);
   if (!row || !(await canReadProject(ctx, row.projectId, db))) return undefined;
+  // Limited away from the caller (D37), it's missing as surely as one in a hidden project.
+  if (row.limited && !(await seesIssueRow(await projectAccess(ctx, db), db, s, row))) return undefined;
   return row;
 }
 
@@ -144,6 +152,7 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
   if (!rows.length) return [];
   const s = await ctx.app.schema.get();
   const ids = rows.map((r) => r.id);
+  const commentSeen = commentSeenSql(await projectAccess(ctx), 'comments');
   const [fieldRows, tagRows, commentCounts] = await Promise.all([
     loadFieldRows(ctx.db, ids),
     ctx.db
@@ -153,7 +162,7 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
     ctx.db
       .select({ issueId: comments.issueId, n: sql<number>`count(*)::int` })
       .from(comments)
-      .where(and(inArray(comments.issueId, ids), isNull(comments.deletedAt)))
+      .where(and(inArray(comments.issueId, ids), isNull(comments.deletedAt), commentSeen))
       .groupBy(comments.issueId),
   ]);
   const tagsByIssue = new Map<string, string[]>();
@@ -179,6 +188,7 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
         .filter((t): t is NonNullable<typeof t> => Boolean(t))
         .map(tagDto),
       commentCount: counts.get(r.id) ?? 0,
+      limited: r.limited,
     };
   });
 }
@@ -186,14 +196,12 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
 /** An issue's links, leaving out those whose other end the caller can't see. */
 export async function issueLinksOf(ctx: Ctx, issueId: string): Promise<IssueLink[]> {
   const s = await ctx.app.schema.get();
-  const view = await projectAccess(ctx);
   const rows = await ctx.db
     .select()
     .from(issueLinks)
     .where(or(eq(issueLinks.sourceId, issueId), eq(issueLinks.targetId, issueId)));
   const otherIds = rows.map((r) => (r.sourceId === issueId ? r.targetId : r.sourceId));
-  const others = otherIds.length ? await ctx.db.select({ id: issues.id, projectId: issues.projectId }).from(issues).where(inArray(issues.id, otherIds)) : [];
-  const seen = new Set(others.filter((o) => view.canRead(o.projectId)).map((o) => o.id));
+  const seen = await seenIssueIds(ctx, otherIds);
   const refs = await issueRefsById(ctx.db, s, otherIds.filter((id) => seen.has(id)));
   const out: IssueLink[] = [];
   for (const r of rows) {
@@ -217,7 +225,7 @@ export async function issueLinksOf(ctx: Ctx, issueId: string): Promise<IssueLink
 export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail> {
   const s = await ctx.app.schema.get();
   const [base] = await issueDtos(ctx, [row]);
-  const [links, spent, pending] = await Promise.all([
+  const [links, spent, pending, [visibleTo]] = await Promise.all([
     issueLinksOf(ctx, row.id),
     ctx.db
       .select({ total: sql<number>`coalesce(sum(${workItems.minutes}), 0)::int` })
@@ -227,6 +235,7 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
       .select({ n: sql<number>`count(*)::int` })
       .from(aiSuggestions)
       .where(and(eq(aiSuggestions.issueId, row.id), eq(aiSuggestions.status, 'pending'))),
+    visibleToDtos(ctx.db, s, [row]),
   ]);
   const aggregation = new Set(s.linkTypes.filter((t) => t.aggregation).map((t) => t.id));
   const parentLink = links.find((l) => aggregation.has(l.typeId) && l.direction === 'inward');
@@ -235,6 +244,7 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
   return {
     ...base!,
     description: row.description,
+    visibleTo: visibleTo ?? null,
     updatedBy: updatedBy ? userRefDto(updatedBy) : null,
     links,
     parent: parentLink?.issue ?? null,
@@ -318,6 +328,10 @@ export interface ChangeSpec {
   commentVisibility?: CommentVisibility;
   /** The requester of a help desk request wrote the comment, on their tracking page (services/helpdesk.ts). */
   commentRequester?: { id: string; name: string };
+  /** Who sees the issue from now on (D37): a change to it, like a field's, which takes the edit permission. */
+  visibleTo?: Limits;
+  /** Who sees the comment (D37); not limited when left out. */
+  commentVisibleTo?: Limits;
 }
 
 export interface ApplyResult {
@@ -476,6 +490,17 @@ export async function applyChanges(
     }
   }
 
+  if (spec.visibleTo && !sameLimits(spec.visibleTo, issue)) {
+    // Nobody limits an issue away from themselves: they'd lose it the moment they saved.
+    if (!(await seesIssueRow(await projectAccess(ctx, tx), tx, s, { ...issue, ...spec.visibleTo }))) {
+      throw badRequest(`That would hide ${readableId(s, issue)} from you`, 'Add yourself, or a group you are in, to who sees it.');
+    }
+    patch.limited = spec.visibleTo.limited;
+    patch.visibleUserIds = spec.visibleTo.visibleUserIds;
+    patch.visibleGroupIds = spec.visibleTo.visibleGroupIds;
+    changes.push({ field: 'Visible to', from: await describeLimits(tx, s, issue), to: await describeLimits(tx, s, spec.visibleTo) });
+  }
+
   const comment = spec.comment?.trim();
   if (comment) changes.push({ field: 'Comment', from: null, to: excerpt(comment, 200) });
 
@@ -543,9 +568,13 @@ export async function applyChanges(
   const commenter = comment && !fromOutside && !imported ? [ctx.actor.user.login] : [];
   const mentionedNow = patch.description !== undefined && !fromOutside && !imported ? mentionsAdded(s, issue.description, patch.description) : [];
   const mentionedInComment = comment && !fromOutside && !imported ? mentionsIn(s, comment) : [];
-  const seeing = await whoSees(tx, s, issue.projectId, [...assigned, ...commenter, ...mentionedNow, ...mentionedInComment]);
+  const seeing = await whoSees(tx, s, issue.projectId, [...assigned, ...commenter, ...mentionedNow, ...mentionedInComment], updated!);
   const describedMentions = mentionedNow.filter((l) => seeing.has(l.toLowerCase()));
-  const commentMentions = mentionedInComment.filter((l) => seeing.has(l.toLowerCase()));
+  const commentLimits = spec.commentVisibleTo ?? UNLIMITED;
+  const commentSeeing = commentLimits.limited
+    ? await whoSees(tx, s, issue.projectId, mentionedInComment, updated!, { authorId: ctx.actor.user.id, ...commentLimits })
+    : seeing;
+  const commentMentions = mentionedInComment.filter((l) => commentSeeing.has(l.toLowerCase()));
   await addWatchers(
     tx,
     s,
@@ -630,6 +659,7 @@ export async function applyChanges(
       channel: ctx.actor.channel,
       visibility,
       requesterId: spec.commentRequester?.id ?? null,
+      ...commentLimits,
     });
     activities.push(
       await recordActivity(tx, ctx, {
@@ -643,6 +673,7 @@ export async function applyChanges(
             commentId: id,
             text: excerpt(comment, 1000),
             ...(visibility === 'public' ? { visibility } : {}),
+            ...(commentLimits.limited ? { limited: true } : {}),
             ...(spec.commentRequester ? { requester: { name: spec.commentRequester.name } } : {}),
             ...(commentMentions.length ? { mentions: commentMentions } : {}),
           },
@@ -666,7 +697,8 @@ function isCommentOnly(spec: ChangeSpec): boolean {
     !spec.fields?.length &&
     !spec.addTags?.length &&
     !spec.removeTags?.length &&
-    !spec.links?.length
+    !spec.links?.length &&
+    spec.visibleTo === undefined
   );
 }
 
@@ -736,6 +768,7 @@ interface PreparedIssue {
   resolved: boolean;
   tags: string[];
   links: LinkSpec[];
+  limits: Limits;
 }
 
 /** Everything a new issue needs, checked, before anything is written. Reads through `db`. */
@@ -745,10 +778,10 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
   const project = projectByKey(s, input.project);
   if (!project || !view.canRead(project.id)) {
     // Only the projects the caller can file in: a hidden project's key is never named.
-    const open = [...s.projects.values()].filter((p) => view.canWrite(p.id) && !p.archived).map((p) => p.key);
+    const open = [...s.projects.values()].filter((p) => view.allows(p.id, 'create') && !p.archived).map((p) => p.key);
     throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.');
   }
-  await assertCanWriteProject(ctx, project.id, db);
+  await assertCanProject(ctx, project.id, 'create', db);
   if (project.archived) throw badRequest(`Project ${project.key} is archived`);
   const summary = input.summary.trim();
   if (!summary) throw badRequest('Summary cannot be empty');
@@ -783,7 +816,8 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
   if (parent && !subtaskPhrase) throw badRequest('No subtask link type is configured');
   const links: LinkSpec[] = linkTargets.map((l) => ({ phrase: l.phrase, target: l.target }));
   if (parent && subtaskPhrase) links.unshift({ phrase: subtaskPhrase, target: parent });
-  return { s, project, summary, description: input.description ?? '', specs, values, resolved, tags: input.tags ?? [], links };
+  const limits = await resolveVisibleTo(db, s, input.visibleTo);
+  return { s, project, summary, description: input.description ?? '', specs, values, resolved, tags: input.tags ?? [], links, limits };
 }
 
 /** Write a prepared issue inside `tx`, with its activity. */
@@ -810,6 +844,7 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
       updatedById: ctx.actor.user.id,
       ...(imported ? { createdAt: imported.createdAt, updatedAt: imported.updatedAt } : {}),
       resolvedAt: p.resolved ? (imported ? (imported.resolvedAt ?? imported.updatedAt) : now) : null,
+      ...p.limits,
     })
     .returning();
   const fieldRowsToInsert = [...values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: id, fieldId, ...v })));
@@ -836,7 +871,7 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
   const reporterLogin = imported ? (imported.reporterId ? s.users.get(imported.reporterId)?.login : undefined) : ctx.actor.user.login;
   const reporter = fromOutside || !reporterLogin ? [] : [reporterLogin];
   const mentionedIn = fromOutside || imported ? [] : mentionsIn(s, p.description);
-  const seeing = await whoSees(tx, s, project.id, [...reporter, ...assigned, ...mentionedIn]);
+  const seeing = await whoSees(tx, s, project.id, [...reporter, ...assigned, ...mentionedIn], row!);
   const mentions = mentionedIn.filter((l) => seeing.has(l.toLowerCase()));
   await addWatchers(
     tx,
@@ -925,11 +960,25 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
   return issueDetail(ctx, result.issue);
 }
 
+/**
+ * Limit who sees an issue to some people and groups, or lift the limit (D37). A change to the issue
+ * like any other: through applyChanges, in its history, with its version.
+ */
+export async function setIssueVisibility(ctx: Ctx, idOrReadable: string, input: { visibleTo: VisibleToInput | null; expectedVersion?: number }): Promise<IssueDetail> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const issue = await resolveIssue(ctx, idOrReadable);
+  const visibleTo = await resolveVisibleTo(ctx.db, s, input.visibleTo);
+  const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, { visibleTo, expectedVersion: input.expectedVersion }));
+  await publishActivities(ctx.app, result.activities);
+  return issueDetail(ctx, result.issue);
+}
+
 export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, idOrReadable);
-  await assertCanWriteProject(ctx, issue.projectId);
+  await assertCanProject(ctx, issue.projectId, 'delete');
   const states = await stateNames(ctx.db, s, [issue.id]);
   const ref: IssueRef = issueRef(s, issue, states.get(issue.id) ?? null);
   const activity = await ctx.db.transaction(async (txRaw) => {
@@ -941,7 +990,8 @@ export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void>
       type: 'issue.deleted',
       projectId: issue.projectId,
       issueId: null,
-      payload: { issue: ref, ...(watchers.length ? { data: { watchers } } : {}) },
+      // Limited (D37), it stays as hidden once gone: only who saw all of its project see that it went.
+      payload: { issue: ref, ...(watchers.length || issue.limited ? { data: { ...(watchers.length ? { watchers } : {}), ...(issue.limited ? { limited: true } : {}) } } : {}) },
     });
   });
   await publishActivities(ctx.app, [activity]);

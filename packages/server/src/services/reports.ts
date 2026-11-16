@@ -27,7 +27,7 @@ import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, perce
 import { buildTimelines, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
-import { projectAccess, requireProject, visibleProjectIds } from './access';
+import { issueSeenSql, projectAccess, requireProject, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
 import { allowedValues, fieldByName, findUser, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
@@ -83,10 +83,31 @@ async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: stri
     for (const p of s.projects.values()) if (visible === null || visible.includes(p.id)) projects.push(p);
   }
   const ids = projects.map((p) => p.id);
-  return { projects, query: null, activityWhere: inList(activities.projectId, ids), issueWhere: inList(sql`${issues.projectId}`, ids), includesDeleted: true };
+  // Issues limited away from the caller (D37) count for nothing here, as in a search; a deleted
+  // issue's history still counts, as before.
+  const view = await projectAccess(ctx);
+  const seen = issueSeenSql(view, s, 'seen_ri');
+  const issueSeen = issueSeenSql(view, s);
+  return {
+    projects,
+    query: null,
+    activityWhere: seen
+      ? sql`(${inList(activities.projectId, ids)} AND NOT EXISTS (SELECT 1 FROM issues seen_ri WHERE seen_ri.id = ${activities.issueId} AND NOT ${seen}))`
+      : inList(activities.projectId, ids),
+    issueWhere: issueSeen ? sql`(${inList(sql`${issues.projectId}`, ids)} AND ${issueSeen})` : inList(sql`${issues.projectId}`, ids),
+    includesDeleted: true,
+  };
 }
 
 const refOf = (p: ProjectRow): ProjectRef => ({ id: p.id, key: p.key, name: p.name });
+
+/** Time logged counts only in projects whose role lets the caller see time and costs (D37). */
+async function costsWhere(ctx: Ctx): Promise<SQL> {
+  const view = await projectAccess(ctx);
+  const visible = view.visibleIds();
+  if (view.admin || visible === null) return sql`TRUE`;
+  return inList(sql`${issues.projectId}`, visible.filter((id) => view.allows(id, 'costs')));
+}
 
 // ---------------------------------------------------------------------------
 // Loading history
@@ -611,7 +632,7 @@ export async function timeReport(ctx: Ctx, input: { project?: string; query?: st
   const scope = await resolveScope(ctx, s, input);
   const w = windowOf({ ...input, to: input.to }, 28, 366, now);
   let author: UserRef | null = null;
-  const conds: SQL[] = [scope.issueWhere, sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
+  const conds: SQL[] = [scope.issueWhere, await costsWhere(ctx), sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
   if (input.author?.trim()) {
     const u = findUser(s, input.author, ctx.actor.user.id);
     if (!u) throw notFound(`User ${input.author}`, 'Use a login, a full name, or "me".');
@@ -731,7 +752,7 @@ export async function timeEntries(ctx: Ctx, input: { project?: string; query?: s
   const s = await ctx.app.schema.get();
   const scope = await resolveScope(ctx, s, input);
   const w = windowOf(input, 28, 366, now);
-  const conds: SQL[] = [scope.issueWhere, sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
+  const conds: SQL[] = [scope.issueWhere, await costsWhere(ctx), sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
   if (input.author?.trim()) {
     const u = findUser(s, input.author, ctx.actor.user.id);
     if (!u) throw notFound(`User ${input.author}`);

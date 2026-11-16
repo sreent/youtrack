@@ -16,7 +16,7 @@ import type { Db } from '../db/client';
 import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tags } from '../db/schema';
 import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow } from '../events/activity';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
-import { canUserReadProject, eventVisible, projectAccess, requireProject } from './access';
+import { canUserReadProject, eventSeen, projectAccess, requireProject } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
 import { issueTokenFor, keysFor, tokenDto, tokenScopes } from './auth';
 import { issueRef, stateNames, type IssueRow } from './issue-refs';
@@ -298,7 +298,7 @@ export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoRe
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(activities).where(eq(activities.id, eventId));
   // An event the caller can't see is answered exactly as one that doesn't exist.
-  if (!row || !eventVisible(await projectAccess(ctx), s, toEventDto(s, row))) throw notFound(`Event ${eventId}`);
+  if (!row || !(await eventSeen(await projectAccess(ctx), ctx.db, s, toEventDto(s, row)))) throw notFound(`Event ${eventId}`);
   const [found] = await ctx.db
     .select()
     .from(agentChanges)
