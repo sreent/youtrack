@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: { index: 'src/index.ts', 'seed-cli': 'src/db/seed-cli.ts' },
+  entry: { index: 'src/index.ts', 'seed-cli': 'src/db/seed-cli.ts', 'files-to-s3': 'src/attachments/copy-cli.ts' },
   format: ['esm'],
   platform: 'node',
   target: 'node20',

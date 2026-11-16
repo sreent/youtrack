@@ -4,6 +4,7 @@ import { AttachmentLimitsSchema, AttachmentSchema, AttachmentTextQuery, Attachme
 import type { Context } from 'hono';
 import { z } from 'zod';
 import type { Ctx } from '../../context';
+import { wantedRange } from '../../attachments/range';
 import { receiveFile } from '../../attachments/receive';
 import { contentDisposition, formatBytes, isInline } from '../../attachments/sniff';
 import { unauthorized } from '../../lib/errors';
@@ -81,6 +82,8 @@ function downloadHeaders(row: AttachmentRow, asDownload: boolean): Headers {
     'cache-control': 'private, max-age=86400',
     etag: `"${row.sha256}"`,
     'last-modified': row.createdAt.toUTCString(),
+    // A player seeks with ranges; Safari plays no video without them.
+    'accept-ranges': 'bytes',
   });
 }
 
@@ -139,14 +142,21 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: "A file's bytes",
       description:
-        'PNG, JPEG, GIF and WebP images come `inline`; every other file, SVG and HTML included, as an `attachment` to download, and `download=1` makes images download too. Served with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and an ETag (the SHA-256), so `If-None-Match` gets 304.',
+        'PNG, JPEG, GIF and WebP images come `inline`; every other file, SVG and HTML included, as an `attachment` to download, and `download=1` makes images download too. Served with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and an ETag (the SHA-256), so `If-None-Match` gets 304. One byte range (`Range: bytes=…`, with `If-Range` if you like) gets 206 and that part, as players seek; several at once get the whole file.',
       security: [{ bearerAuth: [] }, { cookieAuth: [] }],
-      request: { params: Id, query: z.object({ download: z.string().optional().describe('Any value: download even an image') }) },
+      request: {
+        params: Id,
+        query: z.object({ download: z.string().optional().describe('Any value: download even an image') }),
+        headers: z.object({ range: z.string().optional().describe('One byte range: bytes=0-1023, bytes=1024- or bytes=-500') }),
+      },
       responses: {
         200: { description: 'The bytes', content: { 'application/octet-stream': { schema: z.string().meta({ format: 'binary' }) } } },
+        206: { description: 'The part asked for, with Content-Range', content: { 'application/octet-stream': { schema: z.string().meta({ format: 'binary' }) } } },
         304: { description: 'Not changed since the ETag sent' },
         404: errors[404],
         410: { description: 'Its bytes are missing from storage', content: { 'application/json': { schema: ErrorSchema } } },
+        416: { description: 'The range starts past the end of the file; Content-Range says its size' },
+        503: { description: 'The store of files can’t be reached right now', content: { 'application/json': { schema: ErrorSchema } } },
       },
     }),
   );
@@ -154,11 +164,22 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
     const ctx = need(c);
     const row = await attachmentForDownload(ctx, c.req.param('id'));
     const headers = downloadHeaders(row, c.req.query('download') !== undefined);
+    const etag = headers.get('etag')!;
     const sent = c.req.header('if-none-match');
-    if (sent && sent.split(',').some((tag) => tag.trim().replace(/^W\//, '') === headers.get('etag'))) {
-      return new Response(null, { status: 304, headers: { etag: headers.get('etag')!, 'cache-control': headers.get('cache-control')! } });
+    if (sent && sent.split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag)) {
+      return new Response(null, { status: 304, headers: { etag, 'cache-control': headers.get('cache-control')! } });
     }
     if (c.req.method === 'HEAD') return new Response(null, { status: 200, headers });
+    const range = wantedRange(c.req.header('range'), c.req.header('if-range'), etag, row.size);
+    if (range === 'unsatisfiable') {
+      return new Response(null, { status: 416, headers: { 'content-range': `bytes */${row.size}`, 'accept-ranges': 'bytes', 'cache-control': 'no-store' } });
+    }
+    if (range) {
+      headers.set('content-range', `bytes ${range.start}-${range.end}/${row.size}`);
+      headers.set('content-length', String(range.end - range.start + 1));
+      const part = await openAttachmentBytes(ctx.app, row, range);
+      return new Response(Readable.toWeb(part) as ReadableStream, { status: 206, headers });
+    }
     const bytes = await openAttachmentBytes(ctx.app, row);
     return new Response(Readable.toWeb(bytes) as ReadableStream, { status: 200, headers });
   });

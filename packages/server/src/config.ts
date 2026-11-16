@@ -20,6 +20,20 @@ export interface OidcConfig {
   redirectUri: string;
 }
 
+/** An S3-compatible bucket for files, from S3_* in the environment (D35). */
+export interface S3Config {
+  bucket: string;
+  /** The store's address: none for AWS itself; MinIO's, R2's or another's otherwise (S3_ENDPOINT). */
+  endpoint: string | undefined;
+  region: string;
+  /** Before every key, so a bucket can hold more than a4a's files: "a4a/" puts them under a4a/ (S3_PREFIX). */
+  prefix: string;
+  /** The bucket in the path rather than the host name, as most stores other than AWS want (S3_FORCE_PATH_STYLE). */
+  forcePathStyle: boolean;
+  /** S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY when both are set; otherwise the AWS chain (environment, profile, the machine's role). */
+  credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null;
+}
+
 export interface Config {
   port: number;
   publicUrl: string;
@@ -55,8 +69,10 @@ export interface Config {
   attachmentMaxBytes: number;
   /** All the files on one issue, its comments' included, or on one article (ATTACHMENTS_PER_ISSUE_MB, default 100). */
   attachmentsPerIssueMaxBytes: number;
-  /** Where files go: "local", under DATA_DIR/attachments, is the one store so far (ATTACHMENT_STORAGE). */
-  attachmentStorage: 'local';
+  /** Where files go (ATTACHMENT_STORAGE): "local", under DATA_DIR/attachments, or "s3", the bucket in `s3`. */
+  attachmentStorage: 'local' | 's3';
+  /** The bucket, when S3_BUCKET is set: where files go with "s3", and where the copy command takes them. */
+  s3: S3Config | null;
   /** SMTP server for email, e.g. smtp://user:pass@mail.example.com:587. Without it, no email is sent and nothing fails. */
   smtpUrl: string | undefined;
   /** Who email comes from, e.g. "a4a <a4a@example.com>". */
@@ -106,6 +122,31 @@ function intEnv(value: string | undefined, fallback: number, min = 0): number {
 }
 
 /** Megabytes from the environment, as bytes (1 MB = 1024 × 1024 bytes). */
+/** The bucket from S3_*, or null without S3_BUCKET. Half a pair of keys is a mistake, said at once. */
+export function s3FromEnv(env: NodeJS.ProcessEnv): S3Config | null {
+  const bucket = env.S3_BUCKET?.trim();
+  if (!bucket) return null;
+  const endpoint = env.S3_ENDPOINT?.trim().replace(/\/+$/, '') || undefined;
+  if (endpoint && !/^https?:\/\/[^/\s]+/i.test(endpoint)) {
+    throw new Error(`S3_ENDPOINT=${endpoint} isn't an address: give the store's http(s) URL, e.g. https://s3.example.com or http://minio:9000`);
+  }
+  const accessKeyId = env.S3_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = env.S3_SECRET_ACCESS_KEY?.trim();
+  if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) {
+    throw new Error('Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither (then the AWS chain gives the keys: its environment, a profile, or the machine\'s role)');
+  }
+  const sessionToken = env.S3_SESSION_TOKEN?.trim();
+  const prefix = (env.S3_PREFIX ?? '').trim().replace(/^\/+/, '');
+  return {
+    bucket,
+    endpoint,
+    region: env.S3_REGION?.trim() || env.AWS_REGION?.trim() || env.AWS_DEFAULT_REGION?.trim() || 'us-east-1',
+    prefix: prefix && !prefix.endsWith('/') ? `${prefix}/` : prefix,
+    forcePathStyle: truthy(env.S3_FORCE_PATH_STYLE, Boolean(endpoint)),
+    credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null,
+  };
+}
+
 function megabytes(raw: string | undefined, fallback: number): number {
   const n = Number(raw);
   return Math.round((Number.isFinite(n) && n > 0 ? n : fallback) * 1024 * 1024);
@@ -148,9 +189,12 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   // Turning passwords off without single sign-on would let nobody in: then it stays on.
   const passwordLogin = !oidc || truthy(env.PASSWORD_LOGIN, true);
   if (oidc === null && !truthy(env.PASSWORD_LOGIN, true)) console.warn('PASSWORD_LOGIN=false is ignored: single sign-on is not configured (OIDC_ISSUER), so nobody could sign in.');
-  if (env.ATTACHMENT_STORAGE && env.ATTACHMENT_STORAGE !== 'local') {
-    throw new Error(`ATTACHMENT_STORAGE=${env.ATTACHMENT_STORAGE} isn't available: files are stored on local disk ("local") so far`);
+  const attachmentStorage = (env.ATTACHMENT_STORAGE || 'local').trim().toLowerCase();
+  if (attachmentStorage !== 'local' && attachmentStorage !== 's3') {
+    throw new Error(`ATTACHMENT_STORAGE=${env.ATTACHMENT_STORAGE} isn't a store a4a knows: use "local" (files under DATA_DIR/attachments) or "s3" (a bucket, S3_BUCKET)`);
   }
+  const s3 = s3FromEnv(env);
+  if (attachmentStorage === 's3' && !s3) throw new Error('ATTACHMENT_STORAGE=s3 needs S3_BUCKET: the bucket files go in');
   return {
     port,
     publicUrl,
@@ -173,7 +217,8 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mcpRateLimit: intEnv(env.MCP_RATE_LIMIT, 600, 1),
     attachmentMaxBytes: megabytes(env.ATTACHMENT_MAX_MB, 20),
     attachmentsPerIssueMaxBytes: megabytes(env.ATTACHMENTS_PER_ISSUE_MB, 100),
-    attachmentStorage: 'local',
+    attachmentStorage,
+    s3,
     smtpUrl: env.SMTP_URL || undefined,
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
