@@ -231,9 +231,15 @@ const getIssueTool = defineTool({
           at: f.createdAt.slice(0, 16),
         })),
         mentionedInArticles: articles.length ? articles.map((a) => ({ id: a.id, title: a.title })) : undefined,
-        // A help desk request: who asked, and its first-response target. Public comments reach them.
+        // A help desk request: who asked, how, and its first-response target. Public comments reach them.
         request: request
-          ? { requester: request.requester, firstResponse: request.firstResponse.state, due: request.firstResponse.dueAt, emailMuted: request.emailMuted || undefined }
+          ? {
+              requester: request.requester,
+              via: request.via,
+              firstResponse: request.firstResponse.state,
+              due: request.firstResponse.dueAt,
+              emailMuted: request.emailMuted || undefined,
+            }
           : undefined,
         commits: code.commits.slice(0, 20).map((c) => ({
           sha: c.sha.slice(0, 12),

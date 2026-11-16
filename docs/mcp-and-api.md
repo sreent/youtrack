@@ -200,7 +200,7 @@ Every tool and resource sees only what its token's person may see, in the projec
 
 Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, integrations, a help desk's settings, email preferences (they're the person's own, in the web app), and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
 
-`get_issue` says when an issue is a help desk request (who asked, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
+`get_issue` says when an issue is a help desk request (who asked, whether by the form or by email, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
 
 **Why agents may attach files, and only small ones.** Agents produce things worth keeping beside an issue: a log excerpt, a failing test's output, a patch, a script that reproduces a bug. So `attach_file` exists, through the same service as every upload: the type is read from the bytes, the per-issue cap applies, the file is served as a download, and its activity names the token. But a file over MCP is base64 or text inside a tool call, so every byte passes through the model's context: 256 KB is about what an agent can sensibly write out. A larger file goes to `POST /issues/{id}/attachments` with the same token.
 
