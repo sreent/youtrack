@@ -61,6 +61,11 @@ export const EVENT_TYPES = [
   'project.member.changed',
   'project.member.removed',
   'project.visibility.changed',
+  'attachment.added',
+  'attachment.removed',
+  'article.created',
+  'article.updated',
+  'article.deleted',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -88,3 +93,9 @@ export const DEFAULT_DAYS_PER_WEEK = 5;
 
 export const MAX_BULK_ISSUES = 50;
 export const MAX_PAGE_SIZE = 200;
+
+/**
+ * Raster images a browser may show in place. Every other file, SVG and HTML included,
+ * is served as a download, whatever its name says.
+ */
+export const INLINE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;

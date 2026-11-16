@@ -1252,3 +1252,161 @@ export type ChatStreamEvent =
   | { type: 'notice'; text: string }
   | { type: 'error'; message: string }
   | { type: 'done'; status: 'idle' | 'awaiting_approval' };
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+export const AttachmentSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().describe('The file name, made safe: no folders, control characters or reserved characters'),
+    contentType: z.string().describe("Read from the file's bytes, never taken from the uploader"),
+    size: z.number().int().describe('Bytes'),
+    sha256: z.string().describe('SHA-256 of the bytes, in hex'),
+    inline: z.boolean().describe('A raster image (PNG, JPEG, GIF or WebP) that browsers show in place; every other file downloads'),
+    text: z.boolean().describe('Text, which GET /attachments/{id}/text and the MCP tool read_attachment can read'),
+    issue: z.string().nullable().describe('The issue it belongs to, also for a file on one of its comments'),
+    comment: z.string().nullable().describe('The comment it was attached to, if any'),
+    article: z.string().nullable().describe('The article it belongs to, if any'),
+    uploadedBy: UserRefSchema.nullable(),
+    channel: z.enum(CHANNELS),
+    token: z.string().nullable().describe('The token it came with, for an agent or a script'),
+    createdAt: timestamp,
+    url: z.string().describe('Its bytes: GET it with the same credentials'),
+  })
+  .meta({ id: 'Attachment' });
+export type Attachment = z.infer<typeof AttachmentSchema>;
+
+export const AttachmentLimitsSchema = z
+  .object({
+    maxBytes: z.number().int().describe('The largest file one upload may carry'),
+    perIssueMaxBytes: z.number().int().describe("All of an issue's files together, its comments' included; the same for an article"),
+    inlineTypes: z.array(z.string()).describe('Types shown in place; everything else downloads'),
+  })
+  .meta({ id: 'AttachmentLimits' });
+export type AttachmentLimits = z.infer<typeof AttachmentLimitsSchema>;
+
+export const AttachmentTextQuery = z.object({
+  offset: z.coerce.number().int().min(0).default(0).describe('Byte to start at'),
+  maxBytes: z.coerce.number().int().min(1).max(131_072).default(32_768).describe('At most this many bytes (128 KB at most)'),
+  tail: z.enum(['true', 'false']).optional().describe('true: read the last maxBytes instead, as for the end of a log'),
+});
+export const AttachmentTextSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    size: z.number().int(),
+    from: z.number().int().describe('The first byte read'),
+    to: z.number().int().describe('One past the last byte read'),
+    truncated: z.boolean().describe('Some of the file is outside what was read'),
+    text: z.string(),
+  })
+  .meta({ id: 'AttachmentText' });
+export type AttachmentText = z.infer<typeof AttachmentTextSchema>;
+
+// ---------------------------------------------------------------------------
+// Knowledge base
+// ---------------------------------------------------------------------------
+
+export const ArticleRefSchema = z
+  .object({
+    id: z.string().describe('Readable id, e.g. BACK-A-3'),
+    title: z.string(),
+    project: z.string().describe('Project key'),
+  })
+  .meta({ id: 'ArticleRef' });
+export type ArticleRef = z.infer<typeof ArticleRefSchema>;
+
+export const ArticleSchema = z
+  .object({
+    id: z.string().describe('Readable id, e.g. BACK-A-3'),
+    uid: z.string().describe('Internal id'),
+    number: z.number().int(),
+    project: ProjectRefSchema,
+    title: z.string(),
+    parent: z.string().nullable().describe('Readable id of the article it sits under; null at the top of the tree'),
+    position: z.number().int().describe('Its place among the articles under the same parent, from 0'),
+    childCount: z.number().int(),
+    version: z.number().int().describe('Its content version; send as expectedVersion to avoid overwriting a newer one'),
+    createdBy: UserRefSchema.nullable(),
+    updatedBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  .meta({ id: 'Article' });
+export type Article = z.infer<typeof ArticleSchema>;
+
+export const ArticleDetailSchema = ArticleSchema.extend({
+  body: z.string().describe('Markdown'),
+  path: z.array(ArticleRefSchema).describe('The articles it sits under, from the top'),
+  children: z.array(ArticleRefSchema),
+  mentionedIn: z.object({
+    issues: z.array(IssueRefSchema).describe('Issues whose description or comments mention it'),
+    articles: z.array(ArticleRefSchema).describe('Other articles that mention it'),
+  }),
+  attachmentCount: z.number().int(),
+}).meta({ id: 'ArticleDetail' });
+export type ArticleDetail = z.infer<typeof ArticleDetailSchema>;
+
+export const CreateArticleBody = z.object({
+  project: z.string().describe('Project key'),
+  title: z.string().min(1).max(250),
+  body: z.string().max(200_000).default('').describe('Markdown. Mention issues (BACK-12) and articles (BACK-A-3) by id'),
+  parent: z.string().nullable().optional().describe('Readable id of the article to put it under; omit for the top of the tree'),
+  position: z.number().int().min(0).optional().describe('Its place among its siblings, from 0; omit to put it last'),
+});
+export type CreateArticleInput = z.input<typeof CreateArticleBody>;
+
+export const UpdateArticleBody = z.object({
+  title: z.string().min(1).max(250).optional(),
+  body: z.string().max(200_000).optional(),
+  parent: z.string().nullable().optional().describe('Move it under this article, or to the top with null'),
+  position: z.number().int().min(0).optional().describe('Its place among its (new) siblings, from 0'),
+  expectedVersion: z.number().int().optional().describe('Fail with 409 if its content changed since this version'),
+});
+export type UpdateArticleInput = z.infer<typeof UpdateArticleBody>;
+
+export const ArticleListQuery = z.object({
+  project: z.string().optional().describe('Project key'),
+  query: z.string().max(500).default('').describe('Words to find in titles and bodies; empty lists the latest changed'),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const ArticleSearchItemSchema = ArticleRefSchema.extend({
+  path: z.array(z.string()).describe('The titles of the articles it sits under'),
+  updatedAt: timestamp,
+  snippet: z
+    .array(z.object({ text: z.string(), match: z.boolean() }))
+    .describe('Where the words were found, in parts; the parts that match say so'),
+}).meta({ id: 'ArticleSearchItem' });
+export type ArticleSearchItem = z.infer<typeof ArticleSearchItemSchema>;
+export const ArticleSearchResultSchema = paginated(ArticleSearchItemSchema, 'ArticleSearchResult');
+export type ArticleSearchResult = z.infer<typeof ArticleSearchResultSchema>;
+
+export const ArticleVersionSchema = z
+  .object({
+    version: z.number().int(),
+    title: z.string(),
+    author: UserRefSchema.nullable(),
+    channel: z.enum(CHANNELS),
+    token: z.string().nullable().describe('The token it was saved with, for an agent or a script'),
+    createdAt: timestamp,
+    chars: z.number().int().describe('The length of its body'),
+  })
+  .meta({ id: 'ArticleVersion' });
+export type ArticleVersion = z.infer<typeof ArticleVersionSchema>;
+
+export const DiffLineSchema = z
+  .object({ op: z.enum(['same', 'add', 'del']), text: z.string() })
+  .meta({ id: 'DiffLine' });
+export type DiffLine = z.infer<typeof DiffLineSchema>;
+
+export const ArticleVersionDetailSchema = ArticleVersionSchema.extend({
+  body: z.string(),
+  against: z.number().int().nullable().describe('The version the diff is from; null for the first'),
+  titleBefore: z.string().nullable(),
+  diff: z.array(DiffLineSchema).describe("The body's lines against the version before it"),
+}).meta({ id: 'ArticleVersionDetail' });
+export type ArticleVersionDetail = z.infer<typeof ArticleVersionDetailSchema>;

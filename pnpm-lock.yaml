@@ -24,8 +24,8 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#1de81f1839ec2ef6552d1ca26d6981e52b466ee3
-        version: https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3
+        specifier: github:sreent/ocean#f2a1f5079eeb38489913c3fc10cfac52f36d690c
+        version: https://codeload.github.com/sreent/ocean/tar.gz/f2a1f5079eeb38489913c3fc10cfac52f36d690c
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -115,6 +115,9 @@ importers:
       '@scalar/hono-api-reference':
         specifier: ^0.12.20
         version: 0.12.20(hono@4.13.18)
+      busboy:
+        specifier: ^1.6.0
+        version: 1.6.0
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
@@ -131,6 +134,9 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      '@types/busboy':
+        specifier: ^1.5.5
+        version: 1.5.5
       '@types/node':
         specifier: ^22.19.0
         version: 22.20.5
@@ -1219,8 +1225,8 @@ packages:
     resolution: {integrity: sha512-kUEVTgRFXAdNaR9DRncA2xfjFZtALn09kw1SBLhK5J7bXsqGYuPR94grpVC2K/G8r2ptICWDuzZIz+YABefgig==}
     engines: {node: '>=22.19.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/f2a1f5079eeb38489913c3fc10cfac52f36d690c':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/f2a1f5079eeb38489913c3fc10cfac52f36d690c}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -1344,6 +1350,9 @@ packages:
 
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
+
+  '@types/busboy@1.5.5':
+    resolution: {integrity: sha512-IwqrfVFxWa23c4WeE7uZswssCqGfvnl5Q7b1pdshbT3HaQDa3UIbJx5BAxtcj9nZYX9tVDArM9TUv9SpvORbpQ==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -1638,6 +1647,10 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     peerDependencies:
       esbuild: '>=0.18'
+
+  busboy@1.6.0:
+    resolution: {integrity: sha512-8SFQbg/0hQ9xy3UNTB0YEnsNBbWfhf7RtnzpL7TkBiTBRfrQ9Fxcnz7VJsleJpyp6rVLvXiuORqjlHi5q+PYuA==}
+    engines: {node: '>=10.16.0'}
 
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
@@ -2890,6 +2903,10 @@ packages:
 
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
+
+  streamsearch@1.1.0:
+    resolution: {integrity: sha512-Mcc5wHehp9aXz1ax6bZUyY5afg9u2rv5cqQI3mRrYkGC8rW2hM02jWuwjtL++LS5qinSyhj2QfLyNsuc+VsExg==}
+    engines: {node: '>=10.0.0'}
 
   string-byte-length@3.0.1:
     resolution: {integrity: sha512-yJ8vP0HMwZ54CcA8S8mKoXbkezpZHANFtmafFo8lGxZThCQcAwRHjdFabuSLgOzxj9OFJcmssmiAvmcOK4O2Hw==}
@@ -4472,7 +4489,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/f2a1f5079eeb38489913c3fc10cfac52f36d690c': {}
 
   '@stablelib/base64@1.0.1': {}
 
@@ -4568,6 +4585,10 @@ snapshots:
     dependencies:
       tslib: 2.9.1
     optional: true
+
+  '@types/busboy@1.5.5':
+    dependencies:
+      '@types/node': 22.20.5
 
   '@types/chai@5.2.3':
     dependencies:
@@ -4850,6 +4871,10 @@ snapshots:
     dependencies:
       esbuild: 0.28.2
       load-tsconfig: 0.2.5
+
+  busboy@1.6.0:
+    dependencies:
+      streamsearch: 1.1.0
 
   bytes@3.1.2: {}
 
@@ -6415,6 +6440,8 @@ snapshots:
   statuses@2.0.2: {}
 
   std-env@4.3.0: {}
+
+  streamsearch@1.1.0: {}
 
   string-byte-length@3.0.1: {}
 

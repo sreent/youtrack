@@ -21,6 +21,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/issues', label: 'Issues', icon: 'tasks' },
       { to: '/boards', label: 'Boards', icon: 'board' },
       { to: '/plan', label: 'Plan', icon: 'timeline' },
+      { to: '/articles', label: 'Knowledge base', icon: 'report' },
       { to: '/assistant', label: 'Assistant', icon: 'agent' },
     ],
   },
@@ -49,6 +50,7 @@ function useLiveInvalidation() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const touched = new Set<string>();
+    let articles = false;
     const flush = () => {
       timer = null;
       qc.invalidateQueries({ queryKey: ['issues', 'list'] });
@@ -57,9 +59,13 @@ function useLiveInvalidation() {
       qc.invalidateQueries({ queryKey: ['plan'] });
       for (const id of touched) qc.invalidateQueries({ queryKey: keys.issue(id) });
       touched.clear();
+      if (articles) qc.invalidateQueries({ queryKey: ['articles'] });
+      articles = false;
     };
     return subscribeEvents((e) => {
       if (e.issue?.id) touched.add(e.issue.id);
+      // An article's change, or a file on one; and mentions of articles come from issues' text.
+      if (e.type.startsWith('article.') || (e.type.startsWith('attachment.') && !e.issue) || e.type.startsWith('comment.') || e.type === 'issue.updated') articles = true;
       timer ??= setTimeout(flush, 400);
     });
   }, [qc]);

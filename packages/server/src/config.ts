@@ -51,6 +51,12 @@ export interface Config {
   /** Requests per minute per token, user or address, on each instance. */
   apiRateLimit: number;
   mcpRateLimit: number;
+  /** The largest file one upload may carry (ATTACHMENT_MAX_MB, default 20). */
+  attachmentMaxBytes: number;
+  /** All the files on one issue, its comments' included, or on one article (ATTACHMENTS_PER_ISSUE_MB, default 100). */
+  attachmentsPerIssueMaxBytes: number;
+  /** Where files go: "local", under DATA_DIR/attachments, is the one store so far (ATTACHMENT_STORAGE). */
+  attachmentStorage: 'local';
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -91,6 +97,12 @@ function intEnv(value: string | undefined, fallback: number, min = 0): number {
   return value !== undefined && value !== '' && Number.isInteger(n) && n >= min ? n : fallback;
 }
 
+/** Megabytes from the environment, as bytes (1 MB = 1024 × 1024 bytes). */
+function megabytes(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return Math.round((Number.isFinite(n) && n > 0 ? n : fallback) * 1024 * 1024);
+}
+
 function loadDotEnv() {
   const candidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../../.env')];
   for (const file of candidates) {
@@ -120,6 +132,9 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   // Turning passwords off without single sign-on would let nobody in: then it stays on.
   const passwordLogin = !oidc || truthy(env.PASSWORD_LOGIN, true);
   if (oidc === null && !truthy(env.PASSWORD_LOGIN, true)) console.warn('PASSWORD_LOGIN=false is ignored: single sign-on is not configured (OIDC_ISSUER), so nobody could sign in.');
+  if (env.ATTACHMENT_STORAGE && env.ATTACHMENT_STORAGE !== 'local') {
+    throw new Error(`ATTACHMENT_STORAGE=${env.ATTACHMENT_STORAGE} isn't available: files are stored on local disk ("local") so far`);
+  }
   return {
     port,
     publicUrl,
@@ -140,6 +155,9 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     trustProxy: intEnv(env.TRUST_PROXY, 0),
     apiRateLimit: intEnv(env.API_RATE_LIMIT, 1200, 1),
     mcpRateLimit: intEnv(env.MCP_RATE_LIMIT, 600, 1),
+    attachmentMaxBytes: megabytes(env.ATTACHMENT_MAX_MB, 20),
+    attachmentsPerIssueMaxBytes: megabytes(env.ATTACHMENTS_PER_ISSUE_MB, 100),
+    attachmentStorage: 'local',
     ...overrides,
   };
 }

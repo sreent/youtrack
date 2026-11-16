@@ -1,8 +1,10 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigserial,
   bigint,
   boolean,
+  check,
   customType,
   date,
   doublePrecision,
@@ -625,4 +627,138 @@ export const loginThrottle = pgTable(
     failures: integer('failures').notNull(),
   },
   (t) => [index('login_throttle_window').on(t.windowStart)],
+);
+
+// ---------------------------------------------------------------------------
+// Knowledge base: articles in a tree per project, every saved version, and
+// mentions between issues and articles
+// ---------------------------------------------------------------------------
+
+/**
+ * Per project, the next article number (BACK-A-<n>): gap-free, never reused. Its row is
+ * also the lock that serialises changes to the project's tree, so two moves can't make a cycle.
+ */
+export const articleCounters = pgTable('article_counters', {
+  projectId: text('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  nextNumber: integer('next_number').notNull().default(1),
+});
+
+export const articles = pgTable(
+  'articles',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    // No action on delete: an article with children can't go, but a project's articles go together.
+    parentId: text('parent_id').references((): AnyPgColumn => articles.id),
+    position: integer('position').notNull().default(0),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    version: integer('version').notNull().default(1),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(body, '')), 'B')`,
+    ),
+  },
+  (t) => [
+    uniqueIndex('articles_project_number').on(t.projectId, t.number),
+    index('articles_tree').on(t.projectId, t.parentId, t.position),
+    index('articles_updated').on(t.updatedAt),
+    index('articles_search').using('gin', t.searchVector),
+    index('articles_title_trgm').using('gin', sql`${t.title} gin_trgm_ops`),
+  ],
+);
+
+/** Every save of an article's content: who, when, through what, and the whole text. */
+export const articleVersions = pgTable(
+  'article_versions',
+  {
+    articleId: text('article_id')
+      .notNull()
+      .references(() => articles.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+    channel: text('channel').notNull(),
+    tokenName: text('token_name'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.articleId, t.version] })],
+);
+
+/**
+ * Issue and article ids written in text: an issue's description or a comment, or an
+ * article. The target is kept as written (BACK-12, BACK-A-3), since readable ids are
+ * permanent, so a mention of an article that comes later still counts once it exists.
+ */
+export const mentions = pgTable(
+  'mentions',
+  {
+    sourceType: text('source_type').notNull(), // issue (its description) | comment | article
+    sourceId: text('source_id').notNull(),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
+    articleId: text('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    targetKind: text('target_kind').notNull(), // issue | article
+    target: text('target').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.sourceType, t.sourceId, t.target] }), index('mentions_target').on(t.target)],
+);
+
+// ---------------------------------------------------------------------------
+// Attachments: files on issues, comments and articles
+// ---------------------------------------------------------------------------
+
+/**
+ * Every object written to attachment storage, recorded before its first byte is. An
+ * upload that never finished stays "uploading"; one whose attachment row is gone
+ * (deleted, or with its issue, comment, article or project) is "stored" with nothing
+ * pointing at it. The sweeper removes both kinds from storage, then here.
+ */
+export const attachmentBlobs = pgTable('attachment_blobs', {
+  key: text('key').primaryKey(),
+  state: text('state').notNull().default('uploading'), // uploading | stored
+  createdAt: created(),
+});
+
+export const attachments = pgTable(
+  'attachments',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    // An issue's file, or a comment's (which also names the comment's issue), or an article's.
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
+    commentId: text('comment_id').references(() => comments.id, { onDelete: 'cascade' }),
+    articleId: text('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    contentType: text('content_type').notNull(),
+    size: bigint('size', { mode: 'number' }).notNull(),
+    sha256: text('sha256').notNull(),
+    blobKey: text('blob_key')
+      .notNull()
+      .references(() => attachmentBlobs.key),
+    uploadedById: text('uploaded_by_id').references(() => users.id, { onDelete: 'set null' }),
+    channel: text('channel').notNull(),
+    tokenName: text('token_name'),
+    createdAt: created(),
+  },
+  (t) => [
+    index('attachments_issue').on(t.issueId, t.createdAt),
+    index('attachments_article').on(t.articleId, t.createdAt),
+    index('attachments_comment').on(t.commentId),
+    uniqueIndex('attachments_blob').on(t.blobKey),
+    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL)`),
+  ],
 );

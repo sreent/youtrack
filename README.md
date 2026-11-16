@@ -19,6 +19,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
+- **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
+- **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
 - **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
@@ -36,7 +38,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 23 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
+- **For agents**: an MCP server at `/mcp` with 29 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start
@@ -116,7 +118,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
 | `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
 | `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
-| `DATA_DIR` | `./data` | Where the embedded database lives |
+| `DATA_DIR` | `./data` | Where the embedded database and attached files live |
 | `AI_PROVIDER` | `anthropic` | Who serves the model: `anthropic`, `deepseek`, `qwen`, or `compatible` for another service that speaks Anthropic's Messages API. Issue text the AI reads goes to them |
 | `ANTHROPIC_API_KEY` | empty | Anthropic's key. A provider's key turns the AI features on |
 | `DEEPSEEK_API_KEY`, `QWEN_API_KEY` (or `DASHSCOPE_API_KEY`), `AI_API_KEY` | empty | The key for DeepSeek, Qwen or a `compatible` service |
@@ -133,6 +135,9 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `OIDC_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
 | `PASSWORD_LOGIN` | `true` | `false` turns password sign-in off, while single sign-on is on |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
+| `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
+| `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
+| `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`. Back it up with the database |
 
 ## Production
 

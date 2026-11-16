@@ -13,9 +13,12 @@ export function Confirm({
   onConfirm,
   disabled,
   small,
+  name,
 }: {
   /** The button's word: "Revoke it". */
   label: string;
+  /** Its name for screen readers, where the word alone repeats down a list: "Delete report.log". */
+  name?: string;
   /** A question that names the thing: "Revoke the token claude-code?" */
   title: string;
   /** What goes with it, and that nobody can bring it back. */
@@ -35,7 +38,7 @@ export function Confirm({
   };
   return (
     <>
-      <button type="button" className={small ? 'danger small' : 'danger'} onClick={open} disabled={disabled}>
+      <button type="button" className={small ? 'danger small' : 'danger'} onClick={open} disabled={disabled} aria-label={name}>
         {label}
       </button>
       <dialog ref={dialog} className="dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-about`}>
