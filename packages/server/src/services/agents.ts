@@ -236,13 +236,16 @@ export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEv
     .select()
     .from(agentChanges)
     .where(or(inArray(agentChanges.activityId, ids), inArray(agentChanges.pairActivityId, ids)));
+  // Each issue is read once, with the changes after its earliest agent's change here.
+  const earliest = new Map<string, number>();
+  for (const rec of recs) earliest.set(rec.issueId, Math.min(earliest.get(rec.issueId) ?? rec.activityId, rec.activityId));
   const nows = new Map<string, Now | null>();
   for (const rec of recs) {
     let standing: { state: UndoState; note: string };
     if (rec.undoneActivityId !== null) {
       standing = { state: 'undone', note: `${nameOf(s, rec.undoneById)} undid it` };
     } else {
-      if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, 0));
+      if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
       const now = nows.get(rec.issueId);
       const stops = now ? await whatStops(db, s, rec, now) : ['the issue is gone'];
       standing = stops.length ? { state: 'changed_since', note: sentence(stops) } : { state: 'possible', note: '' };
