@@ -959,7 +959,8 @@ export const ResourceDaySchema = z
   .object({
     date: isoDate,
     hours: z.number(),
-    capacity: z.number(),
+    capacity: z.number().describe('Hours they can work that day: their capacity, half of it on a half day away, 0 on a day away'),
+    away: z.enum(['day', 'morning', 'afternoon']).nullable().describe('Whether they are away that day, and which part of it; never why'),
     tasks: z.array(z.object({ issue: z.string(), hours: z.number() })),
   })
   .meta({ id: 'ResourceDay' });
@@ -1852,3 +1853,73 @@ export const IssueVcsSchema = z
   .object({ commits: z.array(VcsCommitSchema), pullRequests: z.array(VcsPullRequestSchema) })
   .meta({ id: 'IssueVcs' });
 export type IssueVcs = z.infer<typeof IssueVcsSchema>;
+
+// ---------------------------------------------------------------------------
+// Days away, and the load grid's window: package 10 (docs/architecture.md, D36)
+// ---------------------------------------------------------------------------
+
+/** Why someone is away. Only they, administrators and whoever entered it see which. */
+export const ABSENCE_KINDS = ['holiday', 'sick', 'training', 'other'] as const;
+export type AbsenceKind = (typeof ABSENCE_KINDS)[number];
+export const ABSENCE_HALVES = ['morning', 'afternoon'] as const;
+export type AbsenceHalf = (typeof ABSENCE_HALVES)[number];
+/** The longest one absence runs, in days: a longer one is entered a year at a time. */
+export const MAX_ABSENCE_DAYS = 366;
+
+export const AbsenceSchema = z
+  .object({
+    id: z.string(),
+    user: UserRefSchema,
+    from: isoDate,
+    to: isoDate.describe('The last day away; the same as from for one day'),
+    half: z.enum(ABSENCE_HALVES).nullable().describe('morning or afternoon on a one-day absence; null for whole days'),
+    kind: z.enum(ABSENCE_KINDS).nullable().describe('Why: null unless you are the person, an administrator, or entered it'),
+    note: z.string().nullable().describe('Shown to the same people as kind'),
+    version: z.number().int(),
+    createdBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    canChange: z.boolean().describe('Whether you may change or remove it'),
+  })
+  .meta({ id: 'Absence' });
+export type Absence = z.infer<typeof AbsenceSchema>;
+
+export const AbsenceQuery = z.object({
+  user: z.string().optional().describe('Whose days away (a login); yours by default'),
+  from: isoDate.optional().describe('Those that end on or after this date; by default a month ago'),
+  to: isoDate.optional().describe('Those that start on or before this date'),
+});
+
+export const CreateAbsenceBody = z.object({
+  user: z.string().optional().describe('Whose (a login); you, by default. For someone else: a manager of a project they work in, or an administrator'),
+  from: isoDate,
+  to: isoDate.optional().describe('The last day away; from, by default'),
+  half: z.enum(ABSENCE_HALVES).nullable().optional().describe('morning or afternoon, for half of one day'),
+  kind: z.enum(ABSENCE_KINDS).default('holiday'),
+  note: z.string().max(500).optional(),
+});
+export type CreateAbsenceInput = z.input<typeof CreateAbsenceBody>;
+
+export const UpdateAbsenceBody = z.object({
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+  half: z.enum(ABSENCE_HALVES).nullable().optional(),
+  kind: z.enum(ABSENCE_KINDS).optional(),
+  note: z.string().max(500).optional(),
+  expectedVersion: z.number().int().optional().describe('Refuse (409) if it changed since this version'),
+});
+export type UpdateAbsenceInput = z.input<typeof UpdateAbsenceBody>;
+
+/** The load grid's window: from today, for two weeks, a month or a quarter, or to the plan's end; or two dates. */
+export const LOAD_WINDOW_PRESETS = ['2w', '1m', '3m', 'plan'] as const;
+export type LoadWindowPreset = (typeof LOAD_WINDOW_PRESETS)[number];
+export const LoadWindowSchema = z
+  .union([z.object({ preset: z.enum(LOAD_WINDOW_PRESETS) }), z.object({ from: isoDate, to: isoDate })])
+  .meta({ id: 'LoadWindow' });
+export type LoadWindow = z.infer<typeof LoadWindowSchema>;
+
+export const PreferencesSchema = z
+  .object({ loadWindow: LoadWindowSchema.nullable().describe("The load grid's window, the same on every plan; null for the plan's") })
+  .meta({ id: 'Preferences' });
+export type Preferences = z.infer<typeof PreferencesSchema>;
+export const UpdatePreferencesBody = z.object({ loadWindow: LoadWindowSchema.nullable().optional() });
