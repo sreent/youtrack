@@ -145,8 +145,11 @@ function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode })
   );
 }
 
-/** Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then a comment of your own. */
-export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | undefined }) {
+/**
+ * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then
+ * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
+ */
+export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDetail; me: UserRef | undefined; canComment?: boolean }) {
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
@@ -203,25 +206,27 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
           </li>
         ))}
       </ol>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (text.trim()) void send();
-        }}
-      >
-        <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
-          {(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Markdown works here. Mention an issue by its id, like BACK-12." />}
-        </FormField>
-        {error ? (
-          <ErrorLine>{error}</ErrorLine>
-        ) : null}
-        <div className="cluster end">
-          <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Commenting…' : 'Comment'}
-          </button>
-        </div>
-      </form>
+      {canComment ? (
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) void send();
+          }}
+        >
+          <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
+            {(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Markdown works here. Mention an issue by its id, like BACK-12." />}
+          </FormField>
+          {error ? (
+            <ErrorLine>{error}</ErrorLine>
+          ) : null}
+          <div className="cluster end">
+            <button type="submit" className="primary" disabled={!text.trim() || busy}>
+              {busy ? 'Commenting…' : 'Comment'}
+            </button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }

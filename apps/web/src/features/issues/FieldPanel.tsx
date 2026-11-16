@@ -250,11 +250,20 @@ interface Props {
   fields: ProjectField[];
   users: User[];
   proposals: Map<string, Proposal>;
+  /** False for someone who may only read the issue's project. */
+  canEdit?: boolean;
 }
 
-/** Ocean's FieldPanel: an issue's fields beside it, each value a control. */
-export function FieldPanel({ issue, fields, users, proposals }: Props) {
+const NO_PROPOSALS = new Map<string, Proposal>();
+
+/**
+ * Ocean's FieldPanel: an issue's fields beside it, each value a control. Without `canEdit` (someone
+ * who may only read the project), each value is its words alone, and nothing waits to be accepted.
+ */
+export function FieldPanel({ issue, fields, users, proposals: offered, canEdit = true }: Props) {
   const id = useId();
+  // Accepting a value is a change to the issue, so only someone who may change it is asked.
+  const proposals = canEdit ? offered : NO_PROPOSALS;
   const update = useUpdateIssue(issue);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -319,7 +328,9 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
             );
-            control = (
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
@@ -342,11 +353,18 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             const u = f && isUser(f.value) ? f.value : null;
             const proposedUser = proposal ? people.find((p) => p.login === proposal.value || p.name === proposal.value) : null;
             const shownUser = proposedUser ?? u;
-            control = (
+            const view = shownUser ? (
+              <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small />
+            ) : (
+              <span className="empty">{emptyWords(pf.name)}</span>
+            );
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
-                view={shownUser ? <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small /> : <span className="empty">{emptyWords(pf.name)}</span>}
+                view={view}
                 multi={false}
                 chosen={new Set(u ? [u.login] : [''])}
                 proposedId={proposedId}
@@ -364,11 +382,16 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             );
           } else {
             const initial = pf.type === 'date' ? (typeof f?.value === 'string' ? f.value.slice(0, 10) : '') : currentText(f);
-            control = (
+            const mono = pf.type === 'period' || pf.type === 'integer' || pf.type === 'float';
+            control = !canEdit ? (
+              <span className={mono ? 'fields-value mono' : 'fields-value'}>
+                {initial ? (pf.type === 'date' ? formatDate(initial) : initial) : <span className="empty">{emptyWords(pf.name)}</span>}
+              </span>
+            ) : (
               <TextValue
                 labelId={labelId}
                 initial={proposal ? proposal.value : initial}
-                mono={pf.type === 'period' || pf.type === 'integer' || pf.type === 'float'}
+                mono={mono}
                 type={pf.type === 'date' ? 'date' : 'text'}
                 placeholder={emptyWords(pf.name)}
                 proposedId={proposedId}

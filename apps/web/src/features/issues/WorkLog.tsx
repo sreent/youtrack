@@ -12,8 +12,8 @@ import { isPeriod } from './fields';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, in the person's own day
 
-/** Time spent on an issue, against its estimate, and a way to log some. */
-export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undefined }) {
+/** Time spent on an issue, against its estimate, and a way to log some (for those who may change the issue). */
+export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me: UserRef | undefined; canEdit?: boolean }) {
   const id = useId();
   const qc = useQueryClient();
   const items = useWorkItems(issue.id);
@@ -91,7 +91,7 @@ export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undef
                 <td className="num mono">{formatPeriod(w.minutes)}</td>
                 <td>{w.description}</td>
                 <td>
-                  {w.author && me && w.author.id === me.id ? (
+                  {canEdit && w.author && me && w.author.id === me.id ? (
                     <button
                       type="button"
                       className="link"
@@ -116,21 +116,23 @@ export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undef
       ) : (
         <p className="note">No time logged yet.</p>
       )}
-      <form
-        className="cluster"
-        aria-label="Log time"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (duration.trim()) void log();
-        }}
-      >
-        <input className="mono" aria-label="Time spent" placeholder="1h 30m" size={8} value={duration} onChange={(e) => setDuration(e.target.value)} />
-        <input type="date" aria-label="Day" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
-        <input className="grow" aria-label="What it was spent on" placeholder="What it was spent on" value={description} onChange={(e) => setDescription(e.target.value)} />
-        <button type="submit" disabled={!duration.trim() || busy}>
-          {busy ? 'Logging…' : 'Log time'}
-        </button>
-      </form>
+      {canEdit ? (
+        <form
+          className="cluster"
+          aria-label="Log time"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (duration.trim()) void log();
+          }}
+        >
+          <input className="mono" aria-label="Time spent" placeholder="1h 30m" size={8} value={duration} onChange={(e) => setDuration(e.target.value)} />
+          <input type="date" aria-label="Day" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
+          <input className="grow" aria-label="What it was spent on" placeholder="What it was spent on" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <button type="submit" disabled={!duration.trim() || busy}>
+            {busy ? 'Logging…' : 'Log time'}
+          </button>
+        </form>
+      ) : null}
       {error ? (
         <ErrorLine>{error}</ErrorLine>
       ) : null}
