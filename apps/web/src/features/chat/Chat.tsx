@@ -58,6 +58,9 @@ function KindChoices({ value, onChange, legend, disabled }: { value: ChatChangeK
   );
 }
 
+/** What a change to a subscription did, said where a screen reader hears it. */
+type SaidText = { text: string; bad?: boolean };
+
 function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showTarget: boolean; onSaid: (said: { text: string; bad?: boolean }) => void }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -153,8 +156,20 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
 }
 
 /** Channels' subscriptions as a table: the channel, what it hears of, who vouches for it. */
-export function ChatSubscriptionTable({ subs, showTarget, label }: { subs: ChatSubscription[]; showTarget: boolean; label: string }) {
-  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+export function ChatSubscriptionTable({
+  subs,
+  showTarget,
+  label,
+  onSaid,
+}: {
+  subs: ChatSubscription[];
+  showTarget: boolean;
+  label: string;
+  /** Where to say what a row did, when the table itself may go (its last row stopped): else beneath it. */
+  onSaid?: (said: SaidText) => void;
+}) {
+  const [said, setSaid] = useState<SaidText | null>(null);
+  const tell = onSaid ?? setSaid;
   return (
     <div className="stack">
       <Scroll label={label}>
@@ -172,12 +187,12 @@ export function ChatSubscriptionTable({ subs, showTarget, label }: { subs: ChatS
           </thead>
           <tbody>
             {subs.map((s) => (
-              <SubscriptionRow key={s.id} s={s} showTarget={showTarget} onSaid={setSaid} />
+              <SubscriptionRow key={s.id} s={s} showTarget={showTarget} onSaid={tell} />
             ))}
           </tbody>
         </table>
       </Scroll>
-      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      {onSaid ? null : <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />}
     </div>
   );
 }
@@ -243,15 +258,18 @@ function AddChannel({ project }: { project: Project }) {
 /** A project's page: the channels told of its issues, and telling another. */
 export function ProjectChannels({ project, canAdd }: { project: Project; canAdd: boolean }) {
   const subs = useChatSubscriptions(project.key);
+  // Said here, not in the table: stopping the last subscription takes the table away.
+  const [said, setSaid] = useState<SaidText | null>(null);
   if (subs.isLoading) return <Loading what="its channels" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   return (
     <div className="stack">
       {subs.data.length ? (
-        <ChatSubscriptionTable subs={subs.data} showTarget={false} label={`Table of the channels told of ${project.name}`} />
+        <ChatSubscriptionTable subs={subs.data} showTarget={false} label={`Table of the channels told of ${project.name}`} onSaid={setSaid} />
       ) : (
         <p className="note">No channel hears of {project.name} yet.</p>
       )}
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {canAdd ? <AddChannel project={project} /> : null}
     </div>
   );

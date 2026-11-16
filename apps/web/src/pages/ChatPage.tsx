@@ -173,10 +173,20 @@ function Slack({ status }: { status: ChatStatus }) {
 
 function Everywhere() {
   const subs = useChatSubscriptions();
+  // Said here, not in the table: stopping the last subscription takes the table away.
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   if (subs.isLoading) return <Loading what="subscriptions" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
-  if (!subs.data.length) return <p className="note">No channel hears of anything yet. A channel is subscribed on a project’s page, or by asking the bot in it: subscribe BACK.</p>;
-  return <ChatSubscriptionTable subs={subs.data} showTarget label="Table of what's subscribed where" />;
+  return (
+    <div className="stack">
+      {subs.data.length ? (
+        <ChatSubscriptionTable subs={subs.data} showTarget label="Table of what's subscribed where" onSaid={setSaid} />
+      ) : (
+        <p className="note">No channel hears of anything yet. A channel is subscribed on a project’s page, or by asking the bot in it: subscribe BACK.</p>
+      )}
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </div>
+  );
 }
 
 /** Teams and Slack: what's connected, how, and which channels hear of what. */
