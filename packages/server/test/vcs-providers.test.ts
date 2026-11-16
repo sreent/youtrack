@@ -362,7 +362,8 @@ describe('Gitea and Forgejo', () => {
   it("checks Gitea's, Forgejo's or GitHub's signature header, and refuses an empty one", async () => {
     const body = JSON.stringify({ ref: 'refs/heads/main', after: 'b'.repeat(40), repository: { full_name: 'acme/infra' }, commits: [] });
     const sig = hmac(gitea.secret, body);
-    for (const headers of [{ 'x-gitea-signature': sig }, { 'x-forgejo-signature': sig, 'x-forgejo-event': 'push' }, { 'x-hub-signature-256': `sha256=${sig}` }]) {
+    const ways: Record<string, string>[] = [{ 'x-gitea-signature': sig }, { 'x-forgejo-signature': sig, 'x-forgejo-event': 'push' }, { 'x-hub-signature-256': `sha256=${sig}` }];
+    for (const headers of ways) {
       const res = await post(gitea.id, body, { 'x-gitea-event': 'push', 'x-gitea-delivery': randomUUID(), ...headers });
       expect([res.status, res.body.outcome]).toEqual([200, 'processed']);
     }
