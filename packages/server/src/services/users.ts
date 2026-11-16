@@ -16,6 +16,7 @@ export function userDto(u: UserRow): User {
     avatarColor: u.avatarColor,
     isBot: u.isBot,
     email: u.email,
+    emailVerified: Boolean(u.email && u.emailVerifiedAt),
     role: u.role as Role,
     banned: u.banned,
     hourlyRate: u.hourlyRate,
@@ -62,6 +63,8 @@ export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
       login: input.login,
       name: input.name,
       email: input.email ?? null,
+      // An account is made by an administrator (or by setup, or the server itself): its email is vouched for.
+      emailVerifiedAt: input.email ? new Date() : null,
       passwordHash: input.password ? await hashPassword(input.password) : null,
       role: input.role ?? 'member',
       isBot: input.isBot ?? false,
@@ -86,6 +89,7 @@ export async function updateUser(
   input: {
     name?: string;
     email?: string | null;
+    emailVerified?: boolean;
     password?: string;
     role?: Role;
     banned?: boolean;
@@ -97,17 +101,22 @@ export async function updateUser(
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
   if (!target) throw notFound(`User ${idOrLogin}`);
   const self = target.id === ctx.actor.user.id;
-  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined;
+  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined || input.emailVerified !== undefined;
   if (!self || adminOnly) requireScope(ctx, 'admin');
   else requireScope(ctx, 'write');
   if (self && input.role && input.role !== 'admin' && target.role === 'admin') {
     throw badRequest('You cannot remove your own admin role');
   }
+  // An email is verified when an administrator vouches for it: by setting it, or by confirming it.
+  // Someone changing their own takes the vouching away until an administrator confirms it again.
+  const emailChanged = input.email !== undefined && (input.email ?? null) !== (target.email ?? null);
+  const verifiedNow = input.emailVerified !== undefined ? input.emailVerified : emailChanged ? isAdmin(ctx) : undefined;
   const [row] = await ctx.db
     .update(users)
     .set({
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.email !== undefined ? { email: input.email } : {}),
+      ...(verifiedNow !== undefined ? { emailVerifiedAt: verifiedNow ? (emailChanged || !target.emailVerifiedAt ? new Date() : target.emailVerifiedAt) : null } : {}),
       ...(input.password ? { passwordHash: await hashPassword(input.password) } : {}),
       ...(input.role !== undefined ? { role: input.role } : {}),
       ...(input.banned !== undefined ? { banned: input.banned } : {}),

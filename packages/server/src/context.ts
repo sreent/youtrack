@@ -30,11 +30,26 @@ export interface AppServices {
   };
 }
 
+/**
+ * Set while a workflow rule makes a change: which rule, the change that started the chain (an
+ * event id; null for a scheduled run), how many rules deep this change is, and whose change set
+ * the chain off. Every activity recorded under it carries it as `data.automation`, which is how
+ * the rule engine stops loops and replays.
+ */
+export interface AutomationCause {
+  rule: string;
+  name: string;
+  origin: string | null;
+  depth: number;
+  by: string | null;
+}
+
 /** Per-call context passed to every service function. */
 export interface Ctx {
   app: AppServices;
   db: Db;
   actor: Actor;
+  automation?: AutomationCause;
 }
 
 export function withChannel(ctx: Ctx, channel: Channel): Ctx {

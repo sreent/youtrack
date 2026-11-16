@@ -1,7 +1,7 @@
 import type { FieldType } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { fields, fieldValues, linkTypes, projectFields, projects, tags, users } from '../db/schema';
+import { fields, fieldValues, linkTypes, projectFields, projects, rules, tags, users } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -10,6 +10,7 @@ export type ProjectFieldRow = typeof projectFields.$inferSelect;
 export type TagRow = typeof tags.$inferSelect;
 export type LinkTypeRow = typeof linkTypes.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
+export type RuleRow = typeof rules.$inferSelect;
 
 export interface LinkPhrase {
   phrase: string; // lower-case
@@ -33,6 +34,8 @@ export interface SchemaSnapshot {
   linkPhrases: LinkPhrase[];
   users: Map<string, UserRow>;
   usersByLogin: Map<string, UserRow>;
+  /** Workflow rules, oldest first, so the write path finds a project's guards without a query. */
+  rules: RuleRow[];
   loadedAt: number;
 }
 
@@ -40,7 +43,7 @@ const TTL_MS = 60_000;
 
 /**
  * Small, frequently read reference data (fields, values, projects, tags, link
- * types, users). Reloaded after local writes and at most once a minute
+ * types, users, workflow rules). Reloaded after local writes and at most once a minute
  * otherwise, so several server instances sharing Postgres converge quickly.
  */
 export class SchemaCache {
@@ -103,6 +106,7 @@ export class SchemaCache {
     const tagRows = await db.select().from(tags).orderBy(asc(tags.name));
     const linkRows = await db.select().from(linkTypes).orderBy(asc(linkTypes.ordinal));
     const userRows = await db.select().from(users).orderBy(asc(users.login));
+    const ruleRows = await db.select().from(rules).orderBy(asc(rules.createdAt), asc(rules.id));
     const snap: SchemaSnapshot = {
       fields: new Map(),
       fieldsByName: new Map(),
@@ -117,6 +121,7 @@ export class SchemaCache {
       linkPhrases: [],
       users: new Map(),
       usersByLogin: new Map(),
+      rules: ruleRows,
       loadedAt: Date.now(),
     };
     for (const f of fieldRows) {
@@ -212,6 +217,11 @@ export function findUser(s: SchemaSnapshot, loginOrName: string, meId?: string):
   if (byLogin) return byLogin;
   for (const u of s.users.values()) if (u.name.toLowerCase() === v) return u;
   return undefined;
+}
+
+/** The rules that apply in a project: its own and the global ones, oldest first. */
+export function rulesFor(s: SchemaSnapshot, projectId: string): RuleRow[] {
+  return s.rules.filter((r) => r.projectId === projectId || r.projectId === null);
 }
 
 export function stateField(s: SchemaSnapshot): FieldRow | undefined {

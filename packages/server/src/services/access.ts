@@ -5,8 +5,8 @@
  * v1 policy: every project is visible to every signed-in user; writing needs the
  * "write" scope (role ∩ token scopes); administration needs "admin".
  */
-import { requireScope, type Ctx } from '../context';
-import { notFound } from '../lib/errors';
+import { can, isAdmin, requireScope, type Ctx } from '../context';
+import { forbidden, notFound } from '../lib/errors';
 
 /** Project ids the actor may read, or null for "all". */
 export async function visibleProjectIds(_ctx: Ctx): Promise<string[] | null> {
@@ -27,4 +27,23 @@ export async function assertCanReadProject(ctx: Ctx, projectId: string): Promise
 export async function assertCanWriteProject(ctx: Ctx, projectId: string): Promise<void> {
   await assertCanReadProject(ctx, projectId);
   requireScope(ctx, 'write');
+}
+
+/**
+ * Managing how a project works (its workflow rules): its manager or an administrator.
+ * v1 policy: administrators, and the project's lead, who stands for its manager until
+ * per-project roles name one.
+ */
+export async function canManageProject(ctx: Ctx, projectId: string): Promise<boolean> {
+  if (!(await canReadProject(ctx, projectId)) || !can(ctx, 'write')) return false;
+  if (isAdmin(ctx)) return true;
+  const s = await ctx.app.schema.get();
+  return s.projects.get(projectId)?.leadId === ctx.actor.user.id;
+}
+
+export async function assertCanManageProject(ctx: Ctx, projectId: string): Promise<void> {
+  await assertCanWriteProject(ctx, projectId);
+  if (!(await canManageProject(ctx, projectId))) {
+    throw forbidden("Only the project's manager or an administrator can change how it works", 'Ask the project lead or an administrator.');
+  }
 }

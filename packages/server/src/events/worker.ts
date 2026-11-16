@@ -11,6 +11,12 @@ export interface OutboxConsumer {
   /** Only events of these types are passed to handle(); others just advance the cursor. */
   types?: string[];
   handle(event: TrackerEvent): Promise<void>;
+  /**
+   * Work of its own, such as scheduled rules: called after each pass over the log, and only by the
+   * instance that holds the lease. `renew` keeps the lease through long work, and says whether this
+   * instance still holds it.
+   */
+  periodic?(lease: { renew(): Promise<boolean> }): Promise<void>;
 }
 
 const LEASE_NAME = 'outbox';
@@ -148,6 +154,15 @@ export class OutboxWorker {
           .set({ lastId: cursor, updatedAt: new Date() })
           .where(eq(outboxCursors.consumer, consumer.name));
         if (rows.length < BATCH) break;
+      }
+    }
+    for (const consumer of this.consumers) {
+      if (this.stopped) return;
+      if (!consumer.periodic) continue;
+      try {
+        await consumer.periodic({ renew: () => this.acquireLease() });
+      } catch (e) {
+        this.log(`outbox consumer ${consumer.name} failed in its periodic work`, e);
       }
     }
   }

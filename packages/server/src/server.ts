@@ -6,6 +6,7 @@ import { openDatabase } from './db/client';
 import { seedDemo } from './db/seed';
 import { OutboxWorker, type OutboxConsumer } from './events/worker';
 import { webhookConsumer } from './events/webhooks';
+import { rulesConsumer } from './workflow/engine';
 import { createHttpApp } from './http/app';
 import { needsSetup } from './services/auth';
 import { insertUser } from './services/users';
@@ -34,7 +35,11 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   }
 
   await runtime.live.start();
-  const consumers = [webhookConsumer(runtime), ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null)];
+  const consumers = [
+    webhookConsumer(runtime),
+    rulesConsumer(runtime),
+    ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null),
+  ];
   const worker = new OutboxWorker(runtime, consumers);
   worker.start();
 

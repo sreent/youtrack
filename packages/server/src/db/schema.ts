@@ -36,6 +36,8 @@ export const users = pgTable(
     login: text('login').notNull(),
     name: text('name').notNull(),
     email: text('email'),
+    /** When an administrator vouched for the email (set it, or confirmed it); null while only its owner says so. */
+    emailVerifiedAt: ts('email_verified_at'),
     passwordHash: text('password_hash'),
     role: text('role').notNull().default('member'),
     isBot: boolean('is_bot').notNull().default(false),
@@ -513,6 +515,168 @@ export const aiMessages = pgTable(
     createdAt: created(),
   },
   (t) => [index('ai_messages_conversation').on(t.conversationId, t.id)],
+);
+
+// ---------------------------------------------------------------------------
+// Workflow rules: change issues when something happens or on a schedule, or
+// refuse a change that breaks a rule
+// ---------------------------------------------------------------------------
+
+export const rules = pgTable(
+  'rules',
+  {
+    id: text('id').primaryKey(),
+    /** null: a global rule, for every project (administrators only). */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** 'change' (when something happens), 'schedule' (every hour or day) or 'guard' (a validation). */
+    kind: text('kind').notNull(),
+    /** For a change rule: 'created', 'updated' or 'commented'. */
+    trigger: text('trigger'),
+    /** For a change rule on 'updated': only when this field changes. */
+    triggerField: text('trigger_field'),
+    /** For a scheduled rule: { every: 'hour' } or { every: 'day' | 'weekday', at: 'HH:MM' }, in the server's time zone. */
+    schedule: jsonb('schedule'),
+    /** Which issues (change, schedule), or what a guarded change would make an issue match (guard). */
+    query: text('query').notNull().default(''),
+    /** What to change, in the command language (change, schedule). */
+    command: text('command').notNull().default(''),
+    comment: text('comment'),
+    /** A guard: what the issue must also match. */
+    requires: text('requires'),
+    /** A guard: what a refused change is told. */
+    message: text('message'),
+    enabled: boolean('enabled').notNull().default(true),
+    nextRunAt: ts('next_run_at'),
+    lastRunAt: ts('last_run_at'),
+    version: integer('version').notNull().default(1),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('rules_project').on(t.projectId), index('rules_due').on(t.kind, t.nextRunAt)],
+);
+
+/** What each rule did, issue by issue: applied, changed nothing, failed, skipped, or refused a change. */
+export const ruleRuns = pgTable(
+  'rule_runs',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ruleId: text('rule_id')
+      .notNull()
+      .references(() => rules.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    /** The issue's readable id when it ran, kept if the issue goes. */
+    issueKey: text('issue_key'),
+    /** The event that set it off (a rule on a change). */
+    eventId: bigint('event_id', { mode: 'number' }),
+    /**
+     * The change that started the chain (an event id), for rules on a change: a rule acts on an
+     * issue at most once for it, which makes replays and loops stop.
+     */
+    originId: text('origin_id'),
+    /** Whose change set it off, or whose change it refused. */
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    outcome: text('outcome').notNull(),
+    message: text('message').notNull().default(''),
+    changes: jsonb('changes'),
+    createdAt: created(),
+  },
+  (t) => [
+    index('rule_runs_rule').on(t.ruleId, t.id),
+    index('rule_runs_project').on(t.projectId, t.id),
+    index('rule_runs_created').on(t.createdAt),
+    uniqueIndex('rule_runs_once').on(t.ruleId, t.issueId, t.originId).where(sql`${t.originId} IS NOT NULL`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Version control: GitHub and GitLab send pushes and pull requests here
+// ---------------------------------------------------------------------------
+
+export const vcsIntegrations = pgTable('vcs_integrations', {
+  id: text('id').primaryKey(),
+  /** 'github' or 'gitlab'. */
+  provider: text('provider').notNull(),
+  name: text('name').notNull(),
+  /** The projects whose issue ids it looks for; empty: every project. */
+  projectIds: text('project_ids').array().notNull(),
+  /** GitHub signs each delivery with the secret (HMAC-SHA256), so a4a must keep it to check the signature. */
+  signingKey: text('signing_key'),
+  /** GitLab sends its token as it is, so a4a keeps only the token's SHA-256. */
+  tokenHash: text('token_hash'),
+  /** The secret's first characters, to recognise it by. */
+  secretPrefix: text('secret_prefix').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: created(),
+  lastDeliveryAt: ts('last_delivery_at'),
+});
+
+export const vcsDeliveries = pgTable(
+  'vcs_deliveries',
+  {
+    id: text('id').primaryKey(),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    /** The provider's id for the delivery (X-GitHub-Delivery; GitLab's Idempotency-Key): each is handled once. */
+    deliveryId: text('delivery_id'),
+    event: text('event').notNull(),
+    /** received, processed, ignored, refused, duplicate or failed. */
+    outcome: text('outcome').notNull(),
+    statusCode: integer('status_code').notNull(),
+    message: text('message').notNull().default(''),
+    linked: integer('linked').notNull().default(0),
+    applied: integer('applied').notNull().default(0),
+    test: boolean('test').notNull().default(false),
+    createdAt: created(),
+    finishedAt: ts('finished_at'),
+  },
+  (t) => [
+    uniqueIndex('vcs_deliveries_once').on(t.integrationId, t.deliveryId).where(sql`${t.deliveryId} IS NOT NULL`),
+    index('vcs_deliveries_recent').on(t.integrationId, t.createdAt),
+  ],
+);
+
+/** A commit or a pull request that mentions an issue: one row per issue it mentions. */
+export const vcsLinks = pgTable(
+  'vcs_links',
+  {
+    id: text('id').primaryKey(),
+    integrationId: text('integration_id').references(() => vcsIntegrations.id, { onDelete: 'set null' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    /** 'commit' or 'pull_request'. */
+    kind: text('kind').notNull(),
+    repository: text('repository').notNull(),
+    /** A commit's sha, or a pull request's number. */
+    ref: text('ref').notNull(),
+    title: text('title').notNull(),
+    /** The rest of a commit's message, or a pull request's description, cut short. */
+    body: text('body').notNull().default(''),
+    url: text('url'),
+    branch: text('branch'),
+    targetBranch: text('target_branch'),
+    /** A pull request's state: open, merged or closed. */
+    state: text('state'),
+    authorName: text('author_name'),
+    authorLogin: text('author_login'),
+    authorEmail: text('author_email'),
+    /** The person in a4a the author was matched to, by their verified email. */
+    authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+    /** The command a commit gave this issue ("BACK-12 #Fixed"), whether it was applied, and why not. */
+    command: text('command'),
+    commandApplied: boolean('command_applied'),
+    commandNote: text('command_note'),
+    happenedAt: ts('happened_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('vcs_links_once').on(t.issueId, t.kind, t.repository, t.ref), index('vcs_links_ref').on(t.kind, t.repository, t.ref)],
 );
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,8 @@ export interface ActivityInput {
 
 /** Insert an activity row inside the caller's transaction. Publish it after commit. */
 export async function recordActivity(tx: Db, ctx: Ctx, input: ActivityInput): Promise<ActivityRow> {
+  // A change a workflow rule made says so, whatever kind of change it is (see AutomationCause).
+  const payload = ctx.automation ? { ...input.payload, data: { ...(input.payload.data ?? {}), automation: ctx.automation } } : input.payload;
   const [row] = await tx
     .insert(activities)
     .values({
@@ -30,7 +32,7 @@ export async function recordActivity(tx: Db, ctx: Ctx, input: ActivityInput): Pr
       actorId: ctx.actor.authMethod === 'system' && ctx.actor.user.id === 'system' ? null : ctx.actor.user.id,
       channel: ctx.actor.channel,
       tokenName: ctx.actor.tokenName,
-      payload: input.payload,
+      payload,
     })
     .returning();
   return row!;

@@ -8,10 +8,12 @@ import { newId } from '../lib/ids';
 
 /** The agent that triages new issues. Agents go by their id in lower case. */
 export const TRIAGE_BOT = 'triage';
+/** The agent that applies workflow rules. */
+export const WORKFLOW_BOT = 'workflow';
 
 const v = (name: string, tone: Tone | null = null, isResolved = false) => ({ name, tone, isResolved });
 
-/** Create the standard fields, link types and the triage agent on first start. Idempotent. */
+/** Create the standard fields, link types and the triage and workflow agents on first start. Idempotent. */
 export async function ensureDefaults(db: Db): Promise<void> {
   const [{ n } = { n: 0 }] = await db.select({ n: sql<number>`count(*)::int` }).from(fields);
   if (Number(n) === 0) {
@@ -82,5 +84,9 @@ export async function ensureDefaults(db: Db): Promise<void> {
   const [bot] = await db.select().from(users).where(eq(users.login, TRIAGE_BOT));
   if (!bot) {
     await insertUser(db, { login: TRIAGE_BOT, name: TRIAGE_BOT, role: 'member', isBot: true, capacityHoursPerDay: 0 });
+  }
+  const [workflow] = await db.select().from(users).where(eq(users.login, WORKFLOW_BOT));
+  if (!workflow) {
+    await insertUser(db, { login: WORKFLOW_BOT, name: WORKFLOW_BOT, role: 'member', isBot: true, capacityHoursPerDay: 0 });
   }
 }
