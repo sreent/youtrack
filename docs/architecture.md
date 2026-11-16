@@ -561,7 +561,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 - Groups kept by hand are never touched, whatever they're called. Names a4a has no group for are ignored, so a provider can't make groups, and a list of hundreds costs nothing.
 - A provider that leaves the claim out says the person is in none.
-- Who is in a provider's group can't be changed by hand. A group kept by hand that starts coming from the provider is emptied, and fills as people sign in; one that stops keeps its people, by hand from then on.
+- Who is in a provider's group can't be changed by hand. A group kept by hand that starts coming from the provider, or one given another name there, is emptied, and fills as people sign in; one that stops keeps its people, by hand from then on.
 
 **SAML 2.0, started by a4a.** An AuthnRequest goes by the HTTP-Redirect binding, and the response is posted to `/api/v1/auth/saml/acs`. The provider comes from its metadata (`SAML_IDP_METADATA_URL`, https, fetched at most hourly), or is set out by hand: its entity id, its sign-in URL, and its certificates (several, during a key rollover).
 

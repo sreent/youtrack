@@ -71,7 +71,7 @@ export function groupRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Rename a group, or say where its people come from (administrators)',
       description:
-        'Setting `providerName` on a group kept by hand empties it: from then on the identity provider says who is in it, at each sign-in. Setting it to null keeps whoever is in it, by hand from then on.',
+        'Setting `providerName` on a group kept by hand, or changing it, empties the group: from then on the identity provider says who is in it, at each sign-in. Setting it to null keeps whoever is in it, by hand from then on.',
       params: Id,
       body: UpdateGroupBody,
       response: GroupDetailSchema,

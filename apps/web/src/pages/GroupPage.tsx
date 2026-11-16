@@ -197,7 +197,8 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
   const savedKey = JSON.stringify(initial);
   useEffect(() => setForm(JSON.parse(savedKey) as typeof initial), [savedKey]);
   const dirty = JSON.stringify(form) !== savedKey;
-  const startsFromProvider = !group.providerName && form.providerName.trim() !== '';
+  // Saving empties it when it starts coming from the provider, or from another of its groups.
+  const startsFromProvider = form.providerName.trim() !== '' && form.providerName.trim().toLowerCase() !== (group.providerName ?? '').toLowerCase();
   const save = useMutation({
     mutationFn: () => patch<GroupDetail>(`/groups/${group.id}`, { name: form.name.trim(), description: form.description.trim(), providerName: form.providerName.trim() || null }),
     onSuccess: (g) => {

@@ -145,7 +145,9 @@ export async function updateGroup(ctx: Ctx, ref: string, input: { name?: string;
   requireScope(ctx, 'admin');
   const g = await requireGroup(ctx.db, ref);
   const providerName = input.providerName === undefined ? undefined : input.providerName?.trim() || null;
-  const toProvider = providerName !== undefined && providerName !== null && g.providerName === null;
+  // A group that starts coming from the provider, or from another of its groups, empties: whoever
+  // was in it was put there by hand, or under the old name, not by what the provider says now.
+  const toProvider = providerName !== undefined && providerName !== null && providerName.toLowerCase() !== (g.providerName ?? '').toLowerCase();
   try {
     await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;

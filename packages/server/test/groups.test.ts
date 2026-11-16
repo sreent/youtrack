@@ -251,6 +251,11 @@ describe('groups from the identity provider', () => {
     await addGroupMember(admin, g.id, 'ben');
     expect((await updateGroup(admin, g.id, { providerName: 'switching' })).members).toEqual([]);
     await syncProviderGroups(w.app, w.ben.id, ['switching']);
+    // Another name at the provider: those put there under the old one are out, until it names them.
+    expect((await updateGroup(admin, g.id, { providerName: 'switching-2' })).members).toEqual([]);
+    expect((await updateGroup(admin, g.id, { providerName: 'SWITCHING-2', description: 'Same name, another case' })).description).toBe('Same name, another case');
+    await syncProviderGroups(w.app, w.ben.id, ['switching-2']);
+    expect((await getGroup(admin, g.id)).members.map((m) => m.user.login)).toEqual(['ben']);
     const kept = await updateGroup(admin, g.id, { providerName: null });
     expect(kept.members.map((m) => m.user.login)).toEqual(['ben']);
     expect(kept.providerName).toBeNull();
