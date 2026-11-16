@@ -7,13 +7,15 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { TrackerEvent } from '@a4a/shared';
 import { and, eq, isNull } from 'drizzle-orm';
-import { requireScope, type AppServices, type Ctx } from '../context';
+import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import { chatWorkspaces } from '../db/schema';
 import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { findVisibleIssue } from '../services/issues';
+import type { Translator } from '@a4a/shared/i18n';
+import { problemFor, translatorFor } from '../i18n';
 import { cardChange, fallbackText, slackBlocks, type CardIssue } from './cards';
-import { callable, ChatCallError, chatCtx, openSecret, retryAfterMs, sealSecret, type Answer } from './common';
+import { callable, channelTr, ChatCallError, chatCtx, openSecret, personTr, retryAfterMs, sealSecret, type Answer } from './common';
 import {
   channelByExternal,
   chatStatus,
@@ -23,6 +25,7 @@ import {
   markChannelGone,
   markWorkspaceRemoved,
   personFor,
+  platformName,
   runChatCommand,
   upsertChannel,
   upsertWorkspace,
@@ -147,10 +150,11 @@ export async function disconnectSlack(ctx: Ctx): Promise<void> {
 // Posting
 // ---------------------------------------------------------------------------
 
-/** A channel's news, as Block Kit: the message's ts. */
+/** A channel's news, as Block Kit, in the channel's language (D49): the message's ts. */
 export async function slackPost(app: AppServices, ws: WorkspaceRow, channel: string, issue: CardIssue, event: TrackerEvent): Promise<string | null> {
-  const change = cardChange(event);
-  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, change), blocks: slackBlocks(issue, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
+  const tr = channelTr(app);
+  const change = cardChange(event, tr);
+  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, change), blocks: slackBlocks(issue, tr, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
   return typeof res.ts === 'string' ? res.ts : null;
 }
 
@@ -163,14 +167,16 @@ async function tellOne(app: AppServices, ws: WorkspaceRow, user: string, channel
 }
 
 function answerBlocks(answer: Answer): unknown[] {
-  return [{ type: 'section', text: { type: 'mrkdwn', text: answer.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') } }, ...(answer.issues ?? []).flatMap((i) => slackBlocks(i))];
+  const tr = translatorFor(answer.locale);
+  return [{ type: 'section', text: { type: 'mrkdwn', text: answer.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') } }, ...(answer.issues ?? []).flatMap((i) => slackBlocks(i, tr))];
 }
 
-/** Tell someone their Slack account is linked, in a direct message. */
-export async function slackLinked(app: AppServices, externalUserId: string, name: string): Promise<void> {
+/** Tell someone their Slack account is linked, in a direct message, in their language. */
+export async function slackLinked(app: AppServices, externalUserId: string, user: Pick<UserRow, 'name' | 'locale'>): Promise<void> {
   const ws = await slackWorkspace(app);
   if (!ws) return;
-  await tellOne(app, ws, externalUserId, undefined, { text: `You're linked: I act as ${name} in a4a now. Try /a4a help.` });
+  const tr = personTr(app, user);
+  await tellOne(app, ws, externalUserId, undefined, { text: tr.t('server.chat.linkedSlack', { name: user.name }), locale: tr.locale });
 }
 
 // ---------------------------------------------------------------------------
@@ -185,19 +191,18 @@ const personOf = (ws: WorkspaceRow, userId: string, name: string): ChatPerson =>
   name,
 });
 
-const linkWords = (url: string, again: boolean) =>
-  again
-    ? `To link this Slack account to another a4a account, open this link, sign in as them, and confirm. It works once, for 15 minutes: ${url}`
-    : `I don't know who you are in a4a yet. Open this link, sign in to a4a, and confirm, and I'll act as you. It works once, for 15 minutes: ${url}`;
+/** The link to sign in with: in the language of whom it's linked to, or else the server's (Slack doesn't say theirs). */
+const linkWords = (app: AppServices, url: string, linked: UserRow | null) =>
+  (linked ? personTr(app, linked) : channelTr(app)).t(linked ? 'server.chat.linkAgain' : 'server.chat.linkFirst', { platform: platformName('slack'), url });
 
 /** /a4a …: answered at once, for the person alone unless it's a channel's subscription. */
 export async function slackCommand(app: AppServices, ws: WorkspaceRow, form: URLSearchParams): Promise<Record<string, unknown>> {
-  if (form.get('team_id') !== ws.externalId) return { response_type: 'ephemeral', text: 'This a4a is connected to another Slack workspace.' };
+  if (form.get('team_id') !== ws.externalId) return { response_type: 'ephemeral', text: channelTr(app).t('server.chat.otherWorkspace') };
   const userId = form.get('user_id') ?? '';
   const who = personOf(ws, userId, form.get('user_name') ?? userId);
   const text = (form.get('text') ?? '').trim();
   const user = await personFor(app, who);
-  if (!user || /^link$/i.test(text)) return { response_type: 'ephemeral', text: linkWords(await linkUrl(app, who), Boolean(user)) };
+  if (!user || /^link$/i.test(text)) return { response_type: 'ephemeral', text: linkWords(app, await linkUrl(app, who), user) };
   const channelId = form.get('channel_id') ?? '';
   const inChannel = /^[CG]/.test(channelId) && form.get('channel_name') !== 'directmessage';
   const channel = inChannel ? ((await channelByExternal(app.db, ws.id, channelId)) ?? (await upsertChannel(app.db, ws.id, channelId, `#${form.get('channel_name') ?? channelId}`))) : null;
@@ -222,31 +227,33 @@ export async function slackInteraction(app: AppServices, ws: WorkspaceRow, paylo
   if (!slackUser?.id || !action || action.action_id === 'open') return;
   const who = personOf(ws, slackUser.id, slackUser.name ?? slackUser.username ?? slackUser.id);
   const user = await personFor(app, who);
-  if (!user) return tellOne(app, ws, slackUser.id, channel, { text: linkWords(await linkUrl(app, who), false) });
+  if (!user) return tellOne(app, ws, slackUser.id, channel, { text: linkWords(app, await linkUrl(app, who), null), locale: channelTr(app).locale });
   const ctx = chatCtx(app, user, 'slack');
+  // What they did, and the issue after it, in their language (D49).
+  const tr = personTr(app, user);
   let issueId = '';
   let note: { text: string; bad: boolean };
   try {
     if (action.action_id === 'assign') {
       issueId = String(action.value ?? '').toUpperCase();
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }));
-      note = o.bad ? o : { text: 'Assigned to you.', bad: false };
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      note = o.bad ? o : { text: tr.t('server.chat.assigned'), bad: false };
     } else if (action.action_id === 'state') {
       const [id, ...state] = String(action.selected_option?.value ?? '').split('|');
       issueId = (id ?? '').toUpperCase();
       const name = state.join('|');
       const field = [...(await app.schema.get()).fields.values()].find((f) => f.type === 'state');
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }));
-      note = o.bad ? o : { text: `Moved to ${name}.`, bad: false };
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }), tr);
+      note = o.bad ? o : { text: tr.t('server.chat.moved', { state: name }), bad: false };
     } else return;
   } catch (e) {
-    note = { text: e instanceof AppError ? e.message : 'That didn’t work.', bad: true };
+    note = { text: e instanceof AppError ? problemFor(tr, { message: e.message, words: e.words }) : tr.t('server.chat.didntWork'), bad: true };
   }
   try {
     const issue = await issueForCard(ctx, issueId);
-    await tellOne(app, ws, slackUser.id, channel, { text: note.text, blocks: slackBlocks(issue, { note: note.text }) });
+    await tellOne(app, ws, slackUser.id, channel, { text: note.text, blocks: slackBlocks(issue, tr, { note: note.text }) });
   } catch (e) {
-    await tellOne(app, ws, slackUser.id, channel, { text: e instanceof AppError ? e.message : note.text });
+    await tellOne(app, ws, slackUser.id, channel, { text: e instanceof AppError ? problemFor(tr, { message: e.message, words: e.words }) : note.text, locale: tr.locale });
   }
 }
 
@@ -274,7 +281,8 @@ async function unfurl(app: AppServices, ws: WorkspaceRow, e: Record<string, unkn
     const s = await app.schema.get();
     const project = s.projects.get(row.projectId);
     if (!project || (await whyNotFor(app.db, user.id, row.projectId, project.name))) continue;
-    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id), { actions: false }) };
+    // The channel reads it: in the channel's language (D49).
+    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id), channelTr(app), { actions: false }) };
   }
   if (!Object.keys(unfurls).length) return;
   const where = typeof e.unfurl_id === 'string' && typeof e.source === 'string' ? { unfurl_id: e.unfurl_id, source: e.source } : { channel: e.channel, ts: e.message_ts };

@@ -38,6 +38,16 @@ export function localeOfRequest(ctx: Ctx, header?: { pageLocale?: string | null;
   return matchLocale(header?.acceptLanguage ?? null, ctx.app.config.defaultLocale);
 }
 
+/**
+ * A problem in a person's language, by its key (D49), where a4a speaks to them itself: a chat reply, say.
+ * In English, or for a problem without a key, its own English, the fix after it.
+ */
+export function problemFor(tr: Translator, e: { message: string; hint?: string; words?: { key: string; values?: Record<string, string | number> } }): string {
+  const key = e.words ? `problem.${e.words.key}` : null;
+  if (key && tr.locale !== DEFAULT_LOCALE && tr.has(key)) return tr.t(key, e.words!.values);
+  return e.hint ? `${e.message}. ${e.hint}` : e.message;
+}
+
 /** Intl's tag for a language: a4a's English writes dates the British way, as it always has. */
 export function intlTag(locale: Locale): string {
   return locale === 'en' ? 'en-GB' : locale;
