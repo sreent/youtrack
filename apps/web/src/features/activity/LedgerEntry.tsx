@@ -58,7 +58,12 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
   const accepted = e.data.acceptedFrom === 'triage';
   switch (e.type) {
     case 'issue.created':
+      if (e.data.imported) return { text: <>imported {issue}</>, badge: ['changes', 'imports an issue'] };
       return { text: <>created {issue}</>, badge: ['changes', 'new issue'] };
+    case 'sprint.issue_added':
+      return { text: <>put {issue} in {str(e.data.sprint)}</>, badge: ['changes', 'changes a sprint'] };
+    case 'sprint.issue_removed':
+      return { text: <>took {issue} out of {str(e.data.sprint)}</>, badge: ['changes', 'changes a sprint'] };
     case 'issue.updated':
       if (accepted)
         return {

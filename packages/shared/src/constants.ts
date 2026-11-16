@@ -66,6 +66,8 @@ export const EVENT_TYPES = [
   'article.created',
   'article.updated',
   'article.deleted',
+  'sprint.issue_added',
+  'sprint.issue_removed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

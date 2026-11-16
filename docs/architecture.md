@@ -406,6 +406,37 @@ An article's id can't be read as an issue's, and the reverse:
 - **Costs:** it needs `pnpm build` first (the script does it), and it can't catch what only the real model does.
 - **Revisit when:** a run takes more than a few minutes. Shard it across CI machines (`--shard`), each with a server of its own.
 
+### D21. Reports read the history; imports are known by the other tracker's key
+
+**Reports are worked out from the activity log when asked, with no snapshot table.** Every change to an issue is already an activity, in the transaction that made it (D4, D5), and each carries the issue as it stood after it (readable id, summary, state, resolved) with the fields it changed. A report loads the events of the issues in its scope, oldest first, rebuilds each issue's timeline (when it existed, its state and estimate at each instant, when it joined or left a sprint) and reads the timelines at each day's end (`reports/history.ts`, `reports/engine.ts`, pure and tested on hand-made histories).
+
+- **Which issues:** a project's, those of every project the caller can see, or what a query matches now. By project, a deleted issue counts on the days it existed: its activities keep its readable id when it goes (the foreign key is set null). By query, deleted issues are out, since a query matches only what is there; the report says which it did (`includesDeleted`).
+- **Days** begin and end in a time zone: the caller's (`timeZone`; the web app sends the browser's), or the server's. A day's figure is how things stood at its end, so an event at exactly midnight belongs to the day it begins. Today is as it is now; days to come are null, not zero. A change at 23:30 UTC is on the next day in Berlin, and the tests say so.
+- **A sprint's membership is history too:** `sprint.issue_added` and `sprint.issue_removed`, recorded in the transaction that changes it. Issues in a sprint from before those events existed count from its start, and the report says so. What was committed is what was in the sprint, open, at the start of its first working day; a change on a weekend belongs to the next working day. How it stands compares what's left with the ideal as today began, within 10% (and at least an issue, or an hour).
+- **Cycle time** runs from an issue's first entry into a start state (In Progress unless told otherwise) to its final resolution, in calendar days, with percentiles by nearest rank. One resolved without ever starting is listed apart, not counted; one reopened counts to its last resolution.
+- **Imported issues** start at their original creation, in the project's first open state until they were resolved, so a report reads the time before the import as it was.
+
+**Why no snapshot table.** A row per issue per day would make each report a read of a few rows, but it would be a second record of the truth: written by a job, wrong for a day the job missed, cut in one time zone, and to be rebuilt whenever a state is renamed or an issue moves. The log already is the truth. Taking only the parts of each payload a report reads, in SQL (`payload->'issue'->>'state'` and the like), and estimates only for a burndown, keeps it fast: on in-memory PGlite, 90 days of cumulative flow or cycle time over 3,000 issues and 12,000 events takes about 220 ms (a test holds it under a bound). One partial index, `activities_sprint` on `(payload->'data'->>'sprintId', id)` for the two sprint events, finds a sprint's history without a scan. A report past 400,000 events asks for a narrower scope instead of working for minutes.
+
+- **Access:** a report counts only the projects the caller can see, and naming a hidden one is the error for a missing one (D15). A burndown counts the sprint's issues in the projects the caller can see, as the board shows them; a sprint on a board none of whose projects they see is a missing sprint.
+- **Costs:** a report costs what the history of its issues costs, not what the days asked for cost.
+- **Revisit when:** a scope's history runs to millions of events. Then keep a row per issue per day, written from the outbox by the worker (the timelines are the code to write it with), and read reports from it.
+
+**Dashboards** are rows (`dashboards`: owner, name, shared, widgets as JSON, version, changed with `expectedVersion`). A widget keeps its parameters, never its figures: it is worked out for whoever looks, under their access. A shared dashboard shows each viewer only the widgets that name what they can see, by the rule shared saved searches follow (a query that names a project or value they can't see), so its owner's words never give a hidden project away; its owner and administrators see it whole. A private one is its owner's alone, and answers as a missing one to anyone else, administrators included. Someone with none gets a default, worked out and not saved: their open issues, a current sprint they can see, created against resolved, and cycle time.
+
+**Imports** take a Jira or YouTrack CSV export into a project.
+
+- **The file is parsed as it streams** (RFC 4180: quoted fields, doubled quotes, newlines inside quotes, CRLF, LF or CR, a BOM; split anywhere between chunks; 64 MB and 50,000 rows at most) into `import_rows`, with each column's samples and distinct values, so mapping never reads the file again. Columns are found from Jira's and YouTrack's headers (repeated ones, such as Labels or Comment, too), values by name and synonym, people by email, then login, then name; a person maps the rest, and leaving a value unmapped says what it means ("Unassigned", "The project's default, Open").
+- **Known by the other tracker's key.** `external_issues` maps (project, source, key) to the issue, with the values the import last wrote. A rerun changes a field only where the export changed it since, so an edit made here to a field the export didn't change stays; it skips a row that didn't change, and never makes an issue twice (two runs racing meet the key's primary key).
+- **History as it was.** An issue keeps its created and updated dates and its reporter, and its `issue.created` says it was imported (`data.imported`: source, key, original dates), as do its comments and work; triage leaves imported issues alone. Only the importer can set those, through `createIssueInTx`'s import option: no request can.
+- **A dry run changes nothing:** the same reading and checks as a run, with the problems row by row and what applies to many rows said once.
+- **The run is a job:** one per project at a time, claimed by a conditional update, each row in its own transaction, then links and parents in a second pass by key, so a row can name one later in the file. Its progress and heartbeat are on its row, so every instance shows it; one whose heartbeat has stopped for a minute (its instance died) reads as stopped, and running it again carries on, since rows done already are matched by key.
+- **Undo** deletes, in one transaction, the issues the import made that nobody has touched since (no activity but the import's), and says why it keeps each of the others. It doesn't take back what it changed on issues that were already here: that would write old values over what happened since.
+- **Who:** importing writes history as others made it, so it is managing the project: its managers, and administrators. In a members-only project, only its people can be its reporters, assignees and comment authors; anyone else in the file is left empty, and choosing them is refused.
+
+- **Costs:** an upload is kept as rows until it is forgotten (`DELETE /imports/{id}`), about the file's size again.
+- **Revisit when:** a YouTrack REST importer is wanted (not done): it would fill the same rows from the API instead of a file, and the rest stays.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -425,6 +456,8 @@ An article's id can't be read as an issue's, and the reverse:
 | Sign-in throttle | Shared in Postgres, per IP and per login, and kept across restarts. An attempt is counted before its password is checked, so parallel guesses can't pass the limit |
 | Sessions | Rows in Postgres: valid on every instance; signing out ends a session everywhere |
 | Instances starting together | Migrations, defaults and the unattended first administrator run under an advisory lock: one instance at a time. So does `POST /auth/setup` |
+| An import run twice, or stopped halfway | Each issue is known by (project, source, key): a rerun updates or skips it, never makes it twice. Each row commits on its own, so a run that stopped carries on where it was |
+| Two people arrange one dashboard | `expectedVersion`: the second gets 409 and the current version |
 
 ## Security
 
@@ -455,6 +488,8 @@ An article's id can't be read as an issue's, and the reverse:
 - **A token's last-used time** is written at most once a minute per instance.
 - **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
+- **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
+- **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
 
@@ -464,6 +499,7 @@ Planned, with the seams already in place:
 
 - groups of people with a role in a project (D15);
 - OAuth 2.1 for remote MCP (what it takes is in D16);
+- an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - notifications;
 - a VCS integration (`BACK-12 #Fixed` in commits);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;

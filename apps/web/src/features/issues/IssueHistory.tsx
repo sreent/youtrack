@@ -70,8 +70,19 @@ function eventEntry(e: TrackerEvent): Entry | null {
   const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor) };
   const data = e.data as Record<string, unknown>;
   switch (e.type) {
-    case 'issue.created':
+    case 'issue.created': {
+      // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
+      const imported = data.imported as { source?: string; key?: string; createdAt?: string; reporter?: string } | undefined;
+      if (imported) {
+        const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : 'another tracker';
+        const on = imported.createdAt ? `, where it was reported ${when(imported.createdAt)}${imported.reporter ? ` by ${imported.reporter}` : ''}` : '';
+        return { ...base, did: `imported it from ${from} (${imported.key ?? 'its key there'})${on}` };
+      }
       return { ...base, did: 'reported it' };
+    }
+    case 'sprint.issue_added':
+    case 'sprint.issue_removed':
+      return { ...base, did: `${e.type === 'sprint.issue_added' ? 'put it in' : 'took it out of'} ${String(data.sprint ?? 'a sprint')}${data.board ? ` on ${String(data.board)}` : ''}` };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {

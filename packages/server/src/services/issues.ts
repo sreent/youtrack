@@ -537,7 +537,7 @@ export async function applyChanges(
         type,
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, data: { phrase: op.spec.phrase.display, target: targetRef } },
+        payload: { issue: ref, data: { ...spec.data, phrase: op.spec.phrase.display, target: targetRef } },
       }),
     );
     activities.push(
@@ -545,7 +545,7 @@ export async function applyChanges(
         type,
         projectId: op.spec.target.projectId,
         issueId: op.spec.target.id,
-        payload: { issue: targetRef, data: { phrase: inverse, target: ref } },
+        payload: { issue: targetRef, data: { ...spec.data, phrase: inverse, target: ref } },
       }),
     );
   }
@@ -558,7 +558,7 @@ export async function applyChanges(
         type: 'comment.created',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, data: { commentId: id, text: excerpt(comment, 1000) } },
+        payload: { issue: ref, data: { ...spec.data, commentId: id, text: excerpt(comment, 1000) } },
       }),
     );
   }
@@ -611,17 +611,48 @@ async function computeResolvedAt(
 // Create / update / delete
 // ---------------------------------------------------------------------------
 
-export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<IssueDetail> {
-  requireScope(ctx, 'write');
-  const s = await ctx.app.schema.get();
-  const view = await projectAccess(ctx);
+/**
+ * For imports only: the issue as the other tracker had it. The issue keeps its own created and
+ * updated dates and its reporter (null when nobody here is them), and its activity says it was
+ * imported, with `data` (the import, the other tracker's key and dates), while the activity's
+ * actor stays the person who ran the import.
+ */
+export interface ImportedOrigin {
+  createdAt: Date;
+  updatedAt: Date;
+  /** When it was resolved there; used only when it comes in resolved. */
+  resolvedAt: Date | null;
+  reporterId: string | null;
+  data: Record<string, unknown>;
+}
+
+export interface CreateOptions {
+  imported?: ImportedOrigin;
+}
+
+interface PreparedIssue {
+  s: SchemaSnapshot;
+  project: ProjectRow;
+  summary: string;
+  description: string;
+  specs: FieldChangeSpec[];
+  values: Map<string, ResolvedValue[]>;
+  resolved: boolean;
+  tags: string[];
+  links: LinkSpec[];
+}
+
+/** Everything a new issue needs, checked, before anything is written. Reads through `db`. */
+async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<PreparedIssue> {
+  const s = await ctx.app.schema.get(db);
+  const view = await projectAccess(ctx, db);
   const project = projectByKey(s, input.project);
   if (!project || !view.canRead(project.id)) {
     // Only the projects the caller can file in: a hidden project's key is never named.
     const open = [...s.projects.values()].filter((p) => view.canWrite(p.id) && !p.archived).map((p) => p.key);
     throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.');
   }
-  await assertCanWriteProject(ctx, project.id);
+  await assertCanWriteProject(ctx, project.id, db);
   if (project.archived) throw badRequest(`Project ${project.key} is archived`);
   const summary = input.summary.trim();
   if (!summary) throw badRequest('Summary cannot be empty');
@@ -639,7 +670,7 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
     }
     if (pf.required && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
     if (field.type === 'user') {
-      await assertPeopleSeeProject(ctx.db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
+      await assertPeopleSeeProject(db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
     }
   }
   const resolved = [...values.entries()].some(([fid, vals]) => {
@@ -647,84 +678,105 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
     return f?.type === 'state' && vals.some((v) => (v.valueId ? s.values.get(v.valueId)?.isResolved : false));
   });
 
-  const parent = input.parent ? await resolveIssue(ctx, input.parent) : undefined;
+  const parent = input.parent ? await resolveIssue(ctx, input.parent, db) : undefined;
   const linkTargets = await Promise.all(
-    (input.links ?? []).map(async (l) => ({ phrase: resolveLinkPhrase(s, l.relation), target: await resolveIssue(ctx, l.issue) })),
+    (input.links ?? []).map(async (l) => ({ phrase: resolveLinkPhrase(s, l.relation), target: await resolveIssue(ctx, l.issue, db) })),
   );
   const subtaskPhrase = s.linkPhrases.find((p) => p.type.aggregation && p.direction === 'inward');
   if (parent && !subtaskPhrase) throw badRequest('No subtask link type is configured');
+  const links: LinkSpec[] = linkTargets.map((l) => ({ phrase: l.phrase, target: l.target }));
+  if (parent && subtaskPhrase) links.unshift({ phrase: subtaskPhrase, target: parent });
+  return { s, project, summary, description: input.description ?? '', specs, values, resolved, tags: input.tags ?? [], links };
+}
 
+/** Write a prepared issue inside `tx`, with its activity. */
+async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptions): Promise<{ issue: IssueRow; activities: ActivityRow[] }> {
+  const { s, project, summary, values, specs } = p;
+  const imported = opts.imported;
   const activities: ActivityRow[] = [];
-  const created = await ctx.db.transaction(async (txRaw) => {
-    const tx = txRaw as unknown as Db;
-    const [{ number } = { number: 0 }] = await tx
-      .update(projects)
-      .set({ nextNumber: sql`${projects.nextNumber} + 1` })
-      .where(eq(projects.id, project.id))
-      .returning({ number: sql<number>`${projects.nextNumber} - 1` });
-    const id = newId();
-    const [row] = await tx
-      .insert(issues)
-      .values({
-        id,
-        projectId: project.id,
-        number: Number(number),
-        summary,
-        description: input.description ?? '',
-        reporterId: ctx.actor.user.id,
-        updatedById: ctx.actor.user.id,
-        resolvedAt: resolved ? new Date() : null,
-      })
-      .returning();
-    const fieldRowsToInsert = [...values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: id, fieldId, ...v })));
-    if (fieldRowsToInsert.length) await tx.insert(issueFieldValues).values(fieldRowsToInsert);
+  const [{ number } = { number: 0 }] = await tx
+    .update(projects)
+    .set({ nextNumber: sql`${projects.nextNumber} + 1` })
+    .where(eq(projects.id, project.id))
+    .returning({ number: sql<number>`${projects.nextNumber} - 1` });
+  const id = newId();
+  const now = new Date();
+  const [row] = await tx
+    .insert(issues)
+    .values({
+      id,
+      projectId: project.id,
+      number: Number(number),
+      summary,
+      description: p.description,
+      reporterId: imported ? imported.reporterId : ctx.actor.user.id,
+      updatedById: ctx.actor.user.id,
+      ...(imported ? { createdAt: imported.createdAt, updatedAt: imported.updatedAt } : {}),
+      resolvedAt: p.resolved ? (imported ? (imported.resolvedAt ?? imported.updatedAt) : now) : null,
+    })
+    .returning();
+  const fieldRowsToInsert = [...values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: id, fieldId, ...v })));
+  if (fieldRowsToInsert.length) await tx.insert(issueFieldValues).values(fieldRowsToInsert);
 
-    const fieldsPresentation: Record<string, string | null> = {};
-    for (const [fid, vals] of values) {
-      const f = s.fields.get(fid);
-      if (f) fieldsPresentation[f.name] = presentValues(s, f, vals);
-    }
-    const tagRows = input.tags?.length ? await ensureTags(tx, ctx, input.tags) : [];
-    if (tagRows.length) {
-      await tx
-        .insert(issueTags)
-        .values(tagRows.map((t) => ({ issueId: id, tagId: t.id })))
-        .onConflictDoNothing();
-    }
-    const states = await stateNames(tx, s, [id]);
-    activities.push(
-      await recordActivity(tx, ctx, {
-        type: 'issue.created',
-        projectId: project.id,
-        issueId: id,
-        payload: {
-          issue: issueRef(s, row!, states.get(id) ?? null),
-          data: {
-            summary,
-            fields: fieldsPresentation,
-            // Which fields the reporter chose (the rest are project defaults), so an
-            // agent filling fields on its own never overrides a person's choice.
-            explicitFields: specs.map((sp) => sp.field.name),
-            tags: tagRows.map((t) => t.name),
-            description: excerpt(input.description ?? '', 1000),
-          },
+  const fieldsPresentation: Record<string, string | null> = {};
+  for (const [fid, vals] of values) {
+    const f = s.fields.get(fid);
+    if (f) fieldsPresentation[f.name] = presentValues(s, f, vals);
+  }
+  const tagRows = p.tags.length ? await ensureTags(tx, ctx, p.tags) : [];
+  if (tagRows.length) {
+    await tx
+      .insert(issueTags)
+      .values(tagRows.map((t) => ({ issueId: id, tagId: t.id })))
+      .onConflictDoNothing();
+  }
+  const states = await stateNames(tx, s, [id]);
+  activities.push(
+    await recordActivity(tx, ctx, {
+      type: 'issue.created',
+      projectId: project.id,
+      issueId: id,
+      payload: {
+        issue: issueRef(s, row!, states.get(id) ?? null),
+        data: {
+          summary,
+          fields: fieldsPresentation,
+          // Which fields the reporter chose (the rest are project defaults), so an
+          // agent filling fields on its own never overrides a person's choice.
+          explicitFields: specs.map((sp) => sp.field.name),
+          tags: tagRows.map((t) => t.name),
+          description: excerpt(p.description, 1000),
+          ...(imported ? { imported: imported.data } : {}),
         },
-      }),
-    );
+      },
+    }),
+  );
 
-    const links: LinkSpec[] = linkTargets.map((l) => ({ phrase: l.phrase, target: l.target }));
-    if (parent && subtaskPhrase) links.unshift({ phrase: subtaskPhrase, target: parent });
-    if (links.length) {
-      const res = await applyChanges(tx, ctx, row!, { links });
-      activities.push(...res.activities);
-      return res.issue;
-    }
-    return row!;
-  });
+  if (p.links.length) {
+    const res = await applyChanges(tx, ctx, row!, { links: p.links, ...(imported ? { data: { imported: imported.data } } : {}) });
+    activities.push(...res.activities);
+    return { issue: res.issue, activities };
+  }
+  return { issue: row!, activities };
+}
 
+export async function createIssue(ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<IssueDetail> {
+  requireScope(ctx, 'write');
+  const prepared = await prepareIssue(ctx, input, ctx.db);
+  const { issue: created, activities } = await ctx.db.transaction(async (txRaw) => insertIssue(txRaw as unknown as Db, ctx, prepared, opts));
   await publishActivities(ctx.app, activities);
   ctx.app.hooks.onIssueCreated?.(created.id, ctx.actor);
   return issueDetail(ctx, created);
+}
+
+/**
+ * Create an issue inside the caller's transaction, as an import does, so the issue and what records
+ * where it came from commit together. The caller publishes the activities after its commit; no hook
+ * runs (an imported issue is not new work to triage).
+ */
+export async function createIssueInTx(tx: Db, ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<{ issue: IssueRow; activities: ActivityRow[] }> {
+  requireScope(ctx, 'write');
+  return insertIssue(tx, ctx, await prepareIssue(ctx, input, tx), opts);
 }
 
 export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateIssueInput, opts: { data?: Record<string, unknown> } = {}): Promise<IssueDetail> {

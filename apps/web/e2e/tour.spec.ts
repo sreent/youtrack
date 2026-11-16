@@ -68,6 +68,10 @@ const STOPS: Stop[] = [
   { name: 'an article', path: '/articles/BACK-A-2', ready: (p) => p.getByRole('article', { name: 'Database failover' }) },
   { name: "an article's versions", path: '/articles/BACK-A-2/history', ready: (p) => p.getByRole('heading', { name: /^Version \d+$/ }) },
   { name: 'writing an article', path: '/articles/BACK-A-2/edit', ready: (p) => p.getByRole('form', { name: 'Editing BACK-A-2' }) },
+  { name: 'cumulative flow', path: '/reports/flow', ready: (p) => p.getByRole('group', { name: 'Issues in each state, day by day' }) },
+  { name: 'cycle time', path: '/reports/cycle-time', ready: (p) => p.getByRole('group', { name: 'Issues by how long they took' }) },
+  { name: 'your dashboard', path: '/dashboard', ready: (p) => p.getByRole('heading', { name: 'How long work takes, the last 90 days' }) },
+  { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
 ];
 
 const MODES = [

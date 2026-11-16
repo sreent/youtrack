@@ -121,7 +121,7 @@ export function subscribeEvents(onEvent: (event: { type: string; issue: { id: st
       seen(e);
       onEvent({ type: 'resync', issue: null, project: null });
     });
-    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'attachment.added', 'attachment.removed', 'article.created', 'article.updated', 'article.deleted'];
+    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'attachment.added', 'attachment.removed', 'article.created', 'article.updated', 'article.deleted', 'sprint.issue_added', 'sprint.issue_removed'];
     for (const t of types)
       source.addEventListener(t, (e) => {
         seen(e);

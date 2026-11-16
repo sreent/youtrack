@@ -34,6 +34,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'article.created': 'an article is written',
   'article.updated': 'an article changes or moves',
   'article.deleted': 'an article is deleted',
+  'sprint.issue_added': 'an issue joins a sprint',
+  'sprint.issue_removed': 'an issue leaves a sprint',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

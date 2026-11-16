@@ -30,6 +30,7 @@ import { articleTools } from './articles';
 import { attachmentTools } from './attachments';
 import { formatBytes, listIssueAttachments } from '../services/attachments';
 import { articlesMentioningIssue } from '../services/articles';
+import { reportTools } from './reports';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
 import { defineTool, type ToolDef } from './types';
@@ -546,6 +547,7 @@ export const TOOLS: ToolDef[] = [
   ...accessTools,
   ...attachmentTools,
   ...articleTools,
+  ...reportTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

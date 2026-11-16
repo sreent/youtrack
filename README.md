@@ -21,6 +21,17 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - baselines with earned value (CPI, SPI, EAC).
 - **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
 - **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
+- **Reports**, worked out from each issue's history:
+  - a sprint's burndown, by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence (linked from the sprint board);
+  - cumulative flow, created against resolved, and cycle time with its percentiles;
+  - time logged by person, issue, project and week, against estimates.
+  - Each chart has its figures as a table beside it, and the tables download as CSV.
+- **Dashboards**: a page of your own reports, saved searches and notes, private or shared. Each viewer sees what they may.
+- **Importing from Jira or YouTrack** (CSV), for a project's managers:
+  - columns and values are mapped for you where their names say what they are, and you map the rest;
+  - a check says what would happen, row by row, before anything changes;
+  - issues keep their original dates, reporters, comments, time and links;
+  - running it again updates what changed and never makes an issue twice, and an import nobody has worked on since can be undone.
 - **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
@@ -38,7 +49,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 29 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first.
+- **For agents**: an MCP server at `/mcp` with 30 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start

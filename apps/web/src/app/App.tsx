@@ -21,6 +21,9 @@ const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const ArticlesPage = lazy(() => import('../pages/ArticlesPage'));
+const DashboardPage = lazy(() => import('../pages/DashboardPage'));
+const ReportsPage = lazy(() => import('../pages/ReportsPage'));
+const ImportPage = lazy(() => import('../pages/ImportPage'));
 
 export function App() {
   return (
@@ -56,6 +59,12 @@ export function App() {
           <Route path="/webhooks" element={<Page><WebhooksPage /></Page>} />
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />
+          <Route path="/dashboard" element={<Page><DashboardPage /></Page>} />
+          <Route path="/dashboard/:id" element={<Page><DashboardPage /></Page>} />
+          <Route path="/reports" element={<Page><ReportsPage /></Page>} />
+          <Route path="/reports/:kind" element={<Page><ReportsPage /></Page>} />
+          <Route path="/import" element={<Page><ImportPage /></Page>} />
+          <Route path="/import/:id" element={<Page><ImportPage /></Page>} />
           <Route path="*" element={<Navigate to="/issues" replace />} />
         </Route>
       </Routes>

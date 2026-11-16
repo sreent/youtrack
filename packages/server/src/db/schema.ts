@@ -377,6 +377,11 @@ export const activities = pgTable(
     index('activities_issue').on(t.issueId, t.id),
     index('activities_project').on(t.projectId, t.id),
     index('activities_created').on(t.createdAt),
+    // A sprint's burndown reads who joined and left it by sprint id. Only those rows are in it, so
+    // it stays small, and the burndown never scans the projects' whole history to find them.
+    index('activities_sprint')
+      .on(sql`(${t.payload}->'data'->>'sprintId')`, t.id)
+      .where(sql`${t.type} in ('sprint.issue_added', 'sprint.issue_removed')`),
   ],
 );
 
@@ -760,5 +765,115 @@ export const attachments = pgTable(
     index('attachments_comment').on(t.commentId),
     uniqueIndex('attachments_blob').on(t.blobKey),
     check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL)`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Dashboards
+// ---------------------------------------------------------------------------
+
+/** A person's page of widgets: reports with their parameters, saved searches, notes. */
+export const dashboards = pgTable(
+  'dashboards',
+  {
+    id: text('id').primaryKey(),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    shared: boolean('shared').notNull().default(false),
+    widgets: jsonb('widgets').notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('dashboards_owner').on(t.ownerId)],
+);
+
+// ---------------------------------------------------------------------------
+// Imports
+// ---------------------------------------------------------------------------
+
+/** One upload of a CSV export, its mapping, and how its run went. */
+export const imports = pgTable(
+  'imports',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    fileName: text('file_name').notNull(),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    status: text('status').notNull().default('ready'),
+    /** The header's names, by column. */
+    header: jsonb('header').notNull(),
+    rowCount: integer('row_count').notNull().default(0),
+    /** Targets by column, which of them were found from the header, value maps, options. */
+    mapping: jsonb('mapping').notNull(),
+    progressPhase: text('progress_phase'),
+    progressDone: integer('progress_done').notNull().default(0),
+    progressTotal: integer('progress_total').notNull().default(0),
+    /** Renewed while a run works; a run whose heartbeat is old has stopped. */
+    heartbeatAt: ts('heartbeat_at'),
+    startedAt: ts('started_at'),
+    finishedAt: ts('finished_at'),
+    error: text('error'),
+    result: jsonb('result'),
+  },
+  (t) => [index('imports_project').on(t.projectId, t.createdAt)],
+);
+
+/** The rows of an upload, as parsed, and what became of each. */
+export const importRows = pgTable(
+  'import_rows',
+  {
+    importId: text('import_id')
+      .notNull()
+      .references(() => imports.id, { onDelete: 'cascade' }),
+    /** Its row in the file, the header being row 1. */
+    n: integer('n').notNull(),
+    cells: jsonb('cells').notNull(),
+    status: text('status').notNull().default('pending'),
+    /** Not a reference: what it became is kept here after the issue is deleted (or undone). */
+    issueId: text('issue_id'),
+    readableId: text('readable_id'),
+    problems: jsonb('problems'),
+  },
+  (t) => [primaryKey({ columns: [t.importId, t.n] })],
+);
+
+/**
+ * Which a4a issue an issue of another tracker became, by its key there: what makes running an
+ * import again update or skip, never duplicate. Kept apart from the uploads, so a new export of
+ * the same project finds the issues an earlier one made.
+ */
+export const externalIssues = pgTable(
+  'external_issues',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    externalKey: text('external_key').notNull(),
+    /** Jira's numeric issue id, which its exports give parents by. */
+    externalId: text('external_id'),
+    /** null once the issue is deleted in a4a: a later run then skips it rather than make it again. */
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    readableId: text('readable_id').notNull(),
+    /** The import that created the issue; undoing it may take the issue away. */
+    createdByImportId: text('created_by_import_id'),
+    lastImportId: text('last_import_id'),
+    /** What the import last wrote, so a later run changes only what changed in the export. */
+    values: jsonb('values').notNull(),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.source, t.externalKey] }),
+    index('external_issues_issue').on(t.issueId),
+    index('external_issues_import').on(t.createdByImportId),
+    index('external_issues_external_id').on(t.projectId, t.source, t.externalId),
   ],
 );
