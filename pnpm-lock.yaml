@@ -24,8 +24,8 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#aaa52fcbba3e1ec62d5ee5d42bf59e765c761879
-        version: https://codeload.github.com/sreent/ocean/tar.gz/aaa52fcbba3e1ec62d5ee5d42bf59e765c761879
+        specifier: github:sreent/ocean#1de81f1839ec2ef6552d1ca26d6981e52b466ee3
+        version: https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -1213,8 +1213,8 @@ packages:
     resolution: {integrity: sha512-kUEVTgRFXAdNaR9DRncA2xfjFZtALn09kw1SBLhK5J7bXsqGYuPR94grpVC2K/G8r2ptICWDuzZIz+YABefgig==}
     engines: {node: '>=22.19.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/aaa52fcbba3e1ec62d5ee5d42bf59e765c761879':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/aaa52fcbba3e1ec62d5ee5d42bf59e765c761879}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -4460,7 +4460,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/aaa52fcbba3e1ec62d5ee5d42bf59e765c761879': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/1de81f1839ec2ef6552d1ca26d6981e52b466ee3': {}
 
   '@stablelib/base64@1.0.1': {}
 

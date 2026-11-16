@@ -2,7 +2,7 @@
 
 A YouTrack-style tracker of issues, boards and plans, with a REST API, an MCP server for agents, and AI built in. It joins **a7c** (autonomic), **a5s** (agentos) and **a3t** (ambit), and wears their shared look, [Ocean](https://github.com/sreent/ocean).
 
-a4a's own pieces (issue list, query and command bars, field panel, board, Gantt, load grid, cost panel and more) are proposed to Ocean in [sreent/ocean#7](https://github.com/sreent/ocean/pull/7). The app pins that branch until it merges.
+a4a's own pieces (issue list, query and command bars, field panel, board, Gantt, load grid, cost panel and more) are part of Ocean since [sreent/ocean#7](https://github.com/sreent/ocean/pull/7), and the app pins Ocean's `main` at that merge.
 
 ## What it does
 
