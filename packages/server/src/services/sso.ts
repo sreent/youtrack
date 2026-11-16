@@ -14,12 +14,12 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { SignIn } from '@a4a/shared';
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import * as oidc from 'openid-client';
 import type { AppServices } from '../context';
 import type { OidcConfig } from '../config';
 import type { Db } from '../db/client';
-import { authStates, userIdentities, users } from '../db/schema';
+import { authStates, scimUsers, userIdentities, userTotp, users } from '../db/schema';
 import { sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
@@ -307,7 +307,7 @@ export async function personFromProvider(app: AppServices, p: ProviderPolicy, wh
 }
 
 /** A login like theirs that nobody has: "anna", or "anna2" and on. */
-async function freeLogin(db: Db, wanted: string): Promise<string> {
+export async function freeLogin(db: Db, wanted: string): Promise<string> {
   const base = (wanted.normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g, '').replace(/^[._-]+/, '').slice(0, 36) || 'user').toLowerCase();
   const padded = base.length >= 2 ? base : `${base}user`;
   const taken = new Set(
@@ -326,15 +326,24 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     if (app.config.oidc?.issuer === issuer) return app.config.oidc.name;
     // SAML identities are kept under "saml:" and the provider's entity id.
     if (issuer.startsWith('saml:')) return app.config.saml?.name ?? 'SAML';
+    // LDAP identities are kept under "ldap:" and the directory's host (D38).
+    if (issuer.startsWith('ldap:')) return app.config.ldap?.name ?? 'LDAP';
     try {
       return new URL(issuer).hostname;
     } catch {
       return issuer;
     }
   };
+  const ids = people.map((u) => u.id);
+  const twoFactor = new Set(
+    ids.length ? (await db.select({ userId: userTotp.userId }).from(userTotp).where(and(inArray(userTotp.userId, ids), isNotNull(userTotp.confirmedAt)))).map((r) => r.userId) : [],
+  );
+  const provisioned = new Set(ids.length ? (await db.select({ userId: scimUsers.userId }).from(scimUsers).where(inArray(scimUsers.userId, ids))).map((r) => r.userId) : []);
   for (const u of people) {
     out.set(u.id, {
       password: Boolean(u.passwordHash),
+      twoFactor: twoFactor.has(u.id),
+      provisioned: provisioned.has(u.id),
       emailConfirmed: Boolean(u.email) && u.emailVerified,
       identities: links
         .filter((l) => l.userId === u.id)

@@ -267,6 +267,28 @@ export async function syncProviderGroups(app: AppServices, userId: string, names
   return changed;
 }
 
+/**
+ * Who is in a group that follows the provider, as provisioning (SCIM, D38) says: people put in,
+ * people taken out, or exactly these people. Like a sign-in's, these memberships are the provider's
+ * (no one added them by hand). Returns whether anything changed.
+ */
+export async function setProviderMembers(app: AppServices, groupId: string, change: { add?: string[]; remove?: string[]; exactly?: string[] }): Promise<boolean> {
+  const changed = await app.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const current = new Set((await tx.select({ userId: groupMembers.userId }).from(groupMembers).where(eq(groupMembers.groupId, groupId))).map((r) => r.userId));
+    const should = new Set(change.exactly ?? current);
+    for (const id of change.add ?? []) should.add(id);
+    for (const id of change.remove ?? []) should.delete(id);
+    const add = [...should].filter((id) => !current.has(id));
+    const remove = [...current].filter((id) => !should.has(id));
+    if (add.length) await tx.insert(groupMembers).values(add.map((userId) => ({ groupId, userId, addedById: null }))).onConflictDoNothing();
+    if (remove.length) await tx.delete(groupMembers).where(and(eq(groupMembers.groupId, groupId), inArray(groupMembers.userId, remove)));
+    return add.length > 0 || remove.length > 0;
+  });
+  if (changed) accessChanged(app);
+  return changed;
+}
+
 // ---------------------------------------------------------------------------
 // A project's groups: its managers
 // ---------------------------------------------------------------------------

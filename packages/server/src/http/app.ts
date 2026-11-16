@@ -16,6 +16,7 @@ import { aiRoutes } from './routes/ai';
 import { articleRoutes } from './routes/articles';
 import { attachmentRoutes } from './routes/attachments';
 import { authRoutes } from './routes/auth';
+import { twoFactorRoutes } from './routes/two-factor';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
@@ -33,6 +34,7 @@ import { vcsRoutes } from './routes/vcs';
 import { emailRoutes } from './routes/emails';
 import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
+import { scimApp, scimTokenRoutes } from '../scim/routes';
 import { absenceRoutes } from './routes/absences';
 import { groupRoutes } from './routes/groups';
 import { guestRoutes, roleRoutes } from './routes/roles';
@@ -69,6 +71,8 @@ export function createHttpApp(runtime: Runtime) {
   api.openAPIRegistry.registerComponent('securitySchemes', 'cookieAuth', { type: 'apiKey', in: 'cookie', name: SESSION_COOKIE });
 
   authRoutes(api);
+  twoFactorRoutes(api);
+  scimTokenRoutes(api);
   coreRoutes(api);
   issueRoutes(api);
   boardRoutes(api);
@@ -132,14 +136,18 @@ export function createHttpApp(runtime: Runtime) {
   root.use('/api/*', csrfGuard(runtime.config.publicUrl, ['/api/v1/auth/saml/acs']));
   root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy, new RateLimiter(runtime.config.guestRateLimit, 60_000)));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
+  // Provisioning (SCIM, D38): its own tokens and errors, under the API's limit.
+  root.use('/scim/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
   // What anyone may post without signing in is small: a help desk request, a reply, an unsubscribe.
   const small = (maxSize: number) =>
     bodyLimit({ maxSize, onError: (c) => c.json(errorBody('too_large', 'The request is too large', `Send at most ${Math.round(maxSize / 1024)} KB.`), 413) });
   root.use('/api/v1/help/*', small(48 * 1024));
   root.use('/api/v1/unsubscribe', small(4 * 1024));
+  root.use('/scim/*', small(1024 * 1024));
   root.use('/api/*', idempotency(runtime));
 
   root.route('/api/v1', api);
+  root.route('/scim/v2', scimApp(runtime));
 
   // API reference, served without loading anything from outside.
   const require = createRequire(import.meta.url);

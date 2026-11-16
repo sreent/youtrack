@@ -1,4 +1,4 @@
-import type { GuestInfo, Me } from '@a4a/shared';
+import type { GuestInfo, Me, RecoveryCodes, SignInStep, TwoFactorEnrolment } from '@a4a/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -8,6 +8,7 @@ import { ErrorNote, Loading } from '../components/States';
 import { Icon } from '../components/Icon';
 import { Shell } from './Shell';
 import { FormField } from '../components/Form';
+import { CodeField, Enrol, RecoveryCodeList } from '../features/identity/TwoFactor';
 
 /** A page before the frame (Ocean's lone page): one card in the middle; `wide` for a conversation, as a help desk's. */
 export function Lone({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -92,6 +93,83 @@ function ssoFailure(code: string, name: string): { what: string; fix: string } {
   }
 }
 
+/**
+ * The step after a right password (D38): a code from the app, or, where everyone is asked for one,
+ * setting the app up first. A cookie good for ten minutes carries the sign-in between them.
+ */
+function SecondStep({ step, next, onRestart }: { step: SignInStep['step']; next: string; onRestart: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [enrolment, setEnrolment] = useState<TwoFactorEnrolment | null>(null);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const timedOut = error instanceof ApiError && error.status === 401;
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const again = (
+    <button type="button" className="link" onClick={onRestart}>
+      Sign in again
+    </button>
+  );
+  if (step === 'two_factor') {
+    return (
+      <AuthCard title="Two-factor sign-in" about="Your password was right. Now the code your authenticator app shows.">
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(async () => {
+              const me = await post<Me>('/auth/two-factor/verify', { code: code.trim() });
+              qc.setQueryData(keys.me, me);
+              navigate(next);
+            });
+          }}
+        >
+          <CodeField value={code} onChange={setCode} recovery autoFocus />
+          {error ? <ErrorNote error={error} /> : null}
+          <button type="submit" className="primary" disabled={busy || code.trim().length < 6}>
+            {busy ? 'Checking…' : 'Sign in'}
+          </button>
+        </form>
+        <p className="note">Lost your phone? Type one of your recovery codes instead. {timedOut ? again : null}</p>
+      </AuthCard>
+    );
+  }
+  return (
+    <AuthCard title="Set up two-factor sign-in" about="This instance asks everyone who signs in with a password for a code from an authenticator app too.">
+      {codes ? (
+        <>
+          <RecoveryCodeList codes={codes} />
+          <button type="button" className="primary" onClick={() => void qc.invalidateQueries({ queryKey: keys.me }).then(() => navigate(next))}>
+            I’ve kept them: continue
+          </button>
+        </>
+      ) : enrolment ? (
+        <Enrol enrolment={enrolment} confirm={(c) => post<RecoveryCodes>('/auth/two-factor/setup/confirm', { code: c })} onDone={setCodes} />
+      ) : (
+        <>
+          <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => setEnrolment(await post<TwoFactorEnrolment>('/auth/two-factor/setup')))}>
+            {busy ? 'Starting…' : 'Set it up'}
+          </button>
+          {error ? <ErrorNote error={error} /> : null}
+          {timedOut ? <p className="note">{again}</p> : null}
+        </>
+      )}
+    </AuthCard>
+  );
+}
+
 export function LoginPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -101,20 +179,29 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<SignInStep['step'] | null>(null);
   const raw = params.get('next') ?? '';
   const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/issues';
   // OpenID Connect, SAML, or both (D16, D27).
   const providers = [status.data?.signIn.sso, status.data?.signIn.saml].filter((p): p is { name: string; url: string } => Boolean(p));
   const sso = providers.length ? { name: providers.map((p) => p.name).join(' or ') } : null;
-  const passwords = status.data?.signIn.password ?? true;
+  // a4a's own passwords, a directory's (LDAP, D38), or both: one form either way.
+  const ldap = status.data?.signIn.ldap ?? null;
+  const own = status.data?.signIn.password ?? true;
+  const passwords = own || Boolean(ldap);
+  const formName = ldap && own ? `a4a or ${ldap.name} login` : ldap ? `${ldap.name} login` : 'a4a login';
   const failed = params.get('sso');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const me = await post<Me>('/auth/login', { login, password });
-      qc.setQueryData(keys.me, me);
+      const signedIn = await post<Me | SignInStep>('/auth/login', { login, password });
+      if ('step' in signedIn) {
+        setStep(signedIn.step);
+        return;
+      }
+      qc.setQueryData(keys.me, signedIn);
       navigate(next);
     } catch (err) {
       setError(err);
@@ -123,8 +210,20 @@ export function LoginPage() {
     }
   };
   const failure = failed && sso ? ssoFailure(failed, providers.length === 1 ? providers[0]!.name : 'your identity provider') : null;
+  if (step) {
+    return (
+      <SecondStep
+        step={step}
+        next={next}
+        onRestart={() => {
+          setStep(null);
+          setPassword('');
+        }}
+      />
+    );
+  }
   return (
-    <AuthCard title="Sign in" about={sso && !passwords ? `Use your ${sso.name} account.` : sso ? `Use your ${sso.name} account, or your a4a login.` : 'Use your a4a login.'}>
+    <AuthCard title="Sign in" about={sso && !passwords ? `Use your ${sso.name} account.` : sso ? `Use your ${sso.name} account, or your ${formName}.` : `Use your ${formName}.`}>
       {failure ? (
         <div className="error-note" role="alert">
           <Icon name="cross" />
@@ -138,7 +237,7 @@ export function LoginPage() {
         </a>
       ))}
       {passwords ? (
-        <form className="form" onSubmit={submit} aria-label={sso ? 'Sign in with your a4a login' : undefined}>
+        <form className="form" onSubmit={submit} aria-label={sso ? `Sign in with your ${formName}` : undefined}>
           <FormField label="Login">{(id) => <input id={id} value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" required autoFocus={!sso} />}</FormField>
           <FormField label="Password">
             {(id) => <input id={id} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />}

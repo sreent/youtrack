@@ -103,8 +103,20 @@ export function registrationOf(row: ClientRow): Registration {
   };
 }
 
-/** Register an app from its metadata, as RFC 7591 sends it. Errors are its own: invalid_redirect_uri, invalid_client_metadata. */
-export async function registerClient(db: Db, body: unknown): Promise<Registration> {
+export interface ClientFields {
+  name: string | null;
+  redirectUris: string[];
+  grantTypes: string[];
+  scope: string | null;
+  softwareId: string | null;
+  softwareVersion: string | null;
+}
+
+/**
+ * What an app says of itself, checked: by registration (RFC 7591), or in its client ID metadata
+ * document (D38). Errors are OAuth's: invalid_redirect_uri, invalid_client_metadata.
+ */
+export function clientFields(body: unknown): ClientFields {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new OAuthError('invalid_client_metadata', 'Send the app’s metadata as a JSON object');
   const b = body as Record<string, unknown>;
   const uris = b.redirect_uris;
@@ -128,6 +140,19 @@ export async function registerClient(db: Db, body: unknown): Promise<Registratio
   if (!Array.isArray(responseTypes) || responseTypes.some((r) => r !== 'code')) {
     throw new OAuthError('invalid_client_metadata', 'response_types may hold code only');
   }
+  return {
+    name: said(b.client_name, 80),
+    redirectUris: [...new Set(uris)],
+    grantTypes: [...new Set(grantTypes as string[])],
+    scope: said(b.scope, 200),
+    softwareId: said(b.software_id, 100),
+    softwareVersion: said(b.software_version, 50),
+  };
+}
+
+/** Register an app from its metadata, as RFC 7591 sends it. Errors are its own: invalid_redirect_uri, invalid_client_metadata. */
+export async function registerClient(db: Db, body: unknown): Promise<Registration> {
+  const fields = clientFields(body);
   // A public client: whatever way of authenticating it asks for, it gets none (RFC 7591 lets the
   // server substitute its own value), and the answer says so.
   const [{ n } = { n: 0 }] = await db
@@ -143,15 +168,7 @@ export async function registerClient(db: Db, body: unknown): Promise<Registratio
   if (Number(n) >= MAX_UNUSED_PER_DAY) throw new OAuthError('temporarily_unavailable', 'Too many apps registered today and never used: try again tomorrow', 503);
   const [row] = await db
     .insert(oauthClients)
-    .values({
-      id: randomToken('a4a-app-', 18),
-      name: said(b.client_name, 80),
-      redirectUris: [...new Set(uris)],
-      grantTypes: [...new Set(grantTypes as string[])],
-      scope: said(b.scope, 200),
-      softwareId: said(b.software_id, 100),
-      softwareVersion: said(b.software_version, 50),
-    })
+    .values({ id: randomToken('a4a-app-', 18), ...fields })
     .returning();
   return registrationOf(row!);
 }

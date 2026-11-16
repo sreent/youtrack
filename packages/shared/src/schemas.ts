@@ -117,6 +117,8 @@ export const SignInSchema = z
         lastSignInAt: timestamp.nullable(),
       }),
     ),
+    twoFactor: z.boolean().optional().describe('Their password sign-in asks for a code from an authenticator app too (D38)'),
+    provisioned: z.boolean().optional().describe('The identity provider manages this account through SCIM (D38)'),
   })
   .meta({ id: 'SignIn' });
 export type SignIn = z.infer<typeof SignInSchema>;
@@ -169,6 +171,11 @@ export const SetupStatusSchema = z
         .nullable()
         .optional()
         .describe('Signing in with SAML 2.0, beside (or instead of) OpenID Connect'),
+      ldap: z
+        .object({ name: z.string().describe('The directory, by the name people see') })
+        .nullable()
+        .optional()
+        .describe('The login and password form checks passwords against this LDAP directory too (D38)'),
     }),
     mcpOAuth: z.boolean().describe('Whether MCP clients may sign in with OAuth, instead of carrying a token (D28)'),
   })
@@ -966,12 +973,17 @@ export const SettingsSchema = z
     instanceName: z.string(),
     defaultTriageMode: z.enum(TRIAGE_MODES),
     publicUrl: z.string(),
+    requireTwoFactor: z
+      .boolean()
+      .optional()
+      .describe('Every sign-in with a password asks for a code from an authenticator app, and someone without one sets it up first (D38)'),
   })
   .meta({ id: 'Settings' });
 export type Settings = z.infer<typeof SettingsSchema>;
 export const SettingsBody = z.object({
   instanceName: z.string().min(1).max(80).optional(),
   defaultTriageMode: z.enum(TRIAGE_MODES).optional(),
+  requireTwoFactor: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -2130,6 +2142,11 @@ export const OAuthAuthorizationSchema = z
         name: z.string().nullable().describe('What the app calls itself. It said so when it registered, and a4a can’t check it'),
         redirectUri: z.string().describe('Where the browser goes back with the answer'),
         redirectHost: z.string(),
+        documentHost: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('For an app known by its client ID metadata document (D38): the host that document is at, which vouches for the app'),
         local: z.boolean().describe('Whether that is a program on this computer (a loopback address)'),
         registeredAt: timestamp,
       }),
@@ -2732,3 +2749,62 @@ export const GuestInfoSchema = z
   })
   .meta({ id: 'GuestInfo' });
 export type GuestInfo = z.infer<typeof GuestInfoSchema>;
+
+// ---------------------------------------------------------------------------
+// Identity in depth (D38): two-factor sign-in, SCIM provisioning
+// ---------------------------------------------------------------------------
+
+/** A sign-in whose password was right, still owing a step: a code, or setting two-factor up first. */
+export const SignInStepSchema = z
+  .object({
+    step: z
+      .enum(['two_factor', 'two_factor_setup'])
+      .describe('two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup)'),
+  })
+  .meta({ id: 'SignInStep' });
+export type SignInStep = z.infer<typeof SignInStepSchema>;
+
+export const TwoFactorStatusSchema = z
+  .object({
+    enabled: z.boolean(),
+    enabledAt: timestamp.nullable(),
+    recoveryCodesLeft: z.number().int().describe('Recovery codes not used yet'),
+    required: z.boolean().describe('Whether an administrator requires it of every password account'),
+  })
+  .meta({ id: 'TwoFactorStatus' });
+export type TwoFactorStatus = z.infer<typeof TwoFactorStatusSchema>;
+
+export const TwoFactorEnrolmentSchema = z
+  .object({
+    secret: z.string().describe('The secret, for typing into an authenticator app by hand, in groups of four'),
+    otpauthUri: z.string().describe('What the QR code holds'),
+    qrUrl: z.string().describe('The QR code, as an SVG image'),
+  })
+  .meta({ id: 'TwoFactorEnrolment' });
+export type TwoFactorEnrolment = z.infer<typeof TwoFactorEnrolmentSchema>;
+
+export const RecoveryCodesSchema = z
+  .object({ recoveryCodes: z.array(z.string()).describe('Shown once: each signs in once in place of a code, for when the authenticator is lost') })
+  .meta({ id: 'RecoveryCodes' });
+export type RecoveryCodes = z.infer<typeof RecoveryCodesSchema>;
+
+export const TwoFactorCodeBody = z.object({
+  code: z.string().trim().min(6).max(20).describe('Six digits from the authenticator app, or a recovery code'),
+});
+
+export const ScimTokenSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    prefix: z.string(),
+    createdAt: timestamp,
+    lastUsedAt: timestamp.nullable(),
+  })
+  .meta({ id: 'ScimToken' });
+export type ScimToken = z.infer<typeof ScimTokenSchema>;
+export const ScimTokenCreatedSchema = ScimTokenSchema.extend({
+  token: z.string().describe('Shown once: the identity provider sends it as a Bearer token'),
+  baseUrl: z.string().describe("The SCIM endpoint's address, for the provider's Tenant URL"),
+}).meta({ id: 'ScimTokenCreated' });
+export type ScimTokenCreated = z.infer<typeof ScimTokenCreatedSchema>;
+export const CreateScimTokenBody = z.object({ name: z.string().trim().min(1).max(80).describe('Whose it is, e.g. "Microsoft Entra ID"') });

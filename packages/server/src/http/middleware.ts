@@ -40,6 +40,11 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
     c.set('runtime', runtime);
     c.set('requestId', newId(10));
     let ctx: Ctx | null = null;
+    // SCIM takes its own tokens, and nothing else (scim/routes.ts, D38).
+    if (c.req.path === '/scim' || c.req.path.startsWith('/scim/')) {
+      c.set('ctx', null);
+      return next();
+    }
     const header = c.req.header('authorization');
     const isMcp = c.req.path === '/mcp' || c.req.path.startsWith('/mcp/');
     if (header?.toLowerCase().startsWith('bearer ')) {

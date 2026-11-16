@@ -275,7 +275,7 @@ People can sign in with their organisation's identity provider: the authorizatio
 - **Optionally:** allowed email domains, accounts made on first sign-in, and password sign-in turned off (only while single sign-on is on).
 - **Each sign-in starts a new session**, and ends the one the browser had.
 
-- **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout and SCIM are not done: an account removed at the provider keeps its a4a sessions until they expire, or until an administrator bans it.
+- **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout is not done: an account removed at the provider keeps its a4a sessions until they expire, until an administrator bans it, or until provisioning deactivates it (SCIM, D38).
 - **Revisit when:** several providers are needed (the table already keys identities by provider).
 
 **OAuth for remote MCP** is D28: a4a is the authorization server for `/mcp`, and signs the person in on the way with a password or this single sign-on.
@@ -572,7 +572,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Who someone is**, as with OIDC: one function serves both. Identities are kept under `saml:` and the provider's entity id, with the NameID, and a first sign-in race is made safe the same way. SAML has no `email_verified`, so an asserted email counts as verified only with `SAML_TRUST_EMAIL`. Without it, an email links no existing account, and gives no second account an address one already has (the sign-in page says so: `unlinked`); a new account's email stays unconfirmed, and its NameID links it from then on. Allowed domains need it.
 
 - **Costs:** encrypted assertions aren't read, a4a's AuthnRequests aren't signed, and there's no single logout, so an account removed at the provider keeps its a4a sessions until they end or an administrator bans it, as with OIDC. One SAML provider at most, beside one OIDC provider. Groups follow the provider at sign-in only: someone it takes out of a group keeps that group in a4a until they next sign in.
-- **Revisit when:** a provider must encrypt assertions or wants signed requests (node-saml does both, given a key of a4a's); membership must follow the provider between sign-ins (SCIM); or people sign in with LDAP.
+- **Revisit when:** a provider must encrypt assertions or wants signed requests (node-saml does both, given a key of a4a's); membership must follow the provider between sign-ins (SCIM); or people sign in with LDAP. (D38 does both.)
 
 ### D28. Remote MCP signs in with OAuth 2.1, and a4a is its own authorization server
 
@@ -641,9 +641,9 @@ An MCP client such as Claude or Claude Code needs only `PUBLIC_URL/mcp`. The fir
 
 **Revisit when:**
 
-- MCP clients move to client ID metadata documents. a4a would then fetch a document the client names, with the care any outbound request takes.
+- MCP clients move to client ID metadata documents. a4a would then fetch a document the client names, with the care any outbound request takes. (Done: D38.)
 - An organisation wants its own provider to issue the tokens. a4a would then check that provider's tokens for audience `/mcp` and map their scopes.
-- A tool should ask for writing only when it needs it (step-up, with `insufficient_scope`).
+- A tool should ask for writing only when it needs it (step-up, with `insufficient_scope`). (Done: D38.)
 
 ### D29. Importing from YouTrack's and Jira's APIs: the CSV importer's rows, read with a token nobody keeps
 
@@ -957,6 +957,47 @@ Until now a project was the one unit of access: whoever could read it read all o
 
 **Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`.
 
+### D38. Identity in depth: a second factor, a directory, provisioning, and apps that name themselves
+
+Four pieces, each where people sign in or are kept, and each through the paths already there.
+
+- **Two-factor sign-in** for password accounts: a code from an authenticator app after the password (TOTP, RFC 6238: six digits, a 30-second step, a step either side for a clock a little off).
+  - It's set up from the profile, with a QR code a4a draws itself: an SVG in a `data:` address, so the page's CSP (`img-src 'self' data:`) holds and nothing comes from outside. A code from the app turns it on, and ten recovery codes are shown once.
+  - The secret is sealed (AES-256-GCM) under `SECRET_KEY`, or under a key a4a writes to `DATA_DIR/secret.key` (mode 0600) the first time it needs one. A copy of the database alone doesn't hold it. Several instances need the same `SECRET_KEY`.
+  - Recovery codes are kept as hashes, each good once.
+  - A code is good once: the step it was taken in is kept, and taking it is one conditional update, so two requests with one code can't both pass.
+  - **At sign-in**, a right password answers `{ "step": "two_factor" }` and a ticket cookie (`a4a_2fa`: sent only to `/api/v1/auth/two-factor`, SameSite Strict), not a session. The ticket is kept as a hash, for ten minutes and five tries. Each try also counts in the sign-in throttle, under a key no login can have. The session starts with the code.
+  - **Asking it of everyone** is an administrator's switch. From then on, a password sign-in without an app sets one up before its first session. Someone who knows only the password could set up their own app at that moment: that's the cost of asking at the next sign-in, as most products do. Required, it can't be turned off by its person; an administrator resets someone's for a lost phone.
+  - **Left alone:** single sign-on, whose provider has its own checks (Entra's multi-factor), and API tokens. A token can't change how anyone signs in: setting it up, new recovery codes and turning it off take a signed-in browser.
+- **LDAP sign-in**, through the same form.
+  - a4a binds as its service account, finds the one person the filter names, and binds as them with the password they typed. That bind is the check: a4a never sees their hash. Nobody, or two people, and no password is tried.
+  - What they typed goes into the filter escaped (RFC 4515), so it can't widen the search. An empty password is refused before anything is sent: many directories take a name with no password as an anonymous bind, which "succeeds".
+  - Over ldaps, or StartTLS. Plain ldap only to this machine, since people's passwords go to the directory. `LDAP_CA_CERT` adds a certificate authority.
+  - The person is found as single sign-on finds them: by the directory's id for them (objectGUID, entryUUID, or else the DN); the first time, by an email the directory vouches for (`LDAP_TRUST_EMAIL`); or made at the first sign-in, within `LDAP_ALLOWED_DOMAINS`.
+  - memberOf, or a group search, fills the groups that follow the provider (D27), at each sign-in.
+  - a4a's own passwords are tried first. `PASSWORD_LOGIN=false` turns those off; the directory's stay. The second step above asks the same of a directory's password.
+- **Provisioning, by SCIM 2.0** (RFC 7643, RFC 7644) at `/scim/v2`: the identity provider makes, changes and deactivates people and groups between sign-ins.
+  - Users and Groups, with GET, POST, PUT, PATCH and DELETE; the `eq` filter on `userName`, `externalId`, `emails.value` or `displayName`; paging; `excludedAttributes=members`; and ServiceProviderConfig, ResourceTypes and Schemas.
+  - Written for what Entra sends: `Replace` for replace, `"False"` for false, `emails[type eq "work"].value` as a path, a value with no path that holds several attributes (some written `name.givenName`), and members added and removed by value or by `members[value eq "…"]`. Attributes a4a doesn't keep are let be.
+  - It writes through the paths an administrator's changes take (createUser, updateUser, createGroup, updateGroup, deleteGroup), acting as the administrator who made its token, while they still are one. A SCIM token (`a4s_`) opens SCIM alone; API tokens and sessions don't open SCIM.
+  - It sees the people and groups it provisioned, not everyone. Someone new whose email is on an account here, confirmed, is that account from then on. An unconfirmed match is refused, as single sign-on refuses it, with how to confirm it.
+  - **Deactivating bans**, whether `active` turns false or the person is deleted: they can't sign in, their sessions end, and their account, history and what they wrote stay. A delete also takes them out of provisioned groups, and out of SCIM's sight.
+  - **Provisioned groups follow the provider** (D27). Their provider name is their `externalId` (Entra's object id, the one its groups claim names), or else their name, so provisioning and a sign-in's claim say the same. Nobody adds people to them by hand.
+  - Writes go one at a time, under the instances' advisory lock, so two requests for one userName can't make two people. Provisioning is a trickle, so the queue stays short.
+- **MCP's newer client identification** (D28's "Not yet").
+  - **Client ID metadata documents.** A client_id that is an https address names a JSON document saying what registration would have. a4a reads it when the app first comes, and again once the reading has run out: its Cache-Control, held between five minutes and a day. It's kept as a client row.
+  - Reading an address an app gives is a request a4a makes for it, so it is held in as imports' are. https, with a path, and no credentials, fragment or dot segments. An IP must be a public one; a name is resolved as the connection is made, with only public addresses offered, so it can't be pointed inside the network between a check and the request. No redirect is followed. At most 5 KB of JSON, within five seconds.
+  - The document must name itself (its `client_id` is the address it was read from) and be a public client's: no secret, `token_endpoint_auth_method` none. Its metadata passes registration's checks. The consent page names the host whose document describes the app; the name stays the app's own word. `MCP_OAUTH_CLIENT_DOCUMENTS=false` turns them off.
+  - **Asking for writing only when a tool needs it.** An app allowed only to read that calls a tool that changes something gets 403 with `WWW-Authenticate: Bearer error="insufficient_scope", scope="read write"`, as MCP's authorization asks, so the client asks its person again rather than failing. Only when the person could allow writing: a viewer's app gets the tool's own refusal.
+
+**What it costs.**
+- A password sign-in with two-factor is two requests.
+- Each SCIM write opens a connection of its own, for the lock.
+- An app known by its document waits for it, up to five seconds, at its first authorization and each time the reading has run out.
+- Two-factor and provisioning don't record events: they're about accounts, not projects, as a person's other changes aren't.
+
+**Revisit when:** passkeys (WebAuthn) are wanted beside codes, or instead of them; a directory is large enough that group searches at each sign-in are slow; provisioning comes in bulk (SCIM's `/Bulk`); or an MCP client wants to prove it is itself (`private_key_jwt`, with keys in its document).
+
 ### D40. Scripted workflows: rules in JavaScript, state machines and custom actions
 
 D25's rules say what they do in the query and command languages. Some workflows need more than a sentence: a computed value, a loop over subtasks, a decision on what changed. Three things now cover them: a rule can be a script, a state field can have a state machine, and a project can have named actions.
@@ -1137,8 +1178,7 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 Planned, with the seams already in place:
 
-- LDAP sign-in, and SCIM, so people and groups follow the identity provider between sign-ins (D27);
-- client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
+- passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);

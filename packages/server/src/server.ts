@@ -10,6 +10,7 @@ import { webhookConsumer } from './events/webhooks';
 import { ruleChores, rulesConsumer } from './workflow/engine';
 import { createHttpApp } from './http/app';
 import { needsSetup, pruneSessions } from './services/auth';
+import { pruneTickets } from './services/two-factor';
 import { pruneLoginThrottle } from './services/login-throttle';
 import { insertUser } from './services/users';
 
@@ -55,6 +56,7 @@ export function defaultChores(runtime: Runtime): Chore[] {
   return [
     { name: 'login-throttle', everyMs: 5 * 60_000, run: () => pruneLoginThrottle(runtime.db) },
     { name: 'sessions', everyMs: 60 * 60_000, run: () => pruneSessions(runtime.db) },
+    { name: 'sign-in tickets', everyMs: 60 * 60_000, run: () => pruneTickets(runtime.db) },
     ...choreFactories.flatMap((f) => f(runtime)),
     ...ruleChores(runtime),
   ];

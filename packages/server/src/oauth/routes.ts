@@ -163,6 +163,8 @@ export function mountOAuth(root: Hono<HttpEnv>, runtime: Runtime) {
       revocation_endpoint_auth_methods_supported: ['none'],
       scopes_supported: [...OAUTH_SCOPES],
       authorization_response_iss_parameter_supported: true,
+      // An app may be known by an https client_id, its metadata document's address (D38).
+      client_id_metadata_document_supported: config.oauthClientDocuments,
       service_documentation: `${urls.issuer}/api/docs`,
     });
   });

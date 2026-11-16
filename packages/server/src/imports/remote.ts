@@ -151,7 +151,7 @@ export function checkAddress(policy: RemotePolicy, raw: string, example: string)
 type LookupCallback = (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;
 
 /** DNS as the connection is made, offering only the addresses a4a may reach. */
-function guardedLookup(policy: RemotePolicy, url: URL) {
+export function guardedLookup(policy: RemotePolicy, url: URL) {
   return (hostname: string, options: LookupOptions, callback: LookupCallback) => {
     dnsLookup(hostname, { ...options, all: true }, (err, found) => {
       if (err) return callback(err, '');

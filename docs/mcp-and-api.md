@@ -95,7 +95,9 @@ remove tag needs-info duplicates BACK-7
 
 | Area | Endpoints | What it enables |
 |---|---|---|
-| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, single sign-on). Your `timeZone` (an IANA name, or null for the server's, `serverTimeZone`) is where your dates are read: "today" in your searches and commands, your digest's hour, your email's times |
+| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, LDAP, single sign-on). Your `timeZone` (an IANA name, or null for the server's, `serverTimeZone`) is where your dates are read: "today" in your searches and commands, your digest's hour, your email's times. `POST /auth/login` takes a4a's own password, then an LDAP directory's (D38) |
+| Two-factor sign-in | `POST /auth/two-factor/verify`, `POST /auth/two-factor/setup`, `POST /auth/two-factor/setup/confirm`; `GET /me/two-factor`, `POST /me/two-factor/setup`, `/confirm`, `/recovery-codes`, `/disable`; `DELETE /users/{id}/two-factor` | When it's on, `POST /auth/login` answers `{ "step": "two_factor" }` (or `two_factor_setup`, where everyone is asked) and a ten-minute cookie, and the code finishes the sign-in. From the profile: a new secret and its QR code (a `data:` image), turning it on with a code (the recovery codes are answered once), new recovery codes, turning it off; a signed-in browser only, never a token. An administrator resets someone's (D38) |
+| Provisioning | `GET/POST /scim/tokens`, `DELETE /scim/tokens/{id}` | Administrators' SCIM tokens for an identity provider; the secret and the tenant URL are answered once. SCIM itself is at `/scim/v2`, outside `/api/v1`: below |
 | Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
 | SAML sign-in | `GET /auth/saml/start?next=`, `POST /auth/saml/acs`, `GET /auth/saml/metadata` | SAML 2.0, for browsers (D27): an AuthnRequest by redirect, the signed response posted back, a new session on success; and a4a's service-provider metadata, for the identity provider |
 | API tokens | `GET/POST /me/tokens`, `PATCH/DELETE /me/tokens/{id}` | Personal tokens with scopes, expiry and, optionally, the only projects they reach (`projects`); the secret is shown once and stored hashed; last-used time is tracked |
@@ -163,6 +165,16 @@ remove tag needs-info duplicates BACK-7
 - **Timesheets.** `GET /reports/time.csv?rows=entries&from=2026-11-01&to=2026-11-30` for the month's entries, as a spreadsheet opens them.
 - **Moving from Jira.** `POST /imports?project=WEB` with the export, then `PUT /imports/{id}/mapping` for what wasn't found, `POST /imports/{id}/check`, and `POST /imports/{id}/run`; follow it with `GET /imports/{id}`.
 - **Moving from YouTrack, without an export.** `POST /imports/from-api` with `{"project": "WEB", "source": "youtrack", "url": "https://example.youtrack.cloud", "query": "project: WEB", "credentials": {"token": "perm:…"}}`. Follow `GET /imports/{id}` until it is `ready`, then map, check and run as above, giving the same `credentials` to `run` when it brings files. A Jira Cloud token goes with its account's `email`; a Jira Data Center personal access token goes alone. Not over MCP: an agent would pass the other tracker's token through a model's context.
+
+### 4.1 SCIM 2.0 (provisioning)
+
+`/scim/v2`, for an identity provider (D38), with `Authorization: Bearer a4s_…` (a SCIM token, from Administration → Provisioning) and `application/scim+json`.
+
+- `GET/POST /Users`, `GET/PUT/PATCH/DELETE /Users/{id}`; `GET/POST /Groups`, `GET/PUT/PATCH/DELETE /Groups/{id}`; `GET /ServiceProviderConfig`, `/ResourceTypes`, `/Schemas`.
+- Filters: `attribute eq "value"`, on `userName`, `externalId`, `emails.value` or `displayName` (users) and `displayName`, `externalId` (groups). Paging by `startIndex` and `count` (200 at most). `excludedAttributes=members`.
+- PATCH takes `add`, `replace` and `remove` in any case, `"True"`/`"False"`, filtered paths such as `emails[type eq "work"].value` and `members[value eq "…"]`, and a value with no path. Unknown attributes are let be.
+- Deactivating (`active: false`) or deleting bans; the account and its history stay. Groups follow the provider. A PATCH to a group answers 204.
+- Errors are SCIM's: `{ "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"], "status", "scimType?", "detail" }`, the detail saying what to change.
 
 ## 5. MCP server
 
@@ -281,11 +293,13 @@ a4a is the authorization server for its own `/mcp`, following MCP's authorizatio
 |---|---|
 | `GET /.well-known/oauth-protected-resource/mcp` (and `/.well-known/oauth-protected-resource`) | RFC 9728: `resource` is `PUBLIC_URL/mcp`, its authorization server is `PUBLIC_URL`, its scopes `read` and `write` |
 | `GET /.well-known/oauth-authorization-server` | RFC 8414: the endpoints below; `response_types` `code`; grants `authorization_code` and `refresh_token`; PKCE `S256`; client authentication `none`; `iss` in the answer (RFC 9207) |
-| `POST /oauth/register` | RFC 7591, JSON. Public clients only: `client_id`, never a secret. `redirect_uris` are https, or http to `127.0.0.1`, `[::1]` or `localhost`. 20 an hour per address |
+| `POST /oauth/register` | RFC 7591, JSON. Public clients only: `client_id`, never a secret. `redirect_uris` are https, or http to `127.0.0.1`, `[::1]` or `localhost`. 20 an hour per address. Or no registration at all: below |
 | `GET /oauth/authorize` | The consent page, in the browser: `response_type=code`, `client_id`, `redirect_uri`, `code_challenge` with `code_challenge_method=S256`, `state`, `scope`, `resource` |
 | `POST /oauth/token` | Form-encoded. `grant_type=authorization_code` with `code`, `code_verifier`, `client_id`, `redirect_uri`; or `grant_type=refresh_token` with `refresh_token`, `client_id` (and a narrower `scope`, if wanted). Optional `resource`. Answers `access_token`, `token_type`, `expires_in` (3600), `refresh_token` and `scope`, with `Cache-Control: no-store` |
 | `POST /oauth/revoke` | RFC 7009: `token`, `client_id`. A refresh token revokes everything issued since its code; an access token, itself. Always 200 |
 
+- **Client ID metadata documents** (D38). A client may use the https address of its metadata document as its `client_id`, and skip registering; the server's metadata says `client_id_metadata_document_supported`. a4a reads the document at the first authorization, and again once its Cache-Control (five minutes to a day) has run out. The address is https with a path, no credentials, fragment or dot segments, and resolves to a public address; no redirect is followed; the document is JSON of 5 KB at most, its `client_id` is its own address, and it is a public client's (`token_endpoint_auth_method` none, no secret). The consent page names the document's host.
+- **Stepping up** (D38). An app allowed only to read that calls a tool that changes something gets 403 and `WWW-Authenticate: Bearer error="insufficient_scope", scope="read write", resource_metadata=…`: it asks its person again, for writing. A viewer's app, whose person can't allow writing, gets the tool's own refusal.
 - **Scopes.** `read`, and `write`, which brings `read` with it. Words a4a doesn't know (`openid`, `offline_access`) are left out, not refused, and the token's `scope` says what was given. Never `admin`.
 - **The consent page** shows who asks (the name the app gave itself, said to be its own), where it sends the person back, what it may do, and where: every project, or the ones chosen. A person whose role only reads can't allow changes. Allowed once, an app asking for no more carries on without asking, for 90 days from its last use.
 - **Errors** are OAuth's: `{ "error", "error_description" }`.

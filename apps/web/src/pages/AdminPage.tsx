@@ -2,7 +2,7 @@ import type { Role, Settings, TriageMode, User } from '@a4a/shared';
 import { ROLES } from '@a4a/shared/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { patch, post } from '../api/client';
+import { del, patch, post } from '../api/client';
 import { keys, useMe, useSettings, useSetupStatus, useUsers } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
@@ -11,6 +11,7 @@ import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/commo
 import { LadderChoice } from '../features/common/Ladder';
 import { GroupsSection } from '../features/groups/GroupsSection';
 import { RolesSection } from '../features/roles/RolesSection';
+import { ProvisioningSection } from '../features/identity/Provisioning';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
 
@@ -35,7 +36,9 @@ function signsInWith(user: User, ways: SignInWays): { words: string; about: stri
   const providers = [...new Set((user.signIn?.identities ?? []).map((i) => i.provider))];
   const now = [...(user.signIn?.password && ways.passwords ? ['Password'] : []), ...providers];
   const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
-  if (now.length) return { words: now.join(' and '), about: last ? `last ${ago(last)}` : null };
+  // Two-factor and provisioning (D38) say how, beside where.
+  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? `last ${ago(last)}` : null].filter(Boolean);
+  if (now.length) return { words: now.join(' and '), about: also.length ? also.join(' · ') : null };
   if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: 'Not yet', about: `${ways.sso.name} finds them by email` };
   if (ways.sso && user.email) return { words: 'Not yet', about: 'once their email is confirmed' };
   return { words: 'Can’t yet', about: ways.sso ? 'Give them a password, or an email' : 'Give them a password' };
@@ -78,6 +81,14 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
   const how = signsInWith(user, ways);
   // An email people set for themselves isn't one single sign-on may find them by, until an administrator confirms it.
   const unconfirmed = Boolean(user.email) && user.signIn !== undefined && !user.signIn.emailConfirmed && form.email.trim() === (user.email ?? '');
+  const reset = useMutation({
+    mutationFn: () => del(`/users/${user.id}/two-factor`),
+    onSuccess: () => {
+      setSaid({ text: `${user.name}'s two-factor sign-in is reset: their next sign-in sets it up again if it's required.` });
+      void qc.invalidateQueries({ queryKey: keys.users });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
   const confirm = useMutation({
     mutationFn: () => patch<User>(`/users/${user.id}`, { email: user.email }),
     onSuccess: () => {
@@ -135,6 +146,11 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
         <span className="tw:block tw:min-w-36">
           {how.words}
           {how.about ? <span className="item-about">{how.about}</span> : null}
+          {user.signIn?.twoFactor && !isMe ? (
+            <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={`Reset two-factor for ${user.name}`}>
+              Reset two-factor
+            </button>
+          ) : null}
         </span>
       </td>
       <td>
@@ -305,11 +321,19 @@ function Instance({ settings }: { settings: Settings }) {
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   useEffect(() => setName(settings.instanceName), [settings.instanceName]);
   const save = useMutation({
-    mutationFn: (body: { instanceName?: string; defaultTriageMode?: TriageMode }) => patch<Settings>('/settings', body),
+    mutationFn: (body: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean }) => patch<Settings>('/settings', body),
     onSuccess: (s, body) => {
       qc.setQueryData(keys.settings, s);
       void qc.invalidateQueries({ queryKey: keys.setup });
-      setSaid({ text: body.defaultTriageMode ? 'New projects start at that rung from now on.' : 'Saved.' });
+      setSaid({
+        text: body.defaultTriageMode
+          ? 'New projects start at that rung from now on.'
+          : body.requireTwoFactor !== undefined
+            ? body.requireTwoFactor
+              ? 'From the next sign-in on, everyone who signs in with a password gives a code too; anyone without an app sets one up first.'
+              : 'Two-factor sign-in is each person’s choice again.'
+            : 'Saved.',
+      });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -345,6 +369,15 @@ function Instance({ settings }: { settings: Settings }) {
         onChange={save.isPending ? undefined : (m) => save.mutate({ defaultTriageMode: m })}
         note="Each project can change it on its own page."
       />
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={save.isPending && save.variables?.requireTwoFactor !== undefined ? save.variables.requireTwoFactor : Boolean(settings.requireTwoFactor)}
+          onChange={(e) => save.mutate({ requireTwoFactor: e.target.checked })}
+          disabled={save.isPending}
+        />
+        <span>Ask everyone who signs in with a password for a code from an authenticator app too. Single sign-on and tokens are left as they are.</span>
+      </label>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
   );
@@ -412,6 +445,7 @@ export default function AdminPage() {
       </section>
       <GroupsSection />
       <RolesSection />
+      <ProvisioningSection />
       <section className="card" aria-labelledby="vcs-people">
         <div className="section-head">
           <h2 id="vcs-people">Who wrote which commits</h2>

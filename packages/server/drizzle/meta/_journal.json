@@ -134,6 +134,13 @@
       "when": 1794848095944,
       "tag": "0018_access_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794848634410,
+      "tag": "0019_identity_depth",
+      "breakpoints": true
     }
   ]
 }
