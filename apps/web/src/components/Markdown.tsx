@@ -1,4 +1,5 @@
 // By their own paths, so the zod contract stays out of the browser's bundle (the page's CSP reports zod's eval check).
+import { imageAttachment } from '@a4a/shared/markdown';
 import { MENTION, mentionLogin } from '@a4a/shared/mentions';
 import { findRefs } from '@a4a/shared/refs';
 import { useMemo } from 'react';
@@ -77,6 +78,39 @@ function remarkMentions(find: (login: string) => Person | undefined) {
   };
 }
 
+/** An HTML node, as far as checklists need one. */
+interface HNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HNode[];
+}
+
+const textOf = (node: HNode): string =>
+  node.type === 'text' ? (node.value ?? '') : node.tagName === 'ul' || node.tagName === 'ol' ? '' : (node.children ?? []).map(textOf).join('');
+
+/**
+ * Number each checklist box in the order it's read, and give it its item's words to be known by.
+ * The numbers are those of @a4a/shared/markdown's taskItems, read with the same grammar, so a box
+ * ticked here is the item ticked in the text (D39).
+ */
+function rehypeTasks() {
+  return (tree: HNode) => {
+    let n = 0;
+    const walk = (node: HNode) => {
+      if (node.tagName === 'li') {
+        const box = node.children?.find((c) => c.tagName === 'input' && c.properties?.type === 'checkbox');
+        if (box) {
+          box.properties = { ...box.properties, dataTask: String(n++), ariaLabel: textOf(node).trim().slice(0, 120) || 'A checklist item' };
+        }
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
 const ID_LINK = /^\/(issues|articles)\/[A-Z]/;
 const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
 
@@ -85,8 +119,24 @@ const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
  * ids linked and people's mentions shown by name. On a public page (`outside`), neither: what leads
  * into the tracker means nothing to someone who can't sign in. `headingsFrom` starts its headings
  * lower, so a page keeps its own first-level heading: an article's "# Setup" is an h2.
+ *
+ * A picture shows only when it's one of a4a's own raster images (`/attachments/{id}/image`, D39);
+ * any other, from elsewhere or of another kind, is named, never fetched. With `onToggleTask`,
+ * checklist boxes can be ticked: it's told which item, by its place, and whether it's now done.
  */
-export function Markdown({ text, className, outside, headingsFrom = 1 }: { text: string; className?: string; outside?: boolean; headingsFrom?: 1 | 2 }) {
+export function Markdown({
+  text,
+  className,
+  outside,
+  headingsFrom = 1,
+  onToggleTask,
+}: {
+  text: string;
+  className?: string;
+  outside?: boolean;
+  headingsFrom?: 1 | 2;
+  onToggleTask?: (index: number, checked: boolean) => void;
+}) {
   const users = useUsers({ enabled: !outside });
   const plugins = useMemo(() => {
     const byLogin = new Map<string, Person>();
@@ -95,7 +145,10 @@ export function Markdown({ text, className, outside, headingsFrom = 1 }: { text:
   }, [users.data, outside]);
   const components: Components = {
     a: ({ href, children, className: cls, title }) =>
-      href?.startsWith('/') && !outside ? (
+      href?.startsWith('/api/') ? (
+        // A file of a4a's: fetched by the browser, not routed by the app.
+        <a href={href}>{children}</a>
+      ) : href?.startsWith('/') && !outside ? (
         <Link to={href} title={title} className={cls === 'mention' ? 'mention' : ID_LINK.test(href) ? 'issue-id' : undefined}>
           {children}
         </Link>
@@ -104,6 +157,30 @@ export function Markdown({ text, className, outside, headingsFrom = 1 }: { text:
           {children}
         </a>
       ),
+    img: ({ src, alt }) => {
+      const source = typeof src === 'string' ? src : '';
+      if (!outside && imageAttachment(source)) return <img src={source} alt={alt ?? ''} loading="lazy" decoding="async" />;
+      // Never fetched: from elsewhere, or a4a's own where nobody is signed in to see it.
+      const name = alt?.trim() || 'A picture';
+      return /^https?:\/\//i.test(source) && !outside ? (
+        <a className="image-elsewhere" href={source} target="_blank" rel="noreferrer noopener">
+          {name}
+        </a>
+      ) : (
+        <span className="image-elsewhere">{name}</span>
+      );
+    },
+    input: ({ type, checked, ...props }) => {
+      // Markdown makes no other input (raw HTML is escaped): a checklist's box, or nothing.
+      if (type !== 'checkbox') return null;
+      const index = Number((props as Record<string, unknown>)['data-task']);
+      const label = (props as Record<string, unknown>)['aria-label'] as string | undefined;
+      return onToggleTask && Number.isInteger(index) ? (
+        <input type="checkbox" checked={Boolean(checked)} aria-label={label} onChange={(e) => onToggleTask(index, e.target.checked)} />
+      ) : (
+        <input type="checkbox" checked={Boolean(checked)} aria-label={label} disabled readOnly />
+      );
+    },
   };
   if (headingsFrom > 1) {
     HEADINGS.forEach((tag, i) => {
@@ -113,7 +190,7 @@ export function Markdown({ text, className, outside, headingsFrom = 1 }: { text:
   }
   return (
     <div className={className ? `prose ${className}` : 'prose'}>
-      <ReactMarkdown remarkPlugins={plugins} components={components}>
+      <ReactMarkdown remarkPlugins={plugins} rehypePlugins={[rehypeTasks]} components={components}>
         {outside ? text : withLinkedIds(text)}
       </ReactMarkdown>
     </div>

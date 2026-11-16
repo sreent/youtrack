@@ -11,6 +11,7 @@ import { unauthorized } from '../../lib/errors';
 import {
   articleUploadTarget,
   attachmentForDownload,
+  attachmentForImage,
   attachmentLimits,
   commentUploadTarget,
   deleteAttachment,
@@ -160,6 +161,38 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
       },
     }),
   );
+  app.openAPIRegistry.registerPath(
+    createRoute({
+      method: 'get',
+      path: '/attachments/{id}/image',
+      tags,
+      summary: 'A picture, to show within text',
+      description:
+        'What a picture in Markdown points at (`![name](/api/v1/attachments/{id}/image)`, D39): the bytes of a PNG, JPEG, GIF or WebP image, `inline`. Any other file, SVG and HTML included, answers 404 in the words of a missing one, so a picture is only ever a raster image of a4a\'s own. The same headers and ETag as `/content`.',
+      security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+      request: { params: Id },
+      responses: {
+        200: { description: 'The image', content: { 'image/png': { schema: z.string().meta({ format: 'binary' }) } } },
+        304: { description: 'Not changed since the ETag sent' },
+        404: errors[404],
+        410: { description: 'Its bytes are missing from storage', content: { 'application/json': { schema: ErrorSchema } } },
+        503: { description: 'The store of files can’t be reached right now', content: { 'application/json': { schema: ErrorSchema } } },
+      },
+    }),
+  );
+  app.get('/attachments/:id/image', async (c) => {
+    const ctx = need(c);
+    const row = await attachmentForImage(ctx, c.req.param('id'));
+    const headers = downloadHeaders(row, false);
+    const etag = headers.get('etag')!;
+    const sent = c.req.header('if-none-match');
+    if (sent && sent.split(',').some((tag) => tag.trim().replace(/^W\//, '') === etag)) {
+      return new Response(null, { status: 304, headers: { etag, 'cache-control': headers.get('cache-control')! } });
+    }
+    if (c.req.method === 'HEAD') return new Response(null, { status: 200, headers });
+    const bytes = await openAttachmentBytes(ctx.app, row);
+    return new Response(Readable.toWeb(bytes) as ReadableStream, { status: 200, headers });
+  });
   app.get('/attachments/:id/content', async (c) => {
     const ctx = need(c);
     const row = await attachmentForDownload(ctx, c.req.param('id'));

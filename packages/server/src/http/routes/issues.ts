@@ -2,7 +2,6 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import {
   CommandBody,
   CommandResultSchema,
-  CommentBody,
   CloneIssueBody,
   CommentSchema,
   CountBody,
@@ -25,6 +24,7 @@ import {
   ReactBody,
   ReactionSummarySchema,
   SuggestItemSchema,
+  UpdateCommentBody,
   UpdateIssueBody,
   VoteSchema,
   WorkItemBody,
@@ -121,7 +121,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility, visibleTo: body.visibleTo }),
   );
-  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment', params: z.object({ id: z.string() }), body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text));
+  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment, against the version you read', params: z.object({ id: z.string() }), body: UpdateCommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text, body.expectedVersion));
   route(
     app,
     {

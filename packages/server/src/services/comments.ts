@@ -1,10 +1,10 @@
 import type { Comment, CommentVisibility, ReactionSummary, VisibleToInput } from '@a4a/shared';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments, helpdeskRequests, requesters } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { excerpt } from '../lib/text';
 import { assertCanCommentProject, assertCanWriteProject, projectAccess, seesCommentRow } from './access';
 import { issueRefsById, readableId } from './issue-refs';
@@ -43,6 +43,7 @@ export async function commentDto(
     channel: row.channel as Comment['channel'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    version: row.version,
     visibility: row.visibility as CommentVisibility,
     // A help desk's requester is someone outside: a guest (D37) isn't told who.
     requester: requesterName !== null ? { name: ctx.actor.guest ? 'The requester' : requesterName } : null,
@@ -123,7 +124,11 @@ async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
   return row;
 }
 
-export async function updateComment(ctx: Ctx, id: string, text: string): Promise<Comment> {
+/**
+ * Change a comment's words. With `expectedVersion`, only the version the editor read: an edit made
+ * meanwhile refuses this one (409) rather than being written over, as an issue's and an article's do.
+ */
+export async function updateComment(ctx: Ctx, id: string, text: string, expectedVersion?: number): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const row = await loadOwnComment(ctx, id);
@@ -132,7 +137,17 @@ export async function updateComment(ctx: Ctx, id: string, text: string): Promise
   const added = ctx.actor.channel === 'helpdesk' ? [] : mentionsAdded(s, row.text, text);
   const { updated, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    const [updated] = await tx.update(comments).set({ text, updatedAt: new Date() }).where(eq(comments.id, id)).returning();
+    const [updated] = await tx
+      .update(comments)
+      .set({ text, updatedAt: new Date(), version: sql`${comments.version} + 1` })
+      .where(expectedVersion === undefined ? eq(comments.id, id) : and(eq(comments.id, id), eq(comments.version, expectedVersion)))
+      .returning();
+    if (!updated) {
+      const [now] = await tx.select({ version: comments.version }).from(comments).where(eq(comments.id, id));
+      throw conflict(`The comment was changed by someone else (version ${now?.version ?? '?'}, you sent ${expectedVersion})`, 'Reload the comment, then make your change again.', {
+        version: now?.version ?? null,
+      });
+    }
     const issueRow = await resolveIssue(ctx, row.issueId, tx);
     const seeing = await whoSees(tx, s, issueRow.projectId, added, issueRow, row);
     const mentions = added.filter((l) => seeing.has(l.toLowerCase()));

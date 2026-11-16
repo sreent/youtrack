@@ -2,7 +2,8 @@ import type { Attachment, Comment, CommentVisibility, IssueDetail, TrackerEvent,
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { ApiError, post } from '../../api/client';
+import { toggleTask } from '@a4a/shared/markdown';
+import { ApiError, patch, post } from '../../api/client';
 import { attachmentKeys, formatBytes, refusal, uploadFile, useAttachmentLimits, useIssueAttachments } from '../attachments/api';
 import { CommentFiles } from '../attachments/AttachmentList';
 import { Icon } from '../../components/Icon';
@@ -17,7 +18,7 @@ import { ReactionBar } from './Moves';
 import { FormField } from '../../components/Form';
 import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
-import { MentionField } from './MentionField';
+import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
 
 type Actor = TrackerEvent['actor'];
@@ -90,6 +91,8 @@ interface Entry {
   limited?: string;
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
+  /** The comment itself, for ticking its checklist against the version read (D39). */
+  source?: Comment;
   anchor?: string;
   /** A change an agent made on its own: its event, and whether a person can undo it (D34). */
   undo?: { event: number; state: NonNullable<TrackerEvent['undo']>['state']; note: string };
@@ -293,6 +296,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     files,
     anchor: `comment-${c.id}`,
     reactions: { id: c.id, list: c.reactions },
+    source: c,
   };
 }
 
@@ -336,7 +340,8 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
  * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
  * Replying to a help desk's requester takes `canReply` (someone who may change the issue); `people`
  * are those a mention would reach. Someone who may change the issue (`canUndo`) can undo what an
- * agent changed on its own, while nobody has changed it since.
+ * agent changed on its own, while nobody has changed it since. A comment's checklist is ticked in place
+ * by its author, or by a manager of the project (`canManage`): who may change the comment.
  */
 export function IssueHistory({
   issue,
@@ -344,6 +349,7 @@ export function IssueHistory({
   canComment = true,
   canReply = true,
   canUndo = false,
+  canManage = false,
   people,
 }: {
   issue: IssueDetail;
@@ -351,6 +357,7 @@ export function IssueHistory({
   canComment?: boolean;
   canReply?: boolean;
   canUndo?: boolean;
+  canManage?: boolean;
   people?: User[];
 }) {
   const qc = useQueryClient();
@@ -371,6 +378,9 @@ export function IssueHistory({
   const [notAttached, setNotAttached] = useState<string[]>([]);
   const [undoing, setUndoing] = useState<number | null>(null);
   const [undoSaid, setUndoSaid] = useState<{ event: number; text: string; bad?: boolean } | null>(null);
+  // A comment whose box was just ticked shows it ticked while it's saved; what went wrong, under it.
+  const [ticked, setTicked] = useState<{ id: string; text: string } | null>(null);
+  const [tickSaid, setTickSaid] = useState<{ id: string; text: string } | null>(null);
 
   if (activity.isLoading || comments.isLoading) return <Loading what="the history" />;
   if (activity.error) return <ErrorNote error={activity.error} />;
@@ -408,7 +418,28 @@ export function IssueHistory({
     }
   };
 
+  // Ticked against the version read: if the comment changed meanwhile, that's said and it's reloaded.
+  const tick = async (c: Comment, index: number, checked: boolean) => {
+    const next = toggleTask(c.text, index, checked);
+    if (next === null) return;
+    setTickSaid(null);
+    setTicked({ id: c.id, text: next });
+    try {
+      await patch<Comment>(`/comments/${c.id}`, { text: next, expectedVersion: c.version });
+    } catch (e) {
+      setTickSaid({
+        id: c.id,
+        text: e instanceof ApiError && e.status === 409 ? 'Someone changed this comment just now. It’s been reloaded: check it and tick again.' : errorText(e),
+      });
+    } finally {
+      await qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') });
+      setTicked(null);
+    }
+  };
+  const mayTick = (c: Comment | undefined): c is Comment => Boolean(c && canComment && (canManage || (me && c.author?.id === me.id)));
+
   const used = (files.data ?? []).reduce((n, f) => n + f.size, 0);
+  const fieldLabel = `${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`;
   const pick = (list: File[]) => setPicked((current) => [...current, ...list.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))]);
 
   const send = async () => {
@@ -506,7 +537,11 @@ export function IssueHistory({
               {undoSaid && e.undo?.event === undoSaid.event ? <Said text={undoSaid.text} tone={undoSaid.bad ? 'bad' : undefined} /> : null}
               {e.comment !== undefined ? (
                 <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>
-                  <Markdown text={e.comment} />
+                  <Markdown
+                    text={ticked && ticked.id === e.source?.id ? ticked.text : e.comment}
+                    onToggleTask={mayTick(e.source) && !ticked ? (i, on) => void tick(e.source!, i, on) : undefined}
+                  />
+                  {tickSaid && tickSaid.id === e.source?.id ? <ErrorLine>{tickSaid.text}</ErrorLine> : null}
                   {e.files?.length ? <CommentFiles files={e.files} /> : null}
                   {e.reactions ? <ReactionBar reactions={e.reactions.list} path={`/comments/${e.reactions.id}/reactions`} issue={issue.id} canReact={canComment} /> : null}
                 </div>
@@ -540,15 +575,19 @@ export function IssueHistory({
               Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
             </p>
           ) : null}
-          <FormField label={`${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
+          <FormField label={fieldLabel}>
             {(id) => (
-              <MentionField
+              <RichField
                 id={id}
+                label={fieldLabel}
                 value={text}
                 onChange={setText}
                 describedBy={requester ? 'visibility-help' : undefined}
                 people={people}
-                placeholder="Markdown works here. Mention someone with @ and their login, and an issue or an article by its id, like BACK-12 or BACK-A-3."
+                placeholder="Mention someone with @ and their login, and an issue or an article by its id, like BACK-12 or BACK-A-3. Paste a screenshot to put it here."
+                uploadTo={`/issues/${issue.id}/attachments`}
+                onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
+                onOtherFiles={pick}
               />
             )}
           </FormField>

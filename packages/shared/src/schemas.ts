@@ -664,6 +664,7 @@ export const CommentSchema = z
     channel: z.enum(CHANNELS),
     createdAt: timestamp,
     updatedAt: timestamp,
+    version: z.number().int().describe('Raised by every edit: send it back as expectedVersion to refuse an edit made meanwhile'),
     visibility: z
       .enum(COMMENT_VISIBILITIES)
       .describe('internal: the team alone. public: also the requester of a help desk request, who is emailed it'),
@@ -2808,3 +2809,13 @@ export const ScimTokenCreatedSchema = ScimTokenSchema.extend({
 }).meta({ id: 'ScimTokenCreated' });
 export type ScimTokenCreated = z.infer<typeof ScimTokenCreatedSchema>;
 export const CreateScimTokenBody = z.object({ name: z.string().trim().min(1).max(80).describe('Whose it is, e.g. "Microsoft Entra ID"') });
+
+// ---------------------------------------------------------------------------
+// The visual editor (docs/architecture.md, D39)
+// ---------------------------------------------------------------------------
+
+/** A comment's new words, against the version read: an edit made meanwhile refuses this one (409). */
+export const UpdateCommentBody = CommentBody.extend({
+  expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
+});
+export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;

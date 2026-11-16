@@ -141,6 +141,13 @@
       "when": 1794848634410,
       "tag": "0019_identity_depth",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794849436684,
+      "tag": "0020_editor",
+      "breakpoints": true
     }
   ]
 }

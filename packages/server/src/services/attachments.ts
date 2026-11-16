@@ -160,6 +160,17 @@ export async function attachmentForDownload(ctx: Ctx, id: string): Promise<Attac
   return loadVisible(ctx, id);
 }
 
+/**
+ * The row of a file shown in place within text (D39): a raster image only. Any other file, SVG
+ * and HTML included, answers in the very words of one that doesn't exist, so a picture in a
+ * description can never be anything a browser would run or draw from markup.
+ */
+export async function attachmentForImage(ctx: Ctx, id: string): Promise<AttachmentRow> {
+  const row = await loadVisible(ctx, id);
+  if (!isInline(row.contentType)) throw notFound('Attachment', 'List the files on the issue or article to find its id.');
+  return row;
+}
+
 /** Its bytes, or those from `start` to `end` (both included), for the content route. */
 export function openAttachmentBytes(app: AppServices, row: AttachmentRow, range?: { start: number; end: number }): Promise<Readable> {
   return readBytes(app, row, range);

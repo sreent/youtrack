@@ -9,6 +9,7 @@ import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Who } from '../components/Who';
 import { useStateTones } from '../features/issues/api';
 import { Badge } from '../components/Badges';
+import { RichField } from '../features/editor/RichField';
 import { FormField } from '../components/Form';
 
 /** Fields worth setting while reporting; the rest can wait for triage or the team. */
@@ -214,7 +215,7 @@ export default function NewIssuePage() {
           </FormField>
           <FormField label="Description">
             {(id) => (
-              <textarea id={id} value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder={'Steps, what you expected, what happened instead.\nMarkdown works here.'} />
+              <RichField id={id} label="Description" value={description} onChange={setDescription} rows={8} placeholder="Steps, what you expected, what happened instead. Pictures can go in once it's created." />
             )}
           </FormField>
           {asked.length ? (

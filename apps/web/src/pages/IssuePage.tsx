@@ -1,4 +1,5 @@
-import type { IssueDetail, IssueField, Suggestion } from '@a4a/shared';
+import type { IssueDetail, IssueField, Suggestion, User } from '@a4a/shared';
+import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -28,6 +29,8 @@ import { VisibleToCard } from '../features/issues/VisibleTo';
 import { useRequestInfo } from '../features/notifications/api';
 import { useProjectGroups } from '../features/groups/api';
 import { WorkflowBar } from '../features/workflow/WorkflowBar';
+import { attachmentKeys } from '../features/attachments/api';
+import { RichField } from '../features/editor/RichField';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -42,12 +45,34 @@ function presented(f: IssueField | undefined): string | null {
 
 const open = (s: Suggestion) => s.status === 'pending' || s.status === 'partially_applied';
 
-function Description({ issue, canEdit, canReact }: { issue: IssueDetail; canEdit: boolean; canReact: boolean }) {
+/**
+ * The issue's description: read, with its checklist ticked in place by who may change the issue
+ * (saved against the version read: a change made meanwhile says so and reloads); or written in
+ * the editor, where a pasted picture becomes one of the issue's files, in the text (D39).
+ */
+function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail; canEdit: boolean; canReact: boolean; people?: User[] }) {
+  const qc = useQueryClient();
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.description);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A box ticked shows ticked while it's saved.
+  const [ticked, setTicked] = useState<string | null>(null);
+
+  const tick = async (index: number, checked: boolean) => {
+    const next = toggleTask(issue.description, index, checked);
+    if (next === null) return;
+    setError(null);
+    setTicked(next);
+    try {
+      await update({ description: next });
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setTicked(null);
+    }
+  };
 
   if (editing) {
     return (
@@ -67,7 +92,22 @@ function Description({ issue, canEdit, canReact }: { issue: IssueDetail; canEdit
           }
         }}
       >
-        <FormField label="Description">{(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={10} autoFocus />}</FormField>
+        <FormField label="Description">
+          {(id) => (
+            <RichField
+              id={id}
+              label="Description"
+              value={text}
+              onChange={setText}
+              rows={10}
+              tall
+              autoFocus
+              people={people}
+              uploadTo={`/issues/${issue.id}/attachments`}
+              onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
+            />
+          )}
+        </FormField>
         {error ? <ErrorLine>{error}</ErrorLine> : null}
         <div className="cluster end">
           <button type="button" onClick={() => setEditing(false)}>
@@ -82,7 +122,12 @@ function Description({ issue, canEdit, canReact }: { issue: IssueDetail; canEdit
   }
   return (
     <section className="card stack" aria-label="Description">
-      {issue.description.trim() ? <Markdown text={issue.description} /> : <p className="note">No description yet.</p>}
+      {issue.description.trim() ? (
+        <Markdown text={ticked ?? issue.description} onToggleTask={canEdit && ticked === null ? (i, on) => void tick(i, on) : undefined} />
+      ) : (
+        <p className="note">No description yet.</p>
+      )}
+      {error ? <ErrorLine>{error}</ErrorLine> : null}
       <ReactionBar reactions={issue.reactions} path={`/issues/${issue.id}/reactions`} issue={issue.id} canReact={canReact} />
       {canEdit ? (
         <div className="cluster">
@@ -91,6 +136,7 @@ function Description({ issue, canEdit, canReact }: { issue: IssueDetail; canEdit
             className="link"
             onClick={() => {
               setText(issue.description);
+              setError(null);
               setEditing(true);
             }}
           >
@@ -343,7 +389,7 @@ export default function IssuePage() {
       <div className="split">
         <div className="stack">
           <WorkflowBar key={`workflow-${data.id}`} issue={data} canEdit={canWrite} />
-          <Description issue={data} canEdit={canWrite} canReact={canComment} />
+          <Description issue={data} canEdit={canWrite} canReact={canComment} people={membersOnly ? (assignable ?? []) : undefined} />
           <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
           {/* Deciding on what triage suggests is a change to the issue: its members decide. */}
@@ -351,7 +397,15 @@ export default function IssuePage() {
           <IssueLinks issue={data} canEdit={canWrite} />
           <IssueArticles issueId={data.id} />
           <IssueCode issue={data} />
-          <IssueHistory issue={data} me={me.data} canComment={canComment} canReply={canWrite} canUndo={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
+          <IssueHistory
+            issue={data}
+            me={me.data}
+            canComment={canComment}
+            canReply={canWrite}
+            canUndo={canWrite}
+            canManage={project.data?.access.manage ?? false}
+            people={membersOnly ? (assignable ?? []) : undefined}
+          />
           <WorkLog issue={data} me={me.data} canEdit={canWrite} />
         </div>
         <div className="stack">
