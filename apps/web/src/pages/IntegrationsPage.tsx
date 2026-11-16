@@ -344,7 +344,7 @@ export default function IntegrationsPage() {
             </div>
             <div className="pair">
               <dt>Verified email</dt>
-              <dd>An email an administrator set, or confirmed, under Administration. One a person changed themselves waits for that.</dd>
+              <dd>An email an administrator set or confirmed under Administration, or one the identity provider vouched for at single sign-on. One a person changed themselves waits for an administrator.</dd>
             </div>
             <div className="pair">
               <dt>Checked, every time</dt>
