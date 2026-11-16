@@ -11,7 +11,8 @@ import { aboutInline, aboutSubscriptions } from '../services/subscriptions';
 import { forgetTeamReplyAddress, mintTeamReplyAddress } from '../services/team-replies';
 import { zoneOfUser } from '../services/time-zones';
 import { emailPrefs, emailSends, levelSends } from './notifier';
-import { actorName, BECAUSE, emailTime, eventDetail, eventVerb, notificationTitle } from './words';
+import { actorName, because, emailTime, eventDetail, eventVerb, notificationTitle } from './words';
+import { localeOfPerson, translatorFor } from '../i18n';
 
 function links(app: AppServices) {
   const base = app.config.publicUrl;
@@ -54,7 +55,8 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
-  const title = notificationTitle(kind, events, reasons);
+  const tr = translatorFor(localeOfPerson(app, user));
+  const title = notificationTitle(tr, kind, events, reasons);
   const subject = `${issue.id}: ${issue.summary}`;
   const l = links(app);
   const zone = zoneOfUser(user);
@@ -74,31 +76,32 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
       ? await mintTeamReplyAddress(app, app.db, user.id, n.issueId, (lastComment?.data as { visibility?: string } | undefined)?.visibility === 'public')
       : null;
   const sections: MailSection[] = events.map((e) => {
-    const head = `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt, zone)}`;
+    const head = `${actorName(tr, e)} ${eventVerb(tr, e)} · ${emailTime(e.occurredAt, zone, tr.locale)}`;
     if (e.type.startsWith('comment')) {
       const c = written.get(String((e.data as { commentId?: string }).commentId ?? ''));
-      if (c?.deletedAt) return { head: `${head} (deleted since)` };
-      const text = c ? (c.text.length > 4000 ? `${c.text.slice(0, 3999)}…` : c.text) : eventDetail(e).join('\n');
+      if (c?.deletedAt) return { head: tr.t('server.mail.deletedSince', { head }) };
+      const text = c ? (c.text.length > 4000 ? `${c.text.slice(0, 3999)}…` : c.text) : eventDetail(tr, e).join('\n');
       return { head, quote: text };
     }
-    const detail = eventDetail(e);
+    const detail = eventDetail(tr, e);
     return e.type === 'issue.created' ? { head, quote: detail.join('\n') } : { head, lines: detail };
   });
+  const t = tr.t;
   const { text, html } = composeMail(subject, {
-    lead: `${title} on ${issue.id}: ${issue.summary}`,
+    lead: t('server.mail.lead', { title, id: issue.id, summary: issue.summary }),
     sections,
-    action: n.issueId ? { label: `Open ${issue.id}`, url: l.issue(issue.id) } : { label: 'Open your inbox', url: l.inbox },
-    why: `${stopKind === 'subscription' ? `You get this because you subscribed to ${aboutInline(sub!.about)}.` : `You get this because ${BECAUSE[kind]}.`}${replyTo ? ' Reply to this email to comment.' : ''}`,
+    action: n.issueId ? { label: t('server.mail.open', { id: issue.id }), url: l.issue(issue.id) } : { label: t('server.mail.openInbox'), url: l.inbox },
+    why: `${stopKind === 'subscription' ? t('server.mail.whySubscribed', { about: aboutInline(sub!.about) }) : t('server.mail.why', { because: because(tr, kind) })}${replyTo ? ` ${t('server.mail.replyToComment')}` : ''}`,
     stop: {
       label:
         stopKind === 'subscription'
-          ? `Stop emails about ${aboutInline(sub!.about)}`
+          ? t('server.mail.stopSubscription', { about: aboutInline(sub!.about) })
           : stopKind === 'watching'
-            ? 'Stop emails about issues you watch'
-            : 'Stop emails about issues',
+            ? t('server.mail.stopWatching')
+            : t('server.mail.stopIssues'),
       url: l.page(token),
     },
-    settings: { label: 'Choose what a4a emails you', url: l.settings },
+    settings: { label: t('server.mail.settings'), url: l.settings },
   });
   return {
     to: user.email,
@@ -109,7 +112,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
       ...AUTOMATIC,
       ...unsubscribeHeaders(l.oneClick(token)),
       ...(n.issueId ? threadHeaders(`<issue-${n.issueId}@${mailHost(app)}>`) : {}),
-      ...(replyTo ? { 'Reply-To': replyTo } : {}),
+      ...(replyTo ? { 'Reply-To': replyTo /* not words: a header */ } : {}),
     },
     onFailed: async () => forgetTeamReplyAddress(app.db, replyTo, app),
     onSent: async () => {
@@ -138,6 +141,8 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
   const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e) });
   const l = links(app);
   const token = await unsubscribeToken(app, 'digest', userId);
+  const tr = translatorFor(localeOfPerson(app, user));
+  const t = tr.t;
   const byIssue = new Map<string, { issue: IssueRef; lines: string[] }>();
   for (const r of rows) {
     const issue = r.issue as IssueRef;
@@ -145,21 +150,21 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
     // Nothing in it they may see now (an issue limited away from them, D37): not theirs to read of.
     if (!e.events.length) continue;
     const entry = byIssue.get(issue.id) ?? { issue, lines: [] };
-    entry.lines.push(`${notificationTitle(r.kind as NotificationKind, e.events, e.reasons)} · ${emailTime(r.lastEventAt.toISOString(), zoneOfUser(user))}`);
+    entry.lines.push(`${notificationTitle(tr, r.kind as NotificationKind, e.events, e.reasons)} · ${emailTime(r.lastEventAt.toISOString(), zoneOfUser(user), tr.locale)}`);
     byIssue.set(issue.id, entry);
   }
   if (!byIssue.size) {
     await done();
     return null;
   }
-  const subject = `Your a4a digest: ${rows.length} unread ${rows.length === 1 ? 'notification' : 'notifications'}`;
+  const subject = t('server.mail.digest.subject', { n: rows.length });
   const { text, html } = composeMail(subject, {
-    lead: `What happened on ${byIssue.size} ${byIssue.size === 1 ? 'issue' : 'issues'} since your last digest, still unread:`,
+    lead: t('server.mail.digest.lead', { n: byIssue.size }),
     sections: [...byIssue.values()].map((g) => ({ head: `${g.issue.id}: ${g.issue.summary} · ${l.issue(g.issue.id)}`, lines: g.lines })),
-    action: { label: 'Open your inbox', url: l.inbox },
-    why: 'You get this because you asked for a daily digest.',
-    stop: { label: 'Stop the daily digest', url: l.page(token) },
-    settings: { label: 'Choose what a4a emails you', url: l.settings },
+    action: { label: t('server.mail.openInbox'), url: l.inbox },
+    why: t('server.mail.digest.why'),
+    stop: { label: t('server.mail.digest.stop'), url: l.page(token) },
+    settings: { label: t('server.mail.settings'), url: l.settings },
   });
   return { to: user.email, subject, text, html, headers: { ...AUTOMATIC, ...unsubscribeHeaders(l.oneClick(token)) }, onSent: async () => void (await done()) };
 }

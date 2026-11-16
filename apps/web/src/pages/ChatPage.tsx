@@ -9,6 +9,7 @@ import { chatKeys, ChatSubscriptionTable, useChatSubscriptions } from '../featur
 import { AdminOnly, errorText, FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
+import { t as tx, tr } from '../i18n';
 
 const useChatStatus = () => useQuery({ queryKey: chatKeys.status, queryFn: () => get<ChatStatus>('/chat/status') });
 
@@ -19,14 +20,11 @@ function Teams({ status }: { status: ChatStatus }) {
   if (!t.configured) {
     return (
       <div className="stack">
-        <p className="note">
-          Not set up. Register a bot with Azure Bot Service on a single-tenant Entra app (the one a4a signs people in with, or its own), then set{' '}
-          <code>TEAMS_APP_ID</code>, <code>TEAMS_APP_PASSWORD</code> and <code>TEAMS_TENANT_ID</code> on the server, and restart it.
-        </p>
+        <p className="note">{tr('page.chat.notSetUpRegisterA', { code: <code>TEAMS_APP_ID</code>, code2: <code>TEAMS_APP_PASSWORD</code>, code3: <code>TEAMS_TENANT_ID</code> })}</p>
         <div className="cluster">
-          <span className="note">Its messaging endpoint</span>
+          <span className="note">{tx('page.chat.itsMessagingEndpoint')}</span>
           <code>{t.messagingEndpoint}</code>
-          <CopyButton text={t.messagingEndpoint} label="Copy it" what="the messaging endpoint" />
+          <CopyButton text={t.messagingEndpoint} label={tx('page.chat.copyIt')} what={tx('page.chat.theMessagingEndpoint')} />
         </div>
       </div>
     );
@@ -35,43 +33,39 @@ function Teams({ status }: { status: ChatStatus }) {
     <div className="stack">
       <dl className="facts-list">
         <div className="pair">
-          <dt>Bot</dt>
+          <dt>{tx('page.chat.bot')}</dt>
           <dd className="mono">{t.botId}</dd>
         </div>
         <div className="pair">
-          <dt>Tenant</dt>
+          <dt>{tx('page.chat.tenant')}</dt>
           <dd className="mono">{t.tenantId}</dd>
         </div>
         <div className="pair">
-          <dt>Messaging endpoint</dt>
+          <dt>{tx('page.chat.messagingEndpoint')}</dt>
           <dd className="cluster">
             <code>{t.messagingEndpoint}</code>
-            <CopyButton text={t.messagingEndpoint} label="Copy it" what="the messaging endpoint" />
+            <CopyButton text={t.messagingEndpoint} label={tx('page.chat.copyIt')} what={tx('page.chat.theMessagingEndpoint')} />
           </dd>
         </div>
       </dl>
       <div className="cluster">
-        <a className="button" href="/api/v1/chat/teams/app-package" download="a4a-teams.zip">
-          Download the Teams app
-        </a>
-        <span className="note">Upload it in Teams’ admin center, under Manage apps, then add it to a team.</span>
+        <a className="button" href="/api/v1/chat/teams/app-package" download="a4a-teams.zip">{tx('page.chat.downloadTheTeamsApp')}</a>
+        <span className="note">{tx('page.chat.uploadItInTeamsAdmin')}</span>
       </div>
       {t.teams.length ? (
-        <ul className="plain" aria-label="Teams a4a is in">
+        <ul className="plain" aria-label={tx('page.chat.teamsA4aIsIn')}>
           {t.teams.map((team) => (
             <li key={team.id} className="cluster spread">
               <span>
                 <span className="item-name">{team.name}</span>
-                <span className="item-about">
-                  added {ago(team.installedAt)} · {channels.filter((c) => c.workspace === team.name && !c.gone).length} channels
-                </span>
+                <span className="item-about">{tr('page.chat.addedChannels', { when: ago(team.installedAt), length: channels.filter((c) => c.workspace === team.name && !c.gone).length })}</span>
               </span>
-              {team.removed ? <Badge tone="idle">{team.removed}</Badge> : <Badge tone="good">in the team</Badge>}
+              {team.removed ? <Badge tone="idle">{team.removed}</Badge> : <Badge tone="good">{tx('page.chat.inTheTeam')}</Badge>}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="note">In no team yet. Once the app is added to a team, its channels are listed here.</p>
+        <p className="note">{tx('page.chat.inNoTeamYetOnce')}</p>
       )}
     </div>
   );
@@ -91,7 +85,7 @@ function Slack({ status }: { status: ChatStatus }) {
       void qc.invalidateQueries({ queryKey: chatKeys.all });
       setToken('');
       setSecret('');
-      setSaid({ text: `Connected to ${next.slack.workspace}.` });
+      setSaid({ text: tx('page.chat.connectedTo', { workspace: next.slack.workspace }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -99,7 +93,7 @@ function Slack({ status }: { status: ChatStatus }) {
     mutationFn: () => del('/chat/slack'),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: chatKeys.all });
-      setSaid({ text: 'Disconnected. Its channels’ subscriptions have stopped.' });
+      setSaid({ text: tx('page.chat.disconnectedItsChannelsSubscriptionsHave') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -114,16 +108,14 @@ function Slack({ status }: { status: ChatStatus }) {
         <div className="cluster spread">
           <span>
             <span className="item-name">{s.workspace}</span>
-            <span className="item-about">
-              connected {s.connectedAt ? ago(s.connectedAt) : ''} by <UserWho user={s.connectedBy} small />
-            </span>
+            <span className="item-about">{tr('page.chat.connectedBy', { v: s.connectedAt ? ago(s.connectedAt) : '', el: <UserWho user={s.connectedBy} small /> })}</span>
           </span>
           <Confirm
             small
-            label="Disconnect"
-            title={`Disconnect ${s.workspace}?`}
-            about="Its channels’ subscriptions stop, and a4a forgets the token and the signing secret. Linked people stay linked, for when it’s connected again."
-            confirm="Disconnect it"
+            label={tx('page.chat.disconnect')}
+            title={tx('page.chat.disconnect2', { workspace: s.workspace })}
+            about={tx('page.chat.itsChannelsSubscriptionsStopAnd')}
+            confirm={tx('page.chat.disconnectIt')}
             disabled={disconnect.isPending}
             onConfirm={() => disconnect.mutate()}
           />
@@ -136,16 +128,16 @@ function Slack({ status }: { status: ChatStatus }) {
             connect.mutate();
           }}
         >
-          {s.removed ? <p className="note">It stopped: {s.removed}.</p> : null}
-          <FormField label="Bot token" help="Under OAuth & Permissions in the app’s settings: it starts with xoxb-. Kept sealed.">
+          {s.removed ? <p className="note">{tr('page.chat.itStopped', { removed: s.removed })}</p> : null}
+          <FormField label={tx('page.chat.botToken')} help={tx('page.chat.underOauthPermissionsInThe')}>
             {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required className="mono" />}
           </FormField>
-          <FormField label="Signing secret" help="Under Basic Information. a4a checks every request Slack sends with it. Kept sealed.">
+          <FormField label={tx('page.chat.signingSecret')} help={tx('page.chat.underBasicInformationA4aChecks')}>
             {(id, help) => <input id={id} aria-describedby={help} type="password" value={secret} onChange={(e) => setSecret(e.target.value)} autoComplete="off" required className="mono" />}
           </FormField>
           <div className="cluster">
             <button type="submit" className="primary" disabled={!token.trim() || !secret.trim() || connect.isPending}>
-              {connect.isPending ? 'Connecting…' : 'Connect Slack'}
+              {connect.isPending ? tx('page.chat.connecting') : tx('page.chat.connectSlack')}
             </button>
           </div>
         </form>
@@ -157,16 +149,12 @@ function Slack({ status }: { status: ChatStatus }) {
             <dt>{u.name}</dt>
             <dd className="cluster">
               <code>{u.url}</code>
-              <CopyButton text={u.url} label="Copy it" what={`the ${u.name} URL`} />
+              <CopyButton text={u.url} label={tx('page.chat.copyIt')} what={tx('page.chat.theUrl', { name: u.name })} />
             </dd>
           </div>
         ))}
       </dl>
-      <p className="note">
-        The app needs the scopes <code>chat:write</code>, <code>commands</code>, <code>channels:read</code>, <code>groups:read</code> and <code>links:read</code> with{' '}
-        <code>links:write</code>, and the events <code>link_shared</code>, <code>member_joined_channel</code>, <code>channel_deleted</code>, <code>channel_archive</code>,{' '}
-        <code>channel_rename</code> and <code>app_uninstalled</code>.
-      </p>
+      <p className="note">{tr('page.chat.theAppNeedsTheScopes', { code: <code>chat:write</code>, code2: <code>commands</code>, code3: <code>channels:read</code>, code4: <code>groups:read</code>, code5: <code>links:read</code>, code6: <code>links:write</code>, code7: <code>link_shared</code>, code8: <code>member_joined_channel</code>, code9: <code>channel_deleted</code>, code10: <code>channel_archive</code>, code11: <code>channel_rename</code>, code12: <code>app_uninstalled</code> })}</p>
     </div>
   );
 }
@@ -180,9 +168,9 @@ function Everywhere() {
   return (
     <div className="stack">
       {subs.data.length ? (
-        <ChatSubscriptionTable subs={subs.data} showTarget label="Table of what's subscribed where" onSaid={setSaid} />
+        <ChatSubscriptionTable subs={subs.data} showTarget label={tx('page.chat.tableOfWhatSSubscribed')} onSaid={setSaid} />
       ) : (
-        <p className="note">No channel hears of anything yet. A channel is subscribed on a project’s page, or by asking the bot in it: subscribe BACK.</p>
+        <p className="note">{tx('page.chat.noChannelHearsOfAnything')}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
@@ -193,10 +181,10 @@ function Everywhere() {
 export default function ChatPage() {
   const status = useChatStatus();
   return (
-    <AdminOnly title="Chat">
+    <AdminOnly title={tx('page.chat.chat')}>
       <PageHead
-        title="Chat"
-        about="Microsoft Teams and Slack: channels hear of the issues they’re subscribed to, and people report, find and change issues by talking to a4a’s bot, as themselves."
+        title={tx('page.chat.chat')}
+        about={tx('page.chat.microsoftTeamsAndSlackChannels')}
       />
       {status.isLoading ? <Loading what="chat" /> : null}
       {status.error ? <ErrorNote error={status.error} /> : null}
@@ -205,23 +193,23 @@ export default function ChatPage() {
           <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
             <section className="card" aria-labelledby="chat-teams">
               <div className="section-head">
-                <h2 id="chat-teams">Microsoft Teams</h2>
-                {status.data.teams.configured ? <Badge tone="good">set up</Badge> : <Badge tone="idle">not set up</Badge>}
+                <h2 id="chat-teams">{tx('page.chat.microsoftTeams')}</h2>
+                {status.data.teams.configured ? <Badge tone="good">{tx('page.chat.setUp')}</Badge> : <Badge tone="idle">{tx('page.chat.notSetUp')}</Badge>}
               </div>
               <Teams status={status.data} />
             </section>
             <section className="card" aria-labelledby="chat-slack">
               <div className="section-head">
-                <h2 id="chat-slack">Slack</h2>
-                {status.data.slack.connected ? <Badge tone="good">connected</Badge> : <Badge tone="idle">not connected</Badge>}
+                <h2 id="chat-slack">{tx('page.chat.slack')}</h2>
+                {status.data.slack.connected ? <Badge tone="good">{tx('page.chat.connected')}</Badge> : <Badge tone="idle">{tx('page.chat.notConnected')}</Badge>}
               </div>
               <Slack status={status.data} />
             </section>
           </div>
           <section className="card" aria-labelledby="chat-where">
             <div className="section-head">
-              <h2 id="chat-where">What’s subscribed where</h2>
-              <span className="note">A channel is told only what every reader of the project may see</span>
+              <h2 id="chat-where">{tx('page.chat.whatSSubscribedWhere')}</h2>
+              <span className="note">{tx('page.chat.aChannelIsToldOnly')}</span>
             </div>
             <Everywhere />
           </section>

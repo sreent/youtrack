@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from '@a4a/shared/i18n';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AI_PROVIDER_IDS, AI_PROVIDERS, isAIProviderId, providerKey, type AIProviderId } from './ai/providers';
@@ -120,6 +121,8 @@ export interface Config {
   notifyWindowMs: number;
   /** The hour (server time, 0-23) the daily digest goes out. */
   digestHour: number;
+  /** The language a4a writes in to whoever chose none, and shows a browser that asks for none it speaks (DEFAULT_LOCALE, D49). */
+  defaultLocale: Locale;
   /**
    * Whether a4a is the OAuth 2.1 authorization server for /mcp (MCP_OAUTH, on unless "false"), so
    * MCP clients that sign in by themselves need no token (D28). Only over https, or plain http on
@@ -536,6 +539,14 @@ export function pushFromEnv(env: NodeJS.ProcessEnv, publicUrl: string, mailFrom:
   };
 }
 
+/** DEFAULT_LOCALE: one of the languages there are catalogs for (packages/shared/i18n). */
+function localeEnv(value: string | undefined): Locale {
+  const v = value?.trim().toLowerCase();
+  if (!v) return DEFAULT_LOCALE;
+  if (!isLocale(v)) throw new Error(`DEFAULT_LOCALE must be one of ${LOCALES.join(', ')}, not "${value}"`);
+  return v;
+}
+
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   loadDotEnv();
   const env = process.env;
@@ -597,6 +608,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mailReplyAddress: env.MAIL_REPLY_ADDRESS?.trim().toLowerCase() || undefined,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
+    defaultLocale: localeEnv(env.DEFAULT_LOCALE),
     mcpOAuth,
     helpdeskImapUrl: env.HELPDESK_IMAP_URL?.trim() || undefined,
     helpdeskImapPollMs: intEnv(env.HELPDESK_IMAP_POLL_SECONDS, 60, 10) * 1000,

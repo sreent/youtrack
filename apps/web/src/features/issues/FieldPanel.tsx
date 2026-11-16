@@ -8,6 +8,7 @@ import { ApiError } from '../../api/client';
 import { errorText, useUpdateIssue } from './api';
 import { isOption, isPeriod, isUser } from './fields';
 import { ErrorLine } from '../../components/States';
+import { formatList, intlLocale, t } from '../../i18n';
 
 /** A value triage worked out, waiting for a person. */
 export interface Proposal {
@@ -25,8 +26,8 @@ interface Choice {
   label?: string;
 }
 
-const EMPTY: Record<string, string> = { Assignee: 'Unassigned', 'Due date': 'No due date', 'Start date': 'No start date', 'Fix versions': 'None yet' };
-const emptyWords = (name: string) => EMPTY[name] ?? 'Not set';
+const EMPTY: Record<string, string> = { Assignee: t('issues.fieldPanel.unassigned'), 'Due date': t('issues.fieldPanel.noDueDate'), 'Start date': t('issues.fieldPanel.noStartDate'), 'Fix versions': t('issues.fieldPanel.noneYet') };
+const emptyWords = (name: string) => EMPTY[name] ?? t('issues.fieldPanel.notSet');
 
 /** A field whose values show as a PriorityMeter, which names itself "Priority" whatever it shows. */
 const isMeter = (field: ProjectField) => field.name === 'Priority';
@@ -40,7 +41,7 @@ function optionView(field: ProjectField, v: { name: string; tone: FieldValue['to
 /** A moment in the reader's own time: "20 Nov 2026, 15:30". */
 function formatMoment(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 /** A moment as a datetime-local input takes it, in the reader's own time. */
@@ -53,7 +54,7 @@ function localInput(iso: string): string {
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /**
@@ -297,7 +298,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
       const need = e instanceof ApiError ? (e.details as { requiredField?: string } | undefined)?.requiredField : undefined;
       if (need && need !== name) {
         setWaiting({ fields, need });
-        setErrors((x) => ({ ...x, [need]: `${errorText(e)}: choose it, and ${Object.keys(fields).join(' and ')} change${Object.keys(fields).length > 1 ? '' : 's'} with it.` }));
+        setErrors((x) => ({ ...x, [need]: t('issues.fieldPanel.chooseItAndChangeWith', { errorText: errorText(e), join: formatList(Object.keys(fields)), n: Object.keys(fields).length }) }));
         return;
       }
       setErrors((x) => ({ ...x, [name]: errorText(e) }));
@@ -323,10 +324,10 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
   const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal).filter((pf) => byId.get(pf.fieldId)?.applies !== false || waiting?.need === pf.name);
 
   return (
-    <aside className="fields" aria-label={`Fields of ${issue.id}`}>
+    <aside className="fields" aria-label={t('issues.fieldPanel.fieldsOf', { id: issue.id })}>
       <dl className="fields-list">
         <div className="fields-row">
-          <dt>Project</dt>
+          <dt>{t('issues.fieldPanel.project')}</dt>
           <dd>
             {issue.project.name} <span className="issue-id">{issue.project.key}</span>
           </dd>
@@ -375,7 +376,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
                   ...values.map((v) => {
-                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : v.owner ? v.owner.name : undefined;
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? t('issues.fieldPanel.resolvesIt') : v.owner ? v.owner.name : undefined;
                     return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
                   }),
                 ]}
@@ -456,10 +457,10 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                   <p className="fields-proposed" id={proposedId}>
                     <Avatar kind="agent" name="triage" small />
                     <span>
-                      <strong>triage</strong> {proposal.reason}
+                      <strong>{t('issues.fieldPanel.triage')}</strong> {proposal.reason}
                     </span>
                     <button type="button" disabled={busy === pf.name} onClick={() => void accept(pf.name, proposal)}>
-                      {busy === pf.name ? 'Accepting…' : 'Accept'}
+                      {busy === pf.name ? t('issues.fieldPanel.accepting') : t('issues.fieldPanel.accept')}
                     </button>
                   </p>
                 ) : null}
@@ -471,13 +472,13 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
           );
         })}
         <div className="fields-row">
-          <dt>Spent time</dt>
+          <dt>{t('issues.fieldPanel.spentTime')}</dt>
           <dd>
-            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty">None yet</span>}</span>
+            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty">{t('issues.fieldPanel.noneYet')}</span>}</span>
           </dd>
         </div>
       </dl>
-      {proposals.size ? <p className="fields-foot">Dashed values were worked out by an agent: check them, and accept each one you agree with.</p> : null}
+      {proposals.size ? <p className="fields-foot">{t('issues.fieldPanel.dashedValuesWereWorkedOut')}</p> : null}
     </aside>
   );
 }

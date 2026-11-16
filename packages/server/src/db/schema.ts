@@ -67,6 +67,8 @@ export const users = pgTable(
     workWeek: jsonb('work_week').$type<number[]>(),
     /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
     timeZone: text('time_zone'),
+    /** The language they read a4a in (D49): one of LOCALES, or null for their browser's (and, by email, the server's default). */
+    locale: text('locale'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

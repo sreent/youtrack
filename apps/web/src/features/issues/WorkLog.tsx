@@ -9,6 +9,8 @@ import { ErrorNote, ErrorLine } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText } from './api';
 import { isPeriod } from './fields';
+import { intlLocale, t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, in the person's own day
 
@@ -45,18 +47,18 @@ function TimerControl({ issue, type, onLogged, onError }: { issue: IssueDetail; 
     }
   };
   return (
-    <div className={mine?.running ? 'timer running' : 'timer'} role="group" aria-label="Your timer">
+    <div className={mine?.running ? 'timer running' : 'timer'} role="group" aria-label={t('issues.workLog.yourTimer')}>
       <span className="timer-time" aria-live="off">{clock(seconds)}</span>
-      <span className="note">{mine ? (mine.running ? 'Running' : 'Paused') : other ? `Your timer is on ${other.issue.id}` : 'Time it as you work'}</span>
+      <span className="note">{mine ? (mine.running ? t('issues.workLog.running') : t('issues.workLog.paused')) : other ? t('issues.workLog.yourTimerIsOn', { id: other.issue.id }) : t('issues.workLog.timeItAsYouWork')}</span>
       {mine?.running ? (
-        <button type="button" onClick={() => void act('pause')}>Pause</button>
+        <button type="button" onClick={() => void act('pause')}>{t('issues.workLog.pause')}</button>
       ) : (
-        <button type="button" onClick={() => void act('start')}>{mine ? 'Resume' : 'Start timer'}</button>
+        <button type="button" onClick={() => void act('start')}>{mine ? t('issues.workLog.resume') : t('issues.workLog.startTimer')}</button>
       )}
       {mine ? (
         <>
-          <button type="button" className="primary" onClick={() => void act('stop')}>Stop and log</button>
-          <button type="button" className="link" onClick={() => void act('discard')}>Discard</button>
+          <button type="button" className="primary" onClick={() => void act('stop')}>{t('issues.workLog.stopAndLog')}</button>
+          <button type="button" className="link" onClick={() => void act('discard')}>{t('issues.workLog.discard')}</button>
         </>
       ) : null}
     </div>
@@ -105,41 +107,34 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
   return (
     <section className="card stack" aria-labelledby={`${id}-title`}>
       <div className="cluster">
-        <h2 id={`${id}-title`} className="grow">
-          Time spent
-        </h2>
+        <h2 id={`${id}-title`} className="grow">{t('issues.workLog.timeSpent')}</h2>
         <span className="note">
           <span className="mono">{formatPeriod(issue.spentMinutes) || '0m'}</span>
           {estimated ? (
-            <>
-              {' '}
-              of <span className="mono">{estimated.presentation}</span> estimated
-            </>
+            <>{tr('issues.workLog.ofEstimated', { presentation: estimated.presentation, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</>
           ) : null}
         </span>
       </div>
       {items.error ? <ErrorNote error={items.error} /> : null}
       {items.data && items.data.length ? (
         <table className="figures">
-          <caption className="hidden">Work logged on {issue.id}</caption>
+          <caption className="hidden">{tr('issues.workLog.workLoggedOn', { id: issue.id })}</caption>
           <thead>
             <tr>
-              <th scope="col">Day</th>
-              <th scope="col">Who</th>
-              <th scope="col" className="num">
-                Time
-              </th>
-              <th scope="col">What</th>
-              {items.data.some((w) => w.type) ? <th scope="col">Type</th> : null}
+              <th scope="col">{t('issues.workLog.day')}</th>
+              <th scope="col">{t('issues.workLog.who')}</th>
+              <th scope="col" className="num">{t('issues.workLog.time')}</th>
+              <th scope="col">{t('issues.workLog.what')}</th>
+              {items.data.some((w) => w.type) ? <th scope="col">{t('issues.workLog.type')}</th> : null}
               <th scope="col">
-                <span className="hidden">Remove</span>
+                <span className="hidden">{t('issues.workLog.remove')}</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {items.data.map((w) => (
               <tr key={w.id}>
-                <td>{new Date(`${w.date}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</td>
+                <td>{new Date(`${w.date}T00:00:00`).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short' })}</td>
                 <td>
                   <UserWho user={w.author} small />
                 </td>
@@ -151,7 +146,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
                     <button
                       type="button"
                       className="link"
-                      aria-label={`Remove ${formatPeriod(w.minutes)} logged on ${w.date}`}
+                      aria-label={t('issues.workLog.removeLoggedOn', { formatPeriod: formatPeriod(w.minutes), date: w.date })}
                       onClick={async () => {
                         try {
                           await del(`/work-items/${w.id}`);
@@ -160,9 +155,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
                           setError(errorText(e));
                         }
                       }}
-                    >
-                      Remove
-                    </button>
+                    >{t('issues.workLog.remove')}</button>
                   ) : null}
                 </td>
               </tr>
@@ -170,24 +163,24 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
           </tbody>
         </table>
       ) : (
-        <p className="note">No time logged yet.</p>
+        <p className="note">{t('issues.workLog.noTimeLoggedYet')}</p>
       )}
       {canEdit ? <TimerControl issue={issue} type={type} onLogged={refresh} onError={(e) => setError(errorText(e))} /> : null}
       {canEdit ? (
         <form
           className="cluster"
-          aria-label="Log time"
+          aria-label={t('issues.workLog.logTime')}
           onSubmit={(e) => {
             e.preventDefault();
             if (duration.trim()) void log();
           }}
         >
-          <input className="mono" aria-label="Time spent" placeholder="1h 30m" size={8} value={duration} onChange={(e) => setDuration(e.target.value)} />
-          <input type="date" aria-label="Day" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
-          <input className="grow" aria-label="What it was spent on" placeholder="What it was spent on" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input className="mono" aria-label={t('issues.workLog.timeSpent')} placeholder={t('issues.workLog.n1h30m')} size={8} value={duration} onChange={(e) => setDuration(e.target.value)} />
+          <input type="date" aria-label={t('issues.workLog.day')} value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
+          <input className="grow" aria-label={t('issues.workLog.whatItWasSpentOn')} placeholder={t('issues.workLog.whatItWasSpentOn')} value={description} onChange={(e) => setDescription(e.target.value)} />
           {offered.length ? (
-            <select aria-label="Work type" value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="">No type</option>
+            <select aria-label={t('issues.workLog.workType')} value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">{t('issues.workLog.noType')}</option>
               {offered.map((t) => (
                 <option key={t.id} value={t.name}>
                   {t.name}
@@ -196,7 +189,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
             </select>
           ) : null}
           <button type="submit" disabled={!duration.trim() || busy}>
-            {busy ? 'Logging…' : 'Log time'}
+            {busy ? t('issues.workLog.logging') : t('issues.workLog.logTime')}
           </button>
         </form>
       ) : null}

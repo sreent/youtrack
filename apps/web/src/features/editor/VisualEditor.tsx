@@ -36,6 +36,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon, type IconName } from '../../components/Icon';
 import { Avatar } from '../../components/Who';
+import { t } from '../../i18n';
 
 /** What a file dropped or pasted becomes in the text, once it's uploaded. */
 export interface Placed {
@@ -198,7 +199,7 @@ const ownImages = imageSchema.extendSchema((prev) => (ctx) => {
     toDOM: (node) => {
       const { src, alt, title } = node.attrs as { src: string; alt: string; title: string };
       if (imageAttachment(src)) return ['img', { src, alt: alt || '', title: title || null, loading: 'lazy' }];
-      return ['span', { class: 'image-elsewhere', 'data-src': src, 'data-alt': alt }, alt || src || 'A picture'];
+      return ['span', { class: 'image-elsewhere', 'data-src': src, 'data-alt': alt }, alt || src || t('editor.visualEditor.aPicture')];
     },
   };
 });
@@ -249,7 +250,7 @@ class ListItemView implements NodeView {
     this.dom.dataset.itemType = 'task';
     this.dom.dataset.checked = String(Boolean(checked));
     this.box.checked = Boolean(checked);
-    this.box.setAttribute('aria-label', `Done: ${this.node.textContent.trim().slice(0, 80) || 'this item'}`);
+    this.box.setAttribute('aria-label', t('editor.visualEditor.done', { v: this.node.textContent.trim().slice(0, 80) || t('editor.visualEditor.thisItem') }));
   }
 
   update(node: PMNode) {
@@ -364,7 +365,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
     const others = onOtherFiles ? files.filter((f) => !RASTER.includes(f.type)) : [];
     if (others.length) onOtherFiles!(others);
     for (const file of files.filter((f) => !others.includes(f))) {
-      if (!place) return onStatus('Save it first: then pictures and files can go in it.', true);
+      if (!place) return onStatus(t('editor.visualEditor.saveItFirstThenPictures'), true);
       const placed = await place(file);
       if (!placed) continue;
       const { schema } = view.state;
@@ -460,7 +461,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
             continue;
           }
           if (!live.current.place) {
-            live.current.onStatus('Save it first: then pictures and files can go in it.', true);
+            live.current.onStatus(t('editor.visualEditor.saveItFirstThenPictures'), true);
             continue;
           }
           const placed = await live.current.place(file);
@@ -469,7 +470,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           else nodes.push(schema.text(placed.name, [schema.marks.link!.create({ href: placed.href })]));
         }
       } catch {
-        live.current.onStatus('That didn’t go in: try again.', true);
+        live.current.onStatus(t('editor.visualEditor.thatDidnTGoIn'), true);
       }
       if (others.length) live.current.onOtherFiles?.(others);
       return nodes;
@@ -498,7 +499,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           uploadWidgetFactory: (pos, spec) => {
             const el = document.createElement('span');
             el.className = 'editor-uploading';
-            el.textContent = 'Uploading…';
+            el.textContent = t('editor.visualEditor.uploading');
             return Decoration.widget(pos, el, spec);
           },
         }));
@@ -617,22 +618,22 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
       }}
     >
       <div className="editor-bar">
-        <div className="editor-tools" role="group" aria-label="Words">
-          <Tool label="Bold" glyph="B" pressed={active.strong} onClick={() => run(toggleStrongCommand.key)} />
-          <Tool label="Italic" glyph="I" pressed={active.emphasis} onClick={() => run(toggleEmphasisCommand.key)} />
-          <Tool label="Struck through" glyph="S" pressed={active.strike} onClick={() => run(toggleStrikethroughCommand.key)} />
-          <Tool label="Code" icon="code" pressed={active.code} onClick={() => run(toggleInlineCodeCommand.key)} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.words')}>
+          <Tool label={t('editor.visualEditor.bold')} glyph="B" pressed={active.strong} onClick={() => run(toggleStrongCommand.key)} />
+          <Tool label={t('editor.visualEditor.italic')} glyph="I" pressed={active.emphasis} onClick={() => run(toggleEmphasisCommand.key)} />
+          <Tool label={t('editor.visualEditor.struckThrough')} glyph="S" pressed={active.strike} onClick={() => run(toggleStrikethroughCommand.key)} />
+          <Tool label={t('editor.visualEditor.code')} icon="code" pressed={active.code} onClick={() => run(toggleInlineCodeCommand.key)} />
         </div>
-        <div className="editor-tools" role="group" aria-label="Blocks">
-          <Tool label="Heading" glyph="H" pressed={active.heading} onClick={() => (active.heading ? run(turnIntoTextCommand.key) : run(wrapInHeadingCommand.key, 2))} />
-          <Tool label="Quote" icon="quote" pressed={active.quote} onClick={() => run(wrapInBlockquoteCommand.key)} />
-          <Tool label="Bulleted list" icon="list" pressed={active.bullet} onClick={() => run(wrapInBulletListCommand.key)} />
-          <Tool label="Numbered list" icon="numbered" pressed={active.ordered} onClick={() => run(wrapInOrderedListCommand.key)} />
-          <Tool label="Checklist" icon="tasks" pressed={active.task} onClick={checklist} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.blocks')}>
+          <Tool label={t('editor.visualEditor.heading')} glyph="H" pressed={active.heading} onClick={() => (active.heading ? run(turnIntoTextCommand.key) : run(wrapInHeadingCommand.key, 2))} />
+          <Tool label={t('editor.visualEditor.quote')} icon="quote" pressed={active.quote} onClick={() => run(wrapInBlockquoteCommand.key)} />
+          <Tool label={t('editor.visualEditor.bulletedList')} icon="list" pressed={active.bullet} onClick={() => run(wrapInBulletListCommand.key)} />
+          <Tool label={t('editor.visualEditor.numberedList')} icon="numbered" pressed={active.ordered} onClick={() => run(wrapInOrderedListCommand.key)} />
+          <Tool label={t('editor.visualEditor.checklist')} icon="tasks" pressed={active.task} onClick={checklist} />
         </div>
-        <div className="editor-tools" role="group" aria-label="Insert">
-          <Tool label="Table" icon="table" onClick={() => run(insertTableCommand.key, { row: 3, col: 3 })} />
-          <Tool label="Picture" icon="picture" onClick={() => picker.current?.click()} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.insert')}>
+          <Tool label={t('editor.visualEditor.table')} icon="table" onClick={() => run(insertTableCommand.key, { row: 3, col: 3 })} />
+          <Tool label={t('editor.visualEditor.picture')} icon="picture" onClick={() => picker.current?.click()} />
           <input
             ref={picker}
             type="file"
@@ -650,7 +651,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
       </div>
       <div ref={root} className="editor-root" />
       {open ? (
-        <ul className="popover options" id={listId} role="listbox" aria-label="People to mention">
+        <ul className="popover options" id={listId} role="listbox" aria-label={t('editor.visualEditor.peopleToMention')}>
           {offered.map((u, i) => (
             <li
               key={u.id}
@@ -671,7 +672,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
         </ul>
       ) : null}
       <span className="hidden" role="status">
-        {open ? `${offered.length} ${offered.length === 1 ? 'person' : 'people'} to mention: up and down to choose, Enter to take one.` : ''}
+        {open ? t('editor.visualEditor.toMentionUpAndDown', { length: offered.length, v: offered.length === 1 ? 'person' : 'people' }) : ''}
       </span>
     </div>
   );

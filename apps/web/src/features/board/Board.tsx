@@ -45,6 +45,8 @@ import {
   type LaneKind,
   type Placed,
 } from './model';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 interface Target {
   lane: number;
@@ -67,11 +69,11 @@ export function sprintLeft(start: string | null, end: string | null, today = loc
   const cal = workCalendar();
   if (start && today < start) {
     const n = cal.inclusive(today, start) - (cal.isWorking(start) ? 1 : 0);
-    return n <= 0 ? 'Starts on the next working day' : `Starts in ${plural(n, 'working day')}`;
+    return n <= 0 ? t('board.board.startsOnTheNextWorking') : t('board.board.startsIn', { plural: plural(n, 'working day') });
   }
-  if (today > end) return 'Ended';
+  if (today > end) return t('board.board.ended');
   const left = cal.inclusive(today, end);
-  return left === 0 ? 'Ends today' : `${plural(left, 'working day')} left`;
+  return left === 0 ? t('board.board.endsToday') : t('board.board.left', { plural: plural(left, 'working day') });
 }
 
 function SprintHead({ view, headingId }: { view: BoardView; headingId: string }) {
@@ -82,11 +84,11 @@ function SprintHead({ view, headingId }: { view: BoardView; headingId: string })
       <div className="sprint-title">
         <h2 id={headingId}>{s.name}</h2>
         {s.startDate && s.endDate ? <span className="sprint-dates">{spanWords(s.startDate, s.endDate)}</span> : null}
-        {left ? <span className="chip">{s.archived ? 'Archived' : left}</span> : null}
+        {left ? <span className="chip">{s.archived ? t('board.board.archived') : left}</span> : null}
       </div>
       {s.goal ? (
         <p className="sprint-goal">
-          <strong>Goal:</strong> {s.goal}
+          <strong>{t('board.board.goal')}</strong> {s.goal}
         </p>
       ) : null}
     </div>
@@ -109,8 +111,8 @@ function CardInside({ card, onCommand, asCopy, quiet }: { card: Placed; onComman
           <button
             type="button"
             className="issue-id"
-            aria-label={`Move ${issue.id} with a command`}
-            title="Move it with a command"
+            aria-label={t('board.board.moveWithACommand', { id: issue.id })}
+            title={t('board.board.moveItWithACommand')}
             tabIndex={quiet ? -1 : undefined}
             onClick={onCommand}
           >
@@ -137,7 +139,7 @@ function CardInside({ card, onCommand, asCopy, quiet }: { card: Placed; onComman
             ))}
           </span>
         ) : null}
-        <span className="hidden">{assignee ? `Assignee: ${assignee.name}` : 'Nobody is assigned'}</span>
+        <span className="hidden">{assignee ? t('board.board.assignee', { name: assignee.name }) : t('board.board.nobodyIsAssigned')}</span>
       </span>
     </>
   );
@@ -182,7 +184,7 @@ function ColumnHead({ name, count, limit, points = null }: { name: string; count
   return (
     <div className="board-col-head">
       <h3>{name}</h3>
-      {points !== null ? <span className="board-points">{points} pts<span className="hidden"> of story points</span></span> : null}
+      {points !== null ? <span className="board-points">{tr('board.board.ptsOfStoryPoints', { points: points, t0: (c: ReactNode) => <span className="hidden">{c}</span> })}</span> : null}
       {limit === null ? (
         <span className="board-count">
           {count}
@@ -214,8 +216,8 @@ function LaneHead({ lane, id, count }: { lane: Lane; id: string; count: number }
 function laneWords(lane: Lane, kind: LaneKind, field: string, id: string, joined: boolean): string {
   const it = joined ? 'it' : id;
   const its = joined ? 'its' : `${id}'s`;
-  if (kind === 'user') return lane.value ? `give ${it} to ${lane.label}` : `leave ${it} with nobody assigned`;
-  return lane.value ? `set ${its} ${field} to ${lane.value}` : `clear ${its} ${field}`;
+  if (kind === 'user') return lane.value ? t('board.board.giveTo', { it: it, label: lane.label }) : t('board.board.leaveWithNobodyAssigned', { it: it });
+  return lane.value ? t('board.board.setTo', { its: its, field: field, value: lane.value }) : t('board.board.clear', { its: its, field: field });
 }
 
 function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts: number[], card: Placed, to: Target): string {
@@ -225,12 +227,12 @@ function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts
   const relanes = kind !== null && lanes.length > 0 && to.lane !== card.lane;
   const count = (counts[to.column] ?? 0) + (moves ? 1 : 0);
   const load = column.wipLimit !== null ? `: ${columnLoad(count, column.wipLimit).text}` : '';
-  const as = moves && column.values.length > 1 ? `, as ${column.values[0]}` : '';
+  const as = moves && column.values.length > 1 ? t('board.board.as', { v: column.values[0] }) : '';
   const field = view.board.swimlaneField ?? '';
-  if (moves && relanes) return `Drop it to move ${id} to ${column.name}${as} and ${laneWords(lanes[to.lane]!, kind!, field, id, true)}${load}`;
-  if (moves) return `Drop it to move ${id} to ${column.name}${as}${load}`;
-  if (relanes) return `Drop it to ${laneWords(lanes[to.lane]!, kind!, field, id, false)}`;
-  return `Drop it to leave ${id} where it was`;
+  if (moves && relanes) return t('board.board.dropItToMoveTo', { id: id, name: column.name, as: as, laneWords: laneWords(lanes[to.lane]!, kind!, field, id, true), load: load });
+  if (moves) return t('board.board.dropItToMoveTo2', { id: id, name: column.name, as: as, load: load });
+  if (relanes) return t('board.board.dropItTo', { laneWords: laneWords(lanes[to.lane]!, kind!, field, id, false) });
+  return t('board.board.dropItToLeaveWhere', { id: id });
 }
 
 /** The command a card's id starts from: its next column's value, which the person can change. */
@@ -245,12 +247,12 @@ function failureWords(failed: { move: { issue: string; fields: Record<string, st
   const e = failed.error;
   if (e instanceof ApiError && e.status === 409) {
     return {
-      text: `Someone changed ${id} while you were moving it, so it stayed ${where}.`,
-      hint: 'The board now shows it as it is. Move it again if you still want to.',
+      text: t('board.board.someoneChangedWhileYouWere', { id: id, where: where }),
+      hint: t('board.board.theBoardNowShowsIt'),
     };
   }
-  if (e instanceof ApiError) return { text: `${id} didn't move, so it stayed ${where}: ${e.message}`, hint: e.hint };
-  return { text: `${id} didn't move, so it stayed ${where}. a4a couldn't reach the server.`, hint: 'Check the connection and try again.' };
+  if (e instanceof ApiError) return { text: t('board.board.didnTMoveSoIt', { id: id, where: where, message: e.message }), hint: e.hint };
+  return { text: t('board.board.didnTMoveSoIt2', { id: id, where: where }), hint: t('board.board.checkTheConnectionAndTry') };
 }
 
 // ---------------------------------------------------------------------------
@@ -313,19 +315,19 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
     (cardId: string, to: Target | null): string => {
       const card = cards.find((c) => c.issue.id === cardId);
       if (!card) return '';
-      if (!to) return `${cardId} isn't over a column.`;
+      if (!to) return t('board.board.isnTOverAColumn', { cardId: cardId });
       return dropWords(view, lanes, kind, counts, card, to);
     },
     [cards, view, lanes, kind, counts],
   );
   const announcements: Announcements = {
-    onDragStart: ({ active: a }) => `Picked up ${a.id}.`,
+    onDragStart: ({ active: a }) => t('board.board.pickedUp', { id: a.id }),
     onDragOver: ({ active: a, over: o }) => wordsFor(String(a.id), targetOf(o?.id)),
     onDragEnd: ({ active: a, over: o }) => {
       const to = targetOf(o?.id);
-      return to ? `${wordsFor(String(a.id), to).replace(/^Drop it to /, 'Dropped: ')}.` : `${a.id} was put back.`;
+      return to ? `${wordsFor(String(a.id), to).replace(/^Drop it to /, 'Dropped: ')}.` : t('board.board.wasPutBack', { id: a.id });
     },
-    onDragCancel: ({ active: a }) => `Moving ${a.id} was cancelled; it stayed where it was.`,
+    onDragCancel: ({ active: a }) => t('board.board.movingWasCancelledItStayed', { id: a.id }),
   };
 
   const onDragStart = (e: DragStartEvent) => {
@@ -344,7 +346,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
   };
 
   const failedCard = failed ? view.columns.findIndex((c) => c.issues.some((i) => i.id === failed.move.issue)) : -1;
-  const failure = failed ? failureWords(failed, failedCard >= 0 ? `in ${view.columns[failedCard]!.name}` : 'where it was') : null;
+  const failure = failed ? failureWords(failed, failedCard >= 0 ? t('board.board.in', { name: view.columns[failedCard]!.name }) : t('board.board.whereItWas')) : null;
 
   /** The card as dropping it there would leave it: its lane's value, and resolved in a column that resolves it. */
   const landed = (card: Placed, to: Target): Placed => {
@@ -386,19 +388,15 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
           <Icon name="cross" />
           <strong>{failure.text}</strong>
           {failure.hint ? <p>{failure.hint}</p> : null}
-          <button type="button" className="link" onClick={dismiss}>
-            Dismiss
-          </button>
+          <button type="button" className="link" onClick={dismiss}>{t('board.board.dismiss')}</button>
         </div>
       ) : null}
-      <p className="note" id={hintId}>
-        Drag a card to another column to move it, or choose its id to move it with a command.
-      </p>
+      <p className="note" id={hintId}>{t('board.board.dragACardToAnother')}</p>
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
         measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        accessibility={{ announcements, screenReaderInstructions: { draggable: 'Choose a card’s id to move it with a command.' } }}
+        accessibility={{ announcements, screenReaderInstructions: { draggable: t('board.board.chooseACardSId') } }}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
@@ -409,7 +407,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
           className={['board-scroll', lanes.length ? 'held' : '', dragging ? 'dragging' : ''].filter(Boolean).join(' ')}
           tabIndex={0}
           role="group"
-          aria-label={`${title}'s columns`}
+          aria-label={t('board.board.sColumns', { title: title })}
           aria-describedby={hintId}
         >
           <div className="board-grid">

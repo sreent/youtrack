@@ -13,6 +13,8 @@ import { excerpt } from '../lib/text';
 import { actorName, eventDetail, eventVerb } from '../notify/words';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { issueUrl } from './common';
+import type { Translator } from '@a4a/shared/i18n';
+import { translatorFor } from '../i18n';
 
 /** An issue as a card shows it. */
 export interface CardIssue {
@@ -36,7 +38,7 @@ export interface CardChange {
   kind: 'created' | 'commented' | 'changed';
 }
 
-const KEY_FIELDS = ['Type', 'Priority', 'Assignee', 'Due date', 'Fix versions'];
+const KEY_FIELDS = ['Type', 'Priority', 'Assignee', 'Due date', 'Fix versions']; // not words: field names, as people named them
 
 function fieldText(f: IssueField): string | null {
   const v = f.value as unknown;
@@ -77,11 +79,11 @@ export function cardIssue(app: AppServices, s: SchemaSnapshot, issue: IssueDetai
 }
 
 /** What an event did, in the words the inbox uses: never a requester's address. */
-export function cardChange(event: TrackerEvent): CardChange {
+export function cardChange(event: TrackerEvent, tr: Translator = translatorFor(null)): CardChange {
   return {
-    who: actorName(event),
-    did: eventVerb(event),
-    details: eventDetail(event)
+    who: actorName(tr, event),
+    did: eventVerb(tr, event),
+    details: eventDetail(tr, event)
       .slice(0, 6)
       .map((d) => excerpt(d, 500)),
     kind: event.type === 'issue.created' ? 'created' : event.type === 'comment.created' ? 'commented' : 'changed',
@@ -168,7 +170,7 @@ export function bindTemplate(node: Json, scope: unknown, root: unknown = scope):
 }
 
 /** How a card tells a state's meaning: resolved is good; the rest says nothing in colour. */
-const stateStyle = (issue: CardIssue) => (issue.resolved ? 'Good' : 'Subtle');
+const stateStyle = (issue: CardIssue) => (issue.resolved ? 'Good' : 'Subtle'); // not words: Adaptive Card styles
 
 export interface IssueCardOptions {
   /** Who it's for, alone, when it's one person's (Teams' user id): Teams refreshes it for them. */
@@ -186,7 +188,9 @@ export function teamsIssueCard(issue: CardIssue, opts: IssueCardOptions = {}): J
     stateStyle: stateStyle(issue),
     refreshFor: opts.refreshFor ?? null,
     note: opts.note?.text ?? null,
+    // not words: Adaptive Card icons and styles
     noteIcon: opts.note?.bad ? 'ErrorCircle' : 'CheckmarkCircle',
+    // not words
     noteTone: opts.note?.bad ? 'Attention' : 'Good',
     canAct: opts.canAct !== false,
     canMove: opts.canAct !== false && issue.states.length > 0,
@@ -200,7 +204,9 @@ export function teamsChangeCard(issue: CardIssue, change: CardChange): Json {
     ...issue,
     ...change,
     stateStyle: stateStyle(issue),
+    // not words: Adaptive Card icons and styles
     changeIcon: change.kind === 'created' ? 'AddCircle' : change.kind === 'commented' ? 'Comment' : 'Edit',
+    // not words
     changeTone: 'Default',
     canAct: true,
     canMove: issue.states.length > 0,
@@ -221,7 +227,9 @@ export const slackText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '
 type Block = Record<string, unknown>;
 
 /** An issue as blocks, with what changed above it when it's a channel's news. */
-export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actions?: boolean; note?: string } = {}): Block[] {
+export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actions?: boolean; note?: string; tr?: Translator } = {}): Block[] {
+  // A channel's card is in the server's language; a reply to a person, in theirs (D49).
+  const tr = opts.tr ?? translatorFor(null);
   const blocks: Block[] = [];
   if (opts.change) {
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `*${slackText(opts.change.who)}* ${slackText(opts.change.did)}` }] });
@@ -230,6 +238,7 @@ export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actio
     }
   }
   const head = `<${issue.url}|*${slackText(issue.id)}*> ${slackText(issue.summary)}`;
+  // not words: the field's name, as people named it
   const facts = [...(issue.state ? [{ title: 'State', value: issue.state }] : []), ...issue.facts].slice(0, 10);
   blocks.push({
     type: 'section',
@@ -238,16 +247,16 @@ export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actio
   });
   if (opts.note) blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: slackText(opts.note) }] });
   if (opts.actions !== false) {
-    const elements: Block[] = [{ type: 'button', action_id: 'assign', text: { type: 'plain_text', text: 'Assign to me' }, value: issue.id }];
+    const elements: Block[] = [{ type: 'button', action_id: 'assign', text: { type: 'plain_text', text: tr.t('server.chat.assignToMe') }, value: issue.id }];
     if (issue.states.length) {
       elements.push({
         type: 'static_select',
         action_id: 'state',
-        placeholder: { type: 'plain_text', text: 'Move to…' },
+        placeholder: { type: 'plain_text', text: tr.t('server.chat.moveTo') },
         options: issue.states.slice(0, 100).map((st) => ({ text: { type: 'plain_text', text: st.slice(0, 75) }, value: `${issue.id}|${st}`.slice(0, 150) })),
       });
     }
-    elements.push({ type: 'button', action_id: 'open', text: { type: 'plain_text', text: 'Open in a4a' }, url: issue.url });
+    elements.push({ type: 'button', action_id: 'open', text: { type: 'plain_text', text: tr.t('server.chat.openInA4a') }, url: issue.url });
     blocks.push({ type: 'actions', block_id: `issue:${issue.id}`, elements });
   }
   return blocks;

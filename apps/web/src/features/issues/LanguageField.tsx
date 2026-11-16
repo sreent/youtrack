@@ -2,6 +2,7 @@ import type { QueryProblem, SuggestItem } from '@a4a/shared';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar } from '../../components/Who';
 import { Icon } from '../../components/Icon';
+import { t, tr } from '../../i18n';
 
 /**
  * What the server says about some text: its problems, a reading of it in words, and what
@@ -244,7 +245,7 @@ export function LanguageField({ text, onText, onCaret, onEnter, label, placehold
         {ask ? (
           <button type="button" className="query-ask" aria-pressed={ask.pressed} onClick={ask.onToggle} disabled={ask.disabled} title={ask.title}>
             <Avatar kind="agent" name="assistant" small />
-            <span className="query-ask-words">Ask in words</span>
+            <span className="query-ask-words">{t('issues.languageField.askInWords')}</span>
           </button>
         ) : null}
       </div>
@@ -255,13 +256,9 @@ export function LanguageField({ text, onText, onCaret, onEnter, label, placehold
           {p.fix !== undefined ? (
             <>
               <span aria-hidden="true">·</span>
-              <span>
-                Did you mean{' '}
-                <button type="button" className="link" onClick={() => fix(p)}>
+              <span>{tr('issues.languageField.didYouMean', { el: <button type="button" className="link" onClick={() => fix(p)}>
                   {p.fix}
-                </button>
-                ?
-              </span>
+                </button> })}</span>
             </>
           ) : p.hint ? (
             <>
@@ -272,7 +269,7 @@ export function LanguageField({ text, onText, onCaret, onEnter, label, placehold
         </p>
       ))}
       {open ? (
-        <ul className="popover options" id={listId} role="listbox" aria-label="Suggestions">
+        <ul className="popover options" id={listId} role="listbox" aria-label={t('issues.languageField.suggestions')}>
           {suggestions.map((s, i) => (
             <li
               key={`${s.kind}-${s.label}-${i}`}

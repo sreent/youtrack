@@ -1,5 +1,6 @@
 import type { CaptchaChallenge, CaptchaSolution } from '@a4a/shared';
 import { findNumber } from './pow-search';
+import { t } from '../../i18n';
 
 /**
  * Solve a help desk form's proof of work (D30): in a worker, so the page never stalls, or on the
@@ -10,7 +11,7 @@ export function solveCaptcha(c: CaptchaChallenge): { done: Promise<CaptchaSoluti
   let worker: Worker | null = null;
   let stopped = false;
   const answer = (number: number | null): CaptchaSolution => {
-    if (number === null) throw new Error("The check that you're not a bot can't be done here");
+    if (number === null) throw new Error(t('helpdesk.pow.theCheckThatYouRe'));
     return { salt: c.salt, challenge: c.challenge, signature: c.signature, number };
   };
   const onPage = () => findNumber(c, () => stopped).then(answer);

@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { useSyncExternalStore } from 'react';
 import { ApiError, get, postStream } from '../../api/client';
 import { keys } from '../../api/queries';
+import { t } from '../../i18n';
 
 export type Approval = ConversationDetail['pendingApprovals'][number];
 export type ToolStatus = Extract<ChatPart, { type: 'tool' }>['status'];
@@ -221,7 +222,7 @@ export async function runTurn(
     failed =
       err instanceof ApiError
         ? { message: err.message, hint: err.hint }
-        : { message: err instanceof Error ? err.message : 'The assistant could not be reached' };
+        : { message: err instanceof Error ? err.message : t('assistant.live.theAssistantCouldNotBe') };
   }
   const wrote = turns.get(id)?.wrote ?? false;
   // The turn stays "running" until the stored conversation is read back, so nobody answers a

@@ -12,7 +12,7 @@
     "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm --filter @a4a/server dev\" \"pnpm --filter @a4a/web dev\"",
     "build": "pnpm --filter @a4a/web build && pnpm --filter @a4a/server build && pnpm --filter a4a-mcp build",
     "start": "pnpm --filter @a4a/server start",
-    "test": "pnpm --filter @a4a/web check:design && pnpm --filter @a4a/server test && pnpm --filter a4a-vscode test",
+    "test": "pnpm --filter @a4a/web check:design && pnpm --filter @a4a/web check:words && pnpm --filter @a4a/server test && pnpm --filter a4a-vscode test",
     "test:e2e": "pnpm build && pnpm --filter @a4a/web test:e2e",
     "typecheck": "pnpm -r typecheck",
     "db:seed": "pnpm --filter @a4a/server db:seed",

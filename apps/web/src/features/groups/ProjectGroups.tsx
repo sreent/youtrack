@@ -9,6 +9,7 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { aRole, BUILTIN_ROLES, isBuiltinRole, roleHelp } from '../roles/words';
 import { groupKeys, useGroups, useProjectGroups } from './api';
+import { t } from '../../i18n';
 
 function useInvalidate(project: Project) {
   const qc = useQueryClient();
@@ -29,7 +30,7 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectGroup>(`/projects/${project.key}/groups/${g.id}`, { role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${g.name} is at least ${aRole(r.roleName, isBuiltinRole(r.role))} now.` });
+      setSaid({ text: t('groups.projectGroups.everyoneInIsAtLeast', { name: g.name, aRole: aRole(r.roleName, isBuiltinRole(r.role)) }) });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -45,12 +46,12 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
         <Link to={`/groups/${g.id}`}>{g.name}</Link>
         <span className="item-about">
           {g.size} {g.size === 1 ? 'person' : 'people'}
-          {g.providerName ? ' · from the identity provider' : ''}
+          {g.providerName ? t('groups.projectGroups.fromTheIdentityProvider') : ''}
         </span>
       </th>
       <td>
         {canEdit ? (
-          <select value={row.role} onChange={(e) => change.mutate(e.target.value)} aria-label={`Role of ${g.name} in ${project.key}`} disabled={change.isPending}>
+          <select value={row.role} onChange={(e) => change.mutate(e.target.value)} aria-label={t('groups.projectGroups.roleOfIn', { name: g.name, key: project.key })} disabled={change.isPending}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -65,15 +66,15 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
         {canEdit ? (
           <Confirm
             small
-            label="Take out"
-            name={`Take out ${g.name}`}
-            title={`Take ${g.name} out of ${project.key}?`}
+            label={t('groups.projectGroups.takeOut')}
+            name={t('groups.projectGroups.takeOut2', { name: g.name })}
+            title={t('groups.projectGroups.takeOutOf', { name: g.name, key: project.key })}
             about={
               project.visibility === 'members'
-                ? `Its people lose the role it gives them in ${project.key}; those with no other way in won't see it any more. You can add the group again.`
-                : `Its people lose the role it gives them; in an open project, those with no other role are members. You can add the group again.`
+                ? t('groups.projectGroups.itsPeopleLoseTheRole', { key: project.key })
+                : t('groups.projectGroups.itsPeopleLoseTheRole2')
             }
-            confirm="Take it out"
+            confirm={t('groups.projectGroups.takeItOut')}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
           />
@@ -95,14 +96,14 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
   const add = useMutation({
     mutationFn: () => post<ProjectGroup>(`/projects/${project.key}/groups`, { group, role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${r.group.name} is at least ${aRole(r.roleName, isBuiltinRole(r.role))} of ${project.key} now.` });
+      setSaid({ text: t('groups.projectGroups.everyoneInIsAtLeast2', { name: r.group.name, aRole: aRole(r.roleName, isBuiltinRole(r.role)), key: project.key }) });
       setGroup('');
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   if (groups.data && !groups.data.length) {
-    return <p className="note">There are no groups yet. Administrators make them under Administration.</p>;
+    return <p className="note">{t('groups.projectGroups.thereAreNoGroupsYet')}</p>;
   }
   return (
     <form
@@ -113,12 +114,12 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Add a group</legend>
+        <legend>{t('groups.projectGroups.addAGroup')}</legend>
         <div className="form-fields">
-          <FormField label="Group">
+          <FormField label={t('groups.projectGroups.group')}>
             {(id) => (
               <select id={id} value={group} onChange={(e) => setGroup(e.target.value)} required>
-                <option value="">Choose a group</option>
+                <option value="">{t('groups.projectGroups.chooseAGroup')}</option>
                 {choices.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name} ({g.size})
@@ -127,7 +128,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
               </select>
             )}
           </FormField>
-          <FormField label="Its role" help={roleHelp(roles, role, 'Everyone in it')}>
+          <FormField label={t('groups.projectGroups.itsRole')} help={roleHelp(roles, role, t('groups.projectGroups.everyoneInIt'))}>
             {(id, help) => (
               <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
                 {roles.map((r) => (
@@ -141,7 +142,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
         </div>
         <div className="cluster">
           <button type="submit" className="primary" disabled={!group || add.isPending}>
-            {add.isPending ? 'Adding…' : 'Add the group'}
+            {add.isPending ? t('groups.projectGroups.adding') : t('groups.projectGroups.addTheGroup')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -157,20 +158,20 @@ export function ProjectGroups({ project }: { project: Project }) {
   const list = rows.data ?? [];
   return (
     <div className="stack">
-      <h3>Groups</h3>
-      <p className="note section-note">Everyone in a group listed here has at least its role. Someone’s role is the highest of their own and their groups’.</p>
-      {rows.isLoading ? <Loading what="its groups" /> : null}
+      <h3>{t('groups.projectGroups.groups')}</h3>
+      <p className="note section-note">{t('groups.projectGroups.everyoneInAGroupListed')}</p>
+      {rows.isLoading ? <Loading what={t('groups.projectGroups.itsGroups')} /> : null}
       {rows.error ? <ErrorNote error={rows.error} /> : null}
-      {rows.data && !list.length ? <p className="note">No group has a role here.</p> : null}
+      {rows.data && !list.length ? <p className="note">{t('groups.projectGroups.noGroupHasARole')}</p> : null}
       {list.length ? (
-        <Scroll label={`Groups in ${project.key}`}>
+        <Scroll label={t('groups.projectGroups.groupsIn', { key: project.key })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Group</th>
-                <th scope="col">Its role</th>
+                <th scope="col">{t('groups.projectGroups.group')}</th>
+                <th scope="col">{t('groups.projectGroups.itsRole')}</th>
                 <th scope="col">
-                  <span className="hidden">Change</span>
+                  <span className="hidden">{t('groups.projectGroups.change')}</span>
                 </th>
               </tr>
             </thead>

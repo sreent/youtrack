@@ -8,6 +8,10 @@ import { findFollowableSearch, listSubscriptions, subscribe, subscriptionTo, uns
 import { listWatchers, unwatchIssue, watchIssue } from '../services/watchers';
 import { actorName, eventDetail, eventVerb } from '../notify/words';
 import { defineTool, type ToolDef } from './types';
+import { translatorFor } from '../i18n';
+
+/** MCP's words are English: agents read them (D49). */
+const ENGLISH = translatorFor('en');
 
 const watchIssueTool = defineTool({
   name: 'watch_issue',
@@ -53,9 +57,9 @@ function compact(n: Notification) {
     at: n.lastAt.slice(0, 16).replace('T', ' '),
     unread: n.readAt === null,
     events: n.events.slice(-8).map((e) => ({
-      by: actorName(e),
-      did: eventVerb(e),
-      detail: eventDetail(e).map((d) => excerpt(d, 400)),
+      by: actorName(ENGLISH, e),
+      did: eventVerb(ENGLISH, e),
+      detail: eventDetail(ENGLISH, e).map((d) => excerpt(d, 400)),
     })),
   };
 }

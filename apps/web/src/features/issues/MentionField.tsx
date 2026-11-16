@@ -2,6 +2,7 @@ import type { User } from '@a4a/shared';
 import { useId, useMemo, useRef, useState } from 'react';
 import { useUsers } from '../../api/queries';
 import { Avatar } from '../../components/Who';
+import { t } from '../../i18n';
 
 /** "@" and what's typed after it, ending at the caret: the person being named, if any. */
 const TYPING = /(^|[^\p{L}\p{N}_@./-])@([A-Za-z0-9._-]{0,40})$/u;
@@ -143,7 +144,7 @@ export function MentionField({
         }
       />
       {open ? (
-        <ul className="popover options" id={listId} role="listbox" aria-label="People to mention">
+        <ul className="popover options" id={listId} role="listbox" aria-label={t('issues.mentionField.peopleToMention')}>
           {people.map((u, i) => (
             <li
               key={u.id}
@@ -164,7 +165,7 @@ export function MentionField({
         </ul>
       ) : null}
       <span className="hidden" role="status">
-        {open ? `${people.length} ${people.length === 1 ? 'person' : 'people'} to mention: up and down to choose, Enter to take one.` : ''}
+        {open ? t('issues.mentionField.toMentionUpAndDown', { length: people.length, v: people.length === 1 ? 'person' : 'people' }) : ''}
       </span>
     </div>
   );

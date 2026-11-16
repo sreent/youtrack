@@ -12,45 +12,46 @@ import { testRule } from '../workflow/api';
 import { ScriptField, ScriptRunView, useScriptProblems } from '../workflow/ScriptField';
 import type { ScriptRun } from '@a4a/shared';
 import { previewRule, ruleChecker, ruleKeys } from './api';
+import { t, tr } from '../../i18n';
 
 /** What sets a rule off, as the form's first word says it. Each choice is one kind of rule. */
 type When = 'created' | 'updated' | 'commented' | 'hour' | 'day' | 'weekday' | 'guard';
 const WHEN: { value: When; words: string; kind: RuleKind }[] = [
-  { value: 'created', words: 'an issue is created', kind: 'change' },
-  { value: 'updated', words: 'an issue changes', kind: 'change' },
-  { value: 'commented', words: 'an issue gets a comment', kind: 'change' },
-  { value: 'hour', words: 'every hour', kind: 'schedule' },
-  { value: 'day', words: 'every day', kind: 'schedule' },
-  { value: 'weekday', words: 'every weekday', kind: 'schedule' },
-  { value: 'guard', words: 'a change would make an issue match', kind: 'guard' },
+  { value: 'created', words: t('rules.ruleForm.anIssueIsCreated'), kind: 'change' },
+  { value: 'updated', words: t('rules.ruleForm.anIssueChanges'), kind: 'change' },
+  { value: 'commented', words: t('rules.ruleForm.anIssueGetsAComment'), kind: 'change' },
+  { value: 'hour', words: t('rules.ruleForm.everyHour'), kind: 'schedule' },
+  { value: 'day', words: t('rules.ruleForm.everyDay'), kind: 'schedule' },
+  { value: 'weekday', words: t('rules.ruleForm.everyWeekday'), kind: 'schedule' },
+  { value: 'guard', words: t('rules.ruleForm.aChangeWouldMakeAn'), kind: 'guard' },
 ];
 const kindOf = (w: When): RuleKind => WHEN.find((x) => x.value === w)!.kind;
 
 /** A further condition, as the form's "and" says it: on which related issues, and all of them or any. */
 type And = '' | 'parent' | 'subtasks-all' | 'subtasks-any' | 'siblings-all' | 'siblings-any' | 'linked-all' | 'linked-any';
 const AND: { value: And; words: string }[] = [
-  { value: '', words: 'nothing more' },
-  { value: 'parent', words: 'its parent matches' },
-  { value: 'subtasks-all', words: 'all of its subtasks match' },
-  { value: 'subtasks-any', words: 'any of its subtasks matches' },
-  { value: 'siblings-all', words: "all of its parent's subtasks match" },
-  { value: 'siblings-any', words: "any of its parent's subtasks matches" },
-  { value: 'linked-all', words: 'all the issues it … match' },
-  { value: 'linked-any', words: 'any issue it … matches' },
+  { value: '', words: t('rules.ruleForm.nothingMore') },
+  { value: 'parent', words: t('rules.ruleForm.itsParentMatches') },
+  { value: 'subtasks-all', words: t('rules.ruleForm.allOfItsSubtasksMatch') },
+  { value: 'subtasks-any', words: t('rules.ruleForm.anyOfItsSubtasksMatches') },
+  { value: 'siblings-all', words: t('rules.ruleForm.allOfItsParentS') },
+  { value: 'siblings-any', words: t('rules.ruleForm.anyOfItsParentS') },
+  { value: 'linked-all', words: t('rules.ruleForm.allTheIssuesItMatch') },
+  { value: 'linked-any', words: t('rules.ruleForm.anyIssueItMatches') },
 ];
 
 const TO: { value: RuleTargetKind; words: string }[] = [
-  { value: 'issue', words: 'the issue itself' },
-  { value: 'parent', words: 'its parent' },
-  { value: 'subtasks', words: 'its subtasks' },
-  { value: 'linked', words: 'the issues it …' },
+  { value: 'issue', words: t('rules.ruleForm.theIssueItself') },
+  { value: 'parent', words: t('rules.ruleForm.itsParent') },
+  { value: 'subtasks', words: t('rules.ruleForm.itsSubtasks') },
+  { value: 'linked', words: t('rules.ruleForm.theIssuesIt') },
 ];
 
 const TELL: { value: RuleTell; words: string }[] = [
-  { value: 'assignee', words: 'Its assignee' },
-  { value: 'reporter', words: 'Its reporter' },
-  { value: 'watchers', words: 'Its watchers' },
-  { value: 'managers', words: "The project's managers" },
+  { value: 'assignee', words: t('rules.ruleForm.itsAssignee') },
+  { value: 'reporter', words: t('rules.ruleForm.itsReporter') },
+  { value: 'watchers', words: t('rules.ruleForm.itsWatchers') },
+  { value: 'managers', words: t('rules.ruleForm.theProjectSManagers') },
 ];
 
 export interface Draft {
@@ -117,40 +118,40 @@ if (fixing && !issue.comments.length) refuse('Say how it was fixed in a comment 
 /** The brief's examples, to start from. */
 export const EXAMPLES: { label: string; draft: Draft }[] = [
   {
-    label: 'Critical bugs go to someone',
-    draft: { ...EMPTY, name: 'Critical bugs go to Anna', when: 'created', query: 'Type: Bug Priority: Critical', command: 'Assignee anna tag urgent' },
+    label: t('rules.ruleForm.criticalBugsGoToSomeone'),
+    draft: { ...EMPTY, name: t('rules.ruleForm.criticalBugsGoToAnna'), when: 'created', query: 'Type: Bug Priority: Critical', command: t('rules.ruleForm.assigneeAnnaTagUrgent') },
   },
   {
-    label: 'Overdue issues get tagged, daily',
-    draft: { ...EMPTY, name: 'Overdue issues get tagged', when: 'day', at: '09:00', query: '#Unresolved Due date: Overdue', command: 'tag overdue' },
+    label: t('rules.ruleForm.overdueIssuesGetTaggedDaily'),
+    draft: { ...EMPTY, name: t('rules.ruleForm.overdueIssuesGetTagged'), when: 'day', at: '09:00', query: '#Unresolved Due date: Overdue', command: 'tag overdue' },
   },
   {
-    label: "Won't fix needs a comment",
-    draft: { ...EMPTY, name: "Won't fix says why", when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: "Say in a comment why it won't be fixed." },
+    label: t('rules.ruleForm.wonTFixNeedsA'),
+    draft: { ...EMPTY, name: t('rules.ruleForm.wonTFixSaysWhy'), when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: t('rules.ruleForm.sayInACommentWhy') },
   },
   {
-    label: 'Done subtasks fix their parent',
+    label: t('rules.ruleForm.doneSubtasksFixTheirParent'),
     draft: {
       ...EMPTY,
-      name: 'Done subtasks fix their parent',
+      name: t('rules.ruleForm.doneSubtasksFixTheirParent'),
       when: 'updated',
       field: 'State',
       query: '#Resolved',
       and: 'siblings-all',
       andQuery: '#Resolved',
       to: 'parent',
-      command: 'State Fixed',
+      command: t('rules.ruleForm.stateFixed'),
     },
   },
   {
-    label: 'Critical bugs are news',
+    label: t('rules.ruleForm.criticalBugsAreNews'),
     draft: {
       ...EMPTY,
-      name: 'Critical bugs are news',
+      name: t('rules.ruleForm.criticalBugsAreNews'),
       when: 'created',
       query: 'Priority: Critical',
       tell: ['assignee', 'managers'],
-      saying: 'A critical bug came in: please look at it now.',
+      saying: t('rules.ruleForm.aCriticalBugCameIn'),
     },
   },
 ];
@@ -257,7 +258,7 @@ function phrasesOf(types: LinkType[] | undefined): string[] {
 function PhraseSelect({ label, value, onChange, phrases }: { label: string; value: string; onChange: (v: string) => void; phrases: string[] }) {
   return (
     <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">choose a link</option>
+      <option value="">{t('rules.ruleForm.chooseALink')}</option>
       {phrases.map((p) => (
         <option key={p} value={p}>
           {p}
@@ -274,8 +275,8 @@ function PhraseSelect({ label, value, onChange, phrases }: { label: string; valu
 export function SampleDetail({ sample, guard, commands }: { sample: RulePreview['sample'][number]; guard: boolean; commands: boolean }) {
   return (
     <div>
-      {guard ? null : sample.changes.length ? <ChangeLines changes={sample.changes} /> : commands ? <p className="note">Nothing to change: it is so already</p> : null}
-      {sample.told ? <p className="note">{sample.told.length ? `Tells ${sample.told.map((u) => u.name).join(', ')}` : 'Nobody to tell'}</p> : null}
+      {guard ? null : sample.changes.length ? <ChangeLines changes={sample.changes} /> : commands ? <p className="note">{t('rules.ruleForm.nothingToChangeItIs')}</p> : null}
+      {sample.told ? <p className="note">{sample.told.length ? t('rules.ruleForm.tells', { join: sample.told.map((u) => u.name).join(', ') }) : t('rules.ruleForm.nobodyToTell')}</p> : null}
       {sample.errors.map((err) => (
         <p key={err} className="note">
           {err}
@@ -366,7 +367,7 @@ export function RuleForm({
       return;
     }
     const timer = setTimeout(() => {
-      previewRule({ ...input, name: input.name || 'A rule' })
+      previewRule({ ...input, name: input.name || t('rules.ruleForm.aRule') })
         .then((p) => current && setPreviewed({ key, preview: p }))
         .catch(() => current && setPreviewed(null));
     }, 450);
@@ -420,7 +421,7 @@ export function RuleForm({
     setTestError(null);
     try {
       const issue = testOn.trim().toUpperCase();
-      setTested({ issue, run: await testRule({ ...input, name: input.name || 'A rule', issue }) });
+      setTested({ issue, run: await testRule({ ...input, name: input.name || t('rules.ruleForm.aRule'), issue }) });
     } catch (e) {
       setTested(null);
       setTestError(errorText(e));
@@ -433,7 +434,7 @@ export function RuleForm({
       text={d.script}
       onText={(t) => set('script', t)}
       problems={scriptProblems}
-      label={kind === 'guard' ? 'Its script, which may refuse the change' : 'Then run this script'}
+      label={kind === 'guard' ? t('rules.ruleForm.itsScriptWhichMayRefuse') : t('rules.ruleForm.thenRunThisScript')}
     />
   );
 
@@ -445,15 +446,15 @@ export function RuleForm({
         if (ready) void save();
       }}
     >
-      <FormField label="Name" help="Say what it's for: people see it in each issue's history.">
+      <FormField label={t('rules.ruleForm.name')} help={t('rules.ruleForm.sayWhatItSFor')}>
         {(fid, help) => <input id={fid} aria-describedby={help} value={d.name} onChange={(e) => set('name', e.target.value)} maxLength={80} required />}
       </FormField>
       {canScript ? (
         <fieldset className="choice-group">
-          <legend>Write it as</legend>
+          <legend>{t('rules.ruleForm.writeItAs')}</legend>
           <label className="choice">
             <input type="radio" name={`${id}-as`} checked={!d.scripted} onChange={() => set('scripted', false)} />
-            <span>a sentence, in the query and command languages</span>
+            <span>{t('rules.ruleForm.aSentenceInTheQuery')}</span>
           </label>
           <label className="choice">
             <input
@@ -462,16 +463,14 @@ export function RuleForm({
               checked={d.scripted}
               onChange={() => setD((x) => ({ ...x, scripted: true, script: x.script.trim() ? x.script : kindOf(x.when) === 'guard' ? GUARD_START : SCRIPT_START }))}
             />
-            <span>a script, in JavaScript (it runs in a sandbox: no network, files or timers)</span>
+            <span>{t('rules.ruleForm.aScriptInJavascriptIt')}</span>
           </label>
         </fieldset>
       ) : null}
       <fieldset className="unframed rule-form">
-        <legend className="hidden">The rule, as a sentence</legend>
+        <legend className="hidden">{t('rules.ruleForm.theRuleAsASentence')}</legend>
         <div className="rule-clause">
-          <span className="rule-word" id={`${id}-when`}>
-            When
-          </span>
+          <span className="rule-word" id={`${id}-when`}>{t('rules.ruleForm.when')}</span>
           <div className="rule-clause-body">
             <div className="cluster">
               <select aria-labelledby={`${id}-when`} value={d.when} onChange={(e) => set('when', e.target.value as When)} disabled={whenOptions.length === 1}>
@@ -483,9 +482,9 @@ export function RuleForm({
               </select>
               {d.when === 'updated' ? (
                 <>
-                  <span id={`${id}-in`}>in</span>
-                  <select aria-label="Only when this field changes" value={d.field} onChange={(e) => set('field', e.target.value)}>
-                    <option value="">any field</option>
+                  <span id={`${id}-in`}>{t('rules.ruleForm.in')}</span>
+                  <select aria-label={t('rules.ruleForm.onlyWhenThisFieldChanges')} value={d.field} onChange={(e) => set('field', e.target.value)}>
+                    <option value="">{t('rules.ruleForm.anyField')}</option>
                     {fieldNames.map((n) => (
                       <option key={n} value={n}>
                         {n}
@@ -496,8 +495,8 @@ export function RuleForm({
               ) : null}
               {d.when === 'day' || d.when === 'weekday' ? (
                 <>
-                  <span>at</span>
-                  <input type="time" aria-label="At what time of day, in the server's time zone" value={d.at} onChange={(e) => set('at', e.target.value)} required />
+                  <span>{t('rules.ruleForm.at')}</span>
+                  <input type="time" aria-label={t('rules.ruleForm.atWhatTimeOfDay')} value={d.at} onChange={(e) => set('at', e.target.value)} required />
                 </>
               ) : null}
             </div>
@@ -506,95 +505,91 @@ export function RuleForm({
                 lang={query}
                 text={d.query}
                 onText={(t) => set('query', t)}
-                label={d.scripted ? 'When a change is made to an issue that matches this query (empty: any issue)' : 'When a change would make an issue match this query'}
+                label={d.scripted ? t('rules.ruleForm.whenAChangeIsMade') : t('rules.ruleForm.whenAChangeWouldMake')}
                 placeholder="State: {Won't fix}"
               />
             ) : null}
           </div>
         </div>
         <div className="rule-clause">
-          <span className="rule-word" id={ifId}>
-            if
-          </span>
+          <span className="rule-word" id={ifId}>{t('rules.ruleForm.if')}</span>
           <div className="rule-clause-body">
             {kind === 'guard' && d.scripted ? (
               <>
-                <span>its script refuses it</span>
+                <span>{t('rules.ruleForm.itsScriptRefusesIt')}</span>
                 {scriptField}
               </>
             ) : kind === 'guard' ? (
               <>
-                <span>it doesn't also match</span>
-                <Part lang={requires} text={d.requires} onText={(t) => set('requires', t)} label="If it doesn't also match this query" placeholder="has: comments" />
+                <span>{t('rules.ruleForm.itDoesnTAlsoMatch')}</span>
+                <Part lang={requires} text={d.requires} onText={(t) => set('requires', t)} label={t('rules.ruleForm.ifItDoesnTAlso')} placeholder={t('rules.ruleForm.hasComments')} />
               </>
             ) : (
               <>
-                <span>{kind === 'schedule' ? 'an issue matches' : 'it matches'}</span>
+                <span>{kind === 'schedule' ? t('rules.ruleForm.anIssueMatches') : t('rules.ruleForm.itMatches')}</span>
                 <Part
                   lang={query}
                   text={d.query}
                   onText={(t) => set('query', t)}
-                  label={kind === 'schedule' ? 'If an issue matches this query' : 'If it matches this query'}
-                  placeholder={kind === 'schedule' ? '#Unresolved Due date: Overdue' : 'Type: Bug Priority: Critical'}
+                  label={kind === 'schedule' ? t('rules.ruleForm.ifAnIssueMatchesThis') : t('rules.ruleForm.ifItMatchesThisQuery')}
+                  placeholder={kind === 'schedule' ? '#Unresolved Due date: Overdue' : t('rules.ruleForm.typeBugPriorityCritical')}
                 />
                 <div className="cluster" hidden={d.scripted}>
-                  <span>and</span>
-                  <select aria-label="And what its related issues match" value={d.and} onChange={(e) => set('and', e.target.value as And)}>
+                  <span>{t('rules.ruleForm.and')}</span>
+                  <select aria-label={t('rules.ruleForm.andWhatItsRelatedIssues')} value={d.and} onChange={(e) => set('and', e.target.value as And)}>
                     {AND.map((a) => (
                       <option key={a.value} value={a.value}>
                         {a.words}
                       </option>
                     ))}
                   </select>
-                  {d.and.startsWith('linked') ? <PhraseSelect label="Which link, as it reads from the issue" value={d.andPhrase} onChange={(v) => set('andPhrase', v)} phrases={phrases} /> : null}
+                  {d.and.startsWith('linked') ? <PhraseSelect label={t('rules.ruleForm.whichLinkAsItReads')} value={d.andPhrase} onChange={(v) => set('andPhrase', v)} phrases={phrases} /> : null}
                 </div>
                 {d.and && !d.scripted ? (
-                  <Part lang={related} text={d.andQuery} onText={(t) => set('andQuery', t)} label="What its related issues must match" placeholder="#Resolved" />
+                  <Part lang={related} text={d.andQuery} onText={(t) => set('andQuery', t)} label={t('rules.ruleForm.whatItsRelatedIssuesMust')} placeholder="#Resolved" />
                 ) : null}
               </>
             )}
           </div>
         </div>
         <div className="rule-clause">
-          <span className="rule-word" id={thenId}>
-            then
-          </span>
+          <span className="rule-word" id={thenId}>{t('rules.ruleForm.then')}</span>
           <div className="rule-clause-body">
             {kind === 'guard' && d.scripted ? (
-              <span>refuse the change, in the words its script gives refuse()</span>
+              <span>{t('rules.ruleForm.refuseTheChangeInThe')}</span>
             ) : kind === 'guard' ? (
-              <FormField label="refuse the change, saying">
-                {(fid) => <input id={fid} value={d.message} onChange={(e) => set('message', e.target.value)} maxLength={500} placeholder="Say in a comment why it won't be fixed." />}
+              <FormField label={t('rules.ruleForm.refuseTheChangeSaying')}>
+                {(fid) => <input id={fid} value={d.message} onChange={(e) => set('message', e.target.value)} maxLength={500} placeholder={t('rules.ruleForm.sayInACommentWhy')} />}
               </FormField>
             ) : (
               <>
                 {d.scripted ? (
                   <>
-                    <span>run this script</span>
+                    <span>{t('rules.ruleForm.runThisScript')}</span>
                     {scriptField}
                   </>
                 ) : (
                   <>
                 <div className="cluster">
-                  <span>acting on</span>
-                  <select aria-label="Which issues it acts on" value={d.to} onChange={(e) => set('to', e.target.value as RuleTargetKind)}>
+                  <span>{t('rules.ruleForm.actingOn')}</span>
+                  <select aria-label={t('rules.ruleForm.whichIssuesItActsOn')} value={d.to} onChange={(e) => set('to', e.target.value as RuleTargetKind)}>
                     {TO.map((t) => (
                       <option key={t.value} value={t.value}>
                         {t.words}
                       </option>
                     ))}
                   </select>
-                  {d.to === 'linked' ? <PhraseSelect label="Which link it follows to them" value={d.toPhrase} onChange={(v) => set('toPhrase', v)} phrases={phrases} /> : null}
+                  {d.to === 'linked' ? <PhraseSelect label={t('rules.ruleForm.whichLinkItFollowsTo')} value={d.toPhrase} onChange={(v) => set('toPhrase', v)} phrases={phrases} /> : null}
                 </div>
-                <span>apply</span>
-                <Part lang={command} text={d.command} onText={(t) => set('command', t)} label="Then apply this command" placeholder="Assignee anna tag urgent" />
-                <FormField label="And a comment, if it should post one" help="It goes on each issue the rule changes, by the workflow agent.">
+                <span>{t('rules.ruleForm.apply')}</span>
+                <Part lang={command} text={d.command} onText={(t) => set('command', t)} label={t('rules.ruleForm.thenApplyThisCommand')} placeholder={t('rules.ruleForm.assigneeAnnaTagUrgent')} />
+                <FormField label={t('rules.ruleForm.andACommentIfIt')} help={t('rules.ruleForm.itGoesOnEachIssue')}>
                   {(fid, help) => <textarea id={fid} aria-describedby={help} rows={2} value={d.comment} onChange={(e) => set('comment', e.target.value)} maxLength={5000} />}
                 </FormField>
                   </>
                 )}
                 <fieldset className="choice-group columns" aria-describedby={tellId}>
-                  <legend>And tell</legend>
+                  <legend>{t('rules.ruleForm.andTell')}</legend>
                   {TELL.map((t) => (
                     <label key={t.value} className="choice">
                       <input
@@ -605,23 +600,21 @@ export function RuleForm({
                       <span>{t.words}</span>
                     </label>
                   ))}
-                  <small className="field-help tw:col-span-full" id={tellId}>
-                    Of each issue it acts on. Whoever set it off is never told, and nobody who can&apos;t see the issue.
-                  </small>
+                  <small className="field-help tw:col-span-full" id={tellId}>{t('rules.ruleForm.ofEachIssueItActs')}</small>
                 </fieldset>
-                <FormField label="And these people, by login" help="e.g. anna, ben">
+                <FormField label={t('rules.ruleForm.andThesePeopleByLogin')} help={t('rules.ruleForm.eGAnnaBen')}>
                   {(fid, help) => <input id={fid} aria-describedby={help} value={d.people} onChange={(e) => set('people', e.target.value)} className="mono" />}
                 </FormField>
                 {d.tell.length || d.people.trim() ? (
-                  <FormField label="Telling them" help="In their inbox, and by email at the level each has chosen.">
+                  <FormField label={t('rules.ruleForm.tellingThem')} help={t('rules.ruleForm.inTheirInboxAndBy')}>
                     {(fid, help) => <textarea id={fid} aria-describedby={help} rows={2} value={d.saying} onChange={(e) => set('saying', e.target.value)} maxLength={2000} />}
                   </FormField>
                 ) : null}
                 {canCall ? (
-                  <FormField label="And call a webhook" help="Signed with the webhook's secret, about each issue it acts on. Only https webhooks.">
+                  <FormField label={t('rules.ruleForm.andCallAWebhook')} help={t('rules.ruleForm.signedWithTheWebhookS')}>
                     {(fid, help) => (
                       <select id={fid} aria-describedby={help} value={d.call} onChange={(e) => set('call', e.target.value)}>
-                        <option value="">no webhook</option>
+                        <option value="">{t('rules.ruleForm.noWebhook')}</option>
                         {(hooks.data ?? []).map((h) => (
                           <option key={h.id} value={h.id}>
                             {h.url}
@@ -645,8 +638,8 @@ export function RuleForm({
       ))}
 
       {preview && !live.length ? (
-        <div className="command-preview" role="group" aria-label="What it would do">
-          <p className="label">What it would do now</p>
+        <div className="command-preview" role="group" aria-label={t('rules.ruleForm.whatItWouldDo')}>
+          <p className="label">{t('rules.ruleForm.whatItWouldDoNow')}</p>
           <p className="note">{preview.note}</p>
           {preview.sample.length ? (
             <ul className="command-issues">
@@ -656,10 +649,7 @@ export function RuleForm({
                   <span className="command-summary">
                     {x.issue.summary}
                     {x.via ? (
-                      <>
-                        {' '}
-                        · for <IssueLink id={x.via.id} />
-                      </>
+                      <>{tr('rules.ruleForm.for', { el: <IssueLink id={x.via.id} /> })}</>
                     ) : null}
                   </span>
                   <SampleDetail sample={x} guard={kind === 'guard'} commands={Boolean(d.command.trim())} />
@@ -673,11 +663,11 @@ export function RuleForm({
       {d.scripted && canScript ? (
         <div className="stack">
           <div className="cluster">
-            <FormField label="Test it on an issue" className="inline" help="As the issue is now. Nothing is saved.">
+            <FormField label={t('rules.ruleForm.testItOnAnIssue')} className="inline" help={t('rules.ruleForm.asTheIssueIsNow')}>
               {(fid, help) => <input id={fid} aria-describedby={help} className="mono" value={testOn} onChange={(e) => setTestOn(e.target.value)} placeholder={`${project ?? 'BACK'}-1`} />}
             </FormField>
             <button type="button" onClick={() => void test()} disabled={testing || !testOn.trim() || !d.script.trim()}>
-              {testing ? 'Running…' : 'Run it'}
+              {testing ? t('rules.ruleForm.running') : t('rules.ruleForm.runIt')}
             </button>
           </div>
           {testError ? <ErrorLine>{testError}</ErrorLine> : null}
@@ -688,12 +678,10 @@ export function RuleForm({
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       <div className="cluster end">
         {onCancel ? (
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel}>{t('rules.ruleForm.cancel')}</button>
         ) : null}
         <button type="submit" className="primary" disabled={!ready}>
-          {saving ? 'Saving…' : rule ? 'Save the change' : 'Save the rule'}
+          {saving ? t('rules.ruleForm.saving') : rule ? t('rules.ruleForm.saveTheChange') : t('rules.ruleForm.saveTheRule')}
         </button>
       </div>
     </form>

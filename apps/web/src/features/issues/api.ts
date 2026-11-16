@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { ApiError, patch } from '../../api/client';
 import { keys, useFields } from '../../api/queries';
+import { t } from '../../i18n';
 
 /**
  * Change an issue, guarded by the version it was read at: if someone changed it since,
@@ -12,7 +13,7 @@ export function useUpdateIssue(issue: IssueDetail | undefined) {
   const qc = useQueryClient();
   return useCallback(
     async (body: Omit<UpdateIssueInput, 'expectedVersion'>): Promise<IssueDetail> => {
-      if (!issue) throw new Error('No issue');
+      if (!issue) throw new Error(t('issues.api.noIssue'));
       try {
         const next = await patch<IssueDetail>(`/issues/${issue.id}`, { ...body, expectedVersion: issue.version });
         qc.setQueryData(keys.issue(issue.id), next);
@@ -29,9 +30,9 @@ export function useUpdateIssue(issue: IssueDetail | undefined) {
 }
 
 /** "Someone else changed BACK-12 …" or the server's words, for a line beside the control. */
-export function errorText(e: unknown, fallback = 'That didn’t work.'): string {
+export function errorText(e: unknown, fallback = t('issues.api.thatDidnTWork')): string {
   if (e instanceof ApiError) {
-    if (e.status === 409) return 'Someone changed this issue just now. It’s been reloaded: check it and try again.';
+    if (e.status === 409) return t('issues.api.someoneChangedThisIssueJust');
     return e.hint ? `${e.message}. ${e.hint}` : e.message;
   }
   return fallback;

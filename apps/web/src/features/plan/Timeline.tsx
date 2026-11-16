@@ -13,6 +13,8 @@ import { dayMonth, span, workCalendar, type WorkCalendar } from './dates';
 import { days, plural, shift } from './format';
 import { Gantt } from './Gantt';
 import { ganttRows, isMilestone } from './gantt';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 /** The plan at a glance: when it ends, against the baseline, its critical path, what's late. */
 function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
@@ -27,30 +29,25 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
     .sort((a, b2) => a.spare - b2.spare)[0];
   return (
     <ul className="plan-facts">
-      <li>
-        Ends <strong>{dayMonth(s.finish)}</strong>
-        {b ? (
+      <li>{tr('plan.timeline.ends', { dayMonth: dayMonth(s.finish), t0: (c: ReactNode) => <strong>{c}</strong>, v: b ? (
           <>
             {', '}
             {b.finishVarianceDays === 0
-              ? `as ${b.name} planned`
-              : `${days(Math.abs(b.finishVarianceDays))} ${b.finishVarianceDays > 0 ? 'later' : 'earlier'} than ${b.name} (${dayMonth(b.finish)})`}
+              ? t('plan.timeline.asPlanned', { name: b.name })
+              : t('plan.timeline.than', { days: days(Math.abs(b.finishVarianceDays)), v: b.finishVarianceDays > 0 ? 'later' : 'earlier', name: b.name, dayMonth: dayMonth(b.finish) })}
           </>
-        ) : null}
-      </li>
-      <li>{plural(s.criticalPath.length, 'task')} on the critical path</li>
+        ) : null })}</li>
+      <li>{tr('plan.timeline.onTheCriticalPath', { plural: plural(s.criticalPath.length, 'task') })}</li>
       <li>
         {late.length ? (
-          <Badge tone="bad">{late.length === 1 ? `${late[0]!.issue.id} is late` : `${late.length} tasks are late`}</Badge>
+          <Badge tone="bad">{late.length === 1 ? t('plan.timeline.isLate', { id: late[0]!.issue.id }) : t('plan.timeline.tasksAreLate', { length: late.length })}</Badge>
         ) : (
-          'Nothing is late'
+          t('plan.timeline.nothingIsLate')
         )}
       </li>
       {tight ? (
         <li>
-          <Badge tone="warn">
-            {tight.t.issue.id} has {tight.spare === 0 ? 'no day' : days(tight.spare)} to spare before it's due, {dayMonth(tight.t.deadline!)}
-          </Badge>
+          <Badge tone="warn">{tr('plan.timeline.hasToSpareBeforeIt', { id: tight.t.issue.id, v: tight.spare === 0 ? t('plan.timeline.noDay') : days(tight.spare), dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
         </li>
       ) : null}
     </ul>
@@ -62,7 +59,7 @@ function Warnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
   return (
     <details className="plan-notes">
-      <summary>{plural(warnings.length, 'thing')} a4a assumed to draw this plan</summary>
+      <summary>{tr('plan.timeline.a4aAssumedToDrawThis', { plural: plural(warnings.length, 'thing') })}</summary>
       <ul>
         {warnings.map((w) => (
           <li key={w}>{w}</li>
@@ -76,11 +73,11 @@ type ChangeKind = 'delay' | 'estimate' | 'assignee';
 
 function describe(change: WhatIfChange, task: ScheduleTask | undefined, people: Map<string, string>): string {
   const id = change.issue;
-  if (change.delayDays !== undefined) return `If ${id} starts ${days(change.delayDays)} later`;
-  if (change.estimate !== undefined) return `If ${id} is estimated at ${change.estimate}`;
-  if (change.assignee === null) return `If nobody is assigned ${id}`;
-  if (change.assignee !== undefined) return `If ${people.get(change.assignee) ?? change.assignee} does ${id}${task?.assignee ? ` instead of ${task.assignee.name}` : ''}`;
-  return `If ${id} changes`;
+  if (change.delayDays !== undefined) return t('plan.timeline.ifStartsLater', { id: id, days: days(change.delayDays) });
+  if (change.estimate !== undefined) return t('plan.timeline.ifIsEstimatedAt', { id: id, estimate: change.estimate });
+  if (change.assignee === null) return t('plan.timeline.ifNobodyIsAssigned', { id: id });
+  if (change.assignee !== undefined) return t('plan.timeline.ifDoes', { v: people.get(change.assignee) ?? change.assignee, id: id, v2: task?.assignee ? t('plan.timeline.insteadOf', { name: task.assignee.name }) : '' });
+  return t('plan.timeline.ifChanges', { id: id });
 }
 
 function WhatIfResultView({ result, before, change, people, onClear }: { result: WhatIfResult; before: Schedule; change: WhatIfChange; people: Map<string, string>; onClear: () => void }) {
@@ -95,14 +92,14 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
       <p className="whatif-lead">
         {lead},{' '}
         {delta === 0
-          ? `the plan still ends on ${dayMonth(after.finish)}.`
-          : `the plan ends ${days(Math.abs(delta))} ${delta > 0 ? 'later' : 'earlier'}.`}
+          ? t('plan.timeline.thePlanStillEndsOn', { dayMonth: dayMonth(after.finish) })
+          : t('plan.timeline.thePlanEnds', { days: days(Math.abs(delta)), v: delta > 0 ? 'later' : 'earlier' })}
       </p>
       <ul className="change-lines">
         <li>
-          <span className="change-field">Ends:</span>{' '}
+          <span className="change-field">{t('plan.timeline.ends2')}</span>{' '}
           {delta === 0 ? (
-            <span className="same">{dayMonth(after.finish)}, as it is</span>
+            <span className="same">{tr('plan.timeline.asItIs', { dayMonth: dayMonth(after.finish) })}</span>
           ) : (
             <>
               <del>{dayMonth(result.before.finish)}</del> → <ins>{dayMonth(after.finish)}</ins>
@@ -111,22 +108,20 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
         </li>
         {after.baseline && before.baseline && after.baseline.finishVarianceDays !== before.baseline.finishVarianceDays ? (
           <li>
-            <span className="change-field">Against {after.baseline.name}:</span> <del>{shift(before.baseline.finishVarianceDays)}</del> → <ins>{shift(after.baseline.finishVarianceDays)}</ins>
+            <span className="change-field">{tr('plan.timeline.against', { name: after.baseline.name })}</span> <del>{shift(before.baseline.finishVarianceDays)}</del> → <ins>{shift(after.baseline.finishVarianceDays)}</ins>
           </li>
         ) : null}
       </ul>
       {nowLate.length ? (
         <div className="badges">
           {nowLate.map((t) => (
-            <Badge key={t.issue.id} tone="bad">
-              {t.issue.id} would be {days(Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish)))} late: it's due {dayMonth(t.deadline!)}
-            </Badge>
+            <Badge key={t.issue.id} tone="bad">{tr('plan.timeline.wouldBeLateItS', { id: t.issue.id, days: days(Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish))), dayMonth: dayMonth(t.deadline!) })}</Badge>
           ))}
         </div>
       ) : null}
       {moved.length ? (
         <>
-          <h3>{moved.length === 1 ? '1 task would move' : `${moved.length} tasks would move`}</h3>
+          <h3>{moved.length === 1 ? t('plan.timeline.n1TaskWouldMove') : t('plan.timeline.tasksWouldMove', { length: moved.length })}</h3>
           <ul className="levelling-list">
             {moved.map((i) => {
               const b = was.get(i.issue);
@@ -144,21 +139,16 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
                   ) : (
                     <span />
                   )}
-                  <span className="levelling-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : `starts ${shift(i.startDeltaDays)}`}</span>
+                  <span className="levelling-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : t('plan.timeline.starts', { shift: shift(i.startDeltaDays) })}</span>
                 </li>
               );
             })}
           </ul>
         </>
       ) : (
-        <p className="note">No task moves.</p>
+        <p className="note">{t('plan.timeline.noTaskMoves')}</p>
       )}
-      <p className="note cluster">
-        Nothing is saved: this only shows what would happen.
-        <button type="button" className="link" onClick={onClear}>
-          Clear the what-if
-        </button>
-      </p>
+      <p className="note cluster">{tr('plan.timeline.nothingIsSavedThisOnly', { el: <button type="button" className="link" onClick={onClear}>{t('plan.timeline.clearTheWhatIf')}</button> })}</p>
     </div>
   );
 }
@@ -198,14 +188,14 @@ function WhatIfPanel({
 
   return (
     <section className="card whatif" aria-labelledby={titleId}>
-      <h2 id={titleId}>What if…</h2>
-      <p className="note">Change one task and see where the finish would go. Nothing is saved.</p>
+      <h2 id={titleId}>{t('plan.timeline.whatIf')}</h2>
+      <p className="note">{t('plan.timeline.changeOneTaskAndSee')}</p>
       {open.length === 0 ? (
-        <p className="note">Every task is done, so there's nothing left to change.</p>
+        <p className="note">{t('plan.timeline.everyTaskIsDoneSo')}</p>
       ) : (
         <form className="whatif-form" onSubmit={submit}>
           <div className="form-field">
-            <label htmlFor={`${titleId}-task`}>Task</label>
+            <label htmlFor={`${titleId}-task`}>{t('plan.timeline.task')}</label>
             <select id={`${titleId}-task`} value={issue} onChange={(e) => setIssue(e.target.value)}>
               {open.map((t) => (
                 <option key={t.issue.id} value={t.issue.id}>
@@ -215,28 +205,28 @@ function WhatIfPanel({
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor={`${titleId}-kind`}>What changes</label>
+            <label htmlFor={`${titleId}-kind`}>{t('plan.timeline.whatChanges')}</label>
             <select id={`${titleId}-kind`} value={kind} onChange={(e) => setKind(e.target.value as ChangeKind)}>
-              <option value="delay">It starts later</option>
-              <option value="estimate">It has a new estimate</option>
-              <option value="assignee">Someone else does it</option>
+              <option value="delay">{t('plan.timeline.itStartsLater')}</option>
+              <option value="estimate">{t('plan.timeline.itHasANewEstimate')}</option>
+              <option value="assignee">{t('plan.timeline.someoneElseDoesIt')}</option>
             </select>
           </div>
           {kind === 'delay' ? (
             <div className="form-field">
-              <label htmlFor={`${titleId}-value`}>Working days later</label>
+              <label htmlFor={`${titleId}-value`}>{t('plan.timeline.workingDaysLater')}</label>
               <input id={`${titleId}-value`} type="number" min={1} max={250} value={delay} onChange={(e) => setDelay(e.target.value)} required />
             </div>
           ) : kind === 'estimate' ? (
             <div className="form-field">
-              <label htmlFor={`${titleId}-value`}>New estimate</label>
-              <input id={`${titleId}-value`} value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="like 3d or 1d 4h" required />
+              <label htmlFor={`${titleId}-value`}>{t('plan.timeline.newEstimate')}</label>
+              <input id={`${titleId}-value`} value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder={t('plan.timeline.like3dOr1d4h')} required />
             </div>
           ) : (
             <div className="form-field">
-              <label htmlFor={`${titleId}-value`}>Given to</label>
+              <label htmlFor={`${titleId}-value`}>{t('plan.timeline.givenTo')}</label>
               <select id={`${titleId}-value`} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-                <option value="">Nobody</option>
+                <option value="">{t('plan.timeline.nobody')}</option>
                 {(users.data ?? [])
                   .filter((u) => !u.banned && u.login !== task?.assignee?.login)
                   .map((u) => (
@@ -247,13 +237,11 @@ function WhatIfPanel({
               </select>
             </div>
           )}
-          <button type="submit" className="primary">
-            Show what changes
-          </button>
+          <button type="submit" className="primary">{t('plan.timeline.showWhatChanges')}</button>
         </form>
       )}
       <div aria-live="polite">
-        {change && result.isFetching && !result.data ? <Loading what="the what-if" /> : null}
+        {change && result.isFetching && !result.data ? <Loading what={t('plan.timeline.theWhatIf')} /> : null}
         {change && result.error ? <ErrorNote error={result.error} /> : null}
         {change && result.data ? <WhatIfResultView result={result.data} before={schedule} change={change} people={people} onClear={() => onChange(null)} /> : null}
       </div>
@@ -277,9 +265,7 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
     <div className="stack">
       <div className="cluster">
         <BaselinePicker choice={choice} />
-        <button type="button" onClick={() => setSaving(true)}>
-          Save a baseline
-        </button>
+        <button type="button" onClick={() => setSaving(true)}>{t('plan.timeline.saveABaseline')}</button>
         <button
           type="button"
           aria-expanded={whatIfOpen}
@@ -287,20 +273,16 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
             if (whatIfOpen) setChange(null);
             setWhatIfOpen(!whatIfOpen);
           }}
-        >
-          What if…
-        </button>
+        >{t('plan.timeline.whatIf')}</button>
       </div>
       {choice.error ? <ErrorNote error={choice.error} /> : null}
-      {schedule.isLoading || !choice.ready ? <Loading what="the plan" /> : null}
+      {schedule.isLoading || !choice.ready ? <Loading what={t('plan.timeline.thePlan')} /> : null}
       {schedule.error ? <ErrorNote error={schedule.error} /> : null}
       {s ? (
         s.tasks.length === 0 ? (
           <section className="card">
-            <h2>Nothing to plan yet</h2>
-            <p className="note">
-              {project.name} has no issues. A plan is drawn from issues: their estimates, start and due dates, who they're assigned to, their subtasks, and what each depends on.
-            </p>
+            <h2>{t('plan.timeline.nothingToPlanYet')}</h2>
+            <p className="note">{tr('plan.timeline.hasNoIssuesAPlan', { name: project.name })}</p>
           </section>
         ) : (
           <>
@@ -308,8 +290,8 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
             {!choice.chosen && choice.ready ? (
               <p className="note">
                 {choice.baselines.length
-                  ? 'No baseline is chosen, so the chart shows no ghosts of the plan as agreed.'
-                  : 'There is no baseline yet. Save one to keep the plan as it stands, and see later how far each task moves from it.'}
+                  ? t('plan.timeline.noBaselineIsChosenSo')
+                  : t('plan.timeline.thereIsNoBaselineYet')}
               </p>
             ) : null}
             {whatIfOpen ? <WhatIfPanel schedule={s} projectKey={key} baseline={baselineId} change={change} onChange={setChange} /> : null}

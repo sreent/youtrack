@@ -23,6 +23,8 @@ import { ProjectSubscription } from '../features/notifications/Subscriptions';
 import { ProjectChannels } from '../features/chat/Chat';
 import { AppWidgets } from '../features/apps/AppWidgets';
 import { ProjectApps } from '../features/apps/ProjectApps';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -44,7 +46,7 @@ function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
     onSuccess: (p) => {
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
-      setSaid({ text: 'The details are saved.' });
+      setSaid({ text: t('page.project.theDetailsAreSaved') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -58,13 +60,13 @@ function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
     >
       <fieldset className="unframed form" disabled={!canEdit || save.isPending}>
         <div className="form-fields">
-          <FormField label="Name">
+          <FormField label={t('page.project.name')}>
             {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={100} />}
           </FormField>
-          <FormField label="Lead">
+          <FormField label={t('page.project.lead')}>
             {(id) => (
               <select id={id} value={form.lead} onChange={(e) => setForm((f) => ({ ...f, lead: e.target.value }))}>
-                <option value="">Nobody</option>
+                <option value="">{t('page.project.nobody')}</option>
                 {(users.data ?? [])
                   .filter((u) => !u.isBot)
                   .map((u) => (
@@ -75,7 +77,7 @@ function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
               </select>
             )}
           </FormField>
-          <FormField label="What it's for" className="tw:col-span-full">
+          <FormField label={t('page.project.whatItSFor')} className="tw:col-span-full">
             {(id) => (
               <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} maxLength={5000} />
             )}
@@ -83,16 +85,13 @@ function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
         </div>
         <label className="choice">
           <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
-          <span>
-            Archived
-            <small className="field-help">Its issues stay, and can still be found; it leaves the lists of projects people work in.</small>
-          </span>
+          <span>{tr('page.project.archivedItsIssuesStayAnd', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
         </label>
       </fieldset>
       {canEdit ? (
         <div className="cluster">
           <button type="submit" className="primary" disabled={!dirty || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save the details'}
+            {save.isPending ? t('page.project.saving') : t('page.project.saveTheDetails')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -113,10 +112,10 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
       setSaid({
         text:
           mode === 'off'
-            ? 'Triage is off here. It works only when someone asks, on an issue.'
+            ? t('page.project.triageIsOffHereIt')
             : mode === 'suggest'
-              ? 'Triage now suggests, for a person to apply.'
-              : 'Triage now fills empty fields on its own, and says so in each issue’s history.',
+              ? t('page.project.triageNowSuggestsForA')
+              : t('page.project.triageNowFillsEmptyFields'),
       });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -124,14 +123,14 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
   return (
     <>
       <LadderChoice
-        legend="How far triage may go with new issues"
+        legend={t('page.project.howFarTriageMayGo')}
         rungs={TRIAGE_RUNGS}
         value={save.isPending && save.variables ? save.variables : project.settings.triageMode}
         onChange={canEdit && !save.isPending ? (m) => save.mutate(m) : undefined}
         note={
           aiOn
-            ? 'Whatever the rung, triage never changes a value a person chose, and everything it does is in the issue’s history.'
-            : 'AI is off on this server, so triage doesn’t run at any rung. Set ANTHROPIC_API_KEY where the server runs to turn it on.'
+            ? t('page.project.whateverTheRungTriageNever')
+            : t('page.project.aiIsOffOnThis')
         }
       />
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -146,25 +145,19 @@ function Baselines({ project }: { project: Project }) {
   if (baselines.error) return <ErrorNote error={baselines.error} />;
   if (!baselines.data?.length)
     return (
-      <p className="note">
-        No baselines yet. Save one from <Link to={`/plan/${project.key}`}>the plan</Link> when it's agreed, to see later how far it moved.
-      </p>
+      <p className="note">{tr('page.project.noBaselinesYetSaveOne', { t0: (c: ReactNode) => <Link to={`/plan/${project.key}`}>{c}</Link> })}</p>
     );
   return (
-    <Scroll label="Table of baselines">
+    <Scroll label={t('page.project.tableOfBaselines')}>
       <table className="figures">
         <thead>
           <tr>
-            <th scope="col">Baseline</th>
-            <th scope="col">Saved</th>
-            <th scope="col" className="num">
-              Tasks
-            </th>
-            <th scope="col">From</th>
-            <th scope="col">To</th>
-            <th scope="col" className="num">
-              Planned cost
-            </th>
+            <th scope="col">{t('page.project.baseline')}</th>
+            <th scope="col">{t('page.project.saved')}</th>
+            <th scope="col" className="num">{t('page.project.tasks')}</th>
+            <th scope="col">{t('page.project.from')}</th>
+            <th scope="col">{t('page.project.to')}</th>
+            <th scope="col" className="num">{t('page.project.plannedCost')}</th>
           </tr>
         </thead>
         <tbody>
@@ -176,7 +169,7 @@ function Baselines({ project }: { project: Project }) {
               </td>
               <td>
                 <time dateTime={b.createdAt}>{ago(b.createdAt)}</time>
-                {b.createdBy ? <span className="item-about">by {b.createdBy.name}</span> : null}
+                {b.createdBy ? <span className="item-about">{tr('page.project.by', { name: b.createdBy.name })}</span> : null}
               </td>
               <td className="num">{b.taskCount}</td>
               <td>{b.start ? <time dateTime={b.start}>{dateRead(b.start)}</time> : '—'}</td>
@@ -199,11 +192,11 @@ export default function ProjectPage() {
   const users = useUsers();
   const ai = useAIStatus();
 
-  if (project.isLoading) return <Loading what="the project" />;
+  if (project.isLoading) return <Loading what={t('page.project.theProject')} />;
   if (project.error || !project.data)
     return (
       <>
-        <PageHead title="Project" crumbs={<Link to="/projects">Projects</Link>} />
+        <PageHead title={t('page.project.project')} crumbs={<Link to="/projects">{t('page.project.projects')}</Link>} />
         <ErrorNote error={project.error} />
       </>
     );
@@ -216,7 +209,7 @@ export default function ProjectPage() {
       <PageHead
         crumbs={
           <>
-            <Link to="/projects">Projects</Link>
+            <Link to="/projects">{t('page.project.projects')}</Link>
             <span className="sep">/</span>
             <span className="issue-id">{p.key}</span>
           </>
@@ -225,82 +218,74 @@ export default function ProjectPage() {
         badges={
           <>
             <span className="chip mono">{p.key}</span>
-            {p.visibility === 'members' ? <span className="chip">members only</span> : null}
-            {p.archived ? <Badge tone="idle">archived</Badge> : null}
+            {p.visibility === 'members' ? <span className="chip">{t('page.project.membersOnly')}</span> : null}
+            {p.archived ? <Badge tone="idle">{t('page.project.archived')}</Badge> : null}
           </>
         }
         about={p.description || undefined}
         meta={
           <>
-            <span className="tw:inline-flex tw:items-center tw:gap-2">
-              Lead: <UserWho user={p.lead} small />
-            </span>
+            <span className="tw:inline-flex tw:items-center tw:gap-2">{tr('page.project.lead2', { el: <UserWho user={p.lead} small /> })}</span>
             <span>
-              {count(p.openIssueCount, 'open issue')} of {p.issueCount}
+              {t('page.project.openIssuesOf', { n: p.openIssueCount, of: p.issueCount })}
             </span>
-            <span>Triage: {TRIAGE_WORDS[p.settings.triageMode]}</span>
-            {p.settings.helpdesk.enabled ? <span>Help desk: open</span> : null}
-            {plan.budget !== null ? <span>Budget: {money(plan.budget, plan.currency)}</span> : null}
+            <span>{tr('page.project.triage', { v: TRIAGE_WORDS[p.settings.triageMode] })}</span>
+            {p.settings.helpdesk.enabled ? <span>{t('page.project.helpDeskOpen')}</span> : null}
+            {plan.budget !== null ? <span>{tr('page.project.budget', { money: money(plan.budget, plan.currency) })}</span> : null}
           </>
         }
         actions={
           <>
-            <Link className="button" to={`/issues?q=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>
-              Open its issues
-            </Link>
-            <Link className="button" to={`/plan/${p.key}`}>
-              Open its plan
-            </Link>
-            <Link className="button" to={`/rules/${p.key}`}>
-              Open its rules
-            </Link>
+            <Link className="button" to={`/issues?q=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>{t('page.project.openItsIssues')}</Link>
+            <Link className="button" to={`/plan/${p.key}`}>{t('page.project.openItsPlan')}</Link>
+            <Link className="button" to={`/rules/${p.key}`}>{t('page.project.openItsRules')}</Link>
           </>
         }
       />
       <p className="note">
         {yourRole(p)}
-        {!canEdit ? ' Its managers change how it’s set up; you can see it here.' : ''}
+        {!canEdit ? t('page.project.itsManagersChangeHowIt') : ''}
       </p>
       <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <section className="card" aria-labelledby="details">
-          <h2 id="details">Details</h2>
+          <h2 id="details">{t('page.project.details')}</h2>
           <Details project={p} canEdit={canEdit} />
         </section>
         <section className="card" aria-labelledby="triage">
-          <h2 id="triage">AI triage</h2>
+          <h2 id="triage">{t('page.project.aiTriage')}</h2>
           <Triage project={p} canEdit={canEdit} aiOn={Boolean(ai.data?.enabled)} />
         </section>
         <section className="card" aria-labelledby="subscription">
-          <h2 id="subscription">Your subscription</h2>
+          <h2 id="subscription">{t('page.project.yourSubscription')}</h2>
           <ProjectSubscription project={p} />
         </section>
       </div>
       <section className="card" aria-labelledby="people">
         <div className="section-head">
-          <h2 id="people">People and access</h2>
-          <span className="note">{p.visibility === 'members' ? 'Members only' : 'Open to everyone'}</span>
+          <h2 id="people">{t('page.project.peopleAndAccess')}</h2>
+          <span className="note">{p.visibility === 'members' ? t('page.project.membersOnly2') : t('page.project.openToEveryone')}</span>
         </div>
         <PeopleAndAccess project={p} />
       </section>
       <section className="card" aria-labelledby="helpdesk">
         <div className="section-head">
-          <h2 id="helpdesk">Help desk</h2>
-          <span className="note">A public form for people outside the team, and a page for each of their requests.</span>
+          <h2 id="helpdesk">{t('page.project.helpDesk')}</h2>
+          <span className="note">{t('page.project.aPublicFormForPeople')}</span>
         </div>
         <HelpdeskSettings project={p} canEdit={canEdit} />
       </section>
       <section className="card" aria-labelledby="service-levels">
         <div className="section-head">
-          <h2 id="service-levels">Service levels</h2>
-          <span className="note">Targets for the team's first reply and for resolving, in working hours, and how they've gone.</span>
+          <h2 id="service-levels">{t('page.project.serviceLevels')}</h2>
+          <span className="note">{t('page.project.targetsForTheTeamS')}</span>
         </div>
         <SlaSettings project={p} canEdit={canEdit} />
       </section>
       {canEdit ? (
         <section className="card" aria-labelledby="helpdesk-mail">
           <div className="section-head">
-            <h2 id="helpdesk-mail">Help desk by email</h2>
-            <span className="note">An address people write to, and where their mail comes in.</span>
+            <h2 id="helpdesk-mail">{t('page.project.helpDeskByEmail')}</h2>
+            <span className="note">{t('page.project.anAddressPeopleWriteTo')}</span>
           </div>
           <HelpdeskMail project={p} />
           <DeskMailboxSettings project={p} />
@@ -308,32 +293,32 @@ export default function ProjectPage() {
       ) : null}
       <section className="card" aria-labelledby="chat-channels">
         <div className="section-head">
-          <h2 id="chat-channels">Chat channels</h2>
-          <span className="note">Teams and Slack channels told of its issues</span>
+          <h2 id="chat-channels">{t('page.project.chatChannels')}</h2>
+          <span className="note">{t('page.project.teamsAndSlackChannelsTold')}</span>
         </div>
         <ProjectChannels project={p} canAdd={p.visibility === 'members' ? canEdit : p.access.write || canEdit} />
       </section>
       <section className="card" aria-labelledby="plan">
         <div className="section-head">
-          <h2 id="plan">Plan settings</h2>
-          <span className="note">The plan's calendar and its money. People's own hours and rates are under Administration.</span>
+          <h2 id="plan">{t('page.project.planSettings')}</h2>
+          <span className="note">{t('page.project.thePlanSCalendarAnd')}</span>
         </div>
         <PlanSettings project={p} canEdit={canEdit} />
       </section>
 
       <section className="card" aria-labelledby="work-types">
         <div className="section-head">
-          <h2 id="work-types">Work types</h2>
-          <span className="note">The kinds of work time is logged as here</span>
+          <h2 id="work-types">{t('page.project.workTypes')}</h2>
+          <span className="note">{t('page.project.theKindsOfWorkTime')}</span>
         </div>
         <WorkTypes project={p} canEdit={canEdit} />
       </section>
       <section className="card" aria-labelledby="fields">
         <div className="section-head">
-          <h2 id="fields">Fields</h2>
-          <span className="note">What its issues have. Values and new fields are on the Fields page.</span>
+          <h2 id="fields">{t('page.project.fields')}</h2>
+          <span className="note">{t('page.project.whatItsIssuesHaveValues')}</span>
         </div>
-        {projectFields.isLoading || allFields.isLoading ? <Loading what="its fields" /> : null}
+        {projectFields.isLoading || allFields.isLoading ? <Loading what={t('page.project.itsFields')} /> : null}
         {projectFields.error ? <ErrorNote error={projectFields.error} /> : null}
         {projectFields.data && allFields.data ? (
           <ProjectFields projectKey={p.key} fields={projectFields.data} all={allFields.data} users={users.data ?? []} canEdit={canEdit} />
@@ -341,16 +326,16 @@ export default function ProjectPage() {
       </section>
       <section className="card" aria-labelledby="baselines">
         <div className="section-head">
-          <h2 id="baselines">Baselines</h2>
-          <span className="note">The plan as it was agreed, kept to compare with.</span>
+          <h2 id="baselines">{t('page.project.baselines')}</h2>
+          <span className="note">{t('page.project.thePlanAsItWas')}</span>
         </div>
         <Baselines project={p} />
       </section>
       {canEdit ? (
         <section className="card" aria-labelledby="project-apps">
           <div className="section-head">
-            <h2 id="project-apps">Apps</h2>
-            <span className="note">What apps add here; turn one off and it does nothing here</span>
+            <h2 id="project-apps">{t('page.project.apps')}</h2>
+            <span className="note">{t('page.project.whatAppsAddHereTurn')}</span>
           </div>
           <ProjectApps project={p.key} />
         </section>

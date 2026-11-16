@@ -11,12 +11,15 @@
     "./constants": "./src/constants.ts",
     "./refs": "./src/refs.ts",
     "./mentions": "./src/mentions.ts",
-    "./markdown": "./src/markdown.ts"
+    "./markdown": "./src/markdown.ts",
+    "./i18n": "./src/i18n.ts",
+    "./i18n/*.json": "./i18n/*.json"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "intl-messageformat": "10.7.16",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-gfm": "^3.1.0",
     "micromark-extension-gfm": "^3.0.0",

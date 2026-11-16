@@ -1,3 +1,4 @@
+import { localeOfRequest } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
@@ -7,7 +8,7 @@ import { ZodError } from 'zod';
 import type { Runtime } from '../app-services';
 import type { Ctx } from '../context';
 import { idempotencyKeys } from '../db/schema';
-import { AppError } from '../lib/errors';
+import { AppError, type ProblemWords } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { ACCESS_PREFIX, mcpChallenge } from '../oauth/common';
 import { actorFromOAuthToken } from '../oauth/tokens';
@@ -15,23 +16,32 @@ import { actorFromSession, actorFromToken, SESSION_COOKIE } from '../services/au
 import { guestCtx, guestMayRequest } from '../services/guests';
 import type { HttpEnv } from './env';
 
-export function errorBody(code: string, message: string, hint?: string, details?: unknown) {
-  return { error: { code, message, ...(hint ? { hint } : {}), ...(details !== undefined ? { details } : {}) } };
+export function errorBody(code: string, message: string, hint?: string, details?: unknown, words?: ProblemWords) {
+  return {
+    error: {
+      code,
+      message,
+      ...(hint ? { hint } : {}),
+      ...(details !== undefined ? { details } : {}),
+      // Beside the English: the problem's key in the catalogs and its values, for a page in another language (D49).
+      ...(words ? { key: words.key, ...(words.values ? { values: words.values } : {}) } : {}),
+    },
+  };
 }
 
 /** Map anything thrown to the API's error shape. */
 export function toErrorResponse(c: Context<HttpEnv>, err: unknown): Response {
   if (err instanceof AppError) {
-    return c.json(errorBody(err.code, err.message, err.hint, err.details), err.status as ContentfulStatusCode);
+    return c.json(errorBody(err.code, err.message, err.hint, err.details, err.words), err.status as ContentfulStatusCode);
   }
   if (err instanceof ZodError) {
-    return c.json(errorBody('validation_failed', 'The request is not valid', undefined, err.issues), 400);
+    return c.json(errorBody('validation_failed', 'The request is not valid', undefined, err.issues, { key: 'validationFailed' }), 400);
   }
   const pgCode = (err as { code?: string; cause?: { code?: string } })?.code ?? (err as { cause?: { code?: string } })?.cause?.code;
-  if (pgCode === '23505') return c.json(errorBody('conflict', 'That already exists'), 409);
-  if (pgCode === '23503') return c.json(errorBody('conflict', 'It is still referenced by something else'), 409);
+  if (pgCode === '23505') return c.json(errorBody('conflict', 'That already exists', undefined, undefined, { key: 'alreadyExists' }), 409);
+  if (pgCode === '23503') return c.json(errorBody('conflict', 'It is still referenced by something else', undefined, undefined, { key: 'stillReferenced' }), 409);
   console.error(`[${c.get('requestId')}]`, err);
-  return c.json(errorBody('internal', 'Something went wrong on the server', `Request ${c.get('requestId')}`), 500);
+  return c.json(errorBody('internal', 'Something went wrong on the server', `Request ${c.get('requestId')}`, undefined, { key: 'internal', values: { request: String(c.get('requestId')) } }), 500);
 }
 
 /** Resolve who is acting: a bearer token (API / MCP) or the session cookie (web). */
@@ -63,7 +73,7 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
       if (!actor) {
         // At /mcp the challenge says where to sign in again, so a client can renew what expired.
         if (isMcp) c.header('www-authenticate', mcpChallenge(runtime.config, { code: 'invalid_token', description: 'The token is unknown, expired or revoked' }));
-        return c.json(errorBody('unauthorized', 'The token is unknown, expired or revoked', 'Create a new token in Profile → API tokens.'), 401);
+        return c.json(errorBody('unauthorized', 'The token is unknown, expired or revoked', 'Create a new token in Profile → API tokens.', undefined, { key: 'tokenUnknown' }), 401);
       }
       ctx = { app: runtime, db: runtime.db, actor };
     } else if (!isMcp) {
@@ -77,6 +87,8 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
     if (!ctx && !header && c.req.path.startsWith('/api/v1/') && guestMayRequest(c.req.method, c.req.path.slice('/api/v1'.length))) {
       ctx = await guestCtx(runtime);
     }
+    // The language its answer's words for a person are in (D49): the page's, theirs, their browser's.
+    if (ctx) ctx.locale = localeOfRequest(ctx, { pageLocale: c.req.header('x-a4a-locale'), acceptLanguage: c.req.header('accept-language') });
     c.set('ctx', ctx);
     await next();
   };
@@ -157,7 +169,7 @@ export function rateLimit(limiter: RateLimiter, trustedProxies = 0, guests?: Rat
     const wait = guest && guests ? guests.hit(key) : limiter.hit(key);
     if (wait) {
       c.header('retry-after', String(wait));
-      return c.json(errorBody('rate_limited', 'Too many requests', `Retry in ${wait}s`), 429);
+      return c.json(errorBody('rate_limited', 'Too many requests', `Retry in ${wait}s`, undefined, { key: 'rateLimited', values: { seconds: wait } }), 429);
     }
     await next();
   };

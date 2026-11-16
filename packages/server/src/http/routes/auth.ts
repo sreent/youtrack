@@ -32,6 +32,7 @@ import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
 import { APP_NAME } from '@a4a/shared';
+import { isLocale } from '@a4a/shared/i18n';
 import { getCookie } from 'hono/cookie';
 import type { HttpEnv } from '../env';
 import { clientIp, errorBody } from '../middleware';
@@ -44,6 +45,8 @@ export async function meDto(ctx: Ctx): Promise<Me> {
     ...userDto(ctx.actor.user),
     timeZone: ctx.actor.user.timeZone ?? null,
     serverTimeZone: serverTimeZone(),
+    locale: isLocale(ctx.actor.user.locale) ? ctx.actor.user.locale : null,
+    defaultLocale: ctx.app.config.defaultLocale,
     auth: {
       method: ctx.actor.authMethod === 'token' ? 'token' : 'session',
       scopes: ctx.actor.scopes,
@@ -125,18 +128,18 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       const ldap = runtime.config.ldap;
       if (!runtime.config.passwordLogin && !ldap) {
-        throw new AppError(403, 'password_login_off', 'Signing in with a password is turned off here', `Sign in with ${runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'single sign-on'}.`);
+        throw new AppError(403, 'password_login_off', 'Signing in with a password is turned off here', `Sign in with ${runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'single sign-on'}.`).said('passwordLoginOff', { provider: runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'Single Sign-on' });
       }
       // Counted in Postgres before the password is checked, so the limit holds across
       // instances, restarts and parallel guesses; a wrong password leaves its count.
       const attempt = await beginLoginAttempt(runtime.db, clientIp(c, runtime.config.trustProxy), body.login);
       if (attempt.wait) {
         c.header('retry-after', String(attempt.wait));
-        return c.json(errorBody('rate_limited', 'Too many sign-in attempts', `Try again in ${waitInWords(attempt.wait)}`), 429);
+        return c.json(errorBody('rate_limited', 'Too many sign-in attempts', `Try again in ${waitInWords(attempt.wait)}`, undefined, { key: 'tooManySignIns', values: { minutes: Math.max(1, Math.ceil(attempt.wait / 60)) } }), 429);
       }
       // a4a's own password first, then the directory's (D38).
       const user = (runtime.config.passwordLogin ? await passwordUser(runtime.db, body.login, body.password) : null) ?? (ldap ? await ldapSignIn(runtime, ldap, body.login, body.password) : null);
-      if (!user) throw unauthorized('Wrong login or password');
+      if (!user) throw unauthorized('Wrong login or password').said('wrongLogin');
       await attempt.succeeded();
       return afterPassword(c, runtime, user);
     },

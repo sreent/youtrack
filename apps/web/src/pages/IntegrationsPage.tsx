@@ -12,6 +12,8 @@ import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
 import { BuildSources } from '../features/builds/Builds';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const vcsKeys = {
   all: ['vcs', 'integrations'] as const,
@@ -28,7 +30,7 @@ const isBitbucket = (p: VcsProvider) => p === 'bitbucket' || p === 'bitbucket-dc
 const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
   processed: { tone: 'good', word: 'handled' },
   ignored: { tone: 'idle', word: 'ignored' },
-  duplicate: { tone: 'idle', word: 'had it already' },
+  duplicate: { tone: 'idle', word: t('page.integrations.hadItAlready') },
   received: { tone: 'warn', word: 'being handled' },
   refused: { tone: 'bad', word: 'refused' },
   failed: { tone: 'bad', word: 'failed' },
@@ -40,72 +42,43 @@ function Steps({ provider }: { provider: VcsProvider }) {
     case 'github':
       return (
         <ol>
-          <li>
-            In the repository on GitHub, open <strong>Settings</strong>, then <strong>Webhooks</strong>, and <strong>Add webhook</strong>.
-          </li>
-          <li>
-            Payload URL: the URL above. Content type: <code>application/json</code>. Secret: the secret above.
-          </li>
-          <li>
-            Under “Which events”, choose <strong>Let me select individual events</strong>, and tick <strong>Pushes</strong> and <strong>Pull requests</strong>; and{' '}
-            <strong>Workflow runs</strong>, if its GitHub Actions runs are builds.
-          </li>
+          <li>{tr('page.integrations.inTheRepositoryOnGithub', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{tr('page.integrations.payloadUrlTheUrlAbove', { code: <code>application/json</code> })}</li>
+          <li>{tr('page.integrations.underWhichEventsChooseLet', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong> })}</li>
         </ol>
       );
     case 'gitlab':
       return (
         <ol>
-          <li>
-            In the project on GitLab, open <strong>Settings</strong>, then <strong>Webhooks</strong>, and <strong>Add new webhook</strong>.
-          </li>
-          <li>URL: the URL above. Secret token: the secret above.</li>
-          <li>
-            Under Trigger, tick <strong>Push events</strong> and <strong>Merge request events</strong>.
-          </li>
+          <li>{tr('page.integrations.inTheProjectOnGitlab', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{t('page.integrations.urlTheUrlAboveSecret')}</li>
+          <li>{tr('page.integrations.underTriggerTickPushEvents', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong> })}</li>
         </ol>
       );
     case 'bitbucket':
       return (
         <ol>
-          <li>
-            In the repository on Bitbucket, open <strong>Repository settings</strong>, then <strong>Webhooks</strong>, and <strong>Add webhook</strong>.
-          </li>
-          <li>URL: the URL above. Secret: the secret above.</li>
-          <li>
-            Under Triggers, choose from the full list: <strong>Push</strong>, and the pull request's <strong>Created</strong>, <strong>Updated</strong>,{' '}
-            <strong>Merged</strong> and <strong>Declined</strong>.
-          </li>
-          <li>For pushes of more than five commits, give a4a a repository access token that may read the repository.</li>
+          <li>{tr('page.integrations.inTheRepositoryOnBitbucket', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{t('page.integrations.urlTheUrlAboveSecret2')}</li>
+          <li>{tr('page.integrations.underTriggersChooseFromThe', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong>, t4: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{t('page.integrations.forPushesOfMoreThan')}</li>
         </ol>
       );
     case 'bitbucket-dc':
       return (
         <ol>
-          <li>
-            In the repository, open <strong>Repository settings</strong>, then <strong>Webhooks</strong>, and <strong>Create webhook</strong>.
-          </li>
-          <li>URL: the URL above. Secret: the secret above.</li>
-          <li>
-            Under Events, tick the repository's <strong>Push</strong>, and the pull request's <strong>Opened</strong>, <strong>Modified</strong>,{' '}
-            <strong>Merged</strong> and <strong>Declined</strong>.
-          </li>
-          <li>
-            Bitbucket Data Center's pushes don't say what their commits say: give a4a an HTTP access token with <strong>Repository read</strong>, so it reads them.
-          </li>
+          <li>{tr('page.integrations.inTheRepositoryOpenRepository', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{t('page.integrations.urlTheUrlAboveSecret2')}</li>
+          <li>{tr('page.integrations.underEventsTickTheRepository', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong>, t4: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{tr('page.integrations.bitbucketDataCenterSPushes', { t0: (c: ReactNode) => <strong>{c}</strong> })}</li>
         </ol>
       );
     case 'gitea':
       return (
         <ol>
-          <li>
-            In the repository, open <strong>Settings</strong>, then <strong>Webhooks</strong>, and add a <strong>Gitea</strong> (or <strong>Forgejo</strong>) webhook.
-          </li>
-          <li>
-            Target URL: the URL above. Method <code>POST</code>, content type <code>application/json</code>. Secret: the secret above.
-          </li>
-          <li>
-            Under “Trigger on”, choose custom events: <strong>Push</strong> and <strong>Pull request</strong>.
-          </li>
+          <li>{tr('page.integrations.inTheRepositoryOpenSettings', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{tr('page.integrations.targetUrlTheUrlAbove', { code: <code>POST</code>, code2: <code>application/json</code> })}</li>
+          <li>{tr('page.integrations.underTriggerOnChooseCustom', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong> })}</li>
         </ol>
       );
   }
@@ -113,18 +86,18 @@ function Steps({ provider }: { provider: VcsProvider }) {
 
 function Deliveries({ integration }: { integration: VcsIntegration }) {
   const deliveries = useDeliveries(integration.id, true);
-  if (deliveries.isLoading) return <Loading what="its deliveries" />;
+  if (deliveries.isLoading) return <Loading what={t('page.integrations.itsDeliveries')} />;
   if (deliveries.error) return <ErrorNote error={deliveries.error} />;
-  if (!deliveries.data?.length) return <p className="note">Nothing has come yet. Send a test, or push a commit that mentions an issue.</p>;
+  if (!deliveries.data?.length) return <p className="note">{t('page.integrations.nothingHasComeYetSend')}</p>;
   return (
-    <Scroll label="Table of recent deliveries">
+    <Scroll label={t('page.integrations.tableOfRecentDeliveries')}>
       <table className="figures">
         <thead>
           <tr>
-            <th scope="col">When</th>
-            <th scope="col">Event</th>
-            <th scope="col">How it went</th>
-            <th scope="col">What it did</th>
+            <th scope="col">{t('page.integrations.when')}</th>
+            <th scope="col">{t('page.integrations.event')}</th>
+            <th scope="col">{t('page.integrations.howItWent')}</th>
+            <th scope="col">{t('page.integrations.whatItDid')}</th>
           </tr>
         </thead>
         <tbody>
@@ -137,7 +110,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
               </td>
               <td>
                 <span className="mono">{d.event}</span>
-                <span className="item-about">{d.test ? 'a test' : d.deliveryId ? <span className="mono">{d.deliveryId.slice(0, 13)}</span> : null}</span>
+                <span className="item-about">{d.test ? t('page.integrations.aTest') : d.deliveryId ? <span className="mono">{d.deliveryId.slice(0, 13)}</span> : null}</span>
               </td>
               <td>
                 <Badge tone={OUTCOME[d.outcome].tone}>
@@ -145,9 +118,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
                   {d.outcome === 'refused' || d.outcome === 'failed' ? `, ${d.statusCode}` : ''}
                 </Badge>
                 {d.linked || d.applied ? (
-                  <span className="item-about">
-                    {d.linked} linked{d.applied ? `, ${d.applied} ${d.applied === 1 ? 'command' : 'commands'} applied` : ''}
-                  </span>
+                  <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.applied', { applied: d.applied, v: d.applied === 1 ? 'command' : 'commands' }) : '' })}</span>
                 ) : null}
               </td>
               <td>{d.message}</td>
@@ -162,18 +133,13 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
 function Secret({ made, onKept }: { made: VcsIntegrationCreated; onKept: () => void }) {
   return (
     <div className="secret" role="status">
-      <p>
-        <strong>Copy the secret now.</strong> This is the only time a4a shows it. {PROVIDER[made.provider]} sends it with each delivery, and a4a refuses any delivery
-        without it.
-      </p>
+      <p>{tr('page.integrations.copyTheSecretNowThis', { t0: (c: ReactNode) => <strong>{c}</strong>, v: PROVIDER[made.provider] })}</p>
       <code>{made.webhookUrl}</code>
       <code>{made.secret}</code>
       <div className="cluster">
-        <CopyButton text={made.webhookUrl} label="Copy the URL" what="the URL" />
-        <CopyButton text={made.secret} label="Copy the secret" what="the secret" />
-        <button type="button" className="link" onClick={onKept}>
-          I've kept it
-        </button>
+        <CopyButton text={made.webhookUrl} label={t('page.integrations.copyTheUrl')} what={t('page.integrations.theUrl')} />
+        <CopyButton text={made.secret} label={t('page.integrations.copyTheSecret')} what={t('page.integrations.theSecret')} />
+        <button type="button" className="link" onClick={onKept}>{t('page.integrations.iVeKeptIt')}</button>
       </div>
       <Steps provider={made.provider} />
     </div>
@@ -182,9 +148,9 @@ function Secret({ made, onKept }: { made: VcsIntegrationCreated; onKept: () => v
 
 /** What an access token is for, at each Bitbucket. */
 const TOKEN_HELP: Partial<Record<VcsProvider, string>> = {
-  github: "Optional. With a token that may read the repository's contents, a4a asks GitHub which commits each build holds, those it never saw pushed included.",
-  bitbucket: 'Optional. Bitbucket sends the latest five commits a push gives a branch; with a repository access token that may read it, a4a reads the rest.',
-  'bitbucket-dc': 'Its pushes name the commits they moved, not what they say: with an HTTP access token that may read the repository, a4a reads them.',
+  github: t('page.integrations.optionalWithATokenThat'),
+  bitbucket: t('page.integrations.optionalBitbucketSendsTheLatest'),
+  'bitbucket-dc': t('page.integrations.itsPushesNameTheCommits'),
 };
 
 /** A Bitbucket integration's access token: given, replaced or taken away. Never shown again. */
@@ -202,11 +168,11 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
       onSaid({
         text: i.hasAccessToken
           ? github
-            ? "Saved: a4a asks GitHub which commits each build holds with it."
-            : 'Saved: a4a reads the commits a delivery leaves out with it.'
+            ? t('page.integrations.savedA4aAsksGithubWhich')
+            : t('page.integrations.savedA4aReadsTheCommits')
           : github
-            ? 'The token is gone: a build holds the commits a4a saw pushed.'
-            : 'The token is gone: a4a reads what deliveries carry.',
+            ? t('page.integrations.theTokenIsGoneA')
+            : t('page.integrations.theTokenIsGoneA4a'),
       });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
@@ -215,21 +181,21 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
     return (
       <>
         <button type="button" className="small" onClick={() => setOpen(true)}>
-          {integration.hasAccessToken ? 'Replace its access token' : 'Give it an access token'}
+          {integration.hasAccessToken ? t('page.integrations.replaceItsAccessToken') : t('page.integrations.giveItAnAccessToken')}
         </button>
         {integration.hasAccessToken ? (
           <Confirm
             small
-            label="Remove its access token"
-            title={`Remove ${integration.name}'s access token?`}
+            label={t('page.integrations.removeItsAccessToken')}
+            title={t('page.integrations.removeSAccessToken', { name: integration.name })}
             about={
               integration.provider === 'bitbucket-dc'
-                ? 'Without it, a4a can’t read what pushes’ commits say, so it links none.'
+                ? t('page.integrations.withoutItA4aCanT')
                 : integration.provider === 'github'
-                  ? 'Without it, a build holds the commits a4a saw pushed to its branch.'
-                  : 'Without it, a4a reads the latest five commits a push gives a branch.'
+                  ? t('page.integrations.withoutItABuildHolds')
+                  : t('page.integrations.withoutItA4aReadsThe')
             }
-            confirm="Remove it"
+            confirm={t('page.integrations.removeIt')}
             disabled={save.isPending}
             onConfirm={() => save.mutate(null)}
           />
@@ -245,15 +211,11 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
         if (token.trim()) save.mutate(token.trim());
       }}
     >
-      <FormField label="Access token" className="inline">
+      <FormField label={t('page.integrations.accessToken')} className="inline">
         {(id) => <input id={id} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required className="mono" />}
       </FormField>
-      <button type="submit" className="small primary" disabled={!token.trim() || save.isPending}>
-        Save the token
-      </button>
-      <button type="button" className="small" onClick={() => setOpen(false)}>
-        Cancel
-      </button>
+      <button type="submit" className="small primary" disabled={!token.trim() || save.isPending}>{t('page.integrations.saveTheToken')}</button>
+      <button type="button" className="small" onClick={() => setOpen(false)}>{t('page.integrations.cancel')}</button>
     </form>
   );
 }
@@ -268,7 +230,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
     mutationFn: (active: boolean) => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, { active }),
     onSuccess: (i) => {
       refresh();
-      setSaid({ text: i.active ? 'It takes deliveries again.' : 'It is paused: deliveries are answered, logged, and not read.' });
+      setSaid({ text: i.active ? t('page.integrations.itTakesDeliveriesAgain') : t('page.integrations.itIsPausedDeliveriesAre') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -277,7 +239,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
     onSuccess: (r) => {
       setOpen(true);
       void qc.invalidateQueries({ queryKey: vcsKeys.deliveries(integration.id) });
-      setSaid(r.delivered ? { text: r.message } : { text: r.message || 'The test didn’t go through. Its delivery is below.', bad: true });
+      setSaid(r.delivered ? { text: r.message } : { text: r.message || t('page.integrations.theTestDidnTGo'), bad: true });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -295,66 +257,61 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
     onSuccess: refresh,
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const where = integration.projects.length ? `issues of ${integration.projects.map((k) => projectNames.get(k) ?? k).join(', ')}` : 'issues of every project';
+  const where = integration.projects.length ? t('page.integrations.issuesOf', { join: integration.projects.map((k) => projectNames.get(k) ?? k).join(', ') }) : t('page.integrations.issuesOfEveryProject');
   const bitbucket = isBitbucket(integration.provider);
   return (
     <li className="card hook">
       <div className="hook-head">
         <div className="hook-what">
           <span className="mono hook-url">{integration.name}</span>
-          <span className="item-about">
-            {PROVIDER[integration.provider]} · looks for {where} · its secret begins <span className="mono">{integration.secretPrefix}</span> · added {ago(integration.createdAt)}
-            {integration.lastDeliveryAt ? ` · last delivery ${ago(integration.lastDeliveryAt)}` : ' · nothing has come yet'}
-          </span>
+          <span className="item-about">{tr('page.integrations.looksForItsSecretBegins', { v: PROVIDER[integration.provider], where: where, secretPrefix: integration.secretPrefix, t0: (c: ReactNode) => <span className="mono">{c}</span>, when: ago(integration.createdAt), v2: integration.lastDeliveryAt ? t('page.integrations.lastDelivery', { when: ago(integration.lastDeliveryAt) }) : t('page.integrations.nothingHasComeYet') })}</span>
         </div>
-        {integration.active ? <Badge tone="good">takes deliveries</Badge> : <Badge tone="idle">paused</Badge>}
+        {integration.active ? <Badge tone="good">{t('page.integrations.takesDeliveries')}</Badge> : <Badge tone="idle">{t('page.integrations.paused')}</Badge>}
       </div>
       <div className="cluster">
-        <span className="note">Webhook URL</span>
+        <span className="note">{t('page.integrations.webhookUrl')}</span>
         <code className="hook-url">{integration.webhookUrl}</code>
-        <CopyButton text={integration.webhookUrl} label="Copy it" what="the URL" />
+        <CopyButton text={integration.webhookUrl} label={t('page.integrations.copyIt')} what={t('page.integrations.theUrl')} />
       </div>
       {bitbucket || integration.provider === 'github' ? (
         <div className="cluster">
           {integration.provider === 'bitbucket-dc' && integration.baseUrl ? (
-            <span className="note">
-              Reads commits at <span className="mono">{integration.baseUrl}</span>
-            </span>
+            <span className="note">{tr('page.integrations.readsCommitsAt', { baseUrl: integration.baseUrl, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</span>
           ) : null}
           {integration.hasAccessToken ? (
-            <Badge tone="good">{bitbucket ? 'reads commits with its token' : "reads builds' commits with its token"}</Badge>
+            <Badge tone="good">{bitbucket ? t('page.integrations.readsCommitsWithItsToken') : t('page.integrations.readsBuildsCommitsWithIts')}</Badge>
           ) : (
-            <Badge tone={integration.provider === 'bitbucket-dc' ? 'warn' : 'idle'}>{integration.provider === 'bitbucket-dc' ? 'no access token: links no commits' : 'no access token'}</Badge>
+            <Badge tone={integration.provider === 'bitbucket-dc' ? 'warn' : 'idle'}>{integration.provider === 'bitbucket-dc' ? t('page.integrations.noAccessTokenLinksNo') : t('page.integrations.noAccessToken')}</Badge>
           )}
           <AccessToken integration={integration} onSaid={setSaid} />
         </div>
       ) : null}
       <div className="cluster">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
-          {test.isPending ? 'Sending…' : 'Send a test'}
+          {test.isPending ? t('page.integrations.sending') : t('page.integrations.sendATest')}
         </button>
         <button type="button" onClick={() => toggle.mutate(!integration.active)} disabled={toggle.isPending}>
-          {integration.active ? 'Pause it' : 'Turn it back on'}
+          {integration.active ? t('page.integrations.pauseIt') : t('page.integrations.turnItBackOn')}
         </button>
         <button type="button" className="link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          {open ? 'Hide its deliveries' : 'Show its deliveries'}
+          {open ? t('page.integrations.hideItsDeliveries') : t('page.integrations.showItsDeliveries')}
         </button>
         <span className="grow" />
         <Confirm
           small
-          label="Give it a new secret"
-          title={`Give ${integration.name} a new secret?`}
-          about={`The old one stops working at once: until ${PROVIDER[integration.provider]} has the new one, a4a refuses what it sends.`}
-          confirm="Make a new one"
+          label={t('page.integrations.giveItANewSecret')}
+          title={t('page.integrations.giveANewSecret', { name: integration.name })}
+          about={t('page.integrations.theOldOneStopsWorking', { v: PROVIDER[integration.provider] })}
+          confirm={t('page.integrations.makeANewOne')}
           disabled={rotate.isPending}
           onConfirm={() => rotate.mutate()}
         />
         <Confirm
           small
-          label="Remove it"
-          title={`Remove the integration ${integration.name}?`}
-          about="a4a stops taking its deliveries at once, and its delivery log goes with it. The commits and pull requests already linked stay on their issues."
-          confirm="Remove it"
+          label={t('page.integrations.removeIt')}
+          title={t('page.integrations.removeTheIntegration', { name: integration.name })}
+          about={t('page.integrations.a4aStopsTakingItsDeliveries')}
+          confirm={t('page.integrations.removeIt')}
           disabled={remove.isPending}
           onConfirm={() => remove.mutate()}
         />
@@ -363,7 +320,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {open ? (
         <div className="hook-log">
-          <h3>Recent deliveries</h3>
+          <h3>{t('page.integrations.recentDeliveries')}</h3>
           <Deliveries integration={integration} />
         </div>
       ) : null}
@@ -401,7 +358,7 @@ function AddIntegration() {
   });
   return (
     <section className="card" aria-labelledby="add-vcs">
-      <h2 id="add-vcs">Add an integration</h2>
+      <h2 id="add-vcs">{t('page.integrations.addAnIntegration')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -410,7 +367,7 @@ function AddIntegration() {
         }}
       >
         <fieldset className="choice-group columns">
-          <legend>From</legend>
+          <legend>{t('page.integrations.from')}</legend>
           {VCS_PROVIDERS.map((p) => (
             <label key={p} className="choice">
               <input type="radio" name="provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />
@@ -418,7 +375,7 @@ function AddIntegration() {
             </label>
           ))}
         </fieldset>
-        <FormField label="Name" help="Usually the repository, so people know where its commits come from.">
+        <FormField label={t('page.integrations.name')} help={t('page.integrations.usuallyTheRepositorySoPeople')}>
           {(id, help) => (
             <input
               id={id}
@@ -427,13 +384,13 @@ function AddIntegration() {
               onChange={(e) => setName(e.target.value)}
               required
               maxLength={120}
-              placeholder={dc ? 'PROJ/backend' : 'acme/backend'}
+              placeholder={dc ? t('page.integrations.projBackend') : 'acme/backend'}
               className="mono"
             />
           )}
         </FormField>
         {dc ? (
-          <FormField label="Bitbucket’s address" help="Where people open it, https. a4a reads the commits a push moved there.">
+          <FormField label={t('page.integrations.bitbucketSAddress')} help={t('page.integrations.wherePeopleOpenItHttps')}>
             {(id, help) => (
               <input
                 id={id}
@@ -449,15 +406,15 @@ function AddIntegration() {
           </FormField>
         ) : null}
         {isBitbucket(provider) ? (
-          <FormField label={dc ? 'An HTTP access token' : 'An access token, if pushes are long'} help={TOKEN_HELP[provider]}>
+          <FormField label={dc ? t('page.integrations.anHttpAccessToken') : t('page.integrations.anAccessTokenIfPushes')} help={TOKEN_HELP[provider]}>
             {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="mono" />}
           </FormField>
         ) : null}
         <fieldset className="choice-group columns">
-          <legend>Issues it looks for</legend>
+          <legend>{t('page.integrations.issuesItLooksFor')}</legend>
           <label className="choice tw:col-span-full">
             <input type="checkbox" checked={every} onChange={(e) => setEvery(e.target.checked)} />
-            <span>Of every project, members-only ones and ones added later too</span>
+            <span>{t('page.integrations.ofEveryProjectMembersOnly')}</span>
           </label>
           {!every
             ? (projects.data ?? []).map((p) => (
@@ -484,7 +441,7 @@ function AddIntegration() {
         </fieldset>
         <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending || !name.trim() || (dc && !baseUrl.trim()) || (!every && !chosen.size)}>
-            {add.isPending ? 'Adding…' : 'Add the integration'}
+            {add.isPending ? t('page.integrations.adding') : t('page.integrations.addTheIntegration')}
           </button>
         </div>
         {add.error ? <ErrorNote error={add.error} /> : null}
@@ -500,16 +457,16 @@ export default function IntegrationsPage() {
   const projects = useProjects();
   const names = new Map((projects.data ?? []).map((p) => [p.key, p.name]));
   return (
-    <AdminOnly title="Integrations">
+    <AdminOnly title={t('page.integrations.integrations')}>
       <PageHead
-        title="Integrations"
-        about="GitHub, GitLab, Bitbucket, Gitea and Forgejo tell a4a about pushes and pull requests. A commit or pull request that mentions an issue is linked to it, and a commit can change it: BACK-12 #Fixed."
+        title={t('page.integrations.integrations')}
+        about={t('page.integrations.githubGitlabBitbucketGiteaAnd')}
       />
       <section className="card" aria-labelledby="vcs-list">
-        <h2 id="vcs-list">Where they come from</h2>
+        <h2 id="vcs-list">{t('page.integrations.whereTheyComeFrom')}</h2>
         {integrations.isLoading ? <Loading what="integrations" /> : null}
         {integrations.error ? <ErrorNote error={integrations.error} /> : null}
-        {integrations.data && !integrations.data.length ? <p className="note">Nowhere yet. Add an integration, then give its URL and secret to where your code lives.</p> : null}
+        {integrations.data && !integrations.data.length ? <p className="note">{t('page.integrations.nowhereYetAddAnIntegration')}</p> : null}
         {integrations.data?.length ? (
           <ul className="hooks">
             {integrations.data.map((i) => (
@@ -522,44 +479,31 @@ export default function IntegrationsPage() {
       <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <AddIntegration />
         <section className="card" aria-labelledby="vcs-how">
-          <h2 id="vcs-how">How it works</h2>
+          <h2 id="vcs-how">{t('page.integrations.howItWorks')}</h2>
           <dl className="facts-list">
             <div className="pair">
-              <dt>Linked</dt>
-              <dd>A commit whose message mentions BACK-12 is linked to it; a pull or merge request, by its title, branch or description. Each shows on the issue, and in its history.</dd>
+              <dt>{t('page.integrations.linked2')}</dt>
+              <dd>{t('page.integrations.aCommitWhoseMessageMentions')}</dd>
             </div>
             <div className="pair">
-              <dt>Commands</dt>
-              <dd>
-                <code>BACK-12 #Fixed</code> or <code>BACK-12 #State Fixed Assignee anna</code> applies what follows <code>#</code>, as the commit's author: only when a4a knows them
-                and they can change the project's issues. Otherwise the commit is linked, and the issue says why the command wasn't applied.
-              </dd>
+              <dt>{t('page.integrations.commands')}</dt>
+              <dd>{tr('page.integrations.orAppliesWhatFollowsAs', { code: <code>BACK-12 #Fixed</code>, code2: <code>BACK-12 #State Fixed Assignee anna</code>, code3: <code>#</code> })}</dd>
             </div>
             <div className="pair">
-              <dt>Who wrote it</dt>
-              <dd>
-                The person whose confirmed email the commit names, or whose login at the provider it names: GitHub, Gitea and Bitbucket name the account they matched the
-                commit's email to. People confirm their emails on <Link to="/me">their profile</Link>; logins are recorded under <Link to="/admin">Administration</Link>. When the
-                email and the login name two people, it's nobody.
-              </dd>
+              <dt>{t('page.integrations.whoWroteIt')}</dt>
+              <dd>{tr('page.integrations.thePersonWhoseConfirmedEmail', { t0: (c: ReactNode) => <Link to="/me">{c}</Link>, t1: (c: ReactNode) => <Link to="/admin">{c}</Link> })}</dd>
             </div>
             <div className="pair">
-              <dt>Checked, every time</dt>
-              <dd>
-                An HMAC-SHA256 of each delivery with the secret (GitHub's <code>X-Hub-Signature-256</code>, Bitbucket's <code>X-Hub-Signature</code>, Gitea's and Forgejo's
-                own), or GitLab's <code>X-Gitlab-Token</code>. What fails is refused, and logged here.
-              </dd>
+              <dt>{t('page.integrations.checkedEveryTime')}</dt>
+              <dd>{tr('page.integrations.anHmacSha256OfEach', { code: <code>X-Hub-Signature-256</code>, code2: <code>X-Hub-Signature</code>, code3: <code>X-Gitlab-Token</code> })}</dd>
             </div>
             <div className="pair">
-              <dt>Bitbucket's commits</dt>
-              <dd>
-                Bitbucket Cloud sends the latest five commits a push gives a branch, and Data Center none: with an access token, a4a reads the rest from Bitbucket. The token is
-                never shown again.
-              </dd>
+              <dt>{t('page.integrations.bitbucketSCommits')}</dt>
+              <dd>{t('page.integrations.bitbucketCloudSendsTheLatest')}</dd>
             </div>
             <div className="pair">
-              <dt>Once</dt>
-              <dd>A delivery sent again is answered as one a4a had already, and changes nothing.</dd>
+              <dt>{t('page.integrations.once')}</dt>
+              <dd>{t('page.integrations.aDeliverySentAgainIs')}</dd>
             </div>
           </dl>
         </section>

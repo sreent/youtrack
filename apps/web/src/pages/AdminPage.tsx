@@ -15,13 +15,15 @@ import { ProvisioningSection } from '../features/identity/Provisioning';
 import { AppsSection } from '../features/apps/AppsSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Role, string> = {
-  admin: 'an administrator changes everything',
-  member: 'a member reads and changes issues',
-  viewer: 'a viewer reads',
+  admin: t('page.admin.anAdministratorChangesEverything'),
+  member: t('page.admin.aMemberReadsAndChanges'),
+  viewer: t('page.admin.aViewerReads'),
 };
-const ROLE_NAMES: Record<Role, string> = { admin: 'Administrator', member: 'Member', viewer: 'Viewer' };
+const ROLE_NAMES: Record<Role, string> = { admin: t('page.admin.administrator'), member: t('page.admin.member'), viewer: t('page.admin.viewer') };
 
 function num(v: string): number | null {
   if (v.trim() === '') return null;
@@ -33,16 +35,16 @@ type SignInWays = { sso: { name: string } | null; passwords: boolean };
 
 /** How someone signs in, in words: "Password", "Corp ID", "Password and Corp ID". */
 function signsInWith(user: User, ways: SignInWays): { words: string; about: string | null } {
-  if (user.isBot) return { words: 'Tokens only', about: null };
+  if (user.isBot) return { words: t('page.admin.tokensOnly'), about: null };
   const providers = [...new Set((user.signIn?.identities ?? []).map((i) => i.provider))];
-  const now = [...(user.signIn?.password && ways.passwords ? ['Password'] : []), ...providers];
+  const now = [...(user.signIn?.password && ways.passwords ? [t('page.admin.password')] : []), ...providers];
   const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
   // Two-factor and provisioning (D38) say how, beside where.
-  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? `last ${ago(last)}` : null].filter(Boolean);
+  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? t('page.admin.last', { when: ago(last) }) : null].filter(Boolean);
   if (now.length) return { words: now.join(' and '), about: also.length ? also.join(' · ') : null };
-  if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: 'Not yet', about: `${ways.sso.name} finds them by email` };
-  if (ways.sso && user.email) return { words: 'Not yet', about: 'once their email is confirmed' };
-  return { words: 'Can’t yet', about: ways.sso ? 'Give them a password, or an email' : 'Give them a password' };
+  if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: t('page.admin.notYet'), about: t('page.admin.findsThemByEmail', { name: ways.sso.name }) };
+  if (ways.sso && user.email) return { words: t('page.admin.notYet'), about: t('page.admin.onceTheirEmailIsConfirmed') };
+  return { words: t('page.admin.canTYet'), about: ways.sso ? t('page.admin.giveThemAPasswordOr') : t('page.admin.giveThemAPassword') };
 }
 
 function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: SignInWays }) {
@@ -70,7 +72,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
         capacityHoursPerDay: num(form.capacity) ?? 0,
       }),
     onSuccess: () => {
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('page.admin.saved') });
       void qc.invalidateQueries({ queryKey: keys.users });
       void qc.invalidateQueries({ queryKey: ['plan'] });
       void qc.invalidateQueries({ queryKey: ['projects'] });
@@ -78,14 +80,14 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const label = (what: string) => `${what} of ${user.name}`;
+  const label = (what: string) => t('page.admin.of', { what: what, name: user.name });
   const how = signsInWith(user, ways);
   // An email people set for themselves isn't one single sign-on may find them by, until an administrator confirms it.
   const unconfirmed = Boolean(user.email) && user.signIn !== undefined && !user.signIn.emailConfirmed && form.email.trim() === (user.email ?? '');
   const reset = useMutation({
     mutationFn: () => del(`/users/${user.id}/two-factor`),
     onSuccess: () => {
-      setSaid({ text: `${user.name}'s two-factor sign-in is reset: their next sign-in sets it up again if it's required.` });
+      setSaid({ text: t('page.admin.sTwoFactorSignIn', { name: user.name }) });
       void qc.invalidateQueries({ queryKey: keys.users });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -93,7 +95,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
   const confirm = useMutation({
     mutationFn: () => patch<User>(`/users/${user.id}`, { email: user.email }),
     onSuccess: () => {
-      setSaid({ text: `${user.name}'s email is confirmed.` });
+      setSaid({ text: t('page.admin.sEmailIsConfirmed', { name: user.name }) });
       void qc.invalidateQueries({ queryKey: keys.users });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -107,7 +109,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              aria-label={label('Name')}
+              aria-label={label(t('page.admin.name'))}
               maxLength={100}
               required
               className="tw:w-44"
@@ -117,10 +119,10 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
               {user.isBot ? (
                 <>
                   {' '}
-                  · <span className="chip">bot</span>
+                  · <span className="chip">{t('page.admin.bot')}</span>
                 </>
               ) : null}
-              {isMe ? ' · you' : ''}
+              {isMe ? t('page.admin.you') : ''}
             </span>
           </span>
         </span>
@@ -130,17 +132,12 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           type="email"
           value={form.email}
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          aria-label={label('Email')}
-          placeholder="None"
+          aria-label={label(t('page.admin.email'))}
+          placeholder={t('page.admin.none')}
           className="tw:w-48"
         />
         {unconfirmed ? (
-          <span className="item-about">
-            Not confirmed: single sign-on won’t find them by it, and their commits run no commands, until they confirm it by the link a4a mails, or you do.{' '}
-            <button type="button" className="link" onClick={() => confirm.mutate()} disabled={confirm.isPending}>
-              Confirm it
-            </button>
-          </span>
+          <span className="item-about">{tr('page.admin.notConfirmedSingleSignOn', { el: <button type="button" className="link" onClick={() => confirm.mutate()} disabled={confirm.isPending}>{t('page.admin.confirmIt')}</button> })}</span>
         ) : null}
       </td>
       <td>
@@ -148,14 +145,12 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           {how.words}
           {how.about ? <span className="item-about">{how.about}</span> : null}
           {user.signIn?.twoFactor && !isMe ? (
-            <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={`Reset two-factor for ${user.name}`}>
-              Reset two-factor
-            </button>
+            <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={t('page.admin.resetTwoFactorFor', { name: user.name })}>{t('page.admin.resetTwoFactor')}</button>
           ) : null}
         </span>
       </td>
       <td>
-        <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label('Role')} disabled={isMe}>
+        <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label(t('page.admin.role'))} disabled={isMe}>
           {ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
@@ -170,8 +165,8 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           step="any"
           value={form.hourlyRate}
           onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))}
-          aria-label={label('Rate per hour')}
-          placeholder="None"
+          aria-label={label(t('page.admin.ratePerHour'))}
+          placeholder={t('page.admin.none')}
           className="tw:w-26"
         />
       </td>
@@ -183,7 +178,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           step={0.5}
           value={form.capacity}
           onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
-          aria-label={label('Hours a day')}
+          aria-label={label(t('page.admin.hoursADay'))}
           className="tw:w-26"
         />
       </td>
@@ -194,14 +189,14 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
             checked={!form.banned}
             onChange={(e) => setForm((f) => ({ ...f, banned: !e.target.checked }))}
             disabled={isMe}
-            aria-label={`${user.name} is allowed in`}
+            aria-label={t('page.admin.isAllowedIn', { name: user.name })}
           />
-          <span aria-hidden="true">{form.banned ? 'Banned' : 'Allowed'}</span>
+          <span aria-hidden="true">{form.banned ? t('page.admin.banned') : t('page.admin.allowed')}</span>
         </label>
       </td>
       <td className="fit">
         <button type="button" className="small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
-          {save.isPending ? 'Saving…' : 'Save'}
+          {save.isPending ? t('page.admin.saving') : t('page.admin.save')}
         </button>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </td>
@@ -227,7 +222,7 @@ function AddPerson() {
         capacityHoursPerDay: num(form.capacity) ?? 8,
       }),
     onSuccess: (u) => {
-      setSaid({ text: u.isBot ? `${u.login} is added, as a bot.` : `${u.name} is added, and can sign in as ${u.login}.` });
+      setSaid({ text: u.isBot ? t('page.admin.isAddedAsABot', { login: u.login }) : t('page.admin.isAddedAndCanSign', { name: u.name, login: u.login }) });
       setForm(blank);
       void qc.invalidateQueries({ queryKey: keys.users });
     },
@@ -244,10 +239,10 @@ function AddPerson() {
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Add someone</legend>
+        <legend>{t('page.admin.addSomeone')}</legend>
         <div className="form-fields">
-          <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
-          <FormField label="Login">
+          <FormField label={t('page.admin.name')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
+          <FormField label={t('page.admin.login')}>
             {(id) => (
               <input
                 id={id}
@@ -262,10 +257,10 @@ function AddPerson() {
               />
             )}
           </FormField>
-          <FormField label="Email">{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
+          <FormField label={t('page.admin.email')}>{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
           <FormField
-            label="Password"
-            help={form.isBot ? "A bot doesn't sign in with a password." : 'At least 8 characters. They can change it on their profile.'}
+            label={t('page.admin.password')}
+            help={form.isBot ? t('page.admin.aBotDoesnTSign') : t('page.admin.atLeast8CharactersThey')}
           >
             {(id, help) => (
               <input
@@ -280,7 +275,7 @@ function AddPerson() {
               />
             )}
           </FormField>
-          <FormField label="Role">
+          <FormField label={t('page.admin.role')}>
             {(id) => (
               <select id={id} value={form.role} onChange={set('role')}>
                 {ROLES.map((r) => (
@@ -291,23 +286,20 @@ function AddPerson() {
               </select>
             )}
           </FormField>
-          <FormField label="Rate per hour">
+          <FormField label={t('page.admin.ratePerHour')}>
             {(id) => <input id={id} type="number" min={0} step="any" value={form.hourlyRate} onChange={set('hourlyRate')} />}
           </FormField>
-          <FormField label="Hours a day">
+          <FormField label={t('page.admin.hoursADay')}>
             {(id) => <input id={id} type="number" min={0} max={24} step={0.5} value={form.capacity} onChange={set('capacity')} />}
           </FormField>
           <label className="choice">
             <input type="checkbox" checked={form.isBot} onChange={set('isBot')} />
-            <span>
-              A bot
-              <small className="field-help">An account for automation, such as triage. It shows as an agent, and never signs in with a password.</small>
-            </span>
+            <span>{tr('page.admin.aBotAnAccountFor', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
           </label>
         </div>
         <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending}>
-            {add.isPending ? 'Adding…' : 'Add them'}
+            {add.isPending ? t('page.admin.adding') : t('page.admin.addThem')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -328,12 +320,12 @@ function Instance({ settings }: { settings: Settings }) {
       void qc.invalidateQueries({ queryKey: keys.setup });
       setSaid({
         text: body.defaultTriageMode
-          ? 'New projects start at that rung from now on.'
+          ? t('page.admin.newProjectsStartAtThat')
           : body.requireTwoFactor !== undefined
             ? body.requireTwoFactor
-              ? 'From the next sign-in on, everyone who signs in with a password gives a code too; anyone without an app sets one up first.'
-              : 'Two-factor sign-in is each person’s choice again.'
-            : 'Saved.',
+              ? t('page.admin.fromTheNextSignIn')
+              : t('page.admin.twoFactorSignInIs')
+            : t('page.admin.saved'),
       });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -347,10 +339,10 @@ function Instance({ settings }: { settings: Settings }) {
           save.mutate({ instanceName: name.trim() });
         }}
       >
-        <FormField label="Its name" help="Shown when people sign in.">
+        <FormField label={t('page.admin.itsName')} help={t('page.admin.shownWhenPeopleSignIn')}>
           {(id, help) => <input id={id} aria-describedby={help} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />}
         </FormField>
-        <FormField label="Its address" help="Links in webhooks and for agents use it. It's set by PUBLIC_URL where the server runs.">
+        <FormField label={t('page.admin.itsAddress')} help={t('page.admin.linksInWebhooksAndFor')}>
           {(id, help) => (
             <output id={id} aria-describedby={help} className="mono">
               {settings.publicUrl}
@@ -358,17 +350,15 @@ function Instance({ settings }: { settings: Settings }) {
           )}
         </FormField>
         <div className="cluster tw:col-span-full">
-          <button type="submit" disabled={name.trim() === settings.instanceName || !name.trim() || save.isPending}>
-            Save the name
-          </button>
+          <button type="submit" disabled={name.trim() === settings.instanceName || !name.trim() || save.isPending}>{t('page.admin.saveTheName')}</button>
         </div>
       </form>
       <LadderChoice
-        legend="How far triage may go in new projects"
+        legend={t('page.admin.howFarTriageMayGo')}
         rungs={TRIAGE_RUNGS}
         value={save.isPending && save.variables?.defaultTriageMode ? save.variables.defaultTriageMode : settings.defaultTriageMode}
         onChange={save.isPending ? undefined : (m) => save.mutate({ defaultTriageMode: m })}
-        note="Each project can change it on its own page."
+        note={t('page.admin.eachProjectCanChangeIt')}
       />
       <label className="choice">
         <input
@@ -377,7 +367,7 @@ function Instance({ settings }: { settings: Settings }) {
           onChange={(e) => save.mutate({ requireTwoFactor: e.target.checked })}
           disabled={save.isPending}
         />
-        <span>Ask everyone who signs in with a password for a code from an authenticator app too. Single sign-on and tokens are left as they are.</span>
+        <span>{t('page.admin.askEveryoneWhoSignsIn')}</span>
       </label>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
@@ -396,37 +386,34 @@ export default function AdminPage() {
   const bots = people.filter((u) => u.isBot).length;
   const humans = people.length - bots;
   return (
-    <AdminOnly title="Administration">
-      <PageHead title="Administration" about="The people who use a4a and what each may do, and this instance's settings." />
+    <AdminOnly title={t('page.admin.administration')}>
+      <PageHead title={t('page.admin.administration')} about={t('page.admin.thePeopleWhoUseA4a')} />
       <section className="card" aria-labelledby="people">
         <div className="section-head">
-          <h2 id="people">People</h2>
+          <h2 id="people">{t('page.admin.people')}</h2>
           <span className="note">
-            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? `${banned} banned` : null]
+            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
               .filter(Boolean)
               .join(', ')}
           </span>
         </div>
-        <p className="note section-note">
-          A rate and hours a day drive the plan: cost is time logged times the rate, and levelling books each person up to their hours. A banned person can't
-          sign in, and their tokens stop working; their work stays.
-        </p>
+        <p className="note section-note">{t('page.admin.aRateAndHoursA')}</p>
         {users.isLoading ? <Loading what="people" /> : null}
         {users.error ? <ErrorNote error={users.error} /> : null}
         {people.length ? (
-          <Scroll label="Table of people">
+          <Scroll label={t('page.admin.tableOfPeople')}>
             <table className="figures middle">
               <thead>
                 <tr>
-                  <th scope="col">Person</th>
-                  <th scope="col">Email</th>
-                  <th scope="col">Signs in with</th>
-                  <th scope="col">Role</th>
-                  <th scope="col">Rate per hour</th>
-                  <th scope="col">Hours a day</th>
-                  <th scope="col">Access</th>
+                  <th scope="col">{t('page.admin.person')}</th>
+                  <th scope="col">{t('page.admin.email')}</th>
+                  <th scope="col">{t('page.admin.signsInWith')}</th>
+                  <th scope="col">{t('page.admin.role')}</th>
+                  <th scope="col">{t('page.admin.ratePerHour')}</th>
+                  <th scope="col">{t('page.admin.hoursADay')}</th>
+                  <th scope="col">{t('page.admin.access')}</th>
                   <th scope="col">
-                    <span className="hidden">Save</span>
+                    <span className="hidden">{t('page.admin.save')}</span>
                   </th>
                 </tr>
               </thead>
@@ -438,10 +425,7 @@ export default function AdminPage() {
             </table>
           </Scroll>
         ) : null}
-        <p className="note">
-          Roles: {ROLES.map((r) => ROLE_WORDS[r]).join(', ')}. A token never does more than its person's role. A bot is an account for automation, such as
-          triage, and shows as an agent.
-        </p>
+        <p className="note">{tr('page.admin.rolesATokenNeverDoes', { join: ROLES.map((r) => ROLE_WORDS[r]).join(', ') })}</p>
         <AddPerson />
       </section>
       <GroupsSection />
@@ -450,13 +434,13 @@ export default function AdminPage() {
       <AppsSection />
       <section className="card" aria-labelledby="vcs-people">
         <div className="section-head">
-          <h2 id="vcs-people">Who wrote which commits</h2>
-          <span className="note">Emails and logins at version control</span>
+          <h2 id="vcs-people">{t('page.admin.whoWroteWhichCommits')}</h2>
+          <span className="note">{t('page.admin.emailsAndLoginsAtVersion')}</span>
         </div>
         <PeopleAtProviders />
       </section>
       <section className="card" aria-labelledby="instance">
-        <h2 id="instance">This instance</h2>
+        <h2 id="instance">{t('page.admin.thisInstance')}</h2>
         {settings.isLoading ? <Loading what="settings" /> : null}
         {settings.error ? <ErrorNote error={settings.error} /> : null}
         {settings.data ? <Instance settings={settings.data} /> : null}

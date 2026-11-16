@@ -9,6 +9,8 @@ import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useActions, workflowKeys } from './api';
 import { ScriptField, useScriptProblems } from './ScriptField';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 function ActionForm({ project, action, isAdmin, onDone, onCancel }: { project: string; action?: WorkflowAction; isAdmin: boolean; onDone: (a: WorkflowAction) => void; onCancel?: () => void }) {
   const qc = useQueryClient();
@@ -45,30 +47,30 @@ function ActionForm({ project, action, isAdmin, onDone, onCancel }: { project: s
         save.mutate();
       }}
     >
-      <FormField label="Name" help="Its button says it, and it reads as a command: “Escalate”.">
+      <FormField label={t('workflow.actions.name')} help={t('workflow.actions.itsButtonSaysItAnd')}>
         {(id, help) => <input id={id} aria-describedby={help} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required />}
       </FormField>
       {isAdmin ? (
         <fieldset className="choice-group">
-          <legend>It does</legend>
+          <legend>{t('workflow.actions.itDoes')}</legend>
           <label className="choice">
             <input type="radio" name="does" checked={!scripted} onChange={() => setScripted(false)} />
-            <span>a command</span>
+            <span>{t('workflow.actions.aCommand')}</span>
           </label>
           <label className="choice">
             <input type="radio" name="does" checked={scripted} onChange={() => setScripted(true)} />
-            <span>a script, in JavaScript</span>
+            <span>{t('workflow.actions.aScriptInJavascript')}</span>
           </label>
         </fieldset>
       ) : null}
       {scripted ? (
-        <ScriptField text={script} onText={setScript} problems={live} label="What it does, in JavaScript" />
+        <ScriptField text={script} onText={setScript} problems={live} label={t('workflow.actions.whatItDoesInJavascript')} />
       ) : (
-        <FormField label="What it does, in the command language" help="As whoever presses it.">
-          {(id, help) => <input id={id} aria-describedby={help} className="mono" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="Priority Critical tag escalated" />}
+        <FormField label={t('workflow.actions.whatItDoesInThe')} help={t('workflow.actions.asWhoeverPressesIt')}>
+          {(id, help) => <input id={id} aria-describedby={help} className="mono" value={command} onChange={(e) => setCommand(e.target.value)} placeholder={t('workflow.actions.priorityCriticalTagEscalated')} />}
         </FormField>
       )}
-      <FormField label="Offered for issues that match" help="Optional: a query. Empty: every issue.">
+      <FormField label={t('workflow.actions.offeredForIssuesThatMatch')} help={t('workflow.actions.optionalAQueryEmptyEvery')}>
         {(id, help) => <input id={id} aria-describedby={help} className="mono" value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="#Unresolved" />}
       </FormField>
       {problems.map((p) => (
@@ -80,12 +82,10 @@ function ActionForm({ project, action, isAdmin, onDone, onCancel }: { project: s
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       <div className="cluster end">
         {onCancel ? (
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel}>{t('workflow.actions.cancel')}</button>
         ) : null}
         <button type="submit" className="primary" disabled={save.isPending || !name.trim() || (scripted && live.length > 0)}>
-          {save.isPending ? 'Saving…' : action ? 'Save the change' : 'Save the action'}
+          {save.isPending ? t('workflow.actions.saving') : action ? t('workflow.actions.saveTheChange') : t('workflow.actions.saveTheAction')}
         </button>
       </div>
     </form>
@@ -102,7 +102,7 @@ function ActionCard({ action, manages, isAdmin, onEdit }: { action: WorkflowActi
     mutationFn: () => patch<WorkflowAction>(`/workflow-actions/${action.id}`, { enabled: !action.enabled, expectedVersion: action.version }),
     onSuccess: (a) => {
       done();
-      setSaid({ text: a.enabled ? 'It’s offered again.' : 'It’s off: nobody is offered it.' });
+      setSaid({ text: a.enabled ? t('workflow.actions.itSOfferedAgain') : t('workflow.actions.itSOffNobodyIs') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -112,23 +112,17 @@ function ActionCard({ action, manages, isAdmin, onEdit }: { action: WorkflowActi
       <div className="rule-head">
         <h3 className="rule-name">{action.name}</h3>
         <span className="badges">
-          <Badge grammar="changes">changes issues</Badge>
-          {action.script ? <Badge>a script</Badge> : null}
-          {action.problems.length ? <Badge tone="bad">needs fixing</Badge> : action.enabled ? <Badge tone="good">on</Badge> : <Badge tone="idle">off</Badge>}
+          <Badge grammar="changes">{t('workflow.actions.changesIssues')}</Badge>
+          {action.script ? <Badge>{t('workflow.actions.aScript')}</Badge> : null}
+          {action.problems.length ? <Badge tone="bad">{t('workflow.actions.needsFixing')}</Badge> : action.enabled ? <Badge tone="good">{t('workflow.actions.on')}</Badge> : <Badge tone="idle">{t('workflow.actions.off')}</Badge>}
         </span>
       </div>
-      <p className="rule-sentence">
-        <span className="rule-word">When</span> someone runs it{action.condition ? (
-          <>
-            {' '}
-            on an issue that matches <code>{action.condition}</code>
-          </>
-        ) : null}
-        , <span className="rule-word">then</span> {action.script ? 'run its script' : <>apply <code>{action.command}</code></>}, as them.
-      </p>
+      <p className="rule-sentence">{tr('workflow.actions.whenSomeoneRunsItThen', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, v: action.condition ? (
+          <>{tr('workflow.actions.onAnIssueThatMatches', { code: <code>{action.condition}</code> })}</>
+        ) : null, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, v2: action.script ? t('workflow.actions.runItsScript') : <>{tr('workflow.actions.apply', { code: <code>{action.command}</code> })}</> })}</p>
       {action.script ? (
         <details>
-          <summary>Its script</summary>
+          <summary>{t('workflow.actions.itsScript')}</summary>
           <pre className="script-log">{action.script}</pre>
         </details>
       ) : null}
@@ -142,20 +136,18 @@ function ActionCard({ action, manages, isAdmin, onEdit }: { action: WorkflowActi
       {manages ? (
         <div className="cluster">
           {canChange ? (
-            <button type="button" onClick={onEdit}>
-              Edit it
-            </button>
+            <button type="button" onClick={onEdit}>{t('workflow.actions.editIt')}</button>
           ) : null}
           {canChange || action.enabled ? (
             <button type="button" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
-              {action.enabled ? 'Turn it off' : 'Turn it back on'}
+              {action.enabled ? t('workflow.actions.turnItOff') : t('workflow.actions.turnItBackOn')}
             </button>
           ) : null}
           <span className="grow" />
           {canChange ? (
-            <Confirm small label="Delete it" title={`Delete the action “${action.name}”?`} about="Its button goes, and its name no longer reads as a command." confirm="Delete it" disabled={remove.isPending} onConfirm={() => remove.mutate()} />
+            <Confirm small label={t('workflow.actions.deleteIt')} title={t('workflow.actions.deleteTheAction', { name: action.name })} about={t('workflow.actions.itsButtonGoesAndIts')} confirm={t('workflow.actions.deleteIt')} disabled={remove.isPending} onConfirm={() => remove.mutate()} />
           ) : (
-            <span className="note">It runs a script, so an administrator changes it.</span>
+            <span className="note">{t('workflow.actions.itRunsAScriptSo')}</span>
           )}
         </div>
       ) : null}
@@ -173,18 +165,18 @@ export function Actions({ project, projectName, manages, isAdmin }: { project: s
   return (
     <section className="card stack" aria-labelledby="actions-title">
       <div className="section-head">
-        <h2 id="actions-title">Actions in {projectName}</h2>
-        <span className="note">Each is a button on the issues it’s offered for, and a command by its name, for whoever may change them.</span>
+        <h2 id="actions-title">{tr('workflow.actions.actionsIn', { projectName: projectName })}</h2>
+        <span className="note">{t('workflow.actions.eachIsAButtonOn')}</span>
       </div>
-      {actions.isLoading ? <Loading what="its actions" /> : null}
+      {actions.isLoading ? <Loading what={t('workflow.actions.itsActions')} /> : null}
       {actions.error ? <ErrorNote error={actions.error} /> : null}
-      {actions.data && !actions.data.length ? <p className="note">No actions yet.</p> : null}
+      {actions.data && !actions.data.length ? <p className="note">{t('workflow.actions.noActionsYet')}</p> : null}
       {actions.data?.length ? (
         <ul className="rules">
           {actions.data.map((a) =>
             editing === a.id && manages ? (
               <li key={a.id} className="card rule-card">
-                <h3 className="rule-name">Change “{a.name}”</h3>
+                <h3 className="rule-name">{tr('workflow.actions.change', { name: a.name })}</h3>
                 <ActionForm
                   project={project}
                   action={a}
@@ -192,7 +184,7 @@ export function Actions({ project, projectName, manages, isAdmin }: { project: s
                   onCancel={() => setEditing(null)}
                   onDone={(saved) => {
                     setEditing(null);
-                    setSaid(`“${saved.name}” is saved.`);
+                    setSaid(t('workflow.actions.isSaved', { name: saved.name }));
                   }}
                 />
               </li>
@@ -210,15 +202,12 @@ export function Actions({ project, projectName, manages, isAdmin }: { project: s
             onCancel={() => setAdding(false)}
             onDone={(a) => {
               setAdding(false);
-              setSaid(`“${a.name}” is saved: its button is on the issues it’s offered for.`);
+              setSaid(t('workflow.actions.isSavedItsButtonIs', { name: a.name }));
             }}
           />
         ) : (
           <div className="cluster">
-            <button type="button" onClick={() => setAdding(true)}>
-              <Icon name="plus" />
-              Add an action
-            </button>
+            <button type="button" onClick={() => setAdding(true)}>{tr('workflow.actions.addAnAction', { el: <Icon name="plus" /> })}</button>
           </div>
         )
       ) : null}

@@ -1,4 +1,5 @@
 import { useId, useRef } from 'react';
+import { t } from '../../i18n';
 
 /**
  * Ocean's Confirm: a danger button that asks first, in the browser's own dialog, before what
@@ -45,9 +46,7 @@ export function Confirm({
         <h2 id={`${id}-title`}>{title}</h2>
         <p id={`${id}-about`}>{about}</p>
         <div className="dialog-actions">
-          <button type="button" ref={keep} onClick={() => dialog.current?.close()}>
-            Keep it
-          </button>
+          <button type="button" ref={keep} onClick={() => dialog.current?.close()}>{t('common.confirm.keepIt')}</button>
           <button
             type="button"
             className="danger primary"

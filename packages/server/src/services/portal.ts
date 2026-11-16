@@ -23,6 +23,7 @@ import { deskProject, openRequest, postRequesterReply } from './helpdesk';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
 import type { SchemaSnapshot } from './schema-cache';
+import { translatorFor } from '../i18n';
 
 const SIGN_IN_PREFIX = 'hdl_';
 const SESSION_PREFIX = 'hds_';
@@ -80,13 +81,15 @@ export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promi
   await app.db.insert(requesterSignIns).values({ tokenHash: sha256(token), requesterId: requester.id, expiresAt: new Date(Date.now() + SIGN_IN_TTL_MS) });
   const s = await app.schema.get();
   const desk = p.desk ? s.projectsByKey.get(p.desk) : undefined;
-  const where = desk ? `${desk.name}'s help desk` : 'the help desk';
-  const subject = `Sign in to ${where}`;
+  // A requester has no profile: the server's language (D49).
+  const tr = translatorFor(app.config.defaultLocale);
+  const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
+  const subject = tr.t('server.portal.subject', { where });
   const { text, html } = composeMail(subject, {
-    lead: `Here's your link to sign in to ${where} and see your requests. It works once, for 20 minutes.`,
+    lead: tr.t('server.portal.lead', { where }),
     sections: [],
-    action: { label: 'Sign in', url: `${app.config.publicUrl}/portal#${token}` },
-    why: "You get this because someone asked for a sign-in link with your email address. If it wasn't you, ignore it: nobody can sign in without the link.",
+    action: { label: tr.t('server.portal.signIn'), url: `${app.config.publicUrl}/portal#${token}` },
+    why: tr.t('server.portal.why'),
   });
   return {
     to: requester.email,

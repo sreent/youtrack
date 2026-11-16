@@ -13,6 +13,7 @@ import { Badge, fieldOf, StateBadge } from '../components/Badges';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText } from '../features/issues/api';
 import { span } from '../features/plan/dates';
+import { t, tr } from '../i18n';
 
 const backlogKey = (id: string) => ['boards', id, 'backlog'] as const;
 
@@ -48,7 +49,7 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
     try {
       await post(`/sprints/${sprint.id}/issues`, { issues: [issue] });
       await refresh();
-      onMoved(`Moved ${issue} into ${sprint.name}.`);
+      onMoved(t('page.sprintPlanning.movedInto', { issue: issue, name: sprint.name }));
     } catch (e) {
       setError(errorText(e));
     }
@@ -57,17 +58,17 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
     const issue = items[i]!;
-    if (e.key === 'ArrowUp' && i > 0) void rank(issue.id, { before: items[i - 1]!.id }, `Moved ${issue.id} above ${items[i - 1]!.id}.`);
-    if (e.key === 'ArrowDown' && i < items.length - 1) void rank(issue.id, { after: items[i + 1]!.id }, `Moved ${issue.id} below ${items[i + 1]!.id}.`);
+    if (e.key === 'ArrowUp' && i > 0) void rank(issue.id, { before: items[i - 1]!.id }, t('page.sprintPlanning.movedAbove', { id: issue.id, id2: items[i - 1]!.id }));
+    if (e.key === 'ArrowDown' && i < items.length - 1) void rank(issue.id, { after: items[i + 1]!.id }, t('page.sprintPlanning.movedBelow', { id: issue.id, id2: items[i + 1]!.id }));
   };
 
   return (
     <>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       {items.length === 0 ? (
-        <p className="note">Nothing is waiting: every issue the backlog holds is in a sprint.</p>
+        <p className="note">{t('page.sprintPlanning.nothingIsWaitingEveryIssue')}</p>
       ) : (
-        <ol className={dragged ? 'backlog dragging' : 'backlog'} aria-label="Backlog, in rank order">
+        <ol className={dragged ? 'backlog dragging' : 'backlog'} aria-label={t('page.sprintPlanning.backlogInRankOrder')}>
           {items.map((issue, i) => {
             const pts = pointsOf(issue, board.pointsField);
             const cls = ['backlog-item', dragged === issue.id ? 'moving' : '', over?.id === issue.id ? (over.after ? 'drop-after' : 'drop-before') : ''].filter(Boolean).join(' ');
@@ -98,10 +99,10 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
                   const place = over?.after ? { after: issue.id } : { before: issue.id };
                   setDragged(null);
                   setOver(null);
-                  if (moving && moving !== issue.id) void rank(moving, place, `Moved ${moving} ${over?.after ? 'below' : 'above'} ${issue.id}.`);
+                  if (moving && moving !== issue.id) void rank(moving, place, t('page.sprintPlanning.moved', { moving: moving, v: over?.after ? 'below' : 'above', id: issue.id }));
                 }}
               >
-                <button type="button" className="backlog-handle" aria-label={`Move ${issue.id}`} aria-describedby="backlog-keys" onKeyDown={(e) => keyMove(e, i)}>
+                <button type="button" className="backlog-handle" aria-label={t('page.sprintPlanning.move', { id: issue.id })} aria-describedby="backlog-keys" onKeyDown={(e) => keyMove(e, i)}>
                   <span aria-hidden="true">⋮⋮</span>
                 </button>
                 <Link className="issue-id mono" to={`/issues/${issue.id}`}>
@@ -110,11 +111,9 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
                 <span className="backlog-summary">{issue.summary}</span>
                 <span className="backlog-facts">
                   <StateBadge fields={issue.fields} />
-                  {pts !== null ? <span className="chip mono">{pts} pts</span> : null}
+                  {pts !== null ? <span className="chip mono">{tr('page.sprintPlanning.pts', { pts: pts })}</span> : null}
                   {target ? (
-                    <button type="button" className="small" onClick={() => void toSprint(issue.id, target)}>
-                      To {target.name}
-                    </button>
+                    <button type="button" className="small" onClick={() => void toSprint(issue.id, target)}>{tr('page.sprintPlanning.to', { name: target.name })}</button>
                   ) : null}
                 </span>
               </li>
@@ -122,9 +121,7 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
           })}
         </ol>
       )}
-      <p className="field-help" id="backlog-keys">
-        Drag an issue to rank it, or onto a sprint. From the keyboard, Alt and an arrow key moves it a place.
-      </p>
+      <p className="field-help" id="backlog-keys">{t('page.sprintPlanning.dragAnIssueToRank')}</p>
       <SprintTargets board={board} dragging={dragged} onDrop={(issue, sprint) => void toSprint(issue, sprint)} />
     </>
   );
@@ -137,7 +134,7 @@ function SprintTargets({ board, dragging, onDrop }: { board: Board; dragging: st
   const open = (view.data?.sprints ?? []).filter((s) => !s.archived);
   if (!open.length) return null;
   return (
-    <ul className={dragging ? 'sprint-targets ready' : 'sprint-targets'} aria-label="Sprints to drop an issue on">
+    <ul className={dragging ? 'sprint-targets ready' : 'sprint-targets'} aria-label={t('page.sprintPlanning.sprintsToDropAnIssue')}>
       {open.map((s) => (
         <li
           key={s.id}
@@ -169,23 +166,23 @@ function SprintTargets({ board, dragging, onDrop }: { board: Board; dragging: st
 function SprintLoad({ plan }: { plan: SprintPlan }) {
   const over = (p: SprintPlan['people'][number]) => p.capacityHours !== null && p.loadHours > p.capacityHours;
   return (
-    <div className="figures-scroll" role="region" aria-label={`${plan.sprint.name}: load against capacity`} tabIndex={0}>
+    <div className="figures-scroll" role="region" aria-label={t('page.sprintPlanning.loadAgainstCapacity', { name: plan.sprint.name })} tabIndex={0}>
       <table className="figures middle capacity">
         <thead>
           <tr>
-            <th scope="col">Who</th>
-            <th scope="col" className="num">Issues</th>
-            <th scope="col" className="num">Points</th>
-            <th scope="col" className="num">Left to do</th>
-            <th scope="col" className="num">Can work</th>
-            <th scope="col">Load</th>
+            <th scope="col">{t('page.sprintPlanning.who')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.issues')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.points')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.leftToDo')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.canWork')}</th>
+            <th scope="col">{t('page.sprintPlanning.load')}</th>
           </tr>
         </thead>
         <tbody>
           {plan.people.map((p) => (
-            <tr key={p.user?.id ?? 'nobody'}>
+            <tr key={p.user?.id ?? t('page.sprintPlanning.nobody')}>
               <th scope="row" className="row-head">
-                {p.user ? p.user.name : <span className="muted">Nobody yet</span>}
+                {p.user ? p.user.name : <span className="muted">{t('page.sprintPlanning.nobodyYet')}</span>}
               </th>
               <td className="num mono">{p.issues}</td>
               <td className="num mono">{p.points ?? '–'}</td>
@@ -194,10 +191,8 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
               <td>
                 {p.capacityHours === null ? null : (
                   <span className="capacity-cell">
-                    <meter className="capacity-meter" min={0} max={Math.max(p.capacityHours, p.loadHours, 1)} high={p.capacityHours} value={p.loadHours}>
-                      {hours(p.loadHours)} of {hours(p.capacityHours)}
-                    </meter>
-                    {over(p) ? <Badge tone="warn">{hours(p.loadHours - p.capacityHours)} over</Badge> : null}
+                    <meter className="capacity-meter" min={0} max={Math.max(p.capacityHours, p.loadHours, 1)} high={p.capacityHours} value={p.loadHours}>{tr('page.sprintPlanning.of', { hours: hours(p.loadHours), hours2: hours(p.capacityHours) })}</meter>
+                    {over(p) ? <Badge tone="warn">{tr('page.sprintPlanning.over', { hours: hours(p.loadHours - p.capacityHours) })}</Badge> : null}
                   </span>
                 )}
               </td>
@@ -206,7 +201,7 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">All of it</th>
+            <th scope="row">{t('page.sprintPlanning.allOfIt')}</th>
             <td className="num mono">{plan.totals.issues}</td>
             <td className="num mono">{plan.totals.points ?? '–'}</td>
             <td className="num mono">{hours(plan.totals.loadHours)}</td>
@@ -222,9 +217,9 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
 /** Committed and done per sprint, as bars, with the average of the last three; and the figures. */
 function VelocityChart({ v }: { v: Velocity }) {
   const titleId = useId();
-  if (!v.sprints.length) return <p className="note">No sprint has begun yet, so there's no velocity to show.</p>;
+  if (!v.sprints.length) return <p className="note">{t('page.sprintPlanning.noSprintHasBegunYet')}</p>;
   if (v.sprints.every((s) => s.committed === 0 && s.done === 0)) {
-    return <p className="note">Nothing was committed to or done in {v.sprints.length === 1 ? v.sprints[0]!.name : 'its sprints'} yet, in {v.unit}.</p>;
+    return <p className="note">{tr('page.sprintPlanning.nothingWasCommittedToOr', { v: v.sprints.length === 1 ? v.sprints[0]!.name : t('page.sprintPlanning.itsSprints'), unit: v.unit })}</p>;
   }
   const top = Math.max(1, ...v.sprints.map((s) => Math.max(s.committed, s.done)));
   const H = 140;
@@ -234,7 +229,7 @@ function VelocityChart({ v }: { v: Velocity }) {
   return (
     <figure className="velocity" aria-labelledby={titleId}>
       <figcaption id={titleId} className="note">
-        {v.average === null ? 'No sprint is over yet.' : `On average, ${v.average} ${v.unit} done over the last ${Math.min(3, v.sprints.filter((s) => s.finished).length)} sprints that are over.`}
+        {v.average === null ? t('page.sprintPlanning.noSprintIsOverYet') : t('page.sprintPlanning.onAverageDoneOverThe', { average: v.average, unit: v.unit, min: Math.min(3, v.sprints.filter((s) => s.finished).length) })}
       </figcaption>
       <div className="velocity-scroll">
         <svg className="chart velocity-chart" viewBox={`0 0 ${width} ${H + 22}`} width={width} height={H + 22} aria-hidden="true">
@@ -252,30 +247,21 @@ function VelocityChart({ v }: { v: Velocity }) {
         </svg>
       </div>
       <ul className="chart-key" aria-hidden="true">
-        <li>
-          <span className="chart-swatch s1" />
-          Committed
-        </li>
-        <li>
-          <span className="chart-swatch s2" />
-          Done
-        </li>
+        <li>{tr('page.sprintPlanning.committed', { el: <span className="chart-swatch s1" /> })}</li>
+        <li>{tr('page.sprintPlanning.done', { el: <span className="chart-swatch s2" /> })}</li>
         {v.average !== null ? (
-          <li>
-            <svg width="16" height="8" aria-hidden="true">
+          <li>{tr('page.sprintPlanning.averageOfTheLastThree', { el: <svg width="16" height="8" aria-hidden="true">
               <line className="velocity-average" x1="0" x2="16" y1="4" y2="4" />
-            </svg>
-            Average of the last three
-          </li>
+            </svg> })}</li>
         ) : null}
       </ul>
       <table className="figures">
-        <caption className="hidden">Velocity, in {v.unit}</caption>
+        <caption className="hidden">{tr('page.sprintPlanning.velocityIn', { unit: v.unit })}</caption>
         <thead>
           <tr>
-            <th scope="col">Sprint</th>
-            <th scope="col" className="num">Committed</th>
-            <th scope="col" className="num">Done</th>
+            <th scope="col">{t('page.sprintPlanning.sprint')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.committed2')}</th>
+            <th scope="col" className="num">{t('page.sprintPlanning.done2')}</th>
           </tr>
         </thead>
         <tbody>
@@ -283,7 +269,7 @@ function VelocityChart({ v }: { v: Velocity }) {
             <tr key={s.id}>
               <th scope="row">
                 {s.name}
-                {s.finished ? null : <span className="item-about">Under way</span>}
+                {s.finished ? null : <span className="item-about">{t('page.sprintPlanning.underWay')}</span>}
               </th>
               <td className="num mono">{s.committed}</td>
               <td className="num mono">{s.done}</td>
@@ -309,7 +295,7 @@ function BoardSettings({ board }: { board: Board }) {
   return (
     <form
       className="form"
-      aria-label="Backlog and story points"
+      aria-label={t('page.sprintPlanning.backlogAndStoryPoints')}
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
@@ -317,14 +303,14 @@ function BoardSettings({ board }: { board: Board }) {
     >
       <div className="form-fields">
         <div className="form-field">
-          <label htmlFor="backlog-query">What the backlog holds</label>
+          <label htmlFor="backlog-query">{t('page.sprintPlanning.whatTheBacklogHolds')}</label>
           <input id="backlog-query" className="mono" value={query} placeholder="#Unresolved" onChange={(e) => setQuery(e.target.value)} aria-describedby="backlog-query-help" />
-          <small className="field-help" id="backlog-query-help">A search; issues in the board's open sprints are left out.</small>
+          <small className="field-help" id="backlog-query-help">{t('page.sprintPlanning.aSearchIssuesInThe')}</small>
         </div>
         <div className="form-field">
-          <label htmlFor="points-field">Story points</label>
+          <label htmlFor="points-field">{t('page.sprintPlanning.storyPoints')}</label>
           <select id="points-field" value={points} onChange={(e) => setPoints(e.target.value)}>
-            <option value="">No story points</option>
+            <option value="">{t('page.sprintPlanning.noStoryPoints')}</option>
             {numbers.map((f) => (
               <option key={f.id} value={f.name}>
                 {f.name}
@@ -335,9 +321,9 @@ function BoardSettings({ board }: { board: Board }) {
       </div>
       <div className="cluster">
         <button type="submit" disabled={save.isPending}>
-          {save.isPending ? 'Saving…' : 'Save'}
+          {save.isPending ? t('page.sprintPlanning.saving') : t('page.sprintPlanning.save')}
         </button>
-        {save.isSuccess ? <p role="status" className="outcome">Saved.</p> : null}
+        {save.isSuccess ? <p role="status" className="outcome">{t('page.sprintPlanning.saved')}</p> : null}
       </div>
       {save.error ? <ErrorLine>{errorText(save.error)}</ErrorLine> : null}
     </form>
@@ -359,46 +345,46 @@ export default function SprintPlanningPage() {
 
   const crumbs = (
     <>
-      <Link to="/boards">Boards</Link>
+      <Link to="/boards">{t('page.sprintPlanning.boards')}</Link>
       <span className="sep" aria-hidden="true">/</span>
       {v ? <Link to={`/boards/${v.board.id}`}>{v.board.name}</Link> : null}
       <span className="sep" aria-hidden="true">/</span>
     </>
   );
-  if (view.isLoading) return <Loading what="the board" />;
+  if (view.isLoading) return <Loading what={t('page.sprintPlanning.theBoard')} />;
   if (view.error || !v) {
     return (
       <>
-        <PageHead title="Plan sprints" crumbs={crumbs} />
+        <PageHead title={t('page.sprintPlanning.planSprints')} crumbs={crumbs} />
         <ErrorNote error={view.error} />
       </>
     );
   }
   return (
     <>
-      <PageHead title="Plan sprints" crumbs={crumbs} about={`${v.board.name}'s backlog, its sprints, and how much they get done.`} />
+      <PageHead title={t('page.sprintPlanning.planSprints')} crumbs={crumbs} about={t('page.sprintPlanning.sBacklogItsSprintsAnd', { name: v.board.name })} />
       <p role="status" className="hidden">{said}</p>
       <div className="split">
         <div className="stack">
         <section className="card stack" aria-labelledby="backlog">
           <div className="section-head">
-            <h2 id="backlog">Backlog</h2>
+            <h2 id="backlog">{t('page.sprintPlanning.backlog')}</h2>
             {backlog.data ? (
               <span className="note">
                 {backlog.data.count} {backlog.data.count === 1 ? 'issue' : 'issues'}
-                {backlog.data.points !== null ? `, ${backlog.data.points} pts` : ''}
+                {backlog.data.points !== null ? t('page.sprintPlanning.pts2', { points: backlog.data.points }) : ''}
               </span>
             ) : null}
           </div>
           {backlog.error ? <ErrorNote error={backlog.error} /> : null}
-          {backlog.data ? <BacklogList board={v.board} backlog={backlog.data} target={sprint} onMoved={setSaid} /> : <Loading what="the backlog" />}
+          {backlog.data ? <BacklogList board={v.board} backlog={backlog.data} target={sprint} onMoved={setSaid} /> : <Loading what={t('page.sprintPlanning.theBacklog')} />}
         </section>
           <section className="card stack" aria-labelledby="sprint-load">
             <div className="section-head">
-              <h2 id="sprint-load">Load against capacity</h2>
+              <h2 id="sprint-load">{t('page.sprintPlanning.loadAgainstCapacity2')}</h2>
               {open.length > 1 ? (
                 <span className="form-field inline">
-                  <label htmlFor={pickId}>Sprint</label>
+                  <label htmlFor={pickId}>{t('page.sprintPlanning.sprint')}</label>
                   <select id={pickId} value={sprint?.id ?? ''} onChange={(e) => setChosen(e.target.value)}>
                     {open.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -409,15 +395,15 @@ export default function SprintPlanningPage() {
                 </span>
               ) : null}
             </div>
-            {!v.board.sprintsEnabled ? <p className="note">This board doesn't use sprints.</p> : null}
-            {v.board.sprintsEnabled && !sprint ? <p className="note">This board has no open sprint to plan.</p> : null}
+            {!v.board.sprintsEnabled ? <p className="note">{t('page.sprintPlanning.thisBoardDoesnTUse')}</p> : null}
+            {v.board.sprintsEnabled && !sprint ? <p className="note">{t('page.sprintPlanning.thisBoardHasNoOpen')}</p> : null}
             {plan.error ? <ErrorNote error={plan.error} /> : null}
             {plan.data ? (
               <>
                 <p className="section-note">
                   {plan.data.from && plan.data.to
-                    ? `${plan.data.sprint.name}, ${span(plan.data.from, plan.data.to)}: what's left of each person's issues, against the hours they can work, by their working week and days away.`
-                    : `${plan.data.sprint.name} has no dates, so it has no capacity yet.`}
+                    ? t('page.sprintPlanning.whatSLeftOfEach', { name: plan.data.sprint.name, span: span(plan.data.from, plan.data.to) })
+                    : t('page.sprintPlanning.hasNoDatesSoIt', { name: plan.data.sprint.name })}
                 </p>
                 <SprintLoad plan={plan.data} />
               </>
@@ -427,14 +413,14 @@ export default function SprintPlanningPage() {
         <div className="stack">
           <section className="card stack" aria-labelledby="velocity">
             <div className="section-head">
-              <h2 id="velocity">Velocity</h2>
-              {velocity.data ? <span className="note">In {velocity.data.unit}</span> : null}
+              <h2 id="velocity">{t('page.sprintPlanning.velocity')}</h2>
+              {velocity.data ? <span className="note">{tr('page.sprintPlanning.in', { unit: velocity.data.unit })}</span> : null}
             </div>
             {velocity.error ? <ErrorNote error={velocity.error} /> : null}
             {velocity.data ? <VelocityChart v={velocity.data} /> : null}
           </section>
           <section className="card stack" aria-labelledby="board-settings">
-            <h2 id="board-settings">Backlog and story points</h2>
+            <h2 id="board-settings">{t('page.sprintPlanning.backlogAndStoryPoints')}</h2>
             <BoardSettings board={v.board} />
           </section>
         </div>

@@ -1,4 +1,5 @@
 import type { DiffLine } from '@a4a/shared';
+import { t, tr } from '../../i18n';
 
 const CONTEXT = 2;
 
@@ -33,7 +34,7 @@ function rows(lines: DiffLine[]): Row[] {
  * reads without colour. Screen readers hear "Added" and "Removed" in place of the signs.
  */
 export function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
-  if (!lines.some((l) => l.op !== 'same')) return <p className="note">The text is the same as the version before.</p>;
+  if (!lines.some((l) => l.op !== 'same')) return <p className="note">{t('articles.diff.theTextIsTheSame')}</p>;
   return (
     <ol className="diff" aria-label={label}>
       {rows(lines).map((r, i) =>
@@ -42,7 +43,7 @@ export function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
             <span className="diff-sign" aria-hidden="true">
               ⋯
             </span>
-            <span className="diff-text">{r.count} lines the same</span>
+            <span className="diff-text">{tr('articles.diff.linesTheSame', { count: r.count })}</span>
           </li>
         ) : r.op === 'add' ? (
           <li key={i} className="add">
@@ -50,7 +51,7 @@ export function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
               +
             </span>
             <ins className="diff-text">
-              <span className="hidden">Added: </span>
+              <span className="hidden">{t('articles.diff.added')}</span>
               {r.text || ' '}
             </ins>
           </li>
@@ -60,7 +61,7 @@ export function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
               −
             </span>
             <del className="diff-text">
-              <span className="hidden">Removed: </span>
+              <span className="hidden">{t('articles.diff.removed')}</span>
               {r.text || ' '}
             </del>
           </li>
@@ -82,8 +83,8 @@ export function diffWords(lines: DiffLine[]): string {
   const added = lines.filter((l) => l.op === 'add').length;
   const removed = lines.filter((l) => l.op === 'del').length;
   const n = (k: number, what: string) => `${k} ${k === 1 ? 'line' : 'lines'} ${what}`;
-  if (added && removed) return `${n(added, 'added')}, ${removed} removed`;
+  if (added && removed) return t('articles.diff.removed2', { n: n(added, 'added'), removed: removed });
   if (added) return n(added, 'added');
   if (removed) return n(removed, 'removed');
-  return 'no lines changed';
+  return t('articles.diff.noLinesChanged');
 }

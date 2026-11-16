@@ -16,6 +16,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMe } from '../../api/queries';
 import type { AppPlace } from './api';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -75,7 +77,7 @@ export function AppFrame({ ext, place }: { ext: AppExtension; place: AppPlace })
         const method = String(m.method ?? 'GET').toUpperCase();
         const path = String(m.path ?? '');
         if (!METHODS.has(method) || !path.startsWith('/') || path.startsWith('//') || path.includes('..') || path.length > 500) {
-          reply({ type: 'response', id, ok: false, status: 400, error: 'The page refused a call it can’t read' });
+          reply({ type: 'response', id, ok: false, status: 400, error: t('apps.appFrame.thePageRefusedACall') });
           return;
         }
         const hasBody = m.body !== undefined && method !== 'GET';
@@ -96,7 +98,7 @@ export function AppFrame({ ext, place }: { ext: AppExtension; place: AppPlace })
           const error = (body as { error?: { message?: string } } | null)?.error?.message ?? res.statusText;
           reply(res.ok ? { type: 'response', id, ok: true, status: res.status, body } : { type: 'response', id, ok: false, status: res.status, error, body });
         } catch {
-          reply({ type: 'response', id, ok: false, status: 0, error: 'The page couldn’t reach a4a' });
+          reply({ type: 'response', id, ok: false, status: 0, error: t('apps.appFrame.thePageCouldnTReach') });
         }
       }
     };
@@ -108,19 +110,15 @@ export function AppFrame({ ext, place }: { ext: AppExtension; place: AppPlace })
     <section className="card app-frame" aria-labelledby={titleId}>
       <div className="app-frame-head">
         <h2 id={titleId}>{ext.title}</h2>
-        <span className="badge" title={`${ext.appTitle} is an app`}>
-          App<span className="hidden">: {ext.appTitle}, an app</span>
-        </span>
+        <span className="badge" title={t('apps.appFrame.isAnApp', { appTitle: ext.appTitle })}>{tr('apps.appFrame.appAnApp', { appTitle: ext.appTitle, t0: (c: ReactNode) => <span className="hidden">{c}</span> })}</span>
       </div>
       <iframe ref={frame} title={ext.title} src={ext.url} sandbox="allow-scripts allow-forms" height={height} referrerPolicy="no-referrer" loading="lazy" />
       <p className="app-frame-said" role="status">
         {said}
       </p>
       {ask ? (
-        <div className="app-frame-ask" role="group" aria-label={`${ext.appTitle} asks`}>
-          <p>
-            {ext.appTitle} asks to open <strong>{ask}</strong>.
-          </p>
+        <div className="app-frame-ask" role="group" aria-label={t('apps.appFrame.asks', { appTitle: ext.appTitle })}>
+          <p>{tr('apps.appFrame.asksToOpen', { appTitle: ext.appTitle, ask: ask, t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
           <div className="cluster">
             <button
               type="button"
@@ -130,12 +128,8 @@ export function AppFrame({ ext, place }: { ext: AppExtension; place: AppPlace })
                 setAsk(null);
                 navigate(to);
               }}
-            >
-              Open it
-            </button>
-            <button type="button" className="small" onClick={() => setAsk(null)}>
-              Stay here
-            </button>
+            >{t('apps.appFrame.openIt')}</button>
+            <button type="button" className="small" onClick={() => setAsk(null)}>{t('apps.appFrame.stayHere')}</button>
           </div>
         </div>
       ) : null}

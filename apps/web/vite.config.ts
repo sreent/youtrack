@@ -42,8 +42,43 @@ function serviceWorker(): Plugin {
   };
 }
 
+/**
+ * The app's chunk, its chunks and its styles, fetched from the page's start (D49). main.tsx runs the
+ * app only once its person's catalog is in, but the browser needn't wait for the catalog to start
+ * downloading the app: the two come side by side, and the app runs from what's already here.
+ */
+function fetchAppEarly(): Plugin {
+  return {
+    name: 'a4a-fetch-app-early',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(_html, ctx) {
+        const bundle = ctx.bundle;
+        const app = bundle && Object.values(bundle).find((c) => c.type === 'chunk' && c.facadeModuleId?.endsWith('/src/root.tsx'));
+        if (!bundle || !app) throw new Error('a4a-fetch-app-early: the build has no chunk for src/root.tsx');
+        const scripts = new Set<string>();
+        const styles = new Set<string>();
+        const visit = (fileName: string) => {
+          const chunk = bundle[fileName];
+          // The entry is the page's own script, already on its way, with what it imports.
+          if (!chunk || chunk.type !== 'chunk' || chunk.isEntry || scripts.has(fileName)) return;
+          scripts.add(fileName);
+          for (const css of chunk.viteMetadata?.importedCss ?? []) styles.add(css);
+          for (const imported of chunk.imports) visit(imported);
+        };
+        visit(app.fileName);
+        return [
+          ...[...styles].map((f) => ({ tag: 'link', attrs: { rel: 'stylesheet', crossorigin: true, href: `/${f}` }, injectTo: 'head' as const })),
+          ...[...scripts].map((f) => ({ tag: 'link', attrs: { rel: 'modulepreload', crossorigin: true, href: `/${f}` }, injectTo: 'head' as const })),
+        ];
+      },
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorker()],
+  plugins: [react(), tailwindcss(), serviceWorker(), fetchAppEarly()],
   server: {
     port: 5173,
     fs: { allow: [searchForWorkspaceRoot(process.cwd()), ocean] },

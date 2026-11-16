@@ -13,6 +13,7 @@ import { deskAddress, mintTrackingToken, trackingUrl } from '../services/helpdes
 import { unsubscribeToken } from '../services/notifications';
 import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
+import { translatorFor } from '../i18n';
 
 export async function renderRequestMail(app: AppServices, row: MailRow): Promise<RenderedMail | null> {
   const p = row.payload as { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean };
@@ -29,7 +30,9 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   if (row.kind !== 'request-received' && request.emailMutedAt) return null;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  const desk = project ? `${project.name}'s help desk` : 'the help desk';
+  // A requester has no profile: the server's language (D49).
+  const tr = translatorFor(app.config.defaultLocale);
+  const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
 
   let subject = `Re: ${issue.summary}`;
   let lead: string;
@@ -37,8 +40,8 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   let head: string | undefined;
   if (row.kind === 'request-received') {
     subject = issue.summary;
-    lead = `We have your request, ${requester.name}. The team will reply on its page, and we'll email you when they do.`;
-    head = 'You asked:';
+    lead = tr.t('server.helpdesk.received', { name: requester.name });
+    head = tr.t('server.helpdesk.youAsked');
     const asked = issue.description.trim();
     quote = [issue.summary, asked.length > 4000 ? `${asked.slice(0, 3999)}…` : asked].filter(Boolean).join('\n\n');
   } else if (row.kind === 'request-reply') {
@@ -48,11 +51,15 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
       .where(and(eq(comments.id, String(p.commentId ?? '')), eq(comments.visibility, 'public'), isNull(comments.deletedAt)));
     if (!comment) return null; // deleted, or made internal, before it went
     const author = comment.authorId ? s.users.get(comment.authorId) : undefined;
-    const who = author ? (author.isBot ? author.login : author.name) : 'The team';
-    lead = `${who} replied to your request.`;
+    const who = author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam');
+    lead = tr.t('server.helpdesk.replied', { who });
     quote = comment.text;
   } else {
-    lead = p.resolved ? `Your request is resolved: ${p.to ?? 'done'}.` : `Your request is now ${p.to ?? 'changed'}${p.from ? ` (it was ${p.from})` : ''}.`;
+    lead = p.resolved
+      ? tr.t('server.helpdesk.resolved', { to: p.to ?? tr.t('server.helpdesk.done') })
+      : p.from
+        ? tr.t('server.helpdesk.nowWas', { to: p.to ?? tr.t('server.helpdesk.changed'), from: p.from })
+        : tr.t('server.helpdesk.now', { to: p.to ?? tr.t('server.helpdesk.changed') });
   }
 
   const token = await mintTrackingToken(app.db, issue.id);
@@ -64,12 +71,12 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
     lead,
-    sections: quote || head ? [{ head: head ?? 'They wrote:', quote }] : [],
-    action: { label: 'See your request and reply', url: trackingUrl(app, token) },
+    sections: quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : [],
+    action: { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, token) },
     why: replyToken
-      ? `You get this because you asked ${desk} for help. To reply, answer this email, or use the link above.`
-      : `You get this because you asked ${desk} for help. To reply, use the link above: replies to this email don't reach anyone.`,
-    ...(row.kind === 'request-received' ? {} : { stop: { label: 'Stop emails about this request', url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` } }),
+      ? tr.t('server.helpdesk.whyAnswer', { desk })
+      : tr.t('server.helpdesk.whyLink', { desk }),
+    ...(row.kind === 'request-received' ? {} : { stop: { label: tr.t('server.helpdesk.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` } }),
   });
   // Everything threads under the request's first message: the requester's own, when they wrote in.
   const thread = request.threadId ?? `<request-${issue.id}@${mailHost(app)}>`;
@@ -85,7 +92,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     headers: {
       ...AUTOMATIC,
       ...(threaded ? threadHeaders(thread) : {}),
-      ...(replyToken && deskMail ? { 'Reply-To': replyAddress(deskMail, replyToken) } : {}),
+      ...(replyToken && deskMail ? { 'Reply-To' /* not words: a header */: replyAddress(deskMail, replyToken) } : {}),
       ...unsubscribeHeaders(`${base}/api/v1/unsubscribe?token=${encodeURIComponent(stop)}`),
     },
     onFailed: async () => {

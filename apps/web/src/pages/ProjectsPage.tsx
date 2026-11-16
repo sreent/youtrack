@@ -9,11 +9,13 @@ import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
 import { FormField, Scroll } from '../features/common/bits';
 import { TRIAGE_WORDS } from '../features/projects/triage';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
-  { id: 'software', name: 'Software', about: 'State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation and Due date.' },
-  { id: 'waterfall', name: 'Waterfall', about: 'The same without Fix versions, with Start date and Fixed cost, for a plan over time and its budget.' },
-  { id: 'blank', name: 'Blank', about: 'State and Assignee only. You attach the rest.' },
+  { id: 'software', name: t('page.projects.software'), about: t('page.projects.statePriorityTypeAssigneeSubsystem') },
+  { id: 'waterfall', name: t('page.projects.waterfall'), about: t('page.projects.theSameWithoutFixVersions') },
+  { id: 'blank', name: t('page.projects.blank'), about: t('page.projects.stateAndAssigneeOnlyYou') },
 ];
 
 function CreateProject() {
@@ -48,7 +50,7 @@ function CreateProject() {
     setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
     <section className="card" aria-labelledby="new-project">
-      <h2 id="new-project">Create a project</h2>
+      <h2 id="new-project">{t('page.projects.createAProject')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -58,12 +60,9 @@ function CreateProject() {
       >
         <div className="form-fields">
           <FormField
-            label="Key"
+            label={t('page.projects.key')}
             help={
-              <>
-                2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {(form.key || 'BACK').toUpperCase()}-12, and can't change
-                later.
-              </>
+              <>{tr('page.projects.n2To10LettersOr', { toUpperCase: (form.key || 'BACK').toUpperCase() })}</>
             }
           >
             {(id, help) => (
@@ -81,11 +80,11 @@ function CreateProject() {
               />
             )}
           </FormField>
-          <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
-          <FormField label="Lead">
+          <FormField label={t('page.projects.name')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
+          <FormField label={t('page.projects.lead')}>
             {(id) => (
               <select id={id} value={form.lead} onChange={set('lead')}>
-                <option value="">Nobody yet</option>
+                <option value="">{t('page.projects.nobodyYet')}</option>
                 {(users.data ?? [])
                   .filter((u) => !u.isBot && !u.banned)
                   .map((u) => (
@@ -96,12 +95,12 @@ function CreateProject() {
               </select>
             )}
           </FormField>
-          <FormField label="What it's for" className="tw:col-span-full">
+          <FormField label={t('page.projects.whatItSFor')} className="tw:col-span-full">
             {(id) => <textarea id={id} value={form.description} onChange={set('description')} rows={2} maxLength={5000} />}
           </FormField>
         </div>
         <fieldset className="choice-group column">
-          <legend>Its fields, to start with</legend>
+          <legend>{t('page.projects.itsFieldsToStartWith')}</legend>
           {TEMPLATES.map((t) => (
             <label key={t.id} className="choice">
               <input type="radio" name="template" value={t.id} checked={form.template === t.id} onChange={() => setForm((f) => ({ ...f, template: t.id }))} />
@@ -113,25 +112,19 @@ function CreateProject() {
           ))}
         </fieldset>
         <fieldset className="choice-group column">
-          <legend>Who sees it</legend>
+          <legend>{t('page.projects.whoSeesIt')}</legend>
           <label className="choice">
             <input type="radio" name="visibility" value="open" checked={form.visibility === 'open'} onChange={() => setForm((f) => ({ ...f, visibility: 'open' }))} />
-            <span>
-              Open
-              <small className="field-help">Everyone sees it and works in it.</small>
-            </span>
+            <span>{tr('page.projects.openEveryoneSeesItAnd', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
           </label>
           <label className="choice">
             <input type="radio" name="visibility" value="members" checked={form.visibility === 'members'} onChange={() => setForm((f) => ({ ...f, visibility: 'members' }))} />
-            <span>
-              Members only
-              <small className="field-help">Only its lead, the people you add on its page, and administrators see it.</small>
-            </span>
+            <span>{tr('page.projects.membersOnlyOnlyItsLead', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
           </label>
         </fieldset>
         <div className="cluster">
           <button type="submit" className="primary" disabled={create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create the project'}
+            {create.isPending ? t('page.projects.creating') : t('page.projects.createTheProject')}
           </button>
         </div>
         {create.error ? <ErrorNote error={create.error} /> : null}
@@ -148,26 +141,24 @@ export default function ProjectsPage() {
   return (
     <>
       <PageHead
-        title="Projects"
-        about="Each project has a key that begins its issues' ids, a lead, the fields its issues have, how far triage may go, and its plan's calendar and budget."
+        title={t('page.projects.projects')}
+        about={t('page.projects.eachProjectHasAKey')}
       />
       {projects.isLoading ? <Loading what="projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data ? (
-        <section className="card figures-card" aria-label="Projects">
+        <section className="card figures-card" aria-label={t('page.projects.projects')}>
           {projects.data.length ? (
-            <Scroll label="Table of projects">
+            <Scroll label={t('page.projects.tableOfProjects')}>
               <table className="figures">
                 <thead>
                   <tr>
-                    <th scope="col">Key</th>
-                    <th scope="col">Project</th>
-                    <th scope="col">Lead</th>
-                    <th scope="col" className="num">
-                      Open
-                    </th>
-                    <th scope="col">Triage</th>
-                    <th scope="col">You</th>
+                    <th scope="col">{t('page.projects.key')}</th>
+                    <th scope="col">{t('page.projects.project')}</th>
+                    <th scope="col">{t('page.projects.lead')}</th>
+                    <th scope="col" className="num">{t('page.projects.open')}</th>
+                    <th scope="col">{t('page.projects.triage')}</th>
+                    <th scope="col">{t('page.projects.you')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -185,13 +176,13 @@ export default function ProjectsPage() {
                         {p.visibility === 'members' ? (
                           <>
                             {' '}
-                            <span className="chip">members only</span>
+                            <span className="chip">{t('page.projects.membersOnly')}</span>
                           </>
                         ) : null}
                         {p.archived ? (
                           <>
                             {' '}
-                            <Badge tone="idle">archived</Badge>
+                            <Badge tone="idle">{t('page.projects.archived')}</Badge>
                           </>
                         ) : null}
                         {p.description ? <span className="item-about">{p.description}</span> : null}
@@ -200,19 +191,17 @@ export default function ProjectsPage() {
                         <UserWho user={p.lead} small />
                       </td>
                       <td className="num">
-                        <span className="of-total">
-                          <strong>{p.openIssueCount}</strong> of {p.issueCount}
-                        </span>
+                        <span className="of-total">{tr('page.projects.of', { openIssueCount: p.openIssueCount, t0: (c: ReactNode) => <strong>{c}</strong>, issueCount: p.issueCount })}</span>
                       </td>
                       <td>{TRIAGE_WORDS[p.settings.triageMode]}</td>
-                      <td>{p.access.via === 'admin' ? 'Administrator' : p.access.roleName}</td>
+                      <td>{p.access.via === 'admin' ? t('page.projects.administrator') : p.access.roleName}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </Scroll>
           ) : (
-            <p className="note">There are no projects yet.{isAdmin ? ' Create the first one below.' : ' An administrator can create one.'}</p>
+            <p className="note">{tr('page.projects.thereAreNoProjectsYet', { v: isAdmin ? t('page.projects.createTheFirstOneBelow') : t('page.projects.anAdministratorCanCreateOne') })}</p>
           )}
         </section>
       ) : null}

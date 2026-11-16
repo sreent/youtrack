@@ -4,14 +4,15 @@ import { ErrorLine } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { useWatch, useWatchers } from '../notifications/api';
 import { errorText } from './api';
+import { t } from '../../i18n';
 
 const WHY: Record<WatchReason, string> = {
-  explicit: 'chose to',
-  reporter: 'reported it',
-  assignee: 'was assigned it',
+  explicit: t('issues.watching.choseTo'),
+  reporter: t('issues.watching.reportedIt'),
+  assignee: t('issues.watching.wasAssignedIt'),
   commenter: 'commented',
-  mentioned: 'was mentioned',
-  lead: 'leads the project',
+  mentioned: t('issues.watching.wasMentioned'),
+  lead: t('issues.watching.leadsTheProject'),
 };
 
 /** Ocean's WatchToggle: pressed while you watch the issue, with how many do. */
@@ -28,13 +29,13 @@ export function WatchToggle({ issue }: { issue: string }) {
         aria-pressed={watching}
         disabled={!watchers.data || watch.isPending}
         onClick={() => watch.mutate(!watching)}
-        title={watching ? 'You hear about its changes and comments. Press to stop.' : 'Hear about its changes and comments.'}
+        title={watching ? t('issues.watching.youHearAboutItsChanges') : t('issues.watching.hearAboutItsChangesAnd')}
       >
         <Icon name="bell" />
-        <span>Watch</span>
+        <span>{t('issues.watching.watch')}</span>
         <span className="watch-count">
           <span aria-hidden="true">{n}</span>
-          <span className="hidden">, {n === 1 ? '1 person watches it' : `${n} people watch it`}</span>
+          <span className="hidden">, {n === 1 ? t('issues.watching.n1PersonWatchesIt') : t('issues.watching.peopleWatchIt', { n: n })}</span>
         </span>
       </button>
       {watch.error ? <ErrorLine>{errorText(watch.error)}</ErrorLine> : null}
@@ -48,7 +49,7 @@ export function WatchersCard({ issue }: { issue: string }) {
   const list = watchers.data?.watchers ?? [];
   return (
     <section className="card side-card" aria-labelledby="watchers-title">
-      <h2 id="watchers-title">Watchers</h2>
+      <h2 id="watchers-title">{t('issues.watching.watchers')}</h2>
       {list.length ? (
         <ul className="plain">
           {list.map((w) => (
@@ -58,9 +59,9 @@ export function WatchersCard({ issue }: { issue: string }) {
           ))}
         </ul>
       ) : (
-        <p className="note">{watchers.isLoading ? 'Loading…' : 'Nobody watches it.'}</p>
+        <p className="note">{watchers.isLoading ? t('issues.watching.loading') : t('issues.watching.nobodyWatchesIt')}</p>
       )}
-      <p className="note">They hear about its changes and comments. Whoever reports it, is assigned it, comments or is mentioned watches it too.</p>
+      <p className="note">{t('issues.watching.theyHearAboutItsChanges')}</p>
     </section>
   );
 }

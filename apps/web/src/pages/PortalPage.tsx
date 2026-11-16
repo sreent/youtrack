@@ -10,6 +10,8 @@ import { ErrorNote, Loading } from '../components/States';
 import { Avatar } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { whenRead } from '../features/common/format';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
 function linkToken(): string {
@@ -38,17 +40,17 @@ function SignIn() {
   };
   return (
     <Lone>
-      <h1>Your requests</h1>
+      <h1>{t('page.portal.yourRequests')}</h1>
       {sent ? (
-        <p role="status">If {email} can sign in, a link is on its way. It works once, for 20 minutes.</p>
+        <p role="status">{tr('page.portal.ifCanSignInA', { email: email })}</p>
       ) : (
-        <form className="form" onSubmit={send} aria-label="Sign in with your email">
-          <p className="note">We’ll email you a link to sign in: there’s no password to remember.</p>
-          <FormField label="Your email">{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+        <form className="form" onSubmit={send} aria-label={t('page.portal.signInWithYourEmail')}>
+          <p className="note">{t('page.portal.weLlEmailYouA')}</p>
+          <FormField label={t('page.portal.yourEmail')}>{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
           {error ? <ErrorNote error={error} /> : null}
           <div className="cluster end">
             <button type="submit" className="primary" disabled={busy || !email.trim()}>
-              {busy ? 'Sending…' : 'Email me a link'}
+              {busy ? t('page.portal.sending') : t('page.portal.emailMeALink')}
             </button>
           </div>
         </form>
@@ -59,13 +61,11 @@ function SignIn() {
 
 function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
   return (
-    <ol className="history" aria-label="The request, and the replies to it">
+    <ol className="history" aria-label={t('page.portal.theRequestAndTheReplies')}>
       <li>
         <Avatar kind="person" name={r.requester.mine ? me.name : r.requester.name} small />
         <div className="history-body">
-          <p className="history-head">
-            <strong className="who-name">{r.requester.mine ? 'You' : r.requester.name}</strong> asked · <time dateTime={r.createdAt}>{whenRead(r.createdAt)}</time>
-          </p>
+          <p className="history-head">{tr('page.portal.asked', { v: r.requester.mine ? t('page.portal.you') : r.requester.name, t0: (c: ReactNode) => <strong className="who-name">{c}</strong>, whenRead: whenRead(r.createdAt), t1: (c: ReactNode) => <time dateTime={r.createdAt}>{c}</time> })}</p>
           {r.description.trim() ? (
             <div className="history-comment">
               <Markdown text={r.description} outside />
@@ -78,7 +78,7 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
           <Avatar kind="person" name={m.from === 'you' ? me.name : m.name} small />
           <div className="history-body">
             <p className="history-head">
-              <strong className="who-name">{m.from === 'you' ? 'You' : m.name}</strong>
+              <strong className="who-name">{m.from === 'you' ? t('page.portal.you') : m.name}</strong>
               {m.from === 'team' ? ' replied' : ''} · <time dateTime={m.at}>{whenRead(m.at)}</time>
             </p>
             <div className="history-comment">
@@ -98,7 +98,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   if (q.error) return <ErrorNote error={q.error} />;
-  if (!q.data) return <Loading what="the request" />;
+  if (!q.data) return <Loading what={t('page.portal.theRequest')} />;
   const r = q.data;
   const reply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,9 +116,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   };
   return (
     <section className="stack" aria-label={r.summary}>
-      <button type="button" className="link" onClick={onBack}>
-        All your requests
-      </button>
+      <button type="button" className="link" onClick={onBack}>{t('page.portal.allYourRequests')}</button>
       <p className="label">
         {r.desk.name} · {r.id}
       </p>
@@ -129,16 +127,16 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       <Conversation r={r} me={me} />
       {r.requester.mine ? (
         <form className="form" onSubmit={reply}>
-          <FormField label="Your reply">{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
+          <FormField label={t('page.portal.yourReply')}>{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
           {error ? <ErrorNote error={error} /> : null}
           <div className="cluster end">
             <button type="submit" className="primary" disabled={busy || !text.trim()}>
-              {busy ? 'Sending…' : 'Send the reply'}
+              {busy ? t('page.portal.sending') : t('page.portal.sendTheReply')}
             </button>
           </div>
         </form>
       ) : (
-        <p className="note">This is {r.requester.name}’s request, shared within your organization: they reply to it.</p>
+        <p className="note">{tr('page.portal.thisIsSRequestShared', { name: r.requester.name })}</p>
       )}
     </section>
   );
@@ -164,10 +162,10 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
     }
   };
   return (
-    <form className="card form" onSubmit={send} aria-label="Ask for help">
-      <h2>Ask for help</h2>
+    <form className="card form" onSubmit={send} aria-label={t('page.portal.askForHelp')}>
+      <h2>{t('page.portal.askForHelp')}</h2>
       {desks.length > 1 ? (
-        <FormField label="Help desk">
+        <FormField label={t('page.portal.helpDesk')}>
           {(id) => (
             <select id={id} value={desk} onChange={(e) => setDesk(e.target.value)}>
               {desks.map((d) => (
@@ -179,12 +177,12 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
           )}
         </FormField>
       ) : null}
-      <FormField label="What do you need?">{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
-      <FormField label="Details">{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
+      <FormField label={t('page.portal.whatDoYouNeed')}>{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
+      <FormField label={t('page.portal.details')}>{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
       {error ? <ErrorNote error={error} /> : null}
       <div className="cluster end">
         <button type="submit" className="primary" disabled={busy || !summary.trim()}>
-          {busy ? 'Sending…' : 'Send the request'}
+          {busy ? t('page.portal.sending') : t('page.portal.sendTheRequest')}
         </button>
       </div>
     </form>
@@ -211,15 +209,15 @@ export default function PortalPage() {
   const desks = useQuery({ queryKey: ['portal', 'desks'], queryFn: () => get<PortalDesk[]>('/portal/desks'), enabled: signedIn });
   const [name, setName] = useState('');
   useEffect(() => {
-    document.title = 'Your requests';
+    document.title = t('page.portal.yourRequests');
   }, []);
 
   if (redeemError) {
     return (
       <Lone>
-        <h1>This sign-in link has expired</h1>
-        <p className="note">Links work once, for 20 minutes. Ask for a new one below.</p>
-        <a href="/portal">Sign in again</a>
+        <h1>{t('page.portal.thisSignInLinkHas')}</h1>
+        <p className="note">{t('page.portal.linksWorkOnceFor20')}</p>
+        <a href="/portal">{t('page.portal.signInAgain')}</a>
       </Lone>
     );
   }
@@ -237,51 +235,43 @@ export default function PortalPage() {
   return (
     <Lone wide>
       <div className="title-row">
-        <h1>Your requests</h1>
-        <button type="button" onClick={() => void signOut()}>
-          Sign out
-        </button>
+        <h1>{t('page.portal.yourRequests')}</h1>
+        <button type="button" onClick={() => void signOut()}>{t('page.portal.signOut')}</button>
       </div>
-      <p className="note">
-        Signed in as {m.name} ({m.email}){m.organization ? `. You also see requests from your colleagues at ${m.organization}.` : '.'}
-      </p>
+      <p className="note">{tr('page.portal.signedInAs', { name: m.name, email: m.email, v: m.organization ? t('page.portal.youAlsoSeeRequestsFrom', { organization: m.organization }) : '.' })}</p>
       {open ? (
         <RequestView id={open} me={m} onBack={() => setOpen(null)} />
       ) : (
         <div className="stack">
           {list.data?.length ? (
-            <ul className="list" aria-label="Requests">
+            <ul className="list" aria-label={t('page.portal.requests')}>
               {list.data.map((r) => (
                 <li key={r.id} className="list-row">
                   <button type="button" className="link" onClick={() => setOpen(r.id)}>
                     {r.summary}
                   </button>
-                  <span className="note">
-                    {r.desk.name} · {r.id} · {r.requester.mine ? 'yours' : r.requester.name} · updated {whenRead(r.updatedAt)}
-                  </span>
+                  <span className="note">{tr('page.portal.updated', { name: r.desk.name, id: r.id, v: r.requester.mine ? 'yours' : r.requester.name, whenRead: whenRead(r.updatedAt) })}</span>
                   {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
                 </li>
               ))}
             </ul>
           ) : list.isLoading ? (
-            <Loading what="your requests" />
+            <Loading what={t('page.portal.yourRequests2')} />
           ) : (
-            <p className="note">No requests yet.</p>
+            <p className="note">{t('page.portal.noRequestsYet')}</p>
           )}
           <NewRequest desks={desks.data ?? []} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
           <form
             className="form"
-            aria-label="Your name"
+            aria-label={t('page.portal.yourName')}
             onSubmit={(e) => {
               e.preventDefault();
               void patch<PortalMe>('/portal/me', { name }).then((x) => qc.setQueryData(['portal', 'me'], x));
             }}
           >
-            <FormField label="The name the team sees">{(id) => <input id={id} placeholder={m.name} value={name} onChange={(e) => setName(e.target.value)} />}</FormField>
+            <FormField label={t('page.portal.theNameTheTeamSees')}>{(id) => <input id={id} placeholder={m.name} value={name} onChange={(e) => setName(e.target.value)} />}</FormField>
             <div className="cluster end">
-              <button type="submit" disabled={!name.trim()}>
-                Change my name
-              </button>
+              <button type="submit" disabled={!name.trim()}>{t('page.portal.changeMyName')}</button>
             </div>
           </form>
         </div>
@@ -293,7 +283,7 @@ export default function PortalPage() {
 function Loone() {
   return (
     <Lone>
-      <Loading what="your requests" />
+      <Loading what={t('page.portal.yourRequests2')} />
     </Lone>
   );
 }

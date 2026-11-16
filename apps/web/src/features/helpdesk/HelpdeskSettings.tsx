@@ -5,6 +5,8 @@ import { patch } from '../../api/client';
 import { keys } from '../../api/queries';
 import { errorText, FormField, Said } from '../common/bits';
 import { CopyButton } from '../common/CopyButton';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 /** A project's help desk: whether its public form takes requests, its first-response target, and its words. */
 export function HelpdeskSettings({ project, canEdit }: { project: Project; canEdit: boolean }) {
@@ -24,7 +26,7 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
     onSuccess: (p) => {
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
-      setSaid({ text: p.settings.helpdesk.enabled ? 'Saved. The form takes requests.' : 'Saved. The form is closed; requests already in keep their pages.' });
+      setSaid({ text: p.settings.helpdesk.enabled ? t('helpdesk.helpdeskSettings.savedTheFormTakesRequests') : t('helpdesk.helpdeskSettings.savedTheFormIsClosed') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -40,19 +42,12 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
       <fieldset className="unframed form" disabled={!canEdit || save.isPending}>
         <label className="choice">
           <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))} />
-          <span>
-            Take requests from anyone, without signing in
-            <small className="field-help">
-              Each becomes an issue here, reported by the help desk for whoever asked, who follows it on a page of its own. Comments stay internal unless you make one
-              public.
-              {project.visibility === 'members'
-                ? ` ${project.key} is members only: its form shows its name and these words to anyone with the address, and each requester sees their own request, nothing else.`
-                : ''}
-            </small>
-          </span>
+          <span>{tr('helpdesk.helpdeskSettings.takeRequestsFromAnyoneWithout', { v: project.visibility === 'members'
+                ? t('helpdesk.helpdeskSettings.isMembersOnlyItsForm', { key: project.key })
+                : '', t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
         </label>
         <div className="form-fields">
-          <FormField label="First response within, in hours" help="Counted round the clock from when a request comes in. Empty for no target.">
+          <FormField label={t('helpdesk.helpdeskSettings.firstResponseWithinInHours')} help={t('helpdesk.helpdeskSettings.countedRoundTheClockFrom')}>
             {(id, help) => (
               <input
                 id={id}
@@ -69,42 +64,34 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
             )}
           </FormField>
         </div>
-        <FormField label="Words above the form" help="What to ask here, and what you need to know to help.">
+        <FormField label={t('helpdesk.helpdeskSettings.wordsAboveTheForm')} help={t('helpdesk.helpdeskSettings.whatToAskHereAnd')}>
           {(id, help) => (
             <textarea id={id} rows={3} maxLength={2000} value={form.intro} aria-describedby={help} onChange={(e) => setForm((f) => ({ ...f, intro: e.target.value }))} />
           )}
         </FormField>
         <label className="choice">
           <input type="checkbox" checked={form.captcha} onChange={(e) => setForm((f) => ({ ...f, captcha: e.target.checked }))} />
-          <span>
-            Make sure a person sent it
-            <small className="field-help">
-              The sender's browser works a moment on a small sum before the form sends: no puzzle for them, and nothing from another site. Bots pay for each request
-              they send. Turn it on if the desk gets spam.
-            </small>
-          </span>
+          <span>{tr('helpdesk.helpdeskSettings.makeSureAPersonSent', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
         </label>
       </fieldset>
       {h.enabled ? (
         <div className="cluster">
-          <a href={url} target="_blank" rel="noreferrer">
-            Open the form
-          </a>
+          <a href={url} target="_blank" rel="noreferrer">{t('helpdesk.helpdeskSettings.openTheForm')}</a>
           <code>{url}</code>
-          <CopyButton text={url} what="the form's address" />
+          <CopyButton text={url} what={t('helpdesk.helpdeskSettings.theFormSAddress')} />
         </div>
       ) : null}
       <p className="note">
         {project.lead
-          ? `${project.lead.name} leads ${project.key}, so they're told of each request and watch it.`
-          : `${project.key} has no lead, so nobody is told when a request comes in. Choose a lead under Details.`}
+          ? t('helpdesk.helpdeskSettings.leadsSoTheyReTold', { name: project.lead.name, key: project.key })
+          : t('helpdesk.helpdeskSettings.hasNoLeadSoNobody', { key: project.key })}
       </p>
       {canEdit ? (
         <div className="cluster">
           <button type="submit" className="primary" disabled={!dirty || badHours || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save the help desk'}
+            {save.isPending ? t('helpdesk.helpdeskSettings.saving') : t('helpdesk.helpdeskSettings.saveTheHelpDesk')}
           </button>
-          <Said text={badHours ? 'The target is between a quarter of an hour and 60 days.' : said?.text} tone={badHours || said?.bad ? 'bad' : undefined} />
+          <Said text={badHours ? t('helpdesk.helpdeskSettings.theTargetIsBetweenA') : said?.text} tone={badHours || said?.bad ? 'bad' : undefined} />
         </div>
       ) : null}
     </form>

@@ -12,6 +12,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CopyButton } from '../common/CopyButton';
+import { t, tr } from '../../i18n';
 
 /** For clients that sign in by themselves, such as Claude: the address is all they need. */
 export function SignInInstead() {
@@ -20,19 +21,16 @@ export function SignInInstead() {
   const address = `${window.location.origin}/mcp`;
   return (
     <div className="stack tight section-note">
-      <p className="note">
-        Clients that sign in by themselves, such as Claude and Claude Code, need only this address. They bring you to a4a to choose what they may do, and
-        show under Apps you allowed. For any other client, create a token.
-      </p>
+      <p className="note">{t('agents.oAuthApps.clientsThatSignInBy')}</p>
       <div className="cluster">
         <code>{address}</code>
-        <CopyButton text={address} label="Copy the address" what="the address of a4a’s MCP server" />
+        <CopyButton text={address} label={t('agents.oAuthApps.copyTheAddress')} what={t('agents.oAuthApps.theAddressOfA4aS')} />
       </div>
     </div>
   );
 }
 
-const appName = (g: OAuthGrant) => g.client.name ?? 'An app';
+const appName = (g: OAuthGrant) => g.client.name ?? t('agents.oAuthApps.anApp');
 
 /** The apps a person allowed: what each may do and where, and a way to end it. */
 export function AllowedApps() {
@@ -43,7 +41,7 @@ export function AllowedApps() {
   const revoke = useMutation({
     mutationFn: (g: OAuthGrant) => del(`/me/oauth-grants/${g.id}`),
     onSuccess: (_, g) => {
-      setSaid({ text: `${appName(g)} is revoked: it can’t reach a4a any more. If it asks again, a4a asks you again.` });
+      setSaid({ text: t('agents.oAuthApps.isRevokedItCanT', { appName: appName(g) }) });
       void qc.invalidateQueries({ queryKey: keys.oauthGrants });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -53,27 +51,27 @@ export function AllowedApps() {
   return (
     <section className="card" aria-labelledby="your-apps">
       <div className="section-head">
-        <h2 id="your-apps">Apps you allowed</h2>
-        <span className="note">Each signed in as you over MCP, never beyond your role.</span>
+        <h2 id="your-apps">{t('agents.oAuthApps.appsYouAllowed')}</h2>
+        <span className="note">{t('agents.oAuthApps.eachSignedInAsYou')}</span>
       </div>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-      {grants.isLoading ? <Loading what="your apps" /> : null}
+      {grants.isLoading ? <Loading what={t('agents.oAuthApps.yourApps')} /> : null}
       {grants.error ? <ErrorNote error={grants.error} /> : null}
       {grants.data && !grants.data.length ? (
-        <p className="note">No app has signed in as you yet. When one asks, a4a shows you who asks and for what, and you choose.</p>
+        <p className="note">{t('agents.oAuthApps.noAppHasSignedIn')}</p>
       ) : null}
       {grants.data?.length ? (
-        <Scroll label="Table of the apps you allowed">
+        <Scroll label={t('agents.oAuthApps.tableOfTheAppsYou')}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">App</th>
-                <th scope="col">May</th>
-                <th scope="col">Where</th>
-                <th scope="col">Last used</th>
-                <th scope="col">Allowed</th>
+                <th scope="col">{t('agents.oAuthApps.app')}</th>
+                <th scope="col">{t('agents.oAuthApps.may')}</th>
+                <th scope="col">{t('agents.oAuthApps.where')}</th>
+                <th scope="col">{t('agents.oAuthApps.lastUsed')}</th>
+                <th scope="col">{t('agents.oAuthApps.allowed')}</th>
                 <th scope="col">
-                  <span className="hidden">Revoke</span>
+                  <span className="hidden">{t('agents.oAuthApps.revoke')}</span>
                 </th>
               </tr>
             </thead>
@@ -82,7 +80,7 @@ export function AllowedApps() {
                 <tr key={g.id}>
                   <td>
                     <strong>{appName(g)}</strong>
-                    <span className="item-about">back to {g.client.redirectHosts.join(', ')}</span>
+                    <span className="item-about">{tr('agents.oAuthApps.backTo', { join: g.client.redirectHosts.join(', ') })}</span>
                   </td>
                   <td>
                     <span className="chips">
@@ -95,7 +93,7 @@ export function AllowedApps() {
                   </td>
                   <td>
                     {g.projects === null ? (
-                      'Every project'
+                      t('agents.oAuthApps.everyProject')
                     ) : g.projects.length ? (
                       <span className="chips">
                         {g.projects.map((k) => (
@@ -105,21 +103,21 @@ export function AllowedApps() {
                         ))}
                       </span>
                     ) : (
-                      <span className="muted">No project any more</span>
+                      <span className="muted">{t('agents.oAuthApps.noProjectAnyMore')}</span>
                     )}
                   </td>
-                  <td>{g.lastUsedAt ? <time dateTime={g.lastUsedAt}>{ago(g.lastUsedAt)}</time> : <span className="muted">Never</span>}</td>
+                  <td>{g.lastUsedAt ? <time dateTime={g.lastUsedAt}>{ago(g.lastUsedAt)}</time> : <span className="muted">{t('agents.oAuthApps.never')}</span>}</td>
                   <td>
                     <time dateTime={g.createdAt}>{ago(g.createdAt)}</time>
                   </td>
                   <td className="fit">
                     <Confirm
                       small
-                      label="Revoke it"
-                      name={`Revoke ${appName(g)}`}
-                      title={`Revoke ${appName(g)}?`}
-                      about="It loses access at once: every token it holds stops working. If it asks again, a4a asks you again."
-                      confirm="Revoke it"
+                      label={t('agents.oAuthApps.revokeIt')}
+                      name={t('agents.oAuthApps.revoke3', { appName: appName(g) })}
+                      title={t('agents.oAuthApps.revoke2', { appName: appName(g) })}
+                      about={t('agents.oAuthApps.itLosesAccessAtOnce')}
+                      confirm={t('agents.oAuthApps.revokeIt')}
                       disabled={revoke.isPending}
                       onConfirm={() => revoke.mutate(g)}
                     />

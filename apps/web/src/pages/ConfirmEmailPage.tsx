@@ -5,6 +5,7 @@ import { get, post } from '../api/client';
 import { keys } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { emailKeys } from '../features/vcs/People';
+import { t, tr } from '../i18n';
 
 /**
  * Where the link a4a mails to confirm an email leads. It asks before it confirms (mail scanners
@@ -31,44 +32,42 @@ export default function ConfirmEmailPage() {
   const done = confirm.data ?? (link.data?.confirmed ? link.data : null);
   return (
     <>
-      <PageHead title="Confirm your email" about="Commits under a confirmed email are yours: they link to issues as yours, and the commands in them run as you." />
+      <PageHead title={t('page.confirmEmail.confirmYourEmail')} about={t('page.confirmEmail.commitsUnderAConfirmedEmail')} />
       <section className="card stack" aria-labelledby="confirming">
         {!usable ? (
           <>
-            <h2 id="confirming">This link has no token</h2>
-            <p className="note">Open the link from the email again, as it came. Or send a new one from your profile.</p>
+            <h2 id="confirming">{t('page.confirmEmail.thisLinkHasNoToken')}</h2>
+            <p className="note">{t('page.confirmEmail.openTheLinkFromThe')}</p>
           </>
         ) : link.isLoading ? (
           <>
-            <h2 id="confirming">Reading the link</h2>
-            <Loading what="the link" />
+            <h2 id="confirming">{t('page.confirmEmail.readingTheLink')}</h2>
+            <Loading what={t('page.confirmEmail.theLink')} />
           </>
         ) : link.error ? (
           <>
-            <h2 id="confirming">This link can’t confirm an email</h2>
+            <h2 id="confirming">{t('page.confirmEmail.thisLinkCanTConfirm')}</h2>
             <ErrorNote error={link.error} />
           </>
         ) : done ? (
           <>
-            <h2 id="confirming">{done.email} is confirmed</h2>
-            <p>Commits under it are yours from now on.</p>
+            <h2 id="confirming">{tr('page.confirmEmail.isConfirmed', { email: done.email })}</h2>
+            <p>{t('page.confirmEmail.commitsUnderItAreYours')}</p>
           </>
         ) : link.data ? (
           <>
-            <h2 id="confirming">Is {link.data.email} yours?</h2>
-            <p>
-              Once it’s confirmed, the commits under it are yours: they link to issues as yours, and the commands in them, such as <code>BACK-12 #Fixed</code>, run as you.
-            </p>
+            <h2 id="confirming">{tr('page.confirmEmail.isYours', { email: link.data.email })}</h2>
+            <p>{tr('page.confirmEmail.onceItSConfirmedThe', { code: <code>BACK-12 #Fixed</code> })}</p>
             <div className="cluster">
               <button type="button" className="primary" disabled={confirm.isPending} onClick={() => confirm.mutate()}>
-                {confirm.isPending ? 'Confirming…' : 'Yes, confirm it'}
+                {confirm.isPending ? t('page.confirmEmail.confirming') : t('page.confirmEmail.yesConfirmIt')}
               </button>
             </div>
             {confirm.error ? <ErrorNote error={confirm.error} /> : null}
           </>
         ) : null}
         <p className="note">
-          <Link to="/me">Your emails are on your profile.</Link>
+          <Link to="/me">{t('page.confirmEmail.yourEmailsAreOnYour')}</Link>
         </p>
       </section>
     </>

@@ -5,6 +5,7 @@ import { keys } from '../../api/queries';
 import { Icon } from '../../components/Icon';
 import { errorText, Said } from '../common/bits';
 import { runAction, runTransition, useIssueWorkflow, workflowKeys } from './api';
+import { t } from '../../i18n';
 
 /**
  * Ocean's workflow bar, on the issue page: the moves out of the state the issue is in (its state
@@ -46,7 +47,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
     <section className="card" aria-labelledby={`${id}-head`}>
       <div className="workflow-bar" role="group" aria-labelledby={`${id}-head`}>
         <p className="label" id={`${id}-head`}>
-          {moves.length ? 'Move it on' : 'Its actions'}
+          {moves.length ? t('workflow.workflowBar.moveItOn') : t('workflow.workflowBar.itsActions')}
         </p>
         {moves.map((m, i) => (
           <button
@@ -55,7 +56,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
             className="move"
             disabled={!m.allowed || busy !== null}
             aria-describedby={!m.allowed && m.why ? `${id}-why-${i}` : undefined}
-            onClick={() => void run(m.name, () => runTransition(issue.id, m.name, m.field), `${m.name}: ${m.field} is ${m.to} now.`)}
+            onClick={() => void run(m.name, () => runTransition(issue.id, m.name, m.field), t('workflow.workflowBar.isNow', { name: m.name, field: m.field, to: m.to }))}
           >
             {busy === m.name ? `${m.name}…` : m.name}
             <Icon name="chevron" />
@@ -63,7 +64,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
           </button>
         ))}
         {actions.map((a) => (
-          <button key={a.id} type="button" disabled={busy !== null} onClick={() => void run(a.name, () => runAction(issue.id, a.id), `“${a.name}” is done.`)}>
+          <button key={a.id} type="button" disabled={busy !== null} onClick={() => void run(a.name, () => runAction(issue.id, a.id), t('workflow.workflowBar.isDone', { name: a.name }))}>
             {busy === a.name ? `${a.name}…` : a.name}
           </button>
         ))}

@@ -1,4 +1,5 @@
 import type { QueryProblem } from '@a4a/shared';
+import { getLocale, t as tx } from '../i18n';
 
 const BASE = '/api/v1';
 
@@ -10,6 +11,9 @@ export class ApiError extends Error {
     message: string,
     public readonly hint?: string,
     public readonly details?: unknown,
+    /** The problem's key under problem.* and its values, when the server gave them (D49). */
+    public readonly key?: string,
+    public readonly values?: Record<string, string | number>,
   ) {
     super(message);
   }
@@ -23,12 +27,12 @@ export class ApiError extends Error {
 
 async function toError(res: Response): Promise<ApiError> {
   try {
-    const body = (await res.json()) as { error?: { code: string; message: string; hint?: string; details?: unknown } };
-    if (body.error) return new ApiError(res.status, body.error.code, body.error.message, body.error.hint, body.error.details);
+    const body = (await res.json()) as { error?: { code: string; message: string; hint?: string; details?: unknown; key?: string; values?: Record<string, string | number> } };
+    if (body.error) return new ApiError(res.status, body.error.code, body.error.message, body.error.hint, body.error.details, body.error.key, body.error.values);
   } catch {
     // not JSON
   }
-  return new ApiError(res.status, 'http_error', res.statusText || `Request failed (${res.status})`);
+  return new ApiError(res.status, 'http_error', res.statusText || tx('api.client.requestFailed', { status: res.status }));
 }
 
 export interface RequestOptions {
@@ -39,7 +43,8 @@ export interface RequestOptions {
 }
 
 export async function api<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
+  // The page's language, for the words the server says to its person (D49).
+  const headers: Record<string, string> = { accept: 'application/json', 'x-a4a-locale': getLocale(), ...opts.headers };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
   const res = await fetch(`${BASE}${path}`, {

@@ -15,6 +15,8 @@ import { Lone } from '../app/Auth';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading } from '../components/States';
 import { Avatar } from '../components/Who';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 type Asked = Extract<OAuthAuthorization, { ok: true }>;
 
@@ -37,10 +39,10 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<boolean | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const name = client.name ? `“${client.name}”` : 'An app';
+  const name = client.name ? `“${client.name}”` : t('page.oAuthConsent.anApp');
 
   useEffect(() => {
-    document.title = `${client.name ?? 'An app'} asks to work in a4a`;
+    document.title = t('page.oAuthConsent.asksToWorkInA4a2', { v: client.name ?? t('page.oAuthConsent.anApp') });
   }, [client.name]);
   // A page before the frame, as Lone's: the card is the page's one thing, in its middle.
   useEffect(() => {
@@ -75,64 +77,50 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
         <div className="who">
           <Avatar kind="agent" name={client.name ?? 'app'} />
           <span>
-            <h1 className="approval-title" id={titleId}>
-              {name} asks to work in a4a as you
-            </h1>
+            <h1 className="approval-title" id={titleId}>{tr('page.oAuthConsent.asksToWorkInA4a', { name: name })}</h1>
             <span className="who-about">
               {client.documentHost
-                ? `${client.documentHost} describes it (its name is that site’s word) · `
+                ? t('page.oAuthConsent.describesItItsNameIs', { documentHost: client.documentHost })
                 : client.name
-                  ? 'The name is its own, and a4a can’t check it · '
+                  ? t('page.oAuthConsent.theNameIsItsOwn')
                   : ''}
-              {client.local ? 'it is a program on this computer' : `it sends you back to ${client.redirectHost}`}
+              {client.local ? t('page.oAuthConsent.itIsAProgramOn') : t('page.oAuthConsent.itSendsYouBackTo', { redirectHost: client.redirectHost })}
             </span>
           </span>
         </div>
         <dl className="approval-changes">
           <div className="pair">
-            <dt>As</dt>
+            <dt>{t('page.oAuthConsent.as')}</dt>
             <dd>
               {who.name} ({who.login})
             </dd>
           </div>
           <div className="pair">
-            <dt>Back to</dt>
+            <dt>{t('page.oAuthConsent.backTo')}</dt>
             <dd>
               <code>{client.redirectUri}</code>
             </dd>
           </div>
           <div className="pair">
-            <dt id={mayId}>May</dt>
+            <dt id={mayId}>{t('page.oAuthConsent.may')}</dt>
             <dd>
               <div className="stack tight" role="group" aria-labelledby={mayId}>
-                <label className="approval-pick">
-                  <input type="checkbox" checked disabled />
-                  Read issues, boards and plans
-                </label>
+                <label className="approval-pick">{tr('page.oAuthConsent.readIssuesBoardsAndPlans', { el: <input type="checkbox" checked disabled /> })}</label>
                 {asked.asked.includes('write') ? (
-                  <label className="approval-pick">
-                    <input type="checkbox" checked={write} disabled={!asked.canWrite || busy} onChange={(e) => setWrite(e.target.checked)} />
-                    Make changes, as you
-                  </label>
+                  <label className="approval-pick">{tr('page.oAuthConsent.makeChangesAsYou', { el: <input type="checkbox" checked={write} disabled={!asked.canWrite || busy} onChange={(e) => setWrite(e.target.checked)} /> })}</label>
                 ) : null}
               </div>
             </dd>
           </div>
           <div className="pair">
-            <dt id={whereId}>Where</dt>
+            <dt id={whereId}>{t('page.oAuthConsent.where')}</dt>
             <dd>
               <div className="stack tight" role="group" aria-labelledby={whereId}>
-                <label className="approval-pick">
-                  <input type="radio" name={whereId} checked={every} disabled={busy} onChange={() => setEvery(true)} />
-                  Every project you can see, and ones you join later
-                </label>
-                <label className="approval-pick">
-                  <input type="radio" name={whereId} checked={!every} disabled={busy} onChange={() => setEvery(false)} />
-                  Only these
-                </label>
+                <label className="approval-pick">{tr('page.oAuthConsent.everyProjectYouCanSee', { el: <input type="radio" name={whereId} checked={every} disabled={busy} onChange={() => setEvery(true)} /> })}</label>
+                <label className="approval-pick">{tr('page.oAuthConsent.onlyThese', { el: <input type="radio" name={whereId} checked={!every} disabled={busy} onChange={() => setEvery(false)} /> })}</label>
                 {!every ? (
                   projects.isLoading ? (
-                    <Loading what="your projects" />
+                    <Loading what={t('page.oAuthConsent.yourProjects')} />
                   ) : (
                     (projects.data ?? []).map((p) => (
                       <label key={p.key} className="approval-pick">
@@ -148,31 +136,19 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
             </dd>
           </div>
         </dl>
-        {asked.asked.includes('write') && !asked.canWrite ? <p className="approval-note">Your role only reads, so it can’t make changes.</p> : null}
-        {!every && !chosen.size ? <p className="approval-note">Choose at least one project.</p> : null}
-        <p className="approval-why">
-          <strong>What it gets: </strong>a token for a4a’s MCP server alone, renewed while the app is in use. Each change it makes is yours in the
-          history, under its name.
-        </p>
+        {asked.asked.includes('write') && !asked.canWrite ? <p className="approval-note">{t('page.oAuthConsent.yourRoleOnlyReadsSo')}</p> : null}
+        {!every && !chosen.size ? <p className="approval-note">{t('page.oAuthConsent.chooseAtLeastOneProject')}</p> : null}
+        <p className="approval-why">{tr('page.oAuthConsent.whatItGetsAToken', { t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
         {error ? <ErrorNote error={error} /> : null}
         {sent === null ? (
           <div className="approval-actions">
-            <button type="button" className="primary" disabled={busy || (!every && !chosen.size)} onClick={() => void answer(true)}>
-              Allow
-            </button>
-            <button type="button" disabled={busy} onClick={() => void answer(false)}>
-              Decline
-            </button>
+            <button type="button" className="primary" disabled={busy || (!every && !chosen.size)} onClick={() => void answer(true)}>{t('page.oAuthConsent.allow')}</button>
+            <button type="button" disabled={busy} onClick={() => void answer(false)}>{t('page.oAuthConsent.decline')}</button>
           </div>
         ) : (
-          <p className="approval-done" role="status">
-            {sent ? 'You allowed it.' : 'You declined it.'} Sending you back to {client.local ? 'the app' : client.redirectHost}…
-          </p>
+          <p className="approval-done" role="status">{tr('page.oAuthConsent.sendingYouBackTo', { v: sent ? t('page.oAuthConsent.youAllowedIt') : t('page.oAuthConsent.youDeclinedIt'), v2: client.local ? t('page.oAuthConsent.theApp') : client.redirectHost })}</p>
         )}
-        <p className="approval-signed">
-          <Icon name="audit" />
-          Revoke it any time, under Agents and tokens.
-        </p>
+        <p className="approval-signed">{tr('page.oAuthConsent.revokeItAnyTimeUnder', { el: <Icon name="audit" /> })}</p>
       </div>
     </main>
   );
@@ -181,19 +157,17 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
 /** A request that went wrong before a4a knew where the app is: said here, and sent nowhere. */
 function Refused({ error }: { error: Extract<OAuthAuthorization, { ok: false }> }) {
   useEffect(() => {
-    document.title = 'a4a can’t send you back to the app';
+    document.title = t('page.oAuthConsent.a4aCanTSendYou2');
   }, []);
   return (
     <Lone>
-      <h1>a4a can’t send you back to this app</h1>
+      <h1>{t('page.oAuthConsent.a4aCanTSendYou')}</h1>
       <div className="error-note" role="alert">
         <Icon name="cross" />
         <strong>{error.message}.</strong>
         {error.hint ? <p>{error.hint}</p> : null}
       </div>
-      <a className="button" href="/issues">
-        Go to a4a
-      </a>
+      <a className="button" href="/issues">{t('page.oAuthConsent.goToA4a')}</a>
     </Lone>
   );
 }
@@ -255,11 +229,11 @@ export default function OAuthConsentPage() {
   if (!me.data || !data) {
     return (
       <Lone>
-        <Loading what="the app’s request" />
+        <Loading what={t('page.oAuthConsent.theAppSRequest')} />
       </Lone>
     );
   }
-  if (!data.ok) return data.redirect ? <Leaving text="Sending you back to the app" /> : <Refused error={data} />;
-  if (data.ready && !auto) return <Leaving text={`You allowed ${data.client.name ?? 'this app'} before: signing it in`} />;
+  if (!data.ok) return data.redirect ? <Leaving text={t('page.oAuthConsent.sendingYouBackToThe')} /> : <Refused error={data} />;
+  if (data.ready && !auto) return <Leaving text={t('page.oAuthConsent.youAllowedBeforeSigningIt', { v: data.client.name ?? t('page.oAuthConsent.thisApp') })} />;
   return <Consent asked={data} request={request} who={{ name: me.data.name, login: me.data.login }} />;
 }

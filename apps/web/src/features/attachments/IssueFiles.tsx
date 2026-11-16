@@ -4,6 +4,7 @@ import { keys } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { attachmentKeys, useAttachmentLimits, useIssueAttachments } from './api';
 import { AttachmentList } from './AttachmentList';
+import { t } from '../../i18n';
 
 /** An issue's files, its comments' included: who may change the issue may add and delete them. */
 /** `canEdit`: the person may change the issue (their role in its project), so add files and delete any. */
@@ -16,7 +17,7 @@ export function IssueFiles({ issue, me, canEdit }: { issue: IssueDetail; me: Me 
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList
-      label="Files"
+      label={t('attachments.issueFiles.files')}
       owner={issue.id}
       files={files.data ?? []}
       limits={limits.data}

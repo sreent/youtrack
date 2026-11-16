@@ -12,6 +12,8 @@ import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { t, tr, inSentence } from '../../i18n';
+import type { ReactNode } from 'react';
 
 export const chatKeys = {
   all: ['chat'] as const,
@@ -27,15 +29,15 @@ export const useChatSubscriptions = (project?: string) =>
 const useChatAccounts = () => useQuery({ queryKey: chatKeys.accounts, queryFn: () => get<ChatAccount[]>('/chat/accounts') });
 
 export const KIND_NAMES: Record<ChatChangeKind, { name: string; about: string }> = {
-  created: { name: 'New issues', about: 'Each issue reported in it' },
-  state: { name: 'State changes', about: 'Moved to another state' },
-  assigned: { name: 'Assignments', about: 'Who it’s assigned to' },
-  commented: { name: 'Comments', about: 'What people say on it' },
-  fields: { name: 'Other changes', about: 'Its other fields, its summary and description' },
+  created: { name: t('chat.chat.newIssues'), about: t('chat.chat.eachIssueReportedInIt') },
+  state: { name: t('chat.chat.stateChanges'), about: t('chat.chat.movedToAnotherState') },
+  assigned: { name: t('chat.chat.assignments'), about: t('chat.chat.whoItSAssignedTo') },
+  commented: { name: t('chat.chat.comments'), about: t('chat.chat.whatPeopleSayOnIt') },
+  fields: { name: t('chat.chat.otherChanges'), about: t('chat.chat.itsOtherFieldsItsSummary') },
 };
 
 /** "#eng, Acme on Slack". */
-export const channelName = (c: ChatChannel) => `${c.name}, ${c.workspace} on ${CHAT_PLATFORM_NAMES[c.platform]}`;
+export const channelName = (c: ChatChannel) => t('chat.chat.on2', { name: c.name, workspace: c.workspace, v: CHAT_PLATFORM_NAMES[c.platform] });
 
 function KindChoices({ value, onChange, legend, disabled }: { value: ChatChangeKind[]; onChange: (v: ChatChangeKind[]) => void; legend: string; disabled?: boolean }) {
   return (
@@ -71,7 +73,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     onSuccess: (u) => {
       refresh();
       setEditing(false);
-      onSaid({ text: `${u.channel.name} hears of ${u.about.charAt(0).toLowerCase()}${u.about.slice(1)}.` });
+      onSaid({ text: t('chat.chat.hearsOf', { name: u.channel.name, what: inSentence(u.about) }) });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -79,11 +81,11 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     mutationFn: () => del(`/chat/subscriptions/${s.id}`),
     onSuccess: () => {
       refresh();
-      onSaid({ text: s.ended ? 'Taken off the list.' : `${s.channel.name} hears of it no more.` });
+      onSaid({ text: s.ended ? t('chat.chat.takenOffTheList') : t('chat.chat.hearsOfItNoMore', { name: s.channel.name }) });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
-  const target = s.project?.name ?? `“${s.search?.name ?? 'a saved search'}”`;
+  const target = s.project?.name ?? `“${s.search?.name ?? t('chat.chat.aSavedSearch2')}”`;
   return (
     <tr className={s.ended ? 'muted' : undefined}>
       <th scope="row" className="row-head">
@@ -95,7 +97,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
           </span>
         </span>
       </th>
-      {showTarget ? <td>{s.project ? s.project.name : <>{target} · a saved search</>}</td> : null}
+      {showTarget ? <td>{s.project ? s.project.name : <>{tr('chat.chat.aSavedSearch', { target: target })}</>}</td> : null}
       <td>
         {editing ? (
           <form
@@ -105,14 +107,10 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
               save.mutate();
             }}
           >
-            <KindChoices value={kinds} onChange={setKinds} legend={`What ${s.channel.name} hears of`} disabled={save.isPending} />
+            <KindChoices value={kinds} onChange={setKinds} legend={t('chat.chat.whatHearsOf', { name: s.channel.name })} disabled={save.isPending} />
             <div className="cluster">
-              <button type="submit" className="small primary" disabled={!kinds.length || save.isPending}>
-                Save
-              </button>
-              <button type="button" className="small" onClick={() => setEditing(false)}>
-                Cancel
-              </button>
+              <button type="submit" className="small primary" disabled={!kinds.length || save.isPending}>{t('chat.chat.save')}</button>
+              <button type="button" className="small" onClick={() => setEditing(false)}>{t('chat.chat.cancel')}</button>
             </div>
           </form>
         ) : (
@@ -120,7 +118,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
             {s.about}
             {s.ended ? (
               <span className="item-about">
-                <Badge tone="idle">stopped</Badge> {s.ended.reason}
+                <Badge tone="idle">{t('chat.chat.stopped')}</Badge> {s.ended.reason}
               </span>
             ) : null}
           </span>
@@ -129,23 +127,21 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
       <td>
         <span className="tw:block tw:min-w-36">
           <UserWho user={s.createdBy} small />
-          <span className="item-about">subscribed it {ago(s.createdAt)}</span>
+          <span className="item-about">{tr('chat.chat.subscribedIt', { when: ago(s.createdAt) })}</span>
         </span>
       </td>
       <td className="fit">
         <div className="cluster">
           {!s.ended && !editing ? (
-            <button type="button" className="small" onClick={() => setEditing(true)}>
-              Change<span className="hidden"> what {s.channel.name} hears of</span>
-            </button>
+            <button type="button" className="small" onClick={() => setEditing(true)}>{tr('chat.chat.changeWhatHearsOf', { name: s.channel.name, t0: (c: ReactNode) => <span className="hidden">{c}</span> })}</button>
           ) : null}
           <Confirm
             small
-            label={s.ended ? 'Remove' : 'Stop'}
-            name={`${s.ended ? 'Remove' : 'Stop'} ${s.channel.name}'s subscription to ${target}`}
-            title={s.ended ? `Take ${s.channel.name}’s stopped subscription off the list?` : `Stop telling ${s.channel.name} of ${target}?`}
-            about={s.ended ? 'It posts nothing already.' : 'Nothing more is posted there about it. What was posted stays.'}
-            confirm={s.ended ? 'Remove it' : 'Stop it'}
+            label={s.ended ? t('chat.chat.remove') : t('chat.chat.stop')}
+            name={t('chat.chat.sSubscriptionTo', { v: s.ended ? t('chat.chat.remove') : t('chat.chat.stop'), name: s.channel.name, target: target })}
+            title={s.ended ? t('chat.chat.takeSStoppedSubscriptionOff', { name: s.channel.name }) : t('chat.chat.stopTellingOf', { name: s.channel.name, target: target })}
+            about={s.ended ? t('chat.chat.itPostsNothingAlready') : t('chat.chat.nothingMoreIsPostedThere')}
+            confirm={s.ended ? t('chat.chat.removeIt') : t('chat.chat.stopIt')}
             disabled={stop.isPending}
             onConfirm={() => stop.mutate()}
           />
@@ -176,12 +172,12 @@ export function ChatSubscriptionTable({
         <table className="figures middle">
           <thead>
             <tr>
-              <th scope="col">Channel</th>
-              {showTarget ? <th scope="col">Of</th> : null}
-              <th scope="col">It hears of</th>
-              <th scope="col">Who vouches for it</th>
+              <th scope="col">{t('chat.chat.channel')}</th>
+              {showTarget ? <th scope="col">{t('chat.chat.of')}</th> : null}
+              <th scope="col">{t('chat.chat.itHearsOf')}</th>
+              <th scope="col">{t('chat.chat.whoVouchesForIt')}</th>
               <th scope="col">
-                <span className="hidden">Change or stop</span>
+                <span className="hidden">{t('chat.chat.changeOrStop')}</span>
               </th>
             </tr>
           </thead>
@@ -209,13 +205,13 @@ function AddChannel({ project }: { project: Project }) {
     onSuccess: (s) => {
       void qc.invalidateQueries({ queryKey: chatKeys.all });
       setChannel('');
-      setSaid({ text: `${s.channel.name} hears of ${s.about.charAt(0).toLowerCase()}${s.about.slice(1)}.` });
+      setSaid({ text: t('chat.chat.hearsOf', { name: s.channel.name, what: inSentence(s.about) }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   if (channels.isLoading) return <Loading what="channels" />;
   if (!channels.data?.length) {
-    return <p className="note">a4a can post to no channel yet. An administrator connects Teams or Slack on the Chat page; then a channel is subscribed here, or by asking the bot in it.</p>;
+    return <p className="note">{t('chat.chat.a4aCanPostToNo')}</p>;
   }
   return (
     <form
@@ -226,16 +222,16 @@ function AddChannel({ project }: { project: Project }) {
       }}
     >
       <FormField
-        label="Channel"
+        label={t('chat.chat.channel')}
         help={
           project.visibility === 'members'
-            ? `${project.name} is open to its members alone: only someone who manages it can have a channel told of it.`
-            : 'Its people see what every reader of the project may: never what’s limited to some people.'
+            ? t('chat.chat.isOpenToItsMembers', { name: project.name })
+            : t('chat.chat.itsPeopleSeeWhatEvery')
         }
       >
         {(id, help) => (
           <select id={id} aria-describedby={help} value={channel} onChange={(e) => setChannel(e.target.value)} required>
-            <option value="">Choose a channel</option>
+            <option value="">{t('chat.chat.chooseAChannel')}</option>
             {channels.data.map((c) => (
               <option key={c.id} value={c.id}>
                 {channelName(c)}
@@ -244,10 +240,10 @@ function AddChannel({ project }: { project: Project }) {
           </select>
         )}
       </FormField>
-      <KindChoices value={kinds} onChange={setKinds} legend="It hears of" disabled={add.isPending} />
+      <KindChoices value={kinds} onChange={setKinds} legend={t('chat.chat.itHearsOf')} disabled={add.isPending} />
       <div className="cluster">
         <button type="submit" className="primary" disabled={!channel || !kinds.length || add.isPending}>
-          {add.isPending ? 'Subscribing…' : 'Tell the channel'}
+          {add.isPending ? t('chat.chat.subscribing') : t('chat.chat.tellTheChannel')}
         </button>
       </div>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -260,14 +256,14 @@ export function ProjectChannels({ project, canAdd }: { project: Project; canAdd:
   const subs = useChatSubscriptions(project.key);
   // Said here, not in the table: stopping the last subscription takes the table away.
   const [said, setSaid] = useState<SaidText | null>(null);
-  if (subs.isLoading) return <Loading what="its channels" />;
+  if (subs.isLoading) return <Loading what={t('chat.chat.itsChannels')} />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   return (
     <div className="stack">
       {subs.data.length ? (
-        <ChatSubscriptionTable subs={subs.data} showTarget={false} label={`Table of the channels told of ${project.name}`} onSaid={setSaid} />
+        <ChatSubscriptionTable subs={subs.data} showTarget={false} label={t('chat.chat.tableOfTheChannelsTold', { name: project.name })} onSaid={setSaid} />
       ) : (
-        <p className="note">No channel hears of {project.name} yet.</p>
+        <p className="note">{tr('chat.chat.noChannelHearsOfYet', { name: project.name })}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {canAdd ? <AddChannel project={project} /> : null}
@@ -284,34 +280,32 @@ export function ChatAccounts() {
     mutationFn: (a: ChatAccount) => del(`/chat/accounts/${a.id}`).then(() => a),
     onSuccess: (a) => {
       void qc.invalidateQueries({ queryKey: chatKeys.accounts });
-      setSaid({ text: `${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]} doesn’t act as you any more.` });
+      setSaid({ text: t('chat.chat.onDoesnTActAs', { name: a.name, v: CHAT_PLATFORM_NAMES[a.platform] }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (accounts.isLoading) return <Loading what="your chat accounts" />;
+  if (accounts.isLoading) return <Loading what={t('chat.chat.yourChatAccounts2')} />;
   if (accounts.error || !accounts.data) return <ErrorNote error={accounts.error} />;
   return (
     <div className="stack">
       {accounts.data.length ? (
-        <ul className="plain" aria-label="Your chat accounts">
+        <ul className="plain" aria-label={t('chat.chat.yourChatAccounts')}>
           {accounts.data.map((a) => (
             <li key={a.id} className="cluster spread">
               <span>
-                <span className="item-name">
-                  {a.name} on {CHAT_PLATFORM_NAMES[a.platform]}
-                </span>
+                <span className="item-name">{tr('chat.chat.on', { name: a.name, v: CHAT_PLATFORM_NAMES[a.platform] })}</span>
                 <span className="item-about">
-                  {a.via === 'entra' ? 'Teams knows you by your Microsoft Entra ID sign-in' : `${a.workspace} · linked ${ago(a.linkedAt)}`}
+                  {a.via === 'entra' ? t('chat.chat.teamsKnowsYouByYour') : t('chat.chat.linked', { workspace: a.workspace, when: ago(a.linkedAt) })}
                 </span>
               </span>
               {a.via === 'link' ? (
                 <Confirm
                   small
-                  label="Unlink"
-                  name={`Unlink ${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]}`}
-                  title={`Unlink ${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]}?`}
-                  about="It stops acting as you at once. To link it again, say “link” to the bot there."
-                  confirm="Unlink it"
+                  label={t('chat.chat.unlink')}
+                  name={t('chat.chat.unlinkOn2', { name: a.name, v: CHAT_PLATFORM_NAMES[a.platform] })}
+                  title={t('chat.chat.unlinkOn', { name: a.name, v: CHAT_PLATFORM_NAMES[a.platform] })}
+                  about={t('chat.chat.itStopsActingAsYou')}
+                  confirm={t('chat.chat.unlinkIt')}
                   disabled={unlink.isPending}
                   onConfirm={() => unlink.mutate(a)}
                 />
@@ -320,7 +314,7 @@ export function ChatAccounts() {
           ))}
         </ul>
       ) : (
-        <p className="note">None yet. Say “link” to a4a’s bot in Teams or Slack, and it sends you a link to confirm here.</p>
+        <p className="note">{t('chat.chat.noneYetSayLinkTo')}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>

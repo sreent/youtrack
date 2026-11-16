@@ -5,6 +5,7 @@ import { ago, optionOf, PriorityMeter, StateBadge } from '../../components/Badge
 import { Icon } from '../../components/Icon';
 import { Who } from '../../components/Who';
 import { userOf } from './fields';
+import { intlLocale, t, tr } from '../../i18n';
 
 interface Props {
   issues: Issue[];
@@ -61,34 +62,30 @@ export function IssueList({ issues, label, chosen, onChosen, onCommand, current 
     <section className="issues-box" aria-label={label}>
       {chosenHere > 0 ? (
         <div className="issues-bar">
-          <strong>{chosenHere} chosen</strong>
-          <button type="button" onClick={onCommand}>
-            Apply a command
-          </button>
-          <button type="button" className="link" onClick={() => onChosen(new Set([...chosen].filter((id) => !ids.includes(id))))}>
-            Choose none
-          </button>
+          <strong>{tr('issues.issueList.chosen', { chosenHere: chosenHere })}</strong>
+          <button type="button" onClick={onCommand}>{t('issues.issueList.applyACommand')}</button>
+          <button type="button" className="link" onClick={() => onChosen(new Set([...chosen].filter((id) => !ids.includes(id))))}>{t('issues.issueList.chooseNone')}</button>
         </div>
       ) : null}
       <div className="issues-head">
         <input
           ref={all}
           type="checkbox"
-          aria-label={`Choose all ${issues.length} issues`}
+          aria-label={t('issues.issueList.chooseAllIssues', { length: issues.length })}
           checked={issues.length > 0 && chosenHere === issues.length}
           onChange={(e) => onChosen(e.target.checked ? new Set([...chosen, ...ids]) : new Set([...chosen].filter((id) => !ids.includes(id))))}
         />
-        <span>Issue</span>
-        <span>State</span>
-        <span>Priority</span>
-        <span>Type</span>
-        <span>Assignee</span>
+        <span>{t('issues.issueList.issue')}</span>
+        <span>{t('issues.issueList.state')}</span>
+        <span>{t('issues.issueList.priority')}</span>
+        <span>{t('issues.issueList.type')}</span>
+        <span>{t('issues.issueList.assignee')}</span>
         <span>
-          <span className="hidden">Comments</span>
+          <span className="hidden">{t('issues.issueList.comments')}</span>
         </span>
-        <span>Updated</span>
+        <span>{t('issues.issueList.updated')}</span>
       </div>
-      <ul className="issues" aria-label={`${issues.length} issues`}>
+      <ul className="issues" aria-label={t('issues.issueList.issues', { length: issues.length })}>
         {issues.map((issue, i) => {
           const type = optionOf(issue.fields, 'Type');
           const assignee = userOf(issue.fields, 'Assignee');
@@ -106,7 +103,7 @@ export function IssueList({ issues, label, chosen, onChosen, onCommand, current 
             >
               {/* Its label is the box's target: on a touch screen, 44px around it (D47). */}
               <label className="issue-pick">
-                <input type="checkbox" className="issue-select" aria-label={`Choose ${issue.id}`} tabIndex={-1} checked={chosen.has(issue.id)} onChange={() => toggle(issue.id)} />
+                <input type="checkbox" className="issue-select" aria-label={t('issues.issueList.choose', { id: issue.id })} tabIndex={-1} checked={chosen.has(issue.id)} onChange={() => toggle(issue.id)} />
               </label>
               <span className="issue-id">{issue.id}</span>
               <span className="issue-main">
@@ -132,15 +129,15 @@ export function IssueList({ issues, label, chosen, onChosen, onCommand, current 
                 </span>
                 <span className="issue-type">{type?.name ?? ''}</span>
                 <span className="issue-assignee">
-                  {assignee ? <Who kind={assignee.isBot ? 'agent' : 'person'} name={assignee.isBot ? assignee.login : assignee.name} small /> : <span className="issue-type">Unassigned</span>}
+                  {assignee ? <Who kind={assignee.isBot ? 'agent' : 'person'} name={assignee.isBot ? assignee.login : assignee.name} small /> : <span className="issue-type">{t('issues.issueList.unassigned')}</span>}
                 </span>
                 <span className="issue-comments">
                   <Icon name="chat" />
                   {issue.commentCount}
-                  <span className="hidden"> comments</span>
+                  <span className="hidden">{t('issues.issueList.comments2')}</span>
                 </span>
               </span>
-              <time className="issue-updated" dateTime={issue.updatedAt} title={new Date(issue.updatedAt).toLocaleString()}>
+              <time className="issue-updated" dateTime={issue.updatedAt} title={new Date(issue.updatedAt).toLocaleString(intlLocale())}>
                 {ago(issue.updatedAt)}
               </time>
             </li>

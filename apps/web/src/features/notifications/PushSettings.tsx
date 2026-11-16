@@ -11,11 +11,12 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said } from '../common/bits';
 import { useNotificationSettings, useSaveNotificationSettings } from './api';
 import { currentSubscription, pushKeys, pushSupport, turnPushOff, turnPushOn, usePushDevices, useRemoveDevice, useTestPush } from './push';
+import { t, tr } from '../../i18n';
 
 const LEVELS: { value: EmailLevel; name: string; about: string }[] = [
-  { value: 'all', name: 'Everything', about: 'Mentions and assignments, changes on issues you watch, and what you subscribe to.' },
-  { value: 'direct', name: 'Mentions and assignments', about: "When you're mentioned or assigned an issue, and new help desk requests in a project you lead." },
-  { value: 'none', name: 'Never', about: 'Nothing to your devices; your inbox still has everything.' },
+  { value: 'all', name: t('notifications.pushSettings.everything'), about: t('notifications.pushSettings.mentionsAndAssignmentsChangesOn') },
+  { value: 'direct', name: t('notifications.pushSettings.mentionsAndAssignments'), about: t('notifications.pushSettings.whenYouReMentionedOr') },
+  { value: 'none', name: t('notifications.pushSettings.never'), about: t('notifications.pushSettings.nothingToYourDevicesYour') },
 ];
 
 function failureText(e: unknown): string {
@@ -41,9 +42,9 @@ export function PushSettings({ me }: { me: Me }) {
   const devices = usePushDevices(endpoint ?? null, endpoint !== undefined);
   const remove = useRemoveDevice();
   const test = useTestPush();
-  if (settings.isLoading || key.isLoading) return <Loading what="your push settings" />;
+  if (settings.isLoading || key.isLoading) return <Loading what={t('notifications.pushSettings.yourPushSettings')} />;
   if (settings.error || !settings.data) return <ErrorNote error={settings.error} />;
-  if (key.data && !key.data.enabled) return <p className="note">This server sends no push notifications: an administrator turns them on (PUSH).</p>;
+  if (key.data && !key.data.enabled) return <p className="note">{t('notifications.pushSettings.thisServerSendsNoPush')}</p>;
   const here = devices.data?.find((d) => d.current);
   const denied = 'Notification' in window && Notification.permission === 'denied';
 
@@ -54,7 +55,7 @@ export function PushSettings({ me }: { me: Me }) {
       await turnPushOn(me);
       setEndpoint((await currentSubscription())?.endpoint ?? null);
       await qc.invalidateQueries({ queryKey: pushKeys.all });
-      setSaid({ text: 'Push notifications are on for this device.' });
+      setSaid({ text: t('notifications.pushSettings.pushNotificationsAreOnFor') });
     } catch (e) {
       setSaid({ text: failureText(e), bad: true });
     } finally {
@@ -68,7 +69,7 @@ export function PushSettings({ me }: { me: Me }) {
       await turnPushOff(here);
       setEndpoint(null);
       await qc.invalidateQueries({ queryKey: pushKeys.all });
-      setSaid({ text: 'Push notifications are off on this device.' });
+      setSaid({ text: t('notifications.pushSettings.pushNotificationsAreOffOn') });
     } finally {
       setBusy(false);
     }
@@ -78,8 +79,8 @@ export function PushSettings({ me }: { me: Me }) {
       onSuccess: (r) =>
         setSaid(
           r.failed.length
-            ? { text: `Sent to ${r.sent}. ${r.failed.map((f) => `${f.device}: ${f.error}`).join(' ')}`, bad: true }
-            : { text: r.sent === 1 ? 'Sent: it should be on your device now.' : `Sent to your ${r.sent} devices.` },
+            ? { text: t('notifications.pushSettings.sentTo', { sent: r.sent, join: r.failed.map((f) => `${f.device}: ${f.error}`).join(' ') }), bad: true }
+            : { text: r.sent === 1 ? t('notifications.pushSettings.sentItShouldBeOn') : t('notifications.pushSettings.sentToYourDevices', { sent: r.sent }) },
         ),
       onError: (e) => setSaid({ text: errorText(e), bad: true }),
     });
@@ -87,37 +88,28 @@ export function PushSettings({ me }: { me: Me }) {
   return (
     <div className="stack">
       {support.kind === 'install-first' ? (
-        <p className="note">
-          On an iPhone or iPad, a4a sends push notifications once it's on your Home Screen: tap Share, then Add to Home Screen, and turn them on in a4a
-          opened from there.
-        </p>
+        <p className="note">{t('notifications.pushSettings.onAnIphoneOrIpad')}</p>
       ) : support.kind === 'unsupported' ? (
-        <p className="note">This browser can't take push notifications. Chrome, Edge, Firefox and Safari can.</p>
+        <p className="note">{t('notifications.pushSettings.thisBrowserCanTTake')}</p>
       ) : denied ? (
-        <p className="note">Notifications are blocked for a4a in this browser. Allow them in its site settings, then turn push on here.</p>
+        <p className="note">{t('notifications.pushSettings.notificationsAreBlockedForA4a')}</p>
       ) : (
-        <p className="note">{here ? `They're on for this device (${here.label}).` : "They're off on this device."} Signing out here turns them off.</p>
+        <p className="note">{tr('notifications.pushSettings.signingOutHereTurnsThem', { v: here ? t('notifications.pushSettings.theyReOnForThis', { label: here.label }) : t('notifications.pushSettings.theyReOffOnThis') })}</p>
       )}
       {support.kind === 'ready' ? (
         <div className="cluster">
           {here ? (
-            <button type="button" onClick={() => void off()} disabled={busy}>
-              Turn off on this device
-            </button>
+            <button type="button" onClick={() => void off()} disabled={busy}>{t('notifications.pushSettings.turnOffOnThisDevice')}</button>
           ) : (
-            <button type="button" className="primary" onClick={() => void on()} disabled={busy || denied || endpoint === undefined}>
-              Turn on for this device
-            </button>
+            <button type="button" className="primary" onClick={() => void on()} disabled={busy || denied || endpoint === undefined}>{t('notifications.pushSettings.turnOnForThisDevice')}</button>
           )}
           {devices.data?.length ? (
-            <button type="button" onClick={sendTest} disabled={test.isPending}>
-              Send a test
-            </button>
+            <button type="button" onClick={sendTest} disabled={test.isPending}>{t('notifications.pushSettings.sendATest')}</button>
           ) : null}
         </div>
       ) : null}
       <fieldset className="choice-group column" disabled={save.isPending}>
-        <legend>Push to your devices</legend>
+        <legend>{t('notifications.pushSettings.pushToYourDevices')}</legend>
         {LEVELS.map((l) => (
           <label key={l.value} className="choice">
             <input
@@ -126,7 +118,7 @@ export function PushSettings({ me }: { me: Me }) {
               value={l.value}
               checked={settings.data.push === l.value}
               onChange={() =>
-                save.mutate({ push: l.value }, { onSuccess: () => setSaid({ text: 'Saved.' }), onError: (e) => setSaid({ text: errorText(e), bad: true }) })
+                save.mutate({ push: l.value }, { onSuccess: () => setSaid({ text: t('notifications.pushSettings.saved') }), onError: (e) => setSaid({ text: errorText(e), bad: true }) })
               }
             />
             <span>
@@ -137,14 +129,14 @@ export function PushSettings({ me }: { me: Me }) {
         ))}
       </fieldset>
       {devices.data?.length ? (
-        <ul className="plain" aria-label="Devices push notifications go to">
+        <ul className="plain" aria-label={t('notifications.pushSettings.devicesPushNotificationsGoTo')}>
           {devices.data.map((d) => (
             <li key={d.id} className="cluster">
               <span>
                 <strong>{d.label}</strong>
-                {d.current ? <span className="badge">this device</span> : null}{' '}
+                {d.current ? <span className="badge">{t('notifications.pushSettings.thisDevice')}</span> : null}{' '}
                 <span className="note">
-                  {d.lastError ? `its push service refused the last: ${d.lastError}` : d.lastSentAt ? `last sent ${ago(d.lastSentAt)}` : `added ${ago(d.createdAt)}`}
+                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: ago(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: ago(d.createdAt) })}
                 </span>
               </span>
               <button
@@ -152,10 +144,8 @@ export function PushSettings({ me }: { me: Me }) {
                 className="small"
                 onClick={() => remove.mutate(d.id, { onSuccess: () => (d.current ? void turnPushOff(undefined).then(() => setEndpoint(null)) : undefined) })}
                 disabled={remove.isPending}
-                aria-label={`Stop push notifications to ${d.label}${d.current ? ' (this device)' : ''}`}
-              >
-                Remove
-              </button>
+                aria-label={t('notifications.pushSettings.stopPushNotificationsTo', { label: d.label, v: d.current ? t('notifications.pushSettings.thisDevice2') : '' })}
+              >{t('notifications.pushSettings.remove')}</button>
             </li>
           ))}
         </ul>

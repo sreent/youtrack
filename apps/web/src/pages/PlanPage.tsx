@@ -8,17 +8,19 @@ import { dayMonth } from '../features/plan/dates';
 import { money, plural } from '../features/plan/format';
 import { Resources } from '../features/plan/Resources';
 import { Timeline } from '../features/plan/Timeline';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const VIEWS = [
-  { id: 'timeline', label: 'Timeline' },
-  { id: 'resources', label: 'Resources' },
-  { id: 'costs', label: 'Costs' },
+  { id: 'timeline', label: t('page.plan.timeline') },
+  { id: 'resources', label: t('page.plan.resources') },
+  { id: 'costs', label: t('page.plan.costs') },
 ] as const;
 type View = (typeof VIEWS)[number]['id'];
 
 function planFacts(p: Project): string {
   const plan = p.settings.plan;
-  const parts = [plan.startDate ? `Starts ${dayMonth(plan.startDate)}` : 'No start date set', plan.budget !== null ? `budget ${money(plan.budget, plan.currency)}` : 'no budget set'];
+  const parts = [plan.startDate ? t('page.plan.starts', { dayMonth: dayMonth(plan.startDate) }) : t('page.plan.noStartDateSet'), plan.budget !== null ? t('page.plan.budget', { money: money(plan.budget, plan.currency) }) : t('page.plan.noBudgetSet')];
   return `${parts.join(', ')} · ${plural(p.openIssueCount, 'open issue')}`;
 }
 
@@ -27,13 +29,13 @@ function ChooseProject() {
   const live = (projects.data ?? []).filter((p) => !p.archived);
   return (
     <>
-      <PageHead title="Plan" about="A project's tasks over time, who's booked when, and what it costs, drawn from its issues: their estimates, start and due dates, assignees, subtasks and what each depends on." />
+      <PageHead title={t('page.plan.plan')} about={t('page.plan.aProjectSTasksOver')} />
       {projects.isLoading ? <Loading what="projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
-      {projects.data && live.length === 0 ? <Empty title="No projects yet">A plan belongs to a project. Make a project, then its plan shows here.</Empty> : null}
+      {projects.data && live.length === 0 ? <Empty title={t('page.plan.noProjectsYet')}>{t('page.plan.aPlanBelongsToA')}</Empty> : null}
       {live.length ? (
         <section className="card" aria-labelledby="plan-projects">
-          <h2 id="plan-projects">Choose a project</h2>
+          <h2 id="plan-projects">{t('page.plan.chooseAProject')}</h2>
           <ul className="directory">
             {live.map((p) => (
               <li key={p.id}>
@@ -57,7 +59,7 @@ function ProjectPlan({ project, view }: { project: Project; view: View }) {
   const choice = useBaselineChoice(project.key);
   const crumbs = (
     <>
-      <Link to="/plan">Plan</Link>
+      <Link to="/plan">{t('page.plan.plan')}</Link>
       <span className="sep" aria-hidden="true">
         /
       </span>
@@ -68,7 +70,7 @@ function ProjectPlan({ project, view }: { project: Project; view: View }) {
       <PageHead title={project.name} crumbs={crumbs} about={project.description || undefined} />
       <div className="stack">
         {/* Ocean's choice of views: a row of buttons, the chosen one pressed; each view has its own address. */}
-        <div className="modes plan-views" role="group" aria-label={`${project.name}'s plan`}>
+        <div className="modes plan-views" role="group" aria-label={t('page.plan.sPlan', { name: project.name })}>
           {VIEWS.map((v) => (
             <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => navigate({ pathname: `/plan/${project.key}/${v.id}`, search: location.search })}>
               {v.label}
@@ -89,16 +91,14 @@ export default function PlanPage() {
   const projects = useProjects();
   if (!key) return <ChooseProject />;
   if (view && !VIEWS.some((v) => v.id === view)) return <Navigate to={`/plan/${key}`} replace />;
-  if (projects.isLoading) return <Loading what="the plan" />;
+  if (projects.isLoading) return <Loading what={t('page.plan.thePlan')} />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const project = projects.data?.find((p) => p.key.toLowerCase() === key.toLowerCase());
   if (!project) {
     return (
       <>
-        <PageHead title="Plan" crumbs={<Link to="/plan">Plan</Link>} />
-        <Empty title={`There is no project ${key}`}>
-          <Link to="/plan">Choose a project</Link> to see its plan.
-        </Empty>
+        <PageHead title={t('page.plan.plan')} crumbs={<Link to="/plan">{t('page.plan.plan')}</Link>} />
+        <Empty title={t('page.plan.thereIsNoProject', { key: key })}>{tr('page.plan.chooseAProjectToSee', { t0: (c: ReactNode) => <Link to="/plan">{c}</Link> })}</Empty>
       </>
     );
   }

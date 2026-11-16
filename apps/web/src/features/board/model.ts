@@ -8,6 +8,7 @@
  * being nobody ("Unassigned") for a person field, or no value ("No value") for any other.
  */
 import type { BoardView, Issue, IssueField, IssueFieldValue, OptionValue, ProjectField, UserRef } from '@a4a/shared';
+import { t } from '../../i18n';
 
 export type LaneKind = 'user' | 'option';
 
@@ -111,9 +112,9 @@ export function lanesOf(view: BoardView, kind: LaneKind | null, book: ValueBook)
     const none = i === last;
     if (kind === 'user') {
       const user = none ? null : book.user(name);
-      return { key: `lane-${i}`, value: none ? null : name, label: none ? 'Unassigned' : (user?.name ?? name), user };
+      return { key: `lane-${i}`, value: none ? null : name, label: none ? t('board.model.unassigned') : (user?.name ?? name), user };
     }
-    return { key: `lane-${i}`, value: none ? null : name, label: none ? 'No value' : name, user: null };
+    return { key: `lane-${i}`, value: none ? null : name, label: none ? t('board.model.noValue') : name, user: null };
   });
 }
 
@@ -206,6 +207,6 @@ export function parseCellId(id: string | number): { lane: number; column: number
 /** How a column stands: "3", "4 of 5", or "3 of 2, 1 over the limit". */
 export function columnLoad(count: number, limit: number | null): { text: string; over: boolean } {
   if (limit === null || limit === undefined) return { text: String(count), over: false };
-  if (count > limit) return { text: `${count} of ${limit}, ${count - limit} over the limit`, over: true };
-  return { text: `${count} of ${limit}`, over: false };
+  if (count > limit) return { text: t('board.model.ofOverTheLimit', { count: count, limit: limit, v: count - limit }), over: true };
+  return { text: t('board.model.of', { count: count, limit: limit }), over: false };
 }

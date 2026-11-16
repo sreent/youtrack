@@ -1,5 +1,6 @@
 import type { Change } from '@a4a/shared';
 import { excerpt } from './format';
+import { t } from '../../i18n';
 
 /** Fields whose change is something added or taken away, rather than one value for another. */
 const ADDS = new Set(['links', 'comment', 'tags']);
@@ -23,25 +24,25 @@ export function ChangeLines({ changes }: { changes: Change[] }) {
             ) : to ? (
               adds ? (
                 <>
-                  <ins>{to}</ins> <span className="same">added</span>
+                  <ins>{to}</ins> <span className="same">{t('common.changeLines.added')}</span>
                 </>
               ) : (
                 <>
-                  <span className="same">none</span> → <ins>{to}</ins>
+                  <span className="same">{t('common.changeLines.none')}</span> → <ins>{to}</ins>
                 </>
               )
             ) : from ? (
               adds ? (
                 <>
-                  <del>{from}</del> <span className="same">removed</span>
+                  <del>{from}</del> <span className="same">{t('common.changeLines.removed')}</span>
                 </>
               ) : (
                 <>
-                  <del>{from}</del> → <span className="same">none</span>
+                  <del>{from}</del> → <span className="same">{t('common.changeLines.none')}</span>
                 </>
               )
             ) : (
-              <span className="same">cleared</span>
+              <span className="same">{t('common.changeLines.cleared')}</span>
             )}
           </li>
         );

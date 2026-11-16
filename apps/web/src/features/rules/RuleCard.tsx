@@ -10,6 +10,7 @@ import { Confirm } from '../common/Confirm';
 import { previewRule, ruleKeys } from './api';
 import { SampleDetail } from './RuleForm';
 import { Sentence } from './words';
+import { intlLocale, t, tr } from '../../i18n';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
 function input(rule: Rule, canCall: boolean): RuleInput {
@@ -24,57 +25,41 @@ function nextWords(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
-  if (days === 0) return `today at ${time}`;
-  if (days === 1) return `tomorrow at ${time}`;
-  return `${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')} at ${time}`;
+  if (days === 0) return t('rules.ruleCard.todayAt', { time: time });
+  if (days === 1) return t('rules.ruleCard.tomorrowAt', { time: time });
+  return t('rules.ruleCard.at', { replace: d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', ''), time: time });
 }
 
 /** What it did last, or when it next runs, in a line. */
 function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
-  const next = rule.kind === 'schedule' && rule.enabled && rule.nextRunAt ? `Next runs ${nextWords(rule.nextRunAt)}.` : null;
-  if (!run) return <p className="rule-said">{next ?? (rule.kind === 'guard' ? 'It hasn’t refused a change yet.' : 'It hasn’t acted yet.')}</p>;
+  const next = rule.kind === 'schedule' && rule.enabled && rule.nextRunAt ? t('rules.ruleCard.nextRuns', { nextWords: nextWords(rule.nextRunAt) }) : null;
+  if (!run) return <p className="rule-said">{next ?? (rule.kind === 'guard' ? t('rules.ruleCard.itHasnTRefusedA') : t('rules.ruleCard.itHasnTActedYet'))}</p>;
   const when = ago(run.at);
   const on = run.issue ? (
-    <>
-      , on <IssueLink id={run.issue} />
-    </>
+    <>{tr('rules.ruleCard.on', { el: <IssueLink id={run.issue} /> })}</>
   ) : null;
   let what: React.ReactNode;
   switch (run.outcome) {
     case 'refused':
       what = (
-        <>
-          Last refused a change{run.by ? ` by ${run.by.name}` : ''}, {when}
-          {on}.
-        </>
+        <>{tr('rules.ruleCard.lastRefusedAChange', { v: run.by ? t('rules.ruleCard.by', { name: run.by.name }) : '', when: when, on: on })}</>
       );
       break;
     case 'applied':
       what = run.issue ? (
-        <>
-          Last acted {when}
-          {on}: {run.changes.map((c) => c.field).join(', ') || run.message}.
-        </>
+        <>{tr('rules.ruleCard.lastActed', { when: when, on: on, v: run.changes.map((c) => c.field).join(', ') || run.message })}</>
       ) : (
-        <>
-          Last ran {when}: {run.message}
-        </>
+        <>{tr('rules.ruleCard.lastRan', { when: when, message: run.message })}</>
       );
       break;
     case 'failed':
       what = (
-        <>
-          Last failed {when}
-          {on}: {run.message}
-        </>
+        <>{tr('rules.ruleCard.lastFailed', { when: when, on: on, message: run.message })}</>
       );
       break;
     default:
       what = (
-        <>
-          Last ran {when}
-          {on}: {run.message}
-        </>
+        <>{tr('rules.ruleCard.lastRan2', { when: when, on: on, message: run.message })}</>
       );
   }
   return (
@@ -101,7 +86,7 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
     mutationFn: () => patch<Rule>(`/rules/${rule.id}`, { enabled: !rule.enabled, expectedVersion: rule.version }),
     onSuccess: (r) => {
       done();
-      setSaid({ text: r.enabled ? 'It’s on again, from the next change.' : 'It’s off: it does nothing until it’s turned back on.' });
+      setSaid({ text: r.enabled ? t('rules.ruleCard.itSOnAgainFrom') : t('rules.ruleCard.itSOffItDoes') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -121,19 +106,19 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
       <div className="rule-head">
         <h3 className="rule-name">{rule.name}</h3>
         <span className="badges">
-          {rule.project === null ? <span className="chip">every project</span> : null}
-          {rule.kind === 'guard' ? <Badge grammar="own">refuses changes</Badge> : null}
-          {rule.kind !== 'guard' && (rule.command || rule.comment) ? <Badge grammar="changes">changes issues</Badge> : null}
-          {rule.notify ? <Badge>tells people</Badge> : null}
-          {rule.call ? <Badge grammar="outside">calls out</Badge> : null}
-          {rule.script ? <Badge>a script</Badge> : null}
-          {broken ? <Badge tone="bad">needs fixing</Badge> : rule.enabled ? <Badge tone="good">on</Badge> : <Badge tone="idle">off</Badge>}
+          {rule.project === null ? <span className="chip">{t('rules.ruleCard.everyProject')}</span> : null}
+          {rule.kind === 'guard' ? <Badge grammar="own">{t('rules.ruleCard.refusesChanges')}</Badge> : null}
+          {rule.kind !== 'guard' && (rule.command || rule.comment) ? <Badge grammar="changes">{t('rules.ruleCard.changesIssues')}</Badge> : null}
+          {rule.notify ? <Badge>{t('rules.ruleCard.tellsPeople')}</Badge> : null}
+          {rule.call ? <Badge grammar="outside">{t('rules.ruleCard.callsOut')}</Badge> : null}
+          {rule.script ? <Badge>{t('rules.ruleCard.aScript')}</Badge> : null}
+          {broken ? <Badge tone="bad">{t('rules.ruleCard.needsFixing')}</Badge> : rule.enabled ? <Badge tone="good">{t('rules.ruleCard.on2')}</Badge> : <Badge tone="idle">{t('rules.ruleCard.off')}</Badge>}
         </span>
       </div>
       <Sentence rule={rule} />
       {rule.script ? (
         <details>
-          <summary>Its script</summary>
+          <summary>{t('rules.ruleCard.itsScript')}</summary>
           <pre className="script-log">{rule.script}</pre>
         </details>
       ) : null}
@@ -141,18 +126,13 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
       {rule.problems.map((p) => (
         <div className="error-note" role="note" key={`${p.part}-${p.start}-${p.message}`}>
           <Icon name="cross" />
-          <strong>
-            Its {p.part === 'requires' ? 'requirement' : p.part} no longer reads: {p.message}
-          </strong>
-          <p>
-            It does nothing until it’s fixed.
-            {p.fix ? ` Did you mean ${p.fix}?` : p.hint ? ` ${p.hint}` : ''}
-          </p>
+          <strong>{tr('rules.ruleCard.itsNoLongerReads', { v: p.part === 'requires' ? 'requirement' : p.part, message: p.message })}</strong>
+          <p>{tr('rules.ruleCard.itDoesNothingUntilIt', { v: p.fix ? t('rules.ruleCard.didYouMean', { fix: p.fix }) : p.hint ? ` ${p.hint}` : '' })}</p>
         </div>
       ))}
       {preview ? (
-        <div className="command-preview" role="group" aria-label={`What ${rule.name} would do now`}>
-          <p className="label">What it would do now</p>
+        <div className="command-preview" role="group" aria-label={t('rules.ruleCard.whatWouldDoNow', { name: rule.name })}>
+          <p className="label">{t('rules.ruleCard.whatItWouldDoNow')}</p>
           <p className="note">{preview.note}</p>
           {preview.sample.length ? (
             <ul className="command-issues">
@@ -162,10 +142,7 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
                   <span className="command-summary">
                     {x.issue.summary}
                     {x.via ? (
-                      <>
-                        {' '}
-                        · for <IssueLink id={x.via.id} />
-                      </>
+                      <>{tr('rules.ruleCard.for', { el: <IssueLink id={x.via.id} /> })}</>
                     ) : null}
                   </span>
                   <SampleDetail sample={x} guard={rule.kind === 'guard'} commands={Boolean(rule.command)} />
@@ -177,33 +154,31 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
       ) : null}
       <div className="cluster">
         <button type="button" onClick={() => (preview ? setPreview(null) : look.mutate())} disabled={look.isPending} aria-expanded={preview !== null}>
-          {look.isPending ? 'Previewing…' : preview ? 'Hide the preview' : 'Preview it'}
+          {look.isPending ? t('rules.ruleCard.previewing') : preview ? t('rules.ruleCard.hideThePreview') : t('rules.ruleCard.previewIt')}
         </button>
         {canManage ? (
           <>
             {canChange ? (
-              <button type="button" onClick={onEdit}>
-                Edit it
-              </button>
+              <button type="button" onClick={onEdit}>{t('rules.ruleCard.editIt')}</button>
             ) : null}
             {canChange || rule.enabled ? (
               <button type="button" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
-                {rule.enabled ? 'Turn it off' : 'Turn it back on'}
+                {rule.enabled ? t('rules.ruleCard.turnItOff') : t('rules.ruleCard.turnItBackOn')}
               </button>
             ) : null}
             <span className="grow" />
             {canChange ? (
               <Confirm
                 small
-                label="Delete it"
-                title={`Delete the rule “${rule.name}”?`}
-                about="It stops at once, and what it did goes from its log; what it changed on issues stays, in their history. Nobody can bring the rule back."
-                confirm="Delete it"
+                label={t('rules.ruleCard.deleteIt')}
+                title={t('rules.ruleCard.deleteTheRule', { name: rule.name })}
+                about={t('rules.ruleCard.itStopsAtOnceAnd')}
+                confirm={t('rules.ruleCard.deleteIt')}
                 disabled={remove.isPending}
                 onConfirm={() => remove.mutate()}
               />
             ) : (
-              <span className="note">{rule.script ? 'It runs a script' : 'It calls a webhook'}, so an administrator changes it.</span>
+              <span className="note">{tr('rules.ruleCard.soAnAdministratorChangesIt', { v: rule.script ? t('rules.ruleCard.itRunsAScript') : t('rules.ruleCard.itCallsAWebhook') })}</span>
             )}
           </>
         ) : null}

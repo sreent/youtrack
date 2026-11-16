@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../../i18n';
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -24,7 +25,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** Copies a value, and says so where a screen reader hears it. */
-export function CopyButton({ text, label = 'Copy', what }: { text: string; label?: string; what: string }) {
+export function CopyButton({ text, label = t('common.copyButton.copy'), what }: { text: string; label?: string; what: string }) {
   const [said, setSaid] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -35,17 +36,17 @@ export function CopyButton({ text, label = 'Copy', what }: { text: string; label
   );
   const copy = async () => {
     const ok = await copyText(text);
-    setSaid(ok ? `Copied ${what}.` : `Couldn't copy ${what}: select it and copy it yourself.`);
+    setSaid(ok ? t('common.copyButton.copied', { what: what }) : t('common.copyButton.couldnTCopySelectIt', { what: what }));
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSaid(''), 3000);
   };
   return (
     <span className="copy">
       <button type="button" onClick={copy}>
-        {said.startsWith('Copied') ? 'Copied' : label}
+        {said.startsWith(t('common.copyButton.copied2')) ? t('common.copyButton.copied2') : label}
       </button>
       <span role="status" className="copy-said">
-        {said && !said.startsWith('Copied') ? said : <span className="hidden">{said}</span>}
+        {said && !said.startsWith(t('common.copyButton.copied2')) ? said : <span className="hidden">{said}</span>}
       </span>
     </span>
   );

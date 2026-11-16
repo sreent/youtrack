@@ -11,6 +11,7 @@ import { Confirm } from '../common/Confirm';
 import { localToday } from '../plan/dates';
 import { useAbsenceChanges, useAbsences } from './api';
 import { KIND_WORDS, KINDS, whenWords } from './words';
+import { t, tr } from '../../i18n';
 
 export interface Person {
   login: string;
@@ -23,7 +24,7 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "you're" or "Anna Schmidt is", "your" or "Anna Schmidt's": a sentence names the person. */
 function whose(person: Person, you: boolean) {
-  return { is: you ? 'you’re' : `${person.name} is`, own: you ? 'your' : `${person.name}’s` };
+  return { is: you ? 'you’re' : t('away.daysAway.is', { name: person.name }), own: you ? 'your' : `${person.name}’s` };
 }
 
 function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Person; you: boolean; editing: Absence | null; onDone: (text: string) => void; onCancel?: () => void }) {
@@ -60,7 +61,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       const saved = editing
         ? await change.mutateAsync({ id: editing.id, from, to: to || from, half, ...why, expectedVersion: editing.version })
         : await add.mutateAsync({ user: you ? undefined : person.login, from, to: to || from, half, kind, note: note.trim() || undefined });
-      onDone(`${editing ? 'Changed' : 'Added'}: ${w.is} away ${whenWords(saved)}. Plans skip ${oneDay ? 'it' : 'those days'} for ${w.own} work.`);
+      onDone(t('away.daysAway.awayPlansSkipForWork', { v: editing ? t('away.daysAway.changed') : t('away.daysAway.added'), is: w.is, whenWords: whenWords(saved), v2: oneDay ? 'it' : 'those days', own: w.own }));
     } catch (err) {
       setError(errorText(err));
     }
@@ -68,9 +69,9 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
 
   return (
     <form className="form" onSubmit={(e) => void submit(e)} aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>{editing ? `Change ${whenWords(editing)}` : you ? 'Add days away' : `Add days away for ${person.name}`}</h3>
+      <h3 id={`${id}-title`}>{editing ? t('away.daysAway.change', { whenWords: whenWords(editing) }) : you ? t('away.daysAway.addDaysAway') : t('away.daysAway.addDaysAwayFor', { name: person.name })}</h3>
       <div className="form-fields">
-        <FormField label="From">
+        <FormField label={t('away.daysAway.from')}>
           {(fid) => (
             <input
               id={fid}
@@ -86,18 +87,18 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
             />
           )}
         </FormField>
-        <FormField label="To" help="The last day away.">
+        <FormField label={t('away.daysAway.to')} help={t('away.daysAway.theLastDayAway')}>
           {(fid, help) => <input id={fid} aria-describedby={help} type="date" value={to} min={from || undefined} required onChange={(e) => setTo(e.target.value)} />}
         </FormField>
       </div>
       {oneDay ? (
         <fieldset className="choice-group">
-          <legend>How much of the day</legend>
+          <legend>{t('away.daysAway.howMuchOfTheDay')}</legend>
           {(
             [
-              ['day', 'All of it'],
-              ['morning', 'The morning'],
-              ['afternoon', 'The afternoon'],
+              ['day', t('away.daysAway.allOfIt')],
+              ['morning', t('away.daysAway.theMorning')],
+              ['afternoon', t('away.daysAway.theAfternoon')],
             ] as const
           ).map(([value, words]) => (
             <label key={value} className="choice">
@@ -109,7 +110,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       ) : null}
       {seesWhy ? (
         <div className="form-fields">
-          <FormField label="Why" help={`Only ${you ? 'you' : person.name}, administrators and whoever enters it see why. Everyone else sees when.`}>
+          <FormField label={t('away.daysAway.why')} help={you ? t('away.daysAway.onlyYouAdministratorsAndWhoever') : t('away.daysAway.onlyAdministratorsAndWhoeverEnters', { v: person.name })}>
             {(fid, help) => (
               <select id={fid} aria-describedby={help} value={kind} onChange={(e) => setKind(e.target.value as AbsenceKind)}>
                 {KINDS.map((k) => (
@@ -120,22 +121,20 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
               </select>
             )}
           </FormField>
-          <FormField label="A note, if you want one">
+          <FormField label={t('away.daysAway.aNoteIfYouWant')}>
             {(fid) => <input id={fid} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />}
           </FormField>
         </div>
       ) : (
-        <p className="note">Why {person.name} is away stays as it was: only they, administrators and whoever entered it see it.</p>
+        <p className="note">{tr('away.daysAway.whyIsAwayStaysAs', { name: person.name })}</p>
       )}
       {error ? <Said text={error} tone="bad" /> : null}
       <div className="cluster">
         <button type="submit" className="primary" disabled={busy || !from}>
-          {busy ? 'Saving…' : editing ? 'Save the change' : 'Add the days away'}
+          {busy ? t('away.daysAway.saving') : editing ? t('away.daysAway.saveTheChange') : t('away.daysAway.addTheDaysAway')}
         </button>
         {onCancel ? (
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel}>{t('away.daysAway.cancel')}</button>
         ) : null}
       </div>
     </form>
@@ -158,21 +157,21 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
     setSaid(null);
   }, [person.login]);
 
-  if (list.isLoading) return <Loading what={`${w.own} days away`} />;
+  if (list.isLoading) return <Loading what={t('away.daysAway.daysAway', { own: w.own })} />;
   if (list.error) return <ErrorNote error={list.error} />;
   const rows = list.data ?? [];
 
   return (
     <div className="stack">
       {rows.length ? (
-        <Scroll label={`${capital(w.own)} days away`}>
+        <Scroll label={t('away.daysAway.daysAway2', { capital: capital(w.own) })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">When</th>
-                <th scope="col">Why</th>
+                <th scope="col">{t('away.daysAway.when')}</th>
+                <th scope="col">{t('away.daysAway.why')}</th>
                 <th scope="col" className="fit">
-                  <span className="hidden">What you can do</span>
+                  <span className="hidden">{t('away.daysAway.whatYouCanDo')}</span>
                 </th>
               </tr>
             </thead>
@@ -181,31 +180,29 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
                 <tr key={a.id} className={a.to < today ? 'dimmed' : undefined}>
                   <th scope="row" className="row-head">
                     <span className="item-name">{capital(whenWords(a))}</span>
-                    {a.createdBy && a.createdBy.login !== person.login ? <span className="item-about">Entered by {a.createdBy.name}</span> : null}
+                    {a.createdBy && a.createdBy.login !== person.login ? <span className="item-about">{tr('away.daysAway.enteredBy', { name: a.createdBy.name })}</span> : null}
                   </th>
                   <td>
-                    {a.kind ? KIND_WORDS[a.kind] : <span className="muted">Not shown to you</span>}
+                    {a.kind ? KIND_WORDS[a.kind] : <span className="muted">{t('away.daysAway.notShownToYou')}</span>}
                     {a.note ? <span className="item-about">{a.note}</span> : null}
                   </td>
                   <td className="fit">
                     {a.canChange ? (
                       <div className="cluster">
-                        <button type="button" className="small" aria-label={`Change ${whenWords(a)}`} onClick={() => setEditing(a)}>
-                          Change
-                        </button>
+                        <button type="button" className="small" aria-label={t('away.daysAway.change', { whenWords: whenWords(a) })} onClick={() => setEditing(a)}>{t('away.daysAway.change2')}</button>
                         <Confirm
                           small
-                          label="Remove"
-                          name={`Remove ${whenWords(a)}`}
-                          title={`Remove ${whenWords(a)}?`}
-                          about={`Plans then count on ${you ? 'you' : person.name} that ${a.from === a.to ? 'day' : 'time'} again.`}
-                          confirm="Remove it"
+                          label={t('away.daysAway.remove')}
+                          name={t('away.daysAway.remove3', { whenWords: whenWords(a) })}
+                          title={t('away.daysAway.remove2', { whenWords: whenWords(a) })}
+                          about={you ? (a.from === a.to ? t('away.daysAway.plansCountOnYouThatDay') : t('away.daysAway.plansCountOnYouThatTime')) : (a.from === a.to ? t('away.daysAway.plansCountOnThemThatDay', { name: person.name }) : t('away.daysAway.plansCountOnThemThatTime', { name: person.name }))}
+                          confirm={t('away.daysAway.removeIt')}
                           disabled={remove.isPending}
                           onConfirm={() =>
                             remove.mutate(a.id, {
                               onSuccess: () => {
                                 if (editing?.id === a.id) setEditing(null);
-                                setSaid({ text: `Removed: ${w.is} no longer away ${whenWords(a)}.` });
+                                setSaid({ text: t('away.daysAway.removedNoLongerAway', { is: w.is, whenWords: whenWords(a) }) });
                               },
                               onError: (e) => setSaid({ text: errorText(e), bad: true }),
                             })
@@ -220,7 +217,7 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
           </table>
         </Scroll>
       ) : (
-        <p className="note">{you ? 'You have no days away entered' : `${person.name} has no days away entered`}, from a month ago on.</p>
+        <p className="note">{tr('away.daysAway.fromAMonthAgoOn', { v: you ? t('away.daysAway.youHaveNoDaysAway') : t('away.daysAway.hasNoDaysAwayEntered', { name: person.name }) })}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {canEnter ? (

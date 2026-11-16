@@ -1,4 +1,5 @@
 import type { Change } from '@a4a/shared';
+import { t } from '../i18n';
 
 /** A change in Ocean's grammar: what it was struck through, what it becomes in `--changes`. */
 export function ChangeLines({ changes, same }: { changes: Change[]; same?: string[] }) {
@@ -14,11 +15,11 @@ export function ChangeLines({ changes, same }: { changes: Change[]; same?: strin
             </>
           ) : c.to !== null ? (
             <>
-              <ins>{c.to}</ins> <span className="same">added</span>
+              <ins>{c.to}</ins> <span className="same">{t('ui.changes.added')}</span>
             </>
           ) : (
             <>
-              <del>{c.from}</del> <span className="same">removed</span>
+              <del>{c.from}</del> <span className="same">{t('ui.changes.removed')}</span>
             </>
           )}
         </li>

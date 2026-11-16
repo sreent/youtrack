@@ -5,22 +5,24 @@ import { del, put } from '../../api/client';
 import { keys } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 export const TYPE_WORDS: Record<FieldType, string> = {
-  enum: 'a choice from a list',
-  state: 'a state, resolved or not',
-  user: 'a person',
+  enum: t('projects.projectFields.aChoiceFromAList2'),
+  state: t('projects.projectFields.aStateResolvedOrNot'),
+  user: t('projects.projectFields.aPerson'),
   version: 'versions',
-  string: 'a line of text',
+  string: t('projects.projectFields.aLineOfText'),
   text: 'text',
-  integer: 'a whole number',
-  float: 'a number',
-  date: 'a date',
-  period: 'a duration, such as 2d 4h',
-  group: 'a group of people',
-  build: 'a build, from a list CI adds to',
-  owned: 'a choice from a list, each with an owner',
-  datetime: 'a date and a time',
+  integer: t('projects.projectFields.aWholeNumber'),
+  float: t('projects.projectFields.aNumber'),
+  date: t('projects.projectFields.aDate'),
+  period: t('projects.projectFields.aDurationSuchAs2d'),
+  group: t('projects.projectFields.aGroupOfPeople'),
+  build: t('projects.projectFields.aBuildFromAList'),
+  owned: t('projects.projectFields.aChoiceFromAList'),
+  datetime: t('projects.projectFields.aDateAndATime'),
 };
 
 const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];
@@ -53,7 +55,7 @@ function DefaultInput({
   if (OPTION_TYPES.includes(type))
     return (
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">No default</option>
+        <option value="">{t('projects.projectFields.noDefault')}</option>
         {values
           .filter((v) => !v.archived || v.name === value)
           .map((v) => (
@@ -66,7 +68,7 @@ function DefaultInput({
   if (type === 'user')
     return (
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">No default</option>
+        <option value="">{t('projects.projectFields.noDefault')}</option>
         {users
           .filter((u) => !u.banned)
           .map((u) => (
@@ -82,7 +84,7 @@ function DefaultInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      placeholder={type === 'date' ? 'YYYY-MM-DD' : type === 'period' ? '2d 4h' : 'No default'}
+      placeholder={type === 'date' ? t('projects.projectFields.yyyyMmDd') : type === 'period' ? t('projects.projectFields.n2d4h') : t('projects.projectFields.noDefault')}
     />
   );
 }
@@ -105,7 +107,7 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
     mutationFn: () => put<ProjectField[]>(`/projects/${projectKey}/fields/${field.fieldId}`, { required, defaultValue: def.trim() || null }),
     onSuccess: (list) => {
       qc.setQueryData(keys.projectFields(projectKey), list);
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('projects.projectFields.saved') });
       refresh();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -122,7 +124,7 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
         <span className="item-name">{field.name}</span>
         <span className="item-about">
           {TYPE_WORDS[field.type]}
-          {field.multi ? ', several at once' : ''}
+          {field.multi ? t('projects.projectFields.severalAtOnce') : ''}
         </span>
       </th>
       <td>
@@ -133,34 +135,34 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
                 {v.name}
               </Badge>
             ))}
-            {shown.length > 8 ? <span className="badge">and {shown.length - 8} more</span> : null}
+            {shown.length > 8 ? <span className="badge">{tr('projects.projectFields.andMore', { v: shown.length - 8 })}</span> : null}
           </span>
         ) : (
-          <span className="muted">{OPTION_TYPES.includes(field.type) ? 'No values yet' : '—'}</span>
+          <span className="muted">{OPTION_TYPES.includes(field.type) ? t('projects.projectFields.noValuesYet') : '—'}</span>
         )}
       </td>
       <td>
         <label className="choice">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} disabled={!canEdit} />
-          <span className="hidden">{field.name} is required</span>
-          <span aria-hidden="true">{required ? 'Required' : 'Optional'}</span>
+          <span className="hidden">{tr('projects.projectFields.isRequired', { name: field.name })}</span>
+          <span aria-hidden="true">{required ? t('projects.projectFields.required') : t('projects.projectFields.optional')}</span>
         </label>
       </td>
       <td>
         {canEdit ? (
-          <DefaultInput type={field.type} values={field.values} users={users} value={def} onChange={setDef} label={`Default for ${field.name}`} />
+          <DefaultInput type={field.type} values={field.values} users={users} value={def} onChange={setDef} label={t('projects.projectFields.defaultFor', { name: field.name })} />
         ) : (
-          <span>{def || <span className="muted">None</span>}</span>
+          <span>{def || <span className="muted">{t('projects.projectFields.none')}</span>}</span>
         )}
       </td>
       {canEdit ? (
         <td className="fit">
           <span className="cluster">
             <button type="button" className="small" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-              {save.isPending ? 'Saving…' : 'Save'}
+              {save.isPending ? t('projects.projectFields.saving') : t('projects.projectFields.save')}
             </button>
             <button type="button" className="small" disabled={detach.isPending} onClick={() => detach.mutate()}>
-              {detach.isPending ? 'Detaching…' : 'Detach'}
+              {detach.isPending ? t('projects.projectFields.detaching') : t('projects.projectFields.detach')}
             </button>
           </span>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -182,14 +184,14 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
     onSuccess: (list) => {
       qc.setQueryData(keys.projectFields(projectKey), list);
       void qc.invalidateQueries({ queryKey: keys.project(projectKey) });
-      setSaid({ text: `${chosen?.name ?? 'The field'} is attached. New and existing issues can have it now.` });
+      setSaid({ text: t('projects.projectFields.isAttachedNewAndExisting', { v: chosen?.name ?? t('projects.projectFields.theField') }) });
       setFieldId('');
       setRequired(false);
       setDef('');
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (!available.length) return <p className="note">Every field is attached. New fields are made on the Fields page.</p>;
+  if (!available.length) return <p className="note">{t('projects.projectFields.everyFieldIsAttachedNew')}</p>;
   return (
     <form
       className="stack"
@@ -199,9 +201,9 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Attach a field</legend>
+        <legend>{t('projects.projectFields.attachAField')}</legend>
         <div className="form-fields">
-          <FormField label="Field">
+          <FormField label={t('projects.projectFields.field')}>
             {(id) => (
               <select
                 id={id}
@@ -212,7 +214,7 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
                 }}
                 required
               >
-                <option value="">Choose one</option>
+                <option value="">{t('projects.projectFields.chooseOne')}</option>
                 {available.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name} ({TYPE_WORDS[f.type]})
@@ -222,21 +224,18 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
             )}
           </FormField>
           {chosen ? (
-            <FormField label="Default">
+            <FormField label={t('projects.projectFields.default')}>
               {(id) => <DefaultInput id={id} type={chosen.type} values={chosen.values} users={users} value={def} onChange={setDef} />}
             </FormField>
           ) : null}
           <label className="choice">
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-            <span>
-              Required
-              <small className="field-help">Every issue in the project must have it.</small>
-            </span>
+            <span>{tr('projects.projectFields.requiredEveryIssueInThe', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
           </label>
         </div>
         <div className="cluster">
           <button type="submit" disabled={!fieldId || attach.isPending}>
-            {attach.isPending ? 'Attaching…' : 'Attach it'}
+            {attach.isPending ? t('projects.projectFields.attaching') : t('projects.projectFields.attachIt')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -263,17 +262,17 @@ export function ProjectFields({
   const available = all.filter((f) => !attached.has(f.id));
   return (
     <>
-      <Scroll label="Table of the project's fields">
+      <Scroll label={t('projects.projectFields.tableOfTheProjectS')}>
         <table className="figures middle">
           <thead>
             <tr>
-              <th scope="col">Field</th>
-              <th scope="col">Its values here</th>
-              <th scope="col">Required</th>
-              <th scope="col">Default</th>
+              <th scope="col">{t('projects.projectFields.field')}</th>
+              <th scope="col">{t('projects.projectFields.itsValuesHere')}</th>
+              <th scope="col">{t('projects.projectFields.required')}</th>
+              <th scope="col">{t('projects.projectFields.default')}</th>
               {canEdit ? (
                 <th scope="col">
-                  <span className="hidden">Change</span>
+                  <span className="hidden">{t('projects.projectFields.change')}</span>
                 </th>
               ) : null}
             </tr>
@@ -289,7 +288,7 @@ export function ProjectFields({
       </Scroll>
       {canEdit ? (
         <>
-          <p className="note">Detaching hides a field from the project's issues; attach it again and their values come back.</p>
+          <p className="note">{t('projects.projectFields.detachingHidesAFieldFrom')}</p>
           <AttachField projectKey={projectKey} available={available} users={users} />
         </>
       ) : null}

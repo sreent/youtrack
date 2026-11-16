@@ -13,9 +13,11 @@ import { errorText, FormField, Said } from '../common/bits';
 import { plural } from '../plan/format';
 import { holdCredentials, importFromApi, importKeys } from './api';
 import { formatBytes } from '../attachments/api';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 type Source = ApiImportSource;
-export const SOURCE_NAME: Record<Source, string> = { youtrack: 'YouTrack', jira: 'Jira', github: 'GitHub Issues', redmine: 'Redmine', zendesk: 'Zendesk' };
+export const SOURCE_NAME: Record<Source, string> = { youtrack: t('imports.fromApi.youtrack'), jira: t('imports.fromApi.jira'), github: t('imports.fromApi.githubIssues'), redmine: t('imports.fromApi.redmine'), zendesk: t('imports.fromApi.zendesk') };
 
 const ADDRESS: Record<Source, string> = {
   youtrack: 'https://example.youtrack.cloud',
@@ -27,19 +29,19 @@ const ADDRESS: Record<Source, string> = {
 
 /** Which issues, in each tracker's words: the field's label, its help and an example. */
 const WHICH: Record<Source, { label: string; help: string; example: string }> = {
-  youtrack: { label: 'Which issues: a query', help: 'As you would search in YouTrack, such as project: BACK or project: BACK #Unresolved.', example: 'project: BACK' },
-  jira: { label: 'Which issues: a JQL', help: "As you would search in Jira's advanced search, such as project = BACK.", example: 'project = BACK' },
-  github: { label: 'Which issues: a repository', help: 'owner/name, then state:open, label:bug or since:2026-01-01 if you like. Pull requests are left out.', example: 'acme/backend' },
-  redmine: { label: "Which issues: a project's identifier", help: 'As in its address: /projects/backend is backend. Every status, open or closed.', example: 'backend' },
-  zendesk: { label: 'Which tickets', help: 'all, or since 2026-01-01 for the tickets changed since then. Into a help desk: requesters and public replies come as they were.', example: 'all' },
+  youtrack: { label: t('imports.fromApi.whichIssuesAQuery'), help: t('imports.fromApi.asYouWouldSearchIn'), example: 'project: BACK' },
+  jira: { label: t('imports.fromApi.whichIssuesAJql'), help: "As you would search in Jira's advanced search, such as project = BACK.", example: 'project = BACK' },
+  github: { label: t('imports.fromApi.whichIssuesARepository'), help: t('imports.fromApi.ownerNameThenStateOpen'), example: 'acme/backend' },
+  redmine: { label: t('imports.fromApi.whichIssuesAProjectS'), help: t('imports.fromApi.asInItsAddressProjects'), example: 'backend' },
+  zendesk: { label: t('imports.fromApi.whichTickets'), help: t('imports.fromApi.allOrSince202601'), example: 'all' },
 };
 
 /** The token's words for each tracker. */
 const TOKEN: Record<Exclude<Source, 'jira'>, { label: string; help: string }> = {
-  youtrack: { label: 'Permanent token', help: 'In YouTrack: your profile, Account Security, Tokens. It starts perm:.' },
-  github: { label: 'Token', help: 'A fine-grained token with Issues read access to the repository, or a classic one with repo.' },
-  redmine: { label: 'API key', help: 'In Redmine: My account, API access key. The REST API must be on (Administration, Settings, API).' },
-  zendesk: { label: 'API token', help: 'In Zendesk: Admin Center, Apps and integrations, Zendesk API. With the email of the agent it belongs to.' },
+  youtrack: { label: t('imports.fromApi.permanentToken'), help: t('imports.fromApi.inYoutrackYourProfileAccount') },
+  github: { label: t('imports.fromApi.token'), help: t('imports.fromApi.aFineGrainedTokenWith') },
+  redmine: { label: t('imports.fromApi.apiKey'), help: t('imports.fromApi.inRedmineMyAccountApi') },
+  zendesk: { label: t('imports.fromApi.apiToken'), help: t('imports.fromApi.inZendeskAdminCenterApps') },
 };
 
 /** The token's fields: a token, and for Jira Cloud the email of its account. */
@@ -58,7 +60,7 @@ export function TokenFields({
   return (
     <div className="form-fields">
       {source === 'zendesk' ? (
-        <FormField label="The agent's email" help="The Zendesk agent the API token belongs to. Leave it empty for an OAuth token.">
+        <FormField label={t('imports.fromApi.theAgentSEmail')} help={t('imports.fromApi.theZendeskAgentTheApi')}>
           {(id, help) => (
             <input id={id} type="email" aria-describedby={help} autoComplete="off" value={credentials.email ?? ''} onChange={(e) => onChange({ ...credentials, email: e.target.value || undefined })} />
           )}
@@ -66,8 +68,8 @@ export function TokenFields({
       ) : null}
       {source === 'jira' && cloud !== false ? (
         <FormField
-          label={cloud ? "Your Atlassian account's email" : 'Email, for Jira Cloud'}
-          help={cloud ? 'The account the API token belongs to.' : 'Jira Cloud takes your Atlassian account\'s email with an API token. Leave it empty for Jira Data Center, whose personal access token is enough.'}
+          label={cloud ? t('imports.fromApi.yourAtlassianAccountSEmail') : t('imports.fromApi.emailForJiraCloud')}
+          help={cloud ? t('imports.fromApi.theAccountTheApiToken') : t('imports.fromApi.jiraCloudTakesYourAtlassian')}
         >
           {(id, help) => (
             <input
@@ -83,13 +85,13 @@ export function TokenFields({
         </FormField>
       ) : null}
       <FormField
-        label={source !== 'jira' ? TOKEN[source].label : cloud === false ? 'Personal access token' : 'Token'}
+        label={source !== 'jira' ? TOKEN[source].label : cloud === false ? t('imports.fromApi.personalAccessToken') : t('imports.fromApi.token')}
         help={
           source !== 'jira'
             ? TOKEN[source].help
             : cloud === false
-              ? 'In Jira: your profile, Personal Access Tokens.'
-              : 'Jira Cloud: an API token (id.atlassian.com, Security). Jira Data Center: a personal access token.'
+              ? t('imports.fromApi.inJiraYourProfilePersonal')
+              : t('imports.fromApi.jiraCloudAnApiToken')
         }
       >
         {(id, help) => (
@@ -115,12 +117,12 @@ export function FromApiForm() {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <section className="card" aria-labelledby="from-api">
-      <h2 id="from-api">Read from another tracker</h2>
+      <h2 id="from-api">{t('imports.fromApi.readFromAnotherTracker')}</h2>
       <form
         className="form"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!project) return setProblem('Choose the project to import into.');
+          if (!project) return setProblem(t('imports.fromApi.chooseTheProjectToImport'));
           setBusy(true);
           setProblem(null);
           try {
@@ -137,10 +139,10 @@ export function FromApiForm() {
         }}
       >
         <div className="form-fields">
-          <FormField label="Into the project">
+          <FormField label={t('imports.fromApi.intoTheProject')}>
             {(id) => (
               <select id={id} value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Choose a project</option>
+                <option value="">{t('imports.fromApi.chooseAProject')}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.key}>
                     {p.name}
@@ -150,7 +152,7 @@ export function FromApiForm() {
             )}
           </FormField>
           <fieldset className="choice-group">
-            <legend>From</legend>
+            <legend>{t('imports.fromApi.from')}</legend>
             {(['youtrack', 'jira', 'github', 'redmine', 'zendesk'] as const).map((s) => (
               <label key={s} className="choice">
                 <input type="radio" name="api-source" value={s} checked={source === s} onChange={() => setSource(s)} />
@@ -159,7 +161,7 @@ export function FromApiForm() {
             ))}
           </fieldset>
         </div>
-        <FormField label="Its address" help={`Where you open ${SOURCE_NAME[source]}, such as ${ADDRESS[source]}. https.`}>
+        <FormField label={t('imports.fromApi.itsAddress')} help={t('imports.fromApi.whereYouOpenSuchAs', { v: SOURCE_NAME[source], v2: ADDRESS[source] })}>
           {(id, help) => <input id={id} type="url" aria-describedby={help} required placeholder={ADDRESS[source]} value={url} onChange={(e) => setUrl(e.target.value)} />}
         </FormField>
         <TokenFields source={source} cloud={source === 'jira' ? null : false} credentials={credentials} onChange={setCredentials} />
@@ -167,12 +169,12 @@ export function FromApiForm() {
           {(id, help) => <input id={id} className="mono" aria-describedby={help} required placeholder={WHICH[source].example} value={query} onChange={(e) => setQuery(e.target.value)} />}
         </FormField>
         <fieldset className="choice-group">
-          <legend>With each issue</legend>
+          <legend>{t('imports.fromApi.withEachIssue')}</legend>
           {(
             [
-              ['comments', 'Its comments'],
-              ['work', source === 'youtrack' ? 'Its work items' : source === 'redmine' ? 'Its time entries' : 'Its worklogs'],
-              ['files', 'Its files'],
+              ['comments', t('imports.fromApi.itsComments')],
+              ['work', source === 'youtrack' ? t('imports.fromApi.itsWorkItems') : source === 'redmine' ? t('imports.fromApi.itsTimeEntries') : t('imports.fromApi.itsWorklogs')],
+              ['files', t('imports.fromApi.itsFiles')],
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="choice">
@@ -181,14 +183,11 @@ export function FromApiForm() {
             </label>
           ))}
         </fieldset>
-        <p className="note">
-          a4a uses the token to read the issues, and again to bring their files as the import runs. It doesn't keep it: importing again asks for it again. Issues and comments only some people may
-          see there are left out.
-        </p>
+        <p className="note">{t('imports.fromApi.a4aUsesTheTokenTo')}</p>
         {problem ? <Said text={problem} tone="bad" /> : null}
         <div className="cluster end">
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? 'Reading…' : 'Read the issues'}
+            {busy ? t('imports.fromApi.reading') : t('imports.fromApi.readTheIssues')}
           </button>
         </div>
       </form>
@@ -207,11 +206,6 @@ export function OriginSummary({ imp }: { imp: Import }) {
     o.bring.files ? `${plural(f.files, 'file')}${f.files ? ` (${formatBytes(f.fileBytes)})` : ''}` : null,
   ].filter(Boolean);
   return (
-    <p className="note">
-      From {name} at <span className="mono">{o.url}</span>, the issues matching <code>{o.query}</code>
-      {o.account ? `, read as ${o.account}` : ''}: {plural(f.issues, 'issue')}
-      {brought.length ? `, with ${brought.join(', ')}` : ''}.
-      {f.left.issues ? ` ${plural(f.left.issues, 'issue')} only some people may see there ${f.left.issues === 1 ? 'is' : 'are'} left out.` : ''}
-    </p>
+    <p className="note">{tr('imports.fromApi.fromAtTheIssuesMatching', { name: name, url: o.url, t0: (c: ReactNode) => <span className="mono">{c}</span>, code: <code>{o.query}</code>, v: o.account ? t('imports.fromApi.readAs', { account: o.account }) : '', plural: plural(f.issues, 'issue'), v2: brought.length ? t('imports.fromApi.with', { join: brought.join(', ') }) : '', v3: f.left.issues ? t('imports.fromApi.onlySomePeopleMaySee', { plural: plural(f.left.issues, 'issue'), v: f.left.issues === 1 ? 'is' : 'are' }) : '' })}</p>
   );
 }

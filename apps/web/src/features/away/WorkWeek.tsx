@@ -8,9 +8,11 @@ import { patch } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from '../issues/api';
+import { t, weekdayNames } from '../../i18n';
 
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
-const NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const NAMES = weekdayNames('long');
+const SHORT = weekdayNames();
 
 export function WorkWeek({ week, capacity, canChange }: { week: number[] | null; capacity: number; canChange: boolean }) {
   const id = useId();
@@ -33,17 +35,15 @@ export function WorkWeek({ week, capacity, canChange }: { week: number[] | null;
         if (valid) save.mutate(parsed);
       }}
     >
-      <h3 id={`${id}-title`} className="hidden">
-        Hours each day
-      </h3>
+      <h3 id={`${id}-title`} className="hidden">{t('away.workWeek.hoursEachDay')}</h3>
       <div className="work-week">
         {ORDER.map((d) => (
           <div className="form-field" key={d}>
-            <label htmlFor={`${id}-${d}`}>{NAMES[d]!.slice(0, 3)}</label>
+            <label htmlFor={`${id}-${d}`}>{SHORT[d]}</label>
             <input
               id={`${id}-${d}`}
               inputMode="decimal"
-              aria-label={`Hours on ${NAMES[d]}`}
+              aria-label={t('away.workWeek.hoursOn', { v: NAMES[d] })}
               value={hours[d]}
               disabled={!canChange}
               onChange={(e) => setHours((h) => h.map((x, i) => (i === d ? e.target.value : x)))}
@@ -52,12 +52,12 @@ export function WorkWeek({ week, capacity, canChange }: { week: number[] | null;
         ))}
       </div>
       <p className="field-help">
-        {total === null ? 'Each day takes from 0 to 24 hours.' : `${Math.round(total * 10) / 10} hours a week.`} {week ? '' : 'Until you save one, you work the plan’s working days at your capacity.'}
+        {total === null ? t('away.workWeek.eachDayTakesFrom0') : t('away.workWeek.hoursAWeek', { v: Math.round(total * 10) / 10 })} {week ? '' : t('away.workWeek.untilYouSaveOneYou')}
       </p>
       {canChange ? (
         <div className="cluster">
           <button type="submit" className="primary" disabled={!valid || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save my week'}
+            {save.isPending ? t('away.workWeek.saving') : t('away.workWeek.saveMyWeek')}
           </button>
           {week ? (
             <button
@@ -67,14 +67,10 @@ export function WorkWeek({ week, capacity, canChange }: { week: number[] | null;
                 setHours(usual.map(String));
                 save.mutate(null);
               }}
-            >
-              Use the plan’s working days
-            </button>
+            >{t('away.workWeek.useThePlanSWorking')}</button>
           ) : null}
           {save.isSuccess ? (
-            <p role="status" className="outcome">
-              Saved. Plans and your timesheet use it.
-            </p>
+            <p role="status" className="outcome">{t('away.workWeek.savedPlansAndYourTimesheet')}</p>
           ) : null}
         </div>
       ) : null}

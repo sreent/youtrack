@@ -11,17 +11,18 @@ import { Badge } from '../../components/Badges';
 import { dayMonth, spanWords } from '../plan/dates';
 import { plural } from '../plan/format';
 import { hoursOf, labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
+import { t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 250, left: 46, right: 76, top: 18, bottom: 32 };
 
 const VERDICT: Record<Burndown['status']['verdict'], { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
-  on_track: { tone: 'good', word: 'On track' },
-  ahead: { tone: 'good', word: 'Ahead' },
-  done: { tone: 'good', word: 'Done' },
-  behind: { tone: 'warn', word: 'Behind' },
-  ended: { tone: 'bad', word: 'Ended with work left' },
-  not_started: { tone: 'idle', word: 'Not started' },
-  empty: { tone: 'idle', word: 'Nothing in it' },
+  on_track: { tone: 'good', word: t('reports.burndown.onTrack') },
+  ahead: { tone: 'good', word: t('reports.burndown.ahead') },
+  done: { tone: 'good', word: t('reports.burndown.done') },
+  behind: { tone: 'warn', word: t('reports.burndown.behind') },
+  ended: { tone: 'bad', word: t('reports.burndown.endedWithWorkLeft') },
+  not_started: { tone: 'idle', word: t('reports.burndown.notStarted') },
+  empty: { tone: 'idle', word: t('reports.burndown.nothingInIt') },
 };
 
 /** Its figure in the report's unit: "12h" by estimate, "3 issues" by count. */
@@ -67,7 +68,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
   const todayIndex = b.days.findIndex((d) => d.date === b.today);
   const showToday = todayIndex >= 0 && b.status.verdict !== 'ended';
   const xLabels = labelled(n, labelRoom(f));
-  const title = `What's left of ${b.sprint.name} at the end of each working day, against the ideal; the figures are in the table${compact ? ' under it' : ' beside it'}`;
+  const title = t('reports.burndown.whatSLeftOfAt', { name: b.sprint.name, v: compact ? t('reports.burndown.underIt') : t('reports.burndown.besideIt') });
   // Columns with nothing in them on any day are left out, so the table fits beside the chart.
   const has = {
     done: b.days.some((d) => d.completed),
@@ -123,9 +124,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
         {last ? (
           <g>
             <circle className="chart-dot s1" cx={x(last.i)} cy={y(last.d.remaining!)} r={4} />
-            <text className="chart-label" x={x(last.i) + 9} y={y(last.d.remaining!) + 4}>
-              {short(b, last.d.remaining!)} left
-            </text>
+            <text className="chart-label" x={x(last.i) + 9} y={y(last.d.remaining!) + 4}>{tr('reports.burndown.left', { short: short(b, last.d.remaining!) })}</text>
           </g>
         ) : (
           <circle className="chart-dot s1" cx={x(0)} cy={y(b.start)} r={4} />
@@ -133,33 +132,21 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
       </svg>
       <figcaption>
         <ul className="chart-key">
-          <li>
-            <svg width="22" height="10" aria-hidden="true">
+          <li>{tr('reports.burndown.whatSLeft', { el: <svg width="22" height="10" aria-hidden="true">
               <path className="chart-line s1" d="M1 5H21" />
-            </svg>
-            What's left
-          </li>
-          <li>
-            <svg width="22" height="10" aria-hidden="true">
+            </svg> })}</li>
+          <li>{tr('reports.burndown.ideal', { el: <svg width="22" height="10" aria-hidden="true">
               <path className="burn-ideal" d="M1 5H21" />
-            </svg>
-            Ideal
-          </li>
+            </svg> })}</li>
           {changed.length ? (
-            <li>
-              <svg width="12" height="12" aria-hidden="true">
+            <li>{tr('reports.burndown.scopeChanged', { el: <svg width="12" height="12" aria-hidden="true">
                 <circle className="burn-scope" cx="6" cy="6" r="4.5" />
-              </svg>
-              Scope changed
-            </li>
+              </svg> })}</li>
           ) : null}
           {showToday ? (
-            <li>
-              <svg width="6" height="14" aria-hidden="true">
+            <li>{tr('reports.burndown.today', { el: <svg width="6" height="14" aria-hidden="true">
                 <path className="chart-today" d="M3 0V14" />
-              </svg>
-              Today
-            </li>
+              </svg> })}</li>
           ) : null}
         </ul>
       </figcaption>
@@ -167,43 +154,31 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
   );
 
   const table = (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label={`${b.sprint.name}, day by day`}>
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.burndown.dayByDay', { name: b.sprint.name })}>
       <table className="figures chart-figures">
-        <caption>Day by day, {b.by === 'count' ? 'in issues' : 'in hours of estimate'}</caption>
+        <caption>{tr('reports.burndown.dayByDay2', { v: b.by === 'count' ? t('reports.burndown.inIssues') : t('reports.burndown.inHoursOfEstimate') })}</caption>
         <thead>
           <tr>
-            <th scope="col">Day</th>
-            <th scope="col" className="num">
-              Left
-            </th>
-            <th scope="col" className="num">
-              Ideal
-            </th>
+            <th scope="col">{t('reports.burndown.day')}</th>
+            <th scope="col" className="num">{t('reports.burndown.left2')}</th>
+            <th scope="col" className="num">{t('reports.burndown.ideal2')}</th>
             {has.done ? (
-              <th scope="col" className="num">
-                Done
-              </th>
+              <th scope="col" className="num">{t('reports.burndown.done')}</th>
             ) : null}
             {has.added ? (
-              <th scope="col" className="num">
-                Added
-              </th>
+              <th scope="col" className="num">{t('reports.burndown.added')}</th>
             ) : null}
             {has.removed ? (
-              <th scope="col" className="num">
-                Removed
-              </th>
+              <th scope="col" className="num">{t('reports.burndown.removed')}</th>
             ) : null}
             {has.spent ? (
-              <th scope="col" className="num">
-                Logged
-              </th>
+              <th scope="col" className="num">{t('reports.burndown.logged')}</th>
             ) : null}
           </tr>
         </thead>
         <tbody>
           <tr>
-            <th scope="row">At the start</th>
+            <th scope="row">{t('reports.burndown.atTheStart')}</th>
             <td className="num">{short(b, b.start)}</td>
             <td className="num">{short(b, b.start)}</td>
             {has.done ? <td className="num" /> : null}
@@ -212,10 +187,10 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
             {has.spent ? <td className="num" /> : null}
           </tr>
           {b.days.map((d) => (
-            <tr key={d.date} className={d.date === b.today ? 'today' : undefined}>
+            <tr key={d.date} className={d.date === b.today ? t('reports.burndown.today3') : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
-                {d.date === b.today ? ', today' : ''}
+                {d.date === b.today ? t('reports.burndown.today2') : ''}
               </th>
               <td className="num">{d.remaining === null ? '' : short(b, d.remaining)}</td>
               <td className="num">{short(b, d.ideal)}</td>
@@ -235,7 +210,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
       <>
         {chart}
         <details className="chart-more">
-          <summary>The figures</summary>
+          <summary>{t('reports.burndown.theFigures')}</summary>
           {table}
         </details>
       </>
@@ -251,13 +226,13 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
 
 /** The burndown with its head: the sprint, its dates, how it stands, and what changed. */
 export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean }) {
-  const kinds: Record<string, string> = { added: 'Added', removed: 'Taken out', deleted: 'Deleted', resolved: 'Resolved', reopened: 'Reopened', estimate: 'Estimate changed' };
+  const kinds: Record<string, string> = { added: t('reports.burndown.added'), removed: t('reports.burndown.takenOut'), deleted: t('reports.burndown.deleted'), resolved: t('reports.burndown.resolved'), reopened: t('reports.burndown.reopened'), estimate: t('reports.burndown.estimateChanged') };
   return (
     <div className="report">
       {!compact ? (
         <div className="report-head">
           <h2>
-            {b.sprint.name} <span className="note">on {b.sprint.board.name}</span>
+            {b.sprint.name} <span className="note">{tr('reports.burndown.on', { name: b.sprint.board.name })}</span>
           </h2>
           <p className="note">
             {spanWords(b.sprint.startDate, b.sprint.endDate)}, {plural(b.workingDays, 'working day')}
@@ -268,20 +243,20 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
       <BurndownVerdict b={b} />
       <dl className="report-facts">
         <div>
-          <dt>Committed</dt>
+          <dt>{t('reports.burndown.committed')}</dt>
           <dd>{burnAmount(b, b.start)}</dd>
         </div>
         <div>
-          <dt>Left</dt>
+          <dt>{t('reports.burndown.left2')}</dt>
           <dd>{burnAmount(b, b.remaining)}</dd>
         </div>
         <div>
-          <dt>Scope changed</dt>
-          <dd>{b.added || b.removed ? [b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean).join(', ') : 'No'}</dd>
+          <dt>{t('reports.burndown.scopeChanged2')}</dt>
+          <dd>{b.added || b.removed ? [b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean).join(', ') : t('reports.burndown.no')}</dd>
         </div>
         {!compact ? (
           <div>
-            <dt>Working days left</dt>
+            <dt>{t('reports.burndown.workingDaysLeft')}</dt>
             <dd>{b.workingDaysLeft}</dd>
           </div>
         ) : null}
@@ -296,7 +271,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
       ) : null}
       {!compact && b.changes.length ? (
         <details className="chart-more">
-          <summary>{plural(b.changes.length, 'change')} to its scope and progress</summary>
+          <summary>{tr('reports.burndown.toItsScopeAndProgress', { plural: plural(b.changes.length, 'change') })}</summary>
           <ul>
             {b.changes.map((c, i) => (
               <li key={`${c.at}-${c.issue}-${i}`}>

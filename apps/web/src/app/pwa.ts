@@ -22,7 +22,8 @@ export function startServiceWorker(): void {
   sw.addEventListener('controllerchange', () => {
     if (askedToTakeOver) window.location.reload();
   });
-  window.addEventListener('load', () => {
+  // The app loads after its catalog (D49), often once the page has loaded: register then, or at load.
+  const register = () => {
     sw.register('/sw.js', { scope: '/', updateViaCache: 'none' })
       .then((registration) => {
         // A new version is ready when it has installed beside one already in charge.
@@ -46,7 +47,9 @@ export function startServiceWorker(): void {
       .catch(() => {
         // Without it, a4a works as a page: no offline shell, no push.
       });
-  });
+  };
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register);
 }
 
 /** Take the new version now: it takes over, and the page reloads into it. */

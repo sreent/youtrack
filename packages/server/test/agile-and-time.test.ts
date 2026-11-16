@@ -64,9 +64,11 @@ describe('the backlog', () => {
     const ctx = w.as(w.anna);
     const board = await createBoard(w.as(w.ben), { name: 'Agile board', projects: ['AGL'], sprintsEnabled: true, pointsField: 'Story points' });
     expect(board).toMatchObject({ backlogQuery: null, pointsField: 'Story points' });
-    const [a, b, c, d] = await Promise.all(
-      ['Alpha', 'Bravo', 'Charlie', 'Delta'].map((summary, i) => createIssue(ctx, { project: 'AGL', summary, fields: { 'Story points': i + 1 } })),
-    );
+    // One after another: the backlog orders unranked issues by number, and on Postgres issues made
+    // at once can take their numbers in any order, putting Alpha where the test ranks after.
+    const made = [];
+    for (const [i, summary] of ['Alpha', 'Bravo', 'Charlie', 'Delta'].entries()) made.push(await createIssue(ctx, { project: 'AGL', summary, fields: { 'Story points': i + 1 } }));
+    const [a, b, c, d] = made;
     const done = await createIssue(ctx, { project: 'AGL', summary: 'Echo', fields: { State: 'Fixed' } });
     const ids = async () => (await getBacklog(ctx, board.id)).issues.map((i) => i.summary);
     const before = await getBacklog(ctx, board.id);

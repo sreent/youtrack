@@ -1,5 +1,6 @@
 import type { TrackerEvent, UserRef } from '@a4a/shared';
 import { Icon } from './Icon';
+import { t } from '../i18n';
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -51,7 +52,7 @@ export function Who({ kind, name, about, small }: { kind: WhoKind; name: string;
 }
 
 export function UserWho({ user, small, about }: { user: UserRef | null | undefined; small?: boolean; about?: string }) {
-  if (!user) return <span className="faint">Nobody</span>;
+  if (!user) return <span className="faint">{t('ui.who.nobody')}</span>;
   return <Who kind={user.isBot ? 'agent' : 'person'} name={user.isBot ? user.login : user.name} small={small} about={about} />;
 }
 
@@ -63,31 +64,31 @@ export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data
   const name = actor.name ?? actor.login ?? 'a4a';
   // An agent with a token of its own acts as itself, not for a person (D34).
   if (actor.isBot && (actor.channel === 'mcp' || actor.channel === 'api')) {
-    return { kind: 'agent', name: actor.login ?? 'an agent', about: actor.channel === 'mcp' ? 'over MCP, as itself' : 'through the API, as itself' };
+    return { kind: 'agent', name: actor.login ?? t('ui.who.anAgent'), about: actor.channel === 'mcp' ? t('ui.who.overMcpAsItself') : t('ui.who.throughTheApiAsItself') };
   }
   switch (actor.channel) {
     case 'helpdesk': {
       // Someone outside, through the help desk: a person, by the name they gave.
       const requester = (data?.requester as { name?: string } | undefined)?.name;
-      return { kind: 'person', name: requester ?? 'A requester', about: 'through the help desk' };
+      return { kind: 'person', name: requester ?? t('ui.who.aRequester'), about: t('ui.who.throughTheHelpDesk') };
     }
     case 'assistant':
-      return { kind: 'agent', name: 'assistant', about: `for ${name}` };
+      return { kind: 'agent', name: 'assistant', about: t('ui.who.for', { name: name }) };
     case 'mcp':
-      return { kind: 'agent', name: actor.token ?? 'an agent', about: `over MCP, for ${name}` };
+      return { kind: 'agent', name: actor.token ?? t('ui.who.anAgent'), about: t('ui.who.overMcpFor', { name: name }) };
     case 'api':
-      return { kind: 'service', name: actor.token ?? 'a script', about: `through the API, as ${name}` };
+      return { kind: 'service', name: actor.token ?? t('ui.who.aScript'), about: t('ui.who.throughTheApiAs', { name: name }) };
     case 'automation':
-      return { kind: 'agent', name: actor.login ?? 'automation', about: 'on its own' };
+      return { kind: 'agent', name: actor.login ?? 'automation', about: t('ui.who.onItsOwn') };
     case 'vcs':
       // A commit's author a4a knows, through the integration; or the integration itself.
-      return actor.id ? { kind: 'person', name, about: `from ${actor.token ?? 'version control'}` } : { kind: 'service', name: actor.token ?? 'version control', about: 'from version control' };
+      return actor.id ? { kind: 'person', name, about: t('ui.who.from', { v: actor.token ?? 'version control' }) } : { kind: 'service', name: actor.token ?? 'version control', about: t('ui.who.fromVersionControl') };
     case 'chat':
       // A person, from Teams or Slack, as themselves (D42).
-      return { kind: 'person', name, about: `from ${actor.token ?? 'chat'}` };
+      return { kind: 'person', name, about: t('ui.who.from', { v: actor.token ?? 'chat' }) };
     case 'ci':
       // A build CI reported, through its build source (D46).
-      return { kind: 'service', name: actor.token ?? 'CI', about: 'from a build' };
+      return { kind: 'service', name: actor.token ?? 'CI', about: t('ui.who.fromABuild') };
     case 'system':
       return { kind: 'own', name: 'a4a', about: '' };
     default:

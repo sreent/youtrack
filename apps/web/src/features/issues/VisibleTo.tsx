@@ -7,11 +7,12 @@ import { UserWho } from '../../components/Who';
 import { FormField } from '../../components/Form';
 import { errorText, Said } from '../common/bits';
 import { useGroups } from '../groups/api';
+import { t, tr } from '../../i18n';
 
 /** Who besides the few who always see it, as people's and groups' names: "Erin Hall, Security". */
 export function audience(v: VisibleToDto): string {
   const names = [...v.users.map((u) => u.name), ...v.groups.map((g) => g.name)];
-  return names.length ? names.join(', ') : 'nobody else';
+  return names.length ? names.join(', ') : t('issues.visibleTo.nobodyElse');
 }
 
 /** What a limit asks for: logins and group ids. */
@@ -34,9 +35,9 @@ export function LimitPicker({ value, onChange, always }: { value: Limit; onChang
   const size = (n: number) => Math.min(6, Math.max(3, n));
   return (
     <fieldset className="stack tight">
-      <legend>Who else sees it</legend>
+      <legend>{t('issues.visibleTo.whoElseSeesIt')}</legend>
       <div className="form-fields">
-        <FormField label="People">
+        <FormField label={t('issues.visibleTo.people')}>
           {(id) => (
             <select id={id} multiple size={size(people.length)} value={value.users} onChange={(e) => onChange({ ...value, users: chosen(e) })}>
               {people.map((u) => (
@@ -48,7 +49,7 @@ export function LimitPicker({ value, onChange, always }: { value: Limit; onChang
           )}
         </FormField>
         {groups.data?.length ? (
-          <FormField label="Groups">
+          <FormField label={t('issues.visibleTo.groups')}>
             {(id) => (
               <select id={id} multiple size={size(groups.data.length)} value={value.groups} onChange={(e) => onChange({ ...value, groups: chosen(e) })}>
                 {groups.data.map((g) => (
@@ -72,21 +73,21 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
   const [editing, setEditing] = useState<Limit | null>(null);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const key = issue.project.key;
-  const always = `Its reporter, its assignee, ${key}'s managers and administrators always see it.`;
+  const always = t('issues.visibleTo.itsReporterItsAssigneeS', { key: key });
   const save = useMutation({
     mutationFn: (visibleTo: Limit | null) => put<IssueDetail>(`/issues/${issue.id}/visibility`, { visibleTo, expectedVersion: issue.version }),
     onSuccess: (next) => {
       qc.setQueryData(keys.issue(issue.id), next);
       void qc.invalidateQueries({ queryKey: keys.issue(issue.id) });
       setEditing(null);
-      setSaid({ text: next.visibleTo ? `It's limited to ${audience(next.visibleTo)} now, besides those who always see it.` : `Everyone who sees ${key} sees it now.` });
+      setSaid({ text: next.visibleTo ? t('issues.visibleTo.itSLimitedToNow', { audience: audience(next.visibleTo) }) : t('issues.visibleTo.everyoneWhoSeesSeesIt', { key: key }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   const v = issue.visibleTo;
   return (
     <section className="card side-card" aria-labelledby="visible-title">
-      <h2 id="visible-title">Visible to</h2>
+      <h2 id="visible-title">{t('issues.visibleTo.visibleTo')}</h2>
       {v ? (
         <>
           <ul className="plain">
@@ -99,10 +100,10 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
               <li key={g.id}>{g.name}</li>
             ))}
           </ul>
-          <p className="note">{v.users.length || v.groups.length ? `And no one else but those who always see it. ${always}` : `Only those who always see it. ${always}`}</p>
+          <p className="note">{v.users.length || v.groups.length ? t('issues.visibleTo.andNoOneElseBut', { always: always }) : t('issues.visibleTo.onlyThoseWhoAlwaysSee', { always: always })}</p>
         </>
       ) : (
-        <p className="note">Everyone who sees {key}.</p>
+        <p className="note">{tr('issues.visibleTo.everyoneWhoSees', { key: key })}</p>
       )}
       {editing ? (
         <form
@@ -115,22 +116,18 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
           <LimitPicker value={editing} onChange={setEditing} />
           <div className="cluster">
             <button type="submit" className="primary" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Limit it to them'}
+              {save.isPending ? t('issues.visibleTo.saving') : t('issues.visibleTo.limitItToThem')}
             </button>
-            <button type="button" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
+            <button type="button" onClick={() => setEditing(null)}>{t('issues.visibleTo.cancel')}</button>
           </div>
         </form>
       ) : canEdit ? (
         <div className="cluster">
           <button type="button" onClick={() => setEditing(limitOf(v) ?? { users: [], groups: [] })}>
-            {v ? 'Change who' : 'Limit who sees it'}
+            {v ? t('issues.visibleTo.changeWho') : t('issues.visibleTo.limitWhoSeesIt')}
           </button>
           {v ? (
-            <button type="button" onClick={() => save.mutate(null)} disabled={save.isPending}>
-              Let everyone see it
-            </button>
+            <button type="button" onClick={() => save.mutate(null)} disabled={save.isPending}>{t('issues.visibleTo.letEveryoneSeeIt')}</button>
           ) : null}
         </div>
       ) : null}

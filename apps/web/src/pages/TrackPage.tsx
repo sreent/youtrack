@@ -10,6 +10,8 @@ import { ErrorNote, Loading } from '../components/States';
 import { Avatar } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { dateRead, whenRead } from '../features/common/format';
+import { intlLocale, t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /** The token is in the address's fragment, which never leaves the browser; it travels to the API in a header. */
 function tokenFromHash(): string {
@@ -45,15 +47,15 @@ export default function TrackPage() {
     const missing = !token || (request.error instanceof ApiError && request.error.status === 404);
     return (
       <Lone wide>
-        <h1>{missing ? "This link doesn't open a request" : "Your request didn't load"}</h1>
-        {missing ? <p className="note">Use the link in your latest email about it, whole: copied in part, it opens nothing.</p> : <ErrorNote error={request.error} />}
+        <h1>{missing ? t('page.track.thisLinkDoesnTOpen') : t('page.track.yourRequestDidnTLoad')}</h1>
+        {missing ? <p className="note">{t('page.track.useTheLinkInYour')}</p> : <ErrorNote error={request.error} />}
       </Lone>
     );
   }
   if (request.isLoading || !request.data) {
     return (
       <Lone wide>
-        <Loading what="your request" />
+        <Loading what={t('page.track.yourRequest')} />
       </Lone>
     );
   }
@@ -74,24 +76,17 @@ export default function TrackPage() {
   };
   return (
     <Lone wide>
-      <p className="label">{r.project.name} · help desk</p>
+      <p className="label">{tr('page.track.helpDesk', { name: r.project.name })}</p>
       <div className="title-row">
         <h1>{r.summary}</h1>
         {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
       </div>
-      <p className="note">
-        You asked on <time dateTime={r.createdAt}>{dateRead(r.createdAt.slice(0, 10))}</time>, as {r.requester.name} ({r.requester.email}).
-      </p>
-      <ol className="history" aria-label="Your request, and the replies to it">
+      <p className="note">{tr('page.track.youAskedOnAs', { dateRead: dateRead(r.createdAt.slice(0, 10)), t0: (c: ReactNode) => <time dateTime={r.createdAt}>{c}</time>, name: r.requester.name, email: r.requester.email })}</p>
+      <ol className="history" aria-label={t('page.track.yourRequestAndTheReplies')}>
         <li>
           <Avatar kind="person" name={r.requester.name} small />
           <div className="history-body">
-            <p className="history-head">
-              <strong className="who-name">You</strong> asked ·{' '}
-              <time dateTime={r.createdAt} title={new Date(r.createdAt).toLocaleString()}>
-                {whenRead(r.createdAt)}
-              </time>
-            </p>
+            <p className="history-head">{tr('page.track.youAsked', { t0: (c: ReactNode) => <strong className="who-name">{c}</strong>, whenRead: whenRead(r.createdAt), t1: (c: ReactNode) => <time dateTime={r.createdAt} title={new Date(r.createdAt).toLocaleString(intlLocale())}>{c}</time> })}</p>
             {r.description.trim() ? (
               <div className="history-comment">
                 <Markdown text={r.description} outside />
@@ -104,9 +99,9 @@ export default function TrackPage() {
             <Avatar kind="person" name={m.from === 'you' ? r.requester.name : m.name} small />
             <div className="history-body">
               <p className="history-head">
-                <strong className="who-name">{m.from === 'you' ? 'You' : m.name}</strong>
+                <strong className="who-name">{m.from === 'you' ? t('page.track.you') : m.name}</strong>
                 {m.from === 'team' ? ' replied' : ''} ·{' '}
-                <time dateTime={m.at} title={new Date(m.at).toLocaleString()}>
+                <time dateTime={m.at} title={new Date(m.at).toLocaleString(intlLocale())}>
                   {whenRead(m.at)}
                 </time>
               </p>
@@ -117,15 +112,15 @@ export default function TrackPage() {
           </li>
         ))}
       </ol>
-      {!r.messages.some((m) => m.from === 'team') ? <p className="note">No reply yet. The team will answer here.</p> : null}
+      {!r.messages.some((m) => m.from === 'team') ? <p className="note">{t('page.track.noReplyYetTheTeam')}</p> : null}
       <form className="form" onSubmit={reply}>
-        <FormField label="Your reply" help={r.emailMuted ? "You stopped emails about this request, so look here for the team's replies." : "We'll email you when the team replies."}>
+        <FormField label={t('page.track.yourReply')} help={r.emailMuted ? t('page.track.youStoppedEmailsAboutThis') : t('page.track.weLlEmailYouWhen')}>
           {(id, help) => <textarea id={id} rows={4} value={text} onChange={(e) => setText(e.target.value)} maxLength={HELP_LIMITS.reply} aria-describedby={help} />}
         </FormField>
         {error ? <ErrorNote error={error} /> : null}
         <div className="cluster end">
           <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Sending…' : 'Send the reply'}
+            {busy ? t('page.track.sending') : t('page.track.sendTheReply')}
           </button>
         </div>
       </form>

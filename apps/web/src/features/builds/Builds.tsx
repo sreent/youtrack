@@ -15,6 +15,8 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CopyButton } from '../common/CopyButton';
 import { whenRead } from '../common/format';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 export const buildKeys = {
   sources: ['build-sources'] as const,
@@ -34,10 +36,10 @@ export const STATUS: Record<BuildStatus, { tone: 'good' | 'bad' | 'idle'; word: 
 
 /** What a build did to an issue. */
 export const OUTCOME: Record<BuildIssueOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
-  marked: { tone: 'good', word: 'fixed in it' },
-  already: { tone: 'idle', word: 'in an earlier build' },
-  open: { tone: 'warn', word: 'not resolved yet' },
-  refused: { tone: 'bad', word: 'not marked' },
+  marked: { tone: 'good', word: t('builds.builds.fixedInIt2') },
+  already: { tone: 'idle', word: t('builds.builds.inAnEarlierBuild') },
+  open: { tone: 'warn', word: t('builds.builds.notResolvedYet') },
+  refused: { tone: 'bad', word: t('builds.builds.notMarked') },
 };
 
 const safe = (url: string | null): string | null => (url && /^https?:\/\//i.test(url) ? url : null);
@@ -54,20 +56,15 @@ function curlFor(made: BuildSourceCreated): string {
 function TokenOnce({ made, onKept }: { made: BuildSourceCreated; onKept: () => void }) {
   return (
     <div className="secret" role="status">
-      <p>
-        <strong>Copy the token now.</strong> This is the only time a4a shows it. The CI sends it with each build, as <code>Authorization: Bearer</code>, and a4a refuses any build
-        without it.
-      </p>
+      <p>{tr('builds.builds.copyTheTokenNowThis', { t0: (c: ReactNode) => <strong>{c}</strong>, code: <code>Authorization: Bearer</code> })}</p>
       <code>{made.hookUrl}</code>
       <code>{made.token}</code>
       <div className="cluster">
-        <CopyButton text={made.hookUrl ?? ''} label="Copy the URL" what="the URL" />
-        <CopyButton text={made.token ?? ''} label="Copy the token" what="the token" />
-        <button type="button" className="link" onClick={onKept}>
-          I've kept it
-        </button>
+        <CopyButton text={made.hookUrl ?? ''} label={t('builds.builds.copyTheUrl')} what={t('builds.builds.theUrl')} />
+        <CopyButton text={made.token ?? ''} label={t('builds.builds.copyTheToken')} what={t('builds.builds.theToken')} />
+        <button type="button" className="link" onClick={onKept}>{t('builds.builds.iVeKeptIt')}</button>
       </div>
-      <p className="note">A step at the end of a successful build, with the token in the CI's secrets as A4A_BUILD_TOKEN:</p>
+      <p className="note">{t('builds.builds.aStepAtTheEnd')}</p>
       <pre className="mono">{curlFor(made)}</pre>
     </div>
   );
@@ -81,7 +78,7 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
     mutationFn: () => patch<BuildSource>(`/build-sources/${source.id}`, { active: !source.active }),
     onSuccess: (s) => {
       refresh();
-      onSaid({ text: s.active ? `${s.name} takes builds again.` : `${s.name} is paused: builds it's sent are refused politely, and recorded nowhere.` });
+      onSaid({ text: s.active ? t('builds.builds.takesBuildsAgain', { name: s.name }) : t('builds.builds.isPausedBuildsItS', { name: s.name }) });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -89,35 +86,32 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
   const remove = useMutation({ mutationFn: () => del(`/build-sources/${source.id}`), onSuccess: refresh, onError: (e) => onSaid({ text: errorText(e), bad: true }) });
   const from =
     source.kind === 'github'
-      ? `${source.integration?.name ?? 'a GitHub integration'}'s runs of ${source.workflow ?? 'any workflow'} on ${source.branch ?? 'any branch'}`
-      : `any CI, with its token (it begins ${source.tokenPrefix ?? '…'})`;
+      ? t('builds.builds.sRunsOfOn', { v: source.integration?.name ?? t('builds.builds.aGithubIntegration'), v2: source.workflow ?? t('builds.builds.anyWorkflow'), v3: source.branch ?? t('builds.builds.anyBranch') })
+      : t('builds.builds.anyCiWithItsToken', { v: source.tokenPrefix ?? '…' });
   return (
     <li className="card hook">
       <div className="hook-head">
         <div className="hook-what">
           <span className="hook-url">{source.name}</span>
-          <span className="item-about">
-            Builds of <Link to={`/builds/${source.project}`}>{source.project}</Link> from {from} · into {source.field ?? 'no build field yet'}
-            {source.lastBuildAt ? ` · last build ${ago(source.lastBuildAt)}` : ' · no build yet'}
-          </span>
+          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? t('builds.builds.noBuildFieldYet'), v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: ago(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
         </div>
-        {source.active ? <Badge tone="good">takes builds</Badge> : <Badge tone="idle">paused</Badge>}
+        {source.active ? <Badge tone="good">{t('builds.builds.takesBuilds')}</Badge> : <Badge tone="idle">{t('builds.builds.paused')}</Badge>}
       </div>
       {source.hookUrl ? (
         <div className="cluster">
-          <span className="note">Where builds go</span>
+          <span className="note">{t('builds.builds.whereBuildsGo')}</span>
           <code className="hook-url">{source.hookUrl}</code>
-          <CopyButton text={source.hookUrl} label="Copy it" what="the URL" />
+          <CopyButton text={source.hookUrl} label={t('builds.builds.copyIt')} what={t('builds.builds.theUrl')} />
         </div>
       ) : null}
       <div className="cluster">
         <button type="button" onClick={() => pause.mutate()} disabled={pause.isPending}>
-          {source.active ? 'Pause it' : 'Take builds again'}
+          {source.active ? t('builds.builds.pauseIt') : t('builds.builds.takeBuildsAgain')}
         </button>
         {source.kind === 'generic' ? (
-          <Confirm small label="Give it a new token" title={`A new token for ${source.name}?`} about="The old one stops working at once: give the CI the new one." confirm="Give it a new token" onConfirm={() => rotate.mutate()} />
+          <Confirm small label={t('builds.builds.giveItANewToken')} title={t('builds.builds.aNewTokenFor', { name: source.name })} about={t('builds.builds.theOldOneStopsWorking')} confirm={t('builds.builds.giveItANewToken')} onConfirm={() => rotate.mutate()} />
         ) : null}
-        <Confirm small label="Remove" name={`Remove ${source.name}`} title={`Remove ${source.name}?`} about="Its builds stay, with what they marked." confirm="Remove it" onConfirm={() => remove.mutate()} />
+        <Confirm small label={t('builds.builds.remove')} name={t('builds.builds.remove3', { name: source.name })} title={t('builds.builds.remove2', { name: source.name })} about={t('builds.builds.itsBuildsStayWithWhat')} confirm={t('builds.builds.removeIt')} onConfirm={() => remove.mutate()} />
       </div>
       {made ? <TokenOnce made={made} onKept={() => setMade(null)} /> : null}
     </li>
@@ -151,7 +145,7 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
   });
   return (
     <section className="card" aria-labelledby="add-builds">
-      <h2 id="add-builds">Take a project's builds</h2>
+      <h2 id="add-builds">{t('builds.builds.takeAProjectSBuilds')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -160,24 +154,24 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
         }}
       >
         <fieldset className="choice-group">
-          <legend>From</legend>
+          <legend>{t('builds.builds.from')}</legend>
           <label className="choice">
             <input type="radio" name="build-kind" checked={kind === 'generic'} onChange={() => setKind('generic')} />
-            <span>Any CI, posting each build</span>
+            <span>{t('builds.builds.anyCiPostingEachBuild')}</span>
           </label>
           <label className="choice">
             <input type="radio" name="build-kind" checked={kind === 'github'} onChange={() => setKind('github')} disabled={!github.length} />
-            <span>GitHub Actions{github.length ? '' : ' (add a GitHub integration first)'}</span>
+            <span>{tr('builds.builds.githubActions', { v: github.length ? '' : t('builds.builds.addAGithubIntegrationFirst') })}</span>
           </label>
         </fieldset>
         <div className="form-fields">
-          <FormField label="Name" help="What it is, e.g. Jenkins: backend.">
+          <FormField label={t('builds.builds.name')} help={t('builds.builds.whatItIsEG')}>
             {(id, help) => <input id={id} aria-describedby={help} required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />}
           </FormField>
-          <FormField label="Builds of the project" help="Its builds go in its build field: “Fixed in build”, made for it if it has none.">
+          <FormField label={t('builds.builds.buildsOfTheProject')} help={t('builds.builds.itsBuildsGoInIts')}>
             {(id, help) => (
               <select id={id} aria-describedby={help} required value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Choose a project</option>
+                <option value="">{t('builds.builds.chooseAProject')}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.key}>
                     {p.name}
@@ -188,10 +182,10 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
           </FormField>
           {kind === 'github' ? (
             <>
-              <FormField label="The GitHub integration">
+              <FormField label={t('builds.builds.theGithubIntegration')}>
                 {(id) => (
                   <select id={id} required value={integration} onChange={(e) => setIntegration(e.target.value)}>
-                    <option value="">Choose one</option>
+                    <option value="">{t('builds.builds.chooseOne')}</option>
                     {github.map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.name}
@@ -200,10 +194,10 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
                   </select>
                 )}
               </FormField>
-              <FormField label="Its branch" help="Only runs on it are builds. Empty: any.">
+              <FormField label={t('builds.builds.itsBranch')} help={t('builds.builds.onlyRunsOnItAre')}>
                 {(id, help) => <input id={id} className="mono" aria-describedby={help} value={branch} onChange={(e) => setBranch(e.target.value)} />}
               </FormField>
-              <FormField label="Its workflow" help="By name, or its file, such as ci.yml. Empty: any, its builds named with the workflow.">
+              <FormField label={t('builds.builds.itsWorkflow')} help={t('builds.builds.byNameOrItsFile')}>
                 {(id, help) => <input id={id} className="mono" aria-describedby={help} value={workflow} onChange={(e) => setWorkflow(e.target.value)} />}
               </FormField>
             </>
@@ -211,7 +205,7 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
         </div>
         <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending || !name.trim() || !project || (kind === 'github' && !integration)}>
-            {add.isPending ? 'Adding…' : 'Take its builds'}
+            {add.isPending ? t('builds.builds.adding') : t('builds.builds.takeItsBuilds')}
           </button>
         </div>
         {add.error ? <ErrorNote error={add.error} /> : null}
@@ -228,13 +222,11 @@ export function BuildSources({ integrations }: { integrations: VcsIntegration[] 
   return (
     <>
       <section className="card" aria-labelledby="build-sources">
-        <h2 id="build-sources">Builds</h2>
-        <p className="note section-note">
-          A build that passes goes in its project's build field, and the resolved issues its commits name are marked as fixed in it, as the build source, in their history.
-        </p>
+        <h2 id="build-sources">{t('builds.builds.builds')}</h2>
+        <p className="note section-note">{t('builds.builds.aBuildThatPassesGoes')}</p>
         {sources.isLoading ? <Loading what="build sources" /> : null}
         {sources.error ? <ErrorNote error={sources.error} /> : null}
-        {sources.data && !sources.data.length ? <p className="note">No builds come in yet.</p> : null}
+        {sources.data && !sources.data.length ? <p className="note">{t('builds.builds.noBuildsComeInYet')}</p> : null}
         {sources.data?.length ? (
           <ul className="hooks">
             {sources.data.map((s) => (
@@ -252,18 +244,18 @@ export function BuildSources({ integrations }: { integrations: VcsIntegration[] 
 /** A project's builds, newest first, with what each did to the issues its commits name. */
 export function BuildList({ project }: { project: string }) {
   const list = useProjectBuilds(project);
-  if (list.isLoading) return <Loading what="its builds" />;
+  if (list.isLoading) return <Loading what={t('builds.builds.itsBuilds')} />;
   if (list.error) return <ErrorNote error={list.error} />;
-  if (!list.data?.length) return <p className="note">No builds yet. An administrator takes a project's builds from CI under Integrations.</p>;
+  if (!list.data?.length) return <p className="note">{t('builds.builds.noBuildsYetAnAdministrator')}</p>;
   return (
-    <Scroll label="Table of builds">
+    <Scroll label={t('builds.builds.tableOfBuilds')}>
       <table className="figures middle">
         <thead>
           <tr>
-            <th scope="col">Build</th>
-            <th scope="col">How it ended</th>
-            <th scope="col">Fixed in it</th>
-            <th scope="col">Commits</th>
+            <th scope="col">{t('builds.builds.build')}</th>
+            <th scope="col">{t('builds.builds.howItEnded')}</th>
+            <th scope="col">{t('builds.builds.fixedInIt')}</th>
+            <th scope="col">{t('builds.builds.commits')}</th>
           </tr>
         </thead>
         <tbody>
@@ -286,7 +278,7 @@ export function BuildList({ project }: { project: string }) {
               </td>
               <td>
                 {b.issues.length ? (
-                  <ul className="chips" aria-label={`What build ${b.name} did`}>
+                  <ul className="chips" aria-label={t('builds.builds.whatBuildDid', { name: b.name })}>
                     {b.issues.map((i) => (
                       <li key={i.issue.id} className="chip" title={i.note ?? OUTCOME[i.outcome].word}>
                         <Link to={`/issues/${i.issue.id}`} className="issue-id">
@@ -297,7 +289,7 @@ export function BuildList({ project }: { project: string }) {
                     ))}
                   </ul>
                 ) : (
-                  <span className="note">None</span>
+                  <span className="note">{t('builds.builds.none')}</span>
                 )}
               </td>
               <td className="num">{b.commits}</td>
@@ -314,15 +306,15 @@ export function IssueBuilds({ issue }: { issue: IssueDetail }) {
   const list = useIssueBuilds(issue.id);
   if (!list.data?.length) return null;
   return (
-    <div className="stack tight" role="group" aria-label="Builds">
-      <p className="note">Builds</p>
+    <div className="stack tight" role="group" aria-label={t('builds.builds.builds')}>
+      <p className="note">{t('builds.builds.builds')}</p>
       <ul className="code-list">
         {list.data.map((b) => (
           <li key={b.build}>
             <p className="code-line">
               {safe(b.url) ? (
                 <a className="code-ref" href={safe(b.url)!} target="_blank" rel="noreferrer noopener">
-                  <span className="hidden">Build </span>
+                  <span className="hidden">{t('builds.builds.build2')}</span>
                   {b.build}
                 </a>
               ) : (
@@ -336,20 +328,20 @@ export function IssueBuilds({ issue }: { issue: IssueDetail }) {
         ))}
       </ul>
       <p className="note">
-        <Link to={`/builds/${issue.project.key}`}>All of {issue.project.key}'s builds</Link>
+        <Link to={`/builds/${issue.project.key}`}>{tr('builds.builds.allOfSBuilds', { key: issue.project.key })}</Link>
       </p>
     </div>
   );
 }
 
 const CONNECT_SAID: Record<string, string> = {
-  expired: 'The sign-in there took too long, or was started elsewhere. Connect again.',
-  mismatch: 'It came back to someone other than who started it. Connect again, signed in as yourself.',
-  denied: 'You said no there, so nothing is connected.',
-  taken: "That account is someone else's in a4a. An administrator can move it.",
-  refused: "The provider didn't say who you are. Try again, or ask an administrator to look at its app.",
-  unreachable: "a4a couldn't reach the provider. Try again later.",
-  failed: 'Something went wrong. Try again.',
+  expired: t('builds.builds.theSignInThereTook'),
+  mismatch: t('builds.builds.itCameBackToSomeone'),
+  denied: t('builds.builds.youSaidNoThereSo'),
+  taken: t('builds.builds.thatAccountIsSomeoneElse'),
+  refused: t('builds.builds.theProviderDidnTSay'),
+  unreachable: t('builds.builds.a4aCouldnTReachThe'),
+  failed: t('builds.builds.somethingWentWrongTryAgain'),
 };
 
 /** Your accounts at code hosts, on your profile: connected by signing in there, and disconnected here. */
@@ -365,7 +357,7 @@ export function CodeHostAccounts() {
     const connected = params.get('connected');
     const failure = params.get('connect');
     if (!connected && !failure) return;
-    setSaid(connected ? { text: `Your ${hosts.data?.find((h) => h.provider === connected)?.name ?? connected} account is connected: its commits and pull requests are yours.` } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
+    setSaid(connected ? { text: t('builds.builds.yourAccountIsConnectedIts', { v: hosts.data?.find((h) => h.provider === connected)?.name ?? connected }) } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
     params.delete('connected');
     params.delete('connect');
     setParams(params, { replace: true });
@@ -379,7 +371,7 @@ export function CodeHostAccounts() {
     mutationFn: (l: ProviderLogin) => del(`/users/${meId}/provider-logins/${l.id}`),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['users', meId, 'provider-logins'] });
-      setSaid({ text: "Disconnected: commits under that account aren't yours from now on." });
+      setSaid({ text: t('builds.builds.disconnectedCommitsUnderThatAccount') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -388,27 +380,23 @@ export function CodeHostAccounts() {
   if (!available.length && !connected.length) return null;
   return (
     <section className="card" aria-labelledby="code-hosts-title" id="code-hosts">
-      <h2 id="code-hosts-title">Your accounts at code hosts</h2>
-      <p className="note section-note">
-        Connect an account by signing in there: its commits and pull requests are yours in a4a, and the commands in them run as you. a4a asks who you are once, and keeps no token.
-      </p>
+      <h2 id="code-hosts-title">{t('builds.builds.yourAccountsAtCodeHosts')}</h2>
+      <p className="note section-note">{t('builds.builds.connectAnAccountBySigning')}</p>
       {connected.length ? (
-        <ul className="stack tight" aria-label="Connected accounts">
+        <ul className="stack tight" aria-label={t('builds.builds.connectedAccounts')}>
           {connected.map((l) => (
             <li key={l.id} className="cluster spread">
               <span>
                 {hosts.data?.find((h) => h.provider === l.provider)?.name ?? l.provider} <span className="mono">{l.login}</span>
               </span>
-              <Confirm small label="Disconnect" name={`Disconnect ${l.login}`} title={`Disconnect ${l.login}?`} about="Commits under it won't be yours from now on. Those linked already stay." confirm="Disconnect it" onConfirm={() => disconnect.mutate(l)} />
+              <Confirm small label={t('builds.builds.disconnect')} name={t('builds.builds.disconnect3', { login: l.login })} title={t('builds.builds.disconnect2', { login: l.login })} about={t('builds.builds.commitsUnderItWonT')} confirm={t('builds.builds.disconnectIt')} onConfirm={() => disconnect.mutate(l)} />
             </li>
           ))}
         </ul>
       ) : null}
       <div className="cluster">
         {available.map((h) => (
-          <button key={h.provider} type="button" onClick={() => connect.mutate(h.provider)} disabled={connect.isPending}>
-            Connect {h.name}
-          </button>
+          <button key={h.provider} type="button" onClick={() => connect.mutate(h.provider)} disabled={connect.isPending}>{tr('builds.builds.connect', { name: h.name })}</button>
         ))}
       </div>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />

@@ -8,6 +8,8 @@ import { ErrorLine, ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useMachines, workflowKeys } from './api';
+import { t, t as tx, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 interface Row {
   name: string;
@@ -34,23 +36,19 @@ const EMPTY_ROW: Row = { name: '', from: '', to: '', condition: '', command: '' 
 function Words({ t }: { t: StateTransition }) {
   return (
     <li>
-      <strong>{t.name}</strong>: {t.from.join(', ').replace('*', 'any state')} → {t.to}
+      <strong>{t.name}</strong>: {t.from.join(', ').replace('*', tx('workflow.machines.anyState'))} → {t.to}
       {t.condition ? (
-        <>
-          , if it matches <code>{t.condition}</code>
-        </>
+        <>{tr('workflow.machines.ifItMatches', { code: <code>{t.condition}</code> })}</>
       ) : null}
       {t.command ? (
-        <>
-          , then <code>{t.command}</code>
-        </>
+        <>{tr('workflow.machines.then', { code: <code>{t.command}</code> })}</>
       ) : null}
     </li>
   );
 }
 
 function problemWords(p: WorkflowProblem): string {
-  return `${p.transition !== null && p.transition !== undefined ? `Transition ${p.transition + 1}: ` : ''}${p.message}${p.hint ? `. ${p.hint}` : ''}`;
+  return `${p.transition !== null && p.transition !== undefined ? t('workflow.machines.transition', { v: p.transition + 1 }) : ''}${p.message}${p.hint ? `. ${p.hint}` : ''}`;
 }
 
 /** The form for one machine: which field, and its transitions, a row each. */
@@ -91,7 +89,7 @@ function MachineForm({ project, fields, machine, onDone, onCancel }: { project: 
       }}
     >
       {machine ? null : (
-        <FormField label="For the field" help="A field with one value from a list, such as State.">
+        <FormField label={t('workflow.machines.forTheField')} help={t('workflow.machines.aFieldWithOneValue')}>
           {(id, help) => (
             <select id={id} aria-describedby={help} value={field} onChange={(e) => setField(e.target.value)}>
               {states.map((f) => (
@@ -103,19 +101,19 @@ function MachineForm({ project, fields, machine, onDone, onCancel }: { project: 
           )}
         </FormField>
       )}
-      <ul className="transitions" aria-label="Its transitions">
+      <ul className="transitions" aria-label={t('workflow.machines.itsTransitions')}>
         {rows.map((r, i) => (
           <li className="transition" key={i}>
-            <FormField label="Name" help="It reads as a command too.">
-              {(id, help) => <input id={id} aria-describedby={help} value={r.name} onChange={(e) => set(i, 'name', e.target.value)} maxLength={60} placeholder="Start work" />}
+            <FormField label={t('workflow.machines.name')} help={t('workflow.machines.itReadsAsACommand')}>
+              {(id, help) => <input id={id} aria-describedby={help} value={r.name} onChange={(e) => set(i, 'name', e.target.value)} maxLength={60} placeholder={t('workflow.machines.startWork')} />}
             </FormField>
-            <FormField label="From" help="States, by commas; * for any.">
-              {(id, help) => <input id={id} aria-describedby={help} className="mono" value={r.from} onChange={(e) => set(i, 'from', e.target.value)} placeholder="Submitted, Open" />}
+            <FormField label={t('workflow.machines.from')} help={t('workflow.machines.statesByCommasForAny')}>
+              {(id, help) => <input id={id} aria-describedby={help} className="mono" value={r.from} onChange={(e) => set(i, 'from', e.target.value)} placeholder={t('workflow.machines.submittedOpen')} />}
             </FormField>
-            <FormField label="To">
+            <FormField label={t('workflow.machines.to')}>
               {(id) => (
                 <select id={id} value={r.to} onChange={(e) => set(i, 'to', e.target.value)}>
-                  <option value="">choose a state</option>
+                  <option value="">{t('workflow.machines.chooseAState')}</option>
                   {values.map((v) => (
                     <option key={v} value={v}>
                       {v}
@@ -124,25 +122,20 @@ function MachineForm({ project, fields, machine, onDone, onCancel }: { project: 
                 </select>
               )}
             </FormField>
-            <FormField label="If it matches" help="Optional: a query, as the issue is before the move.">
-              {(id, help) => <input id={id} aria-describedby={help} className="mono" value={r.condition} onChange={(e) => set(i, 'condition', e.target.value)} placeholder="has: Assignee" />}
+            <FormField label={t('workflow.machines.ifItMatches2')} help={t('workflow.machines.optionalAQueryAsThe')}>
+              {(id, help) => <input id={id} aria-describedby={help} className="mono" value={r.condition} onChange={(e) => set(i, 'condition', e.target.value)} placeholder={t('workflow.machines.hasAssignee')} />}
             </FormField>
-            <FormField label="And apply" help="Optional: a command, as whoever moves it.">
+            <FormField label={t('workflow.machines.andApply')} help={t('workflow.machines.optionalACommandAsWhoever')}>
               {(id, help) => <input id={id} aria-describedby={help} className="mono" value={r.command} onChange={(e) => set(i, 'command', e.target.value)} placeholder="tag started" />}
             </FormField>
             <div className="cluster end">
-              <button type="button" className="small" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} disabled={rows.length === 1}>
-                Remove this transition
-              </button>
+              <button type="button" className="small" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} disabled={rows.length === 1}>{t('workflow.machines.removeThisTransition')}</button>
             </div>
           </li>
         ))}
       </ul>
       <div className="cluster">
-        <button type="button" onClick={() => setRows((rs) => [...rs, { ...EMPTY_ROW }])}>
-          <Icon name="plus" />
-          Add a transition
-        </button>
+        <button type="button" onClick={() => setRows((rs) => [...rs, { ...EMPTY_ROW }])}>{tr('workflow.machines.addATransition', { el: <Icon name="plus" /> })}</button>
       </div>
       {problems.map((p) => (
         <ErrorLine key={`${p.part}-${p.transition ?? ''}-${p.message}`}>{problemWords(p)}</ErrorLine>
@@ -150,12 +143,10 @@ function MachineForm({ project, fields, machine, onDone, onCancel }: { project: 
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       <div className="cluster end">
         {onCancel ? (
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel}>{t('workflow.machines.cancel')}</button>
         ) : null}
         <button type="submit" className="primary" disabled={save.isPending || !field}>
-          {save.isPending ? 'Saving…' : machine ? 'Save the change' : 'Save the state machine'}
+          {save.isPending ? t('workflow.machines.saving') : machine ? t('workflow.machines.saveTheChange') : t('workflow.machines.saveTheStateMachine')}
         </button>
       </div>
     </form>
@@ -170,7 +161,7 @@ function MachineCard({ machine, manages, onEdit }: { machine: StateMachine; mana
     mutationFn: () => patch<StateMachine>(`/state-machines/${machine.id}`, { enabled: !machine.enabled, expectedVersion: machine.version }),
     onSuccess: (m) => {
       done();
-      setSaid({ text: m.enabled ? 'It’s on: changes to the field go by its transitions.' : 'It’s off: the field changes freely.' });
+      setSaid({ text: m.enabled ? t('workflow.machines.itSOnChangesTo') : t('workflow.machines.itSOffTheField') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -180,13 +171,11 @@ function MachineCard({ machine, manages, onEdit }: { machine: StateMachine; mana
       <div className="rule-head">
         <h3 className="rule-name">{machine.field}</h3>
         <span className="badges">
-          <Badge grammar="own">refuses changes</Badge>
-          {machine.problems.length ? <Badge tone="bad">needs fixing</Badge> : machine.enabled ? <Badge tone="good">on</Badge> : <Badge tone="idle">off</Badge>}
+          <Badge grammar="own">{t('workflow.machines.refusesChanges')}</Badge>
+          {machine.problems.length ? <Badge tone="bad">{t('workflow.machines.needsFixing')}</Badge> : machine.enabled ? <Badge tone="good">{t('workflow.machines.on')}</Badge> : <Badge tone="idle">{t('workflow.machines.off')}</Badge>}
         </span>
       </div>
-      <p className="rule-sentence">
-        <span className="rule-word">When</span> {machine.field} changes, <span className="rule-word">then</span> it must be one of these moves, or it is refused:
-      </p>
+      <p className="rule-sentence">{tr('workflow.machines.whenChangesThenItMust', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, field: machine.field, t1: (c: ReactNode) => <span className="rule-word">{c}</span> })}</p>
       <ul className="rule-said">
         {machine.transitions.map((t) => (
           <Words key={t.name} t={t} />
@@ -196,24 +185,22 @@ function MachineCard({ machine, manages, onEdit }: { machine: StateMachine; mana
         <div className="error-note" role="note" key={`${p.part}-${p.transition ?? ''}-${p.message}`}>
           <Icon name="cross" />
           <strong>{problemWords(p)}</strong>
-          <p>It refuses nothing until it’s fixed.</p>
+          <p>{t('workflow.machines.itRefusesNothingUntilIt')}</p>
         </div>
       ))}
       {manages ? (
         <div className="cluster">
-          <button type="button" onClick={onEdit}>
-            Edit it
-          </button>
+          <button type="button" onClick={onEdit}>{t('workflow.machines.editIt')}</button>
           <button type="button" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
-            {machine.enabled ? 'Turn it off' : 'Turn it back on'}
+            {machine.enabled ? t('workflow.machines.turnItOff') : t('workflow.machines.turnItBackOn')}
           </button>
           <span className="grow" />
           <Confirm
             small
-            label="Delete it"
-            title={`Delete the state machine for ${machine.field}?`}
-            about="The field changes freely from then on. Issues stay where they are."
-            confirm="Delete it"
+            label={t('workflow.machines.deleteIt')}
+            title={t('workflow.machines.deleteTheStateMachineFor', { field: machine.field })}
+            about={t('workflow.machines.theFieldChangesFreelyFrom')}
+            confirm={t('workflow.machines.deleteIt')}
             disabled={remove.isPending}
             onConfirm={() => remove.mutate()}
           />
@@ -233,18 +220,18 @@ export function Machines({ project, projectName, fields, manages }: { project: s
   return (
     <section className="card stack" aria-labelledby="machines-title">
       <div className="section-head">
-        <h2 id="machines-title">State machines in {projectName}</h2>
-        <span className="note">A change to a field with one must be one of its moves, however it’s made. The issue page offers the moves as buttons.</span>
+        <h2 id="machines-title">{tr('workflow.machines.stateMachinesIn', { projectName: projectName })}</h2>
+        <span className="note">{t('workflow.machines.aChangeToAField')}</span>
       </div>
-      {machines.isLoading ? <Loading what="its state machines" /> : null}
+      {machines.isLoading ? <Loading what={t('workflow.machines.itsStateMachines')} /> : null}
       {machines.error ? <ErrorNote error={machines.error} /> : null}
-      {machines.data && !machines.data.length ? <p className="note">No state machine yet: its fields change freely.</p> : null}
+      {machines.data && !machines.data.length ? <p className="note">{t('workflow.machines.noStateMachineYetIts')}</p> : null}
       {machines.data?.length ? (
         <ul className="rules">
           {machines.data.map((m) =>
             editing === m.id && manages ? (
               <li key={m.id} className="card rule-card">
-                <h3 className="rule-name">Change {m.field}’s moves</h3>
+                <h3 className="rule-name">{tr('workflow.machines.changeSMoves', { field: m.field })}</h3>
                 <MachineForm
                   project={project}
                   fields={fields}
@@ -252,7 +239,7 @@ export function Machines({ project, projectName, fields, manages }: { project: s
                   onCancel={() => setEditing(null)}
                   onDone={() => {
                     setEditing(null);
-                    setSaid(`${m.field}’s moves are saved.`);
+                    setSaid(t('workflow.machines.sMovesAreSaved', { field: m.field }));
                   }}
                 />
               </li>
@@ -270,15 +257,12 @@ export function Machines({ project, projectName, fields, manages }: { project: s
             onCancel={() => setAdding(false)}
             onDone={(m) => {
               setAdding(false);
-              setSaid(`${m.field} now goes by its moves.`);
+              setSaid(t('workflow.machines.nowGoesByItsMoves', { field: m.field }));
             }}
           />
         ) : (
           <div className="cluster">
-            <button type="button" onClick={() => setAdding(true)}>
-              <Icon name="plus" />
-              Add a state machine
-            </button>
+            <button type="button" onClick={() => setAdding(true)}>{tr('workflow.machines.addAStateMachine', { el: <Icon name="plus" /> })}</button>
           </div>
         )
       ) : null}

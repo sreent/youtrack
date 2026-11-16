@@ -52,7 +52,7 @@ async function codeAttempt(c: Context<HttpEnv>, runtime: Runtime, userId: string
   const attempt = await beginLoginAttempt(runtime.db, clientIp(c, runtime.config.trustProxy), `totp:${userId}`);
   if (attempt.wait) {
     c.header('retry-after', String(attempt.wait));
-    throw new AppError(429, 'rate_limited', 'Too many codes tried', `Try again in ${waitInWords(attempt.wait)}`);
+    throw new AppError(429, 'rate_limited', 'Too many codes tried', `Try again in ${waitInWords(attempt.wait)}`).said('tooManyCodes', { minutes: Math.max(1, Math.ceil(attempt.wait / 60)) });
   }
   return attempt;
 }

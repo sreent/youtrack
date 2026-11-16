@@ -1,3 +1,4 @@
+import type { Locale } from '@a4a/shared/i18n';
 import type { Channel, Role, Scope } from '@a4a/shared';
 import type { Config } from './config';
 import type { Db } from './db/client';
@@ -75,6 +76,8 @@ export interface Ctx {
   db: Db;
   actor: Actor;
   automation?: AutomationCause;
+  /** The language of what this request's answer says to a person (D49): the page's, theirs, or their browser's. */
+  locale?: Locale;
 }
 
 export function withChannel(ctx: Ctx, channel: Channel): Ctx {

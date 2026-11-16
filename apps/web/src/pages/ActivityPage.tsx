@@ -4,6 +4,7 @@ import { ErrorNote, Loading, PageHead } from '../components/States';
 import { LedgerEntry, withoutMirrors } from '../features/activity/LedgerEntry';
 import { FormField } from '../features/common/bits';
 import { useFeed } from '../features/common/queries';
+import { t, tr } from '../i18n';
 
 const STEP = 100;
 const MOST = 500;
@@ -32,15 +33,15 @@ export default function ActivityPage() {
   return (
     <>
       <PageHead
-        title="Activity"
-        about="Every change, who made it and through what: people on the web, agents over MCP or in the assistant, and scripts with a token. Newest first, with times to the second, in UTC."
+        title={t('page.activity.activity')}
+        about={t('page.activity.everyChangeWhoMadeIt')}
       />
       <div className="stack">
         <div className="cluster">
-          <FormField label="Project" className="inline">
+          <FormField label={t('page.activity.project')} className="inline">
             {(id) => (
               <select id={id} value={project} onChange={(e) => set({ project: e.target.value })}>
-                <option value="">All projects</option>
+                <option value="">{t('page.activity.allProjects')}</option>
                 {(projects.data ?? []).map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.key} · {p.name}
@@ -50,21 +51,19 @@ export default function ActivityPage() {
             )}
           </FormField>
           {feed.isFetching && feed.data ? (
-            <span className="note" role="status">
-              Reading the newest…
-            </span>
+            <span className="note" role="status">{t('page.activity.readingTheNewest')}</span>
           ) : null}
         </div>
-        {feed.isLoading ? <Loading what="the activity" /> : null}
+        {feed.isLoading ? <Loading what={t('page.activity.theActivity')} /> : null}
         {feed.error ? <ErrorNote error={feed.error} /> : null}
         {feed.data && !events.length ? (
           <section className="card">
-            <h2>Nothing has happened here yet</h2>
-            <p className="note">Changes to issues, comments, links, logged work and baselines show here as they're made.</p>
+            <h2>{t('page.activity.nothingHasHappenedHereYet')}</h2>
+            <p className="note">{t('page.activity.changesToIssuesCommentsLinks')}</p>
           </section>
         ) : null}
         {events.length ? (
-          <section className="card ledger-box stack tight" aria-label="The ledger">
+          <section className="card ledger-box stack tight" aria-label={t('page.activity.theLedger')}>
             <ol className="ledger">
               {events.map((e) => (
                 <LedgerEntry key={e.id} event={e} />
@@ -72,12 +71,10 @@ export default function ActivityPage() {
             </ol>
             {more ? (
               <div className="cluster tw:justify-center">
-                <button type="button" onClick={() => set({ show: Math.min(MOST, limit + STEP) })} disabled={feed.isFetching}>
-                  Show {Math.min(STEP, MOST - limit)} older
-                </button>
+                <button type="button" onClick={() => set({ show: Math.min(MOST, limit + STEP) })} disabled={feed.isFetching}>{tr('page.activity.showOlder', { min: Math.min(STEP, MOST - limit) })}</button>
               </div>
             ) : (feed.data?.length ?? 0) >= MOST ? (
-              <p className="note">This shows the latest {MOST}. For older changes, poll GET /api/v1/events?after= from the API.</p>
+              <p className="note">{tr('page.activity.thisShowsTheLatestFor', { MOST: MOST })}</p>
             ) : null}
           </section>
         ) : null}

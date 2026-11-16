@@ -1,3 +1,4 @@
+import { monthNames, weekdayNames } from '../../i18n';
 /**
  * Calendar dates as the API sends them (YYYY-MM-DD), handled as UTC days so arithmetic never
  * shifts across a change of clocks; working days as a plan's calendar defines them; and dates
@@ -5,8 +6,8 @@
  */
 
 const DAY = 86_400_000;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = monthNames();
+const WEEKDAYS = weekdayNames();
 
 function utc(d: string): number {
   return Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));

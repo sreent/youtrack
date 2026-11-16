@@ -10,6 +10,7 @@ import { Link } from 'react-router';
 import { addDays, dayMonth, diffDays, localToday, span, spanWords, weekday, type WorkCalendar } from './dates';
 import { andList, days } from './format';
 import { anchors, DAY, ganttRange, HEAD, linkHead, linkPath, restDays, ROW, rowTop, scale, type GanttTask, type Scale } from './gantt';
+import { t as tw_, tr } from '../../i18n';
 
 interface Props {
   /** The plan's name, for what the chart is called. */
@@ -28,13 +29,13 @@ interface Props {
 /** What the chart shows of a task, in words, for the list's screen-reader text. */
 function said(t: GanttTask, names: Map<string, string>, today: string): string {
   const parts: string[] = [];
-  if (t.kind === 'milestone') parts.push('a milestone');
-  if (t.critical) parts.push('on the critical path');
-  if (t.late) parts.push(`${days(t.late.days)} late: ${t.late.due < today ? 'it was' : "it's"} due ${dayMonth(t.late.due)}`);
-  if (t.slackTo) parts.push(`${days(t.slackDays)} of slack`);
-  if (t.after.length) parts.push(`after ${andList(t.after.map((id) => names.get(id) ?? id))}`);
-  if (t.baseline) parts.push(`planned for ${span(t.baseline.start, t.baseline.finish)}`);
-  if (t.whatIf) parts.push(`in the what-if, ${span(t.whatIf.start, t.whatIf.finish)}`);
+  if (t.kind === 'milestone') parts.push(tw_('plan.gantt.aMilestone2'));
+  if (t.critical) parts.push(tw_('plan.gantt.onTheCriticalPath'));
+  if (t.late) parts.push(tw_('plan.gantt.lateDue', { days: days(t.late.days), v: t.late.due < today ? tw_('plan.gantt.itWas') : "it's", when: dayMonth(t.late.due) }));
+  if (t.slackTo) parts.push(tw_('plan.gantt.ofSlack', { days: days(t.slackDays) }));
+  if (t.after.length) parts.push(tw_('plan.gantt.after', { andList: andList(t.after.map((id) => names.get(id) ?? id)) }));
+  if (t.baseline) parts.push(tw_('plan.gantt.plannedFor', { span: span(t.baseline.start, t.baseline.finish) }));
+  if (t.whatIf) parts.push(tw_('plan.gantt.inTheWhatIf', { span: span(t.whatIf.start, t.whatIf.finish) }));
   return parts.length ? `, ${parts.join(', ')}` : '';
 }
 
@@ -143,15 +144,13 @@ function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
     <>
       <line className="gantt-due" x1={s.end(t.late.due)} x2={s.end(t.late.due)} y1={top + 4} y2={top + 24} />
       <path className="gantt-late-mark" d={`M${end + 16} ${top + 10}l8 8M${end + 24} ${top + 10}l-8 8`} />
-      <text className="gantt-late" x={end + 29} y={top + 18}>
-        {days(t.late.days)} late
-      </text>
+      <text className="gantt-late" x={end + 29} y={top + 18}>{tr('plan.gantt.late', { days: days(t.late.days) })}</text>
     </>
   ) : null;
   // Days its assignee is away while it's on: shaded behind the bar, half a day dashed (D43).
   const away = t.away.map((a) => (
     <rect key={a.date} className={a.part === 'day' ? 'gantt-away' : 'gantt-away half'} x={s.x(a.date)} y={top + 3} width={s.dayWidth} height={22}>
-      <title>{a.part === 'day' ? 'Away' : `Away in the ${a.part}`}</title>
+      <title>{a.part === 'day' ? tw_('plan.gantt.away') : tw_('plan.gantt.awayInThe', { part: a.part })}</title>
     </rect>
   ));
   return (
@@ -224,16 +223,14 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
 
   return (
     <section className="gantt gantt-box" aria-labelledby={titleId}>
-      <h2 id={titleId} className="hidden">
-        {title}, by day
-      </h2>
+      <h2 id={titleId} className="hidden">{tr('plan.gantt.byDay', { title: title })}</h2>
       <div ref={scroller} className="gantt-scroll" tabIndex={0} role="group" aria-label={`${title}, ${spanWords(start, finish)}`}>
         <div className="gantt-grid">
           <div className="gantt-side">
             <div className="gantt-side-head" aria-hidden="true">
-              <span>Task</span>
-              <span>When</span>
-              <span>Done</span>
+              <span>{tw_('plan.gantt.task')}</span>
+              <span>{tw_('plan.gantt.when')}</span>
+              <span>{tw_('plan.gantt.done')}</span>
             </div>
             <ol className="gantt-rows">
               {rows.map((t) => (
@@ -246,7 +243,7 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
                   <span className="gantt-done">
                     {t.kind === 'milestone' && !t.resolved ? null : (
                       <>
-                        {Math.round(t.done)}%<span className="hidden"> done</span>
+                        {Math.round(t.done)}%<span className="hidden">{tw_('plan.gantt.done2')}</span>
                       </>
                     )}
                   </span>
@@ -263,64 +260,41 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
             {today >= s.from && todayX <= s.width ? (
               <>
                 <line className="gantt-today" x1={todayX} x2={todayX} y1={34} y2={height} />
-                <text className="gantt-today-label" x={todayX + 4} y={62}>
-                  Today
-                </text>
+                <text className="gantt-today-label" x={todayX + 4} y={62}>{tw_('plan.gantt.today')}</text>
               </>
             ) : null}
           </svg>
         </div>
       </div>
       <ul className="gantt-legend">
-        <li>
-          <svg width="28" height="14" aria-hidden="true">
+        <li>{tr('plan.gantt.aTaskWhatSDone', { el: <svg width="28" height="14" aria-hidden="true">
             <rect className="gantt-bar" x="1" y="1" width="26" height="12" rx="4" />
             <rect className="gantt-done-part" x="3" y="3" width="13" height="8" rx="2.5" />
-          </svg>
-          A task, what's done inside
-        </li>
-        <li>
-          <svg width="28" height="14" aria-hidden="true">
+          </svg> })}</li>
+        <li>{tr('plan.gantt.theCriticalPathInkTwice', { el: <svg width="28" height="14" aria-hidden="true">
             <g className="gantt-task critical">
               <rect className="gantt-bar" x="1.5" y="1.5" width="25" height="11" rx="4" />
             </g>
-          </svg>
-          The critical path: ink, twice as heavy
-        </li>
+          </svg> })}</li>
         {baselineName ? (
-          <li>
-            <svg width="28" height="14" aria-hidden="true">
+          <li>{tr('plan.gantt.theBaselineFadedBeneath', { el: <svg width="28" height="14" aria-hidden="true">
               <rect className="gantt-base" x="1" y="5" width="26" height="4" rx="2" />
-            </svg>
-            The baseline, {baselineName}, faded beneath
-          </li>
+            </svg>, baselineName: baselineName })}</li>
         ) : null}
-        <li>
-          <svg width="28" height="14" aria-hidden="true">
+        <li>{tr('plan.gantt.slackHowFarItCan', { el: <svg width="28" height="14" aria-hidden="true">
             <path className="gantt-slack" d="M2 7H25" />
             <path className="gantt-slack-end" d="M25 3v8" />
-          </svg>
-          Slack: how far it can slip
-        </li>
-        <li>
-          <svg width="28" height="14" aria-hidden="true">
+          </svg> })}</li>
+        <li>{tr('plan.gantt.aMilestone', { el: <svg width="28" height="14" aria-hidden="true">
             <path className="gantt-milestone" d="M14 0l7 7 -7 7 -7 -7z" />
-          </svg>
-          A milestone
-        </li>
-        <li>
-          <svg width="28" height="14" aria-hidden="true">
+          </svg> })}</li>
+        <li>{tr('plan.gantt.today2', { el: <svg width="28" height="14" aria-hidden="true">
             <line className="gantt-today" x1="14" x2="14" y1="0" y2="14" />
-          </svg>
-          Today
-        </li>
+          </svg> })}</li>
         {whatIf ? (
-          <li>
-            <svg width="28" height="14" aria-hidden="true">
+          <li>{tr('plan.gantt.whereTheWhatIfWould', { el: <svg width="28" height="14" aria-hidden="true">
               <rect className="gantt-whatif" x="1.5" y="1.5" width="25" height="11" rx="4" />
-            </svg>
-            Where the what-if would move it
-          </li>
+            </svg> })}</li>
         ) : null}
       </ul>
     </section>

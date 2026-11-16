@@ -6,6 +6,8 @@ import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { whenRead } from '../common/format';
 import { IssueBuilds } from '../builds/Builds';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 /** Under the issue's own key, so the live feed refreshes it with the issue. */
 export const useIssueVcs = (id: string) => useQuery({ queryKey: keys.issueSub(id, 'vcs'), queryFn: () => get<IssueVcs>(`/issues/${id}/vcs`) });
@@ -32,7 +34,7 @@ function Ref({ href, children, className }: { href: string | null; children: Rea
 }
 
 function author(c: Pick<VcsCommit, 'author'>): string {
-  return c.author.user?.name ?? c.author.name ?? c.author.login ?? 'someone';
+  return c.author.user?.name ?? c.author.name ?? c.author.login ?? t('vcs.issueCode.someone');
 }
 
 function Command({ commit }: { commit: VcsCommit }) {
@@ -42,8 +44,8 @@ function Command({ commit }: { commit: VcsCommit }) {
   return (
     <p className="code-command">
       <code>#{commit.command}</code>
-      {commit.applied ? <Badge tone="good">applied</Badge> : <Badge tone="bad">not applied</Badge>}
-      {commit.applied ? <span>as {author(commit)}: {why}</span> : why ? <span>{why}</span> : null}
+      {commit.applied ? <Badge tone="good">{t('vcs.issueCode.applied')}</Badge> : <Badge tone="bad">{t('vcs.issueCode.notApplied')}</Badge>}
+      {commit.applied ? <span>{tr('vcs.issueCode.as', { author: author(commit), why: why })}</span> : why ? <span>{why}</span> : null}
     </p>
   );
 }
@@ -55,15 +57,13 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
   return (
     <section className="card" aria-labelledby="code-title">
       <div className="section-head">
-        <h2 id="code-title">Commits and pull requests</h2>
-        {sources.length ? <span className="note">From {sources.join(', ')}</span> : null}
+        <h2 id="code-title">{t('vcs.issueCode.commitsAndPullRequests')}</h2>
+        {sources.length ? <span className="note">{tr('vcs.issueCode.from', { join: sources.join(', ') })}</span> : null}
       </div>
-      {vcs.isLoading ? <Loading what="its commits" /> : null}
+      {vcs.isLoading ? <Loading what={t('vcs.issueCode.itsCommits')} /> : null}
       {vcs.error ? <ErrorNote error={vcs.error} /> : null}
       {vcs.data && !vcs.data.commits.length && !vcs.data.pullRequests.length ? (
-        <p className="note">
-          None yet. Mention <span className="issue-id">{issue.id}</span> in a commit message, or in a pull request's title, branch or description, and it shows here.
-        </p>
+        <p className="note">{tr('vcs.issueCode.noneYetMentionInA', { id: issue.id, t0: (c: ReactNode) => <span className="issue-id">{c}</span> })}</p>
       ) : null}
       {vcs.data && (vcs.data.commits.length || vcs.data.pullRequests.length) ? (
         <ul className="code-list">
@@ -81,15 +81,12 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
                   <>
                     <span className="mono">{p.branch}</span>
                     {p.target ? (
-                      <>
-                        {' '}
-                        into <span className="mono">{p.target}</span>
-                      </>
+                      <>{tr('vcs.issueCode.into', { target: p.target, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</>
                     ) : null}{' '}
                     ·{' '}
                   </>
                 ) : null}
-                {p.author.login || p.author.name ? `opened by ${p.author.user?.name ?? p.author.login ?? p.author.name} · ` : ''}
+                {p.author.login || p.author.name ? t('vcs.issueCode.openedBy', { v: p.author.user?.name ?? p.author.login ?? p.author.name }) : ''}
                 {p.repository}
                 {p.at ? (
                   <>
@@ -104,7 +101,7 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
             <li key={c.id}>
               <p className="code-line">
                 <Ref className="code-ref" href={c.url}>
-                  <span className="hidden">Commit </span>
+                  <span className="hidden">{t('vcs.issueCode.commit')}</span>
                   {c.sha.slice(0, 7)}
                 </Ref>
                 <span className="code-title">{c.title}</span>
@@ -112,10 +109,7 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
               <p className="item-about">
                 {author(c)}
                 {c.branch ? (
-                  <>
-                    {' '}
-                    · on <span className="mono">{c.branch}</span>
-                  </>
+                  <>{tr('vcs.issueCode.on', { branch: c.branch, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</>
                 ) : null}
                 {c.at ? (
                   <>

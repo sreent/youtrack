@@ -22,6 +22,7 @@ import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { mailConfigured } from '../notify/state';
 import { findUser } from './schema-cache';
 import { userRefDto } from './values';
+import { localeOfPerson, translatorFor } from '../i18n';
 
 /** Emails beside the primary one, per person. */
 export const MAX_OTHER_EMAILS = 10;
@@ -329,17 +330,19 @@ export async function renderEmailConfirmMail(app: AppServices, row: MailRow): Pr
   // Links that expired are forgotten as new ones are made.
   await app.db.delete(emailConfirmations).where(sql`${emailConfirmations.expiresAt} < now()`);
   await app.db.insert(emailConfirmations).values({ tokenHash, userId: u.id, email, expiresAt: new Date(Date.now() + LINK_TTL_MS) });
-  const subject = 'Confirm your email for a4a';
+  // In its person's language (D49).
+  const tr = translatorFor(localeOfPerson(app, u));
+  const subject = tr.t('server.emails.subject');
   const { text, html } = composeMail(subject, {
-    lead: `Confirm that ${email} is yours in a4a.`,
+    lead: tr.t('server.emails.lead', { email }),
     sections: [
       {
-        head: `${u.name} (${u.login}) added this email to their account in a4a.`,
-        lines: ['Once it’s confirmed, the commits under it are theirs: they link to issues as theirs, and the commands in them run as them.'],
+        head: tr.t('server.emails.added', { name: u.name, login: u.login }),
+        lines: [tr.t('server.emails.commits')],
       },
     ],
-    action: { label: 'Confirm it', url: `${app.config.publicUrl}/emails/confirm?token=${encodeURIComponent(token)}` },
-    why: `You get this because someone signed in to a4a as ${u.login} added this email. If that wasn’t you, ignore it: nothing changes unless ${u.login} opens the link, signed in. It works once, for 24 hours.`,
+    action: { label: tr.t('server.emails.confirm'), url: `${app.config.publicUrl}/emails/confirm?token=${encodeURIComponent(token)}` },
+    why: tr.t('server.emails.why', { login: u.login }),
   });
   return {
     to: email,

@@ -1,6 +1,7 @@
 import type { Group, GroupDetail, ProjectGroup } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '../../api/client';
+import { t } from '../../i18n';
 
 /** Groups of people, and the roles projects give them (D27). */
 export const groupKeys = {
@@ -18,6 +19,6 @@ export const useProjectGroups = (key: string, enabled = true) =>
 
 /** Where a group's people come from, in words. */
 export function comesFrom(g: { providerName: string | null }, provider: string | null): string {
-  if (!g.providerName) return 'Kept by hand';
-  return `${provider ?? 'The identity provider'}, as “${g.providerName}”`;
+  if (!g.providerName) return t('groups.api.keptByHand');
+  return t('groups.api.as', { v: provider ?? t('groups.api.theIdentityProvider'), providerName: g.providerName });
 }
