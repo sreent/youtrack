@@ -96,10 +96,10 @@ function Note({ text, live }: { text: string; live?: boolean }) {
   const long = text.length > 280;
   const shown = long && !open ? `${text.slice(0, 260).trimEnd()}…` : text;
   return (
-    <div className="a4p-note">
+    <div className="talk-note">
       {live ? <span className="spin" aria-hidden="true" /> : <Icon name="agent" />}
       <p>
-        <span className="a4-sr-only">assistant's note: </span>
+        <span className="hidden">assistant's note: </span>
         {shown}
         {long ? (
           <>
@@ -222,9 +222,9 @@ export function Talk(props: TalkProps) {
     <Fragment key={r.key}>
       {r.kind === 'day' ? <span className="talk-day">{r.label}</span> : null}
       {r.kind === 'you' ? (
-        <p className={r.unsent ? 'say you a4p-unsent' : 'say you'}>
+        <p className={r.unsent ? 'say you unsent' : 'say you'}>
           {r.text}
-          {r.unsent ? <span className="a4p-unsent-word">Not sent</span> : null}
+          {r.unsent ? <span className="say-unsent">Not sent</span> : null}
         </p>
       ) : null}
       {r.kind === 'agent' ? (
@@ -241,7 +241,7 @@ export function Talk(props: TalkProps) {
         </p>
       ) : null}
       {r.kind === 'bad' ? (
-        <p className="say own a4p-say-bad" role="alert">
+        <p className="say own bad" role="alert">
           <Icon name="cross" />
           <span>{r.text}</span>
         </p>
@@ -264,7 +264,10 @@ export function Talk(props: TalkProps) {
   );
 
   return (
-    <section className="talk a4p-talk" aria-label="A conversation with assistant">
+    <section
+      className="talk on-page tw:h-[clamp(28rem,calc(100vh_-_12.5rem),64rem)] tw:max-[900px]:h-[75dvh] tw:max-[900px]:-order-1"
+      aria-label="A conversation with assistant"
+    >
       <header className="talk-head">
         <Avatar kind="agent" name="assistant" />
         <span className="talk-who">
@@ -277,7 +280,7 @@ export function Talk(props: TalkProps) {
         {props.remove}
       </header>
       {facts ? (
-        <section className="agent-facts a4p-facts-pop" id={factsId} aria-label="What assistant may do">
+        <section className="agent-facts talk-facts" id={factsId} aria-label="What assistant may do">
           <h3>Agent facts</h3>
           <div className="per">
             <span>assistant</span>
@@ -376,7 +379,7 @@ export function Talk(props: TalkProps) {
         {decidedCards.map(card)}
         {after.map(row)}
         {running && (!live?.parts.length || live.parts[live.parts.length - 1]!.kind === 'tool') ? (
-          <p className="a4p-working" role="status">
+          <p className="talk-working" role="status">
             <span className="spin" aria-hidden="true" />
             assistant is working on it
           </p>

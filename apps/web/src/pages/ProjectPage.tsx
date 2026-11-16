@@ -7,14 +7,13 @@ import { keys, useAIStatus, useFields, useMe, useProject, useProjectFields, useU
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
-import { errorText, Said, Scroll } from '../features/common/bits';
+import { errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { count, dateRead, money } from '../features/common/format';
 import { LadderChoice } from '../features/common/Ladder';
 import { useBaselines } from '../features/common/queries';
 import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
-import '../features/common/pages.css';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -42,46 +41,47 @@ function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   });
   return (
     <form
-      className="a4p-form"
+      className="form"
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
       }}
     >
-      <fieldset className="a4p-bare" disabled={!canEdit || save.isPending}>
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Name</span>
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={100} />
-          </label>
-          <label className="a4p-field">
-            <span>Lead</span>
-            <select value={form.lead} onChange={(e) => setForm((f) => ({ ...f, lead: e.target.value }))}>
-              <option value="">Nobody</option>
-              {(users.data ?? [])
-                .filter((u) => !u.isBot)
-                .map((u) => (
-                  <option key={u.id} value={u.login}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="a4p-field a4p-wide">
-            <span>What it's for</span>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} maxLength={5000} />
-          </label>
-          <label className="a4p-check a4p-wide">
-            <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
-            <span>
-              Archived
-              <small>Its issues stay, and can still be found; it leaves the lists of projects people work in.</small>
-            </span>
-          </label>
+      <fieldset className="unframed form" disabled={!canEdit || save.isPending}>
+        <div className="form-fields">
+          <FormField label="Name">
+            {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={100} />}
+          </FormField>
+          <FormField label="Lead">
+            {(id) => (
+              <select id={id} value={form.lead} onChange={(e) => setForm((f) => ({ ...f, lead: e.target.value }))}>
+                <option value="">Nobody</option>
+                {(users.data ?? [])
+                  .filter((u) => !u.isBot)
+                  .map((u) => (
+                    <option key={u.id} value={u.login}>
+                      {u.name}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </FormField>
+          <FormField label="What it's for" className="tw:col-span-full">
+            {(id) => (
+              <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} maxLength={5000} />
+            )}
+          </FormField>
         </div>
+        <label className="choice">
+          <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
+          <span>
+            Archived
+            <small className="field-help">Its issues stay, and can still be found; it leaves the lists of projects people work in.</small>
+          </span>
+        </label>
       </fieldset>
       {canEdit ? (
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" className="primary" disabled={!dirty || save.isPending}>
             {save.isPending ? 'Saving…' : 'Save the details'}
           </button>
@@ -143,7 +143,7 @@ function Baselines({ project }: { project: Project }) {
     );
   return (
     <Scroll label="Table of baselines">
-      <table className="figures a4p-baselines">
+      <table className="figures">
         <thead>
           <tr>
             <th scope="col">Baseline</th>
@@ -162,12 +162,12 @@ function Baselines({ project }: { project: Project }) {
           {baselines.data.map((b) => (
             <tr key={b.id}>
               <td>
-                <span className="a4p-row-title">{b.name}</span>
-                {b.note ? <span className="a4p-row-about">{b.note}</span> : null}
+                <span className="item-name">{b.name}</span>
+                {b.note ? <span className="item-about">{b.note}</span> : null}
               </td>
               <td>
                 <time dateTime={b.createdAt}>{ago(b.createdAt)}</time>
-                {b.createdBy ? <span className="a4p-row-about">by {b.createdBy.name}</span> : null}
+                {b.createdBy ? <span className="item-about">by {b.createdBy.name}</span> : null}
               </td>
               <td className="num">{b.taskCount}</td>
               <td>{b.start ? <time dateTime={b.start}>{dateRead(b.start)}</time> : '—'}</td>
@@ -222,7 +222,7 @@ export default function ProjectPage() {
         about={p.description || undefined}
         meta={
           <>
-            <span className="a4p-meta-who">
+            <span className="tw:inline-flex tw:items-center tw:gap-2">
               Lead: <UserWho user={p.lead} small />
             </span>
             <span>
@@ -244,7 +244,7 @@ export default function ProjectPage() {
         }
       />
       {!canEdit ? <p className="note">Only administrators can change a project. You can see how it's set up.</p> : null}
-      <div className="a4p-two-col">
+      <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <section className="card" aria-labelledby="details">
           <h2 id="details">Details</h2>
           <Details project={p} canEdit={canEdit} />
@@ -255,14 +255,14 @@ export default function ProjectPage() {
         </section>
       </div>
       <section className="card" aria-labelledby="plan">
-        <div className="a4p-section-head">
+        <div className="section-head">
           <h2 id="plan">Plan settings</h2>
           <span className="note">The plan's calendar and its money. People's own hours and rates are under Administration.</span>
         </div>
         <PlanSettings project={p} canEdit={canEdit} />
       </section>
       <section className="card" aria-labelledby="fields">
-        <div className="a4p-section-head">
+        <div className="section-head">
           <h2 id="fields">Fields</h2>
           <span className="note">What its issues have. Values and new fields are on the Fields page.</span>
         </div>
@@ -273,7 +273,7 @@ export default function ProjectPage() {
         ) : null}
       </section>
       <section className="card" aria-labelledby="baselines">
-        <div className="a4p-section-head">
+        <div className="section-head">
           <h2 id="baselines">Baselines</h2>
           <span className="note">The plan as it was agreed, kept to compare with.</span>
         </div>

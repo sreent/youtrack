@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "check:design": "node scripts/check-design.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
-    "@sreent/ocean": "github:sreent/ocean#7bec58e2367f4284db53091161ba1539f215a5c4",
+    "@sreent/ocean": "github:sreent/ocean#aaa52fcbba3e1ec62d5ee5d42bf59e765c761879",
     "@tanstack/react-query": "^5.107.1",
     "@a4a/shared": "workspace:*",
     "clsx": "^2.1.1",

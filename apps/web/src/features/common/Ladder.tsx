@@ -31,20 +31,20 @@ export function LadderChoice<V extends string>({
   const name = useId();
   const at = rungs.findIndex((r) => r.value === value);
   return (
-    <fieldset className="a4p-ladder" disabled={disabled || !onChange}>
+    <fieldset className="ladder-choice" disabled={disabled || !onChange}>
       <legend className="label">{legend}</legend>
       <div className="ladder-box">
-        <ol className={rungs.length === 2 ? 'ladder a4p-two' : 'ladder'}>
+        <ol className={rungs.length === 2 ? 'ladder two' : 'ladder'}>
           {rungs.map((r, i) => {
             const now = i === at;
             return (
               <li key={r.value} aria-current={now ? 'step' : undefined} className={i > at ? 'beyond' : disabled ? 'barred' : undefined}>
-                <label className="a4p-rung">
+                <label className="rung">
                   <span className="lvl">
                     {r.lvl}
                     {now ? ' · now' : ''}
                   </span>
-                  <span className="a4p-rung-name">
+                  <span className="rung-name">
                     <input type="radio" name={name} value={r.value} checked={now} onChange={() => onChange?.(r.value)} />
                     <strong>{r.name}</strong>
                   </span>
@@ -55,7 +55,7 @@ export function LadderChoice<V extends string>({
           })}
         </ol>
       </div>
-      {note ? <p className="note a4p-ladder-note">{note}</p> : null}
+      {note ? <p className="note ladder-note">{note}</p> : null}
     </fieldset>
   );
 }

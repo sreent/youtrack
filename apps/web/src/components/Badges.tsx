@@ -64,7 +64,7 @@ export function PriorityMeter({ fields, value }: { fields?: IssueField[]; value?
 
 export function IssueLink({ id, children }: { id: string; children?: React.ReactNode }) {
   return (
-    <Link className="a4-issue-id" to={`/issues/${id}`}>
+    <Link className="issue-id" to={`/issues/${id}`}>
       {children ?? id}
     </Link>
   );

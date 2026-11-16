@@ -25,6 +25,7 @@ import { Link } from 'react-router';
 import { ApiError } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { Badge, PriorityMeter } from '../../components/Badges';
+import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Who';
 import { localToday, spanWords, workCalendar } from '../plan/dates';
 import { plural } from '../plan/format';
@@ -44,7 +45,6 @@ import {
   type LaneKind,
   type Placed,
 } from './model';
-import './board.css';
 
 interface Target {
   lane: number;
@@ -381,11 +381,10 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
         </h2>
       )}
       {failure ? (
-        <div className="a4-error a4-board-failed" role="alert">
-          <div className="a4-grow">
-            <p>{failure.text}</p>
-            {failure.hint ? <p className="note">{failure.hint}</p> : null}
-          </div>
+        <div className="error-note" role="alert">
+          <Icon name="cross" />
+          <strong>{failure.text}</strong>
+          {failure.hint ? <p>{failure.hint}</p> : null}
           <button type="button" className="link" onClick={dismiss}>
             Dismiss
           </button>
@@ -404,7 +403,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
         onDragEnd={onDragEnd}
         onDragCancel={endDrag}
       >
-        <div className={dragging ? 'board-scroll a4-dragging' : 'board-scroll'} tabIndex={0} role="group" aria-label={`${title}'s columns`} aria-describedby={hintId}>
+        <div className={dragging ? 'board-scroll dragging' : 'board-scroll'} tabIndex={0} role="group" aria-label={`${title}'s columns`} aria-describedby={hintId}>
           <div className="board-grid">
             <div className="board-cols">
               {view.columns.map((c, i) => (

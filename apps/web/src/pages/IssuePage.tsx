@@ -7,7 +7,7 @@ import { keys, useAIStatus, useIssue, useMe, useProjectFields, useSuggestions, u
 import { StateBadge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
-import { ErrorNote, Loading, PageHead } from '../components/States';
+import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
 import { Who } from '../components/Who';
 import { SuggestionCard } from '../features/decide/SuggestionCard';
 import { errorText, useUpdateIssue } from '../features/issues/api';
@@ -17,6 +17,7 @@ import { isOption, isPeriod, isUser } from '../features/issues/fields';
 import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
+import { FormField } from '../components/Form';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -41,7 +42,7 @@ function Description({ issue }: { issue: IssueDetail }) {
   if (editing) {
     return (
       <form
-        className="card a4-form"
+        className="card form"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -56,12 +57,9 @@ function Description({ issue }: { issue: IssueDetail }) {
           }
         }}
       >
-        <label>
-          Description
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} autoFocus />
-        </label>
-        {error ? <p className="a4-error">{error}</p> : null}
-        <div className="a4-row a4-actions">
+        <FormField label="Description">{(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={10} autoFocus />}</FormField>
+        {error ? <ErrorLine>{error}</ErrorLine> : null}
+        <div className="cluster end">
           <button type="button" onClick={() => setEditing(false)}>
             Cancel
           </button>
@@ -73,9 +71,9 @@ function Description({ issue }: { issue: IssueDetail }) {
     );
   }
   return (
-    <section className="card a4-stack" aria-label="Description">
+    <section className="card stack" aria-label="Description">
       {issue.description.trim() ? <Markdown text={issue.description} /> : <p className="note">No description yet.</p>}
-      <div className="a4-row">
+      <div className="cluster">
         <button
           type="button"
           className="link"
@@ -109,12 +107,12 @@ function Summary({ issue }: { issue: IssueDetail }) {
       </button>
     );
   return (
-    <section className="card a4-stack" aria-label="Summary by the assistant">
-      <div className="a4-row">
+    <section className="card stack" aria-label="Summary by the assistant">
+      <div className="cluster">
         <Who kind="agent" name="assistant" small />
         <span className="note">summarised the issue and its discussion</span>
       </div>
-      {state === 'asking' ? <p className="note">Reading the issue…</p> : 'text' in state ? <Markdown text={state.text} /> : <p className="a4-error">{state.error}</p>}
+      {state === 'asking' ? <p className="note">Reading the issue…</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
     </section>
   );
 }
@@ -127,7 +125,7 @@ function Title({ issue }: { issue: IssueDetail }) {
   if (!editing)
     return (
       <span
-        className="a4-editable"
+        className="editable"
         role="button"
         tabIndex={0}
         title="Change the summary"
@@ -149,7 +147,7 @@ function Title({ issue }: { issue: IssueDetail }) {
     );
   return (
     <form
-      className="a4-row"
+      className="cluster"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!text.trim()) return;
@@ -162,14 +160,14 @@ function Title({ issue }: { issue: IssueDetail }) {
         }
       }}
     >
-      <input className="a4-grow" aria-label="Summary" value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
+      <input className="grow" aria-label="Summary" value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
       <button type="submit" className="primary">
         Save
       </button>
       <button type="button" onClick={() => setEditing(false)}>
         Cancel
       </button>
-      {error ? <span className="a4-error">{error}</span> : null}
+      {error ? <ErrorLine>{error}</ErrorLine> : null}
     </form>
   );
 }
@@ -282,9 +280,9 @@ export default function IssuePage() {
           </>
         }
       />
-      {triaging && triaging !== 'asking' ? <p className="a4-error">{triaging}</p> : null}
-      <div className="a4-split">
-        <div className="a4-stack">
+      {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
+      <div className="split">
+        <div className="stack">
           <Description issue={data} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
           {openSuggestions.map((s) => (

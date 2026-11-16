@@ -7,9 +7,8 @@ import { keys, useMe, useProjects, useUsers } from '../api/queries';
 import { Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
-import { errorText, Scroll } from '../features/common/bits';
+import { FormField, Scroll } from '../features/common/bits';
 import { TRIAGE_WORDS } from '../features/projects/triage';
-import '../features/common/pages.css';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
   { id: 'software', name: 'Software', about: 'State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation and Due date.' },
@@ -43,75 +42,74 @@ function CreateProject() {
     <section className="card" aria-labelledby="new-project">
       <h2 id="new-project">Create a project</h2>
       <form
-        className="a4p-form"
+        className="form"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
         }}
       >
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Key</span>
-            <input
-              value={form.key}
-              onChange={set('key')}
-              required
-              minLength={2}
-              maxLength={10}
-              pattern="[A-Za-z][A-Za-z0-9]*"
-              className="a4p-key-input"
-              aria-describedby="key-help"
-              autoComplete="off"
-            />
-            <small id="key-help">
-              2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {(form.key || 'BACK').toUpperCase()}-12, and can't change
-              later.
-            </small>
-          </label>
-          <label className="a4p-field">
-            <span>Name</span>
-            <input value={form.name} onChange={set('name')} required maxLength={100} />
-          </label>
-          <label className="a4p-field">
-            <span>Lead</span>
-            <select value={form.lead} onChange={set('lead')}>
-              <option value="">Nobody yet</option>
-              {(users.data ?? [])
-                .filter((u) => !u.isBot && !u.banned)
-                .map((u) => (
-                  <option key={u.id} value={u.login}>
-                    {u.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label className="a4p-field a4p-wide">
-            <span>What it's for</span>
-            <textarea value={form.description} onChange={set('description')} rows={2} maxLength={5000} />
-          </label>
+        <div className="form-fields">
+          <FormField
+            label="Key"
+            help={
+              <>
+                2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {(form.key || 'BACK').toUpperCase()}-12, and can't change
+                later.
+              </>
+            }
+          >
+            {(id, help) => (
+              <input
+                id={id}
+                value={form.key}
+                onChange={set('key')}
+                required
+                minLength={2}
+                maxLength={10}
+                pattern="[A-Za-z][A-Za-z0-9]*"
+                className="key"
+                aria-describedby={help}
+                autoComplete="off"
+              />
+            )}
+          </FormField>
+          <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
+          <FormField label="Lead">
+            {(id) => (
+              <select id={id} value={form.lead} onChange={set('lead')}>
+                <option value="">Nobody yet</option>
+                {(users.data ?? [])
+                  .filter((u) => !u.isBot && !u.banned)
+                  .map((u) => (
+                    <option key={u.id} value={u.login}>
+                      {u.name}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </FormField>
+          <FormField label="What it's for" className="tw:col-span-full">
+            {(id) => <textarea id={id} value={form.description} onChange={set('description')} rows={2} maxLength={5000} />}
+          </FormField>
         </div>
-        <fieldset className="a4p-checks a4p-templates">
+        <fieldset className="choice-group column">
           <legend>Its fields, to start with</legend>
           {TEMPLATES.map((t) => (
-            <label key={t.id} className="a4p-check">
+            <label key={t.id} className="choice">
               <input type="radio" name="template" value={t.id} checked={form.template === t.id} onChange={() => setForm((f) => ({ ...f, template: t.id }))} />
               <span>
                 {t.name}
-                <small>{t.about}</small>
+                <small className="field-help">{t.about}</small>
               </span>
             </label>
           ))}
         </fieldset>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" className="primary" disabled={create.isPending}>
             {create.isPending ? 'Creating…' : 'Create the project'}
           </button>
         </div>
-        {create.error ? (
-          <p className="a4-error" role="alert">
-            {errorText(create.error)}
-          </p>
-        ) : null}
+        {create.error ? <ErrorNote error={create.error} /> : null}
       </form>
     </section>
   );
@@ -131,10 +129,10 @@ export default function ProjectsPage() {
       {projects.isLoading ? <Loading what="projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data ? (
-        <section className="card a4p-flush" aria-label="Projects">
+        <section className="card figures-card" aria-label="Projects">
           {projects.data.length ? (
             <Scroll label="Table of projects">
-              <table className="figures a4p-projects">
+              <table className="figures">
                 <thead>
                   <tr>
                     <th scope="col">Key</th>
@@ -150,12 +148,12 @@ export default function ProjectsPage() {
                   {projects.data.map((p) => (
                     <tr key={p.id}>
                       <td>
-                        <Link to={`/projects/${p.key}`} className="a4p-key">
+                        <Link to={`/projects/${p.key}`} className="issue-id">
                           {p.key}
                         </Link>
                       </td>
                       <td>
-                        <Link to={`/projects/${p.key}`} className="a4p-row-title">
+                        <Link to={`/projects/${p.key}`} className="item-name">
                           {p.name}
                         </Link>
                         {p.archived ? (
@@ -164,13 +162,13 @@ export default function ProjectsPage() {
                             <Badge tone="idle">archived</Badge>
                           </>
                         ) : null}
-                        {p.description ? <span className="a4p-row-about">{p.description}</span> : null}
+                        {p.description ? <span className="item-about">{p.description}</span> : null}
                       </td>
                       <td>
                         <UserWho user={p.lead} small />
                       </td>
                       <td className="num">
-                        <span className="a4p-counts">
+                        <span className="of-total">
                           <strong>{p.openIssueCount}</strong> of {p.issueCount}
                         </span>
                       </td>

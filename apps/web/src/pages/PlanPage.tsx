@@ -8,7 +8,6 @@ import { dayMonth } from '../features/plan/dates';
 import { money, plural } from '../features/plan/format';
 import { Resources } from '../features/plan/Resources';
 import { Timeline } from '../features/plan/Timeline';
-import '../features/plan/plan.css';
 
 const VIEWS = [
   { id: 'timeline', label: 'Timeline' },
@@ -35,13 +34,11 @@ function ChooseProject() {
       {live.length ? (
         <section className="card" aria-labelledby="plan-projects">
           <h2 id="plan-projects">Choose a project</h2>
-          <ul className="a4-plan-projects">
+          <ul className="directory">
             {live.map((p) => (
               <li key={p.id}>
-                <span className="a4-row">
-                  <Link to={`/plan/${p.key}`}>
-                    <strong>{p.name}</strong>
-                  </Link>
+                <span className="directory-name">
+                  <Link to={`/plan/${p.key}`}>{p.name}</Link>
                   <span className="issue-id">{p.key}</span>
                 </span>
                 <p className="note">{planFacts(p)}</p>
@@ -69,9 +66,9 @@ function ProjectPlan({ project, view }: { project: Project; view: View }) {
   return (
     <>
       <PageHead title={project.name} crumbs={crumbs} about={project.description || undefined} />
-      <div className="a4-stack">
+      <div className="stack">
         {/* Ocean's choice of views: a row of buttons, the chosen one pressed; each view has its own address. */}
-        <div className="modes a4-plan-views" role="group" aria-label={`${project.name}'s plan`}>
+        <div className="modes plan-views" role="group" aria-label={`${project.name}'s plan`}>
           {VIEWS.map((v) => (
             <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => navigate({ pathname: `/plan/${project.key}/${v.id}`, search: location.search })}>
               {v.label}

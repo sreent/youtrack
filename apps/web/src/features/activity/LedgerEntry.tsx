@@ -36,7 +36,7 @@ function byLine(e: TrackerEvent): string {
 function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string] | null; more?: React.ReactNode } {
   const issue = e.issue ? (
     <>
-      <IssueLink id={e.issue.id} /> <span className="a4p-ledger-summary">{e.issue.summary}</span>
+      <IssueLink id={e.issue.id} /> <span>{e.issue.summary}</span>
     </>
   ) : null;
   const accepted = e.data.acceptedFrom === 'triage';
@@ -61,7 +61,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return {
         text: <>commented on {issue}</>,
         badge: ['changes', 'comments'],
-        more: str(e.data.text) ? <q className="a4p-ledger-quote">{excerpt(str(e.data.text), 220)}</q> : null,
+        more: str(e.data.text) ? <q className="ledger-quote">{excerpt(str(e.data.text), 220)}</q> : null,
       };
     case 'comment.updated':
       return { text: <>edited a comment on {issue}</>, badge: ['changes', 'edits a comment'] };
@@ -83,13 +83,13 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return {
         text: (
           <>
-            logged <span className="a4p-mono">{str(e.data.duration)}</span> on {issue}
+            logged <span className="mono">{str(e.data.duration)}</span> on {issue}
           </>
         ),
         badge: ['changes', 'logs work'],
         more:
           str(e.data.description) || str(e.data.date) ? (
-            <span className="a4p-ledger-note">
+            <span className="ledger-note">
               {[str(e.data.date) ? `for ${dateRead(str(e.data.date))}` : '', str(e.data.description)].filter(Boolean).join(': ')}
             </span>
           ) : null,
@@ -101,7 +101,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         text: <>suggested changes to {issue}</>,
         badge: ['writes', 'suggests'],
         more: (
-          <span className="a4p-ledger-note">
+          <span className="ledger-note">
             {str(e.data.summary)} <Link to={e.project ? `/suggestions?project=${e.project}` : '/suggestions'}>Decide on it</Link>
           </span>
         ),
@@ -115,7 +115,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         ),
         badge: ['changes', 'saves a baseline'],
         more: (
-          <span className="a4p-ledger-note">
+          <span className="ledger-note">
             {[e.data.tasks !== undefined ? `${str(e.data.tasks)} tasks` : '', str(e.data.finish) ? `finishing ${dateRead(str(e.data.finish))}` : '']
               .filter(Boolean)
               .join(', ')}
@@ -147,12 +147,12 @@ export function LedgerEntry({ event }: { event: TrackerEvent }) {
       <div className="ledger-body">
         <div className="ledger-what">
           <Who kind={who.kind} name={who.name} />
-          <span className="a4p-ledger-did">{w.text}</span>
+          <span className="ledger-did">{w.text}</span>
           {w.badge ? <Badge grammar={w.badge[0]}>{w.badge[1]}</Badge> : null}
         </div>
-        {w.more ? <div className="a4p-ledger-more">{w.more}</div> : null}
+        {w.more ? <div className="ledger-more">{w.more}</div> : null}
         <div className="ledger-by">
-          {byLine(event)} · <span className="a4p-mono">event {event.id}</span>
+          {byLine(event)} · <span className="mono">event {event.id}</span>
         </div>
       </div>
     </li>

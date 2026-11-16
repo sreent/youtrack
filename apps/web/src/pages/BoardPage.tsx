@@ -6,7 +6,6 @@ import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
 import { CommandBar } from '../features/issues/CommandBar';
 import { span } from '../features/plan/dates';
-import '../features/board/board.css';
 
 function sprintOption(s: Sprint): string {
   const dates = s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : '';
@@ -18,7 +17,7 @@ function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current
   const archived = sprints.filter((s) => s.archived);
   const id = useId();
   return (
-    <span className="a4-sprint-pick">
+    <span className="form-field inline">
       <label htmlFor={id}>Sprint</label>
       <select id={id} value={current ?? ''} onChange={(e) => onPick(e.target.value)}>
         {open.map((s) => (
@@ -115,7 +114,7 @@ export default function BoardPage() {
         }
       />
       {/* Not a card: the board is the page's own surface, as Ocean's preview draws it. */}
-      <div className="a4-stack">
+      <div className="stack">
         {v.board.sprintsEnabled && !v.sprint ? <p className="note">This board has no sprint yet, so it shows every issue on it.</p> : null}
         {total === 0 ? <p className="note">{v.sprint ? `Nothing is in ${v.sprint.name} yet.` : 'There are no issues on this board yet.'}</p> : null}
         <Board view={v} onCommand={askFor} />

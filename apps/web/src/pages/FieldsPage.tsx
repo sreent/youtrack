@@ -8,11 +8,10 @@ import { keys, useFields, useProjects } from '../api/queries';
 import { Badge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { AdminOnly, errorText, Said } from '../features/common/bits';
+import { AdminOnly, errorText, FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { count } from '../features/common/format';
 import { TYPE_WORDS } from '../features/projects/ProjectFields';
-import '../features/common/pages.css';
 
 const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];
 const MULTI_TYPES: FieldType[] = ['enum', 'user', 'version'];
@@ -25,9 +24,9 @@ const TONES: { tone: Tone | null; word: string }[] = [
   { tone: 'idle', word: 'Not needed' },
 ];
 
-function ToneSelect({ value, onChange, label }: { value: Tone | null; onChange: (t: Tone | null) => void; label: string }) {
+function ToneSelect({ id, value, onChange, label }: { id?: string; value: Tone | null; onChange: (t: Tone | null) => void; label?: string }) {
   return (
-    <select value={value ?? ''} onChange={(e) => onChange((e.target.value || null) as Tone | null)} aria-label={label}>
+    <select id={id} value={value ?? ''} onChange={(e) => onChange((e.target.value || null) as Tone | null)} aria-label={label}>
       {TONES.map((t) => (
         <option key={t.tone ?? 'none'} value={t.tone ?? ''}>
           {t.word}
@@ -77,34 +76,34 @@ function ValueRow({
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   return (
-    <li className={value.archived ? 'a4p-value a4p-archived' : 'a4p-value'}>
-      <span className="a4p-order">
-        <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} up`} disabled={first} onClick={() => onMove(-1)}>
-          <Icon name="chevron" className="a4p-up" />
+    <li className={value.archived ? 'value-row dimmed' : 'value-row'}>
+      <span className="value-order">
+        <button type="button" className="round" aria-label={`Move ${value.name} up`} disabled={first} onClick={() => onMove(-1)}>
+          <Icon name="chevron" className="up" />
         </button>
-        <button type="button" className="round a4p-round-sm" aria-label={`Move ${value.name} down`} disabled={last} onClick={() => onMove(1)}>
+        <button type="button" className="round" aria-label={`Move ${value.name} down`} disabled={last} onClick={() => onMove(1)}>
           <Icon name="chevron" />
         </button>
       </span>
       <input
-        className="a4p-value-name"
+        className="value-name"
         value={form.name}
         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
         aria-label={`Name of ${value.name}`}
         maxLength={80}
       />
-      <span className="a4p-tone">
+      <span className="value-tone">
         <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label={`How ${value.name} shows`} />
         <Badge tone={form.tone}>{form.name || value.name}</Badge>
       </span>
-      <span className="a4p-value-more">
+      <span className="value-more">
         {field.type === 'state' ? (
-          <label className="a4p-check">
+          <label className="choice">
             <input type="checkbox" checked={form.isResolved} onChange={(e) => setForm((f) => ({ ...f, isResolved: e.target.checked }))} />
             <span>Resolves</span>
           </label>
         ) : null}
-        <label className="a4p-check">
+        <label className="choice">
           <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
           <span>Archived</span>
         </label>
@@ -113,8 +112,8 @@ function ValueRow({
             {projects.get(value.projectId) ?? 'one project'} only
           </span>
         ) : null}
-        <span className="a4p-actions">
-          <button type="button" className="a4p-small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
+        <span className="cluster">
+          <button type="button" className="small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? 'Saving…' : 'Save'}
           </button>
           <Confirm
@@ -155,48 +154,51 @@ function AddValue({ field, projects }: { field: Field; projects: { key: string; 
   });
   return (
     <form
+      className="stack"
       onSubmit={(e) => {
         e.preventDefault();
         if (form.name.trim()) add.mutate();
       }}
     >
-      <fieldset className="link-add">
+      <fieldset className="form-card adding stack">
         <legend>Add a value</legend>
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Name</span>
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={80} />
-          </label>
-          <label className="a4p-field">
-            <span>Shows as</span>
-            <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label="How it shows" />
-            <span className="a4p-preview">
-              <Badge tone={form.tone}>{form.name.trim() || 'Its name'}</Badge>
-            </span>
-          </label>
-          <label className="a4p-field">
-            <span>For</span>
-            <select value={form.project} onChange={(e) => setForm((f) => ({ ...f, project: e.target.value }))}>
-              <option value="">Every project</option>
-              {projects.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.key} only
-                </option>
-              ))}
-            </select>
-            <small>A value for one project can't move to others later.</small>
-          </label>
+        <div className="form-fields">
+          <FormField label="Name">
+            {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={80} />}
+          </FormField>
+          <FormField label="Shows as">
+            {(id) => (
+              <>
+                <ToneSelect id={id} value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} />
+                <span>
+                  <Badge tone={form.tone}>{form.name.trim() || 'Its name'}</Badge>
+                </span>
+              </>
+            )}
+          </FormField>
+          <FormField label="For" help="A value for one project can't move to others later.">
+            {(id, help) => (
+              <select id={id} aria-describedby={help} value={form.project} onChange={(e) => setForm((f) => ({ ...f, project: e.target.value }))}>
+                <option value="">Every project</option>
+                {projects.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.key} only
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
           {field.type === 'state' ? (
-            <label className="a4p-check a4p-check-low">
+            <label className="choice">
               <input type="checkbox" checked={form.isResolved} onChange={(e) => setForm((f) => ({ ...f, isResolved: e.target.checked }))} />
               <span>
                 Resolves an issue
-                <small>Issues in this state count as done.</small>
+                <small className="field-help">Issues in this state count as done.</small>
               </span>
             </label>
           ) : null}
         </div>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" disabled={!form.name.trim() || add.isPending}>
             {add.isPending ? 'Adding…' : 'Add the value'}
           </button>
@@ -253,8 +255,8 @@ function FieldEditor({ field }: { field: Field }) {
   });
   const options = OPTION_TYPES.includes(field.type);
   return (
-    <section className="card a4p-field-editor" aria-labelledby="field-title">
-      <div className="a4p-section-head">
+    <section className="card" aria-labelledby="field-title">
+      <div className="section-head">
         <h2 id="field-title">{field.name}</h2>
         <Confirm
           small
@@ -266,28 +268,28 @@ function FieldEditor({ field }: { field: Field }) {
           onConfirm={() => remove.mutate()}
         />
       </div>
-      <p className="note a4p-lead">
+      <p className="note section-note">
         {TYPE_WORDS[field.type][0]!.toUpperCase() + TYPE_WORDS[field.type].slice(1)}
         {field.multi ? ', several at once' : ''}. Its kind can't change once it's made.
       </p>
       <form
-        className="a4p-form"
+        className="form"
         onSubmit={(e) => {
           e.preventDefault();
           save.mutate();
         }}
       >
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Name</span>
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />
-          </label>
-          <label className="a4p-field a4p-wide">
-            <span>What it means</span>
-            <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
-          </label>
+        <div className="form-fields">
+          <FormField label="Name">
+            {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />}
+          </FormField>
+          <FormField label="What it means" className="tw:col-span-full">
+            {(id) => (
+              <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
+            )}
+          </FormField>
         </div>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" disabled={!dirty || save.isPending}>
             {save.isPending ? 'Saving…' : 'Save the field'}
           </button>
@@ -301,7 +303,7 @@ function FieldEditor({ field }: { field: Field }) {
             In order: the first comes first in lists and sorts first. A value shows as the badge beside it, its colour a meaning, never a decoration.
           </p>
           {values.length ? (
-            <ol className="a4p-values" aria-label={`Values of ${field.name}`}>
+            <ol className="value-rows" aria-label={`Values of ${field.name}`}>
               {values.map((v, i) => (
                 <ValueRow
                   key={v.id}
@@ -349,40 +351,41 @@ function CreateField() {
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   return (
-    <section className="card" aria-labelledby="new-field">
+    <section className="card side-card" aria-labelledby="new-field">
       <h2 id="new-field">Make a field</h2>
       <form
-        className="a4p-form"
+        className="form"
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate();
         }}
       >
-        <label className="a4p-field">
-          <span>Name</span>
-          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />
-        </label>
-        <label className="a4p-field">
-          <span>What it holds</span>
-          <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as FieldType }))}>
-            {FIELD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_WORDS[t][0]!.toUpperCase() + TYPE_WORDS[t].slice(1)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <FormField label="Name">
+          {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />}
+        </FormField>
+        <FormField label="What it holds">
+          {(id) => (
+            <select id={id} value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as FieldType }))}>
+              {FIELD_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {TYPE_WORDS[t][0]!.toUpperCase() + TYPE_WORDS[t].slice(1)}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
         {MULTI_TYPES.includes(form.type) ? (
-          <label className="a4p-check">
+          <label className="choice">
             <input type="checkbox" checked={form.multi} onChange={(e) => setForm((f) => ({ ...f, multi: e.target.checked }))} />
             <span>Several at once</span>
           </label>
         ) : null}
-        <label className="a4p-field">
-          <span>What it means</span>
-          <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
-        </label>
-        <div className="a4p-actions">
+        <FormField label="What it means">
+          {(id) => (
+            <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
+          )}
+        </FormField>
+        <div className="cluster">
           <button type="submit" className="primary" disabled={!form.name.trim() || create.isPending}>
             {create.isPending ? 'Making…' : 'Make the field'}
           </button>
@@ -405,11 +408,11 @@ export default function FieldsPage() {
       {fields.isLoading ? <Loading what="fields" /> : null}
       {fields.error ? <ErrorNote error={fields.error} /> : null}
       {fields.data ? (
-        <div className="a4p-master">
-          <div className="a4p-master-list">
-            <nav className="card a4p-convos" aria-label="Fields">
+        <div className="tw:grid tw:grid-cols-[15rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
+          <div className="stack">
+            <nav className="card side-card nav-card" aria-label="Fields">
               <h2>{count(fields.data.length, 'field')}</h2>
-              <ul className="a4p-convo-list a4p-field-list">
+              <ul className="nav-list">
                 {fields.data.map((f) => (
                   <li key={f.id}>
                     <a
@@ -420,8 +423,8 @@ export default function FieldsPage() {
                         setSearch({ field: f.id }, { replace: true });
                       }}
                     >
-                      <span className="a4p-convo-title">{f.name}</span>
-                      <span className="a4p-convo-meta">
+                      <span className="nav-list-name">{f.name}</span>
+                      <span className="nav-list-about">
                         <span>{TYPE_WORDS[f.type]}</span>
                         {OPTION_TYPES.includes(f.type) ? <span>{count(f.values.length, 'value')}</span> : null}
                       </span>
@@ -432,7 +435,9 @@ export default function FieldsPage() {
             </nav>
             <CreateField />
           </div>
-          {chosen ? <FieldEditor key={chosen.id} field={chosen} /> : <p className="note">There are no fields yet. Make the first one.</p>}
+          <div className="stack">
+            {chosen ? <FieldEditor key={chosen.id} field={chosen} /> : <p className="note">There are no fields yet. Make the first one.</p>}
+          </div>
         </div>
       ) : null}
     </AdminOnly>

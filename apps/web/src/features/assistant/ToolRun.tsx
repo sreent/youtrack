@@ -63,7 +63,7 @@ export function ToolRun({
   const alone = steps.filter((s) => s.onItsOwn && s.status === 'done');
   return (
     <>
-      <div className="a4p-run">
+      <div className="run-card">
         <ol className="timeline" aria-label={label}>
           {steps.map((s) => {
             const tool = tools?.get(s.name);
@@ -75,11 +75,11 @@ export function ToolRun({
               <li key={s.id}>
                 <time dateTime={s.at}>{s.at ? clock(s.at) : ''}</time>
                 {s.status === 'running' ? (
-                  <span className="spin a4p-run-spin" aria-hidden="true" />
+                  <span className="spin" aria-hidden="true" />
                 ) : (
                   <span className={`node tone-${tone}`} aria-hidden="true" />
                 )}
-                <span className="a4p-run-what">
+                <span className="step-what">
                   <code>{s.name}</code> {what ? <Linked text={what} /> : null}
                   <span className="step-detail">
                     <Badge grammar={kind}>{kind}</Badge>
@@ -89,7 +89,7 @@ export function ToolRun({
                     {s.status === 'rejected' ? <Badge tone="idle">you declined it</Badge> : null}
                     {s.status === 'done' && s.onItsOwn ? <span>on its own, as you let it</span> : null}
                     {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? (
-                      <span className="a4p-ms">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span>
+                      <span className="step-took">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span>
                     ) : null}
                     {tool?.destructive && s.status !== 'done' ? <span className="chip">can overwrite</span> : null}
                   </span>
@@ -113,7 +113,7 @@ function ActedAlone({ steps, onAskFirst }: { steps: RunStep[]; onAskFirst?: () =
   // The issues it changed, from what each step said and what it was given.
   const ids = [...new Set(steps.flatMap((s) => `${s.summary ?? ''} ${JSON.stringify(s.input ?? '')}`.match(ISSUE_ID) ?? []))];
   return (
-    <section className="draft a4p-acted" aria-label="What it did on its own">
+    <section className="draft acted" aria-label="What it did on its own">
       <div className="acted-head">
         <Avatar kind="agent" name="assistant" />
         <div>

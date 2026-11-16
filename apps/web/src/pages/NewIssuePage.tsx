@@ -8,6 +8,7 @@ import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Who } from '../components/Who';
 import { useStateTones } from '../features/issues/api';
 import { Badge } from '../components/Badges';
+import { FormField } from '../components/Form';
 
 /** Fields worth setting while reporting; the rest can wait for triage or the team. */
 const ASKED = ['Type', 'Priority', 'Assignee', 'Subsystem', 'Due date'];
@@ -55,17 +56,16 @@ function Similar({ summary, description, project, judge }: { summary: string; de
   const shown = result.judged ? result.items.filter((i) => i.verdict !== 'different') : result.items;
 
   return (
-    <section className="card a4-stack" aria-labelledby="similar-title" aria-live="polite">
-      <div className="a4-row">
-        <h2 id="similar-title" className="a4-grow">
-          {result.judged ? 'What the agent thinks these are' : 'Issues that may be the same'}
-        </h2>
-        {judge && !result.judged ? (
-          <button type="button" onClick={() => void askAgent()} disabled={judging}>
-            {judging ? 'Reading them…' : 'Ask an agent which are duplicates'}
-          </button>
-        ) : null}
-      </div>
+    <section className="card issue-links-box" aria-labelledby="similar-title" aria-live="polite">
+      <div className="issue-links stack">
+        <div className="issue-links-head">
+          <h2 id="similar-title">{result.judged ? 'What the agent thinks these are' : 'Issues that may be the same'}</h2>
+          {judge && !result.judged ? (
+            <button type="button" onClick={() => void askAgent()} disabled={judging}>
+              {judging ? 'Reading them…' : 'Ask an agent which are duplicates'}
+            </button>
+          ) : null}
+        </div>
       {result.judged ? (
         <p className="note">
           <Who kind="agent" name="triage" small /> read each against your words.
@@ -74,70 +74,67 @@ function Similar({ summary, description, project, judge }: { summary: string; de
         <p className="note">Found by their words. If one of these is what you’re reporting, add to it instead.</p>
       )}
       {shown.length ? (
-        <ul className="a4-similar">
+        <ul className="link-list">
           {shown.map((s) => (
             <li key={s.issue.id} className={s.issue.resolved ? 'resolved' : undefined}>
-              <span className="a4-row">
-                <span className="issue-id">{s.issue.id}</span>
-                {s.issue.state ? <Badge tone={tones.get(s.issue.state) ?? null}>{s.issue.state}</Badge> : null}
-                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? 'likely the same' : 'related'}</Badge> : null}
-              </span>
+              <span className="issue-id">{s.issue.id}</span>
               <Link to={`/issues/${s.issue.id}`} target="_blank" rel="noreferrer">
                 {s.issue.summary}
               </Link>
-              {s.reason ? <span className="note">{s.reason}</span> : null}
+              <span className="badges">
+                {s.issue.state ? <Badge tone={tones.get(s.issue.state) ?? null}>{s.issue.state}</Badge> : null}
+                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? 'likely the same' : 'related'}</Badge> : null}
+              </span>
+              {s.reason ? <p className="note">{s.reason}</p> : null}
             </li>
           ))}
         </ul>
       ) : (
         <p className="note">None of them is the same as this.</p>
       )}
+      </div>
     </section>
   );
 }
 
 function FieldInput({ field, value, onChange }: { field: ProjectField; value: string; onChange: (v: string) => void }) {
   const users = useUsers();
-  const id = useId();
   if (field.type === 'user') {
     return (
-      <label htmlFor={id}>
-        {field.name}
-        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Unassigned</option>
-          {(users.data ?? [])
-            .filter((u) => !u.banned && !u.isBot)
-            .map((u) => (
-              <option key={u.id} value={u.login}>
-                {u.name}
-              </option>
-            ))}
-        </select>
-      </label>
+      <FormField label={field.name}>
+        {(id) => (
+          <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+            <option value="">Unassigned</option>
+            {(users.data ?? [])
+              .filter((u) => !u.banned && !u.isBot)
+              .map((u) => (
+                <option key={u.id} value={u.login}>
+                  {u.name}
+                </option>
+              ))}
+          </select>
+        )}
+      </FormField>
     );
   }
   if (field.type === 'date') {
-    return (
-      <label htmlFor={id}>
-        {field.name}
-        <input id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} />
-      </label>
-    );
+    return <FormField label={field.name}>{(id) => <input id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} />}</FormField>;
   }
   return (
-    <label htmlFor={id}>
-      {field.name}
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{field.defaultValue ? 'The project’s default' : 'Not set'}</option>
-        {field.values
-          .filter((v) => !v.archived)
-          .map((v) => (
-            <option key={v.id} value={v.name}>
-              {v.name}
-            </option>
-          ))}
-      </select>
-    </label>
+    <FormField label={field.name}>
+      {(id) => (
+        <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{field.defaultValue ? 'The project’s default' : 'Not set'}</option>
+          {field.values
+            .filter((v) => !v.archived)
+            .map((v) => (
+              <option key={v.id} value={v.name}>
+                {v.name}
+              </option>
+            ))}
+        </select>
+      )}
+    </FormField>
   );
 }
 
@@ -189,43 +186,44 @@ export default function NewIssuePage() {
         title="New issue"
         about={triageOn ? 'Say what happened. Triage suggests a type, a priority and who could take it; nothing changes until someone accepts it.' : 'Say what happened, and what you expected instead.'}
       />
-      <div className="a4-split">
+      <div className="split">
         <form
-          className="card a4-form"
+          className="card form"
           onSubmit={(e) => {
             e.preventDefault();
             if (summary.trim() && project) void create();
           }}
         >
-          <label htmlFor="new-issue-project">
-            Project
-            <select id="new-issue-project" value={project} onChange={(e) => setProject(e.target.value)} required>
-              {(projects.data ?? [])
-                .filter((p) => !p.archived)
-                .map((p) => (
-                  <option key={p.id} value={p.key}>
-                    {p.name} ({p.key})
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Summary
-            <input value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={500} autoFocus placeholder="Login fails on Safari with SSO" />
-          </label>
-          <label>
-            Description
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder={'Steps, what you expected, what happened instead.\nMarkdown works here.'} />
-          </label>
+          <FormField label="Project">
+            {(id) => (
+              <select id={id} value={project} onChange={(e) => setProject(e.target.value)} required>
+                {(projects.data ?? [])
+                  .filter((p) => !p.archived)
+                  .map((p) => (
+                    <option key={p.id} value={p.key}>
+                      {p.name} ({p.key})
+                    </option>
+                  ))}
+              </select>
+            )}
+          </FormField>
+          <FormField label="Summary">
+            {(id) => <input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={500} autoFocus placeholder="Login fails on Safari with SSO" />}
+          </FormField>
+          <FormField label="Description">
+            {(id) => (
+              <textarea id={id} value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder={'Steps, what you expected, what happened instead.\nMarkdown works here.'} />
+            )}
+          </FormField>
           {asked.length ? (
-            <div className="tw:grid tw:gap-3 tw:sm:grid-cols-2">
+            <div className="form-fields">
               {asked.map((f) => (
                 <FieldInput key={f.fieldId} field={f} value={fields[f.name] ?? ''} onChange={(v) => setFields((x) => ({ ...x, [f.name]: v }))} />
               ))}
             </div>
           ) : null}
           {error ? <ErrorNote error={error} /> : null}
-          <div className="a4-row a4-actions">
+          <div className="cluster end">
             <Link to="/issues" className="button">
               Cancel
             </Link>
@@ -234,7 +232,7 @@ export default function NewIssuePage() {
             </button>
           </div>
         </form>
-        <div className="a4-stack">
+        <div className="stack">
           {project ? <Similar summary={summary} description={description} project={project} judge={Boolean(triageOn)} /> : null}
         </div>
       </div>

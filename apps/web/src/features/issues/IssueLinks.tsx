@@ -7,6 +7,7 @@ import { keys, useLinkTypes } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { errorText, useStateTones } from './api';
 import { isOption } from './fields';
+import { ErrorLine } from '../../components/States';
 
 function RefBadge({ issue, tones }: { issue: IssueRef; tones: Map<string, Tone> }) {
   if (!issue.state) return null;
@@ -145,12 +146,10 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                   <RefBadge issue={found.issue} tones={tones} />
                 </p>
               ) : (
-                <p className="a4-error" id={`${id}-found`}>
-                  {found.error}
-                </p>
+                <ErrorLine id={`${id}-found`}>{found.error}</ErrorLine>
               )
             ) : null}
-            {wanted === issue.id ? <p className="a4-error">An issue can’t link to itself.</p> : null}
+            {wanted === issue.id ? <ErrorLine>An issue can’t link to itself.</ErrorLine> : null}
             <div className="link-add-actions">
               <button type="button" onClick={() => setAdding(false)}>
                 Cancel
@@ -162,9 +161,7 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
           </fieldset>
         ) : null}
         {error ? (
-          <p className="a4-error" role="alert">
-            {error}
-          </p>
+          <ErrorLine>{error}</ErrorLine>
         ) : null}
         {groups.length === 0 && !adding ? <p className="note">No links yet. A link says how this issue stands to another: what it depends on, what it duplicates, what it’s part of.</p> : null}
         {groups.map(([phrase, links]) => (
@@ -177,7 +174,7 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                 <li key={l.id} className={l.issue.resolved ? 'resolved' : undefined}>
                   <span className="issue-id">{l.issue.id}</span>
                   <Link to={`/issues/${l.issue.id}`}>{l.issue.summary}</Link>
-                  <span className="a4-row">
+                  <span className="cluster">
                     <RefBadge issue={l.issue} tones={tones} />
                     <button type="button" className="link" aria-label={`Unlink ${l.issue.id}`} onClick={() => void unlink(l)}>
                       Unlink

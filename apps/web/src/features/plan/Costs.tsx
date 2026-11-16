@@ -13,7 +13,6 @@ import { useCosts, useSchedule } from './api';
 import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
 import { addDays, dayMonth, diffDays, workCalendar, type WorkCalendar } from './dates';
 import { days, effort, hours, money } from './format';
-import './plan.css';
 
 // ---------------------------------------------------------------------------
 // The indices, in words
@@ -123,7 +122,7 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
     ['Variance at completion (VAC)', m(evm.vac), 'BAC − EAC: under the plan if positive, over it if negative'],
   ];
   return (
-    <div className="a4-table-scroll">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={`Earned value against ${baselineName}`}>
       <table className="figures cost-figures">
         <caption>Earned value against {baselineName}, as of {dayMonth(evm.asOf)}</caption>
         <thead>
@@ -140,7 +139,7 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
             <tr key={name}>
               <th scope="row">{name}</th>
               <td className="num">{value}</td>
-              <td className="a4-about">{about}</td>
+              <td className="cost-says">{about}</td>
             </tr>
           ))}
         </tbody>
@@ -152,7 +151,7 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
 function PeopleTable({ c }: { c: CostReport }) {
   if (!c.byPerson.length) return null;
   return (
-    <div className="a4-table-scroll">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label="By person">
       <table className="figures cost-figures">
         <caption>By person</caption>
         <thead>
@@ -179,12 +178,12 @@ function PeopleTable({ c }: { c: CostReport }) {
               <td className="num">
                 {money(p.plannedCost, c.currency)}
                 <span className="hidden">, </span>
-                <span className="a4-sub"> {hours(p.plannedHours)}</span>
+                <span className="cost-sub"> {hours(p.plannedHours)}</span>
               </td>
               <td className="num">
                 {money(p.actualCost, c.currency)}
                 <span className="hidden">, </span>
-                <span className="a4-sub"> {hours(p.actualHours)}</span>
+                <span className="cost-sub"> {hours(p.actualHours)}</span>
               </td>
             </tr>
           ))}
@@ -198,7 +197,7 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
   const rows = c.byTask.filter((t) => t.plannedCost > 0 || t.actualCost > 0);
   if (!rows.length) return null;
   return (
-    <div className="a4-table-scroll">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label="By task">
       <table className="figures cost-figures">
         <caption>By task</caption>
         <thead>
@@ -217,15 +216,15 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
             <tr key={t.issue}>
               <th scope="row">
                 <span className="issue-id">{t.issue}</span> {t.summary}
-                {t.fixedCost > 0 ? <span className="a4-sub"> · {money(t.fixedCost, c.currency)} fixed</span> : null}
+                {t.fixedCost > 0 ? <span className="cost-sub"> · {money(t.fixedCost, c.currency)} fixed</span> : null}
               </th>
               <td className="num">
                 {money(t.plannedCost, c.currency)}
-                {t.effortMinutes > 0 ? <span className="a4-sub"> {effort(t.effortMinutes, hoursPerDay)}</span> : null}
+                {t.effortMinutes > 0 ? <span className="cost-sub"> {effort(t.effortMinutes, hoursPerDay)}</span> : null}
               </td>
               <td className="num">
                 {money(t.actualCost, c.currency)}
-                {t.spentMinutes > 0 ? <span className="a4-sub"> {effort(t.spentMinutes, hoursPerDay)}</span> : null}
+                {t.spentMinutes > 0 ? <span className="cost-sub"> {effort(t.spentMinutes, hoursPerDay)}</span> : null}
               </td>
             </tr>
           ))}
@@ -241,7 +240,7 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
 
 function NoBaseline({ choice, onSave }: { choice: BaselineChoice; onSave: () => void }) {
   return (
-    <div className="cost-index a4-no-baseline">
+    <div className="cost-index ask">
       <p className="label">Earned value</p>
       <p>
         {choice.baselines.length
@@ -297,8 +296,8 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
   const asOf = evm?.asOf ?? s?.today ?? null;
 
   return (
-    <div className="a4-stack a4-plan-view">
-      <div className="a4-row a4-plan-tools">
+    <div className="stack">
+      <div className="cluster">
         <BaselinePicker choice={choice} label="Earned value against" />
         <button type="button" onClick={() => setSaving(true)}>
           Save a baseline
@@ -351,13 +350,13 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
             </div>
           </div>
           {c.budget === null ? <p className="note">No budget is set for {project.name}. Set one in the project's plan settings to see the forecast against it.</p> : null}
-          <div className="a4-cost-tables">
+          <div className="cost-tables">
             {evm && choice.chosen ? <EvmTable evm={evm} currency={cur} baselineName={choice.chosen.name} /> : null}
             <PeopleTable c={c} />
             <TasksTable c={c} hoursPerDay={s?.calendar.hoursPerDay ?? project.settings.plan.hoursPerDay} />
           </div>
           {c.warnings.length ? (
-            <details className="a4-assumed">
+            <details className="plan-notes">
               <summary>{c.warnings.length === 1 ? '1 thing to know about these figures' : `${c.warnings.length} things to know about these figures`}</summary>
               <ul>
                 {c.warnings.map((w) => (

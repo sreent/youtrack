@@ -13,7 +13,6 @@ import { dayMonth, span, workCalendar, type WorkCalendar } from './dates';
 import { days, plural, shift } from './format';
 import { Gantt } from './Gantt';
 import { ganttRows, isMilestone } from './gantt';
-import './plan.css';
 
 /** The plan at a glance: when it ends, against the baseline, its critical path, what's late. */
 function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
@@ -27,7 +26,7 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
     .filter((x) => x.spare <= 2)
     .sort((a, b2) => a.spare - b2.spare)[0];
   return (
-    <ul className="a4-facts">
+    <ul className="plan-facts">
       <li>
         Ends <strong>{dayMonth(s.finish)}</strong>
         {b ? (
@@ -62,7 +61,7 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
 function Warnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
   return (
-    <details className="a4-assumed">
+    <details className="plan-notes">
       <summary>{plural(warnings.length, 'thing')} a4a assumed to draw this plan</summary>
       <ul>
         {warnings.map((w) => (
@@ -92,8 +91,8 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
   const nowLate = after.tasks.filter((t) => t.late && !was.get(t.issue.id)?.late);
   const lead = describe(change, was.get(change.issue), people);
   return (
-    <div className="a4-whatif-result">
-      <p className="a4-whatif-lead">
+    <div className="whatif-result">
+      <p className="whatif-lead">
         {lead},{' '}
         {delta === 0
           ? `the plan still ends on ${dayMonth(after.finish)}.`
@@ -117,27 +116,25 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
         ) : null}
       </ul>
       {nowLate.length ? (
-        <ul className="a4-badges">
+        <div className="badges">
           {nowLate.map((t) => (
-            <li key={t.issue.id}>
-              <Badge tone="bad">
-                {t.issue.id} would be {days(Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish)))} late: it's due {dayMonth(t.deadline!)}
-              </Badge>
-            </li>
+            <Badge key={t.issue.id} tone="bad">
+              {t.issue.id} would be {days(Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish)))} late: it's due {dayMonth(t.deadline!)}
+            </Badge>
           ))}
-        </ul>
+        </div>
       ) : null}
       {moved.length ? (
         <>
           <h3>{moved.length === 1 ? '1 task would move' : `${moved.length} tasks would move`}</h3>
-          <ul className="a4-moves">
+          <ul className="levelling-list">
             {moved.map((i) => {
               const b = was.get(i.issue);
               const a = after.tasks.find((t) => t.issue.id === i.issue);
               return (
                 <li key={i.issue}>
                   <span className="issue-id">{i.issue}</span>
-                  <span className="a4-moves-what">{i.summary}</span>
+                  <span className="levelling-what">{i.summary}</span>
                   {b && a ? (
                     <ul className="change-lines">
                       <li>
@@ -147,7 +144,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
                   ) : (
                     <span />
                   )}
-                  <span className="a4-moves-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : `starts ${shift(i.startDeltaDays)}`}</span>
+                  <span className="levelling-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : `starts ${shift(i.startDeltaDays)}`}</span>
                 </li>
               );
             })}
@@ -156,7 +153,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
       ) : (
         <p className="note">No task moves.</p>
       )}
-      <p className="note a4-row">
+      <p className="note cluster">
         Nothing is saved: this only shows what would happen.
         <button type="button" className="link" onClick={onClear}>
           Clear the what-if
@@ -200,14 +197,14 @@ function WhatIfPanel({
   };
 
   return (
-    <section className="card a4-whatif-panel" aria-labelledby={titleId}>
+    <section className="card whatif" aria-labelledby={titleId}>
       <h2 id={titleId}>What if…</h2>
       <p className="note">Change one task and see where the finish would go. Nothing is saved.</p>
       {open.length === 0 ? (
         <p className="note">Every task is done, so there's nothing left to change.</p>
       ) : (
-        <form className="a4-whatif-form" onSubmit={submit}>
-          <div className="a4-field a4-field-wide">
+        <form className="whatif-form" onSubmit={submit}>
+          <div className="form-field">
             <label htmlFor={`${titleId}-task`}>Task</label>
             <select id={`${titleId}-task`} value={issue} onChange={(e) => setIssue(e.target.value)}>
               {open.map((t) => (
@@ -217,7 +214,7 @@ function WhatIfPanel({
               ))}
             </select>
           </div>
-          <div className="a4-field">
+          <div className="form-field">
             <label htmlFor={`${titleId}-kind`}>What changes</label>
             <select id={`${titleId}-kind`} value={kind} onChange={(e) => setKind(e.target.value as ChangeKind)}>
               <option value="delay">It starts later</option>
@@ -226,17 +223,17 @@ function WhatIfPanel({
             </select>
           </div>
           {kind === 'delay' ? (
-            <div className="a4-field">
+            <div className="form-field">
               <label htmlFor={`${titleId}-value`}>Working days later</label>
               <input id={`${titleId}-value`} type="number" min={1} max={250} value={delay} onChange={(e) => setDelay(e.target.value)} required />
             </div>
           ) : kind === 'estimate' ? (
-            <div className="a4-field">
+            <div className="form-field">
               <label htmlFor={`${titleId}-value`}>New estimate</label>
               <input id={`${titleId}-value`} value={estimate} onChange={(e) => setEstimate(e.target.value)} placeholder="like 3d or 1d 4h" required />
             </div>
           ) : (
-            <div className="a4-field">
+            <div className="form-field">
               <label htmlFor={`${titleId}-value`}>Given to</label>
               <select id={`${titleId}-value`} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
                 <option value="">Nobody</option>
@@ -277,8 +274,8 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
   const rows = useMemo(() => (s ? ganttRows(s, cal, change && whatIf.data ? whatIf.data.after : null) : []), [s, cal, change, whatIf.data]);
 
   return (
-    <div className="a4-stack a4-plan-view">
-      <div className="a4-row a4-plan-tools">
+    <div className="stack">
+      <div className="cluster">
         <BaselinePicker choice={choice} />
         <button type="button" onClick={() => setSaving(true)}>
           Save a baseline

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { del, put } from '../../api/client';
 import { keys } from '../../api/queries';
 import { Badge } from '../../components/Badges';
-import { errorText, Said, Scroll } from '../common/bits';
+import { errorText, FormField, Said, Scroll } from '../common/bits';
 
 export const TYPE_WORDS: Record<FieldType, string> = {
   enum: 'a choice from a list',
@@ -29,6 +29,7 @@ function asText(v: unknown): string {
 
 /** The control for a field's default: one of its values, a person, or what someone would type. */
 function DefaultInput({
+  id,
   type,
   values,
   users,
@@ -36,16 +37,18 @@ function DefaultInput({
   onChange,
   label,
 }: {
+  /** Tied to a label by id; or named by `label` where it stands alone, as in a table's row. */
+  id?: string;
   type: FieldType;
   values: { name: string; archived: boolean }[];
   users: User[];
   value: string;
   onChange: (v: string) => void;
-  label: string;
+  label?: string;
 }) {
   if (OPTION_TYPES.includes(type))
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
         <option value="">No default</option>
         {values
           .filter((v) => !v.archived || v.name === value)
@@ -58,7 +61,7 @@ function DefaultInput({
     );
   if (type === 'user')
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
         <option value="">No default</option>
         {users
           .filter((u) => !u.banned)
@@ -71,6 +74,7 @@ function DefaultInput({
     );
   return (
     <input
+      id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
@@ -110,9 +114,9 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
   const shown = field.values.filter((v) => !v.archived);
   return (
     <tr>
-      <th scope="row">
-        <span className="a4p-row-title">{field.name}</span>
-        <span className="a4p-row-about">
+      <th scope="row" className="row-head">
+        <span className="item-name">{field.name}</span>
+        <span className="item-about">
           {TYPE_WORDS[field.type]}
           {field.multi ? ', several at once' : ''}
         </span>
@@ -125,16 +129,16 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
                 {v.name}
               </Badge>
             ))}
-            {shown.length > 8 ? <span className="a4p-muted a4p-small-text">and {shown.length - 8} more</span> : null}
+            {shown.length > 8 ? <span className="badge">and {shown.length - 8} more</span> : null}
           </span>
         ) : (
-          <span className="a4p-muted">{OPTION_TYPES.includes(field.type) ? 'No values yet' : '—'}</span>
+          <span className="muted">{OPTION_TYPES.includes(field.type) ? 'No values yet' : '—'}</span>
         )}
       </td>
       <td>
-        <label className="a4p-check">
+        <label className="choice">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} disabled={!canEdit} />
-          <span className="a4-sr-only">{field.name} is required</span>
+          <span className="hidden">{field.name} is required</span>
           <span aria-hidden="true">{required ? 'Required' : 'Optional'}</span>
         </label>
       </td>
@@ -142,16 +146,16 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
         {canEdit ? (
           <DefaultInput type={field.type} values={field.values} users={users} value={def} onChange={setDef} label={`Default for ${field.name}`} />
         ) : (
-          <span>{def || <span className="a4p-muted">None</span>}</span>
+          <span>{def || <span className="muted">None</span>}</span>
         )}
       </td>
       {canEdit ? (
-        <td className="a4p-tight">
-          <span className="a4p-actions">
-            <button type="button" className="a4p-small" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+        <td className="fit">
+          <span className="cluster">
+            <button type="button" className="small" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
               {save.isPending ? 'Saving…' : 'Save'}
             </button>
-            <button type="button" className="a4p-small" disabled={detach.isPending} onClick={() => detach.mutate()}>
+            <button type="button" className="small" disabled={detach.isPending} onClick={() => detach.mutate()}>
               {detach.isPending ? 'Detaching…' : 'Detach'}
             </button>
           </span>
@@ -184,48 +188,49 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
   if (!available.length) return <p className="note">Every field is attached. New fields are made on the Fields page.</p>;
   return (
     <form
-      className="a4p-attach"
+      className="stack"
       onSubmit={(e) => {
         e.preventDefault();
         if (fieldId) attach.mutate();
       }}
     >
-      <fieldset className="link-add">
+      <fieldset className="form-card adding stack">
         <legend>Attach a field</legend>
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Field</span>
-            <select
-              value={fieldId}
-              onChange={(e) => {
-                setFieldId(e.target.value);
-                setDef('');
-              }}
-              required
-            >
-              <option value="">Choose one</option>
-              {available.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} ({TYPE_WORDS[f.type]})
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="form-fields">
+          <FormField label="Field">
+            {(id) => (
+              <select
+                id={id}
+                value={fieldId}
+                onChange={(e) => {
+                  setFieldId(e.target.value);
+                  setDef('');
+                }}
+                required
+              >
+                <option value="">Choose one</option>
+                {available.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({TYPE_WORDS[f.type]})
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
           {chosen ? (
-            <label className="a4p-field">
-              <span>Default</span>
-              <DefaultInput type={chosen.type} values={chosen.values} users={users} value={def} onChange={setDef} label={`Default for ${chosen.name}`} />
-            </label>
+            <FormField label="Default">
+              {(id) => <DefaultInput id={id} type={chosen.type} values={chosen.values} users={users} value={def} onChange={setDef} />}
+            </FormField>
           ) : null}
-          <label className="a4p-check a4p-check-low">
+          <label className="choice">
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
             <span>
               Required
-              <small>Every issue in the project must have it.</small>
+              <small className="field-help">Every issue in the project must have it.</small>
             </span>
           </label>
         </div>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" disabled={!fieldId || attach.isPending}>
             {attach.isPending ? 'Attaching…' : 'Attach it'}
           </button>
@@ -255,7 +260,7 @@ export function ProjectFields({
   return (
     <>
       <Scroll label="Table of the project's fields">
-        <table className="figures a4p-project-fields">
+        <table className="figures middle">
           <thead>
             <tr>
               <th scope="col">Field</th>
@@ -264,7 +269,7 @@ export function ProjectFields({
               <th scope="col">Default</th>
               {canEdit ? (
                 <th scope="col">
-                  <span className="a4-sr-only">Change</span>
+                  <span className="hidden">Change</span>
                 </th>
               ) : null}
             </tr>

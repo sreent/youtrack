@@ -5,7 +5,7 @@ import { useId, useState } from 'react';
 import { del, post } from '../../api/client';
 import { keys, useWorkItems } from '../../api/queries';
 import { fieldOf } from '../../components/Badges';
-import { ErrorNote } from '../../components/States';
+import { ErrorNote, ErrorLine } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText } from './api';
 import { isPeriod } from './fields';
@@ -49,9 +49,9 @@ export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undef
   };
 
   return (
-    <section className="card a4-stack" aria-labelledby={`${id}-title`}>
-      <div className="a4-row">
-        <h2 id={`${id}-title`} className="a4-grow">
+    <section className="card stack" aria-labelledby={`${id}-title`}>
+      <div className="cluster">
+        <h2 id={`${id}-title`} className="grow">
           Time spent
         </h2>
         <span className="note">
@@ -117,7 +117,7 @@ export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undef
         <p className="note">No time logged yet.</p>
       )}
       <form
-        className="a4-row"
+        className="cluster"
         aria-label="Log time"
         onSubmit={(e) => {
           e.preventDefault();
@@ -126,15 +126,13 @@ export function WorkLog({ issue, me }: { issue: IssueDetail; me: UserRef | undef
       >
         <input className="mono" aria-label="Time spent" placeholder="1h 30m" size={8} value={duration} onChange={(e) => setDuration(e.target.value)} />
         <input type="date" aria-label="Day" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
-        <input className="a4-grow" aria-label="What it was spent on" placeholder="What it was spent on" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <input className="grow" aria-label="What it was spent on" placeholder="What it was spent on" value={description} onChange={(e) => setDescription(e.target.value)} />
         <button type="submit" disabled={!duration.trim() || busy}>
           {busy ? 'Logging…' : 'Log time'}
         </button>
       </form>
       {error ? (
-        <p className="a4-error" role="alert">
-          {error}
-        </p>
+        <ErrorLine>{error}</ErrorLine>
       ) : null}
     </section>
   );

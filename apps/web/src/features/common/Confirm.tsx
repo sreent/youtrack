@@ -35,7 +35,7 @@ export function Confirm({
   };
   return (
     <>
-      <button type="button" className={small ? 'danger a4p-small' : 'danger'} onClick={open} disabled={disabled}>
+      <button type="button" className={small ? 'danger small' : 'danger'} onClick={open} disabled={disabled}>
         {label}
       </button>
       <dialog ref={dialog} className="dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-about`}>

@@ -1,4 +1,5 @@
 import { ApiError } from '../api/client';
+import { Icon } from './Icon';
 
 export function Loading({ what }: { what?: string }) {
   return (
@@ -8,14 +9,26 @@ export function Loading({ what }: { what?: string }) {
   );
 }
 
+/** What went wrong, as Ocean's error note: a cross, what happened, and how to put it right. */
 export function ErrorNote({ error }: { error: unknown }) {
   const e = error instanceof ApiError ? error : null;
   const message = e?.message ?? (error instanceof Error ? error.message : 'Something went wrong');
   return (
-    <div className="a4-error" role="alert">
-      <p>{message}</p>
-      {e?.hint ? <p className="note">{e.hint}</p> : null}
+    <div className="error-note" role="alert">
+      <Icon name="cross" />
+      <strong>{message}</strong>
+      {e?.hint ? <p>{e.hint}</p> : null}
     </div>
+  );
+}
+
+/** One line of what went wrong, where it went wrong (beside a control, under a form). */
+export function ErrorLine({ children, id }: { children: React.ReactNode; id?: string }) {
+  return (
+    <p className="error-note" role="alert" id={id}>
+      <Icon name="cross" />
+      <strong>{children}</strong>
+    </p>
   );
 }
 
@@ -53,7 +66,7 @@ export function PageHead({
       <div className="title-row">
         <h1>{title}</h1>
         {badges}
-        {actions ? <div className="a4-grow a4-row a4-actions">{actions}</div> : null}
+        {actions ? <div className="grow cluster end">{actions}</div> : null}
       </div>
       {about ? <p className="about">{about}</p> : null}
       {meta ? <div className="meta">{meta}</div> : null}

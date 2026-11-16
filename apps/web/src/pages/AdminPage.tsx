@@ -6,10 +6,9 @@ import { patch, post } from '../api/client';
 import { keys, useMe, useSettings, useUsers } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
-import { AdminOnly, errorText, Said, Scroll } from '../features/common/bits';
+import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
-import '../features/common/pages.css';
 
 const ROLE_WORDS: Record<Role, string> = {
   admin: 'an administrator changes everything',
@@ -59,14 +58,21 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
   });
   const label = (what: string) => `${what} of ${user.name}`;
   return (
-    <tr className={form.banned ? 'a4p-archived' : undefined}>
-      <th scope="row">
-        <span className="a4p-person">
+    <tr className={form.banned ? 'dimmed' : undefined}>
+      <th scope="row" className="row-head">
+        <span className="tw:flex tw:min-w-48 tw:items-center tw:gap-2">
           <Avatar kind={user.isBot ? 'agent' : 'person'} name={user.name} small />
           <span>
-            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} aria-label={label('Name')} maxLength={100} required />
-            <span className="a4p-row-about">
-              <span className="a4p-mono">{user.login}</span>
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              aria-label={label('Name')}
+              maxLength={100}
+              required
+              className="tw:w-44"
+            />
+            <span className="item-about">
+              <span className="mono">{user.login}</span>
               {user.isBot ? (
                 <>
                   {' '}
@@ -85,6 +91,7 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           aria-label={label('Email')}
           placeholder="None"
+          className="tw:w-48"
         />
       </td>
       <td>
@@ -105,7 +112,7 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))}
           aria-label={label('Rate per hour')}
           placeholder="None"
-          className="a4p-num-input"
+          className="tw:w-26"
         />
       </td>
       <td>
@@ -117,11 +124,11 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           value={form.capacity}
           onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
           aria-label={label('Hours a day')}
-          className="a4p-num-input"
+          className="tw:w-26"
         />
       </td>
       <td>
-        <label className="a4p-check">
+        <label className="choice">
           <input
             type="checkbox"
             checked={!form.banned}
@@ -132,8 +139,8 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           <span aria-hidden="true">{form.banned ? 'Banned' : 'Allowed'}</span>
         </label>
       </td>
-      <td className="a4p-tight">
-        <button type="button" className="a4p-small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
+      <td className="fit">
+        <button type="button" className="small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? 'Saving…' : 'Save'}
         </button>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -170,67 +177,75 @@ function AddPerson() {
     setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value }));
   return (
     <form
+      className="stack"
       onSubmit={(e) => {
         e.preventDefault();
         add.mutate();
       }}
     >
-      <fieldset className="link-add">
+      <fieldset className="form-card adding stack">
         <legend>Add someone</legend>
-        <div className="a4p-fields">
-          <label className="a4p-field">
-            <span>Name</span>
-            <input value={form.name} onChange={set('name')} required maxLength={100} />
-          </label>
-          <label className="a4p-field">
-            <span>Login</span>
-            <input
-              value={form.login}
-              onChange={set('login')}
-              required
-              minLength={2}
-              maxLength={40}
-              pattern="[a-zA-Z0-9._\-]+"
-              className="a4p-mono-input"
-              autoComplete="off"
-            />
-          </label>
-          <label className="a4p-field">
-            <span>Email</span>
-            <input type="email" value={form.email} onChange={set('email')} />
-          </label>
-          <label className="a4p-field">
-            <span>Password</span>
-            <input type="password" value={form.password} onChange={set('password')} minLength={8} autoComplete="new-password" required={!form.isBot} />
-            <small>{form.isBot ? "A bot doesn't sign in with a password." : 'At least 8 characters. They can change it on their profile.'}</small>
-          </label>
-          <label className="a4p-field">
-            <span>Role</span>
-            <select value={form.role} onChange={set('role')}>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_NAMES[r]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="a4p-field">
-            <span>Rate per hour</span>
-            <input type="number" min={0} step="any" value={form.hourlyRate} onChange={set('hourlyRate')} />
-          </label>
-          <label className="a4p-field">
-            <span>Hours a day</span>
-            <input type="number" min={0} max={24} step={0.5} value={form.capacity} onChange={set('capacity')} />
-          </label>
-          <label className="a4p-check a4p-check-low">
+        <div className="form-fields">
+          <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={100} />}</FormField>
+          <FormField label="Login">
+            {(id) => (
+              <input
+                id={id}
+                value={form.login}
+                onChange={set('login')}
+                required
+                minLength={2}
+                maxLength={40}
+                pattern="[a-zA-Z0-9._\-]+"
+                className="mono"
+                autoComplete="off"
+              />
+            )}
+          </FormField>
+          <FormField label="Email">{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
+          <FormField
+            label="Password"
+            help={form.isBot ? "A bot doesn't sign in with a password." : 'At least 8 characters. They can change it on their profile.'}
+          >
+            {(id, help) => (
+              <input
+                id={id}
+                aria-describedby={help}
+                type="password"
+                value={form.password}
+                onChange={set('password')}
+                minLength={8}
+                autoComplete="new-password"
+                required={!form.isBot}
+              />
+            )}
+          </FormField>
+          <FormField label="Role">
+            {(id) => (
+              <select id={id} value={form.role} onChange={set('role')}>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_NAMES[r]}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
+          <FormField label="Rate per hour">
+            {(id) => <input id={id} type="number" min={0} step="any" value={form.hourlyRate} onChange={set('hourlyRate')} />}
+          </FormField>
+          <FormField label="Hours a day">
+            {(id) => <input id={id} type="number" min={0} max={24} step={0.5} value={form.capacity} onChange={set('capacity')} />}
+          </FormField>
+          <label className="choice">
             <input type="checkbox" checked={form.isBot} onChange={set('isBot')} />
             <span>
               A bot
-              <small>An account for automation, such as triage. It shows as an agent, and never signs in with a password.</small>
+              <small className="field-help">An account for automation, such as triage. It shows as an agent, and never signs in with a password.</small>
             </span>
           </label>
         </div>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending}>
             {add.isPending ? 'Adding…' : 'Add them'}
           </button>
@@ -256,25 +271,25 @@ function Instance({ settings }: { settings: Settings }) {
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   return (
-    <div className="a4p-form">
+    <div className="stack">
       <form
-        className="a4p-fields"
+        className="form-fields"
         onSubmit={(e) => {
           e.preventDefault();
           save.mutate({ instanceName: name.trim() });
         }}
       >
-        <label className="a4p-field">
-          <span>Its name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />
-          <small>Shown when people sign in.</small>
-        </label>
-        <div className="a4p-field">
-          <span>Its address</span>
-          <span className="a4p-mono">{settings.publicUrl}</span>
-          <small>Links in webhooks and for agents use it. It's set by PUBLIC_URL where the server runs.</small>
-        </div>
-        <div className="a4p-actions a4p-wide">
+        <FormField label="Its name" help="Shown when people sign in.">
+          {(id, help) => <input id={id} aria-describedby={help} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} />}
+        </FormField>
+        <FormField label="Its address" help="Links in webhooks and for agents use it. It's set by PUBLIC_URL where the server runs.">
+          {(id, help) => (
+            <output id={id} aria-describedby={help} className="mono">
+              {settings.publicUrl}
+            </output>
+          )}
+        </FormField>
+        <div className="cluster tw:col-span-full">
           <button type="submit" disabled={name.trim() === settings.instanceName || !name.trim() || save.isPending}>
             Save the name
           </button>
@@ -305,7 +320,7 @@ export default function AdminPage() {
     <AdminOnly title="Administration">
       <PageHead title="Administration" about="The people who use a4a and what each may do, and this instance's settings." />
       <section className="card" aria-labelledby="people">
-        <div className="a4p-section-head">
+        <div className="section-head">
           <h2 id="people">People</h2>
           <span className="note">
             {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? `${banned} banned` : null]
@@ -313,7 +328,7 @@ export default function AdminPage() {
               .join(', ')}
           </span>
         </div>
-        <p className="note a4p-lead">
+        <p className="note section-note">
           A rate and hours a day drive the plan: cost is time logged times the rate, and levelling books each person up to their hours. A banned person can't
           sign in, and their tokens stop working; their work stays.
         </p>
@@ -321,7 +336,7 @@ export default function AdminPage() {
         {users.error ? <ErrorNote error={users.error} /> : null}
         {people.length ? (
           <Scroll label="Table of people">
-            <table className="figures a4p-people">
+            <table className="figures middle">
               <thead>
                 <tr>
                   <th scope="col">Person</th>
@@ -331,7 +346,7 @@ export default function AdminPage() {
                   <th scope="col">Hours a day</th>
                   <th scope="col">Access</th>
                   <th scope="col">
-                    <span className="a4-sr-only">Save</span>
+                    <span className="hidden">Save</span>
                   </th>
                 </tr>
               </thead>

@@ -2,8 +2,8 @@ import { useSearchParams } from 'react-router';
 import { useProjects } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { LedgerEntry, withoutMirrors } from '../features/activity/LedgerEntry';
+import { FormField } from '../features/common/bits';
 import { useFeed } from '../features/common/queries';
-import '../features/common/pages.css';
 
 const STEP = 100;
 const MOST = 500;
@@ -35,52 +35,53 @@ export default function ActivityPage() {
         title="Activity"
         about="Every change, who made it and through what: people on the web, agents over MCP or in the assistant, and scripts with a token. Newest first, with times to the second, in UTC."
       />
-      <div className="a4p-filter">
-        <label>
-          Project
-          <select value={project} onChange={(e) => set({ project: e.target.value })}>
-            <option value="">All projects</option>
-            {(projects.data ?? []).map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.key} · {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {feed.isFetching && feed.data ? (
-          <span className="note" role="status">
-            Reading the newest…
-          </span>
+      <div className="stack">
+        <div className="cluster">
+          <FormField label="Project" className="inline">
+            {(id) => (
+              <select id={id} value={project} onChange={(e) => set({ project: e.target.value })}>
+                <option value="">All projects</option>
+                {(projects.data ?? []).map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.key} · {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
+          {feed.isFetching && feed.data ? (
+            <span className="note" role="status">
+              Reading the newest…
+            </span>
+          ) : null}
+        </div>
+        {feed.isLoading ? <Loading what="the activity" /> : null}
+        {feed.error ? <ErrorNote error={feed.error} /> : null}
+        {feed.data && !events.length ? (
+          <section className="card">
+            <h2>Nothing has happened here yet</h2>
+            <p className="note">Changes to issues, comments, links, logged work and baselines show here as they're made.</p>
+          </section>
         ) : null}
-      </div>
-      {feed.isLoading ? <Loading what="the activity" /> : null}
-      {feed.error ? <ErrorNote error={feed.error} /> : null}
-      {feed.data && !events.length ? (
-        <section className="card">
-          <h2>Nothing has happened here yet</h2>
-          <p className="note">Changes to issues, comments, links, logged work and baselines show here as they're made.</p>
-        </section>
-      ) : null}
-      {events.length ? (
-        <section className="card a4p-ledger-card" aria-label="The ledger">
-          <div className="ledger-box">
+        {events.length ? (
+          <section className="card ledger-box stack tight" aria-label="The ledger">
             <ol className="ledger">
               {events.map((e) => (
                 <LedgerEntry key={e.id} event={e} />
               ))}
             </ol>
-          </div>
-          {more ? (
-            <div className="a4p-actions a4p-more">
-              <button type="button" onClick={() => set({ show: Math.min(MOST, limit + STEP) })} disabled={feed.isFetching}>
-                Show {Math.min(STEP, MOST - limit)} older
-              </button>
-            </div>
-          ) : (feed.data?.length ?? 0) >= MOST ? (
-            <p className="note">This shows the latest {MOST}. For older changes, poll GET /api/v1/events?after= from the API.</p>
-          ) : null}
-        </section>
-      ) : null}
+            {more ? (
+              <div className="cluster tw:justify-center">
+                <button type="button" onClick={() => set({ show: Math.min(MOST, limit + STEP) })} disabled={feed.isFetching}>
+                  Show {Math.min(STEP, MOST - limit)} older
+                </button>
+              </div>
+            ) : (feed.data?.length ?? 0) >= MOST ? (
+              <p className="note">This shows the latest {MOST}. For older changes, poll GET /api/v1/events?after= from the API.</p>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </>
   );
 }

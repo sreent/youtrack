@@ -20,13 +20,13 @@ function withLinkedIds(markdown: string): string {
 /** Markdown without raw HTML (react-markdown escapes it), with internal links routed. */
 export function Markdown({ text, className }: { text: string; className?: string }) {
   return (
-    <div className={className ? `a4-markdown ${className}` : 'a4-markdown'}>
+    <div className={className ? `prose ${className}` : 'prose'}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           a: ({ href, children }) =>
             href?.startsWith('/') ? (
-              <Link to={href} className={/^\/issues\/[A-Z]/.test(href) ? 'a4-issue-id' : undefined}>
+              <Link to={href} className={/^\/issues\/[A-Z]/.test(href) ? 'issue-id' : undefined}>
                 {children}
               </Link>
             ) : (

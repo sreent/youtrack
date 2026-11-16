@@ -5,13 +5,12 @@ import { del, post } from '../api/client';
 import { keys, useMe, useTokens } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { errorText, Said, Scroll } from '../features/common/bits';
+import { errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { dateRead } from '../features/common/format';
 import { Hint } from '../features/common/Hint';
 import { useAITools, type AITool } from '../features/common/queries';
-import '../features/common/pages.css';
 
 type Created = ApiToken & { token: string };
 type Client = 'claude-code' | 'http' | 'desktop';
@@ -70,8 +69,8 @@ const CLIENTS: { id: Client; label: string; where: string }[] = [
 
 function ToolRow({ tool }: { tool: AITool }) {
   return (
-    <li className="a4p-tool">
-      <div className="a4p-tool-head">
+    <li>
+      <div className="tool-head">
         <code>{tool.name}</code>
         <strong>{tool.title}</strong>
         <Badge grammar={tool.kind}>{tool.kind}</Badge>
@@ -142,72 +141,68 @@ export default function AgentsPage() {
         title="Agents and tokens"
         about="Let an agent such as Claude Code work in a4a over MCP. It acts as you, with no more than its token allows, and every change it makes is kept in the activity under its name."
       />
-      <div className="a4-split">
-        <div className="a4-stack">
+      <div className="split">
+        <div className="stack">
           <section className="card" aria-labelledby="connect">
             <h2 id="connect">Connect an agent</h2>
-            <ol className="a4p-steps">
+            <ol className="steps">
               <li>
                 <h3>Create a token for it</h3>
                 <form
-                  className="a4p-form"
+                  className="form"
                   onSubmit={(e) => {
                     e.preventDefault();
                     create.mutate();
                   }}
                 >
-                  <div className="a4p-fields a4p-token-fields">
-                    <label className="a4p-field">
-                      <span>Name</span>
-                      <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby="token-name-help" />
-                      <small id="token-name-help">
-                        Name it after the agent, in lower case: the activity shows its changes as “{name.trim() || 'claude-code'} for {me.data?.name ?? 'you'}”.
-                      </small>
-                    </label>
-                    <label className="a4p-field">
-                      <span>Expires</span>
-                      <select value={expires} onChange={(e) => setExpires(e.target.value)}>
-                        <option value="30">In 30 days</option>
-                        <option value="90">In 90 days</option>
-                        <option value="365">In a year</option>
-                        <option value="never">Never</option>
-                      </select>
-                    </label>
+                  <div className="tw:grid tw:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] tw:items-start tw:gap-x-4 tw:gap-y-3 tw:max-[640px]:grid-cols-1">
+                    <FormField
+                      label="Name"
+                      help={`Name it after the agent, in lower case: the activity shows its changes as “${name.trim() || 'claude-code'} for ${me.data?.name ?? 'you'}”.`}
+                    >
+                      {(id, help) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby={help} />}
+                    </FormField>
+                    <FormField label="Expires">
+                      {(id) => (
+                        <select id={id} value={expires} onChange={(e) => setExpires(e.target.value)}>
+                          <option value="30">In 30 days</option>
+                          <option value="90">In 90 days</option>
+                          <option value="365">In a year</option>
+                          <option value="never">Never</option>
+                        </select>
+                      )}
+                    </FormField>
                   </div>
-                  <fieldset className="a4p-checks a4p-scopes">
+                  <fieldset className="choice-group column">
                     <legend>What it may do</legend>
                     {SCOPES.map((s) => {
                       const barred = s.scope === 'admin' && !isAdmin;
                       return (
-                        <label key={s.scope} className="a4p-check">
+                        <label key={s.scope} className="choice">
                           <input type="checkbox" checked={scopes.has(s.scope)} onChange={() => toggle(s.scope)} disabled={barred} />
                           <span>
-                            <span className="a4p-mono">{s.scope}</span>
-                            <small>{barred ? 'Your role can’t give it: a token never does more than you may.' : s.about}</small>
+                            <span className="mono">{s.scope}</span>
+                            <small className="field-help">{barred ? 'Your role can’t give it: a token never does more than you may.' : s.about}</small>
                           </span>
                         </label>
                       );
                     })}
                   </fieldset>
-                  <div className="a4p-actions">
+                  <div className="cluster">
                     <button type="submit" className="primary" disabled={create.isPending || !scopes.size || !name.trim()}>
                       {create.isPending ? 'Creating…' : 'Create the token'}
                     </button>
                     {!scopes.size ? <span className="note">Choose at least one thing it may do.</span> : null}
                   </div>
-                  {create.error ? (
-                    <p className="a4-error" role="alert">
-                      {errorText(create.error)}
-                    </p>
-                  ) : null}
+                  {create.error ? <ErrorNote error={create.error} /> : null}
                 </form>
                 {created ? (
-                  <div className="a4p-secret" role="status">
+                  <div className="secret" role="status">
                     <p>
                       <strong>Copy it now.</strong> This is the only time a4a shows the token {created.name}: it keeps only a fingerprint of it.
                     </p>
                     <code>{created.token}</code>
-                    <div className="a4p-actions">
+                    <div className="cluster">
                       <CopyButton text={created.token} label="Copy the token" what="the token" />
                       <button type="button" className="link" onClick={() => setCreated(null)}>
                         I've kept it
@@ -225,22 +220,24 @@ export default function AgentsPage() {
                     </button>
                   ))}
                 </div>
-                <p className="note a4p-snippet-where">{current.where}</p>
-                <pre className="a4p-snippet" aria-label={`For ${current.label}`}>
-                  {snippet(client, origin, token)}
-                </pre>
-                <div className="a4p-actions a4p-snippet-actions">
-                  <CopyButton text={snippet(client, origin, token)} label="Copy it" what={`the setup for ${current.label}`} />
-                  <span className="note">
-                    {created ? `It has the token ${created.name} in it.` : `Create a token above and it goes in place of ${PLACEHOLDER}.`}
-                  </span>
+                <p className="note">{current.where}</p>
+                <div className="stack tight">
+                  <pre className="snippet" aria-label={`For ${current.label}`}>
+                    {snippet(client, origin, token)}
+                  </pre>
+                  <div className="cluster">
+                    <CopyButton text={snippet(client, origin, token)} label="Copy it" what={`the setup for ${current.label}`} />
+                    <span className="note">
+                      {created ? `It has the token ${created.name} in it.` : `Create a token above and it goes in place of ${PLACEHOLDER}.`}
+                    </span>
+                  </div>
                 </div>
               </li>
             </ol>
           </section>
 
           <section className="card" aria-labelledby="your-tokens">
-            <div className="a4p-section-head">
+            <div className="section-head">
               <h2 id="your-tokens">Your tokens</h2>
               <span className="note">Each acts as you, never beyond your role.</span>
             </div>
@@ -250,7 +247,7 @@ export default function AgentsPage() {
             {tokens.data && !tokens.data.length ? <p className="note">You have no tokens yet. Create one above for each agent or script.</p> : null}
             {tokens.data?.length ? (
               <Scroll label="Table of your tokens">
-                <table className="figures a4p-tokens">
+                <table className="figures middle">
                   <thead>
                     <tr>
                       <th scope="col">Name</th>
@@ -259,7 +256,7 @@ export default function AgentsPage() {
                       <th scope="col">Created</th>
                       <th scope="col">Expires</th>
                       <th scope="col">
-                        <span className="a4-sr-only">Revoke</span>
+                        <span className="hidden">Revoke</span>
                       </th>
                     </tr>
                   </thead>
@@ -268,7 +265,7 @@ export default function AgentsPage() {
                       <tr key={t.id}>
                         <td>
                           <strong>{t.name}</strong>
-                          <span className="a4p-mono a4p-muted a4p-block">{t.prefix}…</span>
+                          <span className="item-about mono">{t.prefix}…</span>
                         </td>
                         <td>
                           <span className="chips">
@@ -279,12 +276,12 @@ export default function AgentsPage() {
                             ))}
                           </span>
                         </td>
-                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="a4p-muted">Never</span>}</td>
+                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">Never</span>}</td>
                         <td>
                           <time dateTime={t.createdAt}>{ago(t.createdAt)}</time>
                         </td>
-                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="a4p-muted">Never</span>}</td>
-                        <td className="a4p-tight">
+                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">Never</span>}</td>
+                        <td className="fit">
                           <Confirm
                             small
                             label="Revoke it"
@@ -304,14 +301,14 @@ export default function AgentsPage() {
           </section>
 
           <section className="card" aria-labelledby="what-agents-get">
-            <div className="a4p-section-head">
+            <div className="section-head">
               <h2 id="what-agents-get">What agents get</h2>
               <Hint
                 label="What do the colours mean?"
                 hint="Grey means a tool only reads. Coral means it changes a record, so a client can ask you before it runs."
               />
             </div>
-            <p className="note a4p-lead">
+            <p className="note section-note">
               The same tools the assistant uses, task-shaped and named for people: they take ids such as BACK-12 and values by name. None of them deletes, and a
               command stops at 50 issues and can be previewed first.
             </p>
@@ -320,13 +317,13 @@ export default function AgentsPage() {
             {tools.data ? (
               <>
                 <h3>What they read ({reads.length})</h3>
-                <ul className="a4p-tools">
+                <ul className="tool-list">
                   {reads.map((t) => (
                     <ToolRow key={t.name} tool={t} />
                   ))}
                 </ul>
                 <h3>What they change ({changes.length})</h3>
-                <ul className="a4p-tools">
+                <ul className="tool-list">
                   {changes.map((t) => (
                     <ToolRow key={t.name} tool={t} />
                   ))}
@@ -334,10 +331,10 @@ export default function AgentsPage() {
               </>
             ) : null}
             <h3>What they can read as context</h3>
-            <ul className="a4p-tools">
+            <ul className="tool-list">
               {RESOURCES.map((r) => (
-                <li key={r.uri} className="a4p-tool">
-                  <div className="a4p-tool-head">
+                <li key={r.uri}>
+                  <div className="tool-head">
                     <code>{r.uri}</code>
                   </div>
                   <p>{r.about}</p>
@@ -346,12 +343,12 @@ export default function AgentsPage() {
             </ul>
             <h3>Ready-made prompts</h3>
             <p className="note">In Claude Code they're slash commands, such as /mcp__a4a__work_on_issue BACK-12.</p>
-            <ul className="a4p-tools">
+            <ul className="tool-list">
               {PROMPTS.map((p) => (
-                <li key={p.name} className="a4p-tool">
-                  <div className="a4p-tool-head">
+                <li key={p.name}>
+                  <div className="tool-head">
                     <code>{p.name}</code>
-                    <span className="a4p-mono a4p-muted">{p.args}</span>
+                    <span className="mono muted">{p.args}</span>
                   </div>
                   <p>{p.about}</p>
                 </li>
@@ -360,7 +357,7 @@ export default function AgentsPage() {
           </section>
         </div>
 
-        <aside className="a4p-side" aria-label="An agent's facts">
+        <aside className="stack" aria-label="An agent's facts">
           <section className="agent-facts" aria-label="Facts of an agent over MCP">
             <h3>Agent facts</h3>
             <div className="per">

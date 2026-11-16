@@ -24,11 +24,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 export function App() {
   return (
     <Suspense
-      fallback={
-        <div className="a4-center">
-          <Loading />
-        </div>
-      }
+      fallback={<Loading />}
     >
       <Routes>
         <Route path="/setup" element={<SetupPage />} />

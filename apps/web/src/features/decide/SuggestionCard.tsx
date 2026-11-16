@@ -5,9 +5,9 @@ import { post } from '../../api/client';
 import { useIssue, useMe } from '../../api/queries';
 import { ago, IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
+import { ErrorNote } from '../../components/States';
 import { Avatar } from '../../components/Who';
-import { errorText, Linked } from '../common/bits';
-import '../common/pages.css';
+import { Linked } from '../common/bits';
 
 /** A field's value as the server compares it with a suggestion: logins, names, presentations. */
 function present(f: IssueField): string | null {
@@ -176,7 +176,7 @@ export function SuggestionCard({
 
   const pick = (key: string, label: React.ReactNode, aria?: string) =>
     choosing && open ? (
-      <label className="a4p-pick">
+      <label className="approval-pick">
         <input type="checkbox" checked={!unticked.has(key)} onChange={() => toggle(key)} disabled={busy} aria-label={aria} />
         {label}
       </label>
@@ -189,7 +189,7 @@ export function SuggestionCard({
   const hasWell = showFields || tags.length > 0 || p.duplicates.length > 0;
 
   return (
-    <section className={compact ? 'approval a4p-suggestion a4p-compact' : 'approval a4p-suggestion'} aria-labelledby={titleId}>
+    <section className={compact ? 'approval compact' : 'approval'} aria-labelledby={titleId}>
       <div className="approval-stripe changes" />
       <div className="approval-body">
         <div className="who">
@@ -207,12 +207,12 @@ export function SuggestionCard({
         </div>
 
         {compact && p.summary ? (
-          <p className="a4p-compact-summary">
+          <p className="approval-summary">
             <Linked text={p.summary} />
           </p>
         ) : null}
         {compact && open && openFields.length === 0 && fields.some((f) => f.open) ? (
-          <p className="note a4p-card-note">Its values are dashed in the fields: accept each one you agree with.</p>
+          <p className="approval-note">Its values are dashed in the fields: accept each one you agree with.</p>
         ) : null}
 
         {hasWell ? (
@@ -223,19 +223,19 @@ export function SuggestionCard({
                   return (
                     <div className="pair" key={key}>
                       <dt>{f.open ? pick(key, f.name) : f.name}</dt>
-                      <dd>
+                      <dd className="approval-stack">
                         {f.open ? (
                           <>
-                            <span className="a4p-change">
-                              <del>{before(f.name, f.now)}</del> → <ins className="a4p-worked">{f.value}</ins>
+                            <span>
+                              <del>{before(f.name, f.now)}</del> → <ins className="proposed">{f.value}</ins>
                             </span>
-                            <span className="a4p-reason">
+                            <span className="approval-reason">
                               <span className="source inferred">{CONFIDENCE[f.confidence]}</span> <Linked text={f.reason} />
                             </span>
                           </>
                         ) : (
-                          <span className="a4p-change">
-                            <span className="a4p-now">{f.value}</span> <span className="a4p-same">accepted</span>
+                          <span>
+                            <span className="approval-accepted">{f.value}</span> <span className="approval-state">accepted</span>
                           </span>
                         )}
                       </dd>
@@ -246,18 +246,18 @@ export function SuggestionCard({
             {tags.length ? (
               <div className="pair">
                 <dt>{tags.length === 1 ? 'Tag' : 'Tags'}</dt>
-                <dd className="a4p-tags">
+                <dd className="approval-stack">
                   {tags.map((t) => {
                     const key = `tag:${t.name}`;
                     return (
-                      <span key={key} className="a4p-tag">
+                      <span key={key} className="approval-tag">
                         {t.open ? (
                           <>
-                            {pick(key, <ins className="a4p-worked">{t.name}</ins>, `Tag ${t.name}`)} <span className="a4p-same">to add</span>
+                            {pick(key, <ins className="proposed">{t.name}</ins>, `Tag ${t.name}`)} <span className="approval-state">to add</span>
                           </>
                         ) : (
                           <>
-                            <span className="chip">{t.name}</span> <span className="a4p-same">added</span>
+                            <span className="chip">{t.name}</span> <span className="approval-state">added</span>
                           </>
                         )}
                       </span>
@@ -269,11 +269,11 @@ export function SuggestionCard({
             {p.duplicates.map((d) => (
               <div className="pair" key={`dup:${d.issue}`}>
                 <dt>{d.verdict === 'duplicate' ? 'Same as' : 'Related to'}</dt>
-                <dd>
-                  <span className="a4p-change">
+                <dd className="approval-stack">
+                  <span>
                     <IssueLink id={d.issue} /> {d.summary}
                   </span>
-                  <span className="a4p-reason">
+                  <span className="approval-reason">
                     <Linked text={d.reason} />
                   </span>
                 </dd>
@@ -291,11 +291,11 @@ export function SuggestionCard({
 
         {open ? (
           <>
-            {choosing && picked.length === 0 ? <p className="note a4p-card-note">Tick what to {compact ? 'add' : 'apply'}, or dismiss it.</p> : null}
+            {choosing && picked.length === 0 ? <p className="approval-note">Tick what to {compact ? 'add' : 'apply'}, or dismiss it.</p> : null}
             {!compact && !items.length ? (
-              <p className="note a4p-card-note">There's nothing here left to apply. Open the issues it found, then dismiss it.</p>
+              <p className="approval-note">There's nothing here left to apply. Open the issues it found, then dismiss it.</p>
             ) : null}
-            <div className={compact ? 'a4p-actions' : 'approval-actions'}>
+            <div className={compact ? 'cluster' : 'approval-actions'}>
               {items.length ? (
                 <button type="button" className={compact ? undefined : 'primary'} disabled={busy || picked.length === 0} onClick={() => apply.mutate()}>
                   {apply.isPending
@@ -327,9 +327,7 @@ export function SuggestionCard({
           </p>
         )}
         {error ? (
-          <p className="a4-error" role="alert">
-            {errorText(error)}
-          </p>
+          <ErrorNote error={error} />
         ) : null}
         {compact ? null : (
           <p className="approval-signed">

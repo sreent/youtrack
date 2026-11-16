@@ -4,7 +4,6 @@ import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoards } from '../features/board/api';
 import { plural } from '../features/plan/format';
-import '../features/board/board.css';
 
 function projectsOf(b: Board): string {
   if (!b.projects.length) return 'No project';
@@ -24,16 +23,16 @@ export default function BoardsPage() {
         </Empty>
       ) : null}
       {boards.data && boards.data.length > 0 ? (
-        <section className="card a4-boards-card" aria-labelledby="boards-title">
+        <section className="card" aria-labelledby="boards-title">
           <h2 id="boards-title" className="hidden">
             All boards
           </h2>
-          <ul className="a4-boards">
+          <ul className="directory">
             {boards.data.map((b) => (
               <li key={b.id}>
                 <Icon name="board" />
-                <div className="a4-row">
-                  <Link className="a4-board-name" to={`/boards/${b.id}`}>
+                <div className="directory-name">
+                  <Link to={`/boards/${b.id}`}>
                     {b.name}
                   </Link>
                   <span className="chip">{b.sprintsEnabled ? 'Sprints' : 'Kanban'}</span>

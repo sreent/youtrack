@@ -1,11 +1,21 @@
 import type { Me } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { ApiError, post } from '../api/client';
 import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorNote, Loading } from '../components/States';
 import { Shell } from './Shell';
+import { FormField } from '../components/Form';
+
+/** A page before the frame (Ocean's lone page): one card in the middle. */
+function Lone({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    document.body.classList.add('lone');
+    return () => document.body.classList.remove('lone');
+  }, []);
+  return <main className="card lone-card stack">{children}</main>;
+}
 
 /** Signed-in pages: the frame, or the way to sign in / set up. */
 export function RequireUser() {
@@ -13,18 +23,18 @@ export function RequireUser() {
   const me = useMe();
   if (setup.isLoading || me.isLoading) {
     return (
-      <div className="a4-center">
+      <Lone>
         <Loading />
-      </div>
+      </Lone>
     );
   }
   if (setup.data?.needsSetup) return <Navigate to="/setup" replace />;
   if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to="/login" replace />;
   if (me.error || !me.data) {
     return (
-      <div className="a4-center">
+      <Lone>
         <ErrorNote error={me.error} />
-      </div>
+      </Lone>
     );
   }
   return <Shell me={me.data} />;
@@ -32,19 +42,15 @@ export function RequireUser() {
 
 function AuthCard({ title, about, children }: { title: string; about: string; children: React.ReactNode }) {
   return (
-    <div className="a4-center">
-      <section className="card a4-auth">
-        <div className="a4-row">
-          <span className="brand">
-            <span className="mark">a4</span>
-            <span>a4a</span>
-          </span>
-        </div>
-        <h1>{title}</h1>
-        <p className="note">{about}</p>
-        {children}
-      </section>
-    </div>
+    <Lone>
+      <span className="brand">
+        <span className="mark">a4</span>
+        <span>a4a</span>
+      </span>
+      <h1>{title}</h1>
+      <p className="note">{about}</p>
+      {children}
+    </Lone>
   );
 }
 
@@ -71,15 +77,11 @@ export function LoginPage() {
   };
   return (
     <AuthCard title="Sign in" about="Use your a4a login.">
-      <form className="a4-form" onSubmit={submit}>
-        <label>
-          Login
-          <input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" required autoFocus />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-        </label>
+      <form className="form" onSubmit={submit}>
+        <FormField label="Login">{(id) => <input id={id} value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" required autoFocus />}</FormField>
+        <FormField label="Password">
+          {(id) => <input id={id} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />}
+        </FormField>
         {error ? <ErrorNote error={error} /> : null}
         <button type="submit" className="primary" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
@@ -116,24 +118,14 @@ export function SetupPage() {
     setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   return (
     <AuthCard title="Set up a4a" about="Create the first administrator. You can invite everyone else afterwards.">
-      <form className="a4-form" onSubmit={submit}>
-        <label>
-          Your name
-          <input value={form.name} onChange={set('name')} required autoFocus />
-        </label>
-        <label>
-          Login
-          <input value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />
-        </label>
-        <label>
-          Email (optional)
-          <input type="email" value={form.email} onChange={set('email')} />
-        </label>
-        <label>
-          Password (at least 8 characters)
-          <input type="password" value={form.password} onChange={set('password')} minLength={8} required autoComplete="new-password" />
-        </label>
-        <label className="a4-row">
+      <form className="form" onSubmit={submit}>
+        <FormField label="Your name">{(id) => <input id={id} value={form.name} onChange={set('name')} required autoFocus />}</FormField>
+        <FormField label="Login">{(id) => <input id={id} value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />}</FormField>
+        <FormField label="Email (optional)">{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
+        <FormField label="Password (at least 8 characters)">
+          {(id) => <input id={id} type="password" value={form.password} onChange={set('password')} minLength={8} required autoComplete="new-password" />}
+        </FormField>
+        <label className="choice">
           <input type="checkbox" checked={form.seedDemo} onChange={set('seedDemo')} />
           <span>Add demo projects, so you can try everything at once</span>
         </label>

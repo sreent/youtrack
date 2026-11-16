@@ -12,7 +12,6 @@ import { errorText, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { LadderChoice, type Rung } from '../features/common/Ladder';
 import { useToolMap } from '../features/common/queries';
-import '../features/common/pages.css';
 
 const RUNGS: Rung<'ask' | 'auto'>[] = [
   { value: 'ask', name: 'Asks', lvl: 'ask', about: 'Each change waits for your yes, with exactly what it would do.' },
@@ -123,7 +122,7 @@ export default function AssistantPage() {
         }
       />
       {status.data && !status.data.enabled ? (
-        <section className="card a4p-off">
+        <section className="card stack tight">
           <h2>The assistant is off on this server</h2>
           <p className="note">
             To turn it on, set <code>ANTHROPIC_API_KEY</code> in the server's environment and restart it. Until then you can read your past conversations, and
@@ -132,25 +131,25 @@ export default function AssistantPage() {
         </section>
       ) : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-      <div className="a4p-assistant">
-        <div className="a4p-assistant-side">
-          <nav className="card a4p-convos" aria-label="Your conversations">
+      <div className="tw:grid tw:grid-cols-[16rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
+        <div className="stack">
+          <nav className="card side-card nav-card" aria-label="Your conversations">
             <h2>Your conversations</h2>
             {list.isLoading ? <Loading what="conversations" /> : null}
             {list.error ? <ErrorNote error={list.error} /> : null}
             {list.data && !list.data.length ? <p className="note">None yet. What you ask starts one.</p> : null}
             {list.data?.length ? (
-              <ul className="a4p-convo-list">
+              <ul className="nav-list scrolls">
                 {list.data.map((c) => (
                   <li key={c.id}>
                     <NavLink to={`/assistant/${c.id}${keep}`}>
-                      <span className="a4p-convo-title">{c.title}</span>
-                      <span className="a4p-convo-meta">
+                      <span className="nav-list-name">{c.title}</span>
+                      <span className="nav-list-about">
                         {c.project ? <span className="issue-id">{c.project}</span> : null}
                         <span>{ago(c.updatedAt)}</span>
                         {c.status === 'awaiting_approval' ? <Badge tone="warn">waiting on you</Badge> : null}
                         {running.has(c.id) || c.status === 'running' ? (
-                          <span className="a4p-convo-run">
+                          <span className="nav-list-busy">
                             <span className="spin" aria-hidden="true" />
                             answering
                           </span>
@@ -162,7 +161,7 @@ export default function AssistantPage() {
               </ul>
             ) : null}
           </nav>
-          <section className="card a4p-autonomy">
+          <section className="card side-card">
             <LadderChoice
               legend="When it would change something"
               rungs={RUNGS}
@@ -174,7 +173,7 @@ export default function AssistantPage() {
           </section>
         </div>
         {notFound ? (
-          <section className="card a4p-talk-missing">
+          <section className="card tw:max-[900px]:-order-1">
             <h2>That conversation isn't here</h2>
             <ErrorNote error={detail.error} />
             <p className="note">

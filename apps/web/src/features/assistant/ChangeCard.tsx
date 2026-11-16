@@ -19,7 +19,7 @@ function PreviewWell({ preview, fieldNames }: { preview: string; fieldNames: str
   });
   if (!pairs.some((p) => p.id)) {
     return (
-      <p className="a4p-well">
+      <p className="approval-well">
         <Linked text={preview} />
       </p>
     );
@@ -70,7 +70,7 @@ export function ChangeCard({
   const titleId = useId();
   const what = tool ? lowerFirst(tool.title) : approval.name.replace(/_/g, ' ');
   return (
-    <section className="approval a4p-ask" aria-labelledby={titleId}>
+    <section className="approval" aria-labelledby={titleId}>
       <div className="approval-stripe changes" />
       <div className="approval-body">
         <div className="who">
@@ -93,7 +93,7 @@ export function ChangeCard({
         ) : null}
         {decided === undefined ? (
           <>
-            {blocked ? <p className="note a4p-card-note">{blocked}</p> : null}
+            {blocked ? <p className="approval-note">{blocked}</p> : null}
             <div className="approval-actions">
               <button type="button" className="primary" disabled={busy || Boolean(blocked)} onClick={() => onDecide(true)}>
                 Approve

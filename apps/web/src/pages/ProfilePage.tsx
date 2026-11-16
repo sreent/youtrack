@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { patch } from '../api/client';
 import { keys, useMe } from '../api/queries';
-import { Loading, PageHead } from '../components/States';
+import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
-import { errorText, Said } from '../features/common/bits';
-import '../features/common/pages.css';
+import { errorText, FormField, Said } from '../features/common/bits';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -36,24 +35,21 @@ function You({ me }: { me: Me }) {
   });
   return (
     <form
-      className="a4p-form"
+      className="form"
       onSubmit={(e) => {
         e.preventDefault();
         save.mutate();
       }}
     >
-      <div className="a4p-fields">
-        <label className="a4p-field">
-          <span>Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />
-        </label>
-        <label className="a4p-field">
-          <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-          <small>Optional.</small>
-        </label>
+      <div className="form-fields">
+        <FormField label="Name">
+          {(id) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />}
+        </FormField>
+        <FormField label="Email" help="Optional.">
+          {(id, help) => <input id={id} aria-describedby={help} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />}
+        </FormField>
       </div>
-      <div className="a4p-actions">
+      <div className="cluster">
         <button type="submit" className="primary" disabled={!dirty || !name.trim() || save.isPending}>
           {save.isPending ? 'Saving…' : 'Save the changes'}
         </button>
@@ -84,7 +80,7 @@ function Password({ me }: { me: Me }) {
   const mismatch = again.length > 0 && again !== next;
   return (
     <form
-      className="a4p-form"
+      className="form"
       onSubmit={(e) => {
         e.preventDefault();
         if (next !== again) {
@@ -95,44 +91,44 @@ function Password({ me }: { me: Me }) {
       }}
     >
       <input type="text" name="username" autoComplete="username" value={me.login} readOnly hidden />
-      <div className="a4p-fields">
-        <label className="a4p-field">
-          <span>Current password</span>
-          <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required autoComplete="current-password" />
-        </label>
-        <label className="a4p-field">
-          <span>New password</span>
-          <input
-            type="password"
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-            required
-            minLength={8}
-            autoComplete="new-password"
-            aria-describedby="pw-help"
-          />
-          <small id="pw-help">At least 8 characters.</small>
-        </label>
-        <label className="a4p-field">
-          <span>The new one again</span>
-          <input
-            type="password"
-            value={again}
-            onChange={(e) => setAgain(e.target.value)}
-            required
-            minLength={8}
-            autoComplete="new-password"
-            aria-invalid={mismatch || undefined}
-            aria-describedby={mismatch ? 'pw-mismatch' : undefined}
-          />
-          {mismatch ? (
-            <small id="pw-mismatch" className="a4p-said-bad">
-              Not the same as the new password.
-            </small>
-          ) : null}
-        </label>
+      <div className="form-fields">
+        <FormField label="Current password">
+          {(id) => <input id={id} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required autoComplete="current-password" />}
+        </FormField>
+        <FormField label="New password" help="At least 8 characters.">
+          {(id, help) => (
+            <input
+              id={id}
+              type="password"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+              aria-describedby={help}
+            />
+          )}
+        </FormField>
+        <FormField label="The new one again">
+          {(id) => (
+            <>
+              <input
+                id={id}
+                type="password"
+                value={again}
+                onChange={(e) => setAgain(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                aria-invalid={mismatch || undefined}
+                aria-describedby={mismatch ? 'pw-mismatch' : undefined}
+              />
+              {mismatch ? <ErrorLine id="pw-mismatch">Not the same as the new password.</ErrorLine> : null}
+            </>
+          )}
+        </FormField>
       </div>
-      <div className="a4p-actions">
+      <div className="cluster">
         {changed ? (
           <Link className="button" to="/login" onClick={() => qc.clear()}>
             Sign in again
@@ -160,8 +156,8 @@ export default function ProfilePage() {
         about="How a4a names you to others, and how you sign in."
         meta={
           <>
-            <span className="a4p-meta-who">
-              <Avatar kind="person" name={m.name} small /> <span className="a4p-mono">{m.login}</span>
+            <span className="tw:inline-flex tw:items-center tw:gap-2">
+              <Avatar kind="person" name={m.name} small /> <span className="mono">{m.login}</span>
             </span>
             <span>You're {ROLE_WORDS[m.role]}.</span>
           </>

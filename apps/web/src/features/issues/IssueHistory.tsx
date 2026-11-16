@@ -6,9 +6,10 @@ import { post } from '../../api/client';
 import { keys, useActivity, useComments } from '../../api/queries';
 import { ChangeLines } from '../../components/Changes';
 import { Markdown } from '../../components/Markdown';
-import { ErrorNote, Loading } from '../../components/States';
+import { ErrorNote, Loading, ErrorLine } from '../../components/States';
 import { Avatar, type WhoKind } from '../../components/Who';
 import { errorText } from './api';
+import { FormField } from '../../components/Form';
 
 type Actor = TrackerEvent['actor'];
 
@@ -184,7 +185,7 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
   };
 
   return (
-    <section className="a4-stack" aria-labelledby="history-title">
+    <section className="stack" aria-labelledby="history-title">
       <h2 id="history-title">History and comments</h2>
       <ol className="history">
         {entries.map((e) => (
@@ -203,22 +204,19 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
         ))}
       </ol>
       <form
-        className="a4-form"
+        className="form"
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim()) void send();
         }}
       >
-        <label>
-          A comment{me ? `, as ${me.name}` : ''}
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Markdown works here. Mention an issue by its id, like BACK-12." />
-        </label>
+        <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
+          {(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Markdown works here. Mention an issue by its id, like BACK-12." />}
+        </FormField>
         {error ? (
-          <p className="a4-error" role="alert">
-            {error}
-          </p>
+          <ErrorLine>{error}</ErrorLine>
         ) : null}
-        <div className="a4-row a4-actions">
+        <div className="cluster end">
           <button type="submit" className="primary" disabled={!text.trim() || busy}>
             {busy ? 'Commenting…' : 'Comment'}
           </button>

@@ -14,7 +14,6 @@ import { Who } from '../../components/Who';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
 import { dayMonth, mondayOf, span, spanWords, weekdayName, workCalendar, type WorkCalendar } from './dates';
 import { andList, days, hours, plural, shift } from './format';
-import './plan.css';
 
 type Day = ResourceLoad['resources'][number]['days'][number];
 
@@ -281,30 +280,31 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           ? "Within slack, a task only moves as far as it may without moving the plan's finish."
           : 'Allowing delay, a task may move past its slack, and the finish may move with it.'}
       </p>
-      <div aria-live="polite">
+      {/* Always there, so what lands in it is heard: what levelling just did, or that the plan has moved on. */}
+      <div className="levelling-status" aria-live="polite">
         {notice?.kind === 'levelled' ? (
-          <p className="a4-row">
+          <p>
             <Badge tone="good">{notice.text}</Badge>
             <span className="note">{notice.detail}</span>
           </p>
         ) : null}
         {notice?.kind === 'changed' ? (
-          <p className="a4-row" role="alert">
+          <p role="alert">
             <Badge tone="warn">Nothing was levelled</Badge>
             <span className="note">The plan changed since this was proposed. This is the new proposal: check it, and level again if it still looks right.</span>
+          </p>
+        ) : null}
+        {stale ? (
+          <p>
+            <span className="note">The plan has changed since this was proposed.</span>
+            <button type="button" className="link" onClick={() => void propose(mode)}>
+              Propose again
+            </button>
           </p>
         ) : null}
       </div>
       {busy === 'proposing' && !r ? <Loading what="what levelling would move" /> : null}
       {error ? <ErrorNote error={error} /> : null}
-      {stale ? (
-        <p className="a4-row">
-          <span className="note">The plan has changed since this was proposed.</span>
-          <button type="button" className="link" onClick={() => void propose(mode)}>
-            Propose again
-          </button>
-        </p>
-      ) : null}
       {moved.length ? (
         <ul className="levelling-list">
           {moved.map((c) => (
@@ -332,15 +332,13 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
         </ul>
       ) : null}
       {nowLate.length ? (
-        <ul className="a4-badges">
+        <div className="badges">
           {nowLate.map((c) => (
-            <li key={c.issue}>
-              <Badge tone="bad">
-                {c.issue} would be {days(Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish)))} late: it's due {dayMonth(deadlines.get(c.issue)!)}
-              </Badge>
-            </li>
+            <Badge key={c.issue} tone="bad">
+              {c.issue} would be {days(Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish)))} late: it's due {dayMonth(deadlines.get(c.issue)!)}
+            </Badge>
           ))}
-        </ul>
+        </div>
       ) : null}
       {r && moved.length && unresolved.length ? (
         <p className="note">

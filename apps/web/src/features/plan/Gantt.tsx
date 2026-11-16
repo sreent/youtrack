@@ -161,8 +161,8 @@ function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
 /** Where a what-if would put a task: dashed, in the colour of a change, as what isn't so. */
 function WhatIfMark({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
   const w = t.whatIf!;
-  if (t.kind === 'milestone') return <path className="a4-whatif" d={diamond(s.x(w.start) + s.dayWidth / 2, top)} data-task={t.id} />;
-  return <rect className="a4-whatif" x={s.x(w.start) + 2} y={top + 8} width={s.end(w.finish) - s.x(w.start) - 4} height={12} rx={4} data-task={t.id} />;
+  if (t.kind === 'milestone') return <path className="gantt-whatif" d={diamond(s.x(w.start) + s.dayWidth / 2, top)} data-task={t.id} />;
+  return <rect className="gantt-whatif" x={s.x(w.start) + 2} y={top + 8} width={s.end(w.finish) - s.x(w.start) - 4} height={12} rx={4} data-task={t.id} />;
 }
 
 /** How wide the chart's part of the frame is, so a short plan's days fill it rather than leave a gap. */
@@ -310,7 +310,7 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
         {whatIf ? (
           <li>
             <svg width="28" height="14" aria-hidden="true">
-              <rect className="a4-whatif" x="1.5" y="1.5" width="25" height="11" rx="4" />
+              <rect className="gantt-whatif" x="1.5" y="1.5" width="25" height="11" rx="4" />
             </svg>
             Where the what-if would move it
           </li>

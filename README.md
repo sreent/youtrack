@@ -131,7 +131,7 @@ pnpm start
 pnpm test
 ```
 
-This runs the server's tests on in-memory PGlite. To run them against a real Postgres server, where each test file gets its own database:
+This runs the web app's design check (a4a's look is all Ocean's: its stylesheets may hold no rules of their own), then the server's tests on in-memory PGlite. To run them against a real Postgres server, where each test file gets its own database:
 
 ```bash
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm test

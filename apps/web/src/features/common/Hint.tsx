@@ -8,7 +8,7 @@ export function Hint({ label, hint }: { label: string; hint: string }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
-    <span className="a4p-hint" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span className="hint-anchor" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
         className="link"

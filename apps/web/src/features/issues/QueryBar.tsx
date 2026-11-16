@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, get, post, qs } from '../../api/client';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
+import { ErrorLine } from '../../components/States';
 
 export const checkQuery: Checker = async (text, caret) => {
   const [parsed, next] = await Promise.all([
@@ -155,9 +156,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = '
         </p>
       ) : null}
       {error ? (
-        <p className="a4-error" role="alert">
-          {error}
-        </p>
+        <ErrorLine>{error}</ErrorLine>
       ) : null}
       {found !== undefined && found !== null && !asking ? (
         <p className="query-found" role="status">

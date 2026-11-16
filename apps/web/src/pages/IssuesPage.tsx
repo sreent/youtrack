@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router';
 import { ApiError, del, post } from '../api/client';
 import { keys, useAIStatus, useIssues, useSavedSearches } from '../api/queries';
 import { Icon } from '../components/Icon';
-import { ErrorNote, Loading, PageHead } from '../components/States';
+import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
 import { CommandBar } from '../features/issues/CommandBar';
 import { IssueList } from '../features/issues/IssueList';
 import { QueryBar } from '../features/issues/QueryBar';
@@ -33,7 +33,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
   };
 
   return (
-    <div className="a4-row">
+    <div className="cluster">
       <span className="label">Saved searches</span>
       {saved.data?.map((s) => (
         <button key={s.id} type="button" className="link" aria-current={s.query === query ? 'true' : undefined} onClick={() => onPick(s.query)}>
@@ -59,7 +59,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
       ) : null}
       {naming ? (
         <form
-          className="a4-row"
+          className="cluster"
           onSubmit={(e) => {
             e.preventDefault();
             if (name.trim()) void save();
@@ -74,7 +74,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
           </button>
         </form>
       ) : null}
-      {error ? <span className="a4-error">{error}</span> : null}
+      {error ? <ErrorLine>{error}</ErrorLine> : null}
     </div>
   );
 }
@@ -114,7 +114,7 @@ export default function IssuesPage() {
           </Link>
         }
       />
-      <div className="a4-stack">
+      <div className="stack">
         <QueryBar value={query} onSubmit={search} found={issues.isFetching && !issues.isPlaceholderData ? null : total} project={project} aiEnabled={Boolean(ai.data?.enabled)} />
         <SavedSearches query={query} onPick={search} />
         {issues.isLoading ? <Loading what="issues" /> : null}
@@ -126,7 +126,7 @@ export default function IssuesPage() {
           <IssueList issues={items} label={query ? 'Issues found' : 'All issues'} chosen={chosen} onChosen={setChosen} onCommand={() => setCommanding(true)} />
         ) : null}
         {total !== null && total > PAGE ? (
-          <nav className="a4-row" aria-label="Pages">
+          <nav className="cluster" aria-label="Pages">
             <button type="button" disabled={offset === 0} onClick={() => page(Math.max(0, offset - PAGE))}>
               Previous
             </button>

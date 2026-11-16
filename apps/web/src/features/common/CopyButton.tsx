@@ -9,7 +9,7 @@ async function copyText(text: string): Promise<boolean> {
     const area = document.createElement('textarea');
     area.value = text;
     area.setAttribute('readonly', '');
-    area.className = 'a4p-offscreen';
+    area.className = 'hidden';
     document.body.appendChild(area);
     area.select();
     let ok = false;
@@ -40,12 +40,12 @@ export function CopyButton({ text, label = 'Copy', what }: { text: string; label
     timer.current = setTimeout(() => setSaid(''), 3000);
   };
   return (
-    <span className="a4p-copy">
+    <span className="copy">
       <button type="button" onClick={copy}>
         {said.startsWith('Copied') ? 'Copied' : label}
       </button>
-      <span role="status" className="a4p-copy-said">
-        {said && !said.startsWith('Copied') ? said : <span className="a4-sr-only">{said}</span>}
+      <span role="status" className="copy-said">
+        {said && !said.startsWith('Copied') ? said : <span className="hidden">{said}</span>}
       </span>
     </span>
   );

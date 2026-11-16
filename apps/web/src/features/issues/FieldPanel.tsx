@@ -5,6 +5,7 @@ import { Badge, PriorityMeter } from '../../components/Badges';
 import { Avatar, Who } from '../../components/Who';
 import { errorText, useUpdateIssue } from './api';
 import { isOption, isPeriod, isUser } from './fields';
+import { ErrorLine } from '../../components/States';
 
 /** A value triage worked out, waiting for a person. */
 export interface Proposal {
@@ -141,7 +142,7 @@ function ChoiceValue({
               id={`${listId}-${i}`}
               role="option"
               aria-selected={chosen.has(c.key)}
-              data-active={i === active || undefined}
+              className={i === active ? 'active' : undefined}
               onMouseDown={(e) => e.preventDefault()}
               onMouseEnter={() => setActive(i)}
               onClick={() => pick(c)}
@@ -191,7 +192,7 @@ function TextValue({
   if (type === 'date' && !editingDate) {
     return (
       <button type="button" className={cls} aria-labelledby={labelId} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
-        {initial ? formatDate(initial) : <span className="empty tw:text-muted">{placeholder}</span>}
+        {initial ? formatDate(initial) : <span className="empty">{placeholder}</span>}
       </button>
     );
   }
@@ -300,7 +301,7 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                 optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone })
               )
             ) : (
-              <span className="empty tw:text-muted">{emptyWords(pf.name)}</span>
+              <span className="empty">{emptyWords(pf.name)}</span>
             );
             control = (
               <ChoiceValue
@@ -311,7 +312,7 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                 chosen={chosen}
                 proposedId={proposedId}
                 choices={[
-                  ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty tw:text-muted">{emptyWords(pf.name)}</span> }] : []),
+                  ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
                   ...values.map((v) => ({
                     key: v.name,
                     text: v.name,
@@ -330,12 +331,12 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
-                view={shownUser ? <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small /> : <span className="empty tw:text-muted">{emptyWords(pf.name)}</span>}
+                view={shownUser ? <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small /> : <span className="empty">{emptyWords(pf.name)}</span>}
                 multi={false}
                 chosen={new Set(u ? [u.login] : [''])}
                 proposedId={proposedId}
                 choices={[
-                  { key: '', text: emptyWords(pf.name), view: <span className="empty tw:text-muted">{emptyWords(pf.name)}</span> },
+                  { key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> },
                   ...people.map((p) => ({
                     key: p.login,
                     text: p.name,
@@ -378,9 +379,7 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                   </p>
                 ) : null}
                 {errors[pf.name] ? (
-                  <p className="a4-error" role="alert">
-                    {errors[pf.name]}
-                  </p>
+                  <ErrorLine>{errors[pf.name]}</ErrorLine>
                 ) : null}
               </dd>
             </div>
@@ -389,7 +388,7 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
         <div className="fields-row">
           <dt>Spent time</dt>
           <dd>
-            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty tw:text-muted">None yet</span>}</span>
+            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty">None yet</span>}</span>
           </dd>
         </div>
       </dl>

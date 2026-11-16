@@ -6,6 +6,7 @@ import { useAIStatus } from '../../api/queries';
 import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
+import { ErrorLine } from '../../components/States';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -233,9 +234,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
                 <span className="command-summary">{summaries.get(r.issue) ?? ''}</span>
                 {r.changes.length ? <ChangeLines changes={r.changes} /> : <ChangeLines changes={[]} same={['Nothing changes']} />}
                 {r.errors.map((e) => (
-                  <p key={e} className="a4-error">
-                    {e}
-                  </p>
+                  <ErrorLine key={e}>{e}</ErrorLine>
                 ))}
               </li>
             ))}
@@ -248,12 +247,8 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
         <textarea value={comment} onChange={(e) => setComment(e.target.value)} />
       </label>
 
-      {error || errors.length || failed.length ? (
-        <div className="a4-error" role="alert">
-          {error ? <p>{error}</p> : null}
-          {failed.length ? <p>Some issues weren't changed: {failed.map((f) => `${f.issue} (${f.errors.join('; ')})`).join(', ')}</p> : null}
-        </div>
-      ) : null}
+      {error ? <ErrorLine>{error}</ErrorLine> : null}
+      {failed.length ? <ErrorLine>Some issues weren't changed: {failed.map((f) => `${f.issue} (${f.errors.join('; ')})`).join(', ')}</ErrorLine> : null}
 
       <div className="dialog-actions">
         {hint ? <p className="command-hint">{hint}</p> : null}

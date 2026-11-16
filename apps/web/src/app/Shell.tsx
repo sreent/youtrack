@@ -1,6 +1,6 @@
 import type { Me } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, Fragment } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { post, subscribeEvents } from '../api/client';
 import { keys } from '../api/queries';
@@ -96,7 +96,7 @@ export function Shell({ me }: { me: Me }) {
             const items = g.items.filter((i) => !i.admin || isAdmin);
             if (!items.length) return null;
             return (
-              <div key={g.group} className="a4-navgroup">
+              <Fragment key={g.group}>
                 <div className="group">{g.group}</div>
                 {items.map((i) => (
                   <NavLink key={i.to} to={i.to}>
@@ -104,18 +104,18 @@ export function Shell({ me }: { me: Me }) {
                     <span>{i.label}</span>
                   </NavLink>
                 ))}
-              </div>
+              </Fragment>
             );
           })}
         </nav>
         <div className="me">
-          <NavLink to="/me" className="a4-me-link" title="Your profile">
+          <NavLink to="/me" title="Your profile">
             <span className="avatar" aria-hidden="true">
               {initials(me.name)}
             </span>
             <span>{me.name}</span>
           </NavLink>
-          <button type="button" className="plain" onClick={signOut} title="Sign out" aria-label="Sign out">
+          <button type="button" onClick={signOut} title="Sign out" aria-label="Sign out">
             <Icon name="logout" />
           </button>
         </div>

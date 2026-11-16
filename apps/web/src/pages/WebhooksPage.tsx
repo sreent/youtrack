@@ -6,12 +6,11 @@ import { del, patch, post } from '../api/client';
 import { keys, useProjects, useWebhooks } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { AdminOnly, errorText, Said, Scroll } from '../features/common/bits';
+import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
 import { pageKeys, useDeliveries } from '../features/common/queries';
-import '../features/common/pages.css';
 
 const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'issue.created': 'an issue is created',
@@ -44,7 +43,7 @@ function Deliveries({ hook }: { hook: Webhook }) {
   if (!deliveries.data?.length) return <p className="note">Nothing sent yet. Send a test, or wait for the next change.</p>;
   return (
     <Scroll label="Table of recent deliveries">
-      <table className="figures a4p-deliveries">
+      <table className="figures">
         <thead>
           <tr>
             <th scope="col">When</th>
@@ -67,8 +66,8 @@ function Deliveries({ hook }: { hook: Webhook }) {
                 </time>
               </td>
               <td>
-                <span className="a4p-mono">{d.eventType}</span>
-                {d.eventId !== null ? <span className="a4p-row-about">event {d.eventId}</span> : <span className="a4p-row-about">a test</span>}
+                <span className="mono">{d.eventType}</span>
+                {d.eventId !== null ? <span className="item-about">event {d.eventId}</span> : <span className="item-about">a test</span>}
               </td>
               <td>
                 {d.success ? (
@@ -76,10 +75,10 @@ function Deliveries({ hook }: { hook: Webhook }) {
                 ) : (
                   <Badge tone="bad">failed{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>
                 )}
-                {d.error && !d.success ? <span className="a4p-row-about">{d.error}</span> : null}
+                {d.error && !d.success ? <span className="item-about">{d.error}</span> : null}
               </td>
               <td className="num">{d.attempt} of 3</td>
-              <td className="num a4p-mono">{d.durationMs} ms</td>
+              <td className="num mono">{d.durationMs} ms</td>
             </tr>
           ))}
         </tbody>
@@ -117,11 +116,11 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
   });
   const all = hook.events.includes('*');
   return (
-    <li className="card a4p-hook">
-      <div className="a4p-hook-head">
-        <div className="a4p-hook-what">
-          <span className="a4p-mono a4p-hook-url">{hook.url}</span>
-          <span className="a4p-row-about">
+    <li className="card hook">
+      <div className="hook-head">
+        <div className="hook-what">
+          <span className="mono hook-url">{hook.url}</span>
+          <span className="item-about">
             {all ? 'Every change' : `When ${hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(', or ')}`}
             {' · '}
             {hook.project ? `in ${projectName ?? hook.project}` : 'in every project'}
@@ -130,7 +129,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
         </div>
         {hook.active ? <Badge tone="good">sends</Badge> : <Badge tone="idle">paused</Badge>}
       </div>
-      <div className="a4p-actions">
+      <div className="cluster">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Sending…' : 'Send a test'}
         </button>
@@ -140,7 +139,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
         <button type="button" className="link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? 'Hide its deliveries' : 'Show its deliveries'}
         </button>
-        <span className="a4p-grow" />
+        <span className="grow" />
         <Confirm
           small
           label="Delete it"
@@ -153,7 +152,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
       </div>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {open ? (
-        <div className="a4p-hook-deliveries">
+        <div className="hook-log">
           <h3>Recent deliveries</h3>
           <Deliveries hook={hook} />
         </div>
@@ -188,46 +187,53 @@ function AddHook() {
     <section className="card" aria-labelledby="add-hook">
       <h2 id="add-hook">Add a webhook</h2>
       <form
-        className="a4p-form"
+        className="form"
         onSubmit={(e) => {
           e.preventDefault();
           add.mutate();
         }}
       >
-        <div className="a4p-fields">
-          <label className="a4p-field a4p-wide">
-            <span>Where to send</span>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              required
-              placeholder="https://ci.example.com/a4a"
-              className="a4p-mono-input"
-            />
-            <small>a4a posts to it from the server, so it can reach addresses inside your network: add only ones you trust.</small>
-          </label>
-          <label className="a4p-field">
-            <span>From</span>
-            <select value={project} onChange={(e) => setProject(e.target.value)}>
-              <option value="">Every project</option>
-              {(projects.data ?? []).map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.key} only
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="form-fields">
+          <FormField
+            label="Where to send"
+            help="a4a posts to it from the server, so it can reach addresses inside your network: add only ones you trust."
+            className="tw:col-span-full"
+          >
+            {(id, help) => (
+              <input
+                id={id}
+                aria-describedby={help}
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required
+                placeholder="https://ci.example.com/a4a"
+                className="mono"
+              />
+            )}
+          </FormField>
+          <FormField label="From">
+            {(id) => (
+              <select id={id} value={project} onChange={(e) => setProject(e.target.value)}>
+                <option value="">Every project</option>
+                {(projects.data ?? []).map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.key} only
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
         </div>
-        <fieldset className="a4p-checks a4p-events">
+        <fieldset className="choice-group columns">
           <legend>When</legend>
-          <label className="a4p-check a4p-wide">
+          <label className="choice tw:col-span-full">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
             <span>Every change, including kinds added later</span>
           </label>
           {!all
             ? EVENT_TYPES.map((t) => (
-                <label key={t} className="a4p-check">
+                <label key={t} className="choice">
                   <input
                     type="checkbox"
                     checked={events.has(t)}
@@ -242,30 +248,26 @@ function AddHook() {
                   />
                   <span>
                     {EVENT_WORDS[t][0]!.toUpperCase() + EVENT_WORDS[t].slice(1)}
-                    <small className="a4p-mono">{t}</small>
+                    <small className="field-help mono">{t}</small>
                   </span>
                 </label>
               ))
             : null}
         </fieldset>
-        <div className="a4p-actions">
+        <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending || !url.trim() || (!all && !events.size)}>
             {add.isPending ? 'Adding…' : 'Add the webhook'}
           </button>
         </div>
-        {add.error ? (
-          <p className="a4-error" role="alert">
-            {errorText(add.error)}
-          </p>
-        ) : null}
+        {add.error ? <ErrorNote error={add.error} /> : null}
       </form>
       {created ? (
-        <div className="a4p-secret" role="status">
+        <div className="secret" role="status">
           <p>
             <strong>Copy its secret now.</strong> This is the only time a4a shows it. Your receiver checks each delivery's signature with it.
           </p>
           <code>{created.secret}</code>
-          <div className="a4p-actions">
+          <div className="cluster">
             <CopyButton text={created.secret} label="Copy the secret" what="the secret" />
             <button type="button" className="link" onClick={() => setCreated(null)}>
               I've kept it
@@ -294,19 +296,19 @@ export default function WebhooksPage() {
         {hooks.error ? <ErrorNote error={hooks.error} /> : null}
         {hooks.data && !hooks.data.length ? <p className="note">Nowhere yet. Add a webhook, then send it a test.</p> : null}
         {hooks.data?.length ? (
-          <ul className="a4p-hooks">
+          <ul className="hooks">
             {hooks.data.map((h) => (
               <HookCard key={h.id} hook={h} projectName={h.project ? names.get(h.project) : undefined} />
             ))}
           </ul>
         ) : null}
       </section>
-      <div className="a4p-two-col">
+      <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <AddHook />
         <section className="card" aria-labelledby="how">
           <h2 id="how">How deliveries work</h2>
           <p className="note">Each delivery is a POST of the change as JSON, the same as GET /api/v1/events gives.</p>
-          <dl className="a4p-facts">
+          <dl className="facts-list">
             <div className="pair">
               <dt>Signed</dt>
               <dd>
@@ -331,11 +333,13 @@ export default function WebhooksPage() {
             </div>
           </dl>
           <h3>Checking the signature, in Node</h3>
-          <pre className="a4p-snippet a4p-code" tabIndex={0} aria-label="Checking the signature, in Node">
-            {VERIFY}
-          </pre>
-          <div className="a4p-actions a4p-snippet-actions">
-            <CopyButton text={VERIFY} label="Copy it" what="the check" />
+          <div className="stack tight">
+            <pre className="snippet code" tabIndex={0} aria-label="Checking the signature, in Node">
+              {VERIFY}
+            </pre>
+            <div className="cluster">
+              <CopyButton text={VERIFY} label="Copy it" what="the check" />
+            </div>
           </div>
         </section>
       </div>
