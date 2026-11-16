@@ -28,7 +28,7 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 ## 2. Design principles
 
 1. **API-first.** Anything you can do in the UI you can do over REST. An OpenAPI 3.1 spec is served at `/api/v1/openapi.json`, with interactive docs at `/api/docs`.
-2. **MCP is curated for agents, not a mirror of REST.** About 37 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
+2. **MCP is curated for agents, not a mirror of REST.** About 39 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
 3. **One tool layer, three surfaces.** The MCP tools and the in-app assistant's tools are the same code, running over the same services as REST, with the same validation and permission checks.
 4. **One permission model.** Every API token belongs to a user and acts as that user. Token scopes (`read`, `write`, `admin`) can only narrow what the user may do, and a token can be limited to some projects.
    - Each project is open, or members only. In a project a person is a viewer (reads, comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines); its lead and administrators are managers.

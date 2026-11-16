@@ -69,7 +69,7 @@ function parts(raw: string): { headers: Map<string, string>; text: string; html:
   return { headers, ...found };
 }
 
-export async function fakeSmtp(port = 2525): Promise<FakeSmtp> {
+export async function fakeSmtp(port = 0): Promise<FakeSmtp> {
   const messages: Received[] = [];
   let refusals: { code: number; left: number } | null = null;
   const server = new SMTPServer({

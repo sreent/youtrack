@@ -98,8 +98,7 @@ function solve(c: CaptchaChallenge): number {
 }
 
 beforeAll(async () => {
-  // helpdesk.test.ts has 3539 and notifications.test.ts 2525; files run side by side.
-  smtp = await fakeSmtp(3541);
+  smtp = await fakeSmtp();
   w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, mailFrom: 'a4a <a4a@desk.test>', notifyWindowMs: 60_000, trustProxy: 1, helpdeskCaptchaMaxNumber: 2000 } });
   await w.app.db.update(users).set({ email: 'anna@example.com' }).where(eq(users.id, w.anna.id));
   w.app.schema.invalidate();

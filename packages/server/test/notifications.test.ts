@@ -48,7 +48,7 @@ async function inbox(u: UserRow, opts: { unread?: boolean } = {}) {
 }
 
 beforeAll(async () => {
-  smtp = await fakeSmtp(2525);
+  smtp = await fakeSmtp();
   w = await createWorld({ config: { smtpUrl: smtp.url, notifyWindowMs: 60_000, publicUrl: 'http://a4a.test' } });
   for (const [u, email] of [
     [w.anna, 'anna@example.com'],

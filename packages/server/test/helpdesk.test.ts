@@ -82,8 +82,7 @@ async function issueOf(summary: string) {
 }
 
 beforeAll(async () => {
-  // notifications.test.ts has 2525; files run side by side.
-  smtp = await fakeSmtp(3539);
+  smtp = await fakeSmtp();
   w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, notifyWindowMs: 60_000, trustProxy: 1 } });
   await w.app.db.update(users).set({ email: 'anna@example.com' }).where(eq(users.id, w.anna.id));
   w.app.schema.invalidate();

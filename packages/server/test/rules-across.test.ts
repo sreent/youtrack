@@ -53,7 +53,8 @@ async function family(project: string, parentSummary: string, children: string[]
 }
 
 beforeAll(async () => {
-  w = await createWorld({ config: { smtpUrl: 'smtp://127.0.0.1:2525', notifyWindowMs: 0 } });
+  // Email is on, so the outbox is written; no mail sender runs here, and nothing listens on port 9.
+  w = await createWorld({ config: { smtpUrl: 'smtp://127.0.0.1:9', notifyWindowMs: 0 } });
   engine = new RuleEngine(w.app, () => {});
   worker = new OutboxWorker(w.app, [engine.consumer(), notifierConsumer(w.app), webhookConsumer(w.app)], {}, [], () => {});
   await worker.drain();
