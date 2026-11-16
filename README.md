@@ -231,3 +231,49 @@ pnpm db:generate
 ```
 
 They run on start.
+
+## End-to-end tests
+
+Playwright drives Chromium through the web app as people use it, against the production build: the real server serves the built UI under its real CSP, on a fresh embedded database with the demo projects, started for the run and removed after it. AI is off on that server; where a flow needs it, the browser's requests to the AI endpoints are answered by the test (the server's own AI is tested by its vitest suite).
+
+Once, for the browser:
+
+```bash
+pnpm --filter @a4a/web exec playwright install --with-deps chromium
+```
+
+Then, which builds first:
+
+```bash
+pnpm test:e2e
+```
+
+- `pnpm --filter @a4a/web test:e2e` runs them without building again.
+- Arguments go to Playwright: `pnpm test:e2e issue.spec.ts`, `pnpm test:e2e -g "levelling"`, `pnpm test:e2e --headed`.
+- The server listens on a free port; set `E2E_PORT` to choose it, and `E2E_HOOK_PORT` for the webhook receiver the tests start.
+
+What it covers, in `apps/web/e2e`:
+
+- **The tour**: every page, light, dark and at 390px, with no console errors, no CSP violations, no sideways scroll, and nothing axe finds against WCAG 2.2 AA. It includes what only the AI fills (a conversation waiting on its approvals, triage's suggestions), stood in for.
+- **Issues**: a query's problem and its fix, suggestions from the keyboard, rows chosen from the keyboard and a command previewed then applied, saved searches, a query read from words.
+- **An issue**: a field changed from the keyboard, links, comments, logged time, triage's values accepted one at a time, the summary, and a save refused (409) when someone changed the issue first.
+- **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
+- **Boards**: dragging (saved with `expectedVersion`), moving from the keyboard, and a move refused.
+- **Plans**: the what-if, baselines, levelling, and levelling refused (409).
+- **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
+- **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
+- **The assistant**: a streamed answer, its approval cards, the decisions and the result.
+
+To see what a test did, record a trace and open it:
+
+```bash
+pnpm test:e2e issue.spec.ts --trace on
+```
+
+```bash
+pnpm --filter @a4a/web exec playwright show-trace test-results/<the test>/trace.zip
+```
+
+In CI (`CI` set), a failed test is retried twice, its first retry is traced, and the HTML report is written to `apps/web/playwright-report`.
+
+A new page joins the tour with one line in `tour.spec.ts`. A new flow is a spec that takes `test` from `e2e/support/fixtures.ts`, so its page's clock is fixed and its console is watched; makes a project of its own (`uniqueKey`), so it runs beside the others; and finds things by their roles and labels.

@@ -218,9 +218,10 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         // The plan changed since the person saw this proposal: show them the new one, and the
-        // load it answers, to decide again.
+        // load it answers, to decide again. The load is read first, so the new proposal isn't
+        // taken for one the plan has moved on from when the load lands after it.
         setNotice({ kind: 'changed' });
-        void invalidate();
+        await invalidate();
         await propose(m);
       } else {
         setError(e);

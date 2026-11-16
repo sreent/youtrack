@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./periods": "./src/periods.ts",
-    "./constants": "./src/constants.ts"
+    "./constants": "./src/constants.ts",
+    "./refs": "./src/refs.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

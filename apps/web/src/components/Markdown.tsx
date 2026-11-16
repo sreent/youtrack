@@ -1,4 +1,5 @@
-import { findRefs } from '@a4a/shared';
+// From refs alone: the package's root would bring zod, whose eval check the page's CSP reports.
+import { findRefs } from '@a4a/shared/refs';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { Link } from 'react-router';
 import remarkGfm from 'remark-gfm';

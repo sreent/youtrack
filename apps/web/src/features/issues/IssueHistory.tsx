@@ -169,8 +169,11 @@ function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode })
   );
 }
 
-/** Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then a comment of your own. */
-export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | undefined }) {
+/**
+ * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then
+ * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
+ */
+export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDetail; me: UserRef | undefined; canComment?: boolean }) {
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
@@ -264,73 +267,75 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
           </li>
         ))}
       </ol>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (text.trim()) void send();
-        }}
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes('Files')) e.preventDefault();
-        }}
-        onDrop={(e) => {
-          if (!e.dataTransfer.files.length) return;
-          e.preventDefault();
-          pick([...e.dataTransfer.files]);
-        }}
-      >
-        <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
-          {(id) => (
-            <textarea
-              id={id}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={4}
-              placeholder="Markdown works here. Mention an issue or an article by its id, like BACK-12 or BACK-A-3."
+      {canComment ? (
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) void send();
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            if (!e.dataTransfer.files.length) return;
+            e.preventDefault();
+            pick([...e.dataTransfer.files]);
+          }}
+        >
+          <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
+            {(id) => (
+              <textarea
+                id={id}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={4}
+                placeholder="Markdown works here. Mention an issue or an article by its id, like BACK-12 or BACK-A-3."
+              />
+            )}
+          </FormField>
+          {picked.length ? (
+            <ul className="chips" aria-label="Files to attach">
+              {picked.map((f) => (
+                <li key={`${f.name}-${f.size}`} className="chip removable">
+                  <span>
+                    {f.name} · {formatBytes(f.size)}
+                  </span>
+                  <button type="button" className="chip-remove" aria-label={`Leave out ${f.name}`} onClick={() => setPicked((list) => list.filter((x) => x !== f))}>
+                    <Icon name="cross" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {error ? <ErrorLine>{error}</ErrorLine> : null}
+          {notAttached.map((m) => (
+            <ErrorLine key={m}>{m}</ErrorLine>
+          ))}
+          <p role="status" className="outcome">
+            {busy ? (progress ?? 'Commenting…') : (progress ?? '')}
+          </p>
+          <div className="cluster spread">
+            <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
+              <Icon name="attach" />
+              Attach files
+            </button>
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                pick([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
             />
-          )}
-        </FormField>
-        {picked.length ? (
-          <ul className="chips" aria-label="Files to attach">
-            {picked.map((f) => (
-              <li key={`${f.name}-${f.size}`} className="chip removable">
-                <span>
-                  {f.name} · {formatBytes(f.size)}
-                </span>
-                <button type="button" className="chip-remove" aria-label={`Leave out ${f.name}`} onClick={() => setPicked((list) => list.filter((x) => x !== f))}>
-                  <Icon name="cross" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {error ? <ErrorLine>{error}</ErrorLine> : null}
-        {notAttached.map((m) => (
-          <ErrorLine key={m}>{m}</ErrorLine>
-        ))}
-        <p role="status" className="outcome">
-          {busy ? (progress ?? 'Commenting…') : (progress ?? '')}
-        </p>
-        <div className="cluster spread">
-          <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
-            <Icon name="attach" />
-            Attach files
-          </button>
-          <input
-            ref={picker}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              pick([...(e.target.files ?? [])]);
-              e.target.value = '';
-            }}
-          />
-          <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Commenting…' : 'Comment'}
-          </button>
-        </div>
-      </form>
+            <button type="submit" className="primary" disabled={!text.trim() || busy}>
+              {busy ? 'Commenting…' : 'Comment'}
+            </button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }
