@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { adminCtx } from '../src/app-services';
 import { seedDemo } from '../src/db/seed';
+import { createIssue } from '../src/services/issues';
 import { createBaseline, getCostReport, getResourceLoad, getSchedule, level, listBaselines, whatIfSchedule } from '../src/services/planning';
+import { createProject, getProject } from '../src/services/projects';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -73,6 +75,28 @@ describe('planning over the demo data', () => {
     expect(chloeAfter).toBeLessThan(chloeBefore);
     // Levelled again, there is nothing left to move.
     expect(Object.keys((await level(ctx, 'MIG', { mode: 'allow_delay', dryRun: true })).starts)).toHaveLength(0);
+  });
+
+  it('keeps where a plan without a start date of its own begins, so it stays as levelled', async () => {
+    const ctx = adminCtx(w.app, w.admin);
+    await createProject(ctx, { key: 'CUT', name: 'Cutover', template: 'waterfall' });
+    const runbook = await createIssue(ctx, { project: 'CUT', summary: 'Write the runbook', fields: { Type: 'Task', Assignee: 'anna', Estimation: '3d' } });
+    await createIssue(ctx, { project: 'CUT', summary: 'Review the runbook', fields: { Type: 'Task', Assignee: 'anna', Estimation: '2d' } });
+    expect((await getProject(ctx, 'CUT')).settings.plan.startDate).toBeNull();
+    const before = await getSchedule(ctx, 'CUT');
+    const startOf = (s: typeof before, id: string) => s.tasks.find((t) => t.issue.id === id)!.start;
+
+    const proposal = await level(ctx, 'CUT', { mode: 'allow_delay', dryRun: true });
+    expect(Object.keys(proposal.starts)).toHaveLength(1);
+    expect(proposal.keepsStart).toBe(startOf(before, runbook.id));
+    await level(ctx, 'CUT', { mode: 'allow_delay', dryRun: false, expect: proposal.starts });
+
+    // Its written Start date is no longer where the plan begins: the runbook stays, and the plan is the proposal.
+    const after = await getSchedule(ctx, 'CUT');
+    expect(startOf(after, runbook.id)).toBe(startOf(before, runbook.id));
+    expect(after.finish).toBe(proposal.finishAfter);
+    expect((await getProject(ctx, 'CUT')).settings.plan.startDate).toBe(proposal.keepsStart);
+    expect(Object.keys((await level(ctx, 'CUT', { mode: 'allow_delay', dryRun: true })).starts)).toHaveLength(0);
   });
 
   it('reports costs and earned value against the baseline', async () => {

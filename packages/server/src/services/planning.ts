@@ -16,10 +16,10 @@ import {
   type ScheduleTask,
   type WhatIfResult,
 } from '@a4a/shared';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, workItems } from '../db/schema';
+import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, projects, workItems } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { todayISO } from '../lib/dates';
 import { badRequest, conflict, notFound } from '../lib/errors';
@@ -348,6 +348,17 @@ export async function level(
     const activities = await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
       const out: ActivityRow[] = [];
+      if (p.keepStart) {
+        // Part of what was proposed, not a change of settings: the plan begins where it did.
+        // Only plan.startDate, in SQL, so a settings change made meanwhile is kept.
+        await tx
+          .update(projects)
+          .set({
+            settings: sql`jsonb_set(coalesce(${projects.settings}, '{}'::jsonb), '{plan}', coalesce(${projects.settings}->'plan', '{}'::jsonb) || jsonb_build_object('startDate', ${p.keepStart}::text))`,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, l.project.id));
+      }
       for (const [id, start] of writes) {
         const row = l.rowsById.get(id);
         if (!row) throw notFound(`Issue ${id}`);
@@ -357,6 +368,7 @@ export async function level(
       }
       return out;
     });
+    if (p.keepStart) ctx.app.schema.invalidate();
     await publishActivities(ctx.app, activities);
   }
   return {
@@ -369,6 +381,7 @@ export async function level(
     changes,
     starts,
     unresolved: p.unresolved,
+    keepsStart: writes.length ? p.keepStart : null,
   };
 }
 

@@ -6,6 +6,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { receiveFile } from '../src/attachments/receive';
 import { contentDisposition, safeFileName, sniffContentType } from '../src/attachments/sniff';
 import { LocalDiskStorage, setAttachmentStorage } from '../src/attachments/storage';
 import { attachmentBlobs, attachments } from '../src/db/schema';
@@ -438,5 +441,33 @@ describe('MCP', () => {
     expect(res.isError).toBe(true);
     expect(text(res)).toContain('write');
     await c.close();
+  });
+});
+
+describe('receiving an upload', () => {
+  it("keeps a client going away from ending the process while the file waits to be read", async () => {
+    const boundary = 'gone-boundary';
+    const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="gone.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`;
+    let sent = 0;
+    let handedOut!: () => void;
+    const fileHandedOut = new Promise<void>((resolve) => (handedOut = resolve));
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        if (sent++ === 0) controller.enqueue(new TextEncoder().encode(`${head}the first bytes`));
+        else {
+          // The client goes away once the server has the file, before it reads it.
+          await fileHandedOut;
+          controller.error(new Error('connection reset by peer'));
+        }
+      },
+    });
+    const req = new Request('http://a4a.test/upload', { method: 'POST', headers: { 'content-type': `multipart/form-data; boundary=${boundary}` }, body, duplex: 'half' } as RequestInit);
+    const incoming = await receiveFile(req, { maxBytes: 1024 * 1024, tooLargeMessage: 'Too large' });
+    handedOut();
+    // Nobody reads it yet, as while the server checks in the database that it has room.
+    // Unhandled meanwhile, the client's error would end the process (vitest reports it).
+    await new Promise((r) => setTimeout(r, 50));
+    const sink = new Writable({ write: (_chunk, _encoding, done) => done() });
+    await expect(pipeline(incoming.stream, sink)).rejects.toThrow(/connection reset|premature close/i);
   });
 });

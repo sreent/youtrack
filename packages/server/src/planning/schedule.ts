@@ -38,6 +38,10 @@ export const MAX_TASK_DAYS = 5_000;
 /** The schedule plus what levelling needs to replay it. */
 export interface PlanModel {
   schedule: ScheduleResult;
+  /** Where the plan begins: its own start date, else its earliest start date or logged work, else today. */
+  anchor: string;
+  /** Where it would begin if these tasks had these Start dates (as levelling writes them). */
+  anchorWith(starts: Readonly<Record<string, string>>): string;
   /** Normalised calendar the schedule was computed with. */
   calendar: PlanCalendar;
   graph: PlanGraph;
@@ -171,7 +175,7 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
     warnings: warnings.list,
     baseline,
   };
-  return { schedule, calendar: ctx.cal, graph, tasks: byId };
+  return { schedule, calendar: ctx.cal, graph, tasks: byId, anchor: planStart, anchorWith: (starts) => projectStart(ctx, starts) };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,9 +239,9 @@ function collectEdits(ctx: Context, overrides: readonly PlanOverride[]): void {
 }
 
 /** The calendar's start date, else the earliest start date or logged work, else today. */
-function projectStart(ctx: Context): string {
+function projectStart(ctx: Context, starts: Readonly<Record<string, string>> = {}): string {
   if (ctx.cal.startDate) return ctx.cal.startDate;
-  return minOf([...ctx.tasks.values()].flatMap((t) => [t.startConstraint, t.firstWorkDate])) ?? ctx.today;
+  return minOf([...ctx.tasks.values()].flatMap((t) => [starts[t.id] ?? t.startConstraint, t.firstWorkDate])) ?? ctx.today;
 }
 
 // ---------------------------------------------------------------------------

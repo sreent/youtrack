@@ -156,6 +156,7 @@ const levelResourcesTool = defineTool({
       `Move ${moved.length} task starts in ${key} (finish ${p.finishBefore} → ${p.finishAfter}):`,
       ...moved.map((c) => `${c.issue}: ${c.fromStart} → ${c.toStart}`),
       ...(follow ? [`${follow} more follow their predecessors`] : []),
+      ...(p.keepsStart ? [`${key} has no start date of its own: it is set to ${p.keepsStart}, where it begins now, so nothing else moves`] : []),
     ].join('\n');
   },
   async run(ctx, input) {
