@@ -13,7 +13,7 @@ import {
 } from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
-import { onInboxChanged } from '../../notify/state';
+import { EVERYONE, onInboxChanged, onInboxStreamsEnd } from '../../notify/state';
 import {
   applyUnsubscribe,
   describeUnsubscribe,
@@ -113,7 +113,8 @@ export function notificationRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/notifications/stream',
       tags,
       summary: 'Your unread count, live, over Server-Sent Events',
-      description: 'An `unread` event with `{unread}` on connecting and whenever it changes. Re-read GET /notifications when it does.',
+      description:
+        'An `unread` event with `{unread}` on connecting and whenever it changes. Re-read GET /notifications when it does. It carries a count, not events: a reconnect, to any instance, starts again with the count as it is.',
     },
     async ({ c, ctx }) => {
       const first = await unreadCount(ctx);
@@ -121,25 +122,32 @@ export function notificationRoutes(app: OpenAPIHono<HttpEnv>) {
       return streamSSE(c, async (stream) => {
         let last = first;
         let dirty = false;
+        let ended = false;
         let wake: (() => void) | null = null;
+        // Changes on this instance, and on others by NOTIFY (EVERYONE after signals may have been missed).
         const off = onInboxChanged(ctx.app, (id) => {
-          if (id !== userId) return;
-          dirty = true;
+          if (id !== userId && id !== EVERYONE) return;
+          if (id === userId) dirty = true;
+          wake?.();
+        });
+        const offEnd = onInboxStreamsEnd(ctx.app, () => {
+          ended = true;
           wake?.();
         });
         stream.onAbort(() => {
           off();
+          offEnd();
           wake?.();
         });
         await stream.writeSSE({ event: 'unread', data: JSON.stringify({ unread: first }) });
-        while (!stream.aborted && !stream.closed) {
+        while (!stream.aborted && !stream.closed && !ended) {
           await new Promise<void>((resolve) => {
             wake = resolve;
-            // Another instance may have made the change: count again now and then.
+            // A backstop for a NOTIFY that was lost: count again now and then.
             setTimeout(resolve, 15_000).unref?.();
           });
           wake = null;
-          if (stream.aborted) break;
+          if (stream.aborted || ended) break;
           const now = await unreadCount(ctx).catch(() => last);
           // A change folded into a notification leaves the count as it was, but the inbox isn't.
           if (dirty || now !== last) {
@@ -151,6 +159,7 @@ export function notificationRoutes(app: OpenAPIHono<HttpEnv>) {
           }
         }
         off();
+        offEnd();
       });
     },
   );

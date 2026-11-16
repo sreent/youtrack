@@ -1,0 +1,19 @@
+# The proxy for docker-compose.cluster.yml: round robin over the a4a instances.
+# Nothing is sticky: sessions, idempotency keys and the event log are in Postgres, and a
+# live stream that reconnects to the other instance resumes from its Last-Event-ID.
+#
+# Caddy passes the Host header through (the CSRF check compares it), appends the client's
+# address to X-Forwarded-For (TRUST_PROXY=1 reads it), and sends text/event-stream
+# responses on as they are written, so live events are not buffered.
+
+:80 {
+	reverse_proxy a4a-1:3000 a4a-2:3000 {
+		lb_policy round_robin
+		# A request that finds an instance down or restarting tries the other one.
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		health_uri /api/v1/health
+		health_interval 5s
+		health_timeout 3s
+	}
+}

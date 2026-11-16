@@ -21,15 +21,25 @@ import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
 import { inboxChanged, mailConfigured, sign, verify } from '../notify/state';
 import { notificationTitle } from '../notify/words';
-import { visibleProjectIds } from './access';
-import { findIssue } from './issues';
+import { eventVisible, projectAccess, visibleProjectIds } from './access';
+import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { requirePersonal } from './watchers';
 
 type NotificationRow = typeof notifications.$inferSelect;
 
-/** The events each notification folds together, oldest first, with why each reached its person. */
-export async function eventsOf(db: Db, s: SchemaSnapshot, ids: string[], last = 20): Promise<Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>> {
+/**
+ * The events each notification folds together, oldest first, with why each reached its person: the
+ * last 20, of those `visible` lets through (what its reader may see now; a link to an issue they
+ * can't see is left out, as it is from the issue's history).
+ */
+export async function eventsOf(
+  db: Db,
+  s: SchemaSnapshot,
+  ids: string[],
+  opts: { last?: number; visible?: (e: TrackerEvent) => boolean } = {},
+): Promise<Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>> {
+  const last = opts.last ?? 20;
   const out = new Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>();
   if (!ids.length) return out;
   const rows = await db
@@ -39,9 +49,11 @@ export async function eventsOf(db: Db, s: SchemaSnapshot, ids: string[], last = 
     .where(inArray(notificationEvents.notificationId, ids))
     .orderBy(asc(activities.id));
   for (const r of rows) {
+    const event = toEventDto(s, r.activity);
+    if (opts.visible && !opts.visible(event)) continue;
     let entry = out.get(r.notificationId);
     if (!entry) out.set(r.notificationId, (entry = { events: [], reasons: new Map() }));
-    entry.events.push(toEventDto(s, r.activity));
+    entry.events.push(event);
     entry.reasons.set(r.activity.id, r.reason as NotificationKind);
   }
   for (const entry of out.values()) if (entry.events.length > last) entry.events = entry.events.slice(-last);
@@ -50,7 +62,8 @@ export async function eventsOf(db: Db, s: SchemaSnapshot, ids: string[], last = 
 
 async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> {
   const s = await ctx.app.schema.get();
-  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id));
+  const view = await projectAccess(ctx);
+  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventVisible(view, s, e) });
   return rows.map((r) => {
     const e = events.get(r.id) ?? { events: [], reasons: new Map() };
     const project = r.projectId ? s.projects.get(r.projectId) : undefined;
@@ -99,9 +112,9 @@ export async function listNotifications(
   const conds: SQL[] = [await mine(ctx)];
   if (opts.unread) conds.push(isNull(notifications.readAt));
   if (opts.issue) {
-    const s = await ctx.app.schema.get();
-    const row = await findIssue(ctx.db, s, opts.issue);
-    if (!row) throw notFound(`Issue ${opts.issue}`);
+    // An issue the caller can't see is not found, in the words used for one that doesn't exist.
+    const row = await findVisibleIssue(ctx, opts.issue);
+    if (!row) throw notFound(`Issue ${opts.issue}`, 'Use a readable id such as BACK-12.');
     conds.push(eq(notifications.issueId, row.id));
   }
   const where = and(...conds);
@@ -138,12 +151,12 @@ export async function markNotifications(
   requirePersonal(ctx);
   if (!input.ids?.length && !input.issue && !input.all) throw badRequest('Say which notifications', 'Send "ids", an "issue", or "all": true.');
   const read = input.read ?? true;
-  const conds: SQL[] = [eq(notifications.userId, ctx.actor.user.id), read ? isNull(notifications.readAt) : isNotNull(notifications.readAt)];
+  // Only what the caller's inbox shows: a token limited to some projects marks nothing elsewhere.
+  const conds: SQL[] = [await mine(ctx), read ? isNull(notifications.readAt) : isNotNull(notifications.readAt)];
   if (input.ids?.length) conds.push(inArray(notifications.id, input.ids));
   if (input.issue) {
-    const s = await ctx.app.schema.get();
-    const row = await findIssue(ctx.db, s, input.issue);
-    if (!row) throw notFound(`Issue ${input.issue}`);
+    const row = await findVisibleIssue(ctx, input.issue);
+    if (!row) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.');
     conds.push(eq(notifications.issueId, row.id));
   }
   if (input.until) {

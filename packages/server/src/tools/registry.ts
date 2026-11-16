@@ -20,10 +20,12 @@ import { projectFieldDtos } from '../services/fields';
 import { applyChanges, createIssue, getIssue, resolveFieldsInput, resolveIssue, updateIssue } from '../services/issues';
 import { linkIssues, listLinkTypes } from '../services/links';
 import { getProject, listProjects } from '../services/projects';
+import { projectAccess } from '../services/access';
 import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
+import { accessTools } from './access';
 import { notificationTools } from './notifications';
 import { requestOf } from '../services/helpdesk';
 
@@ -80,8 +82,11 @@ const getCurrentUser = defineTool({
   kind: 'reads',
   async run(ctx) {
     const u = ctx.actor.user;
+    // A token limited to projects says which, by the keys the agent can use.
+    const view = await projectAccess(ctx);
+    const projects = ctx.actor.projectIds ? ctx.actor.projectIds.filter((id) => view.canRead(id)).map((id) => view.keyOf(id)) : null;
     return {
-      data: { login: u.login, name: u.name, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName },
+      data: { login: u.login, name: u.name, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName, onlyProjects: projects ?? undefined },
       summary: `Acting as ${u.name}`,
     };
   },
@@ -440,7 +445,11 @@ const applyCommandTool = defineTool({
     const changed = res.results.filter((r) => r.changes.length).length;
     return {
       data: { applied: res.applied, dryRun: input.dry_run, results: res.results },
-      summary: input.dry_run ? `Previewed "${input.command}" on ${count(input.issues.length, 'issue')}` : `Applied "${input.command}" to ${count(changed, 'issue')}`,
+      summary: input.dry_run
+        ? `Previewed "${input.command}" on ${count(input.issues.length, 'issue')}`
+        : changed
+          ? `Applied "${input.command}" to ${count(changed, 'issue')}`
+          : `Nothing to change: ${input.issues.length === 1 ? 'the issue already had' : 'the issues already had'} "${input.command}"`,
     };
   },
 });
@@ -534,6 +543,7 @@ export const TOOLS: ToolDef[] = [
   unlinkIssuesTool,
   logWorkTool,
   ...planningTools,
+  ...accessTools,
   ...notificationTools,
 ] as unknown as ToolDef[];
 

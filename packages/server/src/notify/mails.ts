@@ -1,12 +1,11 @@
 /** A notification's email, and the daily digest: rendered when sent, from what is true then. */
 import type { IssueRef, NotificationKind } from '@a4a/shared';
 import { eq, inArray, sql } from 'drizzle-orm';
-import { systemCtx } from '../app-services';
 import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSection, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
-import { canReadProject } from '../services/access';
+import { accessFor, eventVisible } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
 import { emailPrefs, levelSends } from './notifier';
 import { actorName, BECAUSE, emailTime, eventDetail, eventVerb, notificationTitle } from './words';
@@ -40,10 +39,12 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const prefs = await emailPrefs(app.db, n.userId);
   const kind = n.kind as NotificationKind;
   if (!levelSends(prefs.email, kind)) return null;
-  if (n.projectId && !(await canReadProject(systemCtx(app, user), n.projectId))) return null;
+  // What the person may see now, as they would signing in: the project, and each event in it.
+  const view = await accessFor(app.db, user);
+  if (!n.projectId || !view.canRead(n.projectId)) return null;
 
   const s = await app.schema.get();
-  const { events, reasons } = (await eventsOf(app.db, s, [n.id])).get(n.id) ?? { events: [], reasons: new Map() };
+  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventVisible(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const title = notificationTitle(kind, events, reasons);
@@ -97,15 +98,14 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
   const [user] = await app.db.select().from(users).where(eq(users.id, userId));
   const prefs = await emailPrefs(app.db, userId);
   if (!user?.email || user.banned || !prefs.digest) return null;
-  const ctx = systemCtx(app, user);
-  const rows = [];
-  for (const r of await digestRows(app.db, userId, since, until)) if (!r.projectId || (await canReadProject(ctx, r.projectId))) rows.push(r);
+  const view = await accessFor(app.db, user);
+  const rows = (await digestRows(app.db, userId, since, until)).filter((r) => r.projectId && view.canRead(r.projectId));
   if (!rows.length) {
     await done();
     return null;
   }
   const s = await app.schema.get();
-  const events = await eventsOf(app.db, s, rows.map((r) => r.id));
+  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventVisible(view, s, e) });
   const l = links(app);
   const token = await unsubscribeToken(app, 'digest', userId);
   const byIssue = new Map<string, { issue: IssueRef; lines: string[] }>();

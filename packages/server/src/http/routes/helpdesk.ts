@@ -1,59 +1,39 @@
 /**
  * The help desk over HTTP: its public form and tracking page, which need no sign-in, and what the
  * team sees of a request. Each public route answers for one request at most, the same way whether
- * a project, request or token is missing or just not the caller's, and is limited per address.
+ * a project, request or token is missing or just not the caller's, and is limited per address
+ * (services/help-throttle.ts, shared by every instance).
  */
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import { HelpdeskRequestSchema, HelpFormSchema, HelpReplyBody, HelpRequestBody, HelpRequestReceivedSchema, TrackedRequestSchema } from '@a4a/shared';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
-import type { Runtime } from '../../app-services';
-import { randomToken, sha256 } from '../../lib/crypto';
+import { randomToken } from '../../lib/crypto';
 import { AppError, badRequest } from '../../lib/errors';
+import { helpHit, type HelpLimit } from '../../services/help-throttle';
 import { deskProject, fileRequest, formTokenValid, helpForm, replyToRequest, requestOf, trackRequest } from '../../services/helpdesk';
+import { waitInWords } from '../../services/login-throttle';
 import type { HttpEnv } from '../env';
-import { clientIp, RateLimiter } from '../middleware';
+import { clientIp } from '../middleware';
 import { route } from '../route';
 
 export const HELP_COOKIE = 'a4a_help';
 /** Where a tracking token travels: a header, so it stays out of addresses and logs. */
 export const TRACKING_HEADER = 'x-tracking-token';
 
-/** Limits per instance, per runtime (so each test's server starts afresh). */
-interface Limits {
-  form: RateLimiter;
-  submitIp: RateLimiter;
-  submitEmail: RateLimiter;
-  submitDesk: RateLimiter;
-  track: RateLimiter;
-  replyIp: RateLimiter;
-  replyRequest: RateLimiter;
-}
-const limits = new WeakMap<Runtime, Limits>();
-function limitsFor(runtime: Runtime): Limits {
-  let l = limits.get(runtime);
-  if (!l) {
-    l = {
-      form: new RateLimiter(60, 10 * 60_000),
-      submitIp: new RateLimiter(5, 15 * 60_000),
-      submitEmail: new RateLimiter(3, 60 * 60_000),
-      submitDesk: new RateLimiter(120, 60 * 60_000),
-      track: new RateLimiter(120, 10 * 60_000),
-      replyIp: new RateLimiter(10, 10 * 60_000),
-      replyRequest: new RateLimiter(30, 60 * 60_000),
-    };
-    limits.set(runtime, l);
-  }
-  return l;
-}
-
-function hit(c: Context<HttpEnv>, limiter: RateLimiter, key: string, words: string): void {
-  const wait = limiter.hit(key);
+/** Count a hit on each limit (shared by every instance) and refuse with 429 when one is over. */
+async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: string): Promise<void> {
+  const wait = await helpHit(c.get('runtime').db, hits);
   if (wait) {
     c.header('retry-after', String(wait));
-    throw new AppError(429, 'rate_limited', words, `Try again in ${Math.max(1, Math.ceil(wait / 60))} minutes.`);
+    throw new AppError(429, 'rate_limited', words, `Try again in ${waitInWords(wait)}.`);
   }
+}
+
+/** The caller's address, through the proxies TRUST_PROXY says are in front. */
+function ip(c: Context<HttpEnv>): string {
+  return clientIp(c, c.get('runtime').config.trustProxy);
 }
 
 /**
@@ -93,7 +73,7 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, params }) => {
       const runtime = c.get('runtime');
-      hit(c, limitsFor(runtime).form, clientIp(c), 'Too many requests for this form');
+      await hit(c, [['form', ip(c)]], 'Too many requests for this form');
       const nonce = getCookie(c, HELP_COOKIE) ?? randomToken('', 18);
       const form = await helpForm(runtime, params.key, nonce);
       setCookie(c, HELP_COOKIE, nonce, {
@@ -129,12 +109,11 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       if (!(await formTokenValid(runtime, project.key, getCookie(c, HELP_COOKIE), body.csrf))) {
         throw new AppError(403, 'form_expired', 'This form has expired', 'Reload the page and send it again: what you wrote is still there.');
       }
-      const l = limitsFor(runtime);
-      hit(c, l.submitIp, clientIp(c), 'Too many requests from your address');
+      await hit(c, [['submitIp', ip(c)]], 'Too many requests from your address');
       // A bot filled the field people can't see: say it went, and do nothing.
       if (body.website?.trim()) return { received: true as const, email: body.email, tracking: null };
-      hit(c, l.submitEmail, body.email.toLowerCase(), 'Too many requests from this email address');
-      hit(c, l.submitDesk, project.id, 'This help desk is taking too many requests just now');
+      await hit(c, [['submitEmail', body.email]], 'Too many requests from this email address');
+      await hit(c, [['submitDesk', project.id]], 'This help desk is taking too many requests just now');
       return fileRequest(runtime, project.key, body);
     },
   );
@@ -152,7 +131,7 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c }) => {
       const runtime = c.get('runtime');
-      hit(c, limitsFor(runtime).track, clientIp(c), 'Too many requests');
+      await hit(c, [['track', ip(c)]], 'Too many requests');
       c.header('cache-control', 'no-store');
       return trackRequest(runtime, c.req.header(TRACKING_HEADER));
     },
@@ -175,11 +154,10 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       sameOrigin(c);
       const token = c.req.header(TRACKING_HEADER);
-      const l = limitsFor(runtime);
-      hit(c, l.replyIp, clientIp(c), 'Too many replies from your address');
+      await hit(c, [['replyIp', ip(c)]], 'Too many replies from your address');
       if (!token) throw badRequest('Missing the tracking token', `Send it in the ${TRACKING_HEADER} header.`);
-      // Keyed by its hash: a token is kept nowhere in plain text, not even in memory.
-      hit(c, l.replyRequest, sha256(token), 'Too many replies to this request just now');
+      // Counted by its hash: a token is kept nowhere in plain text.
+      await hit(c, [['replyRequest', token]], 'Too many replies to this request just now');
       return replyToRequest(runtime, token, body.text);
     },
   );

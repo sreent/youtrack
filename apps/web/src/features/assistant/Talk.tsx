@@ -117,6 +117,8 @@ function Note({ text, live }: { text: string; live?: boolean }) {
 export interface TalkProps {
   forName: string;
   model: string;
+  /** Who serves the model: what the assistant reads goes to them. */
+  provider: string;
   detail?: ConversationDetail;
   loading?: boolean;
   live?: LiveTurn;
@@ -316,6 +318,12 @@ export function Talk(props: TalkProps) {
               <dt>Data</dt>
               <dd>what you may see</dd>
             </div>
+            {props.provider ? (
+              <div className="pair">
+                <dt>Runs on</dt>
+                <dd>{props.provider}</dd>
+              </div>
+            ) : null}
           </dl>
           <div className="thin" />
           <div className="per">

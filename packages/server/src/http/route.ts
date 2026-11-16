@@ -19,7 +19,7 @@ export interface RouteSpec<P extends AnyObject | undefined, Q extends AnyObject 
   query?: Q;
   body?: B;
   response?: z.ZodType;
-  status?: 200 | 201 | 202 | 204;
+  status?: 200 | 201 | 202 | 204 | 302;
   /** 'required' (default): 401 without a user. 'none': public. */
   auth?: 'required' | 'none';
   /** Hidden from the OpenAPI document. */
@@ -72,7 +72,7 @@ export function route<P extends AnyObject | undefined, Q extends AnyObject | und
       [status]:
         spec.response && status !== 204
           ? { description: 'OK', content: { 'application/json': { schema: spec.response } } }
-          : { description: status === 204 ? 'Done' : 'OK' },
+          : { description: status === 204 ? 'Done' : status === 302 ? 'A redirect, for a browser to follow' : 'OK' },
       ...ERRORS,
     },
   });

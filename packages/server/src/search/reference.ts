@@ -34,6 +34,10 @@ Other words search summaries, descriptions and comments, by prefix: \`login saf\
 \`and\`, \`or\`, parentheses: \`(Type: Bug or Type: Feature) project: WEB\`
 \`sort by: Priority, updated desc\` — fields with values sort by their order (most important first).
 
+## From plain words
+- "Open", "to do" and "not done" mean unresolved: \`#Unresolved\`. \`State: Open\` is only the state called Open.
+- "Newest first" is \`sort by: created desc\`; "recently changed", \`sort by: updated desc\`.
+
 ## Examples
 - My open work, most important first: \`for: me #Unresolved sort by: Priority\`
 - Critical bugs reported this week: \`Type: Bug Priority: Show-stopper, Critical created: {this week}\`

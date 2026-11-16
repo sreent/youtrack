@@ -3,16 +3,19 @@ import {
   type HelpdeskSettings,
   type PlanSettings,
   type Project,
+  type ProjectAccess,
   type ProjectSettings,
+  type ProjectVisibility,
   type TriageMode,
 } from '@a4a/shared';
 import { eq, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issues, projectFields, projects } from '../db/schema';
+import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { canReadProject } from './access';
+import { accessChanged, projectAccess, requireProject, type AccessView } from './access';
 import { getSetting } from './settings';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
@@ -26,7 +29,7 @@ export const DEFAULT_PLAN: PlanSettings = {
   currency: 'USD',
 };
 
-/** A help desk is off until an administrator turns it on (services/helpdesk.ts). */
+/** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
 export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '' };
 
 export function projectSettings(row: ProjectRow): ProjectSettings {
@@ -77,7 +80,14 @@ async function counts(db: Db): Promise<Map<string, { total: number; open: number
   return new Map(rows.map((r) => [r.projectId, { total: Number(r.total), open: Number(r.open) }]));
 }
 
-export function projectDto(s: SchemaSnapshot, row: ProjectRow, c?: { total: number; open: number }): Project {
+export function projectVisibility(row: ProjectRow): ProjectVisibility {
+  return row.visibility === 'members' ? 'members' : 'open';
+}
+
+const NO_ACCESS: ProjectAccess = { role: 'viewer', via: 'open', read: false, comment: false, write: false, manage: false };
+
+/** A project as the caller sees it, with what they may do in it. */
+export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView, c?: { total: number; open: number }): Project {
   const lead = row.leadId ? s.users.get(row.leadId) : undefined;
   return {
     id: row.id,
@@ -86,34 +96,35 @@ export function projectDto(s: SchemaSnapshot, row: ProjectRow, c?: { total: numb
     description: row.description,
     lead: lead ? userRefDto(lead) : null,
     archived: row.archived,
+    visibility: projectVisibility(row),
     settings: projectSettings(row),
     issueCount: c?.total ?? 0,
     openIssueCount: c?.open ?? 0,
     createdAt: row.createdAt.toISOString(),
+    access: view.describe(row.id) ?? NO_ACCESS,
   };
 }
 
 export async function listProjects(ctx: Ctx): Promise<Project[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
   const c = await counts(ctx.db);
   const out: Project[] = [];
-  for (const p of s.projects.values()) if (await canReadProject(ctx, p.id)) out.push(projectDto(s, p, c.get(p.id)));
+  for (const p of s.projects.values()) if (view.canRead(p.id)) out.push(projectDto(s, p, view, c.get(p.id)));
   return out;
 }
 
 export async function getProject(ctx: Ctx, key: string): Promise<Project> {
-  requireScope(ctx, 'read');
+  const p = await requireProject(ctx, key);
   const s = await ctx.app.schema.get();
-  const p = projectByKey(s, key);
-  if (!p || !(await canReadProject(ctx, p.id))) throw notFound(`Project ${key}`);
   const c = await counts(ctx.db);
-  return projectDto(s, p, c.get(p.id));
+  return projectDto(s, p, await projectAccess(ctx), c.get(p.id));
 }
 
 export async function createProject(
   ctx: Ctx,
-  input: { key: string; name: string; description?: string; lead?: string; template?: Template; plan?: Partial<PlanSettings> },
+  input: { key: string; name: string; description?: string; lead?: string; template?: Template; plan?: Partial<PlanSettings>; visibility?: ProjectVisibility },
 ): Promise<Project> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
@@ -132,6 +143,7 @@ export async function createProject(
       name: input.name,
       description: input.description ?? '',
       leadId: lead?.id ?? null,
+      visibility: input.visibility ?? 'open',
       settings,
     });
     let ordinal = 0;
@@ -148,6 +160,7 @@ export async function createProject(
     }
   });
   ctx.app.schema.invalidate();
+  accessChanged(ctx.app);
   return getProject(ctx, key);
 }
 
@@ -159,13 +172,13 @@ export async function updateProject(
     description?: string;
     lead?: string | null;
     archived?: boolean;
+    visibility?: ProjectVisibility;
     settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings> };
   },
 ): Promise<Project> {
-  requireScope(ctx, 'admin');
+  // A project's settings are its managers' (and administrators') to change.
+  const p = await requireProject(ctx, key, 'manage');
   const s = await ctx.app.schema.get();
-  const p = projectByKey(s, key);
-  if (!p) throw notFound(`Project ${key}`);
   let leadId: string | null | undefined;
   if (input.lead === null) leadId = null;
   else if (input.lead) {
@@ -180,18 +193,36 @@ export async function updateProject(
     helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
-  await ctx.db
-    .update(projects)
-    .set({
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(leadId !== undefined ? { leadId } : {}),
-      ...(input.archived !== undefined ? { archived: input.archived } : {}),
-      settings,
-      updatedAt: new Date(),
-    })
-    .where(eq(projects.id, p.id));
+  const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
+  const activities: ActivityRow[] = [];
+  await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    await tx
+      .update(projects)
+      .set({
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(leadId !== undefined ? { leadId } : {}),
+        ...(input.archived !== undefined ? { archived: input.archived } : {}),
+        ...(visibility ? { visibility } : {}),
+        settings,
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, p.id));
+    if (visibility) {
+      activities.push(
+        await recordActivity(tx, ctx, {
+          type: 'project.visibility.changed',
+          projectId: p.id,
+          issueId: null,
+          payload: { data: { from: projectVisibility(p), to: visibility } },
+        }),
+      );
+    }
+  });
   ctx.app.schema.invalidate();
+  if (visibility || leadId !== undefined) accessChanged(ctx.app);
+  await publishActivities(ctx.app, activities);
   return getProject(ctx, key);
 }
 
@@ -202,4 +233,5 @@ export async function deleteProject(ctx: Ctx, key: string): Promise<void> {
   if (!p) throw notFound(`Project ${key}`);
   await ctx.db.delete(projects).where(eq(projects.id, p.id));
   ctx.app.schema.invalidate();
+  accessChanged(ctx.app);
 }

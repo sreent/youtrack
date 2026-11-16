@@ -84,12 +84,12 @@ async function issueOf(summary: string) {
 beforeAll(async () => {
   // notifications.test.ts has 2525; files run side by side.
   smtp = await fakeSmtp(3539);
-  w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, notifyWindowMs: 60_000 } });
+  w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, notifyWindowMs: 60_000, trustProxy: 1 } });
   await w.app.db.update(users).set({ email: 'anna@example.com' }).where(eq(users.id, w.anna.id));
   w.app.schema.invalidate();
   await updateProject(w.adminCtx, 'BACK', { lead: 'anna', settings: { helpdesk: { enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.' } } });
   http = createHttpApp(w.app);
-  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], () => {});
+  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], {}, [], () => {});
   await outbox.drain();
   mailer = new MailWorker(w.app, () => new Date(Date.now() + 10 * 60_000));
   adminToken = (await issueTokenFor(w.app.db, w.admin.id, { name: 'admin', scopes: ['read', 'write', 'admin'] })).token;

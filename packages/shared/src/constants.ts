@@ -5,6 +5,17 @@ export const APP_FULL_NAME = 'agenda';
 export const ROLES = ['admin', 'member', 'viewer'] as const;
 export type Role = (typeof ROLES)[number];
 
+/**
+ * What someone may do in one project, least first: a viewer reads and comments, a member
+ * also changes issues, a manager also changes the project's settings, people, boards and baselines.
+ */
+export const PROJECT_ROLES = ['viewer', 'member', 'manager'] as const;
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
+
+/** Who sees a project: everyone (open), or only its people and administrators (members). */
+export const PROJECT_VISIBILITIES = ['open', 'members'] as const;
+export type ProjectVisibility = (typeof PROJECT_VISIBILITIES)[number];
+
 /** API token scopes. A token can never do more than its user's role allows. */
 export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -46,6 +57,10 @@ export const EVENT_TYPES = [
   'work.deleted',
   'ai.triage.completed',
   'baseline.created',
+  'project.member.added',
+  'project.member.changed',
+  'project.member.removed',
+  'project.visibility.changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

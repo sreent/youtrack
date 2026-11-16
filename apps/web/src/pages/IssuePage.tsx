@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ApiError, post } from '../api/client';
-import { keys, useAIStatus, useIssue, useMe, useProjectFields, useSuggestions, useUsers } from '../api/queries';
+import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
 import { StateBadge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
@@ -35,7 +35,7 @@ function presented(f: IssueField | undefined): string | null {
 
 const open = (s: Suggestion) => s.status === 'pending' || s.status === 'partially_applied';
 
-function Description({ issue }: { issue: IssueDetail }) {
+function Description({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.description);
@@ -76,18 +76,20 @@ function Description({ issue }: { issue: IssueDetail }) {
   return (
     <section className="card stack" aria-label="Description">
       {issue.description.trim() ? <Markdown text={issue.description} /> : <p className="note">No description yet.</p>}
-      <div className="cluster">
-        <button
-          type="button"
-          className="link"
-          onClick={() => {
-            setText(issue.description);
-            setEditing(true);
-          }}
-        >
-          Edit the description
-        </button>
-      </div>
+      {canEdit ? (
+        <div className="cluster">
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setText(issue.description);
+              setEditing(true);
+            }}
+          >
+            Edit the description
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -183,6 +185,16 @@ export default function IssuePage() {
   const ai = useAIStatus();
   const users = useUsers();
   const projectFields = useProjectFields(issue.data?.project.key);
+  const project = useProject(issue.data?.project.key);
+  const membersOnly = project.data?.visibility === 'members';
+  const members = useMembers(membersOnly ? project.data?.key : undefined);
+  // In a members-only project, only its people (and administrators) can be given its issues.
+  const assignable = useMemo(() => {
+    if (!users.data || (membersOnly && !members.data)) return undefined;
+    if (!membersOnly) return users.data;
+    const logins = new Set((members.data ?? []).map((m) => m.user.login));
+    return users.data.filter((u) => u.role === 'admin' || logins.has(u.login));
+  }, [users.data, members.data, membersOnly]);
   const suggestions = useSuggestions(id, Boolean(issue.data));
   const request = useRequestInfo(issue.data);
   const [commanding, setCommanding] = useState(false);
@@ -226,6 +238,8 @@ export default function IssuePage() {
     );
   }
   const data = issue.data!;
+  // What the project lets you do; until it's known, the page offers everything and the server decides.
+  const canWrite = project.data?.access.write ?? true;
 
   const triage = async () => {
     setTriaging('asking');
@@ -280,28 +294,37 @@ export default function IssuePage() {
                 {triaging === 'asking' ? 'Triaging…' : 'Triage'}
               </button>
             ) : null}
-            <button type="button" className="primary" onClick={() => setCommanding(true)}>
-              <Icon name="command" />
-              Apply a command
-            </button>
+            {canWrite ? (
+              <button type="button" className="primary" onClick={() => setCommanding(true)}>
+                <Icon name="command" />
+                Apply a command
+              </button>
+            ) : null}
           </>
         }
       />
       {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
+      {project.data && !project.data.access.write ? (
+        <p className="note">
+          {project.data.access.comment
+            ? `You can read ${project.data.key}'s issues and comment on them; changing them is for its members.`
+            : `You can read ${project.data.key}'s issues; your account doesn't change anything.`}
+        </p>
+      ) : null}
       <div className="split">
         <div className="stack">
-          <Description issue={data} />
+          <Description issue={data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
           {openSuggestions.map((s) => (
             <SuggestionCard key={s.id} suggestion={s} compact />
           ))}
-          <IssueLinks issue={data} />
+          <IssueLinks issue={data} canEdit={canWrite} />
           <IssueHistory issue={data} me={me.data} />
           <WorkLog issue={data} me={me.data} />
         </div>
         <div className="stack">
-          {projectFields.data && users.data ? (
-            <FieldPanel issue={data} fields={projectFields.data} users={users.data} proposals={proposals} />
+          {projectFields.data && assignable ? (
+            <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} />
           ) : (
             <Loading what="fields" />
           )}

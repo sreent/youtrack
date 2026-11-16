@@ -12,8 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1794805819058,
-      "tag": "0001_cynical_true_believers",
+      "when": 1794805719093,
+      "tag": "0001_access_and_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794808438011,
+      "tag": "0002_smooth_wallflower",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794809880939,
+      "tag": "0003_notifications_and_helpdesk",
       "breakpoints": true
     }
   ]

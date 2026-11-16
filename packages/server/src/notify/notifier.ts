@@ -3,7 +3,8 @@
  *
  * - Who: the new assignee, people newly mentioned, a project's lead for a new help desk request,
  *   and the issue's watchers for changes, comments, links and deletion. Never whoever acted, and
- *   never someone who can't read the project (access.ts decides, as for everything else).
+ *   never someone who can't read the project as they would signing in (access.ts decides, as for
+ *   everything else), nor, for a link, the issue at its other end.
  * - Volume: events on one issue within the window (NOTIFY_WINDOW_SECONDS) fold into one unread
  *   notification, which takes the strongest reason among them; its email waits for the window.
  * - At least once in, once out: the outbox may hand an event over twice, and notification_events
@@ -11,14 +12,13 @@
  */
 import { EMAIL_LEVELS, NOTIFICATION_KINDS, type EmailLevel, type IssueRef, type NotificationKind, type TrackerEvent } from '@a4a/shared';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
-import { systemCtx } from '../app-services';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
 import { activities, notificationEvents, notifications, notificationSettings, users } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { enqueueMail } from '../mail/outbox';
-import { canReadProject } from '../services/access';
+import { keyOfReadableId, projectRolesOf } from '../services/access';
 import { watcherIds } from '../services/watchers';
 import { inboxChanged, mailConfigured } from './state';
 
@@ -117,17 +117,28 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
     .from(activities)
     .where(eq(activities.id, event.id));
   if (!row || !event.issue) return;
+  // An event about an issue belongs to its project; without one, nobody but an administrator could see it.
+  if (!row.projectId) return;
   const recipients = await recipientsOf(app, event, row.issueId, row.projectId);
   if (row.actorId) recipients.delete(row.actorId); // never whoever acted
   if (!recipients.size) return;
   const s = await app.schema.get();
+  const ids = [...recipients.keys()];
+  const seeing = [await projectRolesOf(app.db, row.projectId, ids)];
+  if (event.type === 'link.created' || event.type === 'link.deleted') {
+    // A link names the issue at its other end: only who can see that one too hears of it.
+    const key = keyOfReadableId((event.data as { target?: { id?: unknown } } | undefined)?.target?.id);
+    const other = key ? s.projectsByKey.get(key) : undefined;
+    if (!other) return;
+    seeing.push(await projectRolesOf(app.db, other.id, ids));
+  }
+  const told: string[] = [];
   for (const [userId, kind] of recipients) {
     const user = s.users.get(userId);
     if (!user || user.banned) continue;
-    if (row.projectId && !(await canReadProject(systemCtx(app, user), row.projectId))) continue;
+    if (!seeing.every((roles) => roles.has(userId))) continue;
     try {
-      const changed = await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId);
-      if (changed) inboxChanged(app, userId);
+      if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId)) told.push(userId);
     } catch (e) {
       // Another instance delivered it at the same moment (its lease ran out mid-batch): it's done.
       const code = (e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code;
@@ -136,6 +147,7 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
       console.error(`notifications: event ${event.id} for user ${userId} failed`, e);
     }
   }
+  inboxChanged(app, told);
 }
 
 /** Fold one event into one person's inbox. False when it had reached them already. */

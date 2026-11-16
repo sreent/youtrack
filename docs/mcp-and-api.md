@@ -30,7 +30,9 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 1. **API-first.** Anything you can do in the UI you can do over REST. An OpenAPI 3.1 spec is served at `/api/v1/openapi.json`, with interactive docs at `/api/docs`.
 2. **MCP is curated for agents, not a mirror of REST.** About 27 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
 3. **One tool layer, three surfaces.** The MCP tools and the in-app assistant's tools are the same code, running over the same services as REST, with the same validation and permission checks.
-4. **One permission model.** Every API token belongs to a user and acts as that user. Token scopes (`read`, `write`, `admin`) can only narrow what the user may do.
+4. **One permission model.** Every API token belongs to a user and acts as that user. Token scopes (`read`, `write`, `admin`) can only narrow what the user may do, and a token can be limited to some projects.
+   - Each project is open, or members only. In a project a person is a viewer (reads, comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines); its lead and administrators are managers.
+   - What you can't see answers exactly as what doesn't exist (404), on every surface: REST, MCP, search, links, events, SSE and AI.
 5. **Safe by default for agents.**
    - MCP cannot delete issues.
    - Commands support `dry_run`.
@@ -92,11 +94,13 @@ remove tag needs-info duplicates BACK-7
 
 | Area | Endpoints | What it enables |
 |---|---|---|
-| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile |
-| API tokens | `GET/POST /me/tokens`, `DELETE /me/tokens/{id}` | Personal tokens with scopes and expiry; the secret is shown once and stored hashed; last-used time is tracked |
-| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users |
-| Projects | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{key}` | Projects with short keys (`BACK`), leads, and AI triage mode |
-| Project schema | `GET /projects/{key}/fields`, `PUT/DELETE /projects/{key}/fields/{fieldId}` | Which custom fields a project uses, which are required, and their defaults |
+| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, single sign-on) |
+| Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
+| API tokens | `GET/POST /me/tokens`, `PATCH/DELETE /me/tokens/{id}` | Personal tokens with scopes, expiry and, optionally, the only projects they reach (`projects`); the secret is shown once and stored hashed; last-used time is tracked |
+| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users; administrators also see how each person signs in (`signIn`) |
+| Projects | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{key}` | Projects with short keys (`BACK`), leads, who sees them (`visibility`: `open` or `members`), AI triage mode; each says what you may do in it (`access`) |
+| Project people | `GET/POST /projects/{key}/members`, `PATCH/DELETE /projects/{key}/members/{login}` | Who is in a project and their role (`viewer`, `member`, `manager`). Anyone who sees the project sees its people; its managers change them |
+| Project schema | `GET /projects/{key}/fields`, `PUT/DELETE /projects/{key}/fields/{fieldId}` | Which custom fields a project uses, which are required, and their defaults (its managers change them) |
 | Custom fields | `GET/POST /fields`, `PATCH/DELETE /fields/{id}`, `POST/PATCH/DELETE /fields/{id}/values[/{valueId}]` | Field types: enum, state (with *resolved* flag), user, version, string, text, integer, float, date, period. Values can be shared or per-project, ordered and colored |
 | Issues | `GET /issues?query=&sort=`, `POST /issues`, `GET/PATCH/DELETE /issues/{id}` | Search with the query language; create with fields, tags, parent and links in one call; partial updates with `expectedVersion` |
 | Comments | `GET/POST /issues/{id}/comments`, `PATCH/DELETE /comments/{id}` | Markdown comments. `@login` mentions a person: they're told, and watch the issue. On a help desk request, `visibility: "public"` also sends a comment to the requester; comments are `internal` unless you say so |
@@ -118,7 +122,7 @@ remove tag needs-info duplicates BACK-7
 | Costs | `GET /projects/{key}/costs?baseline=` | Budget, planned and actual cost by task and by person; earned value (PV, EV, AC, CPI, SPI, EAC) against a baseline |
 | Baselines | `GET/POST /projects/{key}/baselines`, `GET/DELETE /baselines/{id}` | Snapshot the plan, then compare start, finish, effort and cost variance per task |
 | Plan settings | `PATCH /projects/{key}` (`plan`), `PATCH /users/{id}` (`hourlyRate`, `capacityHoursPerDay`) | Working days, hours per day, holidays, project start, budget and currency; per-person rate and capacity |
-| Events | `GET /events?after=`, `GET /events/stream` (SSE) | A durable change feed: poll it, or stream it live |
+| Events | `GET /events?after=`, `GET /events/stream?after=` (SSE) | A durable change feed: poll it, or stream it live. A stream resumes from its last event id, on any instance, missing nothing |
 | Webhooks | `GET/POST /webhooks`, `PATCH/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/{id}/test` | Signed push notifications with retries and a delivery log |
 | AI | see [section 7](#7-ai-endpoints) | Triage, duplicates, natural language → query or command, summaries, chat |
 | Settings | `GET/PATCH /settings` | Instance name, default AI triage mode |
@@ -144,7 +148,7 @@ remove tag needs-info duplicates BACK-7
 
 | Tool | What it does | Kind |
 |---|---|---|
-| `get_current_user` | Who the agent is acting as: role and token scopes | read |
+| `get_current_user` | Who the agent is acting as: role, token scopes, and the projects a limited token reaches | read |
 | `list_projects` | Projects with key, name, description, open-issue counts | read |
 | `get_project` | A project's fields and allowed values (states marked resolved/unresolved), link types, tags, people | read |
 | `search_issues` | Run a query. Returns total + compact rows (id, summary, state, priority, type, assignee, updated). Invalid queries return the error position and a suggestion | read |
@@ -165,12 +169,15 @@ remove tag needs-info duplicates BACK-7
 | `get_cost_report` | Budget vs. planned vs. actual cost, plus earned value against a baseline | read |
 | `level_resources` | Propose (`dry_run`, default) or apply a levelled schedule that resolves over-allocation; `expect` applies only the proposal the person agreed to | write |
 | `create_baseline` | Snapshot the current plan under a name | write |
+| `list_project_members` | Who is in a project and their role, whether it is members only, and what you may do in it. Assign a members-only project's issues only to its people | read |
 | `list_notifications` | What's waiting for the token's person, grouped by issue: assigned, mentioned, help desk requests, changes and comments on what they watch, each with its changes and words. Unread only by default | read |
 | `mark_notifications_read` | Mark the person's notifications read: by id, one issue's, or all | write (idempotent) |
 | `watch_issue` / `unwatch_issue` | Watch an issue for the person, or stop until they take part again | write (idempotent) |
 | `list_watchers` | Who watches an issue, and why | read |
 
-Deliberately **not** exposed over MCP in v1: deleting issues, user and permission admin, webhooks, settings, a help desk's settings, and email preferences (they're the person's own, in the web app).
+Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
+
+Deliberately **not** exposed over MCP in v1: deleting issues, user and permission admin (changing a project's people included), webhooks, settings, a help desk's settings, and email preferences (they're the person's own, in the web app).
 
 `get_issue` says when an issue is a help desk request (who asked, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
 
@@ -233,6 +240,10 @@ What notifications need is in `data`, as logins: `assigned` (new assignees) and 
 - `link.created`, `link.deleted`
 - `work.logged`
 - `ai.triage.completed`
+- `baseline.created`
+- `project.member.added`, `project.member.changed`, `project.member.removed`, `project.visibility.changed`
+
+Every consumer sees only the events of projects it can see: `GET /events` and `GET /events/stream` filter by the caller's access, and leave out a link whose other end it can't see. Webhooks (made by administrators) get every event.
 
 **Payload**
 
@@ -246,18 +257,21 @@ What notifications need is in `data`, as logins: `assigned` (new assignees) and 
 **Delivery**
 
 - **Webhooks:** filtered by event type and project, signed with `X-A4A-Signature: sha256=<HMAC of body>`, retried up to 3 times with backoff, every attempt logged.
-- **`GET /events/stream`:** the same payloads over SSE.
+- **`GET /events/stream`:** the same payloads over SSE, in id order, from whichever instance serves it.
+  - Each frame's `id` is the event id. On reconnect, send it back as `Last-Event-ID` (browsers do this by themselves) or as `?after=`, and the stream first replays what you missed, then goes on live, without repeats.
+  - More than 1000 missed events get a `resync` event instead, whose `id` is where the stream goes on from: re-read what you show, or page through `GET /events?after=`.
+  - `project` and `types` filter the replay too.
 - **`GET /events?after=<id>`:** a durable feed to catch up after downtime.
 
 ## 7. AI endpoints
 
-These are powered by Claude (`claude-opus-5-5`) and enabled when `ANTHROPIC_API_KEY` is set. Without a key they return `503 ai_disabled`, and the non-AI parts keep working (lexical similar-issue search included).
+These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on DeepSeek, Qwen or another service that speaks Anthropic's Messages API, chosen with `AI_PROVIDER` (see the README). `GET /ai/status` says who serves the model, which model, and why the AI is off when it is. Without a key they return `503 ai_disabled`, and the non-AI parts keep working (lexical similar-issue search included).
 
 | Endpoint | What it does |
 |---|---|
 | `POST /ai/query` | Natural language → query. *"critical bugs assigned to me updated this week"* → `Type: Bug Priority: Critical for: me updated: {this week}`. The query is validated by the real parser; on a parse error the model gets the error and retries once |
 | `POST /ai/command` | Natural language → command for the selected issues, returned with a dry-run preview. *"close as duplicate of BACK-7 and assign to anna"* |
-| `POST /ai/similar` | Duplicate check while typing. Lexical candidates (Postgres full-text + trigram) are returned instantly; with `judge: true` Claude labels each as *duplicate*, *related* or *different*, with a reason |
+| `POST /ai/similar` | Duplicate check while typing. Lexical candidates (Postgres full-text + trigram) are returned instantly; with `judge: true` the AI labels each as *duplicate*, *related* or *different*, with a reason |
 | `POST /issues/{id}/triage` | Suggests Type, Priority, Subsystem, Assignee and tags, plus possible duplicates, with confidence and rationale. Runs automatically on new issues when the project's triage mode is `suggest` or `auto`. `auto` fills only empty fields, attributed to the *AI Assistant* bot |
 | `GET /issues/{id}/suggestions`, `POST /suggestions/{id}/apply \| dismiss` | Review triage suggestions: apply all, apply some, or dismiss |
 | `GET /ai/suggestions?project=` | Everything agents propose that waits on a person, across issues (the Decide page) |
@@ -299,8 +313,8 @@ These are the decisions worth thinking through together. v1 ships with the defau
 
 1. **Deletes over MCP.** Should agents ever delete issues? [No. Agents resolve instead, for example `State Obsolete`.]
 2. **Agents as teammates** (later). Assignable bot users that pick up issues assigned to them and report back, triggered by webhooks. This was the AI feature not picked for v1; the event feed and MCP make it a small step.
-3. **OAuth 2.1 for remote MCP** (later). Needed for claude.ai custom connectors and one-click sign-in from MCP clients. [v1 uses bearer tokens.]
-4. **Per-project token restrictions** (later). For example, a token that can only touch `BACK`. [v1 has scopes only.]
+3. **OAuth 2.1 for remote MCP** (later). Needed for claude.ai custom connectors and one-click sign-in from MCP clients. [v1 uses bearer tokens. What it would take is in `docs/architecture.md`, D16.]
+4. **Per-project token restrictions.** Done: a token can be limited to projects, e.g. one that only touches `BACK`.
 5. **VCS integration** (later). An inbound GitHub/GitLab webhook that turns `BACK-12 #Fixed` in commit messages into commands and links PRs to issues.
 6. **Partial responses** (later). A YouTrack-style `?fields=id,summary,fields(State)` selector for heavy integrations.
 7. **Agent-specific limits.** Should MCP writes be rate-limited separately from humans, or require a second human approval for bulk changes over N issues?

@@ -141,7 +141,8 @@ function localDay(d: Date): string {
 
 /**
  * Queue today's digest for everyone who wants one, once the digest hour has come (server time):
- * once per person per day, whichever instance gets there first.
+ * once per person per day. The lease holder does it (a chore), and the dedupe key keeps it once
+ * should a new holder do it again.
  */
 export async function scheduleDigests(app: AppServices, now: Date = new Date()): Promise<number> {
   if (!mailConfigured(app) || now.getHours() < app.config.digestHour) return 0;
@@ -174,7 +175,7 @@ export async function scheduleDigests(app: AppServices, now: Date = new Date()):
   return queued;
 }
 
-/** What's kept: sent or settled mail for 30 days, read notifications for 180. */
+/** What's kept: sent or settled mail for 30 days, read notifications for 180. A chore of the lease holder's. */
 export async function pruneMail(app: AppServices, now: Date = new Date()): Promise<void> {
   await app.db
     .delete(mailOutbox)
@@ -182,13 +183,16 @@ export async function pruneMail(app: AppServices, now: Date = new Date()): Promi
   await app.db.delete(notifications).where(lt(notifications.readAt, new Date(now.getTime() - 180 * 86_400_000)));
 }
 
-/** Sends what's due, every few seconds and when woken. One per process; the claims keep instances apart. */
+/**
+ * Sends what's due, every few seconds and when woken. One per instance: the claims keep instances
+ * apart, so mail goes out as long as any of them runs. Digests and pruning are the lease holder's
+ * chores (notify/register.ts), done once for all.
+ */
 export class MailWorker {
   private timer: NodeJS.Timeout | null = null;
   private running: Promise<void> | null = null;
   private kicked = false;
   private stopped = false;
-  private lastChores = 0;
 
   constructor(
     private app: AppServices,
@@ -237,11 +241,6 @@ export class MailWorker {
   private async tick(): Promise<void> {
     if (!mailConfigured(this.app)) return;
     const now = this.clock();
-    if (now.getTime() - this.lastChores > 10 * 60_000) {
-      this.lastChores = now.getTime();
-      await scheduleDigests(this.app, now);
-      await pruneMail(this.app, now);
-    }
     for (;;) {
       if (this.stopped) return;
       const batch = await claim(this.app.db, now, BATCH);

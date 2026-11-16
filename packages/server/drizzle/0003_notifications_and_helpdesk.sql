@@ -1,3 +1,9 @@
+CREATE TABLE "help_throttle" (
+	"key" text PRIMARY KEY NOT NULL,
+	"window_ends" timestamp with time zone NOT NULL,
+	"hits" integer NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "helpdesk_requests" (
 	"issue_id" text PRIMARY KEY NOT NULL,
 	"project_id" text NOT NULL,
@@ -95,6 +101,7 @@ ALTER TABLE "notification_settings" ADD CONSTRAINT "notification_settings_user_i
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "help_throttle_ends" ON "help_throttle" USING btree ("window_ends");--> statement-breakpoint
 CREATE INDEX "helpdesk_requests_requester" ON "helpdesk_requests" USING btree ("requester_id");--> statement-breakpoint
 CREATE INDEX "helpdesk_requests_project" ON "helpdesk_requests" USING btree ("project_id");--> statement-breakpoint
 CREATE INDEX "helpdesk_tokens_issue" ON "helpdesk_tokens" USING btree ("issue_id");--> statement-breakpoint

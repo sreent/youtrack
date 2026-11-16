@@ -1,15 +1,16 @@
 import type { Comment, CommentVisibility } from '@a4a/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
-import { isAdmin, requireScope, type Ctx } from '../context';
+import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments, helpdeskRequests, requesters } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { excerpt } from '../lib/text';
+import { assertCanCommentProject, assertCanWriteProject, projectAccess } from './access';
 import { issueRefsById, readableId } from './issue-refs';
-import { applyChanges, resolveIssue } from './issues';
+import { applyChanges, findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
-import { addWatchers, mentionsAdded } from './watchers';
+import { addWatchers, mentionsAdded, whoSees } from './watchers';
 
 type CommentRow = typeof comments.$inferSelect;
 
@@ -51,10 +52,16 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
   return Promise.all(rows.map((r) => commentDto(ctx, r, rid, names)));
 }
 
+/**
+ * Comment on an issue: anyone with a role in its project may (a viewer too), with the write scope.
+ * A public comment answers a help desk's requester for the project and counts as its first
+ * response, so it takes someone who may change the project's issues.
+ */
 export async function addComment(ctx: Ctx, issueId: string, text: string, opts: { visibility?: CommentVisibility } = {}): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
+  await assertCanCommentProject(ctx, issue.projectId);
   const visibility = opts.visibility ?? 'internal';
   if (visibility === 'public') {
     // Only a help desk request has someone outside to send a public comment to.
@@ -62,6 +69,7 @@ export async function addComment(ctx: Ctx, issueId: string, text: string, opts: 
     if (!request) {
       throw badRequest(`${readableId(s, issue)} didn't come in through a help desk, so a comment on it can't be public`, 'Leave out "visibility", or send "internal".');
     }
+    await assertCanWriteProject(ctx, issue.projectId);
   }
   const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility }));
   await publishActivities(ctx.app, result.activities);
@@ -72,10 +80,18 @@ export async function addComment(ctx: Ctx, issueId: string, text: string, opts: 
   return commentDto(ctx, row, readableId(s, issue));
 }
 
+/**
+ * A comment the caller may change: their own, or anyone's when they manage its project. A
+ * comment on an issue they can't see is not found, exactly as one that doesn't exist.
+ */
 async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
   const [row] = await ctx.db.select().from(comments).where(and(eq(comments.id, id), isNull(comments.deletedAt)));
-  if (!row) throw notFound('Comment');
-  if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('You can only change your own comments');
+  const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
+  if (!row || !issue) throw notFound('Comment');
+  await assertCanCommentProject(ctx, issue.projectId);
+  if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
+    throw forbidden('You can only change your own comments', 'Managers of the project can change anyone’s.');
+  }
   return row;
 }
 
@@ -84,13 +100,15 @@ export async function updateComment(ctx: Ctx, id: string, text: string): Promise
   const s = await ctx.app.schema.get();
   const row = await loadOwnComment(ctx, id);
   const ref = (await issueRefsById(ctx.db, s, [row.issueId])).get(row.issueId);
-  // People mentioned by the edit, and not before, are told and watch it.
-  const mentions = ctx.actor.channel === 'helpdesk' ? [] : mentionsAdded(s, row.text, text);
+  // People mentioned by the edit, and not before, are told and watch it, if they can see the project.
+  const added = ctx.actor.channel === 'helpdesk' ? [] : mentionsAdded(s, row.text, text);
   const { updated, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const [updated] = await tx.update(comments).set({ text, updatedAt: new Date() }).where(eq(comments.id, id)).returning();
     const issueRow = await resolveIssue(ctx, row.issueId, tx);
-    await addWatchers(tx, s, row.issueId, mentions.map((login) => ({ login, reason: 'mentioned' as const })));
+    const seeing = await whoSees(tx, s, issueRow.projectId, added);
+    const mentions = added.filter((l) => seeing.has(l.toLowerCase()));
+    await addWatchers(tx, s, issueRow, mentions.map((login) => ({ login, reason: 'mentioned' as const })), seeing);
     const activity = await recordActivity(tx, ctx, {
       type: 'comment.updated',
       projectId: issueRow.projectId,

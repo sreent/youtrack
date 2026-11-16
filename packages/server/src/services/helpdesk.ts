@@ -65,9 +65,14 @@ export async function helpdeskBot(app: AppServices): Promise<UserRow> {
   return bot;
 }
 
-/** The help desk acts for the requester, in the one project whose help desk is open, with an elevated system context. */
-async function botCtx(app: AppServices): Promise<Ctx> {
-  return adminCtx(app, await helpdeskBot(app), 'helpdesk');
+/**
+ * The help desk acts for the requester with an elevated system context that reaches one project
+ * only: the request's. So it files and replies in a members-only project, and nowhere else.
+ */
+async function botCtx(app: AppServices, projectId: string): Promise<Ctx> {
+  const ctx = adminCtx(app, await helpdeskBot(app), 'helpdesk');
+  ctx.actor.projectIds = [projectId];
+  return ctx;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +132,7 @@ export function trackingUrl(app: AppServices, token: string): string {
 export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string }): Promise<HelpRequestReceived> {
   const project = await deskProject(app, key);
   const settings = projectSettings(project).helpdesk;
-  const ctx = await botCtx(app);
+  const ctx = await botCtx(app, project.id);
   const email = input.email.trim();
   const name = input.name.trim().replace(/\s+/g, ' ');
   const requesterId = await requesterFor(app.db, email, name);
@@ -142,7 +147,7 @@ export async function fileRequest(app: AppServices, key: string, input: { name: 
         const due = settings.firstResponseHours ? new Date(row.createdAt.getTime() + settings.firstResponseHours * 3_600_000) : null;
         await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due });
         // The project's lead watches each request, so the requester's replies reach someone.
-        if (lead) await addWatchers(tx, s, row.id, [{ login: lead.login, reason: 'lead' }]);
+        if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         await enqueueMail(tx, app, { kind: 'request-received', dedupeKey: `request:${row.id}:received`, payload: { issueId: row.id }, messageId: `request-${row.id}` });
       },
     },
@@ -208,7 +213,7 @@ export async function trackRequest(app: AppServices, token: string | undefined):
 /** The requester replies on their tracking page: a public comment, theirs, that tells the issue's watchers. */
 export async function replyToRequest(app: AppServices, token: string | undefined, text: string): Promise<TrackedRequest> {
   const { requester, issue } = await requestByToken(app, token);
-  const ctx = await botCtx(app);
+  const ctx = await botCtx(app, issue.projectId);
   const result = await app.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, issue, {
       comment: text,

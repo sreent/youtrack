@@ -11,6 +11,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issueWatchers } from '../db/schema';
+import { projectRolesOf } from './access';
 import { resolveIssue } from './issues';
 import { getSetting, setSetting } from './settings';
 import { fieldByName, type FieldRow, type SchemaSnapshot } from './schema-cache';
@@ -53,19 +54,43 @@ export function loginsOf(s: SchemaSnapshot, values: ResolvedValue[] | undefined)
 }
 
 /**
+ * Of these logins, the people who can see a project, as they would signing in (by lower-case login).
+ * Whatever reaches a person about an issue goes only to them: someone mentioned in a members-only
+ * project they aren't in is told nothing, and doesn't watch it.
+ */
+export async function whoSees(db: Db, s: SchemaSnapshot, projectId: string, logins: string[]): Promise<Set<string>> {
+  const ids = new Map<string, string>();
+  for (const l of logins) {
+    const u = s.usersByLogin.get(l.toLowerCase());
+    if (u) ids.set(u.id, u.login.toLowerCase());
+  }
+  if (!ids.size) return new Set();
+  const roles = await projectRolesOf(db, projectId, [...ids.keys()]);
+  return new Set([...ids].filter(([id]) => roles.has(id)).map(([, login]) => login));
+}
+
+/**
  * Watch an issue for these people, inside the caller's transaction. Someone already watching keeps
  * their first reason. Agents (bot users) and banned people never watch: an agent is told only when
- * it is mentioned or assigned.
+ * it is mentioned or assigned. Nor does anyone who can't see the issue's project; pass `seeing`
+ * (from whoSees) when the caller has worked that out already.
  */
-export async function addWatchers(tx: Db, s: SchemaSnapshot, issueId: string, entries: { login: string; reason: WatchReason }[]): Promise<void> {
-  const seen = new Set<string>();
-  const rows: (typeof issueWatchers.$inferInsert)[] = [];
+export async function addWatchers(
+  tx: Db,
+  s: SchemaSnapshot,
+  issue: { id: string; projectId: string },
+  entries: { login: string; reason: WatchReason }[],
+  seeing?: Set<string>,
+): Promise<void> {
+  const wanted = new Map<string, { userId: string; reason: WatchReason }>();
   for (const e of entries) {
     const u = s.usersByLogin.get(e.login.toLowerCase());
-    if (!u || u.isBot || u.banned || seen.has(u.id)) continue;
-    seen.add(u.id);
-    rows.push({ issueId, userId: u.id, reason: e.reason });
+    if (!u || u.isBot || u.banned || wanted.has(u.login.toLowerCase())) continue;
+    wanted.set(u.login.toLowerCase(), { userId: u.id, reason: e.reason });
   }
+  if (!wanted.size) return;
+  const sees = seeing ?? (await whoSees(tx, s, issue.projectId, [...wanted.keys()]));
+  const rows = [...wanted].filter(([login]) => sees.has(login)).map(([, w]) => ({ issueId: issue.id, userId: w.userId, reason: w.reason }));
   if (rows.length) await tx.insert(issueWatchers).values(rows).onConflictDoNothing();
 }
 
@@ -84,12 +109,14 @@ export async function watchedAmong(db: Db, userId: string, issueIds: string[]): 
   return new Set(rows.map((r) => r.issueId));
 }
 
-async function watchersOf(ctx: Ctx, issueId: string): Promise<Watchers> {
+/** Who watches an issue and would be told: people who can see its project now. */
+async function watchersOf(ctx: Ctx, issue: { id: string; projectId: string }): Promise<Watchers> {
   const s = await ctx.app.schema.get();
-  const rows = await ctx.db.select().from(issueWatchers).where(eq(issueWatchers.issueId, issueId)).orderBy(asc(issueWatchers.createdAt));
+  const rows = await ctx.db.select().from(issueWatchers).where(eq(issueWatchers.issueId, issue.id)).orderBy(asc(issueWatchers.createdAt));
+  const roles = await projectRolesOf(ctx.db, issue.projectId, rows.map((r) => r.userId));
   const watchers = rows
     .map((r) => {
-      const u = s.users.get(r.userId);
+      const u = roles.has(r.userId) ? s.users.get(r.userId) : undefined;
       return u ? { user: userRefDto(u), reason: r.reason as WatchReason, since: r.createdAt.toISOString() } : null;
     })
     .filter((w): w is NonNullable<typeof w> => w !== null);
@@ -99,14 +126,16 @@ async function watchersOf(ctx: Ctx, issueId: string): Promise<Watchers> {
 export async function listWatchers(ctx: Ctx, issue: string): Promise<Watchers> {
   requireScope(ctx, 'read');
   const row = await resolveIssue(ctx, issue);
-  return watchersOf(ctx, row.id);
+  return watchersOf(ctx, row);
 }
 
 const BACKFILLED = 'watchersBackfilledAt';
 
 /**
  * Once per database: issues from before watching existed get the watchers they would have had, their
- * reporter, assignee and commenters (people, not agents). Every instance may try; it's idempotent.
+ * reporter, assignee and commenters (people, not agents). It runs as the lease holder's chore, and is
+ * idempotent should a new holder run it again. Who has lost sight of a project since is left out
+ * when watchers are listed or told.
  */
 export async function backfillWatchers(app: AppServices): Promise<number> {
   if (await getSetting(app.db, BACKFILLED)) return 0;
@@ -143,9 +172,9 @@ export async function backfillWatchers(app: AppServices): Promise<number> {
 export async function watchIssue(ctx: Ctx, issue: string): Promise<Watchers> {
   requirePersonal(ctx);
   const row = await resolveIssue(ctx, issue);
-  if (ctx.actor.user.isBot) return watchersOf(ctx, row.id);
+  if (ctx.actor.user.isBot) return watchersOf(ctx, row);
   await ctx.db.insert(issueWatchers).values({ issueId: row.id, userId: ctx.actor.user.id, reason: 'explicit' }).onConflictDoNothing();
-  return watchersOf(ctx, row.id);
+  return watchersOf(ctx, row);
 }
 
 /** Stop watching an issue, until you take part in it again. Not watching it already changes nothing. */
@@ -153,5 +182,5 @@ export async function unwatchIssue(ctx: Ctx, issue: string): Promise<Watchers> {
   requirePersonal(ctx);
   const row = await resolveIssue(ctx, issue);
   await ctx.db.delete(issueWatchers).where(and(eq(issueWatchers.issueId, row.id), eq(issueWatchers.userId, ctx.actor.user.id)));
-  return watchersOf(ctx, row.id);
+  return watchersOf(ctx, row);
 }

@@ -59,7 +59,7 @@ beforeAll(async () => {
   w.anna = await fresh(w.anna);
   w.ben = await fresh(w.ben);
   w.viewer = await fresh(w.viewer);
-  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], () => {});
+  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], {}, [], () => {});
   await outbox.drain(); // the consumers start from here
   mailer = new MailWorker(w.app, () => new Date(Date.now() + 10 * 60_000));
 });
@@ -458,7 +458,7 @@ describe('without SMTP', () => {
   it('sends nothing and fails nothing', async () => {
     const quiet = await createWorld();
     try {
-      const worker = new OutboxWorker(quiet.app, [notifierConsumer(quiet.app), helpdeskConsumer(quiet.app)], () => {});
+      const worker = new OutboxWorker(quiet.app, [notifierConsumer(quiet.app), helpdeskConsumer(quiet.app)], {}, [], () => {});
       await worker.drain();
       await quiet.app.db.update(users).set({ email: 'ben@example.com' }).where(eq(users.id, quiet.ben.id));
       quiet.app.schema.invalidate();

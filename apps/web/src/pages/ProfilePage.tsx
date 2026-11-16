@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { patch } from '../api/client';
-import { keys, useMe } from '../api/queries';
+import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
@@ -148,8 +148,11 @@ function Password({ me }: { me: Me }) {
 /** How a4a names you, and how you sign in. */
 export default function ProfilePage() {
   const me = useMe();
+  const status = useSetupStatus();
   if (!me.data) return <Loading what="your profile" />;
   const m = me.data;
+  const sso = status.data?.signIn.sso ?? null;
+  const passwords = status.data?.signIn.password ?? true;
   return (
     <>
       <PageHead
@@ -173,8 +176,9 @@ export default function ProfilePage() {
         <EmailSettings />
       </section>
       <section className="card" aria-labelledby="password">
-        <h2 id="password">Password</h2>
-        <Password me={m} />
+        <h2 id="password">{passwords ? 'Password' : 'Signing in'}</h2>
+        {passwords ? <Password me={m} /> : <p className="note">You sign in with {sso?.name ?? 'single sign-on'}. Passwords aren’t used here.</p>}
+        {passwords && sso ? <p className="note">You can also sign in with {sso.name}, with the email {sso.name} has for you.</p> : null}
       </section>
       <section className="card" aria-labelledby="agents">
         <h2 id="agents">Tokens for agents and scripts</h2>

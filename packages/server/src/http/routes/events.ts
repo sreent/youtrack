@@ -2,15 +2,56 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent,
   patchBody,
 } from '@a4a/shared';
+import { sql } from 'drizzle-orm';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
-import { requireScope } from '../../context';
+import { requireScope, type Ctx } from '../../context';
+import { activities } from '../../db/schema';
+import type { EventFilter } from '../../events/sse';
 import { createWebhook, deleteWebhook, listDeliveries, listWebhooks, testWebhook, updateWebhook } from '../../events/webhooks';
+import { AppError, badRequest } from '../../lib/errors';
+import { eventVisible, eventsVisibleSql, projectAccess, visibleSchema } from '../../services/access';
 import { eventFeed } from '../../services/activity';
+import { projectByKey } from '../../services/schema-cache';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
 const Id = z.object({ id: z.string() });
+
+/** Missed events a reconnecting stream replays; beyond this it gets `resync`. */
+const REPLAY_MAX = 1_000;
+/** Events waiting for a slow client before its stream is closed (it reconnects and replays). */
+const MAX_QUEUE = 5_000;
+
+/**
+ * What a stream asked for, as SQL (replay) and as a test (live), with what the caller may
+ * see as SQL for the replay. The live stream checks what they may see as each event goes.
+ */
+async function streamFilter(ctx: Ctx, project: string | undefined, types: string | undefined): Promise<EventFilter> {
+  const typeList = types?.split(',').map((t) => t.trim()).filter(Boolean) ?? [];
+  let projectIds: string[] | null = null;
+  let key: string | null = null;
+  if (project) {
+    // A project the caller can't see is unknown, in the same words as one that doesn't exist.
+    const p = projectByKey(await visibleSchema(ctx), project);
+    if (!p) throw badRequest(`Unknown project ${project}`);
+    projectIds = [p.id];
+    key = p.key.toUpperCase();
+  }
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  return {
+    projectIds,
+    types: typeList.length ? typeList : null,
+    where: eventsVisibleSql(view, s),
+    matches: (e) => (!key || e.project?.toUpperCase() === key) && (!typeList.length || typeList.includes(e.type)),
+  };
+}
+
+/** Whether the caller may see an event now: access is worked out again as events go (at most two seconds old). */
+async function visibleNow(ctx: Ctx, event: TrackerEvent): Promise<boolean> {
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  return eventVisible(view, s, event);
+}
 
 export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Events'];
@@ -52,32 +93,85 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/events/stream',
       tags,
       summary: 'Live events over Server-Sent Events',
-      description: 'Best effort and live only: after reconnecting, catch up with GET /events?after=<last id>.',
-      query: z.object({ project: z.string().optional(), types: z.string().optional() }),
+      description:
+        'Every event you may see, in order, from whichever instance serves the stream, as access stands when each is sent. Each carries its id; on reconnect, send it back as `Last-Event-ID` (browsers do this themselves) or as `after`, and the stream first replays what you missed. ' +
+        `If more than ${REPLAY_MAX} events were missed, a \`resync\` event says so instead: re-read what you show, or page through GET /events?after=<id>.`,
+      query: z.object({
+        project: z.string().optional(),
+        types: z.string().optional(),
+        after: z.coerce.number().int().min(0).optional().describe('Resume after this event id (the Last-Event-ID header wins when both are sent)'),
+      }),
     },
     async ({ c, ctx, query }) => {
       requireScope(ctx, 'read');
       const runtime = c.get('runtime');
-      const types = query.types?.split(',').map((t) => t.trim()).filter(Boolean);
+      await runtime.live.start();
+      if (runtime.live.isStopped) throw new AppError(503, 'unavailable', 'This server is shutting down', 'Reconnect: another instance serves the stream and resumes it.');
+      const filter = await streamFilter(ctx, query.project, query.types);
+      const header = c.req.header('last-event-id')?.trim();
+      const resume = header && /^\d+$/.test(header) ? Number(header) : (query.after ?? null);
+      // Proxies such as nginx buffer responses unless told not to; a buffered stream isn't live.
+      c.header('x-accel-buffering', 'no');
       return streamSSE(c, async (stream) => {
         const queue: TrackerEvent[] = [];
         let wake: (() => void) | null = null;
-        const unsubscribe = runtime.live.subscribe((event) => {
-          if (query.project && event.project?.toUpperCase() !== query.project.toUpperCase()) return;
-          if (types?.length && !types.includes(event.type)) return;
-          queue.push(event);
-          wake?.();
-        });
+        // Read the position and subscribe in one tick: every event after `position` reaches the queue.
+        const position = runtime.live.position;
+        const unsubscribe = runtime.live.subscribe(
+          (event) => {
+            if (!filter.matches(event)) return;
+            // A client this far behind is better served by reconnecting and replaying from the log.
+            if (queue.length >= MAX_QUEUE) stream.abort();
+            else queue.push(event);
+            wake?.();
+          },
+          () => {
+            stream.abort();
+            wake?.();
+          },
+        );
         stream.onAbort(() => {
           unsubscribe();
           wake?.();
         });
         await stream.writeSSE({ event: 'ready', data: JSON.stringify({ ok: true }) });
+        // Live events up to here are already covered: replayed, or seen by the client.
+        let sent = position;
+        if (resume !== null && resume < position) {
+          const missed = await runtime.live.replay(resume, position, filter, REPLAY_MAX + 1);
+          if (missed.length > REPLAY_MAX) {
+            await stream.writeSSE({
+              event: 'resync',
+              id: String(position),
+              data: JSON.stringify({
+                after: resume,
+                upTo: position,
+                message: `More than ${REPLAY_MAX} events were missed. Re-read what you show, or page through GET /events?after=${resume}.`,
+              }),
+            });
+          } else {
+            for (const event of missed) {
+              if (stream.aborted) break;
+              if (!(await visibleNow(ctx, event))) continue;
+              await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
+            }
+          }
+        } else if (resume !== null && resume > position) {
+          // The client saw events this instance hasn't read yet (it was on a faster one): skip
+          // those. A resume point past the end of the log is not ours, so it is ignored.
+          const [{ max } = { max: 0 }] = await runtime.db.select({ max: sql<number>`coalesce(max(${activities.id}), 0)` }).from(activities);
+          if (resume <= Number(max)) sent = resume;
+        }
         while (!stream.aborted && !stream.closed) {
-          while (queue.length) {
+          while (queue.length && !stream.aborted) {
             const event = queue.shift()!;
+            if (event.id <= sent) continue;
+            sent = event.id;
+            // Someone taken off a project stops hearing about it on a stream that is already open.
+            if (!(await visibleNow(ctx, event))) continue;
             await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
           }
+          if (stream.aborted) break;
           await new Promise<void>((resolve) => {
             wake = resolve;
             setTimeout(resolve, 25_000).unref?.();
