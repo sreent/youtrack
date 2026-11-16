@@ -7,11 +7,12 @@ import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, type Locale, t
 import de from '@a4a/shared/i18n/de.json';
 import en from '@a4a/shared/i18n/en.json';
 import es from '@a4a/shared/i18n/es.json';
+import fr from '@a4a/shared/i18n/fr.json';
 import ja from '@a4a/shared/i18n/ja.json';
 import type { Ctx } from './context';
 
 /** Every catalog, by language. A new language is a catalog, a line in LOCALES, and a line here. */
-const catalogs: Record<Locale, Record<string, string>> = { en, de, es, ja };
+const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, ja };
 
 const translators = new Map<Locale, Translator>();
 

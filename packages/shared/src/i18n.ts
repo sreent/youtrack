@@ -7,12 +7,12 @@
 import { IntlMessageFormat, type PrimitiveType } from 'intl-messageformat';
 
 /** The languages there are catalogs for. A new one is a catalog and a line here (docs/translating.md). */
-export const LOCALES = ['en', 'de', 'es', 'ja'] as const;
+export const LOCALES = ['en', 'de', 'es', 'fr', 'ja'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Each language by its own name, as a person looking for theirs reads it. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', ja: '日本語' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語' };
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
