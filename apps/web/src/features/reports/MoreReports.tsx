@@ -8,6 +8,7 @@ import type { AverageAge, IssuesPerField, Matrix, TimeInState, ValueCount } from
 import { useId } from 'react';
 import { Link } from 'react-router';
 import { labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, daysOf, type Frame } from './chart';
+import { t as tx, tr } from '../../i18n';
 
 const issuesHref = (query: string) => `/issues?q=${encodeURIComponent(query)}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -20,7 +21,7 @@ function Count({ n, query, shaded }: { n: number; query: string | null; shaded?:
   if (!n || query === null) return <>{n}</>;
   return (
     // On a shaded cell, the figure keeps the shade's own ink, as the load grid's figures do.
-    <Link to={issuesHref(query)} title={`Open ${n === 1 ? 'this issue' : `these ${n} issues`}`} style={shaded ? { color: 'inherit' } : undefined}>
+    <Link to={issuesHref(query)} title={tx('reports.moreReports.open', { v: n === 1 ? 'this issue' : `these ${n} issues` })} style={shaded ? { color: 'inherit' } : undefined}>
       {n}
     </Link>
   );
@@ -61,24 +62,18 @@ function FiguresTable({ label, children }: { label: string; children: React.Reac
 // ---------------------------------------------------------------------------
 
 export function IssuesPerFieldView({ r, compact }: { r: IssuesPerField; compact?: boolean }) {
-  if (!r.total) return <p className="note">No issues to count: nothing matches.</p>;
+  if (!r.total) return <p className="note">{tx('reports.moreReports.noIssuesToCountNothing')}</p>;
   const by = r.interval ? ` by ${r.interval}` : '';
   return (
     <div className="stack">
-      <p className="note">
-        {plural(r.total, 'issue')} by {r.field.name}
-        {by}
-        {r.field.multi ? '; an issue with several values counts under each' : ''}. Each count opens its issues.
-      </p>
-      <ValueBars values={r.values} label={`Issues by ${r.field.name}`} />
+      <p className="note">{tr('reports.moreReports.byEachCountOpensIts', { plural: plural(r.total, 'issue'), name: r.field.name, by: by, v: r.field.multi ? tx('reports.moreReports.anIssueWithSeveralValues') : '' })}</p>
+      <ValueBars values={r.values} label={tx('reports.moreReports.issuesBy', { name: r.field.name })} />
       {compact ? null : (
-        <FiguresTable label={`Issues by ${r.field.name}, as figures`}>
+        <FiguresTable label={tx('reports.moreReports.issuesByAsFigures', { name: r.field.name })}>
           <thead>
             <tr>
               <th scope="col">{r.field.name}</th>
-              <th scope="col" className="num">
-                Issues
-              </th>
+              <th scope="col" className="num">{tx('reports.moreReports.issues')}</th>
             </tr>
           </thead>
           <tbody>
@@ -105,15 +100,13 @@ export function IssuesPerFieldView({ r, compact }: { r: IssuesPerField; compact?
 const shade = (n: number, max: number) => (n === 0 ? 0 : n * 2 <= max ? 1 : 2);
 
 export function MatrixView({ m }: { m: Matrix; compact?: boolean }) {
-  if (!m.total) return <p className="note">No issues to count: nothing matches.</p>;
+  if (!m.total) return <p className="note">{tx('reports.moreReports.noIssuesToCountNothing')}</p>;
   const max = Math.max(1, ...m.cells.flat().map((c) => c.count));
   const corner = `${m.rows.field.name} by ${m.columns.field.name}`;
   return (
     <div className="stack">
-      <p className="note">
-        {plural(m.total, 'issue')}: {m.rows.field.name} down, {m.columns.field.name} across. Each count opens its issues.
-      </p>
-      <FiguresTable label={`${corner}, as figures`}>
+      <p className="note">{tr('reports.moreReports.downAcrossEachCountOpens', { plural: plural(m.total, 'issue'), name: m.rows.field.name, name2: m.columns.field.name })}</p>
+      <FiguresTable label={tx('reports.moreReports.asFigures', { corner: corner })}>
         <thead>
           <tr>
             <th scope="col">{corner}</th>
@@ -122,9 +115,7 @@ export function MatrixView({ m }: { m: Matrix; compact?: boolean }) {
                 {c.label}
               </th>
             ))}
-            <th scope="col" className="num">
-              Total
-            </th>
+            <th scope="col" className="num">{tx('reports.moreReports.total')}</th>
           </tr>
         </thead>
         <tbody>
@@ -146,7 +137,7 @@ export function MatrixView({ m }: { m: Matrix; compact?: boolean }) {
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">Total</th>
+            <th scope="row">{tx('reports.moreReports.total')}</th>
             {m.columns.values.map((c) => (
               <td key={c.key || '-'} className="num">
                 <strong>
@@ -188,13 +179,11 @@ function AgeChart({ a, compact }: { a: AverageAge; compact?: boolean }) {
   return (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{`The average and median age of the open issues at the end of each day, in days; the figures are in the table${compact ? ' under it' : ' beside it'}`}</title>
+        <title id={titleId}>{tx('reports.moreReports.theAverageAndMedianAge', { v: compact ? ' under it' : ' beside it' })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
-            <text x={f.left - 8} y={y(t) + 4} textAnchor="end">
-              {t}d
-            </text>
+            <text x={f.left - 8} y={y(t) + 4} textAnchor="end">{tr('reports.moreReports.d', { t: t })}</text>
           </g>
         ))}
         <line className="chart-axis" x1={f.left} x2={f.width - f.right} y1={base} y2={base} />
@@ -218,18 +207,12 @@ function AgeChart({ a, compact }: { a: AverageAge; compact?: boolean }) {
       </svg>
       <figcaption>
         <ul className="chart-key">
-          <li>
-            <svg width="22" height="10" aria-hidden="true">
+          <li>{tr('reports.moreReports.averageAge', { el: <svg width="22" height="10" aria-hidden="true">
               <path className="chart-line s1" d="M1 5H21" />
-            </svg>
-            Average age
-          </li>
-          <li>
-            <svg width="22" height="10" aria-hidden="true">
+            </svg> })}</li>
+          <li>{tr('reports.moreReports.medianAge', { el: <svg width="22" height="10" aria-hidden="true">
               <path className="chart-line s2" d="M1 5H21" />
-            </svg>
-            Median age
-          </li>
+            </svg> })}</li>
         </ul>
       </figcaption>
     </figure>
@@ -238,28 +221,20 @@ function AgeChart({ a, compact }: { a: AverageAge; compact?: boolean }) {
 
 export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolean }) {
   const last = a.days.at(-1);
-  if (!last) return <p className="note">No days to show yet.</p>;
+  if (!last) return <p className="note">{tx('reports.moreReports.noDaysToShowYet')}</p>;
   return (
     <div className="stack">
-      <p className="note">
-        {last.open ? `${plural(last.open, 'issue')} open on ${dayMonth(last.date)}, ${last.averageDays === null ? '' : `${daysOf(last.averageDays)} old on average`}.` : `Nothing open on ${dayMonth(last.date)}.`} Age counts from when each was created.
-      </p>
+      <p className="note">{tr('reports.moreReports.ageCountsFromWhenEach', { v: last.open ? tx('reports.moreReports.openOn', { plural: plural(last.open, 'issue'), dayMonth: dayMonth(last.date), v: last.averageDays === null ? '' : `${daysOf(last.averageDays)} old on average` }) : tx('reports.moreReports.nothingOpenOn', { dayMonth: dayMonth(last.date) }) })}</p>
       <div className={compact ? 'stack' : 'chart-box'}>
         <AgeChart a={a} compact={compact} />
         {compact ? null : (
-          <FiguresTable label="Average age each day, as figures">
+          <FiguresTable label={tx('reports.moreReports.averageAgeEachDayAs')}>
             <thead>
               <tr>
-                <th scope="col">Day</th>
-                <th scope="col" className="num">
-                  Open
-                </th>
-                <th scope="col" className="num">
-                  Average (days)
-                </th>
-                <th scope="col" className="num">
-                  Median (days)
-                </th>
+                <th scope="col">{tx('reports.moreReports.day')}</th>
+                <th scope="col" className="num">{tx('reports.moreReports.open2')}</th>
+                <th scope="col" className="num">{tx('reports.moreReports.averageDays')}</th>
+                <th scope="col" className="num">{tx('reports.moreReports.medianDays')}</th>
               </tr>
             </thead>
             <tbody>
@@ -276,22 +251,14 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
         )}
       </div>
       {a.field && a.values.length ? (
-        <FiguresTable label={`Average age by ${a.field.name} on ${dayMonth(last.date)}`}>
-          <caption>
-            By {a.field.name}, as it stood on {dayMonth(last.date)}
-          </caption>
+        <FiguresTable label={tx('reports.moreReports.averageAgeByOn', { name: a.field.name, dayMonth: dayMonth(last.date) })}>
+          <caption>{tr('reports.moreReports.byAsItStoodOn', { name: a.field.name, dayMonth: dayMonth(last.date) })}</caption>
           <thead>
             <tr>
               <th scope="col">{a.field.name}</th>
-              <th scope="col" className="num">
-                Open
-              </th>
-              <th scope="col" className="num">
-                Average (days)
-              </th>
-              <th scope="col" className="num">
-                Oldest (days)
-              </th>
+              <th scope="col" className="num">{tx('reports.moreReports.open2')}</th>
+              <th scope="col" className="num">{tx('reports.moreReports.averageDays')}</th>
+              <th scope="col" className="num">{tx('reports.moreReports.oldestDays')}</th>
             </tr>
           </thead>
           <tbody>
@@ -309,8 +276,8 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
         </FiguresTable>
       ) : null}
       {!compact && a.oldest.length ? (
-        <FiguresTable label="The oldest open issues">
-          <caption>The oldest open on {dayMonth(last.date)}</caption>
+        <FiguresTable label={tx('reports.moreReports.theOldestOpenIssues')}>
+          <caption>{tr('reports.moreReports.theOldestOpenOn', { dayMonth: dayMonth(last.date) })}</caption>
           <tbody>
             {a.oldest.map((o) => (
               <tr key={o.issue}>
@@ -342,10 +309,10 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
     <div className="stack">
       <p className="note">
         {t.issues.length
-          ? `${plural(t.issues.length, 'issue')} resolved ${t.board ? `on ${t.board.name} ` : ''}from ${dayMonth(t.scope.from)} to ${dayMonth(t.scope.to)}: the bar reaches the 85th percentile of days spent in each ${word}, the mark is the median.`
-          : `Nothing was resolved ${t.board ? `on ${t.board.name} ` : ''}from ${dayMonth(t.scope.from)} to ${dayMonth(t.scope.to)}.`}
+          ? tx('reports.moreReports.resolvedFromToTheBar', { plural: plural(t.issues.length, 'issue'), v: t.board ? `on ${t.board.name} ` : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to), word: word })
+          : tx('reports.moreReports.nothingWasResolvedFromTo', { v: t.board ? `on ${t.board.name} ` : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to) })}
       </p>
-      <dl className="time-bars" aria-label={`Days in each ${word}: 85th percentile, with the median marked`}>
+      <dl className="time-bars" aria-label={tx('reports.moreReports.daysInEach85thPercentile', { word: word })}>
         {t.states.map((s) => {
           const p85 = s.p85 ?? 0;
           const mid = s.p50 ?? 0;
@@ -363,27 +330,17 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
           );
         })}
       </dl>
-      <FiguresTable label={`Days in each ${word}, as figures`}>
+      <FiguresTable label={tx('reports.moreReports.daysInEachAsFigures', { word: word })}>
         <thead>
           <tr>
-            <th scope="col">{t.by === 'column' ? 'Column' : 'State'}</th>
-            <th scope="col" className="num">
-              Issues
-            </th>
-            <th scope="col" className="num">
-              Median (days)
-            </th>
-            <th scope="col" className="num">
-              85th percentile
-            </th>
+            <th scope="col">{t.by === 'column' ? tx('reports.moreReports.column') : tx('reports.moreReports.state')}</th>
+            <th scope="col" className="num">{tx('reports.moreReports.issues')}</th>
+            <th scope="col" className="num">{tx('reports.moreReports.medianDays')}</th>
+            <th scope="col" className="num">{tx('reports.moreReports.n85thPercentile')}</th>
             {compact ? null : (
-              <th scope="col" className="num">
-                Mean
-              </th>
+              <th scope="col" className="num">{tx('reports.moreReports.mean')}</th>
             )}
-            <th scope="col" className="num">
-              Open there now
-            </th>
+            <th scope="col" className="num">{tx('reports.moreReports.openThereNow')}</th>
           </tr>
         </thead>
         <tbody>
@@ -400,19 +357,17 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
         </tbody>
       </FiguresTable>
       {!compact && shown.length ? (
-        <FiguresTable label={`Days each resolved issue spent in each ${word}`}>
-          <caption>{t.issues.length > shown.length ? `The last ${shown.length} resolved; the CSV has every one` : 'Each resolved issue'}</caption>
+        <FiguresTable label={tx('reports.moreReports.daysEachResolvedIssueSpent', { word: word })}>
+          <caption>{t.issues.length > shown.length ? tx('reports.moreReports.theLastResolvedTheCsv', { length: shown.length }) : tx('reports.moreReports.eachResolvedIssue')}</caption>
           <thead>
             <tr>
-              <th scope="col">Issue</th>
+              <th scope="col">{tx('reports.moreReports.issue')}</th>
               {t.states.map((s) => (
                 <th key={s.name} scope="col" className="num">
                   {s.name}
                 </th>
               ))}
-              <th scope="col" className="num">
-                Total
-              </th>
+              <th scope="col" className="num">{tx('reports.moreReports.total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -435,8 +390,8 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
         </FiguresTable>
       ) : null}
       {!compact && t.ongoing.length ? (
-        <FiguresTable label="Open issues, longest where they are first">
-          <caption>Still open: the longest where they are</caption>
+        <FiguresTable label={tx('reports.moreReports.openIssuesLongestWhereThey')}>
+          <caption>{tx('reports.moreReports.stillOpenTheLongestWhere')}</caption>
           <tbody>
             {t.ongoing.slice(0, 15).map((o) => (
               <tr key={o.issue}>

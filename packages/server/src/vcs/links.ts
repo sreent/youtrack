@@ -49,6 +49,7 @@ export const NOBODY = {
   capacityHoursPerDay: 0,
   workWeek: null,
   timeZone: null,
+  locale: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
 } satisfies UserRow;

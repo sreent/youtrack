@@ -4,16 +4,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, put } from '../../api/client';
 import { errorText, Said } from '../common/bits';
 import { useState } from 'react';
+import { t, tr } from '../../i18n';
 
 const WORDS: Record<NotifyKind, string> = {
-  created: 'Created',
-  commented: 'Commented on',
+  created: t('notifications.kinds.created'),
+  commented: t('notifications.kinds.commentedOn'),
   state: 'State changed',
-  assigned: 'Assigned to someone',
-  fields: 'Other fields changed',
-  linked: 'Linked',
-  attachments: 'Files added',
-  sla: 'SLA at risk or breached',
+  assigned: t('notifications.kinds.assignedToSomeone'),
+  fields: t('notifications.kinds.otherFieldsChanged'),
+  linked: t('notifications.kinds.linked'),
+  attachments: t('notifications.kinds.filesAdded'),
+  sla: t('notifications.kinds.slaAtRiskOrBreached'),
 };
 
 /** The kinds of change that tell a person, by the inbox and by email (D45): for what they watch, and their subscriptions' default. */
@@ -25,7 +26,7 @@ export function NotifyKindsSettingsCard() {
     mutationFn: (body: Partial<Pick<NotifyKindsSettings, 'watching' | 'defaults'>>) => put<NotifyKindsSettings>('/me/notification-kinds', body),
     onSuccess: (s) => {
       qc.setQueryData(['notification-kinds'], s);
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('notifications.kinds.saved') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -36,9 +37,9 @@ export function NotifyKindsSettingsCard() {
     save.mutate({ [scope]: { [kind]: { ...was, [way]: on } } });
   };
   return (
-    <div className="stack" aria-label="The kinds of change that tell you">
+    <div className="stack" aria-label={t('notifications.kinds.theKindsOfChangeThat')}>
       {/* A fieldset per kind, its four choices wrapping: a table of five columns is too wide for a phone. */}
-      <div role="group" aria-label="The kinds of change that tell you" className="stack">
+      <div role="group" aria-label={t('notifications.kinds.theKindsOfChangeThat')} className="stack">
         {NOTIFY_KINDS.map((k) => (
           <fieldset key={k} className="unframed stack tight">
             <legend>{WORDS[k]}</legend>
@@ -48,12 +49,12 @@ export function NotifyKindsSettingsCard() {
                   <label key={`${scope}-${way}`} className="check">
                     <input
                       type="checkbox"
-                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? 'issues you watch' : 'your subscriptions'}, ${way}`}
+                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? t('notifications.kinds.issuesYouWatch') : t('notifications.kinds.yourSubscriptions')}, ${way}`}
                       checked={s[scope][k][way]}
                       disabled={save.isPending}
                       onChange={(e) => toggle(scope, k, way, e.target.checked)}
                     />
-                    {scope === 'watching' ? 'Watched' : 'Subscribed'}: {way}
+                    {scope === 'watching' ? t('notifications.kinds.watched') : t('notifications.kinds.subscribed')}: {way}
                   </label>
                 )),
               )}
@@ -61,7 +62,7 @@ export function NotifyKindsSettingsCard() {
           </fieldset>
         ))}
       </div>
-      <p className="note">Whatever you choose, {s.always.join(', ')} always tell you. Email still follows your email level above.</p>
+      <p className="note">{tr('notifications.kinds.whateverYouChooseAlwaysTell', { join: s.always.join(', ') })}</p>
       {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
     </div>
   );

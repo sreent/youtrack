@@ -9,13 +9,15 @@ import { Link } from 'react-router';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said, Scroll } from '../common/bits';
 import { useSubscribe, useSubscriptions, useUpdateSubscription } from './api';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 type Choice = SubscriptionEvents | 'none';
 
 const PROJECT_CHOICES: { value: Choice; name: string; about: string }[] = [
-  { value: 'none', name: 'Nothing more', about: 'What calls on you, and the issues you watch, reach you anyway.' },
-  { value: 'new', name: 'New issues', about: 'Each issue reported in it.' },
-  { value: 'all', name: 'Every change', about: 'New issues, and the changes, comments, links and files on all of them.' },
+  { value: 'none', name: 'Nothing more', about: t('notifications.subscriptions.whatCallsOnYouAnd') },
+  { value: 'new', name: 'New issues', about: t('notifications.subscriptions.eachIssueReportedInIt') },
+  { value: 'all', name: 'Every change', about: t('notifications.subscriptions.newIssuesAndTheChanges') },
 ];
 
 const SEARCH_CHOICES: { value: Choice; name: string }[] = [
@@ -37,7 +39,7 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
   const [choice, setChoice] = useState<Choice | null>(null);
   const [email, setEmail] = useState<boolean | null>(null);
   const name = useId();
-  if (subs.isLoading) return <Loading what="your subscription" />;
+  if (subs.isLoading) return <Loading what={t('notifications.subscriptions.yourSubscription')} />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   const mine = subs.data.find((s) => s.project?.key === project.key);
   const current: Choice = choice ?? mine?.events ?? 'none';
@@ -51,8 +53,8 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
           setSaid({
             text:
               events === 'none'
-                ? `You're no longer subscribed to ${project.name}.`
-                : `You're told of ${events === 'all' ? 'every change in' : 'new issues in'} ${project.name}${withEmail ? ', by email too' : ', in your inbox'}.`,
+                ? t('notifications.subscriptions.youReNoLongerSubscribed', { name: project.name })
+                : t('notifications.subscriptions.youReToldOf', { v: events === 'all' ? 'every change in' : 'new issues in', name: project.name, v2: withEmail ? t('notifications.subscriptions.byEmailToo2') : t('notifications.subscriptions.inYourInbox') }),
           }),
         onError: (e) => {
           setChoice(null);
@@ -65,7 +67,7 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
   return (
     <div className="stack">
       <fieldset className="choice-group column" disabled={save.isPending}>
-        <legend>Tell me about</legend>
+        <legend>{t('notifications.subscriptions.tellMeAbout')}</legend>
         {PROJECT_CHOICES.map((c) => (
           <label key={c.value} className="choice">
             <input type="radio" name={name} value={c.value} checked={current === c.value} onChange={() => choose(c.value)} />
@@ -86,12 +88,7 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
             if (current !== 'none') choose(current, e.target.checked);
           }}
         />
-        <span>
-          By email too
-          <small className="field-help">
-            Your <Link to="/inbox">inbox</Link> has it either way. Choosing “Never” for email on <Link to="/me#notifications">your profile</Link> stops this too.
-          </small>
-        </span>
+        <span>{tr('notifications.subscriptions.byEmailToo', { el: <small className="field-help">{tr('notifications.subscriptions.yourInboxHasItEither', { t0: (c: ReactNode) => <Link to="/inbox">{c}</Link>, t1: (c: ReactNode) => <Link to="/me#notifications">{c}</Link> })}</small> })}</span>
       </label>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
@@ -109,7 +106,7 @@ export function SearchSubscription({ search }: { search: Pick<SavedSearch, 'id' 
   return (
     <>
       <select
-        aria-label={`Your subscription to “${search.name}”`}
+        aria-label={t('notifications.subscriptions.yourSubscriptionTo', { name: search.name })}
         value={choice ?? mine?.events ?? 'none'}
         disabled={save.isPending}
         onChange={(e) => {
@@ -118,7 +115,7 @@ export function SearchSubscription({ search }: { search: Pick<SavedSearch, 'id' 
           save.mutate(
             { savedSearch: search.id, events: events === 'none' ? null : events, email: mine?.email ?? true, id: mine?.id },
             {
-              onSuccess: () => setSaid({ text: events === 'none' ? 'Unsubscribed.' : 'Subscribed: your inbox will say.' }),
+              onSuccess: () => setSaid({ text: events === 'none' ? t('notifications.subscriptions.unsubscribed') : t('notifications.subscriptions.subscribedYourInboxWillSay') }),
               onError: (err) => {
                 setChoice(null);
                 setSaid({ text: errorText(err), bad: true });
@@ -146,9 +143,7 @@ function Target({ s }: { s: Subscription }) {
         <span className="item-name">
           <Link to={`/projects/${s.project.key}`}>{s.project.name}</Link>
         </span>
-        <span className="item-about">
-          <span className="mono">{s.project.key}</span> · a project
-        </span>
+        <span className="item-about">{tr('notifications.subscriptions.aProject', { key: s.project.key, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</span>
       </span>
     );
   }
@@ -157,7 +152,7 @@ function Target({ s }: { s: Subscription }) {
       <span className="item-name">
         <Link to={`/issues?q=${encodeURIComponent(s.search?.query ?? '')}`}>{s.search?.name}</Link>
       </span>
-      <span className="item-about">a saved search</span>
+      <span className="item-about">{t('notifications.subscriptions.aSavedSearch')}</span>
     </span>
   );
 }
@@ -202,7 +197,7 @@ function SubscriptionRow({
       </th>
       <td>
         <select
-          aria-label={`What ${name} tells you of`}
+          aria-label={t('notifications.subscriptions.whatTellsYouOf', { name: name })}
           value={events}
           disabled={busy}
           onChange={(e) => {
@@ -222,7 +217,7 @@ function SubscriptionRow({
       <td>
         <input
           type="checkbox"
-          aria-label={`Email me about ${name}`}
+          aria-label={t('notifications.subscriptions.emailMeAbout', { name: name })}
           checked={email}
           disabled={busy}
           onChange={(e) => {
@@ -233,9 +228,7 @@ function SubscriptionRow({
         />
       </td>
       <td className="fit">
-        <button type="button" className="small" disabled={ending} onClick={unsubscribe}>
-          Unsubscribe<span className="hidden"> from {name}</span>
-        </button>
+        <button type="button" className="small" disabled={ending} onClick={unsubscribe}>{tr('notifications.subscriptions.unsubscribeFrom', { name: name, t0: (c: ReactNode) => <span className="hidden">{c}</span> })}</button>
       </td>
     </tr>
   );
@@ -247,28 +240,25 @@ export function SubscriptionList() {
   const update = useUpdateSubscription();
   const end = useSubscribe();
   const [said, setSaid] = useSaid();
-  if (subs.isLoading) return <Loading what="your subscriptions" />;
+  if (subs.isLoading) return <Loading what={t('notifications.subscriptions.yourSubscriptions')} />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   if (!subs.data.length) {
     return (
-      <p className="note">
-        You subscribe to nothing yet. On a project's page you can be told of its new issues, or of every change in it; on the <Link to="/issues">Issues</Link> page, of an
-        issue coming into a saved search.
-      </p>
+      <p className="note">{tr('notifications.subscriptions.youSubscribeToNothingYet', { t0: (c: ReactNode) => <Link to="/issues">{c}</Link> })}</p>
     );
   }
   const failed = (e: unknown) => setSaid({ text: errorText(e), bad: true });
   return (
     <div className="stack">
-      <Scroll label="Table of your subscriptions">
+      <Scroll label={t('notifications.subscriptions.tableOfYourSubscriptions')}>
         <table className="figures middle">
           <thead>
             <tr>
-              <th scope="col">To</th>
-              <th scope="col">Tell me of</th>
-              <th scope="col">By email</th>
+              <th scope="col">{t('notifications.subscriptions.to')}</th>
+              <th scope="col">{t('notifications.subscriptions.tellMeOf')}</th>
+              <th scope="col">{t('notifications.subscriptions.byEmail')}</th>
               <th scope="col">
-                <span className="hidden">Unsubscribe</span>
+                <span className="hidden">{t('notifications.subscriptions.unsubscribe')}</span>
               </th>
             </tr>
           </thead>
@@ -286,7 +276,7 @@ export function SubscriptionList() {
                     update.mutate(
                       { id: s.id, ...change },
                       {
-                        onSuccess: () => setSaid({ text: 'Saved.' }),
+                        onSuccess: () => setSaid({ text: t('notifications.subscriptions.saved') }),
                         onError: (e) => {
                           undo();
                           failed(e);
@@ -294,7 +284,7 @@ export function SubscriptionList() {
                       },
                     )
                   }
-                  unsubscribe={() => end.mutate({ id: s.id, events: null }, { onSuccess: () => setSaid({ text: `Unsubscribed from ${name}.` }), onError: failed })}
+                  unsubscribe={() => end.mutate({ id: s.id, events: null }, { onSuccess: () => setSaid({ text: t('notifications.subscriptions.unsubscribedFrom', { name: name }) }), onError: failed })}
                 />
               );
             })}

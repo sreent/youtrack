@@ -20,6 +20,8 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
+import { intlLocale, t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 type Actor = TrackerEvent['actor'];
 
@@ -37,7 +39,7 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
   const person = actor.name ?? actor.login ?? 'someone';
   // An agent with a token of its own acts as itself, not for a person (D34).
   if (actor.isBot && (actor.channel === 'mcp' || actor.channel === 'api')) {
-    return { kind: 'agent', name: actor.login ?? 'an agent', via: actor.channel === 'mcp' ? 'via MCP' : 'via the API' };
+    return { kind: 'agent', name: actor.login ?? 'an agent', via: actor.channel === 'mcp' ? t('issues.issueHistory.viaMcp') : t('issues.issueHistory.viaTheApi') };
   }
   switch (actor.channel) {
     case 'helpdesk':
@@ -83,10 +85,10 @@ function byRule(data: Record<string, unknown>): string | undefined {
 /** Today's time alone; older ones with their day, as people read them. */
 export function when(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return time;
   const sameYear = d.getFullYear() === now.getFullYear();
-  const day = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
+  const day = d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
   return `${day}, ${time}`;
 }
 
@@ -116,7 +118,7 @@ interface Entry {
 function undid(e: TrackerEvent, byId: Map<number, TrackerEvent>, what: string): string | undefined {
   if (typeof e.data.undoes !== 'number') return undefined;
   const original = byId.get(e.data.undoes);
-  return `undid ${original ? `${whoOf(original.actor).name}’s` : 'an agent’s'} ${what}`;
+  return `undid ${original ? t('issues.issueHistory.s', { name: whoOf(original.actor).name }) : t('issues.issueHistory.anAgentS')} ${what}`;
 }
 
 function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | null {
@@ -134,18 +136,18 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       if (imported) {
         const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : 'another tracker';
         const on = imported.createdAt ? `, where it was reported ${when(imported.createdAt)}${imported.reporter ? ` by ${imported.reporter}` : ''}` : '';
-        return { ...base, did: `imported it from ${from} (${imported.key ?? 'its key there'})${on}` };
+        return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? 'its key there', on: on }) };
       }
-      return { ...base, did: data.requester ? (data.via === 'email' ? 'asked for help by email' : 'asked for help') : 'reported it' };
+      return { ...base, did: data.requester ? (data.via === 'email' ? t('issues.issueHistory.askedForHelpByEmail') : t('issues.issueHistory.askedForHelp')) : t('issues.issueHistory.reportedIt') };
     }
     case 'sprint.issue_added':
     case 'sprint.issue_removed':
-      return { ...base, did: `${e.type === 'sprint.issue_added' ? 'put it in' : 'took it out of'} ${String(data.sprint ?? 'a sprint')}${data.board ? ` on ${String(data.board)}` : ''}` };
+      return { ...base, did: `${e.type === 'sprint.issue_added' ? t('issues.issueHistory.putItIn') : t('issues.issueHistory.tookItOutOf')} ${String(data.sprint ?? 'a sprint')}${data.board ? ` on ${String(data.board)}` : ''}` };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {
         ...base,
-        did: undid(e, byId, 'change') ?? (data.acceptedFrom === 'triage' ? 'accepted what triage worked out' : byRule(data)),
+        did: undid(e, byId, 'change') ?? (data.acceptedFrom === 'triage' ? t('issues.issueHistory.acceptedWhatTriageWorkedOut') : byRule(data)),
         body: <ChangeLines changes={e.changes} />,
       };
     case 'commit.linked': {
@@ -154,17 +156,13 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       return {
         ...base,
         did: (
-          <>
-            committed{' '}
-            {typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
+          <>{tr('issues.issueHistory.committed', { v: typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
               <a className="mono" href={data.url} rel="noreferrer noopener" target="_blank">
                 {sha.slice(0, 7)}
               </a>
             ) : (
               <span className="mono">{sha.slice(0, 7)}</span>
-            )}
-            {data.branch ? <> on <span className="mono">{String(data.branch)}</span></> : null}
-          </>
+            ), v2: data.branch ? <>{tr('issues.issueHistory.on', { String: String(data.branch), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</> : null })}</>
         ),
         body: (
           <ul className="change-lines">
@@ -172,7 +170,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
             {command ? (
               <li className="same">
                 #{command}
-                {data.applied ? `: ${String(data.note ?? 'applied')}` : `, not applied: ${String(data.note ?? '').replace(/^Not applied:\s*/i, '') || 'see the commit'}`}
+                {data.applied ? `: ${String(data.note ?? 'applied')}` : t('issues.issueHistory.notApplied', { v: String(data.note ?? '').replace(/^Not applied:\s*/i, '') || 'see the commit' })}
               </li>
             ) : null}
           </ul>
@@ -185,8 +183,8 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         ...base,
         did:
           e.type === 'pull_request.linked'
-            ? `linked pull request #${String(data.number ?? '')} (${String(data.state ?? 'open')})`
-            : `saw pull request #${String(data.number ?? '')} ${data.state === 'merged' ? 'merged' : data.state === 'closed' ? 'closed' : 'reopened'}`,
+            ? t('issues.issueHistory.linkedPullRequest', { String: String(data.number ?? ''), String2: String(data.state ?? 'open') })
+            : t('issues.issueHistory.sawPullRequest', { String: String(data.number ?? ''), v: data.state === 'merged' ? 'merged' : data.state === 'closed' ? 'closed' : 'reopened' }),
         body: (
           <ul className="change-lines">
             <li>{String(data.title ?? '')}</li>
@@ -197,7 +195,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Moved to another project (D41): the id it had, the one it has, and what its fields became.
       return {
         ...base,
-        did: `moved it from ${String(data.from ?? 'another project')} to ${String(data.to ?? 'this project')}`,
+        did: t('issues.issueHistory.movedItFromTo', { String: String(data.from ?? 'another project'), String2: String(data.to ?? 'this project') }),
         body: (
           <ul className="change-lines">
             {e.changes.map((c) => (
@@ -218,7 +216,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         body: (
           <ul className="change-lines">
             <li>
-              <span className="change-field">{e.type === 'link.created' ? 'Linked:' : 'Unlinked:'}</span>{' '}
+              <span className="change-field">{e.type === 'link.created' ? t('issues.issueHistory.linked') : t('issues.issueHistory.unlinked')}</span>{' '}
               {e.type === 'link.created' ? <ins>{phrase}</ins> : <del>{phrase}</del>}{' '}
               {target ? (
                 <Link to={`/issues/${target.id}`} className="issue-id">
@@ -236,7 +234,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         body: (
           <ul className="change-lines">
             <li>
-              <span className="change-field">Spent time:</span> <ins className="mono">{String(data.duration ?? '')}</ins> <span className="same">logged</span>
+              <span className="change-field">{t('issues.issueHistory.spentTime')}</span> <ins className="mono">{String(data.duration ?? '')}</ins> <span className="same">{t('issues.issueHistory.logged')}</span>
               {data.description ? <span className="same"> · {String(data.description)}</span> : null}
             </li>
           </ul>
@@ -255,7 +253,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         body: (
           <ul className="change-lines">
             <li>
-              <span className="change-field">{e.type === 'attachment.added' ? 'Attached:' : 'Removed:'}</span>{' '}
+              <span className="change-field">{e.type === 'attachment.added' ? t('issues.issueHistory.attached') : t('issues.issueHistory.removed')}</span>{' '}
               {e.type === 'attachment.added' ? <ins>{file.name}</ins> : <del>{file.name}</del>} <span className="same">{formatBytes(file.size)}</span>
             </li>
           </ul>
@@ -265,7 +263,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     case 'ai.triage.completed': {
       const n = Number(data.fields ?? 0);
       const dups = Number(data.duplicates ?? 0);
-      const parts = [n ? `worked out ${n} ${n === 1 ? 'field' : 'fields'}, for a person to accept` : 'looked at it and suggested nothing'];
+      const parts = [n ? t('issues.issueHistory.workedOutForAPerson', { n: n, v: n === 1 ? 'field' : 'fields' }) : t('issues.issueHistory.lookedAtItAndSuggested')];
       if (dups) parts.push(`found ${dups} possible ${dups === 1 ? 'duplicate' : 'duplicates'}`);
       return { ...base, did: parts.join(', and ') };
     }
@@ -274,7 +272,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       const told = people.length <= 1 ? (people[0] ?? 'nobody') : `${people.slice(0, -1).join(', ')} and ${people[people.length - 1]}`;
       return {
         ...base,
-        did: `${byRule(data) ?? 'applied a rule'}, and told ${told}`,
+        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? 'applied a rule', told: told }),
         body: (
           <ul className="change-lines">
             <li>“{String(data.message ?? '')}”</li>
@@ -283,16 +281,16 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       };
     }
     case 'rule.called':
-      return { ...base, did: `${byRule(data) ?? 'applied a rule'}, and called its webhook` };
+      return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? 'applied a rule' }) };
     case 'sla.warning':
     case 'sla.breached': {
       // What time alone brought to a request's targets (D45), said by the help desk's agent.
       const target = data.target === 'resolution' ? 'resolution' : 'first-response';
       const policy = typeof data.policy === 'string' ? ` (${data.policy})` : '';
-      const due = typeof data.dueAt === 'string' ? new Date(data.dueAt).toLocaleString() : null;
+      const due = typeof data.dueAt === 'string' ? new Date(data.dueAt).toLocaleString(intlLocale()) : null;
       return {
         ...base,
-        did: e.type === 'sla.warning' ? `said its ${target} target${policy} is at risk${due ? `: due ${due}` : ''}` : `said it went past its ${target} target${policy}${due ? `, due ${due}` : ''}`,
+        did: e.type === 'sla.warning' ? t('issues.issueHistory.saidItsTargetIsAt', { target: target, policy: policy, v: due ? `: due ${due}` : '' }) : t('issues.issueHistory.saidItWentPastIts', { target: target, policy: policy, v: due ? `, due ${due}` : '' }),
       };
     }
     default:
@@ -330,7 +328,7 @@ function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: Rea
       {who.forWhom ? ` for ${who.forWhom}` : ''}
       {did ? <> {did}</> : null}
       {who.via ? ` · ${who.via}` : ''} ·{' '}
-      <time dateTime={at} title={new Date(at).toLocaleString()}>
+      <time dateTime={at} title={new Date(at).toLocaleString(intlLocale())}>
         {when(at)}
       </time>
       {badge}
@@ -343,16 +341,12 @@ function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: Rea
 function Visibility({ value, onChange, requester }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string }) {
   return (
     <div className="stack tight">
-      <div className="modes" role="group" aria-label="Who sees this comment">
-        <button type="button" aria-pressed={value === 'internal'} onClick={() => onChange('internal')}>
-          Internal note
-        </button>
-        <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>
-          Reply to {requester}
-        </button>
+      <div className="modes" role="group" aria-label={t('issues.issueHistory.whoSeesThisComment')}>
+        <button type="button" aria-pressed={value === 'internal'} onClick={() => onChange('internal')}>{t('issues.issueHistory.internalNote')}</button>
+        <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>{tr('issues.issueHistory.replyTo', { requester: requester })}</button>
       </div>
       <p className="field-help" id="visibility-help">
-        {value === 'public' ? `${requester} gets it by email, and sees it on their request's page.` : `Only the team sees it. ${requester} doesn't.`}
+        {value === 'public' ? t('issues.issueHistory.getsItByEmailAnd', { requester: requester }) : t('issues.issueHistory.onlyTheTeamSeesIt', { requester: requester })}
       </p>
     </div>
   );
@@ -405,7 +399,7 @@ export function IssueHistory({
   const [ticked, setTicked] = useState<{ id: string; text: string } | null>(null);
   const [tickSaid, setTickSaid] = useState<{ id: string; text: string } | null>(null);
 
-  if (activity.isLoading || comments.isLoading) return <Loading what="the history" />;
+  if (activity.isLoading || comments.isLoading) return <Loading what={t('issues.issueHistory.theHistory')} />;
   if (activity.error) return <ErrorNote error={activity.error} />;
   if (comments.error) return <ErrorNote error={comments.error} />;
 
@@ -429,7 +423,7 @@ export function IssueHistory({
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
       const what = done.changes.map((c) => (c.field === 'Links' ? 'the link' : c.field));
-      setUndoSaid({ event, text: `Undone: ${what.length ? what.join(', ') : 'its change'} as before.` });
+      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? what.join(', ') : 'its change' }) });
       await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.
@@ -452,7 +446,7 @@ export function IssueHistory({
     } catch (e) {
       setTickSaid({
         id: c.id,
-        text: e instanceof ApiError && e.status === 409 ? 'Someone changed this comment just now. It’s been reloaded: check it and tick again.' : errorText(e),
+        text: e instanceof ApiError && e.status === 409 ? t('issues.issueHistory.someoneChangedThisCommentJust') : errorText(e),
       });
     } finally {
       await qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') });
@@ -462,7 +456,7 @@ export function IssueHistory({
   const mayTick = (c: Comment | undefined): c is Comment => Boolean(c && canComment && (canManage || (me && c.author?.id === me.id)));
 
   const used = (files.data ?? []).reduce((n, f) => n + f.size, 0);
-  const fieldLabel = `${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`;
+  const fieldLabel = `${requester && canReply && visibility === 'public' ? t('issues.issueHistory.aReplyTo', { requester: requester }) : t('issues.issueHistory.aComment')}${me ? `, as ${me.name}` : ''}`;
   const pick = (list: File[]) => setPicked((current) => [...current, ...list.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))]);
 
   const send = async () => {
@@ -493,13 +487,13 @@ export function IssueHistory({
       const failed: string[] = [];
       for (const f of picked) {
         try {
-          await uploadFile(`/comments/${comment.id}/attachments`, f, (sent, total) => setProgress(`Attaching ${f.name}: ${Math.round((sent / (total || 1)) * 100)}%`));
+          await uploadFile(`/comments/${comment.id}/attachments`, f, (sent, total) => setProgress(t('issues.issueHistory.attaching', { name: f.name, round: Math.round((sent / (total || 1)) * 100) })));
         } catch (e) {
           failed.push(`${f.name} wasn't attached: ${errorText(e)}`);
         }
       }
       setNotAttached(failed);
-      setProgress(picked.length && !failed.length ? `Commented, with ${picked.length === 1 ? 'its file' : `its ${picked.length} files`}.` : 'Commented.');
+      setProgress(picked.length && !failed.length ? t('issues.issueHistory.commentedWith', { v: picked.length === 1 ? 'its file' : `its ${picked.length} files` }) : t('issues.issueHistory.commented'));
       setPicked([]);
       await Promise.all([
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') }),
@@ -517,7 +511,7 @@ export function IssueHistory({
 
   return (
     <section className="stack" aria-labelledby="history-title">
-      <h2 id="history-title">History and comments</h2>
+      <h2 id="history-title">{t('issues.issueHistory.historyAndComments')}</h2>
       <ol className="history">
         {entries.map((e) => (
           <li key={e.key} id={e.anchor} className={e.undo?.state === 'undone' ? 'undone' : undefined}>
@@ -529,17 +523,13 @@ export function IssueHistory({
                 did={e.did}
                 badge={
                   e.public === 'reply' ? (
-                    <Badge grammar="outside">public: sent to {requester ?? 'the requester'}</Badge>
+                    <Badge grammar="outside">{tr('issues.issueHistory.publicSentTo', { v: requester ?? 'the requester' })}</Badge>
                   ) : e.public === 'theirs' ? (
-                    <Badge grammar="outside">public: the requester wrote it</Badge>
+                    <Badge grammar="outside">{t('issues.issueHistory.publicTheRequesterWroteIt')}</Badge>
                   ) : e.limited ? (
-                    <Badge tone="idle" title="Its author, the project's managers and administrators see it too">
-                      visible to {e.limited}
-                    </Badge>
+                    <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
                   ) : e.undo?.state === 'undone' ? (
-                    <Badge tone="idle" title={e.undo.note}>
-                      undone
-                    </Badge>
+                    <Badge tone="idle" title={e.undo.note}>{t('issues.issueHistory.undone')}</Badge>
                   ) : null
                 }
                 action={
@@ -547,11 +537,11 @@ export function IssueHistory({
                     <button
                       type="button"
                       className="history-undo"
-                      aria-label={`Undo ${e.who.name}’s change`}
+                      aria-label={t('issues.issueHistory.undoSChange', { name: e.who.name })}
                       disabled={undoing !== null}
                       onClick={() => void undo(e)}
                     >
-                      {undoing === e.undo.event ? 'Undoing…' : 'Undo'}
+                      {undoing === e.undo.event ? t('issues.issueHistory.undoing') : t('issues.issueHistory.undo')}
                     </button>
                   ) : null
                 }
@@ -591,12 +581,10 @@ export function IssueHistory({
         >
           {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
           {limit && !(requester && canReply && visibility === 'public') ? (
-            <LimitPicker value={limit} onChange={setLimit} always={`You, ${issue.project.key}'s managers and administrators see it too.`} />
+            <LimitPicker value={limit} onChange={setLimit} always={t('issues.issueHistory.youSManagersAndAdministrators', { key: issue.project.key })} />
           ) : null}
           {requester && !canReply ? (
-            <p className="field-help" id="visibility-help">
-              Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
-            </p>
+            <p className="field-help" id="visibility-help">{tr('issues.issueHistory.onlyTheTeamSeesYour', { requester: requester })}</p>
           ) : null}
           <FormField label={fieldLabel}>
             {(id) => (
@@ -607,7 +595,7 @@ export function IssueHistory({
                 onChange={setText}
                 describedBy={requester ? 'visibility-help' : undefined}
                 people={people}
-                placeholder="Mention someone with @ and their login, and an issue or an article by its id, like BACK-12 or BACK-A-3. Paste a screenshot to put it here."
+                placeholder={t('issues.issueHistory.mentionSomeoneWithAndTheir')}
                 uploadTo={`/issues/${issue.id}/attachments`}
                 onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
                 onOtherFiles={pick}
@@ -615,13 +603,13 @@ export function IssueHistory({
             )}
           </FormField>
           {picked.length ? (
-            <ul className="chips" aria-label="Files to attach">
+            <ul className="chips" aria-label={t('issues.issueHistory.filesToAttach')}>
               {picked.map((f) => (
                 <li key={`${f.name}-${f.size}`} className="chip removable">
                   <span>
                     {f.name} · {formatBytes(f.size)}
                   </span>
-                  <button type="button" className="chip-remove" aria-label={`Leave out ${f.name}`} onClick={() => setPicked((list) => list.filter((x) => x !== f))}>
+                  <button type="button" className="chip-remove" aria-label={t('issues.issueHistory.leaveOut', { name: f.name })} onClick={() => setPicked((list) => list.filter((x) => x !== f))}>
                     <Icon name="cross" />
                   </button>
                 </li>
@@ -633,17 +621,14 @@ export function IssueHistory({
             <ErrorLine key={m}>{m}</ErrorLine>
           ))}
           <p role="status" className="outcome">
-            {busy ? (progress ?? 'Commenting…') : (progress ?? '')}
+            {busy ? (progress ?? t('issues.issueHistory.commenting')) : (progress ?? '')}
           </p>
           <div className="cluster spread">
             <span className="cluster">
-              <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
-                <Icon name="attach" />
-                Attach files
-              </button>
+              <button type="button" onClick={() => picker.current?.click()} disabled={busy}>{tr('issues.issueHistory.attachFiles', { el: <Icon name="attach" /> })}</button>
               {requester && canReply && visibility === 'public' ? null : (
                 <button type="button" aria-pressed={Boolean(limit)} onClick={() => setLimit(limit ? null : { users: [], groups: [] })} disabled={busy}>
-                  {limit ? 'Let everyone see it' : 'Limit who sees it'}
+                  {limit ? t('issues.issueHistory.letEveryoneSeeIt') : t('issues.issueHistory.limitWhoSeesIt')}
                 </button>
               )}
             </span>
@@ -658,7 +643,7 @@ export function IssueHistory({
               }}
             />
             <button type="submit" className="primary" disabled={!text.trim() || busy}>
-              {busy ? 'Sending…' : requester ? (canReply && visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
+              {busy ? t('issues.issueHistory.sending') : requester ? (canReply && visibility === 'public' ? t('issues.issueHistory.sendTo', { requester: requester }) : t('issues.issueHistory.addTheInternalNote')) : t('issues.issueHistory.comment')}
             </button>
           </div>
         </form>

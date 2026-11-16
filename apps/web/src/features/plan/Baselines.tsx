@@ -9,6 +9,7 @@ import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { useBaselines, useSaveBaseline } from './api';
 import { dayMonth, localToday } from './dates';
+import { t, tr } from '../../i18n';
 
 export interface BaselineChoice {
   baselines: Baseline[];
@@ -53,11 +54,9 @@ export function BaselinePicker({ choice, label = 'Compare with' }: { choice: Bas
       <label htmlFor={id}>{label}</label>
       <select id={id} value={choice.chosen?.id ?? 'none'} onChange={(e) => choice.choose(e.target.value === 'none' ? null : e.target.value)}>
         {choice.baselines.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}, saved {savedOn(b)}
-          </option>
+          <option key={b.id} value={b.id}>{tr('plan.baselines.saved', { name: b.name, savedOn: savedOn(b) })}</option>
         ))}
-        <option value="none">No baseline</option>
+        <option value="none">{t('plan.baselines.noBaseline')}</option>
       </select>
     </span>
   );
@@ -94,7 +93,7 @@ export function SaveBaselineDialog({ projectKey, open, onClose, onSaved }: { pro
       onSaved(b);
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? { text: err.message, hint: err.hint } : { text: "The baseline wasn't saved: a4a couldn't reach the server." });
+      setError(err instanceof ApiError ? { text: err.message, hint: err.hint } : { text: t('plan.baselines.theBaselineWasnTSaved') });
     } finally {
       setBusy(false);
     }
@@ -102,16 +101,16 @@ export function SaveBaselineDialog({ projectKey, open, onClose, onSaved }: { pro
 
   return (
     <dialog ref={ref} className="dialog" aria-labelledby={titleId} onClose={onClose}>
-      <h2 id={titleId}>Save a baseline</h2>
-      <p>A baseline keeps the plan as it stands now: each task's dates, effort and cost. The timeline then shows how far each task has moved from it, and the costs what's been earned against it.</p>
+      <h2 id={titleId}>{t('plan.baselines.saveABaseline')}</h2>
+      <p>{t('plan.baselines.aBaselineKeepsThePlan')}</p>
       <form className="form" onSubmit={submit}>
         <div className="form-field">
-          <label htmlFor={`${titleId}-name`}>Name</label>
+          <label htmlFor={`${titleId}-name`}>{t('plan.baselines.name')}</label>
           <input id={`${titleId}-name`} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoFocus />
         </div>
         <div className="form-field">
-          <label htmlFor={`${titleId}-note`}>A note, if you want one</label>
-          <textarea id={`${titleId}-note`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={3} placeholder="Why now, and who agreed it" />
+          <label htmlFor={`${titleId}-note`}>{t('plan.baselines.aNoteIfYouWant')}</label>
+          <textarea id={`${titleId}-note`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={3} placeholder={t('plan.baselines.whyNowAndWhoAgreed')} />
         </div>
         {error ? (
           <div className="error-note" role="alert">
@@ -121,11 +120,9 @@ export function SaveBaselineDialog({ projectKey, open, onClose, onSaved }: { pro
           </div>
         ) : null}
         <div className="dialog-actions">
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" onClick={onClose}>{t('plan.baselines.cancel')}</button>
           <button type="submit" className="primary" disabled={busy || !name.trim()}>
-            {busy ? 'Saving…' : 'Save the baseline'}
+            {busy ? t('plan.baselines.saving') : t('plan.baselines.saveTheBaseline')}
           </button>
         </div>
       </form>

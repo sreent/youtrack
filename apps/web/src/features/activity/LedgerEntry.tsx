@@ -4,6 +4,8 @@ import { Badge, IssueLink } from '../../components/Badges';
 import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 type Grammar = 'reads' | 'writes' | 'changes' | 'outside' | 'own';
 
@@ -46,8 +48,8 @@ function byLine(e: TrackerEvent): string {
   const through: Record<TrackerEvent['actor']['channel'], string> = {
     web: 'through the web',
     email: 'by email',
-    api: itself ? 'through the API, as itself' : `through the API, as ${name}`,
-    mcp: itself ? 'over MCP, as itself' : `over MCP, for ${name}`,
+    api: itself ? t('activity.ledgerEntry.throughTheApiAsItself') : t('activity.ledgerEntry.throughTheApiAs', { name: name }),
+    mcp: itself ? t('activity.ledgerEntry.overMcpAsItself') : t('activity.ledgerEntry.overMcpFor', { name: name }),
     assistant: `through the assistant, for ${name}`,
     automation: 'on its own',
     system: "a4a's own",
@@ -56,7 +58,7 @@ function byLine(e: TrackerEvent): string {
     chat: `from ${e.actor.token ?? 'chat'}, as ${name}`,
     ci: `from a build of ${e.actor.token ?? 'CI'}`,
     // An app's agent on its own (its rules), or a person through an app's widget or handler (D48).
-    app: e.actor.isBot ? `as the ${e.actor.token ?? 'an'} app, on its own` : `through the ${e.actor.token ?? 'an'} app, for ${name}`,
+    app: e.actor.isBot ? t('activity.ledgerEntry.asTheAppOnIts', { v: e.actor.token ?? 'an' }) : t('activity.ledgerEntry.throughTheAppFor', { v: e.actor.token ?? 'an', name: name }),
   };
   const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs' || e.actor.channel === 'chat' || e.actor.channel === 'ci');
   return [through[e.actor.channel], ruleOf(e) ? `the rule “${ruleOf(e)}”` : null, tokenNamed ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
@@ -74,42 +76,42 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
   const accepted = e.data.acceptedFrom === 'triage';
   switch (e.type) {
     case 'issue.created':
-      if (e.data.imported) return { text: <>imported {issue}</>, badge: ['changes', 'imports an issue'] };
-      return { text: <>created {issue}</>, badge: ['changes', 'new issue'] };
+      if (e.data.imported) return { text: <>{tr('activity.ledgerEntry.imported', { issue: issue })}</>, badge: ['changes', 'imports an issue'] };
+      return { text: <>{tr('activity.ledgerEntry.created', { issue: issue })}</>, badge: ['changes', 'new issue'] };
     case 'sprint.issue_added':
-      return { text: <>put {issue} in {str(e.data.sprint)}</>, badge: ['changes', 'changes a sprint'] };
+      return { text: <>{tr('activity.ledgerEntry.putIn', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', 'changes a sprint'] };
     case 'sprint.issue_removed':
-      return { text: <>took {issue} out of {str(e.data.sprint)}</>, badge: ['changes', 'changes a sprint'] };
+      return { text: <>{tr('activity.ledgerEntry.tookOutOf', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', 'changes a sprint'] };
     case 'issue.updated':
       if (e.data.undoes !== undefined)
         return {
-          text: <>undid an agent’s change to {issue}</>,
+          text: <>{tr('activity.ledgerEntry.undidAnAgentSChange', { issue: issue })}</>,
           badge: ['changes', 'undoes a change'],
           more: <ChangeLines changes={e.changes} />,
         };
       if (accepted)
         return {
-          text: <>accepted what triage worked out for {issue}</>,
+          text: <>{tr('activity.ledgerEntry.acceptedWhatTriageWorkedOut', { issue: issue })}</>,
           badge: ['changes', e.changes.length === 1 ? `changes ${e.changes[0]!.field}` : `changes ${e.changes.length} fields`],
           more: <ChangeLines changes={e.changes} />,
         };
       return {
-        text: <>changed {issue}</>,
+        text: <>{tr('activity.ledgerEntry.changed', { issue: issue })}</>,
         badge: ['changes', e.changes.length === 1 ? `changes ${e.changes[0]!.field}` : `changes ${e.changes.length} fields`],
         more: <ChangeLines changes={e.changes} />,
       };
     case 'issue.deleted':
-      return { text: <>deleted {issue ?? 'an issue'}</>, badge: ['changes', 'deletes an issue'] };
+      return { text: <>{tr('activity.ledgerEntry.deleted', { v: issue ?? 'an issue' })}</>, badge: ['changes', 'deletes an issue'] };
     case 'comment.created':
       return {
-        text: <>commented on {issue}</>,
+        text: <>{tr('activity.ledgerEntry.commentedOn', { issue: issue })}</>,
         badge: ['changes', 'comments'],
         more: str(e.data.text) ? <q className="ledger-quote">{excerpt(str(e.data.text), 220)}</q> : null,
       };
     case 'comment.updated':
-      return { text: <>edited a comment on {issue}</>, badge: ['changes', 'edits a comment'] };
+      return { text: <>{tr('activity.ledgerEntry.editedACommentOn', { issue: issue })}</>, badge: ['changes', 'edits a comment'] };
     case 'comment.deleted':
-      return { text: <>deleted a comment on {issue}</>, badge: ['changes', 'deletes a comment'] };
+      return { text: <>{tr('activity.ledgerEntry.deletedACommentOn', { issue: issue })}</>, badge: ['changes', 'deletes a comment'] };
     case 'link.created':
     case 'link.deleted': {
       const t = targetOf(e);
@@ -120,19 +122,17 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       );
       if (e.data.undoes !== undefined) {
         return e.type === 'link.created'
-          ? { text: <>linked {linked} again, undoing an agent</>, badge: ['changes', 'undoes a change'] }
-          : { text: <>unlinked {linked}, undoing an agent</>, badge: ['changes', 'undoes a change'] };
+          ? { text: <>{tr('activity.ledgerEntry.linkedAgainUndoingAnAgent', { linked: linked })}</>, badge: ['changes', 'undoes a change'] }
+          : { text: <>{tr('activity.ledgerEntry.unlinkedUndoingAnAgent', { linked: linked })}</>, badge: ['changes', 'undoes a change'] };
       }
       return e.type === 'link.created'
-        ? { text: <>linked {linked}</>, badge: ['changes', 'links'] }
-        : { text: <>unlinked {linked}</>, badge: ['changes', 'unlinks'] };
+        ? { text: <>{tr('activity.ledgerEntry.linked', { linked: linked })}</>, badge: ['changes', 'links'] }
+        : { text: <>{tr('activity.ledgerEntry.unlinked', { linked: linked })}</>, badge: ['changes', 'unlinks'] };
     }
     case 'work.logged':
       return {
         text: (
-          <>
-            logged <span className="mono">{str(e.data.duration)}</span> on {issue}
-          </>
+          <>{tr('activity.ledgerEntry.loggedOn', { str: str(e.data.duration), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
         badge: ['changes', 'logs work'],
         more:
@@ -143,14 +143,14 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           ) : null,
       };
     case 'work.deleted':
-      return { text: <>removed logged work from {issue}</>, badge: ['changes', 'removes work'] };
+      return { text: <>{tr('activity.ledgerEntry.removedLoggedWorkFrom', { issue: issue })}</>, badge: ['changes', 'removes work'] };
     case 'ai.triage.completed':
       return {
-        text: <>suggested changes to {issue}</>,
+        text: <>{tr('activity.ledgerEntry.suggestedChangesTo', { issue: issue })}</>,
         badge: ['writes', 'suggests'],
         more: (
           <span className="ledger-note">
-            {str(e.data.summary)} <Link to={e.project ? `/suggestions?project=${e.project}` : '/suggestions'}>Decide on it</Link>
+            {str(e.data.summary)} <Link to={e.project ? `/suggestions?project=${e.project}` : '/suggestions'}>{t('activity.ledgerEntry.decideOnIt')}</Link>
           </span>
         ),
       };
@@ -160,18 +160,18 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const article = e.data.article as { id: string; title: string } | undefined;
       const on = article ? <ArticleLink id={article.id} title={article.title} /> : issue;
       return e.type === 'attachment.added'
-        ? { text: <>attached <span className="mono">{str(file?.name)}</span> to {on}</>, badge: ['changes', 'attaches a file'] }
-        : { text: <>removed <span className="mono">{str(file?.name)}</span> from {on}</>, badge: ['changes', 'removes a file'] };
+        ? { text: <>{tr('activity.ledgerEntry.attachedTo', { str: str(file?.name), t0: (c: ReactNode) => <span className="mono">{c}</span>, on: on })}</>, badge: ['changes', 'attaches a file'] }
+        : { text: <>{tr('activity.ledgerEntry.removedFrom', { str: str(file?.name), t0: (c: ReactNode) => <span className="mono">{c}</span>, on: on })}</>, badge: ['changes', 'removes a file'] };
     }
     case 'article.created':
     case 'article.updated':
     case 'article.deleted': {
       const article = e.data.article as { id: string; title: string } | undefined;
       const named = article ? <ArticleLink id={article.id} title={article.title} gone={e.type === 'article.deleted'} /> : 'an article';
-      if (e.type === 'article.created') return { text: <>wrote {named}</>, badge: ['changes', 'writes an article'] };
-      if (e.type === 'article.deleted') return { text: <>deleted {named}</>, badge: ['changes', 'deletes an article'] };
+      if (e.type === 'article.created') return { text: <>{tr('activity.ledgerEntry.wrote', { named: named })}</>, badge: ['changes', 'writes an article'] };
+      if (e.type === 'article.deleted') return { text: <>{tr('activity.ledgerEntry.deleted2', { named: named })}</>, badge: ['changes', 'deletes an article'] };
       return {
-        text: e.data.moved && e.changes.every((c) => c.field === 'Parent' || c.field === 'Position') ? <>moved {named}</> : <>changed {named}</>,
+        text: e.data.moved && e.changes.every((c) => c.field === 'Parent' || c.field === 'Position') ? <>{tr('activity.ledgerEntry.moved', { named: named })}</> : <>{tr('activity.ledgerEntry.changed2', { named: named })}</>,
         badge: ['changes', e.changes.some((c) => c.field === 'Content' || c.field === 'Title') ? 'saves a version' : 'moves an article'],
         more: <ChangeLines changes={e.changes} />,
       };
@@ -180,15 +180,13 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const command = str(e.data.command);
       return {
         text: (
-          <>
-            committed <span className="mono">{str(e.data.sha).slice(0, 7)}</span> to {issue}
-          </>
+          <>{tr('activity.ledgerEntry.committedTo', { slice: str(e.data.sha).slice(0, 7), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
         badge: ['outside', 'links a commit'],
         more: (
           <span className="ledger-note">
             {str(e.data.title)}
-            {command ? (e.data.applied ? ` · #${command}: ${str(e.data.note) || 'applied'}` : ` · #${command}, not applied: ${str(e.data.note).replace(/^Not applied:\s*/i, '')}`) : ''}
+            {command ? (e.data.applied ? ` · #${command}: ${str(e.data.note) || 'applied'}` : t('activity.ledgerEntry.notApplied', { command: command, replace: str(e.data.note).replace(/^Not applied:\s*/i, '') })) : ''}
           </span>
         ),
       };
@@ -197,9 +195,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'pull_request.updated':
       return {
         text: (
-          <>
-            {e.type === 'pull_request.linked' ? 'linked pull request' : 'saw pull request'} <span className="mono">#{str(e.data.number)}</span> to {issue}
-          </>
+          <>{tr('activity.ledgerEntry.to', { v: e.type === 'pull_request.linked' ? 'linked pull request' : 'saw pull request', str: str(e.data.number), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
         badge: ['outside', e.type === 'pull_request.linked' ? 'links a pull request' : `pull request ${str(e.data.state)}`],
         more: <span className="ledger-note">{str(e.data.title)}</span>,
@@ -207,9 +203,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'baseline.created':
       return {
         text: (
-          <>
-            saved the baseline “{str(e.data.name)}” for {e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project'}
-          </>
+          <>{tr('activity.ledgerEntry.savedTheBaselineFor', { str: str(e.data.name), v: e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project' })}</>
         ),
         badge: ['changes', 'saves a baseline'],
         more: (
@@ -225,26 +219,23 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'project.member.removed': {
       const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project';
       const who = str(e.data.name) || str(e.data.user);
-      if (e.type === 'project.member.added') return { text: <>made {who} a {str(e.data.role)} of {project}</>, badge: ['changes', 'gives a role'] };
-      if (e.type === 'project.member.removed') return { text: <>took {who} out of {project}</>, badge: ['changes', 'takes a role away'] };
-      return { text: <>made {who} a {str(e.data.to)} of {project}, not a {str(e.data.from)}</>, badge: ['changes', 'changes a role'] };
+      if (e.type === 'project.member.added') return { text: <>{tr('activity.ledgerEntry.madeAOf', { who: who, str: str(e.data.role), project: project })}</>, badge: ['changes', 'gives a role'] };
+      if (e.type === 'project.member.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf2', { who: who, project: project })}</>, badge: ['changes', 'takes a role away'] };
+      return { text: <>{tr('activity.ledgerEntry.madeAOfNotA', { who: who, str: str(e.data.to), project: project, str2: str(e.data.from) })}</>, badge: ['changes', 'changes a role'] };
     }
     case 'project.group.added':
     case 'project.group.changed':
     case 'project.group.removed': {
       const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project';
-      const group = <>the group {str(e.data.name)}</>;
-      if (e.type === 'project.group.added') return { text: <>made {group} a {str(e.data.role)} of {project}</>, badge: ['changes', 'gives a role'] };
-      if (e.type === 'project.group.removed') return { text: <>took {group} out of {project}</>, badge: ['changes', 'takes a role away'] };
-      return { text: <>made {group} a {str(e.data.to)} of {project}, not a {str(e.data.from)}</>, badge: ['changes', 'changes a role'] };
+      const group = <>{tr('activity.ledgerEntry.theGroup', { str: str(e.data.name) })}</>;
+      if (e.type === 'project.group.added') return { text: <>{tr('activity.ledgerEntry.madeAOf2', { group: group, str: str(e.data.role), project: project })}</>, badge: ['changes', 'gives a role'] };
+      if (e.type === 'project.group.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf3', { group: group, project: project })}</>, badge: ['changes', 'takes a role away'] };
+      return { text: <>{tr('activity.ledgerEntry.madeAOfNotA2', { group: group, str: str(e.data.to), project: project, str2: str(e.data.from) })}</>, badge: ['changes', 'changes a role'] };
     }
     case 'project.visibility.changed':
       return {
         text: (
-          <>
-            made {e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project'}{' '}
-            {str(e.data.to) === 'members' ? 'visible to its members only' : 'open to everyone'}
-          </>
+          <>{tr('activity.ledgerEntry.made', { v: e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project', v2: str(e.data.to) === 'members' ? 'visible to its members only' : 'open to everyone' })}</>
         ),
         badge: ['changes', 'changes who sees it'],
       };
@@ -252,16 +243,14 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const people = Array.isArray(e.data.people) ? (e.data.people as unknown[]).map(String) : [];
       return {
         text: (
-          <>
-            told {people.map((p) => `@${p}`).join(', ') || 'nobody'} of {issue}
-          </>
+          <>{tr('activity.ledgerEntry.toldOf', { v: people.map((p) => `@${p}`).join(', ') || 'nobody', issue: issue })}</>
         ),
         badge: ['own', 'tells people'],
         more: <span className="ledger-note">“{str(e.data.message)}”</span>,
       };
     }
     case 'rule.called':
-      return { text: <>called a webhook about {issue}</>, badge: ['outside', 'calls out'] };
+      return { text: <>{tr('activity.ledgerEntry.calledAWebhookAbout', { issue: issue })}</>, badge: ['outside', 'calls out'] };
     default:
       return {
         text: (
@@ -292,7 +281,7 @@ export function LedgerEntry({ event }: { event: TrackerEvent }) {
         </div>
         {w.more ? <div className="ledger-more">{w.more}</div> : null}
         <div className="ledger-by">
-          {byLine(event)} · <span className="mono">event {event.id}</span>
+          {byLine(event)} · <span className="mono">{tr('activity.ledgerEntry.event', { id: event.id })}</span>
         </div>
       </div>
     </li>

@@ -10,6 +10,7 @@ import { whenRead } from '../common/format';
 import { errorText } from '../issues/api';
 import { contentPath, formatBytes, kindOf, refusal, uploaderOf, uploadFile } from './api';
 import { Preview, previewable } from './Preview';
+import { intlLocale, t, tr } from '../../i18n';
 
 interface Upload {
   key: string;
@@ -54,7 +55,7 @@ function FileName({ file }: { file: Attachment }) {
 export function CommentFiles({ files }: { files: Attachment[] }) {
   if (!files.length) return null;
   return (
-    <ul className="attachment-list compact" aria-label="Files on this comment">
+    <ul className="attachment-list compact" aria-label={t('attachments.attachmentList.filesOnThisComment')}>
       {files.map((f) => (
         <li key={f.id} className="attachment">
           <Thumb file={f} />
@@ -120,12 +121,12 @@ export function AttachmentList({
     try {
       await uploadFile(uploadPath, row.file, (sent, total) => update(row.key, { sent, total }), row.stop.signal);
       drop(row.key);
-      setSaid(`${row.file.name} is attached to ${owner}.`);
+      setSaid(t('attachments.attachmentList.isAttachedTo', { name: row.file.name, owner: owner }));
       await onChanged();
     } catch (e) {
       if (row.stop.signal.aborted) {
         drop(row.key);
-        setSaid(`${row.file.name} wasn't attached.`);
+        setSaid(t('attachments.attachmentList.wasnTAttached', { name: row.file.name }));
       } else update(row.key, { error: errorText(e, `${row.file.name} wasn't attached.`) });
     }
   };
@@ -147,7 +148,7 @@ export function AttachmentList({
     setFailed(null);
     try {
       await del(`/attachments/${file.id}`);
-      setSaid(`${file.name} is gone.`);
+      setSaid(t('attachments.attachmentList.isGone', { name: file.name }));
       await onChanged();
     } catch (e) {
       setFailed(errorText(e));
@@ -179,7 +180,7 @@ export function AttachmentList({
         <h2 id={titleId}>{label}</h2>
         {files.length ? (
           <p className="note">
-            {files.length === 1 ? '1 file' : `${files.length} files`}, {formatBytes(used)}
+            {files.length === 1 ? t('attachments.attachmentList.n1File') : `${files.length} files`}, {formatBytes(used)}
             {limits ? ` of ${formatBytes(limits.perIssueMaxBytes)}` : ''}
           </p>
         ) : null}
@@ -199,8 +200,8 @@ export function AttachmentList({
                   <span className="attachment-about">
                     <span>{formatBytes(f.size)}</span>
                     <Who kind={who.kind} name={who.name} about={who.about || undefined} small />
-                    {f.comment ? <a href={`#comment-${f.comment}`}>on a comment</a> : null}
-                    <time dateTime={f.createdAt} title={new Date(f.createdAt).toLocaleString()}>
+                    {f.comment ? <a href={`#comment-${f.comment}`}>{t('attachments.attachmentList.onAComment')}</a> : null}
+                    <time dateTime={f.createdAt} title={new Date(f.createdAt).toLocaleString(intlLocale())}>
                       {whenRead(f.createdAt)}
                     </time>
                   </span>
@@ -213,20 +214,20 @@ export function AttachmentList({
                         className="small"
                         aria-expanded={open}
                         aria-controls={open ? previewId : undefined}
-                        aria-label={`${open ? 'Hide' : 'Show'} ${f.name}`}
+                        aria-label={`${open ? t('attachments.attachmentList.hide') : t('attachments.attachmentList.show')} ${f.name}`}
                         onClick={() => toggle(f.id)}
                       >
-                        {open ? 'Hide' : 'Show'}
+                        {open ? t('attachments.attachmentList.hide') : t('attachments.attachmentList.show')}
                       </button>
                     ) : null}
                     {canDelete(f) ? (
                       <Confirm
                         small
-                        label="Delete"
-                        name={`Delete ${f.name}`}
-                        title={`Delete ${f.name}?`}
-                        about={`It goes from ${owner} for good, and nobody can bring it back.`}
-                        confirm="Delete it"
+                        label={t('attachments.attachmentList.delete')}
+                        name={t('attachments.attachmentList.delete3', { name: f.name })}
+                        title={t('attachments.attachmentList.delete2', { name: f.name })}
+                        about={t('attachments.attachmentList.itGoesFromForGood', { owner: owner })}
+                        confirm={t('attachments.attachmentList.deleteIt')}
                         onConfirm={() => void remove(f)}
                       />
                     ) : null}
@@ -245,7 +246,7 @@ export function AttachmentList({
               <div className="attachment-what">
                 <span className="attachment-name">{u.file.name}</span>
                 {u.error ? null : (
-                  <progress className="attachment-progress" max={u.total || 1} value={u.sent} aria-label={`Attaching ${u.file.name}`}>
+                  <progress className="attachment-progress" max={u.total || 1} value={u.sent} aria-label={t('attachments.attachmentList.attaching', { name: u.file.name })}>
                     {Math.round((u.sent / (u.total || 1)) * 100)}%
                   </progress>
                 )}
@@ -253,13 +254,9 @@ export function AttachmentList({
               </div>
               <div className="attachment-actions">
                 {u.error ? (
-                  <button type="button" className="small" onClick={() => drop(u.key)} aria-label={`Dismiss ${u.file.name}`}>
-                    Dismiss
-                  </button>
+                  <button type="button" className="small" onClick={() => drop(u.key)} aria-label={t('attachments.attachmentList.dismiss', { name: u.file.name })}>{t('attachments.attachmentList.dismiss2')}</button>
                 ) : (
-                  <button type="button" className="small" onClick={() => u.stop.abort()} aria-label={`Stop attaching ${u.file.name}`}>
-                    Stop
-                  </button>
+                  <button type="button" className="small" onClick={() => u.stop.abort()} aria-label={t('attachments.attachmentList.stopAttaching', { name: u.file.name })}>{t('attachments.attachmentList.stop')}</button>
                 )}
               </div>
               {u.error ? <ErrorLine>{u.error}</ErrorLine> : null}
@@ -267,7 +264,7 @@ export function AttachmentList({
           ))}
         </ul>
       ) : uploadPath ? null : (
-        <p className="note">No files.</p>
+        <p className="note">{t('attachments.attachmentList.noFiles')}</p>
       )}
       {failed ? <ErrorLine>{failed}</ErrorLine> : null}
       {uploadPath ? (
@@ -277,29 +274,16 @@ export function AttachmentList({
               <Icon name="attach" />
               <p>
                 {over ? (
-                  'Drop them to attach them'
+                  t('attachments.attachmentList.dropThemToAttachThem')
                 ) : (
-                  <>
-                    Drop files here to attach them, or{' '}
-                    <button type="button" className="link" onClick={() => input.current?.click()} aria-describedby={noteId}>
-                      choose files
-                    </button>
-                  </>
+                  <>{tr('attachments.attachmentList.dropFilesHereToAttach', { el: <button type="button" className="link" onClick={() => input.current?.click()} aria-describedby={noteId}>{t('attachments.attachmentList.chooseFiles')}</button> })}</>
                 )}
               </p>
-              <p className="note" id={noteId}>
-                {max ? `Up to ${max} each. ` : ''}Images, text, sound and video show here; everything else downloads.
-              </p>
+              <p className="note" id={noteId}>{tr('attachments.attachmentList.imagesTextSoundAndVideo', { v: max ? t('attachments.attachmentList.upToEach', { max: max }) : '' })}</p>
             </div>
           ) : (
             // Nothing here yet: a line, not a box, until a file is dragged over.
-            <p className="note" id={noteId}>
-              None yet. Drop files here, or{' '}
-              <button type="button" className="link" onClick={() => input.current?.click()}>
-                choose files
-              </button>
-              {max ? `, up to ${max} each` : ''}.
-            </p>
+            <p className="note" id={noteId}>{tr('attachments.attachmentList.noneYetDropFilesHere', { el: <button type="button" className="link" onClick={() => input.current?.click()}>{t('attachments.attachmentList.chooseFiles')}</button>, v: max ? t('attachments.attachmentList.upToEach2', { max: max }) : '' })}</p>
           )}
           <input
             ref={input}

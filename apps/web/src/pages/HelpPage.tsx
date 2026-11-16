@@ -10,25 +10,24 @@ import { ErrorNote, Loading } from '../components/States';
 import { FormField } from '../features/common/bits';
 import { CopyButton } from '../features/common/CopyButton';
 import { solveCaptcha } from '../features/helpdesk/pow';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 function Received({ r, project }: { r: HelpRequestReceived; project: string }) {
   return (
     <>
-      <p className="label">{project} · help desk</p>
-      <h1>We have your request</h1>
+      <p className="label">{tr('page.help.helpDesk', { project: project })}</p>
+      <h1>{t('page.help.weHaveYourRequest')}</h1>
       {r.tracking ? (
         <>
-          <p>Keep this link: it's the only way back to your request, where the team's replies will be, and where you can answer them.</p>
+          <p>{t('page.help.keepThisLinkItS')}</p>
           <p className="cluster">
-            <a href={r.tracking}>Follow your request</a>
-            <CopyButton text={r.tracking} what="the link" label="Copy the link" />
+            <a href={r.tracking}>{t('page.help.followYourRequest')}</a>
+            <CopyButton text={r.tracking} what={t('page.help.theLink')} label={t('page.help.copyTheLink')} />
           </p>
         </>
       ) : (
-        <p>
-          We've emailed a link to follow it to <strong>{r.email}</strong>. The team's replies will come there too. If it isn't there in a few minutes, look among your
-          spam.
-        </p>
+        <p>{tr('page.help.weVeEmailedALink', { email: r.email, t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
       )}
     </>
   );
@@ -69,7 +68,7 @@ export default function HelpPage() {
   if (form.isLoading) {
     return (
       <Lone wide>
-        <Loading what="the form" />
+        <Loading what={t('page.help.theForm')} />
       </Lone>
     );
   }
@@ -77,8 +76,8 @@ export default function HelpPage() {
     const missing = form.error instanceof ApiError && form.error.status === 404;
     return (
       <Lone wide>
-        <h1>{missing ? "There's no help desk here" : "The form didn't load"}</h1>
-        {missing ? <p className="note">Check the address you were given.</p> : <ErrorNote error={form.error} />}
+        <h1>{missing ? t('page.help.thereSNoHelpDesk') : t('page.help.theFormDidnTLoad')}</h1>
+        {missing ? <p className="note">{t('page.help.checkTheAddressYouWere')}</p> : <ErrorNote error={form.error} />}
       </Lone>
     );
   }
@@ -114,46 +113,42 @@ export default function HelpPage() {
   };
   return (
     <Lone wide>
-      <p className="label">{f.project.name} · help desk</p>
-      <h1>Ask {f.project.name} for help</h1>
+      <p className="label">{tr('page.help.helpDesk2', { name: f.project.name })}</p>
+      <h1>{tr('page.help.askForHelp', { name: f.project.name })}</h1>
       {f.intro.trim() ? <Markdown text={f.intro} outside /> : null}
       <p className="note">
-        {f.intro.trim() ? null : "Say what's wrong or what you need. The team will reply on your request's own page. "}
+        {f.intro.trim() ? null : t('page.help.sayWhatSWrongOr')}
         {f.email ? (
-          <>
-            Or write to <a href={`mailto:${f.email}`}>{f.email}</a>, and answer the team's emails.
-          </>
+          <>{tr('page.help.orWriteToAndAnswer', { email: f.email, t0: (c: ReactNode) => <a href={`mailto:${f.email}`}>{c}</a> })}</>
         ) : null}
       </p>
       <form className="form" onSubmit={send}>
         <div className="form-fields">
-          <FormField label="Your name">{(id) => <input id={id} value={fields.name} onChange={set('name')} required maxLength={HELP_LIMITS.name} autoComplete="name" />}</FormField>
-          <FormField label="Your email" help={f.mail ? "Where we'll send the link to follow your request." : undefined}>
+          <FormField label={t('page.help.yourName')}>{(id) => <input id={id} value={fields.name} onChange={set('name')} required maxLength={HELP_LIMITS.name} autoComplete="name" />}</FormField>
+          <FormField label={t('page.help.yourEmail')} help={f.mail ? t('page.help.whereWeLlSendThe') : undefined}>
             {(id, help) => (
               <input id={id} type="email" value={fields.email} onChange={set('email')} required maxLength={HELP_LIMITS.email} autoComplete="email" aria-describedby={help} />
             )}
           </FormField>
         </div>
-        <FormField label="What it's about" help="A line: what you were trying to do, and what happened.">
+        <FormField label={t('page.help.whatItSAbout')} help={t('page.help.aLineWhatYouWere')}>
           {(id, help) => <input id={id} value={fields.summary} onChange={set('summary')} required minLength={3} maxLength={HELP_LIMITS.summary} aria-describedby={help} />}
         </FormField>
-        <FormField label="The details" help="What you did, what you expected and what happened instead. Leave out passwords: anyone with the link can read this.">
+        <FormField label={t('page.help.theDetails')} help={t('page.help.whatYouDidWhatYou')}>
           {(id, help) => <textarea id={id} rows={7} value={fields.description} onChange={set('description')} maxLength={HELP_LIMITS.description} aria-describedby={help} />}
         </FormField>
         {/* A trap for bots: people never see it, and nothing is filed when it's filled in. */}
         <div className="hidden" aria-hidden="true">
-          <label htmlFor="help-website">Leave this empty</label>
+          <label htmlFor="help-website">{t('page.help.leaveThisEmpty')}</label>
           <input id="help-website" name="website" tabIndex={-1} autoComplete="off" value={fields.website} onChange={set('website')} />
         </div>
         {error ? <ErrorNote error={error} /> : null}
         <div className="cluster end">
           {busy === 'checking' ? (
-            <p className="note" role="status">
-              Making sure a person sent it: a moment.
-            </p>
+            <p className="note" role="status">{t('page.help.makingSureAPersonSent')}</p>
           ) : null}
           <button type="submit" className="primary" disabled={busy !== false}>
-            {busy ? 'Sending…' : 'Send the request'}
+            {busy ? t('page.help.sending') : t('page.help.sendTheRequest')}
           </button>
         </div>
       </form>

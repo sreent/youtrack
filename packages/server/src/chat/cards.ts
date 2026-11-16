@@ -13,6 +13,8 @@ import { excerpt } from '../lib/text';
 import { actorName, eventDetail, eventVerb } from '../notify/words';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { issueUrl } from './common';
+import type { Translator } from '@a4a/shared/i18n';
+import { translatorFor } from '../i18n';
 
 /** An issue as a card shows it. */
 export interface CardIssue {
@@ -77,11 +79,11 @@ export function cardIssue(app: AppServices, s: SchemaSnapshot, issue: IssueDetai
 }
 
 /** What an event did, in the words the inbox uses: never a requester's address. */
-export function cardChange(event: TrackerEvent): CardChange {
+export function cardChange(event: TrackerEvent, tr: Translator = translatorFor(null)): CardChange {
   return {
-    who: actorName(event),
-    did: eventVerb(event),
-    details: eventDetail(event)
+    who: actorName(tr, event),
+    did: eventVerb(tr, event),
+    details: eventDetail(tr, event)
       .slice(0, 6)
       .map((d) => excerpt(d, 500)),
     kind: event.type === 'issue.created' ? 'created' : event.type === 'comment.created' ? 'commented' : 'changed',

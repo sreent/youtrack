@@ -12,17 +12,18 @@ import { CreatedResolvedReport } from './CreatedResolved';
 import { CumulativeFlowReport } from './CumulativeFlow';
 import { CycleTimeReport } from './Distribution';
 import { TimeReportView } from './TimeReport';
+import { t } from '../../i18n';
 
 export const REPORTS: { kind: ReportKind; label: string; about: string }[] = [
-  { kind: 'burndown', label: 'Burndown', about: "A sprint's work left at the end of each working day, against the ideal, and where its scope changed." },
-  { kind: 'flow', label: 'Cumulative flow', about: 'How many issues were in each state at the end of each day: where work piles up, and how fast it gets done.' },
-  { kind: 'created-resolved', label: 'Created and resolved', about: 'Issues coming in against issues getting done, day by day, week by week or month by month.' },
-  { kind: 'cycle-time', label: 'Cycle time', about: 'How long issues take from first In Progress to resolved, as a spread with its percentiles.' },
-  { kind: 'time', label: 'Time', about: 'Work logged by person, issue, project and week, and each issue against its estimate.' },
-  { kind: 'issues-per-field', label: 'Issues per field', about: "How many issues a query finds have each of a field's values, as they are now. Each count opens its issues." },
-  { kind: 'matrix', label: 'Matrix', about: 'Two fields against each other: the issues with each pair of values, with totals. Each cell opens its issues.' },
-  { kind: 'average-age', label: 'Average age', about: 'How long the open issues had been open at the end of each day, as things stood then; by a field, if you choose one.' },
-  { kind: 'time-in-state', label: 'Time in state', about: "How long resolved issues spent in each state, or a board's columns: the median and the 85th percentile, and who has waited longest." },
+  { kind: 'burndown', label: t('reports.reportView.burndown'), about: t('reports.reportView.aSprintSWorkLeft') },
+  { kind: 'flow', label: t('reports.reportView.cumulativeFlow'), about: t('reports.reportView.howManyIssuesWereIn') },
+  { kind: 'created-resolved', label: t('reports.reportView.createdAndResolved'), about: t('reports.reportView.issuesComingInAgainstIssues') },
+  { kind: 'cycle-time', label: t('reports.reportView.cycleTime'), about: t('reports.reportView.howLongIssuesTakeFrom') },
+  { kind: 'time', label: t('reports.reportView.time'), about: t('reports.reportView.workLoggedByPersonIssue') },
+  { kind: 'issues-per-field', label: t('reports.reportView.issuesPerField'), about: t('reports.reportView.howManyIssuesAQuery') },
+  { kind: 'matrix', label: t('reports.reportView.matrix'), about: t('reports.reportView.twoFieldsAgainstEachOther') },
+  { kind: 'average-age', label: t('reports.reportView.averageAge'), about: t('reports.reportView.howLongTheOpenIssues') },
+  { kind: 'time-in-state', label: t('reports.reportView.timeInState'), about: t('reports.reportView.howLongResolvedIssuesSpent') },
 ];
 
 /** A widget's parameters as a report's: its window of days up to today becomes from and to. */
@@ -44,7 +45,7 @@ export function widgetQuery(p: ReportWidgetParams): { kind: ReportKind; params: 
 
 export function ReportView({ kind, params, compact }: { kind: ReportKind; params: ReportParams; compact?: boolean }) {
   const q = useReport(kind, params);
-  if (q.isLoading) return <Loading what="the report" />;
+  if (q.isLoading) return <Loading what={t('reports.reportView.theReport')} />;
   if (q.error) return <ErrorNote error={q.error} />;
   if (!q.data) return null;
   const body = (() => {

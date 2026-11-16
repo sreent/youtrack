@@ -10,6 +10,7 @@ import { useInboxLive, useUnreadCount } from '../features/notifications/api';
 import { forgetPushHere, keepPushInStep } from '../features/notifications/push';
 import { takeNewVersion, useAppBadge, useNewVersionReady, useOnline, useOpenFromNotifications } from './pwa';
 import { useAppExtensions } from '../features/apps/api';
+import { t } from '../i18n';
 
 interface NavItem {
   to: string;
@@ -26,36 +27,36 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Work',
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-      { to: '/inbox', label: 'Inbox', icon: 'bell', count: 'unread' },
-      { to: '/issues', label: 'Issues', icon: 'tasks' },
-      { to: '/boards', label: 'Boards', icon: 'board' },
-      { to: '/plan', label: 'Plan', icon: 'timeline' },
-      { to: '/timesheet', label: 'Timesheet', icon: 'clock' },
-      { to: '/articles', label: 'Knowledge base', icon: 'book' },
-      { to: '/reports', label: 'Reports', icon: 'report' },
-      { to: '/assistant', label: 'Assistant', icon: 'agent' },
+      { to: '/dashboard', label: t('app.shell.dashboard'), icon: 'dashboard' },
+      { to: '/inbox', label: t('app.shell.inbox'), icon: 'bell', count: 'unread' },
+      { to: '/issues', label: t('app.shell.issues'), icon: 'tasks' },
+      { to: '/boards', label: t('app.shell.boards'), icon: 'board' },
+      { to: '/plan', label: t('app.shell.plan'), icon: 'timeline' },
+      { to: '/timesheet', label: t('app.shell.timesheet'), icon: 'clock' },
+      { to: '/articles', label: t('app.shell.knowledgeBase'), icon: 'book' },
+      { to: '/reports', label: t('app.shell.reports'), icon: 'report' },
+      { to: '/assistant', label: t('app.shell.assistant'), icon: 'agent' },
     ],
   },
-  { group: 'Decide', items: [{ to: '/suggestions', label: 'Suggestions', icon: 'decide' }] },
+  { group: 'Decide', items: [{ to: '/suggestions', label: t('app.shell.suggestions'), icon: 'decide' }] },
   {
     group: 'Build',
     items: [
-      { to: '/projects', label: 'Projects', icon: 'list' },
-      { to: '/rules', label: 'Rules', icon: 'sync' },
-      { to: '/fields', label: 'Fields', icon: 'settings', admin: true },
-      { to: '/import', label: 'Import', icon: 'import', manager: true },
+      { to: '/projects', label: t('app.shell.projects'), icon: 'list' },
+      { to: '/rules', label: t('app.shell.rules'), icon: 'sync' },
+      { to: '/fields', label: t('app.shell.fields'), icon: 'settings', admin: true },
+      { to: '/import', label: t('app.shell.import'), icon: 'import', manager: true },
     ],
   },
   {
     group: 'Oversee',
     items: [
-      { to: '/activity', label: 'Activity', icon: 'audit' },
-      { to: '/agents', label: 'Agents and tokens', icon: 'key' },
-      { to: '/webhooks', label: 'Webhooks', icon: 'send', admin: true },
-      { to: '/integrations', label: 'Integrations', icon: 'code', admin: true },
-      { to: '/chat', label: 'Chat', icon: 'chat', admin: true },
-      { to: '/admin', label: 'Administration', icon: 'people', admin: true },
+      { to: '/activity', label: t('app.shell.activity'), icon: 'audit' },
+      { to: '/agents', label: t('app.shell.agentsAndTokens'), icon: 'key' },
+      { to: '/webhooks', label: t('app.shell.webhooks'), icon: 'send', admin: true },
+      { to: '/integrations', label: t('app.shell.integrations'), icon: 'code', admin: true },
+      { to: '/chat', label: t('app.shell.chat'), icon: 'chat', admin: true },
+      { to: '/admin', label: t('app.shell.administration'), icon: 'people', admin: true },
     ],
   },
 ];
@@ -66,7 +67,7 @@ function AppNav() {
   if (!ext.data?.length) return null;
   return (
     <>
-      <div className="group">Apps</div>
+      <div className="group">{t('app.shell.apps')}</div>
       {ext.data.map((e) => (
         <NavLink key={`${e.app}/${e.name}`} to={`/apps/${e.app}/${e.name}`}>
           <Icon name="list" />
@@ -121,7 +122,7 @@ function UnreadCount() {
   return (
     <span className="nav-count">
       {n > 99 ? '99+' : n}
-      <span className="hidden"> unread</span>
+      <span className="hidden">{t('app.shell.unread')}</span>
     </span>
   );
 }
@@ -152,10 +153,10 @@ export function Shell({ me }: { me: Me }) {
     <>
       <aside className="sidebar">
         <NavLink className="brand" to="/issues">
-          <span className="mark">a4</span>
-          <span>a4a</span>
+          <span className="mark">{t('app.shell.a4')}</span>
+          <span>{t('app.shell.a4a')}</span>
         </NavLink>
-        <nav aria-label="a4a's pages">
+        <nav aria-label={t('app.shell.a4aSPages')}>
           {NAV.map((g) => {
             const items = g.items.filter((i) => (!i.admin || isAdmin) && (!i.manager || managesSome));
             if (!items.length) return null;
@@ -175,13 +176,13 @@ export function Shell({ me }: { me: Me }) {
           <AppNav />
         </nav>
         <div className="me">
-          <NavLink to="/me" title="Your profile">
+          <NavLink to="/me" title={t('app.shell.yourProfile')}>
             <span className="avatar" aria-hidden="true">
               {initials(me.name)}
             </span>
             <span>{me.name}</span>
           </NavLink>
-          <button type="button" onClick={signOut} title="Sign out" aria-label="Sign out">
+          <button type="button" onClick={signOut} title={t('app.shell.signOut')} aria-label={t('app.shell.signOut')}>
             <Icon name="logout" />
           </button>
         </div>
@@ -206,15 +207,13 @@ function AppNotices() {
       {!online ? (
         <p className="app-notice offline" role="status">
           <Icon name="sync" />
-          <span>You're offline. What's here may be out of date, and a4a catches up when you're back.</span>
+          <span>{t('app.shell.youReOfflineWhatS')}</span>
         </p>
       ) : null}
       {ready ? (
         <p className="app-notice" role="status">
-          <span>A new version of a4a is ready.</span>
-          <button type="button" className="small" onClick={takeNewVersion}>
-            Reload
-          </button>
+          <span>{t('app.shell.aNewVersionOfA4a')}</span>
+          <button type="button" className="small" onClick={takeNewVersion}>{t('app.shell.reload')}</button>
         </p>
       ) : null}
     </div>

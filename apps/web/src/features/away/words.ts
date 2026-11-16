@@ -1,12 +1,13 @@
 /** Days away as people read them. */
 import type { Absence, AbsenceHalf, AbsenceKind } from '@a4a/shared';
 import { dayMonth, span, weekdayName } from '../plan/dates';
+import { t } from '../../i18n';
 
 export const KIND_WORDS: Record<AbsenceKind, string> = {
-  holiday: 'Holiday',
-  sick: 'Sick',
-  training: 'Training',
-  other: 'Something else',
+  holiday: t('away.words.holiday'),
+  sick: t('away.words.sick'),
+  training: t('away.words.training'),
+  other: t('away.words.somethingElse'),
 };
 
 /** The kinds, in the order the form offers them. Not imported from @a4a/shared's values, which would bring zod, and its eval, into the page. */

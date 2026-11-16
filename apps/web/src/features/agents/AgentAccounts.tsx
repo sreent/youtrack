@@ -10,6 +10,8 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CopyButton } from '../common/CopyButton';
 import { dateRead } from '../common/format';
+import { t, t as tx, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 export const agentKeys = { all: ['agents'] as const };
 const useAgents = () => useQuery({ queryKey: agentKeys.all, queryFn: () => get<AgentAccount[]>('/agents') });
@@ -17,9 +19,9 @@ const useAgents = () => useQuery({ queryKey: agentKeys.all, queryFn: () => get<A
 type Issued = ApiToken & { token: string };
 
 const SCOPE_WORDS: Record<Scope, string> = {
-  read: 'Search and read what it can see.',
-  write: 'Also take issues, change them, comment, link them and log work, as itself.',
-  admin: 'Also administer. Only an agent with the administrator role can have it.',
+  read: t('agents.agentAccounts.searchAndReadWhatIt'),
+  write: t('agents.agentAccounts.alsoTakeIssuesChangeThem'),
+  admin: t('agents.agentAccounts.alsoAdministerOnlyAnAgent'),
 };
 
 /** A token for one agent: what it may do, where, and for how long. Its secret is shown once, by the caller. */
@@ -56,29 +58,29 @@ function IssueToken({ agent, onIssued }: { agent: User; onIssued: (t: Issued) =>
   return (
     <form
       className="form"
-      aria-label={`A token for ${agent.login}`}
+      aria-label={tx('agents.agentAccounts.aTokenFor', { login: agent.login })}
       onSubmit={(e) => {
         e.preventDefault();
         issue.mutate();
       }}
     >
       <div className="tw:grid tw:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] tw:items-start tw:gap-x-4 tw:gap-y-3 tw:max-[640px]:grid-cols-1">
-        <FormField label="Its name" help={`Where it runs, such as “ci” or “laptop”: the ledger names it beside ${agent.login}'s changes.`}>
+        <FormField label={tx('agents.agentAccounts.itsName')} help={tx('agents.agentAccounts.whereItRunsSuchAs', { login: agent.login })}>
           {(id, help) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby={help} />}
         </FormField>
-        <FormField label="Expires">
+        <FormField label={tx('agents.agentAccounts.expires')}>
           {(id) => (
             <select id={id} value={expires} onChange={(e) => setExpires(e.target.value)}>
-              <option value="30">In 30 days</option>
-              <option value="90">In 90 days</option>
-              <option value="365">In a year</option>
-              <option value="never">Never</option>
+              <option value="30">{tx('agents.agentAccounts.in30Days')}</option>
+              <option value="90">{tx('agents.agentAccounts.in90Days')}</option>
+              <option value="365">{tx('agents.agentAccounts.inAYear')}</option>
+              <option value="never">{tx('agents.agentAccounts.never')}</option>
             </select>
           )}
         </FormField>
       </div>
       <fieldset className="choice-group column">
-        <legend>What it may do</legend>
+        <legend>{tx('agents.agentAccounts.whatItMayDo')}</legend>
         {offered.map((s) => (
           <label key={s} className="choice">
             <input type="checkbox" checked={scopes.has(s)} onChange={() => flip(setScopes, s)} />
@@ -90,25 +92,19 @@ function IssueToken({ agent, onIssued }: { agent: User; onIssued: (t: Issued) =>
         ))}
       </fieldset>
       <fieldset className="choice-group column">
-        <legend>Where it may</legend>
+        <legend>{tx('agents.agentAccounts.whereItMay')}</legend>
         <label className="choice">
           <input type="radio" name={`reach-${agent.id}`} checked={reach === 'all'} onChange={() => setReach('all')} />
-          <span>
-            Every project {agent.login} can see
-            <small className="field-help">Open projects, and members-only ones it is one of the people of.</small>
-          </span>
+          <span>{tr('agents.agentAccounts.everyProjectCanSeeOpen', { login: agent.login, t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
         </label>
         <label className="choice">
           <input type="radio" name={`reach-${agent.id}`} checked={reach === 'some'} onChange={() => setReach('some')} />
-          <span>
-            Only some projects
-            <small className="field-help">Each must be one it can see. It can't administer then.</small>
-          </span>
+          <span>{tr('agents.agentAccounts.onlySomeProjectsEachMust', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
         </label>
       </fieldset>
       {reach === 'some' ? (
         <fieldset className="choice-group columns">
-          <legend>Its projects</legend>
+          <legend>{tx('agents.agentAccounts.itsProjects')}</legend>
           {(projects.data ?? []).map((p) => (
             <label key={p.id} className="choice">
               <input type="checkbox" checked={only.has(p.key)} onChange={() => flip(setOnly, p.key)} />
@@ -121,10 +117,10 @@ function IssueToken({ agent, onIssued }: { agent: User; onIssued: (t: Issued) =>
       ) : null}
       <div className="cluster">
         <button type="submit" className="primary" disabled={issue.isPending || !chosen.length || !name.trim() || noProjects}>
-          {issue.isPending ? 'Issuing…' : `Issue a token to ${agent.login}`}
+          {issue.isPending ? tx('agents.agentAccounts.issuing') : tx('agents.agentAccounts.issueATokenTo', { login: agent.login })}
         </button>
-        {!chosen.length ? <span className="note">Choose at least one thing it may do.</span> : null}
-        {noProjects ? <span className="note">Choose at least one project.</span> : null}
+        {!chosen.length ? <span className="note">{tx('agents.agentAccounts.chooseAtLeastOneThing')}</span> : null}
+        {noProjects ? <span className="note">{tx('agents.agentAccounts.chooseAtLeastOneProject')}</span> : null}
       </div>
       {issue.error ? <ErrorNote error={issue.error} /> : null}
     </form>
@@ -142,7 +138,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
     mutationFn: (t: ApiToken) => del(`/users/${agent.id}/tokens/${t.id}`),
     onSuccess: (_, t) => {
       if (issued?.id === t.id) setIssued(null);
-      setSaid({ text: `The token ${t.name} is revoked: whatever used it can't act as ${agent.login} any more.` });
+      setSaid({ text: tx('agents.agentAccounts.theTokenIsRevokedWhatever', { name: t.name, login: agent.login }) });
       void qc.invalidateQueries({ queryKey: agentKeys.all });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -153,24 +149,22 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
       <div className="hook-head">
         <div className="hook-what">
           <Who kind="agent" name={agent.login} about={agent.name !== agent.login ? agent.name : undefined} />
-          <span className="item-about">
-            A {agent.role} · added {ago(agent.createdAt)} · {tokens.length === 1 ? '1 token' : `${tokens.length} tokens`}
-          </span>
+          <span className="item-about">{tr('agents.agentAccounts.aAdded', { role: agent.role, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : `${tokens.length} tokens` })}</span>
         </div>
-        {agent.banned ? <Badge tone="bad">banned</Badge> : <Badge tone="good">acts as itself</Badge>}
+        {agent.banned ? <Badge tone="bad">{tx('agents.agentAccounts.banned')}</Badge> : <Badge tone="good">{tx('agents.agentAccounts.actsAsItself')}</Badge>}
       </div>
       {tokens.length ? (
-        <Scroll label={`Tokens of ${agent.login}`}>
+        <Scroll label={tx('agents.agentAccounts.tokensOf', { login: agent.login })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">May</th>
-                <th scope="col">Where</th>
-                <th scope="col">Last used</th>
-                <th scope="col">Expires</th>
+                <th scope="col">{tx('agents.agentAccounts.name')}</th>
+                <th scope="col">{tx('agents.agentAccounts.may')}</th>
+                <th scope="col">{tx('agents.agentAccounts.where')}</th>
+                <th scope="col">{tx('agents.agentAccounts.lastUsed')}</th>
+                <th scope="col">{tx('agents.agentAccounts.expires')}</th>
                 <th scope="col">
-                  <span className="hidden">Revoke</span>
+                  <span className="hidden">{tx('agents.agentAccounts.revoke')}</span>
                 </th>
               </tr>
             </thead>
@@ -190,16 +184,16 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
                       ))}
                     </span>
                   </td>
-                  <td>{t.projects === null ? 'Every project it sees' : t.projects.length ? t.projects.join(', ') : <span className="muted">No project any more</span>}</td>
-                  <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">Never</span>}</td>
-                  <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">Never</span>}</td>
+                  <td>{t.projects === null ? tx('agents.agentAccounts.everyProjectItSees') : t.projects.length ? t.projects.join(', ') : <span className="muted">{tx('agents.agentAccounts.noProjectAnyMore')}</span>}</td>
+                  <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('agents.agentAccounts.never')}</span>}</td>
+                  <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('agents.agentAccounts.never')}</span>}</td>
                   <td className="fit">
                     <Confirm
                       small
-                      label="Revoke it"
-                      title={`Revoke ${agent.login}'s token ${t.name}?`}
-                      about={`Whatever uses it stops acting as ${agent.login} at once. You can issue another.`}
-                      confirm="Revoke it"
+                      label={tx('agents.agentAccounts.revokeIt')}
+                      title={tx('agents.agentAccounts.revokeSToken', { login: agent.login, name: t.name })}
+                      about={tx('agents.agentAccounts.whateverUsesItStopsActing', { login: agent.login })}
+                      confirm={tx('agents.agentAccounts.revokeIt')}
                       disabled={revoke.isPending}
                       onConfirm={() => revoke.mutate(t)}
                     />
@@ -210,25 +204,21 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
           </table>
         </Scroll>
       ) : (
-        <p className="note">No tokens yet: nothing acts as {agent.login} until you issue one.</p>
+        <p className="note">{tr('agents.agentAccounts.noTokensYetNothingActs', { login: agent.login })}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {issued ? (
         <div className="secret" role="status">
-          <p>
-            <strong>Copy it now.</strong> This is the only time a4a shows the token {issued.name}. With it, a tool acts as {agent.login}, not as you.
-          </p>
+          <p>{tr('agents.agentAccounts.copyItNowThisIs', { t0: (c: ReactNode) => <strong>{c}</strong>, name: issued.name, login: agent.login })}</p>
           <code>{issued.token}</code>
-          <p className="note">In Claude Code, for example:</p>
-          <pre className="snippet" aria-label="Adding a4a to Claude Code with it">
+          <p className="note">{tx('agents.agentAccounts.inClaudeCodeForExample')}</p>
+          <pre className="snippet" aria-label={tx('agents.agentAccounts.addingA4aToClaudeCode')}>
             {command}
           </pre>
           <div className="cluster">
-            <CopyButton text={issued.token} label="Copy the token" what="the token" />
-            <CopyButton text={command} label="Copy the command" what="the command" />
-            <button type="button" className="link" onClick={() => setIssued(null)}>
-              I've kept it
-            </button>
+            <CopyButton text={issued.token} label={tx('agents.agentAccounts.copyTheToken')} what={t('agents.agentAccounts.theToken')} />
+            <CopyButton text={command} label={tx('agents.agentAccounts.copyTheCommand')} what={t('agents.agentAccounts.theCommand')} />
+            <button type="button" className="link" onClick={() => setIssued(null)}>{tx('agents.agentAccounts.iVeKeptIt')}</button>
           </div>
         </div>
       ) : null}
@@ -244,9 +234,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
         />
       ) : agent.banned ? null : (
         <div className="cluster">
-          <button type="button" onClick={() => setOpen(true)}>
-            Issue a token to {agent.login}
-          </button>
+          <button type="button" onClick={() => setOpen(true)}>{tr('agents.agentAccounts.issueATokenTo', { login: agent.login })}</button>
         </div>
       )}
     </li>
@@ -266,7 +254,7 @@ export function AgentAccounts() {
     mutationFn: () => post<User>('/users', { login: login.trim(), name: login.trim(), isBot: true, role: 'member' }),
     onSuccess: (u) => {
       setLogin('');
-      setSaid({ text: `${u.login} is added. Issue it a token below, and it acts as itself.` });
+      setSaid({ text: tx('agents.agentAccounts.isAddedIssueItA', { login: u.login }) });
       void qc.invalidateQueries({ queryKey: agentKeys.all });
       void qc.invalidateQueries({ queryKey: keys.users });
     },
@@ -275,13 +263,10 @@ export function AgentAccounts() {
   return (
     <section className="card" aria-labelledby="own-agents">
       <div className="section-head">
-        <h2 id="own-agents">Agents of their own</h2>
-        <span className="note">For administrators</span>
+        <h2 id="own-agents">{tx('agents.agentAccounts.agentsOfTheirOwn')}</h2>
+        <span className="note">{tx('agents.agentAccounts.forAdministrators')}</span>
       </div>
-      <p className="note section-note">
-        An agent of its own acts as itself: its changes show under its name rather than yours, issues can be assigned to it, and with its token &ldquo;me&rdquo;
-        is the agent. Its tokens are issued here, never by the agent. What it changes on its own, anyone who may change the issue can undo.
-      </p>
+      <p className="note section-note">{tx('agents.agentAccounts.anAgentOfItsOwn')}</p>
       <form
         className="form"
         onSubmit={(e) => {
@@ -290,20 +275,20 @@ export function AgentAccounts() {
         }}
       >
         <div className="cluster">
-          <FormField label="Add an agent" help="Its login, in lower case, such as claude: the history shows it by this name.">
+          <FormField label={tx('agents.agentAccounts.addAnAgent')} help={tx('agents.agentAccounts.itsLoginInLowerCase')}>
             {(id, help) => (
               <input id={id} value={login} onChange={(e) => setLogin(e.target.value)} pattern="[a-zA-Z0-9._\-]+" required maxLength={40} aria-describedby={help} />
             )}
           </FormField>
           <button type="submit" disabled={add.isPending || !login.trim()}>
-            {add.isPending ? 'Adding…' : 'Add it'}
+            {add.isPending ? tx('agents.agentAccounts.adding') : tx('agents.agentAccounts.addIt')}
           </button>
         </div>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </form>
-      {agents.isLoading ? <Loading what="the agents" /> : null}
+      {agents.isLoading ? <Loading what={t('agents.agentAccounts.theAgents')} /> : null}
       {agents.error ? <ErrorNote error={agents.error} /> : null}
-      {agents.data && !agents.data.length ? <p className="note">No agents of their own yet.</p> : null}
+      {agents.data && !agents.data.length ? <p className="note">{tx('agents.agentAccounts.noAgentsOfTheirOwn')}</p> : null}
       {agents.data?.length ? (
         <ul className="hooks">
           {agents.data.map((a) => (

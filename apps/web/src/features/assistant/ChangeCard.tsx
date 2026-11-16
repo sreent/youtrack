@@ -7,6 +7,8 @@ import { ChangeLines, readChange } from '../common/ChangeLines';
 import { excerpt, lowerFirst } from '../common/format';
 import type { AITool } from '../common/queries';
 import type { Approval } from './live';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const ID_LINE = /^([A-Z][A-Z0-9]{1,9}-\d+): (.*)$/;
 
@@ -31,7 +33,7 @@ function PreviewWell({ preview, fieldNames }: { preview: string; fieldNames: str
         const changes = parts.map((c) => readChange(c, fieldNames));
         return (
           <div className="pair" key={i}>
-            <dt>{p.id ? <IssueLink id={p.id} /> : 'Change'}</dt>
+            <dt>{p.id ? <IssueLink id={p.id} /> : t('assistant.changeCard.change')}</dt>
             <dd>{changes.every(Boolean) ? <ChangeLines changes={changes.map((c) => c!)} /> : <Linked text={p.rest} />}</dd>
           </div>
         );
@@ -76,42 +78,28 @@ export function ChangeCard({
         <div className="who">
           <Avatar kind="agent" name="assistant" />
           <span>
-            <h3 className="approval-title" id={titleId}>
-              assistant asks to {what}
-            </h3>
-            <span className="who-about">
-              for {forName}
-              {tool?.destructive ? ' · it can overwrite what is there' : ''}
-            </span>
+            <h3 className="approval-title" id={titleId}>{tr('assistant.changeCard.assistantAsksTo', { what: what })}</h3>
+            <span className="who-about">{tr('assistant.changeCard.for', { forName: forName, v: tool?.destructive ? t('assistant.changeCard.itCanOverwriteWhatIs') : '' })}</span>
           </span>
         </div>
         <PreviewWell preview={approval.preview} fieldNames={fieldNames} />
         {asked ? (
-          <p className="approval-why">
-            <strong>Why: </strong>you asked “{excerpt(asked, 160)}”
-          </p>
+          <p className="approval-why">{tr('assistant.changeCard.whyYouAsked', { t0: (c: ReactNode) => <strong>{c}</strong>, excerpt: excerpt(asked, 160) })}</p>
         ) : null}
         {decided === undefined ? (
           <>
             {blocked ? <p className="approval-note">{blocked}</p> : null}
             <div className="approval-actions">
-              <button type="button" className="primary" disabled={busy || Boolean(blocked)} onClick={() => onDecide(true)}>
-                Approve
-              </button>
-              <button type="button" disabled={busy || Boolean(blocked)} onClick={() => onDecide(false)}>
-                Decline
-              </button>
+              <button type="button" className="primary" disabled={busy || Boolean(blocked)} onClick={() => onDecide(true)}>{t('assistant.changeCard.approve')}</button>
+              <button type="button" disabled={busy || Boolean(blocked)} onClick={() => onDecide(false)}>{t('assistant.changeCard.decline')}</button>
             </div>
           </>
         ) : (
           <p className="approval-done" role="status">
-            {decided ? 'You approved it.' : 'You declined it. Nothing changed.'}
+            {decided ? t('assistant.changeCard.youApprovedIt') : t('assistant.changeCard.youDeclinedItNothingChanged')}
           </p>
         )}
-        <p className="approval-signed">
-          <Icon name="audit" />
-          Your decision is kept with this conversation, and any change in the issue's history.
-        </p>
+        <p className="approval-signed">{tr('assistant.changeCard.yourDecisionIsKeptWith', { el: <Icon name="audit" /> })}</p>
       </div>
     </section>
   );

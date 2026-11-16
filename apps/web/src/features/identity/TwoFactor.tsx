@@ -5,6 +5,8 @@ import { get, post } from '../../api/client';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { CopyButton } from '../common/CopyButton';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 export const twoFactorKeys = { mine: ['me', 'two-factor'] as const };
 
@@ -12,8 +14,8 @@ export const twoFactorKeys = { mine: ['me', 'two-factor'] as const };
 export function CodeField({ value, onChange, recovery, autoFocus }: { value: string; onChange: (v: string) => void; recovery?: boolean; autoFocus?: boolean }) {
   return (
     <FormField
-      label={recovery ? 'Code' : 'Code from the app'}
-      help={recovery ? 'The six digits your authenticator app shows now, or one of your recovery codes.' : 'The six digits it shows now.'}
+      label={recovery ? t('identity.twoFactor.code') : t('identity.twoFactor.codeFromTheApp')}
+      help={recovery ? t('identity.twoFactor.theSixDigitsYourAuthenticator') : t('identity.twoFactor.theSixDigitsItShows')}
     >
       {(id, help) => (
         <input
@@ -39,17 +41,14 @@ export function CodeField({ value, onChange, recovery, autoFocus }: { value: str
 export function RecoveryCodeList({ codes }: { codes: string[] }) {
   return (
     <div className="secret">
-      <p>
-        <strong>Keep these now.</strong> Your recovery codes: each signs you in once if you lose your phone. Keep them somewhere safe, such as your password
-        manager; a4a doesn’t show them again.
-      </p>
-      <ul aria-label="Recovery codes" className="plain mono">
+      <p>{tr('identity.twoFactor.keepTheseNowYourRecovery', { t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
+      <ul aria-label={t('identity.twoFactor.recoveryCodes')} className="plain mono">
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}
       </ul>
       <div className="cluster">
-        <CopyButton text={codes.join('\n')} label="Copy the codes" what="the recovery codes" />
+        <CopyButton text={codes.join('\n')} label={t('identity.twoFactor.copyTheCodes')} what={t('identity.twoFactor.theRecoveryCodes')} />
       </div>
     </div>
   );
@@ -67,16 +66,14 @@ export function Enrol({ enrolment, confirm, onDone }: { enrolment: TwoFactorEnro
         go.mutate();
       }}
     >
-      <p className="note">Scan this with an authenticator app, such as 1Password, Google Authenticator or Microsoft Authenticator.</p>
-      <img src={enrolment.qrUrl} width={184} height={184} alt="QR code for your authenticator app" />
-      <p className="note">
-        Or type this key into it: <span className="mono">{enrolment.secret}</span>
-      </p>
+      <p className="note">{t('identity.twoFactor.scanThisWithAnAuthenticator')}</p>
+      <img src={enrolment.qrUrl} width={184} height={184} alt={t('identity.twoFactor.qrCodeForYourAuthenticator')} />
+      <p className="note">{tr('identity.twoFactor.orTypeThisKeyInto', { secret: enrolment.secret, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
       <CodeField value={code} onChange={setCode} />
       {go.error ? <ErrorNote error={go.error} /> : null}
       <div className="cluster">
         <button type="submit" className="primary" disabled={code.trim().length < 6 || go.isPending}>
-          {go.isPending ? 'Checking…' : 'Turn it on'}
+          {go.isPending ? t('identity.twoFactor.checking') : t('identity.twoFactor.turnItOn')}
         </button>
       </div>
     </form>
@@ -109,12 +106,12 @@ export function TwoFactorCard() {
       setAsking(null);
       setCode('');
       if (renewed) setCodes(renewed);
-      setSaid({ text: renewed ? 'New recovery codes: the old ones stopped working.' : 'Two-factor sign-in is off. Your password alone signs you in.' });
+      setSaid({ text: renewed ? t('identity.twoFactor.newRecoveryCodesTheOld') : t('identity.twoFactor.twoFactorSignInIs') });
       refresh();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (status.isLoading) return <Loading what="two-factor sign-in" />;
+  if (status.isLoading) return <Loading what={t('identity.twoFactor.twoFactorSignIn')} />;
   if (status.error || !status.data) return <ErrorNote error={status.error} />;
   const s = status.data;
   if (enrolment && !s.enabled) {
@@ -125,7 +122,7 @@ export function TwoFactorCard() {
         onDone={(c) => {
           setEnrolment(null);
           setCodes(c);
-          setSaid({ text: 'Two-factor sign-in is on: from now on a4a asks for a code after your password.' });
+          setSaid({ text: t('identity.twoFactor.twoFactorSignInIs2') });
           refresh();
         }}
       />
@@ -135,10 +132,10 @@ export function TwoFactorCard() {
     <div className="stack">
       <p className="note">
         {s.enabled
-          ? `On: after your password, a4a asks for a code from your authenticator app. ${s.recoveryCodesLeft} recovery ${s.recoveryCodesLeft === 1 ? 'code' : 'codes'} left.`
+          ? t('identity.twoFactor.onAfterYourPasswordA4a', { recoveryCodesLeft: s.recoveryCodesLeft, v: s.recoveryCodesLeft === 1 ? 'code' : 'codes' })
           : s.required
-            ? 'This instance asks it of everyone who signs in with a password: you’ll set it up at your next sign-in, or now.'
-            : 'Off: your password alone signs you in. Turn it on, and a4a asks for a code from an authenticator app too.'}
+            ? t('identity.twoFactor.thisInstanceAsksItOf')
+            : t('identity.twoFactor.offYourPasswordAloneSigns')}
       </p>
       {codes ? <RecoveryCodeList codes={codes} /> : null}
       {asking ? (
@@ -152,34 +149,28 @@ export function TwoFactorCard() {
           <CodeField value={code} onChange={setCode} recovery autoFocus />
           <div className="cluster">
             <button type="submit" className={asking === 'off' ? 'danger' : 'primary'} disabled={code.trim().length < 6 || act.isPending}>
-              {asking === 'off' ? 'Turn it off' : 'Make new recovery codes'}
+              {asking === 'off' ? t('identity.twoFactor.turnItOff') : t('identity.twoFactor.makeNewRecoveryCodes')}
             </button>
-            <button type="button" onClick={() => (setAsking(null), setCode(''))}>
-              Cancel
-            </button>
+            <button type="button" onClick={() => (setAsking(null), setCode(''))}>{t('identity.twoFactor.cancel')}</button>
           </div>
         </form>
       ) : (
         <div className="cluster">
           {s.enabled ? (
             <>
-              <button type="button" onClick={() => setAsking('renew')}>
-                New recovery codes
-              </button>
+              <button type="button" onClick={() => setAsking('renew')}>{t('identity.twoFactor.newRecoveryCodes')}</button>
               {s.required ? null : (
-                <button type="button" onClick={() => setAsking('off')}>
-                  Turn it off
-                </button>
+                <button type="button" onClick={() => setAsking('off')}>{t('identity.twoFactor.turnItOff')}</button>
               )}
             </>
           ) : (
             <button type="button" className="primary" onClick={() => start.mutate()} disabled={start.isPending}>
-              {start.isPending ? 'Starting…' : 'Set up two-factor sign-in'}
+              {start.isPending ? t('identity.twoFactor.starting') : t('identity.twoFactor.setUpTwoFactorSign')}
             </button>
           )}
         </div>
       )}
-      {s.enabled && s.required ? <p className="note">An administrator asks it of everyone here; to move to another phone, ask one to reset yours.</p> : null}
+      {s.enabled && s.required ? <p className="note">{t('identity.twoFactor.anAdministratorAsksItOf')}</p> : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
   );

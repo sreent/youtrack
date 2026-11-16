@@ -11,6 +11,8 @@ import { ApiError, del, get, post } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from './api';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 function useRefresh(issue: string) {
   const qc = useQueryClient();
@@ -48,13 +50,13 @@ export function VoteToggle({ issue, mine }: { issue: IssueDetail; mine: boolean 
         aria-pressed={issue.voted}
         disabled={busy || mine}
         onClick={() => void toggle()}
-        title={mine ? 'You reported it, so you can’t vote for it: votes count the people who want it besides you.' : issue.voted ? 'You voted for it. Press to take the vote back.' : 'Vote for it: say you want it too.'}
+        title={mine ? t('issues.moves.youReportedItSoYou') : issue.voted ? t('issues.moves.youVotedForItPress') : t('issues.moves.voteForItSayYou')}
       >
         <span aria-hidden="true">▲</span>
-        <span>Vote</span>
+        <span>{t('issues.moves.vote')}</span>
         <span className="watch-count">
           <span aria-hidden="true">{issue.votes}</span>
-          <span className="hidden">, {issue.votes === 1 ? '1 vote' : `${issue.votes} votes`}</span>
+          <span className="hidden">, {issue.votes === 1 ? t('issues.moves.n1Vote') : `${issue.votes} votes`}</span>
         </span>
       </button>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
@@ -82,7 +84,7 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
   };
   if (!reactions.length && !canReact) return null;
   return (
-    <div className="reactions" aria-label="Reactions">
+    <div className="reactions" aria-label={t('issues.moves.reactions')}>
       {reactions.map((r) => (
         <button
           key={r.emoji}
@@ -94,17 +96,17 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
           onClick={() => void toggle(r.emoji)}
         >
           {r.emoji} {r.count}
-          <span className="hidden"> {r.count === 1 ? 'reaction' : 'reactions'}{r.mine ? ', yours among them' : ''}</span>
+          <span className="hidden"> {r.count === 1 ? 'reaction' : 'reactions'}{r.mine ? t('issues.moves.yoursAmongThem') : ''}</span>
         </button>
       ))}
       {canReact ? (
         <span className="reaction-add">
-          <button type="button" className="reaction" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(!open)} title="React">
+          <button type="button" className="reaction" aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(!open)} title={t('issues.moves.react')}>
             <span aria-hidden="true">☺+</span>
-            <span className="hidden">React</span>
+            <span className="hidden">{t('issues.moves.react')}</span>
           </button>
           {open ? (
-            <span className="reaction-menu" id={menuId} role="group" aria-label="Choose a reaction">
+            <span className="reaction-menu" id={menuId} role="group" aria-label={t('issues.moves.chooseAReaction')}>
               {REACTIONS.map((e) => (
                 <button key={e} type="button" className="reaction" onClick={() => void toggle(e)}>
                   {e}
@@ -138,8 +140,8 @@ export function CloneButton({ issue }: { issue: IssueDetail }) {
   };
   return (
     <>
-      <button type="button" disabled={busy} onClick={() => void clone()} title="A new issue with its summary, description, values and tags, linked back to this one">
-        {busy ? 'Cloning…' : 'Clone'}
+      <button type="button" disabled={busy} onClick={() => void clone()} title={t('issues.moves.aNewIssueWithIts')}>
+        {busy ? t('issues.moves.cloning') : t('issues.moves.clone')}
       </button>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
     </>
@@ -173,10 +175,10 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
   };
   const open = (plan?.problems ?? []).filter((p) => p.field && !(p.field in values));
   return (
-    <section className="card stack" aria-label={`Move ${issue.id}`}>
-      <h2>Move {issue.id} to another project</h2>
+    <section className="card stack" aria-label={t('issues.moves.move', { id: issue.id })}>
+      <h2>{tr('issues.moves.moveToAnotherProject', { id: issue.id })}</h2>
       <label className="form-field">
-        <span>Project</span>
+        <span>{t('issues.moves.project')}</span>
         <select
           value={project}
           onChange={(e) => {
@@ -186,7 +188,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
             void ask(true, e.target.value, {});
           }}
         >
-          <option value="">Choose a project</option>
+          <option value="">{t('issues.moves.chooseAProject')}</option>
           {choices.map((p) => (
             <option key={p.key} value={p.key}>
               {p.name} ({p.key})
@@ -196,9 +198,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
       </label>
       {plan ? (
         <>
-          <p className="note">
-            It becomes <strong>{plan.to}</strong>; {issue.id} will still find it.
-          </p>
+          <p className="note">{tr('issues.moves.itBecomesWillStillFind', { to: plan.to, t0: (c: ReactNode) => <strong>{c}</strong>, id: issue.id })}</p>
           {plan.problems.map((p) =>
             p.field ? (
               <label key={p.field} className="form-field">
@@ -211,8 +211,8 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
                     void ask(true, project, next);
                   }}
                 >
-                  <option value="">Choose…</option>
-                  <option value="-">Leave it empty</option>
+                  <option value="">{t('issues.moves.choose')}</option>
+                  <option value="-">{t('issues.moves.leaveItEmpty')}</option>
                   {(p.choices ?? []).map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -233,18 +233,16 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
               ))}
             </ul>
           ) : null}
-          {plan.dropped.length ? <p className="note">Left behind, as {plan.project.key} doesn't have them: {plan.dropped.join(', ')}.</p> : null}
-          {plan.leftSprints.length ? <p className="note">It leaves {plan.leftSprints.join(', ')}.</p> : null}
+          {plan.dropped.length ? <p className="note">{tr('issues.moves.leftBehindAsDoesnT', { key: plan.project.key, join: plan.dropped.join(', ') })}</p> : null}
+          {plan.leftSprints.length ? <p className="note">{tr('issues.moves.itLeaves', { join: plan.leftSprints.join(', ') })}</p> : null}
         </>
       ) : null}
       {error && !plan?.problems.length ? <ErrorLine>{error}</ErrorLine> : null}
       <div className="cluster">
         <button type="button" className="primary" disabled={!project || busy || open.length > 0 || Boolean(plan?.problems.some((p) => !p.field))} onClick={() => void ask(false)}>
-          {busy ? 'Moving…' : 'Move'}
+          {busy ? t('issues.moves.moving') : t('issues.moves.move2')}
         </button>
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
+        <button type="button" onClick={onClose}>{t('issues.moves.cancel')}</button>
       </div>
     </section>
   );

@@ -7,6 +7,7 @@ import { useSetupStatus } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { comesFrom, groupKeys, useGroups } from './api';
+import { t } from '../../i18n';
 
 /** The identity provider's name, for words about groups that come from it. */
 export function providerNameOf(status: SetupStatus | undefined): string | null {
@@ -22,7 +23,7 @@ function AddGroup({ provider }: { provider: string | null }) {
   const add = useMutation({
     mutationFn: () => post<GroupDetail>('/groups', { name: form.name.trim(), description: form.description.trim(), providerName: form.providerName.trim() || null }),
     onSuccess: (g) => {
-      setSaid({ text: g.providerName ? `${g.name} is made: people join it as they sign in.` : `${g.name} is made. Put people in it on its page.` });
+      setSaid({ text: g.providerName ? t('groups.groupsSection.isMadePeopleJoinIt', { name: g.name }) : t('groups.groupsSection.isMadePutPeopleIn', { name: g.name }) });
       setForm(blank);
       void qc.invalidateQueries({ queryKey: groupKeys.all });
     },
@@ -38,20 +39,20 @@ function AddGroup({ provider }: { provider: string | null }) {
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Make a group</legend>
+        <legend>{t('groups.groupsSection.makeAGroup')}</legend>
         <div className="form-fields">
-          <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={80} />}</FormField>
-          <FormField label="What it's for">{(id) => <input id={id} value={form.description} onChange={set('description')} maxLength={500} />}</FormField>
+          <FormField label={t('groups.groupsSection.name')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={80} />}</FormField>
+          <FormField label={t('groups.groupsSection.whatItSFor')}>{(id) => <input id={id} value={form.description} onChange={set('description')} maxLength={500} />}</FormField>
           <FormField
-            label="Its name at the identity provider"
-            help={`Optional. With it, ${provider ?? 'the identity provider'} says who is in the group, at each sign-in, and nobody changes that by hand.`}
+            label={t('groups.groupsSection.itsNameAtTheIdentity')}
+            help={t('groups.groupsSection.optionalWithItSaysWho', { v: provider ?? 'the identity provider' })}
           >
-            {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder="None" />}
+            {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder={t('groups.groupsSection.none')} />}
           </FormField>
         </div>
         <div className="cluster">
           <button type="submit" className="primary" disabled={!form.name.trim() || add.isPending}>
-            {add.isPending ? 'Making it…' : 'Make the group'}
+            {add.isPending ? t('groups.groupsSection.makingIt') : t('groups.groupsSection.makeTheGroup')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -69,31 +70,24 @@ export function GroupsSection() {
   return (
     <section className="card" aria-labelledby="groups">
       <div className="section-head">
-        <h2 id="groups">Groups</h2>
+        <h2 id="groups">{t('groups.groupsSection.groups')}</h2>
         <span className="note">
           {list.length} {list.length === 1 ? 'group' : 'groups'}
         </span>
       </div>
-      <p className="note section-note">
-        A project can give a group a role, as it gives one to a person: everyone in the group has at least that role there, and someone’s role is the highest of
-        their own and their groups’. A group from the identity provider is filled as people sign in.
-      </p>
+      <p className="note section-note">{t('groups.groupsSection.aProjectCanGiveA')}</p>
       {groups.isLoading ? <Loading what="groups" /> : null}
       {groups.error ? <ErrorNote error={groups.error} /> : null}
-      {groups.data && !list.length ? <p className="note">No groups yet.</p> : null}
+      {groups.data && !list.length ? <p className="note">{t('groups.groupsSection.noGroupsYet')}</p> : null}
       {list.length ? (
-        <Scroll label="Table of groups">
+        <Scroll label={t('groups.groupsSection.tableOfGroups')}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Group</th>
-                <th scope="col" className="num">
-                  People
-                </th>
-                <th scope="col">Where its people come from</th>
-                <th scope="col" className="num">
-                  Projects
-                </th>
+                <th scope="col">{t('groups.groupsSection.group')}</th>
+                <th scope="col" className="num">{t('groups.groupsSection.people')}</th>
+                <th scope="col">{t('groups.groupsSection.whereItsPeopleComeFrom')}</th>
+                <th scope="col" className="num">{t('groups.groupsSection.projects')}</th>
               </tr>
             </thead>
             <tbody>

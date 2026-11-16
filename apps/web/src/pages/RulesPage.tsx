@@ -9,6 +9,8 @@ import { EXAMPLES, RuleForm, type Draft } from '../features/rules/RuleForm';
 import { RuleRuns } from '../features/rules/RuleRuns';
 import { Actions } from '../features/workflow/Actions';
 import { Machines } from '../features/workflow/Machines';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /**
  * A project's workflow rules: each read as a sentence, made and changed with the query and command
@@ -42,8 +44,8 @@ export default function RulesPage() {
   if (!project) {
     return (
       <>
-        <PageHead title="Rules" />
-        <p className="note">{param ? `There’s no project ${param}, or you can’t see it.` : 'There are no projects yet.'}</p>
+        <PageHead title={t('page.rules.rules')} />
+        <p className="note">{param ? t('page.rules.thereSNoProjectOr', { param: param }) : t('page.rules.thereAreNoProjectsYet')}</p>
       </>
     );
   }
@@ -51,10 +53,10 @@ export default function RulesPage() {
   return (
     <>
       <PageHead
-        title="Rules"
-        about="Rules change issues on their own, as the workflow agent: when something happens to an issue, or on a schedule. A guard refuses a change that would break it. Each reads as a sentence, or, an administrator's, runs a script. State machines say how a field may move, and actions are buttons on issues."
+        title={t('page.rules.rules')}
+        about={t('page.rules.rulesChangeIssuesOnTheir')}
         actions={
-          <FormField label="Project" className="inline">
+          <FormField label={t('page.rules.project')} className="inline">
             {(id) => (
               <select
                 id={id}
@@ -76,20 +78,18 @@ export default function RulesPage() {
         }
       />
       {!manages ? (
-        <p className="note">{project.key}’s managers make and change its rules. You can see what they do, and preview them.</p>
+        <p className="note">{tr('page.rules.sManagersMakeAndChange', { key: project.key })}</p>
       ) : null}
 
       <section className="card" aria-labelledby="rules-title">
         <div className="section-head">
-          <h2 id="rules-title">Rules in {project.name}</h2>
-          <span className="note">
-            Each change they make is in the issue’s history, by the workflow agent. <Link to={`/projects/${project.key}`}>The project</Link>
-          </span>
+          <h2 id="rules-title">{tr('page.rules.rulesIn', { name: project.name })}</h2>
+          <span className="note">{tr('page.rules.eachChangeTheyMakeIs', { t0: (c: ReactNode) => <Link to={`/projects/${project.key}`}>{c}</Link> })}</span>
         </div>
-        {rules.isLoading ? <Loading what="its rules" /> : null}
+        {rules.isLoading ? <Loading what={t('page.rules.itsRules')} /> : null}
         {rules.error ? <ErrorNote error={rules.error} /> : null}
         {rules.data && !rules.data.length ? (
-          <p className="note">No rules yet.{manages ? ' Add one below, or start from an example.' : ''}</p>
+          <p className="note">{tr('page.rules.noRulesYet', { v: manages ? t('page.rules.addOneBelowOrStart') : '' })}</p>
         ) : null}
         {rules.data?.length ? (
           <ul className="rules">
@@ -98,7 +98,7 @@ export default function RulesPage() {
               if (editing === r.id && canManage) {
                 return (
                   <li key={r.id} className="card rule-card">
-                    <h3 className="rule-name">Change “{r.name}”</h3>
+                    <h3 className="rule-name">{tr('page.rules.change', { name: r.name })}</h3>
                     <RuleForm
                       project={r.project}
                       fields={fields.data ?? []}
@@ -107,7 +107,7 @@ export default function RulesPage() {
                       onCancel={() => setEditing(null)}
                       onDone={(saved) => {
                         setEditing(null);
-                        setSaid(`“${saved.name}” is saved.`);
+                        setSaid(t('page.rules.isSaved', { name: saved.name }));
                       }}
                     />
                   </li>
@@ -122,9 +122,9 @@ export default function RulesPage() {
 
       {manages ? (
         <section className="card stack" aria-labelledby="add-rule">
-          <h2 id="add-rule">Add a rule</h2>
+          <h2 id="add-rule">{t('page.rules.addARule')}</h2>
           <div className="cluster">
-            <span className="note">Start from an example:</span>
+            <span className="note">{t('page.rules.startFromAnExample')}</span>
             {EXAMPLES.map((x) => (
               <button
                 key={x.label}
@@ -140,11 +140,11 @@ export default function RulesPage() {
             ))}
           </div>
           {isAdmin ? (
-            <FormField label="For" className="inline">
+            <FormField label={t('page.rules.for')} className="inline">
               {(id) => (
                 <select id={id} value={everywhere ? '' : project.key} onChange={(e) => setEverywhere(e.target.value === '')}>
-                  <option value={project.key}>{project.name} only</option>
-                  <option value="">every project</option>
+                  <option value={project.key}>{tr('page.rules.only', { name: project.name })}</option>
+                  <option value="">{t('page.rules.everyProject')}</option>
                 </select>
               )}
             </FormField>
@@ -158,7 +158,7 @@ export default function RulesPage() {
             onDone={(saved) => {
               setStart(undefined);
               setFormKey((k) => k + 1);
-              setSaid(`“${saved.name}” is saved. ${saved.kind === 'schedule' ? 'It runs on its schedule.' : 'It acts from the next change.'}`);
+              setSaid(t('page.rules.isSaved2', { name: saved.name, v: saved.kind === 'schedule' ? t('page.rules.itRunsOnItsSchedule') : t('page.rules.itActsFromTheNext') }));
             }}
           />
         </section>
@@ -169,8 +169,8 @@ export default function RulesPage() {
 
       <section className="card" aria-labelledby="runs-title">
         <div className="section-head">
-          <h2 id="runs-title">What rules did</h2>
-          <span className="note">The last 30 days, newest first.</span>
+          <h2 id="runs-title">{t('page.rules.whatRulesDid')}</h2>
+          <span className="note">{t('page.rules.theLast30DaysNewest')}</span>
         </div>
         <RuleRuns project={project.key} />
       </section>

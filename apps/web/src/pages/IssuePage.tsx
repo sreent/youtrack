@@ -32,6 +32,7 @@ import { WorkflowBar } from '../features/workflow/WorkflowBar';
 import { AppWidgets } from '../features/apps/AppWidgets';
 import { attachmentKeys } from '../features/attachments/api';
 import { RichField } from '../features/editor/RichField';
+import { intlLocale, t, tr } from '../i18n';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -93,11 +94,11 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
           }
         }}
       >
-        <FormField label="Description">
+        <FormField label={t('page.issue.description')}>
           {(id) => (
             <RichField
               id={id}
-              label="Description"
+              label={t('page.issue.description')}
               value={text}
               onChange={setText}
               rows={10}
@@ -111,22 +112,20 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
         </FormField>
         {error ? <ErrorLine>{error}</ErrorLine> : null}
         <div className="cluster end">
-          <button type="button" onClick={() => setEditing(false)}>
-            Cancel
-          </button>
+          <button type="button" onClick={() => setEditing(false)}>{t('page.issue.cancel')}</button>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? t('page.issue.saving') : t('page.issue.save')}
           </button>
         </div>
       </form>
     );
   }
   return (
-    <section className="card stack" aria-label="Description">
+    <section className="card stack" aria-label={t('page.issue.description')}>
       {issue.description.trim() ? (
         <Markdown text={ticked ?? issue.description} onToggleTask={canEdit && ticked === null ? (i, on) => void tick(i, on) : undefined} />
       ) : (
-        <p className="note">No description yet.</p>
+        <p className="note">{t('page.issue.noDescriptionYet')}</p>
       )}
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       <ReactionBar reactions={issue.reactions} path={`/issues/${issue.id}/reactions`} issue={issue.id} canReact={canReact} />
@@ -140,9 +139,7 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
               setError(null);
               setEditing(true);
             }}
-          >
-            Edit the description
-          </button>
+          >{t('page.issue.editTheDescription')}</button>
         </div>
       ) : null}
     </section>
@@ -162,17 +159,15 @@ function Summary({ issue }: { issue: IssueDetail }) {
   };
   if (state === null)
     return (
-      <button type="button" onClick={() => void ask()}>
-        Summarise
-      </button>
+      <button type="button" onClick={() => void ask()}>{t('page.issue.summarise')}</button>
     );
   return (
-    <section className="card stack" aria-label="Summary by the assistant">
+    <section className="card stack" aria-label={t('page.issue.summaryByTheAssistant')}>
       <div className="cluster">
         <Who kind="agent" name="assistant" small />
-        <span className="note">summarised the issue and its discussion</span>
+        <span className="note">{t('page.issue.summarisedTheIssueAndIts')}</span>
       </div>
-      {state === 'asking' ? <p className="note">Reading the issue…</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
+      {state === 'asking' ? <p className="note">{t('page.issue.readingTheIssue')}</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
     </section>
   );
 }
@@ -190,8 +185,8 @@ function Title({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
         className="editable"
         role="button"
         tabIndex={0}
-        title="Change the summary"
-        aria-label={`${issue.summary}. Change the summary`}
+        title={t('page.issue.changeTheSummary')}
+        aria-label={t('page.issue.changeTheSummary2', { summary: issue.summary })}
         onClick={() => {
           setText(issue.summary);
           setEditing(true);
@@ -222,13 +217,9 @@ function Title({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
         }
       }}
     >
-      <input className="grow" aria-label="Summary" value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
-      <button type="submit" className="primary">
-        Save
-      </button>
-      <button type="button" onClick={() => setEditing(false)}>
-        Cancel
-      </button>
+      <input className="grow" aria-label={t('page.issue.summary')} value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
+      <button type="submit" className="primary">{t('page.issue.save')}</button>
+      <button type="button" onClick={() => setEditing(false)}>{t('page.issue.cancel')}</button>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
     </form>
   );
@@ -298,8 +289,8 @@ export default function IssuePage() {
   if (issue.error) {
     return (
       <>
-        <PageHead title={id} crumbs={<Link to="/issues">Issues</Link>} />
-        {issue.error instanceof ApiError && issue.error.status === 404 ? <p className="note">There’s no issue {id}, or you can’t see it.</p> : <ErrorNote error={issue.error} />}
+        <PageHead title={id} crumbs={<Link to="/issues">{t('page.issue.issues')}</Link>} />
+        {issue.error instanceof ApiError && issue.error.status === 404 ? <p className="note">{tr('page.issue.thereSNoIssueOr', { id: id })}</p> : <ErrorNote error={issue.error} />}
       </>
     );
   }
@@ -324,14 +315,14 @@ export default function IssuePage() {
       <PageHead
         crumbs={
           <>
-            <Link to="/issues">Issues</Link> / <Link to={`/issues?q=${encodeURIComponent(`project: ${data.project.key}`)}`}>{data.project.name}</Link>
+            <Link to="/issues">{t('page.issue.issues')}</Link> / <Link to={`/issues?q=${encodeURIComponent(`project: ${data.project.key}`)}`}>{data.project.name}</Link>
           </>
         }
         title={<Title issue={data} canEdit={canWrite} />}
         badges={
           <>
             <span className="issue-id">{data.id}</span>
-            {data.formerIds.length ? <span className="note">was {data.formerIds.join(', ')}</span> : null}
+            {data.formerIds.length ? <span className="note">{tr('page.issue.was', { join: data.formerIds.join(', ') })}</span> : null}
             <StateBadge fields={data.fields} />
             {request.data ? <SlaBadge sla={request.data.firstResponse} since={request.data.createdAt} /> : null}
           </>
@@ -339,8 +330,8 @@ export default function IssuePage() {
         meta={
           <>
             <span>
-              {request.data ? `Asked by ${request.data.requester.name} through the help desk` : `Reported by ${data.reporter?.name ?? 'someone'}`}{' '}
-              <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+              {request.data ? t('page.issue.askedByThroughTheHelp', { name: request.data.requester.name }) : t('page.issue.reportedBy', { v: data.reporter?.name ?? 'someone' })}{' '}
+              <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</time>
             </span>
             {data.tags.length ? (
               <span className="chips">
@@ -359,21 +350,16 @@ export default function IssuePage() {
             <VoteToggle issue={data} mine={Boolean(me.data && data.reporter?.id === me.data.id)} />
             {canWrite ? <CloneButton issue={data} /> : null}
             {canWrite ? (
-              <button type="button" aria-expanded={moving} onClick={() => setMoving(!moving)}>
-                Move
-              </button>
+              <button type="button" aria-expanded={moving} onClick={() => setMoving(!moving)}>{t('page.issue.move')}</button>
             ) : null}
             {ai.data?.enabled ? (
-              <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title="Ask triage to work out its fields and look for duplicates">
+              <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title={t('page.issue.askTriageToWorkOut')}>
                 <Icon name="agent" />
-                {triaging === 'asking' ? 'Triaging…' : 'Triage'}
+                {triaging === 'asking' ? t('page.issue.triaging') : t('page.issue.triage')}
               </button>
             ) : null}
             {canWrite ? (
-              <button type="button" className="primary" onClick={() => setCommanding(true)}>
-                <Icon name="command" />
-                Apply a command
-              </button>
+              <button type="button" className="primary" onClick={() => setCommanding(true)}>{tr('page.issue.applyACommand', { el: <Icon name="command" /> })}</button>
             ) : null}
           </>
         }
@@ -384,8 +370,8 @@ export default function IssuePage() {
       {project.data && !project.data.access.write ? (
         <p className="note">
           {project.data.access.comment
-            ? `You can read ${project.data.key}'s issues and comment on them; changing them is for its members.`
-            : `You can read ${project.data.key}'s issues; your account doesn't change anything.`}
+            ? t('page.issue.youCanReadSIssues', { key: project.data.key })
+            : t('page.issue.youCanReadSIssues2', { key: project.data.key })}
         </p>
       ) : null}
       <div className="split">

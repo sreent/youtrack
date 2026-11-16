@@ -13,6 +13,7 @@ import { useCosts, useSchedule } from './api';
 import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
 import { addDays, dayMonth, diffDays, workCalendar, type WorkCalendar } from './dates';
 import { days, effort, hours, money } from './format';
+import { t, tr } from '../../i18n';
 
 // ---------------------------------------------------------------------------
 // The indices, in words
@@ -20,10 +21,10 @@ import { days, effort, hours, money } from './format';
 
 /** CPI 0.88 is 1 ÷ 0.88, or 14% more than planned. */
 export function cpiWords(cpi: number | null): string {
-  if (cpi === null) return 'Nothing has been spent yet, so there is nothing to measure.';
+  if (cpi === null) return t('plan.costs.nothingHasBeenSpentYet');
   const r = Math.round((1 / cpi - 1) * 100);
-  if (r === 0) return 'The work done so far cost what was planned.';
-  return r > 0 ? `The work done so far cost ${r}% more than planned.` : `The work done so far cost ${-r}% less than planned.`;
+  if (r === 0) return t('plan.costs.theWorkDoneSoFar');
+  return r > 0 ? t('plan.costs.theWorkDoneSoFar2', { r: r }) : t('plan.costs.theWorkDoneSoFar3', { v: -r });
 }
 
 /** Share of a baseline task's working days elapsed by `asOf`, as the server counts it. */
@@ -56,9 +57,9 @@ export function scheduleDays(s: Schedule, evm: Evm, cal: WorkCalendar): number |
 }
 
 function spiWords(evm: Evm, behind: number | null): string {
-  if (evm.spi === null) return 'Nothing was planned to be done by now, so there is nothing to measure yet.';
-  if (behind === null) return evm.spi < 1 ? 'Behind the plan.' : evm.spi > 1 ? 'Ahead of the plan.' : 'On schedule.';
-  if (behind === 0) return 'On schedule.';
+  if (evm.spi === null) return t('plan.costs.nothingWasPlannedToBe');
+  if (behind === null) return evm.spi < 1 ? t('plan.costs.behindThePlan') : evm.spi > 1 ? t('plan.costs.aheadOfThePlan') : t('plan.costs.onSchedule');
+  if (behind === 0) return t('plan.costs.onSchedule');
   return behind > 0 ? `${days(behind)} behind.` : `${days(-behind)} ahead.`;
 }
 
@@ -113,8 +114,8 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
     ['Planned value (PV)', m(evm.pv), `What ${baselineName} planned to be done by ${dayMonth(evm.asOf)}`],
     ['Earned value (EV)', m(evm.ev), "What's done, at what it was planned to cost"],
     ['Actual cost (AC)', m(evm.ac), 'What the work has cost so far'],
-    ['Cost variance (CV)', m(evm.cv), evm.cv < 0 ? 'EV − AC: the work done cost more than planned' : 'EV − AC: the work done cost no more than planned'],
-    ['Schedule variance (SV)', m(evm.sv), evm.sv < 0 ? 'EV − PV: less is done than planned by now' : 'EV − PV: as much or more is done than planned by now'],
+    ['Cost variance (CV)', m(evm.cv), evm.cv < 0 ? t('plan.costs.evAcTheWorkDone') : t('plan.costs.evAcTheWorkDone2')],
+    ['Schedule variance (SV)', m(evm.sv), evm.sv < 0 ? t('plan.costs.evPvLessIsDone') : t('plan.costs.evPvAsMuchOr')],
     ['Cost performance (CPI)', evm.cpi === null ? '–' : evm.cpi.toFixed(2), 'EV ÷ AC'],
     ['Schedule performance (SPI)', evm.spi === null ? '–' : evm.spi.toFixed(2), 'EV ÷ PV'],
     ['Estimate at completion (EAC)', m(evm.eac), 'BAC ÷ CPI: what it will cost if the work goes on costing as it has'],
@@ -122,16 +123,14 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
     ['Variance at completion (VAC)', m(evm.vac), 'BAC − EAC: under the plan if positive, over it if negative'],
   ];
   return (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label={`Earned value against ${baselineName}`}>
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('plan.costs.earnedValueAgainst', { baselineName: baselineName })}>
       <table className="figures cost-figures">
-        <caption>Earned value against {baselineName}, as of {dayMonth(evm.asOf)}</caption>
+        <caption>{tr('plan.costs.earnedValueAgainstAsOf', { baselineName: baselineName, dayMonth: dayMonth(evm.asOf) })}</caption>
         <thead>
           <tr>
-            <th scope="col">Figure</th>
-            <th scope="col" className="num">
-              Value
-            </th>
-            <th scope="col">What it says</th>
+            <th scope="col">{t('plan.costs.figure')}</th>
+            <th scope="col" className="num">{t('plan.costs.value')}</th>
+            <th scope="col">{t('plan.costs.whatItSays')}</th>
           </tr>
         </thead>
         <tbody>
@@ -151,21 +150,15 @@ function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string;
 function PeopleTable({ c }: { c: CostReport }) {
   if (!c.byPerson.length) return null;
   return (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label="By person">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('plan.costs.byPerson')}>
       <table className="figures cost-figures">
-        <caption>By person</caption>
+        <caption>{t('plan.costs.byPerson')}</caption>
         <thead>
           <tr>
-            <th scope="col">Person</th>
-            <th scope="col" className="num">
-              Rate
-            </th>
-            <th scope="col" className="num">
-              Planned
-            </th>
-            <th scope="col" className="num">
-              Spent
-            </th>
+            <th scope="col">{t('plan.costs.person')}</th>
+            <th scope="col" className="num">{t('plan.costs.rate')}</th>
+            <th scope="col" className="num">{t('plan.costs.planned')}</th>
+            <th scope="col" className="num">{t('plan.costs.spent')}</th>
           </tr>
         </thead>
         <tbody>
@@ -174,7 +167,7 @@ function PeopleTable({ c }: { c: CostReport }) {
               <th scope="row">
                 <Who kind={p.user.isBot ? 'agent' : 'person'} name={p.user.isBot ? p.user.login : p.user.name} small />
               </th>
-              <td className="num">{p.hourlyRate === null ? 'No rate' : `${money(p.hourlyRate, c.currency)}/h`}</td>
+              <td className="num">{p.hourlyRate === null ? t('plan.costs.noRate') : `${money(p.hourlyRate, c.currency)}/h`}</td>
               <td className="num">
                 {money(p.plannedCost, c.currency)}
                 <span className="hidden">, </span>
@@ -197,18 +190,14 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
   const rows = c.byTask.filter((t) => t.plannedCost > 0 || t.actualCost > 0);
   if (!rows.length) return null;
   return (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label="By task">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('plan.costs.byTask')}>
       <table className="figures cost-figures">
-        <caption>By task</caption>
+        <caption>{t('plan.costs.byTask')}</caption>
         <thead>
           <tr>
-            <th scope="col">Task</th>
-            <th scope="col" className="num">
-              Planned
-            </th>
-            <th scope="col" className="num">
-              Spent
-            </th>
+            <th scope="col">{t('plan.costs.task')}</th>
+            <th scope="col" className="num">{t('plan.costs.planned')}</th>
+            <th scope="col" className="num">{t('plan.costs.spent')}</th>
           </tr>
         </thead>
         <tbody>
@@ -216,7 +205,7 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
             <tr key={t.issue}>
               <th scope="row">
                 <span className="issue-id">{t.issue}</span> {t.summary}
-                {t.fixedCost > 0 ? <span className="cost-sub"> · {money(t.fixedCost, c.currency)} fixed</span> : null}
+                {t.fixedCost > 0 ? <span className="cost-sub">{tr('plan.costs.fixed', { money: money(t.fixedCost, c.currency) })}</span> : null}
               </th>
               <td className="num">
                 {money(t.plannedCost, c.currency)}
@@ -241,18 +230,16 @@ function TasksTable({ c, hoursPerDay }: { c: CostReport; hoursPerDay: number }) 
 function NoBaseline({ choice, onSave }: { choice: BaselineChoice; onSave: () => void }) {
   return (
     <div className="cost-index ask">
-      <p className="label">Earned value</p>
+      <p className="label">{t('plan.costs.earnedValue')}</p>
       <p>
         {choice.baselines.length
-          ? 'Compare with a baseline to see how much of the work planned by now is done, whether it is costing more than planned (CPI), and how far ahead or behind it is (SPI).'
-          : 'With a baseline, a4a measures the work done against the plan as agreed: how much of what was planned by now is done, whether it is costing more than planned (CPI), and how far ahead or behind it is (SPI).'}
+          ? t('plan.costs.compareWithABaselineTo')
+          : t('plan.costs.withABaselineA4aMeasures')}
       </p>
       {choice.baselines.length ? (
         <BaselinePicker choice={choice} />
       ) : (
-        <button type="button" onClick={onSave}>
-          Save the plan as a baseline
-        </button>
+        <button type="button" onClick={onSave}>{t('plan.costs.saveThePlanAsA')}</button>
       )}
     </div>
   );
@@ -270,7 +257,7 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
   const s = schedule.data;
   const cal = useMemo(() => workCalendar(s?.calendar ?? project.settings.plan), [s?.calendar, project.settings.plan]);
 
-  if (costs.isLoading || !choice.ready) return <Loading what="the costs" />;
+  if (costs.isLoading || !choice.ready) return <Loading what={t('plan.costs.theCosts')} />;
   if (costs.error || !costs.data) return <ErrorNote error={costs.error ?? choice.error} />;
   const c = costs.data;
   const evm = c.evm;
@@ -298,29 +285,27 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
   return (
     <div className="stack">
       <div className="cluster">
-        <BaselinePicker choice={choice} label="Earned value against" />
-        <button type="button" onClick={() => setSaving(true)}>
-          Save a baseline
-        </button>
+        <BaselinePicker choice={choice} label={t('plan.costs.earnedValueAgainst2')} />
+        <button type="button" onClick={() => setSaving(true)}>{t('plan.costs.saveABaseline')}</button>
       </div>
       <section className="card cost-box" aria-labelledby={titleId}>
         <div className="cost">
           <div className="cost-head">
-            <h2 id={titleId}>Cost against plan</h2>
+            <h2 id={titleId}>{t('plan.costs.costAgainstPlan')}</h2>
             <p className="note">
               {project.name}
-              {asOf ? ` · as of ${dayMonth(asOf)}` : ''}
-              {week && weeks ? `, week ${week} of ${weeks}` : ''}
-              {evm && choice.chosen ? ` · against ${choice.chosen.name}` : ''}
+              {asOf ? t('plan.costs.asOf', { dayMonth: dayMonth(asOf) }) : ''}
+              {week && weeks ? t('plan.costs.weekOf', { week: week, weeks: weeks }) : ''}
+              {evm && choice.chosen ? t('plan.costs.against', { name: choice.chosen.name }) : ''}
             </p>
           </div>
           <div className="cost-top">
             <div className="cost-bars">
-              <Bars id={toDateId} label="To date" bars={toDate} max={max} currency={cur} />
-              <Bars id={atEndId} label="At completion" bars={atEnd} max={max} currency={cur} />
+              <Bars id={toDateId} label={t('plan.costs.toDate')} bars={toDate} max={max} currency={cur} />
+              <Bars id={atEndId} label={t('plan.costs.atCompletion')} bars={atEnd} max={max} currency={cur} />
               {over !== null ? (
                 <div className="cost-over">
-                  {over > 0 ? <Badge tone="bad">{money(over, cur)} over budget</Badge> : <p className="note">{money(-over, cur)} under budget</p>}
+                  {over > 0 ? <Badge tone="bad">{tr('plan.costs.overBudget', { money: money(over, cur) })}</Badge> : <p className="note">{tr('plan.costs.underBudget', { money: money(-over, cur) })}</p>}
                 </div>
               ) : null}
             </div>
@@ -328,20 +313,16 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
               {evm ? (
                 <>
                   <div className="cost-index">
-                    <p className="label">Cost performance, CPI</p>
+                    <p className="label">{t('plan.costs.costPerformanceCpi')}</p>
                     <strong>{evm.cpi === null ? '–' : evm.cpi.toFixed(2)}</strong>
                     <p>{cpiWords(evm.cpi)}</p>
-                    <p className="note">
-                      {money(evm.ev, cur)} earned for {money(evm.ac, cur)} spent
-                    </p>
+                    <p className="note">{tr('plan.costs.earnedForSpent', { money: money(evm.ev, cur), money2: money(evm.ac, cur) })}</p>
                   </div>
                   <div className="cost-index">
-                    <p className="label">Schedule performance, SPI</p>
+                    <p className="label">{t('plan.costs.schedulePerformanceSpi')}</p>
                     <strong>{evm.spi === null ? '–' : evm.spi.toFixed(2)}</strong>
                     <p>{spiWords(evm, behind)}</p>
-                    <p className="note">
-                      {money(evm.ev, cur)} earned of {money(evm.pv, cur)} planned by now
-                    </p>
+                    <p className="note">{tr('plan.costs.earnedOfPlannedByNow', { money: money(evm.ev, cur), money2: money(evm.pv, cur) })}</p>
                   </div>
                 </>
               ) : (
@@ -349,7 +330,7 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
               )}
             </div>
           </div>
-          {c.budget === null ? <p className="note">No budget is set for {project.name}. Set one in the project's plan settings to see the forecast against it.</p> : null}
+          {c.budget === null ? <p className="note">{tr('plan.costs.noBudgetIsSetFor', { name: project.name })}</p> : null}
           <div className="cost-tables">
             {evm && choice.chosen ? <EvmTable evm={evm} currency={cur} baselineName={choice.chosen.name} /> : null}
             <PeopleTable c={c} />
@@ -357,7 +338,7 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
           </div>
           {c.warnings.length ? (
             <details className="plan-notes">
-              <summary>{c.warnings.length === 1 ? '1 thing to know about these figures' : `${c.warnings.length} things to know about these figures`}</summary>
+              <summary>{c.warnings.length === 1 ? t('plan.costs.n1ThingToKnowAbout') : t('plan.costs.thingsToKnowAboutThese', { length: c.warnings.length })}</summary>
               <ul>
                 {c.warnings.map((w) => (
                   <li key={w}>{w}</li>

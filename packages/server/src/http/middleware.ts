@@ -1,3 +1,4 @@
+import { localeOfRequest } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
@@ -77,6 +78,8 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
     if (!ctx && !header && c.req.path.startsWith('/api/v1/') && guestMayRequest(c.req.method, c.req.path.slice('/api/v1'.length))) {
       ctx = await guestCtx(runtime);
     }
+    // The language its answer's words for a person are in (D49): the page's, theirs, their browser's.
+    if (ctx) ctx.locale = localeOfRequest(ctx, { pageLocale: c.req.header('x-a4a-locale'), acceptLanguage: c.req.header('accept-language') });
     c.set('ctx', ctx);
     await next();
   };

@@ -11,6 +11,7 @@ import { Link, useSearchParams } from 'react-router';
 import { get, put, qs } from '../api/client';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText } from '../features/issues/api';
+import { intlLocale, t as tx, tr } from '../i18n';
 
 const localToday = () => new Date().toLocaleDateString('en-CA');
 const addDays = (iso: string, n: number) => {
@@ -18,7 +19,7 @@ const addDays = (iso: string, n: number) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
-const dayName = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const dayName = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const shown = (minutes: number) => (minutes ? formatPeriod(minutes) : '');
 const hoursText = (h: number) => `${Math.round(h * 10) / 10}h`;
 
@@ -36,8 +37,8 @@ function Cell({ row, date, index, label, onSave }: { row: Row; date: string; ind
   const value = text ?? shown(row.minutes[index] ?? 0);
   if ((row.entries[index] ?? 0) > 1) {
     return (
-      <td className="num mono" title="Several entries: change them on the issue">
-        <Link to={`/issues/${row.issue}`} aria-label={`${label}: ${shown(row.minutes[index] ?? 0)} in ${row.entries[index]} entries, changed on ${row.issue}`}>
+      <td className="num mono" title={tx('page.timesheet.severalEntriesChangeThemOn')}>
+        <Link to={`/issues/${row.issue}`} aria-label={tx('page.timesheet.inEntriesChangedOn', { label: label, shown: shown(row.minutes[index] ?? 0), v: row.entries[index], issue: row.issue })}>
           {shown(row.minutes[index] ?? 0)}
         </Link>
       </td>
@@ -93,18 +94,18 @@ export default function TimesheetPage() {
       const next = await put<Timesheet>('/timesheet/cell', { issue: row.issue, date, minutes, type: row.type });
       qc.setQueryData(key, next);
       setExtra((rows) => rows.filter((r) => !(r.issue === row.issue && r.type === row.type)));
-      setSaid(minutes ? `Saved ${formatPeriod(minutes)} on ${row.issue}, ${dayName(date)}.` : `Removed the time on ${row.issue}, ${dayName(date)}.`);
+      setSaid(minutes ? tx('page.timesheet.savedOn', { formatPeriod: formatPeriod(minutes), issue: row.issue, dayName: dayName(date) }) : tx('page.timesheet.removedTheTimeOn', { issue: row.issue, dayName: dayName(date) }));
       await qc.invalidateQueries({ queryKey: ['issues', 'one', row.issue] });
     } catch (e) {
       setError(errorText(e));
     }
   };
 
-  if (sheet.isLoading) return <Loading what="your timesheet" />;
+  if (sheet.isLoading) return <Loading what={tx('page.timesheet.yourTimesheet')} />;
   if (sheet.error || !sheet.data) {
     return (
       <>
-        <PageHead title="Timesheet" />
+        <PageHead title={tx('page.timesheet.timesheet')} />
         <ErrorNote error={sheet.error} />
       </>
     );
@@ -120,38 +121,30 @@ export default function TimesheetPage() {
   return (
     <>
       <PageHead
-        title="Timesheet"
-        about={`Your week from ${dayName(t.days[0]!)} to ${dayName(t.days[6]!)}: ${formatPeriod(total) || 'nothing'} logged, of ${hoursText(planned)} you work.`}
+        title={tx('page.timesheet.timesheet')}
+        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: formatPeriod(total) || 'nothing', hoursText: hoursText(planned) })}
         actions={
           <div className="cluster">
-            <button type="button" onClick={() => go(addDays(week0, -7))}>
-              Previous week
-            </button>
-            <button type="button" onClick={() => go(localToday())}>
-              This week
-            </button>
-            <button type="button" onClick={() => go(addDays(week0, 7))}>
-              Next week
-            </button>
+            <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>
+            <button type="button" onClick={() => go(localToday())}>{tx('page.timesheet.thisWeek')}</button>
+            <button type="button" onClick={() => go(addDays(week0, 7))}>{tx('page.timesheet.nextWeek')}</button>
           </div>
         }
       />
       <section className="card stack" aria-labelledby="sheet">
-        <h2 id="sheet" className="hidden">
-          Time by issue and day
-        </h2>
+        <h2 id="sheet" className="hidden">{tx('page.timesheet.timeByIssueAndDay')}</h2>
         <p role="status" className="hidden">
           {said}
         </p>
-        <div className="figures-scroll" role="region" aria-label="Your week" tabIndex={0}>
+        <div className="figures-scroll" role="region" aria-label={tx('page.timesheet.yourWeek')} tabIndex={0}>
           <table className="figures middle timesheet">
             <thead>
               <tr>
-                <th scope="col">Issue</th>
+                <th scope="col">{tx('page.timesheet.issue')}</th>
                 {t.days.map((d, i) => (
                   <th key={d} scope="col" className="num">
                     {dayName(d)}
-                    <span className="day-hours">{t.hours[i] ? hoursText(t.hours[i]!) : 'Off'}</span>
+                    <span className="day-hours">{t.hours[i] ? hoursText(t.hours[i]!) : tx('page.timesheet.off')}</span>
                   </th>
                 ))}
               </tr>
@@ -159,9 +152,7 @@ export default function TimesheetPage() {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="muted">
-                    Nothing logged this week yet. Add an issue below, or log time on it.
-                  </td>
+                  <td colSpan={8} className="muted">{tx('page.timesheet.nothingLoggedThisWeekYet')}</td>
                 </tr>
               ) : null}
               {rows.map((r) => (
@@ -181,14 +172,14 @@ export default function TimesheetPage() {
             </tbody>
             <tfoot>
               <tr>
-                <th scope="row">Each day</th>
+                <th scope="row">{tx('page.timesheet.eachDay')}</th>
                 {t.totals.map((m, i) => {
                   const hours = t.hours[i] ?? 0;
                   const over = m / 60 > hours + 1e-9;
                   return (
                     <td key={t.days[i]} className={over ? 'num mono over' : m / 60 < hours ? 'num mono short' : 'num mono'}>
                       {formatPeriod(m) || '0m'}
-                      <span className="day-hours">of {hoursText(hours)}</span>
+                      <span className="day-hours">{tr('page.timesheet.of', { hoursText: hoursText(hours) })}</span>
                     </td>
                   );
                 })}
@@ -208,14 +199,10 @@ export default function TimesheetPage() {
             setType('');
           }}
         >
-          <h3 id={`${formId}-title`} className="hidden">
-            Add a row
-          </h3>
-          <input className="mono" aria-label="Issue" placeholder="BACK-12" size={10} value={issue} onChange={(e) => setIssue(e.target.value)} />
-          <input aria-label="Work type, if any" placeholder="Work type, if any" value={type} onChange={(e) => setType(e.target.value)} />
-          <button type="submit" disabled={!issue.trim()}>
-            Add a row
-          </button>
+          <h3 id={`${formId}-title`} className="hidden">{tx('page.timesheet.addARow')}</h3>
+          <input className="mono" aria-label={tx('page.timesheet.issue')} placeholder={tx('page.timesheet.back12')} size={10} value={issue} onChange={(e) => setIssue(e.target.value)} />
+          <input aria-label={tx('page.timesheet.workTypeIfAny')} placeholder={tx('page.timesheet.workTypeIfAny')} value={type} onChange={(e) => setType(e.target.value)} />
+          <button type="submit" disabled={!issue.trim()}>{tx('page.timesheet.addARow')}</button>
         </form>
         {error ? <ErrorLine>{error}</ErrorLine> : null}
       </section>

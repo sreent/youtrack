@@ -10,11 +10,12 @@ import { useId } from 'react';
 import { dayMonth } from '../plan/dates';
 import { plural } from '../plan/format';
 import { labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
+import { t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 260, left: 40, right: 118, top: 12, bottom: 32 };
 
 export type Standing = 'done' | 'waiting' | 'failed' | 'open';
-const STANDING_WORDS: Record<Standing, string> = { done: 'Resolved', waiting: 'Waiting on someone', failed: 'Failed', open: 'Open' };
+const STANDING_WORDS: Record<Standing, string> = { done: t('reports.cumulativeFlow.resolved'), waiting: t('reports.cumulativeFlow.waitingOnSomeone'), failed: 'Failed', open: 'Open' };
 
 /** How a state stands, in Ocean's words for how things stood. */
 export function standingOf(s: FlowState): Standing {
@@ -63,7 +64,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{`Issues in each state at the end of each day${flow.days.length ? `, ${dayMonth(flow.days[0]!.date)} to ${dayMonth(flow.days.at(-1)!.date)}` : ''}; the figures are in the table`}</title>
+        <title id={titleId}>{t('reports.cumulativeFlow.issuesInEachStateAt', { v: flow.days.length ? `, ${dayMonth(flow.days[0]!.date)} to ${dayMonth(flow.days.at(-1)!.date)}` : '' })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
@@ -108,20 +109,18 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
   );
 
   const table = (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label="Issues in each state, day by day">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.cumulativeFlow.issuesInEachStateDay')}>
       <table className="figures chart-figures">
-        <caption>At the end of each day{last && last.date === flow.scope.today ? ' (today as it is now)' : ''}</caption>
+        <caption>{tr('reports.cumulativeFlow.atTheEndOfEach', { v: last && last.date === flow.scope.today ? t('reports.cumulativeFlow.todayAsItIsNow') : '' })}</caption>
         <thead>
           <tr>
-            <th scope="col">Day</th>
+            <th scope="col">{t('reports.cumulativeFlow.day')}</th>
             {used.map((u) => (
               <th key={u.s.name} scope="col" className="num">
                 {u.s.name}
               </th>
             ))}
-            <th scope="col" className="num">
-              All
-            </th>
+            <th scope="col" className="num">{t('reports.cumulativeFlow.all')}</th>
           </tr>
         </thead>
         <tbody>
@@ -129,7 +128,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
             <tr key={d.date} className={d.date === flow.scope.today ? 'today' : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
-                {d.date === flow.scope.today ? ', today' : ''}
+                {d.date === flow.scope.today ? t('reports.cumulativeFlow.today') : ''}
               </th>
               {used.map((u) => (
                 <td key={u.s.name} className="num">
@@ -144,13 +143,13 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
     </div>
   );
 
-  if (!used.length) return <p className="note">No issues were in this scope on these days.</p>;
+  if (!used.length) return <p className="note">{t('reports.cumulativeFlow.noIssuesWereInThis')}</p>;
   if (compact) {
     return (
       <>
         {chart}
         <details className="chart-more">
-          <summary>The figures</summary>
+          <summary>{t('reports.cumulativeFlow.theFigures')}</summary>
           {table}
         </details>
       </>
@@ -172,24 +171,24 @@ export function CumulativeFlowReport({ flow, compact }: { flow: Flow; compact?: 
     <div className="report">
       <dl className="report-facts">
         <div>
-          <dt>Open now</dt>
+          <dt>{t('reports.cumulativeFlow.openNow')}</dt>
           <dd>{open}</dd>
         </div>
         <div>
-          <dt>Resolved</dt>
+          <dt>{t('reports.cumulativeFlow.resolved')}</dt>
           <dd>{done}</dd>
         </div>
         {!compact ? (
           <div>
-            <dt>Counted</dt>
+            <dt>{t('reports.cumulativeFlow.counted')}</dt>
             <dd>
-              {flow.scope.issues} <small>{flow.scope.includesDeleted ? 'with deleted ones on their days' : 'as the query matches now'}</small>
+              {flow.scope.issues} <small>{flow.scope.includesDeleted ? t('reports.cumulativeFlow.withDeletedOnesOnTheir') : t('reports.cumulativeFlow.asTheQueryMatchesNow')}</small>
             </dd>
           </div>
         ) : null}
       </dl>
       <CumulativeFlowChart flow={flow} compact={compact} />
-      {flow.noState ? <p className="note">{plural(flow.noState, 'issue has', 'issues have')} no state, and aren't in the bands.</p> : null}
+      {flow.noState ? <p className="note">{tr('reports.cumulativeFlow.noStateAndArenT', { plural: plural(flow.noState, 'issue has', 'issues have') })}</p> : null}
     </div>
   );
 }

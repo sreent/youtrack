@@ -9,6 +9,7 @@ import { get, patch, post } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine, ErrorNote } from '../../components/States';
 import { errorText } from '../issues/api';
+import { t as tx } from '../../i18n';
 
 export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const id = useId();
@@ -35,14 +36,14 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
     <div className="stack">
       {types.error ? <ErrorNote error={types.error} /> : null}
       {list.length ? (
-        <ul className="chips" aria-label="Work types">
+        <ul className="chips" aria-label={tx('projects.workTypes.workTypes')}>
           {list.map((t) => (
             <li key={t.id} className={t.archived ? 'chip muted' : 'chip'}>
               {t.name}
-              {t.archived ? <span className="hidden"> (archived)</span> : null}
+              {t.archived ? <span className="hidden">{tx('projects.workTypes.archived')}</span> : null}
               {canEdit ? (
                 <button type="button" className="link" onClick={() => void run(() => patch(`/work-types/${t.id}`, { archived: !t.archived }))}>
-                  {t.archived ? 'Offer again' : 'Archive'}
+                  {t.archived ? tx('projects.workTypes.offerAgain') : tx('projects.workTypes.archive')}
                   <span className="hidden"> {t.name}</span>
                 </button>
               ) : null}
@@ -50,7 +51,7 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
           ))}
         </ul>
       ) : (
-        <p className="note">No work types yet: work is logged without one.</p>
+        <p className="note">{tx('projects.workTypes.noWorkTypesYetWork')}</p>
       )}
       {canEdit ? (
         <>
@@ -62,13 +63,9 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
               if (name.trim()) void run(() => post(`/projects/${project.key}/work-types`, { name: name.trim() })).then(() => setName(''));
             }}
           >
-            <label id={`${id}-add`} htmlFor={`${id}-name`}>
-              Add a work type
-            </label>
-            <input id={`${id}-name`} value={name} placeholder="Development" onChange={(e) => setName(e.target.value)} />
-            <button type="submit" disabled={!name.trim()}>
-              Add
-            </button>
+            <label id={`${id}-add`} htmlFor={`${id}-name`}>{tx('projects.workTypes.addAWorkType')}</label>
+            <input id={`${id}-name`} value={name} placeholder={tx('projects.workTypes.development')} onChange={(e) => setName(e.target.value)} />
+            <button type="submit" disabled={!name.trim()}>{tx('projects.workTypes.add')}</button>
           </form>
           <label className="choice">
             <input
@@ -76,11 +73,11 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
               checked={required.isPending && required.variables !== undefined ? required.variables : project.settings.time.workTypeRequired}
               onChange={(e) => required.mutate(e.target.checked)}
             />
-            <span>Work logged here must say its type</span>
+            <span>{tx('projects.workTypes.workLoggedHereMustSay')}</span>
           </label>
         </>
       ) : project.settings.time.workTypeRequired ? (
-        <p className="note">Work logged here must say its type.</p>
+        <p className="note">{tx('projects.workTypes.workLoggedHereMustSay2')}</p>
       ) : null}
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       {required.error ? <ErrorLine>{errorText(required.error)}</ErrorLine> : null}

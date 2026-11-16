@@ -13,6 +13,8 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { appKeys, base64Of } from './api';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const EXTENSION_WORDS: Record<string, string> = {
   'issue-panel': "an issue's side panel",
@@ -38,26 +40,22 @@ function Asks({ p }: { p: AppPackagePreview }) {
           {p.description ? <p className="note">{p.description}</p> : null}
         </div>
       </div>
-      <p className="label">{p.installed ? `It's installed at ${p.installed.version}. This version may` : 'It asks to'}</p>
+      <p className="label">{p.installed ? t('apps.appsSection.itSInstalledAtThis', { version: p.installed.version }) : t('apps.appsSection.itAsksTo')}</p>
       {p.words.length ? (
-        <ul className="app-may" aria-label="What it asks to do">
+        <ul className="app-may" aria-label={t('apps.appsSection.whatItAsksToDo')}>
           {p.words.map((w) => (
             <li key={w}>{w}</li>
           ))}
         </ul>
       ) : (
-        <p className="note">Nothing of a4a's: it reads and writes none of it.</p>
+        <p className="note">{t('apps.appsSection.nothingOfA4aSIt')}</p>
       )}
-      {more ? <p className="approval-note">It asks for more than the installed version was granted: {[...more.read.map((r) => `reading ${r}`), ...more.write.map((r) => `writing ${r}`)].join(', ')}.</p> : null}
-      <p className="note">
-        It adds{' '}
-        {[
-          ...p.widgets.map((w) => `“${w.title}” on ${EXTENSION_WORDS[w.at] ?? w.at}`),
+      {more ? <p className="approval-note">{tr('apps.appsSection.itAsksForMoreThan', { join: [...more.read.map((r) => `reading ${r}`), ...more.write.map((r) => `writing ${r}`)].join(', ') })}</p> : null}
+      <p className="note">{tr('apps.appsSection.itAddsFilesKbSha', { join: [
+          ...p.widgets.map((w) => t('apps.appsSection.on', { title: w.title, v: EXTENSION_WORDS[w.at] ?? w.at })),
           ...p.handlers.map((h) => `a handler, “${h.title}”`),
           ...p.rules.map((r) => `a rule, “${r.title}”, acting as its own agent`),
-        ].join('; ')}
-        . {p.signedBy ? `Signed by the trusted key ${p.signedBy}.` : 'Not signed.'} {p.files} files, {(p.bytes / 1024).toFixed(0)} KB, SHA-256 <span className="mono">{p.sha256.slice(0, 12)}…</span>
-      </p>
+        ].join('; '), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, toFixed: (p.bytes / 1024).toFixed(0), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
     </div>
   );
 }
@@ -68,12 +66,8 @@ function WhereFields({ every, setEvery, chosen, setChosen }: { every: boolean; s
   const id = useId();
   return (
     <div className="stack tight" role="group" aria-labelledby={id}>
-      <p className="label" id={id}>
-        Where it runs
-      </p>
-      <label className="approval-pick">
-        <input type="checkbox" checked={every} onChange={(e) => setEvery(e.target.checked)} /> Every project, those made later too
-      </label>
+      <p className="label" id={id}>{t('apps.appsSection.whereItRuns')}</p>
+      <label className="approval-pick">{tr('apps.appsSection.everyProjectThoseMadeLater', { el: <input type="checkbox" checked={every} onChange={(e) => setEvery(e.target.checked)} /> })}</label>
       {!every
         ? (projects.data ?? []).map((p) => (
             <label key={p.key} className="approval-pick">
@@ -113,22 +107,20 @@ function Decide({ preview, source, onDone, onCancel }: { preview: AppPackagePrev
     },
     onSuccess: (app) => {
       void qc.invalidateQueries({ queryKey: appKeys.all });
-      onDone(updating ? `${app.title} is updated to ${app.version}.` : `${app.title} is installed${app.allProjects ? ', for every project' : app.projects.length ? `, for ${app.projects.map((p) => p.key).join(', ')}` : ': choose where it runs'}.`);
+      onDone(updating ? t('apps.appsSection.isUpdatedTo', { title: app.title, version: app.version }) : t('apps.appsSection.isInstalled', { title: app.title, v: app.allProjects ? t('apps.appsSection.forEveryProject') : app.projects.length ? t('apps.appsSection.for2', { join: app.projects.map((p) => p.key).join(', ') }) : t('apps.appsSection.chooseWhereItRuns') }));
     },
     onError: (e) => setSaid(errorText(e)),
   });
   return (
-    <section className="card stack" aria-label={`Install ${preview.title}`}>
+    <section className="card stack" aria-label={t('apps.appsSection.install', { title: preview.title })}>
       <Asks p={preview} />
       {!updating ? <WhereFields every={every} setEvery={setEvery} chosen={chosen} setChosen={setChosen} /> : null}
       <Said text={said} tone="bad" />
       <div className="cluster">
         <button type="button" className="primary" onClick={() => go.mutate()} disabled={go.isPending}>
-          {go.isPending ? 'Installing…' : updating ? `Update to ${preview.version}` : 'Install it'}
+          {go.isPending ? t('apps.appsSection.installing') : updating ? t('apps.appsSection.updateTo', { version: preview.version }) : t('apps.appsSection.installIt')}
         </button>
-        <button type="button" onClick={onCancel}>
-          Don’t
-        </button>
+        <button type="button" onClick={onCancel}>{t('apps.appsSection.donT')}</button>
       </div>
     </section>
   );
@@ -141,7 +133,7 @@ function useSettingsForm({ app, project }: { app: string; project: string | null
   const save = useMutation({
     mutationFn: (values: Record<string, string | number | boolean | null>) => put<AppSettings>(`/apps/${app}/settings`, { project, values }),
     onSuccess: () => {
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('apps.appsSection.saved') });
       void qc.invalidateQueries({ queryKey: appKeys.settings(app, project) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -163,7 +155,7 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
   return (
     <form
       className="form-fields"
-      aria-label="Its settings"
+      aria-label={t('apps.appsSection.itsSettings')}
       onSubmit={(e) => {
         e.preventDefault();
         const values: Record<string, string | number | boolean | null> = {};
@@ -176,11 +168,11 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
         setDraft({});
       }}
     >
-      {settings.isLoading ? <Loading what="its settings" /> : null}
+      {settings.isLoading ? <Loading what={t('apps.appsSection.itsSettings2')} /> : null}
       {defs.map((d) => {
         const secretSet = d.type === 'secret' && (settings.data?.values[d.name] as { set?: boolean } | undefined)?.set;
         return (
-          <FormField key={d.name} label={d.title} help={d.type === 'secret' ? `${d.description ?? ''} ${secretSet ? 'It’s set; a4a never shows it.' : 'Not set.'}`.trim() : (d.description ?? undefined)}>
+          <FormField key={d.name} label={d.title} help={d.type === 'secret' ? `${d.description ?? ''} ${secretSet ? t('apps.appsSection.itSSetA4aNever') : t('apps.appsSection.notSet')}`.trim() : (d.description ?? undefined)}>
             {(id, help) =>
               d.type === 'boolean' ? (
                 <input id={id} aria-describedby={help} type="checkbox" checked={Boolean(valueOf(d))} onChange={(e) => setDraft({ ...draft, [d.name]: e.target.checked })} />
@@ -206,9 +198,7 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
         );
       })}
       <div className="cluster tw:col-span-full">
-        <button type="submit" disabled={save.isPending || !Object.keys(draft).length}>
-          Save its settings
-        </button>
+        <button type="submit" disabled={save.isPending || !Object.keys(draft).length}>{t('apps.appsSection.saveItsSettings')}</button>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </div>
     </form>
@@ -217,17 +207,17 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
 
 function Runs({ app }: { app: string }) {
   const runs = useQuery({ queryKey: appKeys.runs(app), queryFn: () => get<AppRun[]>(`/apps/${app}/runs`) });
-  if (runs.isLoading) return <Loading what="its runs" />;
+  if (runs.isLoading) return <Loading what={t('apps.appsSection.itsRuns')} />;
   if (runs.error) return <ErrorNote error={runs.error} />;
-  if (!runs.data?.length) return <p className="note">Its handlers and rules haven’t run yet.</p>;
+  if (!runs.data?.length) return <p className="note">{t('apps.appsSection.itsHandlersAndRulesHaven')}</p>;
   return (
-    <table className="figures" aria-label="What it did">
+    <table className="figures" aria-label={t('apps.appsSection.whatItDid')}>
       <thead>
         <tr>
-          <th scope="col">When</th>
-          <th scope="col">What</th>
-          <th scope="col">Issue</th>
-          <th scope="col">How it went</th>
+          <th scope="col">{t('apps.appsSection.when')}</th>
+          <th scope="col">{t('apps.appsSection.what')}</th>
+          <th scope="col">{t('apps.appsSection.issue')}</th>
+          <th scope="col">{t('apps.appsSection.howItWent')}</th>
         </tr>
       </thead>
       <tbody>
@@ -235,14 +225,14 @@ function Runs({ app }: { app: string }) {
           <tr key={r.id}>
             <td>{ago(r.at)}</td>
             <td>
-              {r.kind === 'handler' ? 'Handler' : 'Rule'} {r.name}
-              {r.by ? <span className="note"> for {r.by.name}</span> : null}
+              {r.kind === 'handler' ? t('apps.appsSection.handler') : t('apps.appsSection.rule')} {r.name}
+              {r.by ? <span className="note">{tr('apps.appsSection.for', { name: r.by.name })}</span> : null}
             </td>
             <td className="mono">{r.issue ?? '—'}</td>
             <td>
               {r.outcome}
               {r.message ? <span className="note"> · {r.message.slice(0, 140)}</span> : null}
-              {r.ms !== null ? <span className="note"> · {r.ms} ms</span> : null}
+              {r.ms !== null ? <span className="note">{tr('apps.appsSection.ms', { ms: r.ms })}</span> : null}
             </td>
           </tr>
         ))}
@@ -261,7 +251,7 @@ function InstalledApp({ app }: { app: App }) {
   const change = useMutation({
     mutationFn: (body: { enabled?: boolean; allProjects?: boolean; projects?: string[] }) => patch<App>(`/apps/${app.name}`, body),
     onSuccess: (a) => {
-      setSaid({ text: a.enabled ? 'Saved.' : `${a.title} is off: none of it runs or shows.` });
+      setSaid({ text: a.enabled ? t('apps.appsSection.saved') : t('apps.appsSection.isOffNoneOfIt', { title: a.title }) });
       void qc.invalidateQueries({ queryKey: appKeys.all });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -290,44 +280,34 @@ function InstalledApp({ app }: { app: App }) {
           {app.description ? <p className="note">{app.description}</p> : null}
         </div>
       </div>
-      <p className="label">It may</p>
+      <p className="label">{t('apps.appsSection.itMay')}</p>
       <ul className="app-may">
         {app.words.map((w) => (
           <li key={w}>{w}</li>
         ))}
       </ul>
-      <p className="note">
-        {app.enabled ? `Runs in ${where}.` : 'Off: none of it runs or shows.'} Its rules act as {app.agent.login}. Installed {ago(app.installedAt)}
-        {app.installedBy ? ` by ${app.installedBy.name}` : ''}
-        {app.source.kind === 'catalog' ? ', from a catalog' : ''}.
-      </p>
+      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: ago(app.installedAt), v2: app.installedBy ? ` by ${app.installedBy.name}` : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
       <div className="cluster">
         <button type="button" className="small" onClick={() => change.mutate({ enabled: !app.enabled })} disabled={change.isPending}>
-          {app.enabled ? 'Turn it off' : 'Turn it on'}
+          {app.enabled ? t('apps.appsSection.turnItOff') : t('apps.appsSection.turnItOn')}
         </button>
-        <button type="button" className="small" aria-expanded={open === 'where'} onClick={() => setOpen(open === 'where' ? null : 'where')}>
-          Where it runs
-        </button>
+        <button type="button" className="small" aria-expanded={open === 'where'} onClick={() => setOpen(open === 'where' ? null : 'where')}>{t('apps.appsSection.whereItRuns')}</button>
         {app.settings.some((s) => s.scope === 'app') ? (
-          <button type="button" className="small" aria-expanded={open === 'settings'} onClick={() => setOpen(open === 'settings' ? null : 'settings')}>
-            Settings
-          </button>
+          <button type="button" className="small" aria-expanded={open === 'settings'} onClick={() => setOpen(open === 'settings' ? null : 'settings')}>{t('apps.appsSection.settings')}</button>
         ) : null}
-        <button type="button" className="small" aria-expanded={open === 'runs'} onClick={() => setOpen(open === 'runs' ? null : 'runs')}>
-          What it did
-        </button>
+        <button type="button" className="small" aria-expanded={open === 'runs'} onClick={() => setOpen(open === 'runs' ? null : 'runs')}>{t('apps.appsSection.whatItDid')}</button>
         <span onFocusCapture={() => !removal.data && void removal.refetch()} onMouseEnter={() => !removal.data && void removal.refetch()}>
           <Confirm
             small
-            label="Remove it"
-            name={`Remove ${app.title}`}
-            title={`Remove ${app.title}?`}
+            label={t('apps.appsSection.removeIt')}
+            name={t('apps.appsSection.remove2', { title: app.title })}
+            title={t('apps.appsSection.remove', { title: app.title })}
             about={
               r
-                ? `Its ${r.rules} ${r.rules === 1 ? 'rule' : 'rules'}, ${r.widgets} ${r.widgets === 1 ? 'widget' : 'widgets'} and ${r.handlers} ${r.handlers === 1 ? 'handler' : 'handlers'} go, with ${r.settings} settings, ${r.stored} stored ${r.stored === 1 ? 'value' : 'values'}, ${r.runs} runs in its log, and its agent ${r.agent}. Nobody can bring them back.`
-                : 'Its rules, widgets, handlers, settings, what it stored, its run log and its agent go. Nobody can bring them back.'
+                ? t('apps.appsSection.itsAndGoWithSettings', { rules: r.rules, v: r.rules === 1 ? 'rule' : 'rules', widgets: r.widgets, v2: r.widgets === 1 ? 'widget' : 'widgets', handlers: r.handlers, v3: r.handlers === 1 ? 'handler' : 'handlers', settings: r.settings, stored: r.stored, v4: r.stored === 1 ? 'value' : 'values', runs: r.runs, agent: r.agent })
+                : t('apps.appsSection.itsRulesWidgetsHandlersSettings')
             }
-            confirm="Remove it"
+            confirm={t('apps.appsSection.removeIt')}
             onConfirm={() => void remove()}
           />
         </span>
@@ -341,11 +321,9 @@ function InstalledApp({ app }: { app: App }) {
           }}
         >
           <WhereFields every={every} setEvery={setEvery} chosen={chosen} setChosen={setChosen} />
-          {app.projects.some((p) => p.off) ? <p className="note">Turned off by their managers: {app.projects.filter((p) => p.off).map((p) => p.key).join(', ')}.</p> : null}
+          {app.projects.some((p) => p.off) ? <p className="note">{tr('apps.appsSection.turnedOffByTheirManagers', { join: app.projects.filter((p) => p.off).map((p) => p.key).join(', ') })}</p> : null}
           <div className="cluster">
-            <button type="submit" className="small primary" disabled={change.isPending}>
-              Save where it runs
-            </button>
+            <button type="submit" className="small primary" disabled={change.isPending}>{t('apps.appsSection.saveWhereItRuns')}</button>
           </div>
         </form>
       ) : null}
@@ -358,7 +336,7 @@ function InstalledApp({ app }: { app: App }) {
 
 function Catalog({ onPick }: { onPick: (a: CatalogApp) => void }) {
   const catalog = useQuery({ queryKey: appKeys.catalog, queryFn: () => get<CatalogList>('/apps/catalog'), staleTime: 60_000 });
-  if (catalog.isLoading) return <Loading what="the catalogs" />;
+  if (catalog.isLoading) return <Loading what={t('apps.appsSection.theCatalogs')} />;
   if (catalog.error) return <ErrorNote error={catalog.error} />;
   const c = catalog.data!;
   return (
@@ -369,14 +347,14 @@ function Catalog({ onPick }: { onPick: (a: CatalogApp) => void }) {
         </p>
       ))}
       {c.apps.length ? (
-        <table className="figures" aria-label="Apps in the catalogs">
+        <table className="figures" aria-label={t('apps.appsSection.appsInTheCatalogs')}>
           <thead>
             <tr>
-              <th scope="col">App</th>
-              <th scope="col">Version</th>
-              <th scope="col">From</th>
+              <th scope="col">{t('apps.appsSection.app')}</th>
+              <th scope="col">{t('apps.appsSection.version')}</th>
+              <th scope="col">{t('apps.appsSection.from')}</th>
               <th scope="col" className="fit">
-                <span className="hidden">Install</span>
+                <span className="hidden">{t('apps.appsSection.install2')}</span>
               </th>
             </tr>
           </thead>
@@ -389,19 +367,19 @@ function Catalog({ onPick }: { onPick: (a: CatalogApp) => void }) {
                 </td>
                 <td>
                   {a.version}
-                  {a.installed ? <span className="note"> · {a.installed} installed</span> : null}
+                  {a.installed ? <span className="note">{tr('apps.appsSection.installed', { installed: a.installed })}</span> : null}
                 </td>
                 <td>
                   {a.catalogName}
-                  {a.signed ? <span className="note"> · signed</span> : null}
+                  {a.signed ? <span className="note">{t('apps.appsSection.signed')}</span> : null}
                 </td>
                 <td className="fit">
                   {!a.installed || a.update ? (
-                    <button type="button" className="small" onClick={() => onPick(a)} aria-label={`${a.update ? 'Update' : 'Install'} ${a.title}`}>
-                      {a.update ? 'Update' : 'Install'}
+                    <button type="button" className="small" onClick={() => onPick(a)} aria-label={`${a.update ? t('apps.appsSection.update') : t('apps.appsSection.install2')} ${a.title}`}>
+                      {a.update ? t('apps.appsSection.update') : t('apps.appsSection.install2')}
                     </button>
                   ) : (
-                    <span className="note">Installed</span>
+                    <span className="note">{t('apps.appsSection.installed2')}</span>
                   )}
                 </td>
               </tr>
@@ -409,7 +387,7 @@ function Catalog({ onPick }: { onPick: (a: CatalogApp) => void }) {
           </tbody>
         </table>
       ) : (
-        <p className="note">{c.problems.length ? 'Nothing to show from them.' : 'No catalog lists an app. Catalogs are set on the server, in APP_CATALOGS.'}</p>
+        <p className="note">{c.problems.length ? t('apps.appsSection.nothingToShowFromThem') : t('apps.appsSection.noCatalogListsAnApp')}</p>
       )}
     </div>
   );
@@ -452,24 +430,21 @@ export function AppsSection() {
   return (
     <section className="card" aria-labelledby="apps">
       <div className="section-head">
-        <h2 id="apps">Apps</h2>
-        <span className="note">What apps add to a4a, and what each may do</span>
+        <h2 id="apps">{t('apps.appsSection.apps')}</h2>
+        <span className="note">{t('apps.appsSection.whatAppsAddToA4a')}</span>
       </div>
-      <p className="note section-note">
-        An app adds widgets to a4a’s pages, handlers to its API and rules to its workflows. It may do only what you accept when you install it, where you choose, and
-        its rules act as an agent of its own. Its widgets run in a sandbox, and do for each person only what that person may.
-      </p>
+      <p className="note section-note">{t('apps.appsSection.anAppAddsWidgetsTo')}</p>
       <div className="stack">
         {apps.isLoading ? <Loading what="apps" /> : null}
         {apps.error ? <ErrorNote error={apps.error} /> : null}
         {apps.data?.length ? (
-          <ul className="plain stack" aria-label="Installed apps">
+          <ul className="plain stack" aria-label={t('apps.appsSection.installedApps')}>
             {apps.data.map((a) => (
               <InstalledApp key={a.name} app={a} />
             ))}
           </ul>
         ) : apps.data ? (
-          <p className="note">No apps are installed.</p>
+          <p className="note">{t('apps.appsSection.noAppsAreInstalled')}</p>
         ) : null}
         {deciding ? (
           <Decide
@@ -484,12 +459,10 @@ export function AppsSection() {
         ) : (
           <div className="cluster">
             <label className="button" htmlFor={fileId}>
-              {reading ? 'Reading it…' : 'Install from a file'}
+              {reading ? t('apps.appsSection.readingIt') : t('apps.appsSection.installFromAFile')}
             </label>
             <input id={fileId} className="hidden" type="file" accept=".zip,application/zip" onChange={(e) => void read(e.target.files?.[0])} />
-            <button type="button" aria-expanded={showCatalog} onClick={() => setShowCatalog(!showCatalog)}>
-              From a catalog
-            </button>
+            <button type="button" aria-expanded={showCatalog} onClick={() => setShowCatalog(!showCatalog)}>{t('apps.appsSection.fromACatalog2')}</button>
           </div>
         )}
         {showCatalog && !deciding ? <Catalog onPick={(a) => void pick(a)} /> : null}

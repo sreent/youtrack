@@ -11,6 +11,7 @@ import { createDashboard, reportKeys, saveDashboard, useDashboards, useDefaultDa
 import { REPORTS } from '../features/reports/ReportView';
 import { WidgetBody, widgetTitle } from '../features/reports/Widgets';
 import { AppWidgets } from '../features/apps/AppWidgets';
+import { t, tr } from '../i18n';
 
 const newWidgetId = () => Math.random().toString(36).slice(2, 10);
 
@@ -42,12 +43,12 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
 
   const build = (): Widget | string => {
     const base = { id: newWidgetId(), width, ...(title.trim() ? { title: title.trim() } : {}) };
-    if (kind === 'note') return text.trim() ? { ...base, kind: 'note', text: text.trim() } : 'Write what the note says.';
+    if (kind === 'note') return text.trim() ? { ...base, kind: 'note', text: text.trim() } : t('page.dashboard.writeWhatTheNoteSays');
     if (kind === 'search') {
-      if (search === 'query') return query.trim() ? { ...base, kind: 'search', query: query.trim(), show, limit: 8 } : 'Write the query it runs.';
-      return search ? { ...base, kind: 'search', savedSearch: search, show, limit: 8 } : 'Choose a saved search, or write a query.';
+      if (search === 'query') return query.trim() ? { ...base, kind: 'search', query: query.trim(), show, limit: 8 } : t('page.dashboard.writeTheQueryItRuns');
+      return search ? { ...base, kind: 'search', savedSearch: search, show, limit: 8 } : t('page.dashboard.chooseASavedSearchOr');
     }
-    if (report === 'burndown') return board ? { ...base, kind: 'report', params: { report: 'burndown', board, by: 'estimate' } } : 'Choose the board whose current sprint it shows.';
+    if (report === 'burndown') return board ? { ...base, kind: 'report', params: { report: 'burndown', board, by: 'estimate' } } : t('page.dashboard.chooseTheBoardWhoseCurrent');
     const scope = { ...(project ? { project } : {}), ...(query.trim() ? { query: query.trim() } : {}), days };
     const extra =
       report === 'issues-per-field'
@@ -64,7 +65,7 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
 
   return (
     <section className="card widget adding" aria-labelledby={`${id}-title`}>
-      <h2 id={`${id}-title`}>Add a widget</h2>
+      <h2 id={`${id}-title`}>{t('page.dashboard.addAWidget')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -79,16 +80,16 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
       >
         <div className="form-fields">
           <div className="form-field">
-            <label htmlFor={`${id}-kind`}>What it shows</label>
+            <label htmlFor={`${id}-kind`}>{t('page.dashboard.whatItShows')}</label>
             <select id={`${id}-kind`} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-              <option value="report">A report</option>
-              <option value="search">A search, as a count or a list</option>
-              <option value="note">A note</option>
+              <option value="report">{t('page.dashboard.aReport')}</option>
+              <option value="search">{t('page.dashboard.aSearchAsACount')}</option>
+              <option value="note">{t('page.dashboard.aNote')}</option>
             </select>
           </div>
           {kind === 'report' ? (
             <div className="form-field">
-              <label htmlFor={`${id}-report`}>Report</label>
+              <label htmlFor={`${id}-report`}>{t('page.dashboard.report')}</label>
               <select id={`${id}-report`} value={report} onChange={(e) => setReport(e.target.value as typeof report)}>
                 {REPORTS.map((r) => (
                   <option key={r.kind} value={r.kind}>
@@ -101,26 +102,24 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
         </div>
         {kind === 'report' && report === 'burndown' ? (
           <div className="form-field">
-            <label htmlFor={`${id}-board`}>Board</label>
+            <label htmlFor={`${id}-board`}>{t('page.dashboard.board')}</label>
             <select id={`${id}-board`} value={board} onChange={(e) => setBoard(e.target.value)} aria-describedby={`${id}-board-help`}>
-              <option value="">Choose a board</option>
+              <option value="">{t('page.dashboard.chooseABoard')}</option>
               {boards.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
                 </option>
               ))}
             </select>
-            <small className="field-help" id={`${id}-board-help`}>
-              It shows whichever sprint is current, so it keeps up from one sprint to the next.
-            </small>
+            <small className="field-help" id={`${id}-board-help`}>{t('page.dashboard.itShowsWhicheverSprintIs')}</small>
           </div>
         ) : null}
         {kind === 'report' && report !== 'burndown' ? (
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-project`}>Project</label>
+              <label htmlFor={`${id}-project`}>{t('page.dashboard.project')}</label>
               <select id={`${id}-project`} value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Every project</option>
+                <option value="">{t('page.dashboard.everyProject')}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.key}>
                     {p.name}
@@ -129,12 +128,10 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor={`${id}-days`}>Days</label>
+              <label htmlFor={`${id}-days`}>{t('page.dashboard.days')}</label>
               <select id={`${id}-days`} value={days} onChange={(e) => setDays(Number(e.target.value))}>
                 {[7, 14, 30, 90, 365].map((d) => (
-                  <option key={d} value={d}>
-                    The last {d} days
-                  </option>
+                  <option key={d} value={d}>{tr('page.dashboard.theLastDays', { d: d })}</option>
                 ))}
               </select>
             </div>
@@ -143,9 +140,9 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
         {kind === 'report' && (report === 'issues-per-field' || report === 'average-age') ? (
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-field`}>{report === 'average-age' ? 'By field' : 'Field'}</label>
+              <label htmlFor={`${id}-field`}>{report === 'average-age' ? t('page.dashboard.byField') : t('page.dashboard.field')}</label>
               <select id={`${id}-field`} value={field || (report === 'average-age' ? '' : 'Priority')} onChange={(e) => setField(e.target.value)}>
-                {report === 'average-age' ? <option value="">None: the average only</option> : null}
+                {report === 'average-age' ? <option value="">{t('page.dashboard.noneTheAverageOnly')}</option> : null}
                 {fieldNames.map((n) => (
                   <option key={n} value={n}>
                     {n}
@@ -158,7 +155,7 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
         {kind === 'report' && report === 'matrix' ? (
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-rows`}>Rows</label>
+              <label htmlFor={`${id}-rows`}>{t('page.dashboard.rows')}</label>
               <select id={`${id}-rows`} value={rows} onChange={(e) => setRows(e.target.value)}>
                 {fieldNames.map((n) => (
                   <option key={n} value={n}>
@@ -168,7 +165,7 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor={`${id}-columns`}>Columns</label>
+              <label htmlFor={`${id}-columns`}>{t('page.dashboard.columns')}</label>
               <select id={`${id}-columns`} value={columns} onChange={(e) => setColumns(e.target.value)}>
                 {fieldNames.map((n) => (
                   <option key={n} value={n}>
@@ -182,9 +179,9 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
         {kind === 'report' && report === 'time-in-state' ? (
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-columns-of`}>Columns of</label>
+              <label htmlFor={`${id}-columns-of`}>{t('page.dashboard.columnsOf')}</label>
               <select id={`${id}-columns-of`} value={columnsOf} onChange={(e) => setColumnsOf(e.target.value)}>
-                <option value="">No board: states</option>
+                <option value="">{t('page.dashboard.noBoardStates')}</option>
                 {allBoards.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
@@ -197,59 +194,55 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
         {kind === 'search' ? (
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-search`}>Search</label>
+              <label htmlFor={`${id}-search`}>{t('page.dashboard.search')}</label>
               <select id={`${id}-search`} value={search} onChange={(e) => setSearch(e.target.value)}>
-                <option value="">Choose a saved search</option>
+                <option value="">{t('page.dashboard.chooseASavedSearch')}</option>
                 {saved.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-                <option value="query">A query I write</option>
+                <option value="query">{t('page.dashboard.aQueryIWrite')}</option>
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor={`${id}-show`}>Show</label>
+              <label htmlFor={`${id}-show`}>{t('page.dashboard.show')}</label>
               <select id={`${id}-show`} value={show} onChange={(e) => setShow(e.target.value as typeof show)}>
-                <option value="list">The issues</option>
-                <option value="count">How many</option>
+                <option value="list">{t('page.dashboard.theIssues')}</option>
+                <option value="count">{t('page.dashboard.howMany')}</option>
               </select>
             </div>
           </div>
         ) : null}
         {(kind === 'report' && report !== 'burndown') || (kind === 'search' && search === 'query') ? (
           <div className="form-field">
-            <label htmlFor={`${id}-query`}>{kind === 'search' ? 'Query' : 'Only issues matching (optional)'}</label>
+            <label htmlFor={`${id}-query`}>{kind === 'search' ? t('page.dashboard.query') : t('page.dashboard.onlyIssuesMatchingOptional')}</label>
             <input id={`${id}-query`} className="mono" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="#Unresolved Type: Bug" />
           </div>
         ) : null}
         {kind === 'note' ? (
           <div className="form-field">
-            <label htmlFor={`${id}-text`}>Note</label>
+            <label htmlFor={`${id}-text`}>{t('page.dashboard.note')}</label>
             <textarea id={`${id}-text`} rows={4} value={text} onChange={(e) => setText(e.target.value)} aria-describedby={`${id}-text-help`} />
-            <small className="field-help" id={`${id}-text-help`}>
-              Markdown, as in comments.
-            </small>
+            <small className="field-help" id={`${id}-text-help`}>{t('page.dashboard.markdownAsInComments')}</small>
           </div>
         ) : null}
         <div className="form-fields">
           <div className="form-field">
-            <label htmlFor={`${id}-title-input`}>Title (optional)</label>
+            <label htmlFor={`${id}-title-input`}>{t('page.dashboard.titleOptional')}</label>
             <input id={`${id}-title-input`} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="form-field">
-            <label htmlFor={`${id}-width`}>Width</label>
+            <label htmlFor={`${id}-width`}>{t('page.dashboard.width')}</label>
             <select id={`${id}-width`} value={width} onChange={(e) => setWidth(e.target.value as typeof width)}>
-              <option value="half">Half the page</option>
-              <option value="full">The whole page</option>
+              <option value="half">{t('page.dashboard.halfThePage')}</option>
+              <option value="full">{t('page.dashboard.theWholePage')}</option>
             </select>
           </div>
         </div>
         {problem ? <Said text={problem} tone="bad" /> : null}
         <div className="cluster end">
-          <button type="submit" className="primary">
-            Add it
-          </button>
+          <button type="submit" className="primary">{t('page.dashboard.addIt')}</button>
         </div>
       </form>
     </section>
@@ -274,13 +267,9 @@ function DashboardView({ d, editing, onChange }: { d: Dashboard; editing: boolea
               <div className="widget-head">
                 <h2>{title}</h2>
                 {editing ? (
-                  <div className="widget-actions" role="group" aria-label={`Arrange ${title}`}>
-                    <button type="button" className="small" data-act="earlier" disabled={i === 0} onClick={() => move(i, -1, 'earlier')}>
-                      Move earlier
-                    </button>
-                    <button type="button" className="small" data-act="later" disabled={i === d.widgets.length - 1} onClick={() => move(i, 1, 'later')}>
-                      Move later
-                    </button>
+                  <div className="widget-actions" role="group" aria-label={t('page.dashboard.arrange', { title: title })}>
+                    <button type="button" className="small" data-act="earlier" disabled={i === 0} onClick={() => move(i, -1, 'earlier')}>{t('page.dashboard.moveEarlier')}</button>
+                    <button type="button" className="small" data-act="later" disabled={i === d.widgets.length - 1} onClick={() => move(i, 1, 'later')}>{t('page.dashboard.moveLater')}</button>
                     <button
                       type="button"
                       className="small"
@@ -292,11 +281,9 @@ function DashboardView({ d, editing, onChange }: { d: Dashboard; editing: boolea
                         )
                       }
                     >
-                      {w.width === 'full' ? 'Make it half' : 'Make it wide'}
+                      {w.width === 'full' ? t('page.dashboard.makeItHalf') : t('page.dashboard.makeItWide')}
                     </button>
-                    <button type="button" className="small danger" onClick={() => onChange(d.widgets.filter((x) => x.id !== w.id))}>
-                      Remove
-                    </button>
+                    <button type="button" className="small danger" onClick={() => onChange(d.widgets.filter((x) => x.id !== w.id))}>{t('page.dashboard.remove')}</button>
                   </div>
                 ) : null}
               </div>
@@ -334,11 +321,11 @@ export default function DashboardPage() {
     setFocus(null);
   }, [focus, list.data]);
 
-  if (list.isLoading) return <Loading what="your dashboards" />;
+  if (list.isLoading) return <Loading what={t('page.dashboard.yourDashboards')} />;
   if (list.error) return <ErrorNote error={list.error} />;
   if (id && !chosen) return <ErrorNote error={new ApiError(404, 'not_found', 'Dashboard not found', 'It may have been deleted, or it is someone else\'s and not shared.')} />;
   const d = chosen ?? fallback.data;
-  if (!d) return fallback.error ? <ErrorNote error={fallback.error} /> : <Loading what="your dashboard" />;
+  if (!d) return fallback.error ? <ErrorNote error={fallback.error} /> : <Loading what={t('page.dashboard.yourDashboard')} />;
 
   const refresh = () => qc.invalidateQueries({ queryKey: reportKeys.dashboards });
   const save = async (body: { name?: string; shared?: boolean; widgets?: Widget[] }, nextFocus?: { widget: string; act: string }) => {
@@ -346,13 +333,13 @@ export default function DashboardPage() {
     try {
       const saved = await saveDashboard(d.id, { ...body, expectedVersion: d.version });
       qc.setQueryData<Dashboard[]>(reportKeys.dashboards, (old) => old?.map((x) => (x.id === saved.id ? saved : x)));
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('page.dashboard.saved') });
       if (nextFocus) setFocus(nextFocus);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         await refresh();
-        setSaid({ text: 'Someone else changed this dashboard meanwhile. It shows their change now; make yours again.', tone: 'bad' });
-      } else setSaid({ text: e instanceof Error ? e.message : 'It could not be saved.', tone: 'bad' });
+        setSaid({ text: t('page.dashboard.someoneElseChangedThisDashboard'), tone: 'bad' });
+      } else setSaid({ text: e instanceof Error ? e.message : t('page.dashboard.itCouldNotBeSaved'), tone: 'bad' });
     }
   };
   const makeOwn = async (from: Dashboard, name: string) => {
@@ -365,11 +352,11 @@ export default function DashboardPage() {
   const picker =
     list.data && list.data.length ? (
       <span className="form-field inline">
-        <label htmlFor={pickId}>Dashboard</label>
+        <label htmlFor={pickId}>{t('page.dashboard.dashboard')}</label>
         <select id={pickId} value={d.id ?? ''} onChange={(e) => navigate(`/dashboard/${e.target.value}`)}>
           {!d.id ? <option value="">{d.name}</option> : null}
           {mine.length ? (
-            <optgroup label="Yours">
+            <optgroup label={t('page.dashboard.yours')}>
               {mine.map((x) => (
                 <option key={x.id} value={x.id!}>
                   {x.name}
@@ -378,11 +365,9 @@ export default function DashboardPage() {
             </optgroup>
           ) : null}
           {shared.length ? (
-            <optgroup label="Shared">
+            <optgroup label={t('page.dashboard.shared')}>
               {shared.map((x) => (
-                <option key={x.id} value={x.id!}>
-                  {x.name}, {x.owner?.name ?? 'someone'}'s
-                </option>
+                <option key={x.id} value={x.id!}>{tr('page.dashboard.s', { name: x.name, v: x.owner?.name ?? 'someone' })}</option>
               ))}
             </optgroup>
           ) : null}
@@ -396,29 +381,25 @@ export default function DashboardPage() {
         title={d.name}
         about={
           !d.id
-            ? 'The dashboard a4a starts you with: your open issues, the current sprint, and how work is going. Make it yours to change it.'
+            ? t('page.dashboard.theDashboardA4aStartsYou')
             : d.mine
               ? d.shared
-                ? 'Yours, and shared: everyone can see it, and each sees its figures as far as they may see the issues.'
-                : 'Yours alone.'
-              : `${d.owner?.name ?? 'Someone'}'s, shared with everyone. Each widget shows what you may see.`
+                ? t('page.dashboard.yoursAndSharedEveryoneCan')
+                : t('page.dashboard.yoursAlone')
+              : t('page.dashboard.sSharedWithEveryoneEach', { v: d.owner?.name ?? 'Someone' })
         }
         actions={
           <>
             {picker}
             {!d.id && canWrite ? (
-              <button type="button" className="primary" onClick={() => makeOwn(d, 'Your dashboard')}>
-                Make it yours
-              </button>
+              <button type="button" className="primary" onClick={() => makeOwn(d, 'Your dashboard')}>{t('page.dashboard.makeItYours')}</button>
             ) : null}
             {d.id && !d.mine && canWrite ? (
-              <button type="button" onClick={() => makeOwn(d, `${d.name}, your copy`)}>
-                Copy it
-              </button>
+              <button type="button" onClick={() => makeOwn(d, `${d.name}, your copy`)}>{t('page.dashboard.copyIt')}</button>
             ) : null}
             {d.canEdit ? (
               <button type="button" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
-                {editing ? 'Done arranging' : 'Arrange'}
+                {editing ? t('page.dashboard.doneArranging') : t('page.dashboard.arrange2')}
               </button>
             ) : null}
             {canWrite && d.id ? (
@@ -427,9 +408,7 @@ export default function DashboardPage() {
                 await refresh();
                 navigate(`/dashboard/${made.id}`);
                 setEditing(true);
-              }}>
-                New dashboard
-              </button>
+              }}>{t('page.dashboard.newDashboard')}</button>
             ) : null}
           </>
         }
@@ -438,9 +417,7 @@ export default function DashboardPage() {
         <Said text={said?.text} tone={said?.tone} />
         {editing && d.canEdit ? (
           <section className="card" aria-labelledby={`${nameId}-h`}>
-            <h2 id={`${nameId}-h`} ref={heading}>
-              About this dashboard
-            </h2>
+            <h2 id={`${nameId}-h`} ref={heading}>{t('page.dashboard.aboutThisDashboard')}</h2>
             <form
               className="form"
               onSubmit={(e) => {
@@ -451,19 +428,17 @@ export default function DashboardPage() {
             >
               <div className="form-fields">
                 <div className="form-field">
-                  <label htmlFor={nameId}>Name</label>
+                  <label htmlFor={nameId}>{t('page.dashboard.name')}</label>
                   <input id={nameId} name="name" defaultValue={d.name} maxLength={80} required />
                 </div>
-                <label className="choice" htmlFor={sharedId}>
-                  <input id={sharedId} name="shared" type="checkbox" defaultChecked={d.shared} /> Shared with everyone
-                </label>
+                <label className="choice" htmlFor={sharedId}>{tr('page.dashboard.sharedWithEveryone', { el: <input id={sharedId} name="shared" type="checkbox" defaultChecked={d.shared} /> })}</label>
               </div>
               <div className="cluster spread">
                 <Confirm
-                  label="Delete it"
-                  title={`Delete the dashboard ${d.name}?`}
-                  about="Its widgets go with it. The reports and searches they showed stay."
-                  confirm="Delete it"
+                  label={t('page.dashboard.deleteIt')}
+                  title={t('page.dashboard.deleteTheDashboard', { name: d.name })}
+                  about={t('page.dashboard.itsWidgetsGoWithIt')}
+                  confirm={t('page.dashboard.deleteIt')}
                   onConfirm={async () => {
                     await del(`/dashboards/${d.id}`);
                     await refresh();
@@ -471,7 +446,7 @@ export default function DashboardPage() {
                     navigate('/dashboard');
                   }}
                 />
-                <button type="submit">Save</button>
+                <button type="submit">{t('page.dashboard.save')}</button>
               </div>
             </form>
           </section>
@@ -479,7 +454,7 @@ export default function DashboardPage() {
         {d.widgets.length ? (
           <DashboardView d={d} editing={editing && d.canEdit} onChange={(widgets, f) => save({ widgets }, f)} />
         ) : (
-          <p className="note">{d.canEdit ? 'Nothing on it yet. Choose Arrange to add a report, a search or a note.' : 'Nothing on it yet.'}</p>
+          <p className="note">{d.canEdit ? t('page.dashboard.nothingOnItYetChoose') : t('page.dashboard.nothingOnItYet')}</p>
         )}
         {editing && d.canEdit ? <AddWidget onAdd={(w) => save({ widgets: [...d.widgets, w] }, { widget: w.id, act: 'earlier' })} /> : null}
         <AppWidgets at="dashboard" />

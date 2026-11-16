@@ -9,6 +9,7 @@ import { actorWho, Avatar } from '../components/Who';
 import { count, excerpt, whenRead } from '../features/common/format';
 import { useStateTones } from '../features/issues/api';
 import { useMarkRead, useNotifications } from '../features/notifications/api';
+import { intlLocale, t, tr } from '../i18n';
 
 interface Group {
   issue: Notification['issue'];
@@ -56,22 +57,22 @@ function NotificationEntry({ n }: { n: Notification }) {
       <Avatar kind={who.kind} name={who.name} small />
       <div className="history-body">
         <p className="history-head">
-          {unread ? <span className="hidden">Unread: </span> : null}
+          {unread ? <span className="hidden">{t('page.inbox.unread')}</span> : null}
           <strong className="inbox-what">{n.title}</strong> ·{' '}
-          <time dateTime={n.lastAt} title={new Date(n.lastAt).toLocaleString()}>
+          <time dateTime={n.lastAt} title={new Date(n.lastAt).toLocaleString(intlLocale())}>
             {whenRead(n.lastAt)}
           </time>
         </p>
-        {n.subscription ? <p className="note">Because you subscribed to {n.subscription.about}.</p> : null}
+        {n.subscription ? <p className="note">{tr('page.inbox.becauseYouSubscribedTo', { about: n.subscription.about })}</p> : null}
         {changes.length ? <ChangeLines changes={changes} /> : null}
         {links.map((e) => (
           <p key={e.id} className="note">
-            {e.type === 'link.created' ? 'Linked' : 'Unlinked'}: {String(e.data.phrase ?? '')} {(e.data.target as { id?: string } | undefined)?.id ?? ''}
+            {e.type === 'link.created' ? t('page.inbox.linked') : t('page.inbox.unlinked')}: {String(e.data.phrase ?? '')} {(e.data.target as { id?: string } | undefined)?.id ?? ''}
           </p>
         ))}
         {files.map((e) => (
           <p key={e.id} className="note">
-            {e.type === 'attachment.added' ? 'Attached' : 'Removed'}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? 'a file')}
+            {e.type === 'attachment.added' ? t('page.inbox.attached') : t('page.inbox.removed')}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? 'a file')}
           </p>
         ))}
         {said.map((e) => (
@@ -96,7 +97,7 @@ function InboxGroup({ g, onRead }: { g: Group; onRead: (ids: string[], read: boo
           <>
             <span className="issue-id">{g.issue.id}</span>
             <span className="inbox-summary">{g.issue.summary}</span>
-            <span className="chip">deleted</span>
+            <span className="chip">{t('page.inbox.deleted')}</span>
           </>
         ) : (
           <>
@@ -111,7 +112,7 @@ function InboxGroup({ g, onRead }: { g: Group; onRead: (ids: string[], read: boo
           </>
         )}
         <button type="button" className="small" onClick={() => onRead(ids, unread, g.lastAt)}>
-          {unread ? 'Mark read' : 'Mark unread'}
+          {unread ? t('page.inbox.markRead') : t('page.inbox.markUnread')}
           <span className="hidden"> {g.issue.id}</span>
         </button>
       </div>
@@ -138,48 +139,37 @@ export default function InboxPage() {
   return (
     <>
       <PageHead
-        title="Inbox"
-        about="What concerns you: issues assigned to you, mentions, new help desk requests, changes and comments on issues you watch, and what you subscribe to."
+        title={t('page.inbox.inbox')}
+        about={t('page.inbox.whatConcernsYouIssuesAssigned')}
         meta={
           <>
-            <span>{unread ? `${count(unread, 'unread notification')}` : 'Nothing unread'}</span>
-            <Link to="/me">Choose what reaches you by email</Link>
+            <span>{unread ? count(unread, 'page.inbox.unreadNotifications') : t('page.inbox.nothingUnread')}</span>
+            <Link to="/me">{t('page.inbox.chooseWhatReachesYouBy')}</Link>
           </>
         }
         actions={
-          <button type="button" disabled={!unread || mark.isPending || !newest} onClick={() => newest && mark.mutate({ all: true, until: newest })}>
-            Mark all read
-          </button>
+          <button type="button" disabled={!unread || mark.isPending || !newest} onClick={() => newest && mark.mutate({ all: true, until: newest })}>{t('page.inbox.markAllRead')}</button>
         }
       />
       <div className="stack">
-        <div className="modes" role="group" aria-label="Which notifications to show">
-          <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>
-            Unread
-          </button>
-          <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>
-            All
-          </button>
+        <div className="modes" role="group" aria-label={t('page.inbox.whichNotificationsToShow')}>
+          <button type="button" aria-pressed={unreadOnly} onClick={() => setUnreadOnly(true)}>{t('page.inbox.unread2')}</button>
+          <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>{t('page.inbox.all')}</button>
         </div>
         {mark.error ? <ErrorNote error={mark.error} /> : null}
-        {list.isLoading ? <Loading what="your inbox" /> : null}
+        {list.isLoading ? <Loading what={t('page.inbox.yourInbox')} /> : null}
         {list.error ? <ErrorNote error={list.error} /> : null}
         {list.data && !groups.length ? (
           <section className="card">
-            <h2>{unreadOnly ? "You're up to date" : 'Nothing here yet'}</h2>
-            <p className="note">
-              Issues assigned to you, mentions of you, and changes and comments on issues you watch arrive here. You watch what you report, are assigned,
-              comment on or are mentioned in, and what you choose to watch.
-            </p>
+            <h2>{unreadOnly ? t('page.inbox.youReUpToDate') : t('page.inbox.nothingHereYet')}</h2>
+            <p className="note">{t('page.inbox.issuesAssignedToYouMentions')}</p>
             {unreadOnly ? (
-              <button type="button" className="link" onClick={() => setUnreadOnly(false)}>
-                Show what you've read
-              </button>
+              <button type="button" className="link" onClick={() => setUnreadOnly(false)}>{t('page.inbox.showWhatYouVeRead')}</button>
             ) : null}
           </section>
         ) : null}
         {groups.length ? (
-          <ol className="inbox" aria-label={unreadOnly ? 'Unread, by issue' : 'Notifications, by issue'}>
+          <ol className="inbox" aria-label={unreadOnly ? t('page.inbox.unreadByIssue') : t('page.inbox.notificationsByIssue')}>
             {groups.map((g) => (
               <InboxGroup key={g.issue.id} g={g} onRead={(ids, read, until) => mark.mutate({ ids, read, ...(read ? { until } : {}) })} />
             ))}

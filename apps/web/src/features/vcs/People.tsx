@@ -8,6 +8,7 @@ import { ago, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { t, tr } from '../../i18n';
 
 export const emailKeys = {
   mine: ['me', 'emails'] as const,
@@ -20,11 +21,11 @@ type Outcome = { text: string; bad?: boolean } | null;
 /** How an email stands, with its shape: confirmed went well; waiting waits on its person. */
 function Stands({ email }: { email: UserEmail }) {
   return email.confirmed ? (
-    <Badge tone="good">confirmed</Badge>
+    <Badge tone="good">{t('vcs.people.confirmed')}</Badge>
   ) : (
     <>
-      <Badge tone="warn">waiting to be confirmed</Badge>
-      {email.linkSentAt ? <span className="item-about">a link went {ago(email.linkSentAt)}</span> : null}
+      <Badge tone="warn">{t('vcs.people.waitingToBeConfirmed')}</Badge>
+      {email.linkSentAt ? <span className="item-about">{tr('vcs.people.aLinkWent', { when: ago(email.linkSentAt) })}</span> : null}
     </>
   );
 }
@@ -56,7 +57,7 @@ export function YourEmails() {
     mutationFn: (e: string) => post<PersonEmails>('/me/emails', { email: e }),
     onSuccess: (data, e) => {
       setEmail('');
-      done(data, data.canSendLinks ? `A link went to ${e}: open it, signed in as you, to confirm it.` : `${e} is added. a4a can't send email here, so an administrator confirms it.`);
+      done(data, data.canSendLinks ? t('vcs.people.aLinkWentToOpen', { e: e }) : t('vcs.people.isAddedA4aCanT', { e: e }));
     },
     onError: failed,
   });
@@ -74,29 +75,27 @@ export function YourEmails() {
     mutationFn: (e: UserEmail) => del(`/me/emails/${e.id}`),
     onSuccess: (_, e) => {
       void qc.invalidateQueries({ queryKey: emailKeys.mine });
-      setSaid({ text: `${e.email} is removed: commits under it aren't yours from now on.` });
+      setSaid({ text: t('vcs.people.isRemovedCommitsUnderIt', { email: e.email }) });
     },
     onError: failed,
   });
-  if (emails.isLoading) return <Loading what="your emails" />;
+  if (emails.isLoading) return <Loading what={t('vcs.people.yourEmails')} />;
   if (emails.error) return <ErrorNote error={emails.error} />;
   const list = emails.data?.emails ?? [];
   const canSend = emails.data?.canSendLinks ?? false;
   const busy = send.isPending || primary.isPending || remove.isPending;
   return (
     <div className="stack">
-      <p className="note section-note">
-        Commits under any of your confirmed emails are yours: they link to issues as yours, and the commands in them, such as <code>BACK-12 #Fixed</code>, run as you.
-      </p>
+      <p className="note section-note">{tr('vcs.people.commitsUnderAnyOfYour', { code: <code>BACK-12 #Fixed</code> })}</p>
       {list.length ? (
-        <Scroll label="Table of your emails">
+        <Scroll label={t('vcs.people.tableOfYourEmails')}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Email</th>
-                <th scope="col">How it stands</th>
+                <th scope="col">{t('vcs.people.email')}</th>
+                <th scope="col">{t('vcs.people.howItStands')}</th>
                 <th scope="col">
-                  <span className="hidden">What you can do</span>
+                  <span className="hidden">{t('vcs.people.whatYouCanDo')}</span>
                 </th>
               </tr>
             </thead>
@@ -113,23 +112,21 @@ export function YourEmails() {
                   <td className="fit">
                     <span className="cluster">
                       {!e.confirmed && canSend ? (
-                        <button type="button" className="small" disabled={busy} onClick={() => send.mutate(e.email)} aria-label={`${e.linkSentAt ? 'Send the link again' : 'Send a link'}: ${e.email}`}>
-                          {e.linkSentAt ? 'Send the link again' : 'Send a link'}
+                        <button type="button" className="small" disabled={busy} onClick={() => send.mutate(e.email)} aria-label={`${e.linkSentAt ? t('vcs.people.sendTheLinkAgain') : t('vcs.people.sendALink')}: ${e.email}`}>
+                          {e.linkSentAt ? t('vcs.people.sendTheLinkAgain') : t('vcs.people.sendALink')}
                         </button>
                       ) : null}
                       {!e.primary && e.confirmed ? (
-                        <button type="button" className="small" disabled={busy} onClick={() => primary.mutate(e.email)} aria-label={`Make it primary: ${e.email}`}>
-                          Make it primary
-                        </button>
+                        <button type="button" className="small" disabled={busy} onClick={() => primary.mutate(e.email)} aria-label={t('vcs.people.makeItPrimary', { email: e.email })}>{t('vcs.people.makeItPrimary2')}</button>
                       ) : null}
                       {e.id ? (
                         <Confirm
                           small
-                          label="Remove"
-                          name={`Remove ${e.email}`}
-                          title={`Remove ${e.email}?`}
-                          about="Commits under it won't be yours from now on. Those linked already stay as they are."
-                          confirm="Remove it"
+                          label={t('vcs.people.remove')}
+                          name={t('vcs.people.remove3', { email: e.email })}
+                          title={t('vcs.people.remove2', { email: e.email })}
+                          about={t('vcs.people.commitsUnderItWonT')}
+                          confirm={t('vcs.people.removeIt')}
                           disabled={busy}
                           onConfirm={() => remove.mutate(e)}
                         />
@@ -142,7 +139,7 @@ export function YourEmails() {
           </table>
         </Scroll>
       ) : (
-        <p className="note">You have no email in a4a yet.</p>
+        <p className="note">{t('vcs.people.youHaveNoEmailIn')}</p>
       )}
       <form
         className="cluster"
@@ -151,26 +148,22 @@ export function YourEmails() {
           if (email.trim()) add.mutate(email.trim());
         }}
       >
-        <FormField label="Add an email" className="inline">
+        <FormField label={t('vcs.people.addAnEmail')} className="inline">
           {(id) => <input id={id} type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} autoComplete="email" required maxLength={254} />}
         </FormField>
         <button type="submit" disabled={!email.trim() || add.isPending}>
-          {add.isPending ? 'Adding…' : 'Add it'}
+          {add.isPending ? t('vcs.people.adding') : t('vcs.people.addIt')}
         </button>
       </form>
-      {!canSend ? <p className="note">a4a can't send email here, so an administrator confirms emails, under Administration.</p> : null}
+      {!canSend ? <p className="note">{t('vcs.people.a4aCanTSendEmail')}</p> : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {logins.data?.length ? (
-        <p className="note">
-          Version control knows you by your login{logins.data.length > 1 ? 's' : ''} too:{' '}
-          {logins.data.map((l, i) => (
+        <p className="note">{tr('vcs.people.versionControlKnowsYouBy', { v: logins.data.length > 1 ? 's' : '', map: logins.data.map((l, i) => (
             <span key={l.id}>
               {i ? ', ' : ''}
               {VCS_PROVIDER_NAMES[l.provider]} <span className="mono">{l.login}</span>
             </span>
-          ))}
-          . An administrator records these.
-        </p>
+          )) })}</p>
       ) : null}
     </div>
   );
@@ -178,11 +171,11 @@ export function YourEmails() {
 
 /** What a login looks like at each provider, as the field's help says. */
 const LOGIN_HELP: Record<VcsProvider, { help: string; placeholder: string }> = {
-  github: { help: 'Their GitHub username.', placeholder: 'anna-s' },
-  gitlab: { help: "Their GitLab username. GitLab names it for merge requests; a commit's author it knows by email only.", placeholder: 'anna.s' },
-  bitbucket: { help: "Their account id or UUID, from their Bitbucket profile: nicknames aren't unique.", placeholder: '557058:…' },
-  'bitbucket-dc': { help: 'Their Bitbucket Data Center username.', placeholder: 'anna' },
-  gitea: { help: 'Their Gitea or Forgejo username.', placeholder: 'anna' },
+  github: { help: t('vcs.people.theirGithubUsername'), placeholder: 'anna-s' },
+  gitlab: { help: t('vcs.people.theirGitlabUsernameGitlabNames'), placeholder: 'anna.s' },
+  bitbucket: { help: t('vcs.people.theirAccountIdOrUuid'), placeholder: '557058:…' },
+  'bitbucket-dc': { help: t('vcs.people.theirBitbucketDataCenterUsername'), placeholder: 'anna' },
+  gitea: { help: t('vcs.people.theirGiteaOrForgejoUsername'), placeholder: 'anna' },
 };
 
 /** One person's emails and logins, as an administrator sees and changes them. */
@@ -205,7 +198,7 @@ function PersonPanel({ person }: { person: User }) {
     onSuccess: (_, e) => {
       setEmail('');
       refresh();
-      setSaid({ text: `${e} is ${person.name}'s, confirmed.` });
+      setSaid({ text: t('vcs.people.isSConfirmed', { e: e, name: person.name }) });
     },
     onError: failed,
   });
@@ -213,7 +206,7 @@ function PersonPanel({ person }: { person: User }) {
     mutationFn: (e: UserEmail) => del(`/users/${person.id}/emails/${e.id}`),
     onSuccess: (_, e) => {
       refresh();
-      setSaid({ text: `${e.email} is no longer ${person.name}'s.` });
+      setSaid({ text: t('vcs.people.isNoLongerS', { email: e.email, name: person.name }) });
     },
     onError: failed,
   });
@@ -222,7 +215,7 @@ function PersonPanel({ person }: { person: User }) {
     onSuccess: (l) => {
       setLogin('');
       refresh();
-      setSaid({ text: `${VCS_PROVIDER_NAMES[l.provider]} ${l.login} is ${person.name}'s login there now.` });
+      setSaid({ text: t('vcs.people.isSLoginThereNow', { v: VCS_PROVIDER_NAMES[l.provider], login: l.login, name: person.name }) });
     },
     onError: failed,
   });
@@ -230,25 +223,25 @@ function PersonPanel({ person }: { person: User }) {
     mutationFn: (l: ProviderLogin) => del(`/users/${person.id}/provider-logins/${l.id}`),
     onSuccess: (_, l) => {
       refresh();
-      setSaid({ text: `a4a no longer knows ${person.name} by ${l.login} at ${VCS_PROVIDER_NAMES[l.provider]}.` });
+      setSaid({ text: t('vcs.people.a4aNoLongerKnowsBy', { name: person.name, login: l.login, v: VCS_PROVIDER_NAMES[l.provider] }) });
     },
     onError: failed,
   });
   return (
     <div className="stack">
-      <h3>Emails of {person.name}</h3>
+      <h3>{tr('vcs.people.emailsOf', { name: person.name })}</h3>
       {emails.isLoading ? <Loading what="their emails" /> : null}
       {emails.error ? <ErrorNote error={emails.error} /> : null}
-      {emails.data && !emails.data.emails.length ? <p className="note">No email yet.</p> : null}
+      {emails.data && !emails.data.emails.length ? <p className="note">{t('vcs.people.noEmailYet')}</p> : null}
       {emails.data?.emails.length ? (
-        <Scroll label={`Table of ${person.name}'s emails`}>
+        <Scroll label={t('vcs.people.tableOfSEmails', { name: person.name })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Email</th>
-                <th scope="col">How it stands</th>
+                <th scope="col">{t('vcs.people.email')}</th>
+                <th scope="col">{t('vcs.people.howItStands')}</th>
                 <th scope="col">
-                  <span className="hidden">What you can do</span>
+                  <span className="hidden">{t('vcs.people.whatYouCanDo')}</span>
                 </th>
               </tr>
             </thead>
@@ -265,18 +258,16 @@ function PersonPanel({ person }: { person: User }) {
                   <td className="fit">
                     <span className="cluster">
                       {!e.confirmed ? (
-                        <button type="button" className="small" disabled={confirm.isPending} onClick={() => confirm.mutate(e.email)} aria-label={`Confirm it: ${e.email}`}>
-                          Confirm it
-                        </button>
+                        <button type="button" className="small" disabled={confirm.isPending} onClick={() => confirm.mutate(e.email)} aria-label={t('vcs.people.confirmIt', { email: e.email })}>{t('vcs.people.confirmIt2')}</button>
                       ) : null}
                       {e.id ? (
                         <Confirm
                           small
-                          label="Remove"
-                          name={`Remove ${e.email}`}
-                          title={`Remove ${e.email} from ${person.name}?`}
-                          about="Commits under it won't be theirs from now on. Those linked already stay as they are."
-                          confirm="Remove it"
+                          label={t('vcs.people.remove')}
+                          name={t('vcs.people.remove3', { email: e.email })}
+                          title={t('vcs.people.removeFrom', { email: e.email, name: person.name })}
+                          about={t('vcs.people.commitsUnderItWonT2')}
+                          confirm={t('vcs.people.removeIt')}
                           disabled={removeEmail.isPending}
                           onConfirm={() => removeEmail.mutate(e)}
                         />
@@ -296,28 +287,26 @@ function PersonPanel({ person }: { person: User }) {
           if (email.trim()) confirm.mutate(email.trim());
         }}
       >
-        <FormField label={`Add an email of ${person.name}'s, confirmed`} className="inline">
+        <FormField label={t('vcs.people.addAnEmailOfS', { name: person.name })} className="inline">
           {(id) => <input id={id} type="email" value={email} onChange={(ev) => setEmail(ev.target.value)} required maxLength={254} />}
         </FormField>
-        <button type="submit" disabled={!email.trim() || confirm.isPending}>
-          Add it
-        </button>
+        <button type="submit" disabled={!email.trim() || confirm.isPending}>{t('vcs.people.addIt')}</button>
       </form>
 
-      <h3>Logins of {person.name}</h3>
+      <h3>{tr('vcs.people.loginsOf', { name: person.name })}</h3>
       {logins.isLoading ? <Loading what="their logins" /> : null}
       {logins.error ? <ErrorNote error={logins.error} /> : null}
-      {logins.data && !logins.data.length ? <p className="note">None recorded.</p> : null}
+      {logins.data && !logins.data.length ? <p className="note">{t('vcs.people.noneRecorded')}</p> : null}
       {logins.data?.length ? (
-        <Scroll label={`Table of ${person.name}'s logins`}>
+        <Scroll label={t('vcs.people.tableOfSLogins', { name: person.name })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">At</th>
-                <th scope="col">Login</th>
-                <th scope="col">Recorded</th>
+                <th scope="col">{t('vcs.people.at')}</th>
+                <th scope="col">{t('vcs.people.login')}</th>
+                <th scope="col">{t('vcs.people.recorded')}</th>
                 <th scope="col">
-                  <span className="hidden">What you can do</span>
+                  <span className="hidden">{t('vcs.people.whatYouCanDo')}</span>
                 </th>
               </tr>
             </thead>
@@ -329,17 +318,17 @@ function PersonPanel({ person }: { person: User }) {
                   </th>
                   <td className="mono">{l.login}</td>
                   <td>
-                    {l.addedBy ? `by ${l.addedBy.name}, ` : ''}
+                    {l.addedBy ? t('vcs.people.by', { name: l.addedBy.name }) : ''}
                     {ago(l.createdAt)}
                   </td>
                   <td className="fit">
                     <Confirm
                       small
-                      label="Forget it"
-                      name={`Forget it: ${l.login} at ${VCS_PROVIDER_NAMES[l.provider]}`}
-                      title={`Forget ${person.name}'s login ${l.login} at ${VCS_PROVIDER_NAMES[l.provider]}?`}
-                      about="Commits and pull requests that provider names by it won't be theirs from now on."
-                      confirm="Forget it"
+                      label={t('vcs.people.forgetIt')}
+                      name={t('vcs.people.forgetItAt', { login: l.login, v: VCS_PROVIDER_NAMES[l.provider] })}
+                      title={t('vcs.people.forgetSLoginAt', { name: person.name, login: l.login, v: VCS_PROVIDER_NAMES[l.provider] })}
+                      about={t('vcs.people.commitsAndPullRequestsThat')}
+                      confirm={t('vcs.people.forgetIt')}
                       disabled={forget.isPending}
                       onConfirm={() => forget.mutate(l)}
                     />
@@ -357,7 +346,7 @@ function PersonPanel({ person }: { person: User }) {
           if (login.trim()) record.mutate();
         }}
       >
-        <FormField label="At" className="inline">
+        <FormField label={t('vcs.people.at')} className="inline">
           {(id) => (
             <select id={id} value={provider} onChange={(ev) => setProvider(ev.target.value as VcsProvider)}>
               {VCS_PROVIDERS.map((p) => (
@@ -368,14 +357,12 @@ function PersonPanel({ person }: { person: User }) {
             </select>
           )}
         </FormField>
-        <FormField label="Their login there" className="inline" help={LOGIN_HELP[provider].help}>
+        <FormField label={t('vcs.people.theirLoginThere')} className="inline" help={LOGIN_HELP[provider].help}>
           {(id, help) => (
             <input id={id} aria-describedby={help} value={login} onChange={(ev) => setLogin(ev.target.value)} required maxLength={200} placeholder={LOGIN_HELP[provider].placeholder} className="mono" />
           )}
         </FormField>
-        <button type="submit" disabled={!login.trim() || record.isPending}>
-          Record it
-        </button>
+        <button type="submit" disabled={!login.trim() || record.isPending}>{t('vcs.people.recordIt')}</button>
       </form>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
@@ -390,14 +377,11 @@ export function PeopleAtProviders() {
   const person = people.find((p) => p.id === who) ?? null;
   return (
     <div className="stack">
-      <p className="note section-note">
-        A commit is its author's when its email is one of theirs, confirmed, or when the provider names their login there: GitHub, Gitea and Bitbucket name the account they
-        matched a commit's email to. People add and confirm their own emails on their profile; here you add one confirmed, and record their logins.
-      </p>
-      <FormField label="Whose" className="inline">
+      <p className="note section-note">{t('vcs.people.aCommitIsItsAuthor')}</p>
+      <FormField label={t('vcs.people.whose')} className="inline">
         {(id) => (
           <select id={id} value={who} onChange={(e) => setWho(e.target.value)}>
-            <option value="">Choose someone</option>
+            <option value="">{t('vcs.people.chooseSomeone')}</option>
             {people.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name} ({p.login})

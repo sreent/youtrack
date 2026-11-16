@@ -3,6 +3,7 @@ import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
 import { useRequestInfo } from '../notifications/api';
 import { RequestSla } from './Sla';
+import { intlLocale, t, tr } from '../../i18n';
 
 /** A length of time as people say it: "40 minutes", "3 hours", "2 days". */
 export function span(ms: number): string {
@@ -24,13 +25,13 @@ export function SlaBadge({ sla, since, now = Date.now() }: { sla: Sla; since: st
   const answered = sla.respondedAt ? new Date(sla.respondedAt).getTime() : null;
   switch (sla.state) {
     case 'due':
-      return <Badge tone="warn" title={`First response due ${new Date(due).toLocaleString()}`}>first response due in {span(due - now)}</Badge>;
+      return <Badge tone="warn" title={t('helpdesk.requestCard.firstResponseDue', { toLocaleString: new Date(due).toLocaleString(intlLocale()) })}>{tr('helpdesk.requestCard.firstResponseDueIn', { span: span(due - now) })}</Badge>;
     case 'overdue':
-      return <Badge tone="bad" title={`First response was due ${new Date(due).toLocaleString()}`}>first response {span(now - due)} overdue</Badge>;
+      return <Badge tone="bad" title={t('helpdesk.requestCard.firstResponseWasDue', { toLocaleString: new Date(due).toLocaleString(intlLocale()) })}>{tr('helpdesk.requestCard.firstResponseOverdue', { span: span(now - due) })}</Badge>;
     case 'met':
-      return <Badge tone="good">{answered ? `answered in ${span(answered - new Date(since).getTime())}` : 'resolved within its target'}</Badge>;
+      return <Badge tone="good">{answered ? t('helpdesk.requestCard.answeredIn', { span: span(answered - new Date(since).getTime()) }) : t('helpdesk.requestCard.resolvedWithinItsTarget')}</Badge>;
     case 'missed':
-      return <Badge>{answered ? `answered ${span(answered - due)} late` : 'resolved after its target'}</Badge>;
+      return <Badge>{answered ? t('helpdesk.requestCard.answeredLate', { span: span(answered - due) }) : t('helpdesk.requestCard.resolvedAfterItsTarget')}</Badge>;
     default:
       return null;
   }
@@ -43,14 +44,14 @@ export function RequestCard({ issue }: { issue: IssueDetail }) {
   if (!r) return null;
   return (
     <section className="card side-card stack tight" aria-labelledby="request-title">
-      <h2 id="request-title">Help desk request</h2>
+      <h2 id="request-title">{t('helpdesk.requestCard.helpDeskRequest')}</h2>
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
       {r.sla.clocks.length ? <RequestSla issueId={issue.id} r={r} canReply /> : <SlaBadge sla={r.firstResponse} since={r.createdAt} />}
       <p className="note">
-        {r.via === 'email' ? 'They wrote in by email, and may answer by email. ' : ''}
+        {r.via === 'email' ? t('helpdesk.requestCard.theyWroteInByEmail') : ''}
         {r.emailMuted
-          ? 'They stopped emails about it. Public replies still show on their page.'
-          : 'Public replies and changes of state reach them by email, and on their page. Internal notes never do.'}
+          ? t('helpdesk.requestCard.theyStoppedEmailsAboutIt')
+          : t('helpdesk.requestCard.publicRepliesAndChangesOf')}
       </p>
     </section>
   );

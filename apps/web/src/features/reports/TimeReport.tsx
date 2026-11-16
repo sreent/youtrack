@@ -12,12 +12,13 @@ import { Who } from '../../components/Who';
 import { dayMonth, spanWords } from '../plan/dates';
 import { plural } from '../plan/format';
 import { hoursOf } from './chart';
+import { t as tx, tr } from '../../i18n';
 
 type Group = 'person' | 'project' | 'week';
 const GROUPS: { id: Group; label: string }[] = [
-  { id: 'person', label: 'By person' },
-  { id: 'project', label: 'By project' },
-  { id: 'week', label: 'By week' },
+  { id: 'person', label: tx('reports.timeReport.byPerson') },
+  { id: 'project', label: tx('reports.timeReport.byProject') },
+  { id: 'week', label: tx('reports.timeReport.byWeek') },
 ];
 
 function Bars({ t, group, label }: { t: TimeReport; group: Group; label: string }) {
@@ -45,7 +46,7 @@ function Bars({ t, group, label }: { t: TimeReport; group: Group; label: string 
 
 /** Spent against estimate: a bar on the estimate's track, and past it in --warn, with how far. */
 function SpentMeter({ spent, estimate }: { spent: number; estimate: number | null }) {
-  if (estimate === null || estimate <= 0) return <span className="muted">No estimate</span>;
+  if (estimate === null || estimate <= 0) return <span className="muted">{tx('reports.timeReport.noEstimate')}</span>;
   const over = spent > estimate;
   const full = Math.max(spent, estimate);
   const within = `${Math.round((Math.min(spent, estimate) / full) * 1000) / 10}%`;
@@ -57,7 +58,7 @@ function SpentMeter({ spent, estimate }: { spent: number; estimate: number | nul
         <rect className="spent-fill" width={within} height="100%" rx="3" />
         {over ? <rect className="spent-over" x={within} width={past} height="100%" rx="3" /> : null}
       </svg>
-      {over ? <Badge tone="warn">{hoursOf(spent - estimate)} over</Badge> : <span className="muted">{Math.round((spent / estimate) * 100)}% of {hoursOf(estimate)}</span>}
+      {over ? <Badge tone="warn">{tr('reports.timeReport.over', { hoursOf: hoursOf(spent - estimate) })}</Badge> : <span className="muted">{tr('reports.timeReport.of', { round: Math.round((spent / estimate) * 100), hoursOf: hoursOf(estimate) })}</span>}
     </span>
   );
 }
@@ -70,25 +71,25 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
     <div className="report">
       <dl className="report-facts">
         <div>
-          <dt>Logged</dt>
+          <dt>{tx('reports.timeReport.logged')}</dt>
           <dd>
             {hoursOf(t.totalMinutes)} <small>{spanWords(t.from, t.to)}</small>
           </dd>
         </div>
         <div>
-          <dt>Entries</dt>
+          <dt>{tx('reports.timeReport.entries')}</dt>
           <dd>{t.entries}</dd>
         </div>
         <div>
-          <dt>People</dt>
+          <dt>{tx('reports.timeReport.people')}</dt>
           <dd>{people}</dd>
         </div>
       </dl>
-      {!t.entries ? <p className="note">Nobody logged work here in this window.</p> : null}
+      {!t.entries ? <p className="note">{tx('reports.timeReport.nobodyLoggedWorkHereIn')}</p> : null}
       {t.entries ? (
         <>
           {!compact ? (
-            <div className="modes" role="group" aria-label="Group the time">
+            <div className="modes" role="group" aria-label={tx('reports.timeReport.groupTheTime')}>
               {GROUPS.map((g) => (
                 <button key={g.id} type="button" aria-pressed={group === g.id} onClick={() => setGroup(g.id)}>
                   {g.label}
@@ -96,22 +97,18 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
               ))}
             </div>
           ) : null}
-          <Bars t={t} group={compact ? 'person' : group} label={`Time logged, ${GROUPS.find((g) => g.id === (compact ? 'person' : group))!.label.toLowerCase()}`} />
-          <div className="figures-scroll" tabIndex={0} role="group" aria-label="Time against estimates, by issue">
+          <Bars t={t} group={compact ? 'person' : group} label={tx('reports.timeReport.timeLogged', { toLowerCase: GROUPS.find((g) => g.id === (compact ? 'person' : group))!.label.toLowerCase() })} />
+          <div className="figures-scroll" tabIndex={0} role="group" aria-label={tx('reports.timeReport.timeAgainstEstimatesByIssue')}>
             <table className="figures chart-figures">
-              <caption>{compact ? 'Where the most time went' : 'Each issue: time logged here, all told, and against its estimate'}</caption>
+              <caption>{compact ? tx('reports.timeReport.whereTheMostTimeWent') : tx('reports.timeReport.eachIssueTimeLoggedHere')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Issue</th>
-                  <th scope="col" className="num">
-                    Here
-                  </th>
+                  <th scope="col">{tx('reports.timeReport.issue')}</th>
+                  <th scope="col" className="num">{tx('reports.timeReport.here')}</th>
                   {!compact ? (
-                    <th scope="col" className="num">
-                      All told
-                    </th>
+                    <th scope="col" className="num">{tx('reports.timeReport.allTold')}</th>
                   ) : null}
-                  <th scope="col">Against its estimate</th>
+                  <th scope="col">{tx('reports.timeReport.againstItsEstimate')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,20 +131,18 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
             </table>
           </div>
           {!compact && t.weeks.length > 1 ? (
-            <div className="figures-scroll" tabIndex={0} role="group" aria-label="Each person's weeks">
+            <div className="figures-scroll" tabIndex={0} role="group" aria-label={tx('reports.timeReport.eachPersonSWeeks')}>
               <table className="figures chart-figures">
-                <caption>Each person, week by week (weeks begin on Monday)</caption>
+                <caption>{tx('reports.timeReport.eachPersonWeekByWeek')}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Person</th>
+                    <th scope="col">{tx('reports.timeReport.person')}</th>
                     {t.weeks.map((w) => (
                       <th key={w} scope="col" className="num">
                         {dayMonth(w)}
                       </th>
                     ))}
-                    <th scope="col" className="num">
-                      All
-                    </th>
+                    <th scope="col" className="num">{tx('reports.timeReport.all')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -166,7 +161,7 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
               </table>
             </div>
           ) : null}
-          {compact && t.byIssue.length > issues.length ? <p className="note">And {plural(t.byIssue.length - issues.length, 'more issue')}.</p> : null}
+          {compact && t.byIssue.length > issues.length ? <p className="note">{tr('reports.timeReport.and', { plural: plural(t.byIssue.length - issues.length, 'more issue') })}</p> : null}
         </>
       ) : null}
     </div>

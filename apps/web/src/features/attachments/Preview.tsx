@@ -5,6 +5,7 @@ import { get } from '../../api/client';
 import { ErrorLine, Loading } from '../../components/States';
 import { errorText } from '../issues/api';
 import { contentPath, formatBytes } from './api';
+import { t as tx, tr } from '../../i18n';
 
 /** How much of a text file shows at once (the server reads 128 KB at most). */
 export const PREVIEW_BYTES = 64 * 1024;
@@ -19,9 +20,7 @@ const TURNS = /([؜‎‏‪-‮⁦-⁩])/;
 function withMarks(text: string): ReactNode[] {
   return text.split(TURNS).map((part, i) =>
     i % 2 ? (
-      <span key={i} className="attachment-mark" title="A character that changes the direction text reads in">
-        U+{part.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}
-      </span>
+      <span key={i} className="attachment-mark" title={tx('attachments.preview.aCharacterThatChangesThe')}>{tr('attachments.preview.u', { padStart: part.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0') })}</span>
     ) : (
       part
     ),
@@ -38,9 +37,7 @@ function TextPreview({ file, id }: { file: Attachment; id: string }) {
     staleTime: Infinity,
   });
   const download = (
-    <a href={contentPath(file, true)} download={file.name}>
-      Download it
-    </a>
+    <a href={contentPath(file, true)} download={file.name}>{tx('attachments.preview.downloadIt')}</a>
   );
   if (part.isLoading) {
     return (
@@ -62,24 +59,24 @@ function TextPreview({ file, id }: { file: Attachment; id: string }) {
     return (
       <div className="attachment-preview" id={id}>
         <p className="attachment-preview-about">
-          <span>It's empty.</span>
+          <span>{tx('attachments.preview.itSEmpty')}</span>
         </p>
       </div>
     );
   }
   const shown = formatBytes(t.to - t.from);
-  const which = !t.truncated ? null : end ? `The last ${shown} of ${formatBytes(t.size)}.` : `The first ${shown} of ${formatBytes(t.size)}.`;
+  const which = !t.truncated ? null : end ? tx('attachments.preview.theLastOf', { shown: shown, formatBytes: formatBytes(t.size) }) : tx('attachments.preview.theFirstOf', { shown: shown, formatBytes: formatBytes(t.size) });
   return (
     <div className="attachment-preview" id={id}>
       {/* Its own frame scrolls, so the keyboard can reach it. */}
-      <pre className="attachment-text" tabIndex={0} aria-label={which ? `${file.name}, ${end ? 'its last' : 'its first'} ${shown}` : file.name}>
+      <pre className="attachment-text" tabIndex={0} aria-label={which ? `${file.name}, ${end ? tx('attachments.preview.itsLast') : tx('attachments.preview.itsFirst')} ${shown}` : file.name}>
         {withMarks(t.text)}
       </pre>
       <p className="attachment-preview-about">
         {which ? <span>{which}</span> : null}
         {which ? (
           <button type="button" className="link" onClick={() => setEnd((e) => !e)}>
-            {end ? 'Show the start' : 'Show the end'}
+            {end ? tx('attachments.preview.showTheStart') : tx('attachments.preview.showTheEnd')}
           </button>
         ) : null}
         {download}
@@ -100,13 +97,7 @@ function Player({ file, id }: { file: Attachment; id: string }) {
         <audio controls preload="metadata" src={src} aria-label={file.name} onError={() => setFailed(true)} />
       )}
       {failed ? (
-        <ErrorLine>
-          This browser can't play {file.name}.{' '}
-          <a href={contentPath(file, true)} download={file.name}>
-            Download it
-          </a>{' '}
-          to play it elsewhere.
-        </ErrorLine>
+        <ErrorLine>{tr('attachments.preview.thisBrowserCanTPlay', { name: file.name, t0: (c: ReactNode) => <a href={contentPath(file, true)} download={file.name}>{c}</a> })}</ErrorLine>
       ) : null}
     </div>
   );

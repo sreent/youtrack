@@ -7,6 +7,7 @@ import { ErrorLine } from '../../components/States';
 import { contentPath, refusal, uploadFile, useAttachmentLimits } from '../attachments/api';
 import { MentionField } from '../issues/MentionField';
 import type { Placed } from './VisualEditor';
+import { t } from '../../i18n';
 
 // Fetched when someone first writes: pages that only read never load the editor.
 const VisualEditor = lazy(() => import('./VisualEditor'));
@@ -100,15 +101,15 @@ export function RichField({
           say(no, true);
           return null;
         }
-        say(`Uploading ${file.name}…`);
+        say(t('editor.richField.uploading', { name: file.name }));
         try {
-          const stored = await uploadFile(uploadTo, file, (sent, total) => say(`Uploading ${file.name}: ${Math.round((sent / (total || 1)) * 100)}%`));
+          const stored = await uploadFile(uploadTo, file, (sent, total) => say(t('editor.richField.uploading2', { name: file.name, round: Math.round((sent / (total || 1)) * 100) })));
           onUploaded?.(stored);
-          say(`${stored.name} is in the text, and among the files.`);
+          say(t('editor.richField.isInTheTextAnd', { name: stored.name }));
           // The server decides what's a picture, from the bytes: an SVG is a file to download, never drawn.
           return stored.inline ? { kind: 'image', name: stored.name, href: imagePath(stored.id) } : { kind: 'link', name: stored.name, href: contentPath(stored) };
         } catch (e) {
-          say(e instanceof ApiError ? (e.hint ? `${e.message}. ${e.hint}` : e.message) : `${file.name} wasn’t uploaded: try again.`, true);
+          say(e instanceof ApiError ? (e.hint ? `${e.message}. ${e.hint}` : e.message) : t('editor.richField.wasnTUploadedTryAgain', { name: file.name }), true);
           return null;
         }
       }
@@ -120,7 +121,7 @@ export function RichField({
     const mine = onOtherFiles ? files.filter(isPicture) : files;
     if (others.length) onOtherFiles!(others);
     if (!mine.length) return;
-    if (!place) return say('Save it first: then pictures and files can go in it.', true);
+    if (!place) return say(t('editor.richField.saveItFirstThenPictures'), true);
     const marks = mine.map((f) => `![Uploading ${words(f.name)}…](#uploading-${++seq.current})`);
     const text = latest.current;
     change(text.slice(0, start) + marks.join('\n') + text.slice(end));
@@ -135,7 +136,7 @@ export function RichField({
   };
 
   const switcher = (
-    <div className="modes editor-mode" role="group" aria-label="How to write it">
+    <div className="modes editor-mode" role="group" aria-label={t('editor.richField.howToWriteIt')}>
       {(['visual', 'markdown'] as const).map((m) => (
         <button
           key={m}
@@ -146,7 +147,7 @@ export function RichField({
             keepMode(m);
           }}
         >
-          {m === 'visual' ? 'Visual' : 'Markdown'}
+          {m === 'visual' ? t('editor.richField.visual') : t('editor.richField.markdown')}
         </button>
       ))}
     </div>
@@ -158,7 +159,7 @@ export function RichField({
         <Suspense
           fallback={
             <div className="editor-bar">
-              <span className="note">Opening the editor…</span>
+              <span className="note">{t('editor.richField.openingTheEditor')}</span>
               <span className="grow" />
               {switcher}
             </div>
@@ -183,7 +184,7 @@ export function RichField({
       ) : (
         <>
           <div className="editor-bar">
-            <span className="note">Markdown, as it’s kept</span>
+            <span className="note">{t('editor.richField.markdownAsItSKept')}</span>
             <span className="grow" />
             {switcher}
           </div>

@@ -36,6 +36,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon, type IconName } from '../../components/Icon';
 import { Avatar } from '../../components/Who';
+import { t } from '../../i18n';
 
 /** What a file dropped or pasted becomes in the text, once it's uploaded. */
 export interface Placed {
@@ -617,22 +618,22 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
       }}
     >
       <div className="editor-bar">
-        <div className="editor-tools" role="group" aria-label="Words">
-          <Tool label="Bold" glyph="B" pressed={active.strong} onClick={() => run(toggleStrongCommand.key)} />
-          <Tool label="Italic" glyph="I" pressed={active.emphasis} onClick={() => run(toggleEmphasisCommand.key)} />
-          <Tool label="Struck through" glyph="S" pressed={active.strike} onClick={() => run(toggleStrikethroughCommand.key)} />
-          <Tool label="Code" icon="code" pressed={active.code} onClick={() => run(toggleInlineCodeCommand.key)} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.words')}>
+          <Tool label={t('editor.visualEditor.bold')} glyph="B" pressed={active.strong} onClick={() => run(toggleStrongCommand.key)} />
+          <Tool label={t('editor.visualEditor.italic')} glyph="I" pressed={active.emphasis} onClick={() => run(toggleEmphasisCommand.key)} />
+          <Tool label={t('editor.visualEditor.struckThrough')} glyph="S" pressed={active.strike} onClick={() => run(toggleStrikethroughCommand.key)} />
+          <Tool label={t('editor.visualEditor.code')} icon="code" pressed={active.code} onClick={() => run(toggleInlineCodeCommand.key)} />
         </div>
-        <div className="editor-tools" role="group" aria-label="Blocks">
-          <Tool label="Heading" glyph="H" pressed={active.heading} onClick={() => (active.heading ? run(turnIntoTextCommand.key) : run(wrapInHeadingCommand.key, 2))} />
-          <Tool label="Quote" icon="quote" pressed={active.quote} onClick={() => run(wrapInBlockquoteCommand.key)} />
-          <Tool label="Bulleted list" icon="list" pressed={active.bullet} onClick={() => run(wrapInBulletListCommand.key)} />
-          <Tool label="Numbered list" icon="numbered" pressed={active.ordered} onClick={() => run(wrapInOrderedListCommand.key)} />
-          <Tool label="Checklist" icon="tasks" pressed={active.task} onClick={checklist} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.blocks')}>
+          <Tool label={t('editor.visualEditor.heading')} glyph="H" pressed={active.heading} onClick={() => (active.heading ? run(turnIntoTextCommand.key) : run(wrapInHeadingCommand.key, 2))} />
+          <Tool label={t('editor.visualEditor.quote')} icon="quote" pressed={active.quote} onClick={() => run(wrapInBlockquoteCommand.key)} />
+          <Tool label={t('editor.visualEditor.bulletedList')} icon="list" pressed={active.bullet} onClick={() => run(wrapInBulletListCommand.key)} />
+          <Tool label={t('editor.visualEditor.numberedList')} icon="numbered" pressed={active.ordered} onClick={() => run(wrapInOrderedListCommand.key)} />
+          <Tool label={t('editor.visualEditor.checklist')} icon="tasks" pressed={active.task} onClick={checklist} />
         </div>
-        <div className="editor-tools" role="group" aria-label="Insert">
-          <Tool label="Table" icon="table" onClick={() => run(insertTableCommand.key, { row: 3, col: 3 })} />
-          <Tool label="Picture" icon="picture" onClick={() => picker.current?.click()} />
+        <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.insert')}>
+          <Tool label={t('editor.visualEditor.table')} icon="table" onClick={() => run(insertTableCommand.key, { row: 3, col: 3 })} />
+          <Tool label={t('editor.visualEditor.picture')} icon="picture" onClick={() => picker.current?.click()} />
           <input
             ref={picker}
             type="file"
@@ -650,7 +651,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
       </div>
       <div ref={root} className="editor-root" />
       {open ? (
-        <ul className="popover options" id={listId} role="listbox" aria-label="People to mention">
+        <ul className="popover options" id={listId} role="listbox" aria-label={t('editor.visualEditor.peopleToMention')}>
           {offered.map((u, i) => (
             <li
               key={u.id}
@@ -671,7 +672,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
         </ul>
       ) : null}
       <span className="hidden" role="status">
-        {open ? `${offered.length} ${offered.length === 1 ? 'person' : 'people'} to mention: up and down to choose, Enter to take one.` : ''}
+        {open ? t('editor.visualEditor.toMentionUpAndDown', { length: offered.length, v: offered.length === 1 ? 'person' : 'people' }) : ''}
       </span>
     </div>
   );

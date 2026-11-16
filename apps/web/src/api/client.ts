@@ -1,4 +1,5 @@
 import type { QueryProblem } from '@a4a/shared';
+import { getLocale } from '../i18n';
 
 const BASE = '/api/v1';
 
@@ -39,7 +40,8 @@ export interface RequestOptions {
 }
 
 export async function api<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
+  // The page's language, for the words the server says to its person (D49).
+  const headers: Record<string, string> = { accept: 'application/json', 'x-a4a-locale': getLocale(), ...opts.headers };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
   const res = await fetch(`${BASE}${path}`, {

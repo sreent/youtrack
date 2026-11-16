@@ -1,5 +1,7 @@
 import type { Rule, RuleNotify, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
 import type React from 'react';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 /** As the server says them (workflow/words.ts): a rule's parts in words. */
 export function triggerWords(trigger: RuleTrigger | null, field: string | null): string {
@@ -9,9 +11,9 @@ export function triggerWords(trigger: RuleTrigger | null, field: string | null):
 }
 
 export function scheduleWords(schedule: RuleSchedule | null): string {
-  if (!schedule) return 'On a schedule';
-  if (schedule.every === 'hour') return 'Every hour';
-  return `Every ${schedule.every === 'weekday' ? 'weekday' : 'day'} at ${schedule.at ?? '09:00'}`;
+  if (!schedule) return t('rules.words.onASchedule');
+  if (schedule.every === 'hour') return t('rules.words.everyHour');
+  return t('rules.words.everyAt', { v: schedule.every === 'weekday' ? 'weekday' : 'day', v2: schedule.at ?? '09:00' });
 }
 
 /** " to its parent", " to its subtasks", " to the issues it depends on"; nothing for the issue itself. */
@@ -87,23 +89,18 @@ function actions(rule: Parts): React.ReactNode[] {
     out.push(
       <>
         {rule.command ? (
-          <>
-            apply <code>{rule.command}</code>
-          </>
+          <>{tr('rules.words.apply', { code: <code>{rule.command}</code> })}</>
         ) : null}
         {rule.command && comment ? ' and ' : null}
-        {comment ? <>comment “{short(comment, 80)}”</> : null}
+        {comment ? <>{tr('rules.words.comment', { short: short(comment, 80) })}</> : null}
         {rule.command ? onWhat : onWhat.replace(/^ to /, ' on ')}
       </>,
     );
   }
-  if (rule.notify) out.push(<>tell {recipientWords(rule.notify, rule.target)} “{short(rule.notify.message, 120)}”</>);
+  if (rule.notify) out.push(<>{tr('rules.words.tell', { recipientWords: recipientWords(rule.notify, rule.target), short: short(rule.notify.message, 120) })}</>);
   if (rule.call) {
     out.push(
-      <>
-        call <span className="mono">{rule.call.origin ?? 'a webhook'}</span>
-        {!rule.command && !comment ? onWhat.replace(/^ to /, ' about ') : ''}
-      </>,
+      <>{tr('rules.words.call', { v: rule.call.origin ?? 'a webhook', t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: !rule.command && !comment ? onWhat.replace(/^ to /, ' about ') : '' })}</>,
     );
   }
   return out;
@@ -113,7 +110,7 @@ function Then({ rule }: { rule: Parts }) {
   const parts = actions(rule);
   return (
     <>
-      <span className="rule-word">then</span>{' '}
+      <span className="rule-word">{t('rules.words.then')}</span>{' '}
       {parts.length
         ? parts.map((p, i) => (
             <span key={i}>
@@ -148,18 +145,12 @@ export function Sentence({ rule }: { rule: Parts }) {
   const related = rule.related?.query.trim() ? <Related rule={rule} /> : null;
   if (rule.kind === 'guard' && rule.script?.trim()) {
     return (
-      <p className="rule-sentence">
-        <span className="rule-word">When</span> a change is made to {query ? <>an issue that matches <code>{query}</code></> : 'an issue'}, <span className="rule-word">then</span> run its
-        script, which may refuse it.
-      </p>
+      <p className="rule-sentence">{tr('rules.words.whenAChangeIsMade', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, v: query ? <>{tr('rules.words.anIssueThatMatches', { code: <code>{query}</code> })}</> : 'an issue', t1: (c: ReactNode) => <span className="rule-word">{c}</span> })}</p>
     );
   }
   if (rule.kind === 'guard') {
     return (
-      <p className="rule-sentence">
-        <span className="rule-word">When</span> a change would make an issue match <code>{query}</code>, <span className="rule-word">if</span> it doesn't also
-        match <code>{rule.requires}</code>, <span className="rule-word">then</span> refuse the change{rule.message ? <>: “{rule.message}”</> : '.'}
-      </p>
+      <p className="rule-sentence">{tr('rules.words.whenAChangeWouldMake', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, code2: <code>{rule.requires}</code>, t2: (c: ReactNode) => <span className="rule-word">{c}</span>, v: rule.message ? <>: “{rule.message}”</> : '.' })}</p>
     );
   }
   if (rule.kind === 'schedule') {
@@ -167,14 +158,11 @@ export function Sentence({ rule }: { rule: Parts }) {
       <p className="rule-sentence">
         <span className="rule-word">{scheduleWords(rule.schedule)}</span>,{' '}
         {query ? (
-          <>
-            <span className="rule-word">if</span> an issue matches <code>{query}</code>
-            {related ? <> and {related}</> : null}
-          </>
+          <>{tr('rules.words.ifAnIssueMatches', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, v: related ? <>{tr('rules.words.and', { related: related })}</> : null })}</>
         ) : related ? (
-          <>for every issue where {related}</>
+          <>{tr('rules.words.forEveryIssueWhere', { related: related })}</>
         ) : (
-          'for every issue'
+          t('rules.words.forEveryIssue')
         )}
         , <Then rule={rule} />
         {stop(rule)}
@@ -183,15 +171,12 @@ export function Sentence({ rule }: { rule: Parts }) {
   }
   return (
     <p className="rule-sentence">
-      <span className="rule-word">When</span> {triggerWords(rule.trigger, rule.field)}
+      <span className="rule-word">{t('rules.words.when')}</span> {triggerWords(rule.trigger, rule.field)}
       {query ? (
-        <>
-          , <span className="rule-word">if</span> it matches <code>{query}</code>
-          {related ? <> and {related}</> : null}
-        </>
+        <>{tr('rules.words.ifItMatches', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, v: related ? <>{tr('rules.words.and', { related: related })}</> : null })}</>
       ) : related ? (
         <>
-          , <span className="rule-word">if</span> {related}
+          , <span className="rule-word">{t('rules.words.if')}</span> {related}
         </>
       ) : null}
       , <Then rule={rule} />

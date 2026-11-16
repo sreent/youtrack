@@ -27,6 +27,7 @@ import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
 import { zoneOf } from './time-zones';
 import { requirePersonal } from './watchers';
+import { translatorFor } from '../i18n';
 
 type NotificationRow = typeof notifications.$inferSelect;
 
@@ -76,7 +77,7 @@ async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> 
     return {
       id: r.id,
       kind: r.kind as NotificationKind,
-      title: notificationTitle(r.kind as NotificationKind, e.events, e.reasons),
+      title: notificationTitle(translatorFor(ctx.locale), r.kind as NotificationKind, e.events, e.reasons),
       issue: r.issue as IssueRef,
       project: project?.key ?? null,
       issueDeleted: r.issueId === null,

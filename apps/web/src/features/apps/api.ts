@@ -1,6 +1,7 @@
 import type { AppExtension, AppExtensionPoint } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { get, qs } from '../../api/client';
+import { t } from '../../i18n';
 
 export const appKeys = {
   all: ['apps'] as const,
@@ -35,7 +36,7 @@ export function base64Of(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
-    reader.onerror = () => reject(reader.error ?? new Error('The file could not be read'));
+    reader.onerror = () => reject(reader.error ?? new Error(t('apps.api.theFileCouldNotBe')));
     reader.readAsDataURL(file);
   });
 }

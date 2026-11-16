@@ -11,6 +11,8 @@ import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
 import { pageKeys, useDeliveries } from '../features/common/queries';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'issue.created': 'an issue is created',
@@ -48,7 +50,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'project.group.added': 'a group is given a role in a project',
   'project.group.changed': 'a group’s role in a project changes',
   'project.group.removed': 'a group is taken out of a project',
-  'build.recorded': 'CI reports a build',
+  'build.recorded': t('page.webhooks.ciReportsABuild'),
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
@@ -65,23 +67,19 @@ const genuine = given.length === expected.length &&
 
 function Deliveries({ hook }: { hook: Webhook }) {
   const deliveries = useDeliveries(hook.id, true);
-  if (deliveries.isLoading) return <Loading what="its deliveries" />;
+  if (deliveries.isLoading) return <Loading what={t('page.webhooks.itsDeliveries')} />;
   if (deliveries.error) return <ErrorNote error={deliveries.error} />;
-  if (!deliveries.data?.length) return <p className="note">Nothing sent yet. Send a test, or wait for the next change.</p>;
+  if (!deliveries.data?.length) return <p className="note">{t('page.webhooks.nothingSentYetSendA')}</p>;
   return (
-    <Scroll label="Table of recent deliveries">
+    <Scroll label={t('page.webhooks.tableOfRecentDeliveries')}>
       <table className="figures">
         <thead>
           <tr>
-            <th scope="col">When</th>
-            <th scope="col">Event</th>
-            <th scope="col">How it went</th>
-            <th scope="col" className="num">
-              Try
-            </th>
-            <th scope="col" className="num">
-              Took
-            </th>
+            <th scope="col">{t('page.webhooks.when')}</th>
+            <th scope="col">{t('page.webhooks.event')}</th>
+            <th scope="col">{t('page.webhooks.howItWent')}</th>
+            <th scope="col" className="num">{t('page.webhooks.try')}</th>
+            <th scope="col" className="num">{t('page.webhooks.took')}</th>
           </tr>
         </thead>
         <tbody>
@@ -94,18 +92,18 @@ function Deliveries({ hook }: { hook: Webhook }) {
               </td>
               <td>
                 <span className="mono">{d.eventType}</span>
-                {d.eventId !== null ? <span className="item-about">event {d.eventId}</span> : <span className="item-about">a test</span>}
+                {d.eventId !== null ? <span className="item-about">{tr('page.webhooks.event2', { eventId: d.eventId })}</span> : <span className="item-about">{t('page.webhooks.aTest')}</span>}
               </td>
               <td>
                 {d.success ? (
-                  <Badge tone="good">delivered{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>
+                  <Badge tone="good">{tr('page.webhooks.delivered', { v: d.statusCode ? `, ${d.statusCode}` : '' })}</Badge>
                 ) : (
-                  <Badge tone="bad">failed{d.statusCode ? `, ${d.statusCode}` : ''}</Badge>
+                  <Badge tone="bad">{tr('page.webhooks.failed', { v: d.statusCode ? `, ${d.statusCode}` : '' })}</Badge>
                 )}
                 {d.error && !d.success ? <span className="item-about">{d.error}</span> : null}
               </td>
-              <td className="num">{d.attempt} of 3</td>
-              <td className="num mono">{d.durationMs} ms</td>
+              <td className="num">{tr('page.webhooks.of3', { attempt: d.attempt })}</td>
+              <td className="num mono">{tr('page.webhooks.ms', { durationMs: d.durationMs })}</td>
             </tr>
           ))}
         </tbody>
@@ -123,7 +121,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
     mutationFn: (active: boolean) => patch<Webhook>(`/webhooks/${hook.id}`, { active, events: hook.events }),
     onSuccess: (h) => {
       void qc.invalidateQueries({ queryKey: keys.webhooks });
-      setSaid({ text: h.active ? 'It sends again, from the next change.' : 'It is paused: nothing is sent until you turn it back on.' });
+      setSaid({ text: h.active ? t('page.webhooks.itSendsAgainFromThe') : t('page.webhooks.itIsPausedNothingIs') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -132,7 +130,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
     onSuccess: (r) => {
       setOpen(true);
       void qc.invalidateQueries({ queryKey: pageKeys.deliveries(hook.id) });
-      setSaid(r.delivered ? { text: 'The test arrived.' } : { text: "The test didn't arrive. Its attempts are below.", bad: true });
+      setSaid(r.delivered ? { text: t('page.webhooks.theTestArrived') } : { text: t('page.webhooks.theTestDidnTArrive'), bad: true });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -147,32 +145,27 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
       <div className="hook-head">
         <div className="hook-what">
           <span className="mono hook-url">{hook.url}</span>
-          <span className="item-about">
-            {all ? 'Every change' : `When ${hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(', or ')}`}
-            {' · '}
-            {hook.project ? `in ${projectName ?? hook.project}` : 'in every project'}
-            {' · '}added {ago(hook.createdAt)}
-          </span>
+          <span className="item-about">{tr('page.webhooks.added', { v: all ? t('page.webhooks.everyChange') : t('page.webhooks.when2', { join: hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(', or ') }), v2: hook.project ? `in ${projectName ?? hook.project}` : 'in every project', when: ago(hook.createdAt) })}</span>
         </div>
-        {hook.active ? <Badge tone="good">sends</Badge> : <Badge tone="idle">paused</Badge>}
+        {hook.active ? <Badge tone="good">{t('page.webhooks.sends')}</Badge> : <Badge tone="idle">{t('page.webhooks.paused')}</Badge>}
       </div>
       <div className="cluster">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
-          {test.isPending ? 'Sending…' : 'Send a test'}
+          {test.isPending ? t('page.webhooks.sending') : t('page.webhooks.sendATest')}
         </button>
         <button type="button" onClick={() => toggle.mutate(!hook.active)} disabled={toggle.isPending}>
-          {hook.active ? 'Pause it' : 'Turn it back on'}
+          {hook.active ? t('page.webhooks.pauseIt') : t('page.webhooks.turnItBackOn')}
         </button>
         <button type="button" className="link" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-          {open ? 'Hide its deliveries' : 'Show its deliveries'}
+          {open ? t('page.webhooks.hideItsDeliveries') : t('page.webhooks.showItsDeliveries')}
         </button>
         <span className="grow" />
         <Confirm
           small
-          label="Delete it"
-          title={`Delete the webhook to ${hook.url}?`}
-          about="a4a stops sending to it at once, and its delivery log goes with it. Nobody can bring them back."
-          confirm="Delete it"
+          label={t('page.webhooks.deleteIt')}
+          title={t('page.webhooks.deleteTheWebhookTo', { url: hook.url })}
+          about={t('page.webhooks.a4aStopsSendingToIt')}
+          confirm={t('page.webhooks.deleteIt')}
           disabled={remove.isPending}
           onConfirm={() => remove.mutate()}
         />
@@ -180,7 +173,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {open ? (
         <div className="hook-log">
-          <h3>Recent deliveries</h3>
+          <h3>{t('page.webhooks.recentDeliveries')}</h3>
           <Deliveries hook={hook} />
         </div>
       ) : null}
@@ -212,7 +205,7 @@ function AddHook() {
   });
   return (
     <section className="card" aria-labelledby="add-hook">
-      <h2 id="add-hook">Add a webhook</h2>
+      <h2 id="add-hook">{t('page.webhooks.addAWebhook')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -222,8 +215,8 @@ function AddHook() {
       >
         <div className="form-fields">
           <FormField
-            label="Where to send"
-            help="a4a posts to it from the server, so it can reach addresses inside your network: add only ones you trust."
+            label={t('page.webhooks.whereToSend')}
+            help={t('page.webhooks.a4aPostsToItFrom')}
             className="tw:col-span-full"
           >
             {(id, help) => (
@@ -239,24 +232,22 @@ function AddHook() {
               />
             )}
           </FormField>
-          <FormField label="From">
+          <FormField label={t('page.webhooks.from')}>
             {(id) => (
               <select id={id} value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Every project</option>
+                <option value="">{t('page.webhooks.everyProject')}</option>
                 {(projects.data ?? []).map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.key} only
-                  </option>
+                  <option key={p.key} value={p.key}>{tr('page.webhooks.only', { key: p.key })}</option>
                 ))}
               </select>
             )}
           </FormField>
         </div>
         <fieldset className="choice-group columns">
-          <legend>When</legend>
+          <legend>{t('page.webhooks.when')}</legend>
           <label className="choice tw:col-span-full">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-            <span>Every change, including kinds added later</span>
+            <span>{t('page.webhooks.everyChangeIncludingKindsAdded')}</span>
           </label>
           {!all
             ? SUBSCRIBABLE.map((t) => (
@@ -283,22 +274,18 @@ function AddHook() {
         </fieldset>
         <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending || !url.trim() || (!all && !events.size)}>
-            {add.isPending ? 'Adding…' : 'Add the webhook'}
+            {add.isPending ? t('page.webhooks.adding') : t('page.webhooks.addTheWebhook')}
           </button>
         </div>
         {add.error ? <ErrorNote error={add.error} /> : null}
       </form>
       {created ? (
         <div className="secret" role="status">
-          <p>
-            <strong>Copy its secret now.</strong> This is the only time a4a shows it. Your receiver checks each delivery's signature with it.
-          </p>
+          <p>{tr('page.webhooks.copyItsSecretNowThis', { t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
           <code>{created.secret}</code>
           <div className="cluster">
-            <CopyButton text={created.secret} label="Copy the secret" what="the secret" />
-            <button type="button" className="link" onClick={() => setCreated(null)}>
-              I've kept it
-            </button>
+            <CopyButton text={created.secret} label={t('page.webhooks.copyTheSecret')} what={t('page.webhooks.theSecret')} />
+            <button type="button" className="link" onClick={() => setCreated(null)}>{t('page.webhooks.iVeKeptIt')}</button>
           </div>
         </div>
       ) : null}
@@ -312,16 +299,16 @@ export default function WebhooksPage() {
   const projects = useProjects();
   const names = new Map((projects.data ?? []).map((p) => [p.key, p.name]));
   return (
-    <AdminOnly title="Webhooks">
+    <AdminOnly title={t('page.webhooks.webhooks')}>
       <PageHead
-        title="Webhooks"
-        about="a4a posts each change to the addresses here as it happens, signed, so your systems can act on it: CI, chat, a dashboard."
+        title={t('page.webhooks.webhooks')}
+        about={t('page.webhooks.a4aPostsEachChangeTo')}
       />
       <section className="card" aria-labelledby="hooks">
-        <h2 id="hooks">Where it sends</h2>
+        <h2 id="hooks">{t('page.webhooks.whereItSends')}</h2>
         {hooks.isLoading ? <Loading what="webhooks" /> : null}
         {hooks.error ? <ErrorNote error={hooks.error} /> : null}
-        {hooks.data && !hooks.data.length ? <p className="note">Nowhere yet. Add a webhook, then send it a test.</p> : null}
+        {hooks.data && !hooks.data.length ? <p className="note">{t('page.webhooks.nowhereYetAddAWebhook')}</p> : null}
         {hooks.data?.length ? (
           <ul className="hooks">
             {hooks.data.map((h) => (
@@ -333,39 +320,33 @@ export default function WebhooksPage() {
       <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <AddHook />
         <section className="card" aria-labelledby="how">
-          <h2 id="how">How deliveries work</h2>
-          <p className="note">Each delivery is a POST of the change as JSON, the same as GET /api/v1/events gives.</p>
+          <h2 id="how">{t('page.webhooks.howDeliveriesWork')}</h2>
+          <p className="note">{t('page.webhooks.eachDeliveryIsAPost')}</p>
           <dl className="facts-list">
             <div className="pair">
-              <dt>Signed</dt>
-              <dd>
-                <code>X-A4A-Signature: sha256=&lt;HMAC of the body&gt;</code>: an HMAC-SHA256 of the raw body, with the webhook's secret.
-              </dd>
+              <dt>{t('page.webhooks.signed')}</dt>
+              <dd>{tr('page.webhooks.anHmacSha256OfThe', { code: <code>X-A4A-Signature: sha256=&lt;HMAC of the body&gt;</code> })}</dd>
             </div>
             <div className="pair">
-              <dt>At least once</dt>
-              <dd>
-                A change can arrive twice. Keep the <code>X-A4A-Event-Id</code> of what you've handled, and skip it when it comes again.
-              </dd>
+              <dt>{t('page.webhooks.atLeastOnce')}</dt>
+              <dd>{tr('page.webhooks.aChangeCanArriveTwice', { code: <code>X-A4A-Event-Id</code> })}</dd>
             </div>
             <div className="pair">
-              <dt>Retried</dt>
-              <dd>Up to 3 tries, a second and then four seconds apart. An answer in the 400s other than 408 or 429 isn't retried.</dd>
+              <dt>{t('page.webhooks.retried')}</dt>
+              <dd>{t('page.webhooks.upTo3TriesA')}</dd>
             </div>
             <div className="pair">
-              <dt>Also sent</dt>
-              <dd>
-                <code>X-A4A-Event</code>, its kind, and <code>X-A4A-Delivery</code>, the try's own id.
-              </dd>
+              <dt>{t('page.webhooks.alsoSent')}</dt>
+              <dd>{tr('page.webhooks.itsKindAndTheTry', { code: <code>X-A4A-Event</code>, code2: <code>X-A4A-Delivery</code> })}</dd>
             </div>
           </dl>
-          <h3>Checking the signature, in Node</h3>
+          <h3>{t('page.webhooks.checkingTheSignatureInNode')}</h3>
           <div className="stack tight">
-            <pre className="snippet code" tabIndex={0} aria-label="Checking the signature, in Node">
+            <pre className="snippet code" tabIndex={0} aria-label={t('page.webhooks.checkingTheSignatureInNode')}>
               {VERIFY}
             </pre>
             <div className="cluster">
-              <CopyButton text={VERIFY} label="Copy it" what="the check" />
+              <CopyButton text={VERIFY} label={t('page.webhooks.copyIt')} what={t('page.webhooks.theCheck')} />
             </div>
           </div>
         </section>

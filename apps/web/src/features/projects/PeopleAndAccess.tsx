@@ -9,10 +9,12 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { ProjectGroups } from '../groups/ProjectGroups';
 import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp } from '../roles/words';
+import { t, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
-  { id: 'open', name: 'Open', about: 'Everyone sees it and works in it. The people below have the role given them; everyone else is a member.' },
-  { id: 'members', name: 'Members only', about: 'Only the people below, and administrators, see it at all. To anyone else it doesn’t exist.' },
+  { id: 'open', name: 'Open', about: t('projects.peopleAndAccess.everyoneSeesItAndWorks') },
+  { id: 'members', name: 'Members only', about: t('projects.peopleAndAccess.onlyThePeopleBelowAnd') },
 ];
 
 const YOU_MAY = {
@@ -24,7 +26,7 @@ const YOU_MAY = {
 /** Your own place in the project, in a sentence. */
 export function yourRole(project: Project): string {
   const a = project.access;
-  if (a.via === 'admin') return 'As an administrator, you may change everything here.';
+  if (a.via === 'admin') return t('projects.peopleAndAccess.asAnAdministratorYouMay');
   const role = aRole(a.roleName, isBuiltinRole(a.role));
   const why =
     a.via === 'lead'
@@ -36,10 +38,10 @@ export function yourRole(project: Project): string {
         : a.via === 'group'
           ? `, as one of ${a.group ?? 'a group'}`
           : '';
-  if (a.via === 'guest') return `You're reading ${project.key} as a guest. Sign in to do more.`;
-  if (!isBuiltinRole(a.role)) return `You're ${role} here${why}: you may ${permissionWords(a.permissions)}.`;
-  if (!a.comment) return `You're ${role} here${why}, but your account only reads.`;
-  return `You're ${role} here${why}: ${YOU_MAY[a.role as keyof typeof YOU_MAY]}.`;
+  if (a.via === 'guest') return t('projects.peopleAndAccess.youReReadingAsA', { key: project.key });
+  if (!isBuiltinRole(a.role)) return t('projects.peopleAndAccess.youReHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) });
+  if (!a.comment) return t('projects.peopleAndAccess.youReHereButYour', { role: role, why: why });
+  return t('projects.peopleAndAccess.youReHere', { role: role, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
 }
 
 function useInvalidate(project: Project) {
@@ -62,7 +64,7 @@ function Visibility({ project, canEdit }: { project: Project; canEdit: boolean }
     onSuccess: (p) => {
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
-      setSaid({ text: p.visibility === 'members' ? `Only ${p.key}'s people and administrators see it now.` : `Everyone sees ${p.key} now, and works in it.` });
+      setSaid({ text: p.visibility === 'members' ? t('projects.peopleAndAccess.onlySPeopleAndAdministrators', { key: p.key }) : t('projects.peopleAndAccess.everyoneSeesNowAndWorks', { key: p.key }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -75,7 +77,7 @@ function Visibility({ project, canEdit }: { project: Project; canEdit: boolean }
       }}
     >
       <fieldset className="choice-group column" disabled={!canEdit || save.isPending}>
-        <legend>Who sees it</legend>
+        <legend>{t('projects.peopleAndAccess.whoSeesIt')}</legend>
         {VISIBILITY.map((v) => (
           <label key={v.id} className="choice">
             <input type="radio" name={`visibility-${project.key}`} value={v.id} checked={choice === v.id} onChange={() => setChoice(v.id)} />
@@ -89,7 +91,7 @@ function Visibility({ project, canEdit }: { project: Project; canEdit: boolean }
       {canEdit ? (
         <div className="cluster">
           <button type="submit" disabled={choice === project.visibility || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save who sees it'}
+            {save.isPending ? t('projects.peopleAndAccess.saving') : t('projects.peopleAndAccess.saveWhoSeesIt')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -109,7 +111,7 @@ function Guests({ project }: { project: Project }) {
     onSuccess: (p) => {
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
-      setSaid({ text: p.guestAccess ? `Anyone may read ${p.key} now, signed in or not.` : `Only people who sign in see ${p.key} now.` });
+      setSaid({ text: p.guestAccess ? t('projects.peopleAndAccess.anyoneMayReadNowSigned', { key: p.key }) : t('projects.peopleAndAccess.onlyPeopleWhoSignIn', { key: p.key }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -123,14 +125,9 @@ function Guests({ project }: { project: Project }) {
           disabled={!admin || save.isPending || (project.visibility !== 'open' && !project.guestAccess)}
           onChange={(e) => save.mutate(e.target.checked)}
         />
-        <span>
-          Open to guests
-          <small className="field-help">
-            {project.visibility === 'open'
-              ? `Anyone may read its issues, comments, files and articles without signing in, and change nothing. Issues and comments limited to some people stay theirs. ${admin ? '' : 'Administrators decide this.'}`
-              : 'Only an open project can be open to guests.'}
-          </small>
-        </span>
+        <span>{tr('projects.peopleAndAccess.openToGuests', { v: project.visibility === 'open'
+              ? t('projects.peopleAndAccess.anyoneMayReadItsIssues', { v: admin ? '' : t('projects.peopleAndAccess.administratorsDecideThis') })
+              : t('projects.peopleAndAccess.onlyAnOpenProjectCan'), t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
       </label>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
@@ -146,7 +143,7 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectMember>(`/projects/${project.key}/members/${u.login}`, { role }),
     onSuccess: (m) => {
-      setSaid({ text: `${name} is ${aRole(m.roleName, isBuiltinRole(m.role))} now.` });
+      setSaid({ text: t('projects.peopleAndAccess.isNow', { name: name, aRole: aRole(m.roleName, isBuiltinRole(m.role)) }) });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -166,19 +163,17 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
             <span className="item-name">{name}</span>
             <span className="item-about">
               <span className="mono">{u.login}</span>
-              {member.lead ? ' · leads it' : ''}
-              {u.isBot ? ' · bot' : ''}
+              {member.lead ? t('projects.peopleAndAccess.leadsIt') : ''}
+              {u.isBot ? t('projects.peopleAndAccess.bot') : ''}
             </span>
           </span>
         </span>
       </th>
       <td>
         {member.lead ? (
-          <span>
-            Manager<span className="item-about">as its lead</span>
-          </span>
+          <span>{tr('projects.peopleAndAccess.managerAsItsLead', { t0: (c: ReactNode) => <span className="item-about">{c}</span> })}</span>
         ) : canEdit ? (
-          <select value={member.role} onChange={(e) => change.mutate(e.target.value)} aria-label={`Role of ${name} in ${project.key}`} disabled={change.isPending}>
+          <select value={member.role} onChange={(e) => change.mutate(e.target.value)} aria-label={t('projects.peopleAndAccess.roleOfIn', { name: name, key: project.key })} disabled={change.isPending}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -193,14 +188,14 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
         {canEdit && listed && !member.lead ? (
           <Confirm
             small
-            label="Take out"
-            title={`Take ${name} out of ${project.key}?`}
+            label={t('projects.peopleAndAccess.takeOut')}
+            title={t('projects.peopleAndAccess.takeOutOf', { name: name, key: project.key })}
             about={
               project.visibility === 'members'
-                ? `${name} won't see ${project.key} or its issues any more. You can add them again.`
-                : `${name} will be a member, as everyone is in an open project. You can add them again.`
+                ? t('projects.peopleAndAccess.wonTSeeOrIts', { name: name, key: project.key })
+                : t('projects.peopleAndAccess.willBeAMemberAs', { name: name })
             }
-            confirm="Take them out"
+            confirm={t('projects.peopleAndAccess.takeThemOut')}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
           />
@@ -221,7 +216,7 @@ function AddMember({ project, people, listed }: { project: Project; people: User
   const add = useMutation({
     mutationFn: () => post<ProjectMember>(`/projects/${project.key}/members`, { user: login, role }),
     onSuccess: (m) => {
-      setSaid({ text: `${m.user.isBot ? m.user.login : m.user.name} is ${aRole(m.roleName, isBuiltinRole(m.role))} of ${project.key} now.` });
+      setSaid({ text: t('projects.peopleAndAccess.isOfNow', { v: m.user.isBot ? m.user.login : m.user.name, aRole: aRole(m.roleName, isBuiltinRole(m.role)), key: project.key }) });
       setLogin('');
       void invalidate();
     },
@@ -236,21 +231,21 @@ function AddMember({ project, people, listed }: { project: Project; people: User
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Add someone</legend>
+        <legend>{t('projects.peopleAndAccess.addSomeone')}</legend>
         <div className="form-fields">
-          <FormField label="Person">
+          <FormField label={t('projects.peopleAndAccess.person')}>
             {(id) => (
               <select id={id} value={login} onChange={(e) => setLogin(e.target.value)} required>
-                <option value="">Choose someone</option>
+                <option value="">{t('projects.peopleAndAccess.chooseSomeone')}</option>
                 {choices.map((u) => (
                   <option key={u.id} value={u.login}>
-                    {u.isBot ? `${u.login} (bot)` : u.name}
+                    {u.isBot ? t('projects.peopleAndAccess.bot2', { login: u.login }) : u.name}
                   </option>
                 ))}
               </select>
             )}
           </FormField>
-          <FormField label="Role" help={roleHelp(roles, role)}>
+          <FormField label={t('projects.peopleAndAccess.role')} help={roleHelp(roles, role)}>
             {(id, help) => (
               <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
                 {roles.map((r) => (
@@ -264,7 +259,7 @@ function AddMember({ project, people, listed }: { project: Project; people: User
         </div>
         <div className="cluster">
           <button type="submit" className="primary" disabled={!login || add.isPending}>
-            {add.isPending ? 'Adding…' : 'Add them'}
+            {add.isPending ? t('projects.peopleAndAccess.adding') : t('projects.peopleAndAccess.addThem')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -283,28 +278,25 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">
-        Roles: {roles.map((r) => `${aRole(r.name, r.builtin)} may ${permissionWords(r.permissions)}`).join('; ')}. Its lead is a manager, and administrators
-        may do everything in every project.
-      </p>
-      {members.isLoading ? <Loading what="its people" /> : null}
+      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => `${aRole(r.name, r.builtin)} may ${permissionWords(r.permissions)}`).join('; ') })}</p>
+      {members.isLoading ? <Loading what={t('projects.peopleAndAccess.itsPeople')} /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (
         <p className="note">
           {project.visibility === 'members'
-            ? 'Nobody is listed by name: only administrators, and the groups below, see it.'
-            : 'Nobody is listed by name: everyone is a member, unless a group below gives them another role.'}
+            ? t('projects.peopleAndAccess.nobodyIsListedByName')
+            : t('projects.peopleAndAccess.nobodyIsListedByName2')}
         </p>
       ) : null}
       {list.length ? (
-        <Scroll label={`People in ${project.key}`}>
+        <Scroll label={t('projects.peopleAndAccess.peopleIn', { key: project.key })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Person</th>
-                <th scope="col">Role</th>
+                <th scope="col">{t('projects.peopleAndAccess.person')}</th>
+                <th scope="col">{t('projects.peopleAndAccess.role')}</th>
                 <th scope="col">
-                  <span className="hidden">Change</span>
+                  <span className="hidden">{t('projects.peopleAndAccess.change')}</span>
                 </th>
               </tr>
             </thead>

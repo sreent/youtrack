@@ -9,6 +9,8 @@ import { Icon } from '../components/Icon';
 import { Shell } from './Shell';
 import { FormField } from '../components/Form';
 import { CodeField, Enrol, RecoveryCodeList } from '../features/identity/TwoFactor';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /** A page before the frame (Ocean's lone page): one card in the middle; `wide` for a conversation, as a help desk's. */
 export function Lone({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -44,12 +46,10 @@ export function RequireUser() {
       <Lone>
         {offline ? (
           <>
-            <h1>You're offline</h1>
-            <p className="note">a4a opens as soon as this device is back online. Nothing you see in it is kept on the device, so it waits for the network.</p>
+            <h1>{t('app.auth.youReOffline')}</h1>
+            <p className="note">{t('app.auth.a4aOpensAsSoonAs')}</p>
             <div className="cluster">
-              <button type="button" onClick={() => void me.refetch()}>
-                Try again
-              </button>
+              <button type="button" onClick={() => void me.refetch()}>{t('app.auth.tryAgain')}</button>
             </div>
           </>
         ) : (
@@ -65,8 +65,8 @@ function AuthCard({ title, about, children }: { title: string; about: string; ch
   return (
     <Lone>
       <span className="brand">
-        <span className="mark">a4</span>
-        <span>a4a</span>
+        <span className="mark">{t('app.auth.a4')}</span>
+        <span>{t('app.auth.a4a')}</span>
       </span>
       <h1>{title}</h1>
       <p className="note">{about}</p>
@@ -79,31 +79,31 @@ function AuthCard({ title, about, children }: { title: string; about: string; ch
 function ssoFailure(code: string, name: string): { what: string; fix: string } {
   switch (code) {
     case 'cancelled':
-      return { what: `Signing in with ${name} was cancelled.`, fix: 'Sign in again when you’re ready.' };
+      return { what: t('app.auth.signingInWithWasCancelled', { name: name }), fix: t('app.auth.signInAgainWhenYou') };
     case 'expired':
-      return { what: 'That sign-in ran out of time, or was started in another tab or browser.', fix: 'Start again here.' };
+      return { what: t('app.auth.thatSignInRanOut'), fix: t('app.auth.startAgainHere') };
     case 'unverified':
-      return { what: `${name} hasn’t verified your email.`, fix: `Verify it with ${name}, then sign in again.` };
+      return { what: t('app.auth.hasnTVerifiedYourEmail', { name: name }), fix: t('app.auth.verifyItWithThenSign', { name: name }) };
     case 'domain':
-      return { what: 'Accounts with your email’s domain can’t sign in here.', fix: 'Sign in with your work account, or ask an administrator.' };
+      return { what: t('app.auth.accountsWithYourEmailS'), fix: t('app.auth.signInWithYourWork') };
     case 'no_account':
-      return { what: 'There’s no a4a account for your email yet.', fix: 'Ask an administrator to add you.' };
+      return { what: t('app.auth.thereSNoA4aAccount'), fix: t('app.auth.askAnAdministratorToAdd') };
     case 'unconfirmed':
       return {
-        what: 'An a4a account has your email, but no administrator has confirmed it.',
-        fix: 'Ask an administrator to confirm your email under Administration, then sign in again.',
+        what: t('app.auth.anA4aAccountHasYour'),
+        fix: t('app.auth.askAnAdministratorToConfirm'),
       };
     case 'ambiguous':
-      return { what: 'More than one a4a account has your email.', fix: 'Ask an administrator to sort it out.' };
+      return { what: t('app.auth.moreThanOneA4aAccount'), fix: t('app.auth.askAnAdministratorToSort') };
     case 'refused':
-      return { what: `This account can’t sign in with ${name}.`, fix: 'Ask an administrator.' };
+      return { what: t('app.auth.thisAccountCanTSign', { name: name }), fix: t('app.auth.askAnAdministrator') };
     case 'unlinked':
       return {
-        what: `An a4a account already has your email, and a4a doesn’t take emails from ${name} as proof that it’s yours.`,
-        fix: `Ask an administrator: they can have a4a trust the emails ${name} gives.`,
+        what: t('app.auth.anA4aAccountAlreadyHas', { name: name }),
+        fix: t('app.auth.askAnAdministratorTheyCan', { name: name }),
       };
     default:
-      return { what: `${name} didn’t sign you in.`, fix: 'Try again. If it keeps failing, tell an administrator: the server’s log says why.' };
+      return { what: t('app.auth.didnTSignYouIn', { name: name }), fix: t('app.auth.tryAgainIfItKeeps') };
   }
 }
 
@@ -132,13 +132,11 @@ function SecondStep({ step, next, onRestart }: { step: SignInStep['step']; next:
     }
   };
   const again = (
-    <button type="button" className="link" onClick={onRestart}>
-      Sign in again
-    </button>
+    <button type="button" className="link" onClick={onRestart}>{t('app.auth.signInAgain')}</button>
   );
   if (step === 'two_factor') {
     return (
-      <AuthCard title="Two-factor sign-in" about="Your password was right. Now the code your authenticator app shows.">
+      <AuthCard title={t('app.auth.twoFactorSignIn')} about={t('app.auth.yourPasswordWasRightNow')}>
         <form
           className="form"
           onSubmit={(e) => {
@@ -153,28 +151,26 @@ function SecondStep({ step, next, onRestart }: { step: SignInStep['step']; next:
           <CodeField value={code} onChange={setCode} recovery autoFocus />
           {error ? <ErrorNote error={error} /> : null}
           <button type="submit" className="primary" disabled={busy || code.trim().length < 6}>
-            {busy ? 'Checking…' : 'Sign in'}
+            {busy ? t('app.auth.checking') : t('app.auth.signIn')}
           </button>
         </form>
-        <p className="note">Lost your phone? Type one of your recovery codes instead. {timedOut ? again : null}</p>
+        <p className="note">{tr('app.auth.lostYourPhoneTypeOne', { v: timedOut ? again : null })}</p>
       </AuthCard>
     );
   }
   return (
-    <AuthCard title="Set up two-factor sign-in" about="This instance asks everyone who signs in with a password for a code from an authenticator app too.">
+    <AuthCard title={t('app.auth.setUpTwoFactorSign')} about={t('app.auth.thisInstanceAsksEveryoneWho')}>
       {codes ? (
         <>
           <RecoveryCodeList codes={codes} />
-          <button type="button" className="primary" onClick={() => void qc.invalidateQueries({ queryKey: keys.me }).then(() => navigate(next))}>
-            I’ve kept them: continue
-          </button>
+          <button type="button" className="primary" onClick={() => void qc.invalidateQueries({ queryKey: keys.me }).then(() => navigate(next))}>{t('app.auth.iVeKeptThemContinue')}</button>
         </>
       ) : enrolment ? (
         <Enrol enrolment={enrolment} confirm={(c) => post<RecoveryCodes>('/auth/two-factor/setup/confirm', { code: c })} onDone={setCodes} />
       ) : (
         <>
           <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => setEnrolment(await post<TwoFactorEnrolment>('/auth/two-factor/setup')))}>
-            {busy ? 'Starting…' : 'Set it up'}
+            {busy ? t('app.auth.starting') : t('app.auth.setItUp')}
           </button>
           {error ? <ErrorNote error={error} /> : null}
           {timedOut ? <p className="note">{again}</p> : null}
@@ -237,7 +233,7 @@ export function LoginPage() {
     );
   }
   return (
-    <AuthCard title="Sign in" about={sso && !passwords ? `Use your ${sso.name} account.` : sso ? `Use your ${sso.name} account, or your ${formName}.` : `Use your ${formName}.`}>
+    <AuthCard title={t('app.auth.signIn')} about={sso && !passwords ? t('app.auth.useYourAccount', { name: sso.name }) : sso ? t('app.auth.useYourAccountOrYour', { name: sso.name, formName: formName }) : t('app.auth.useYour', { formName: formName })}>
       {failure ? (
         <div className="error-note" role="alert">
           <Icon name="cross" />
@@ -246,19 +242,17 @@ export function LoginPage() {
         </div>
       ) : null}
       {providers.map((p) => (
-        <a key={p.url} className={passwords ? 'button' : 'button primary'} href={`${p.url}?next=${encodeURIComponent(next)}`}>
-          Sign in with {p.name}
-        </a>
+        <a key={p.url} className={passwords ? 'button' : 'button primary'} href={`${p.url}?next=${encodeURIComponent(next)}`}>{tr('app.auth.signInWith', { name: p.name })}</a>
       ))}
       {passwords ? (
-        <form className="form" onSubmit={submit} aria-label={sso ? `Sign in with your ${formName}` : undefined}>
-          <FormField label="Login">{(id) => <input id={id} value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" required autoFocus={!sso} />}</FormField>
-          <FormField label="Password">
+        <form className="form" onSubmit={submit} aria-label={sso ? t('app.auth.signInWithYour', { formName: formName }) : undefined}>
+          <FormField label={t('app.auth.login')}>{(id) => <input id={id} value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" required autoFocus={!sso} />}</FormField>
+          <FormField label={t('app.auth.password')}>
             {(id) => <input id={id} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />}
           </FormField>
           {error ? <ErrorNote error={error} /> : null}
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in'}
+            {busy ? t('app.auth.signingIn') : t('app.auth.signIn')}
           </button>
         </form>
       ) : null}
@@ -293,27 +287,27 @@ export function SetupPage() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   return (
-    <AuthCard title="Set up a4a" about="Create the first administrator. You can invite everyone else afterwards.">
+    <AuthCard title={t('app.auth.setUpA4a')} about={t('app.auth.createTheFirstAdministratorYou')}>
       <form className="form" onSubmit={submit}>
-        <FormField label="Your name">{(id) => <input id={id} value={form.name} onChange={set('name')} required autoFocus />}</FormField>
-        <FormField label="Login">{(id) => <input id={id} value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />}</FormField>
+        <FormField label={t('app.auth.yourName')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required autoFocus />}</FormField>
+        <FormField label={t('app.auth.login')}>{(id) => <input id={id} value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />}</FormField>
         {status.data?.signIn.password === false ? (
-          <FormField label={`Email (you'll sign in with ${status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? 'single sign-on'}, which finds you by it)`}>
+          <FormField label={t('app.auth.emailYouLlSignIn', { v: status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? 'single sign-on' })}>
             {(id) => <input id={id} type="email" value={form.email} onChange={set('email')} required autoComplete="email" />}
           </FormField>
         ) : (
-          <FormField label="Email (optional)">{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
+          <FormField label={t('app.auth.emailOptional')}>{(id) => <input id={id} type="email" value={form.email} onChange={set('email')} />}</FormField>
         )}
-        <FormField label="Password (at least 8 characters)">
+        <FormField label={t('app.auth.passwordAtLeast8Characters')}>
           {(id) => <input id={id} type="password" value={form.password} onChange={set('password')} minLength={8} required autoComplete="new-password" />}
         </FormField>
         <label className="choice">
           <input type="checkbox" checked={form.seedDemo} onChange={set('seedDemo')} />
-          <span>Add demo projects, so you can try everything at once</span>
+          <span>{t('app.auth.addDemoProjectsSoYou')}</span>
         </label>
         {error ? <ErrorNote error={error} /> : null}
         <button type="submit" className="primary" disabled={busy}>
-          {busy ? 'Setting up…' : 'Create the administrator'}
+          {busy ? t('app.auth.settingUp') : t('app.auth.createTheAdministrator')}
         </button>
       </form>
     </AuthCard>
@@ -326,8 +320,6 @@ function GuestLink() {
   const projects = info.data?.projects ?? [];
   if (!projects.length) return null;
   return (
-    <p className="note">
-      {projects.map((p) => p.name).join(', ')} {projects.length === 1 ? 'is' : 'are'} open to anyone. <Link to="/public">Read without signing in</Link>
-    </p>
+    <p className="note">{tr('app.auth.openToAnyoneReadWithout', { join: projects.map((p) => p.name).join(', '), v: projects.length === 1 ? 'is' : 'are', t0: (c: ReactNode) => <Link to="/public">{c}</Link> })}</p>
   );
 }

@@ -11,6 +11,7 @@ import { StateBadge } from '../../components/Badges';
 import { Markdown } from '../../components/Markdown';
 import { ErrorNote, Loading } from '../../components/States';
 import { REPORTS, ReportView, widgetQuery } from './ReportView';
+import { t, tr } from '../../i18n';
 
 function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
   const saved = useSavedSearches();
@@ -24,7 +25,7 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
     enabled: query !== undefined && !missing,
     retry: false,
   });
-  if (missing) return <p className="note">The saved search this showed is gone, or no longer shared.</p>;
+  if (missing) return <p className="note">{t('reports.widgets.theSavedSearchThisShowed')}</p>;
   if (saved.isLoading || list.isLoading) return <Loading />;
   if (list.error) return <ErrorNote error={list.error} />;
   const href = `/issues${qs({ query: query ?? '' })}`;
@@ -38,7 +39,7 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
     );
   }
   const l = list.data as IssueList | undefined;
-  if (!l?.items.length) return <p className="note">Nothing matches it now.</p>;
+  if (!l?.items.length) return <p className="note">{t('reports.widgets.nothingMatchesItNow')}</p>;
   return (
     <>
       <ul className="widget-list">
@@ -55,7 +56,7 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
       </ul>
       {l.total > l.items.length ? (
         <p className="note">
-          <Link to={href}>All {l.total}</Link>
+          <Link to={href}>{tr('reports.widgets.all', { total: l.total })}</Link>
         </p>
       ) : null}
     </>
@@ -66,7 +67,7 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
 export function widgetTitle(w: Widget, saved?: SavedSearch[]): string {
   if (w.title) return w.title;
   if (w.kind === 'note') return 'Note';
-  if (w.kind === 'search') return (w.savedSearch && saved?.find((s) => s.id === w.savedSearch)?.name) || w.query || 'A search';
+  if (w.kind === 'search') return (w.savedSearch && saved?.find((s) => s.id === w.savedSearch)?.name) || w.query || t('reports.widgets.aSearch');
   return REPORTS.find((r) => r.kind === w.params.report)?.label ?? 'Report';
 }
 

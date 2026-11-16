@@ -118,6 +118,8 @@ export async function updateUser(
     workWeek?: number[] | null;
     /** A canonical IANA name (services/time-zones.ts checks it), or null for the server's. */
     timeZone?: string | null;
+    /** One of LOCALES, or null for their browser's (D49). */
+    locale?: string | null;
   },
 ): Promise<User> {
   const s = await ctx.app.schema.get();
@@ -149,6 +151,7 @@ export async function updateUser(
       ...(input.capacityHoursPerDay !== undefined ? { capacityHoursPerDay: input.capacityHoursPerDay } : {}),
       ...(input.workWeek !== undefined ? { workWeek: input.workWeek } : {}),
       ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, target.id))
@@ -161,7 +164,7 @@ export async function updateUser(
 
 export async function updateMe(
   ctx: Ctx,
-  input: { name?: string; email?: string | null; password?: string; currentPassword?: string; timeZone?: string | null; workWeek?: number[] | null },
+  input: { name?: string; email?: string | null; password?: string; currentPassword?: string; timeZone?: string | null; locale?: string | null; workWeek?: number[] | null },
 ): Promise<User> {
   requireScope(ctx, 'write');
   // A zone this server doesn't know is refused before anything changes; one it knows is kept by its canonical name.
@@ -173,7 +176,7 @@ export async function updateMe(
     const ok = await verifyPassword(input.currentPassword ?? '', ctx.actor.user.passwordHash);
     if (!ok && ctx.actor.user.passwordHash) throw forbidden('Current password is incorrect');
   }
-  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone, workWeek: input.workWeek });
+  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone, locale: input.locale, workWeek: input.workWeek });
 }
 
 export async function deleteUser(ctx: Ctx, idOrLogin: string): Promise<void> {

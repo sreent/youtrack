@@ -4,6 +4,7 @@ import { ErrorNote, Loading, PageHead } from '../../components/States';
 
 import { useAppExtensions, type AppPlace } from './api';
 import { AppFrame } from './AppFrame';
+import { t } from '../../i18n';
 
 /** The widgets apps draw at a place (D48): nothing at all where none does. */
 export function AppWidgets({ at, ...place }: { at: AppExtensionPoint } & AppPlace) {
@@ -25,10 +26,10 @@ export function AppPage() {
   const found = ext.data?.find((e) => e.app === app && e.name === widget);
   return (
     <>
-      <PageHead title={found?.title ?? 'App'} crumbs={found ? <span>{found.appTitle}</span> : <Link to="/issues">Issues</Link>} />
-      {ext.isLoading ? <Loading what="the app" /> : null}
+      <PageHead title={found?.title ?? t('apps.appWidgets.app')} crumbs={found ? <span>{found.appTitle}</span> : <Link to="/issues">{t('apps.appWidgets.issues')}</Link>} />
+      {ext.isLoading ? <Loading what={t('apps.appWidgets.theApp')} /> : null}
       {ext.error ? <ErrorNote error={ext.error} /> : null}
-      {ext.data && !found ? <p className="note">No app shows a page here: it may have been turned off or removed.</p> : null}
+      {ext.data && !found ? <p className="note">{t('apps.appWidgets.noAppShowsAPage')}</p> : null}
       {found ? <AppFrame ext={found} place={{}} /> : null}
     </>
   );

@@ -3,6 +3,7 @@ import { useMe } from '../../api/queries';
 import { IssueLink } from '../../components/Badges';
 import { ErrorLine, PageHead } from '../../components/States';
 import { ISSUE_ID } from './format';
+import { t } from '../../i18n';
 
 /** Plain text with its issue ids linked ("Created BACK-14 …"). */
 export function Linked({ text }: { text: string }) {
@@ -70,7 +71,7 @@ export function AdminOnly({ title, children }: { title: string; children: React.
   if (me.data && !me.data.auth.scopes.includes('admin')) {
     return (
       <>
-        <PageHead title={title} about="Only administrators can change this. Ask one of them if something here needs to change." />
+        <PageHead title={title} about={t('common.bits.onlyAdministratorsCanChangeThis')} />
       </>
     );
   }
@@ -84,5 +85,5 @@ export function errorText(e: unknown): string {
     const msg = String((e as { message: string }).message).replace(/[.\s]+$/, '');
     return hint ? `${msg}. ${hint}` : `${msg}.`;
   }
-  return 'Something went wrong.';
+  return t('common.bits.somethingWentWrong');
 }

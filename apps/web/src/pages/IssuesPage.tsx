@@ -10,6 +10,7 @@ import { CommandBar } from '../features/issues/CommandBar';
 import { SearchSubscription } from '../features/notifications/Subscriptions';
 import { IssueList } from '../features/issues/IssueList';
 import { QueryBar } from '../features/issues/QueryBar';
+import { t, tr } from '../i18n';
 
 const PAGE = 50;
 
@@ -29,22 +30,20 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
       setName('');
       await qc.invalidateQueries({ queryKey: keys.savedSearches });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not save the search.');
+      setError(e instanceof ApiError ? e.message : t('page.issues.couldNotSaveTheSearch'));
     }
   };
 
   return (
     <div className="cluster">
-      <span className="label">Saved searches</span>
+      <span className="label">{t('page.issues.savedSearches')}</span>
       {saved.data?.map((s) => (
         <button key={s.id} type="button" className="link" aria-current={s.query === query ? 'true' : undefined} onClick={() => onPick(s.query)}>
           {s.name}
         </button>
       ))}
       {query && !mine && !naming ? (
-        <button type="button" className="link" onClick={() => setNaming(true)}>
-          Save this search
-        </button>
+        <button type="button" className="link" onClick={() => setNaming(true)}>{t('page.issues.saveThisSearch')}</button>
       ) : null}
       {mine ? <SearchSubscription search={mine} /> : null}
       {mine && mine.owner && !mine.shared ? (
@@ -55,9 +54,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
             await del(`/saved-searches/${mine.id}`);
             await qc.invalidateQueries({ queryKey: keys.savedSearches });
           }}
-        >
-          Forget “{mine.name}”
-        </button>
+        >{tr('page.issues.forget', { name: mine.name })}</button>
       ) : null}
       {naming ? (
         <form
@@ -67,13 +64,9 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
             if (name.trim()) void save();
           }}
         >
-          <input aria-label="Name for this search" placeholder="A name for it" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          <button type="submit" disabled={!name.trim()}>
-            Save
-          </button>
-          <button type="button" className="link" onClick={() => setNaming(false)}>
-            Cancel
-          </button>
+          <input aria-label={t('page.issues.nameForThisSearch')} placeholder={t('page.issues.aNameForIt')} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <button type="submit" disabled={!name.trim()}>{t('page.issues.save')}</button>
+          <button type="button" className="link" onClick={() => setNaming(false)}>{t('page.issues.cancel')}</button>
         </form>
       ) : null}
       {error ? <ErrorLine>{error}</ErrorLine> : null}
@@ -108,12 +101,9 @@ export default function IssuesPage() {
   return (
     <>
       <PageHead
-        title="Issues"
+        title={t('page.issues.issues')}
         actions={
-          <Link to="/issues/new" className="button primary">
-            <Icon name="plus" />
-            New issue
-          </Link>
+          <Link to="/issues/new" className="button primary">{tr('page.issues.newIssue', { el: <Icon name="plus" /> })}</Link>
         }
       />
       <div className="stack">
@@ -122,22 +112,16 @@ export default function IssuesPage() {
         {issues.isLoading ? <Loading what="issues" /> : null}
         {issues.error && !badQuery ? <ErrorNote error={issues.error} /> : null}
         {items && items.length === 0 ? (
-          <p className="note">{query ? 'Nothing matches this search.' : 'There are no issues yet.'}</p>
+          <p className="note">{query ? t('page.issues.nothingMatchesThisSearch') : t('page.issues.thereAreNoIssuesYet')}</p>
         ) : null}
         {items && items.length > 0 ? (
-          <IssueList issues={items} label={query ? 'Issues found' : 'All issues'} chosen={chosen} onChosen={setChosen} onCommand={() => setCommanding(true)} />
+          <IssueList issues={items} label={query ? t('page.issues.issuesFound') : t('page.issues.allIssues')} chosen={chosen} onChosen={setChosen} onCommand={() => setCommanding(true)} />
         ) : null}
         {total !== null && total > PAGE ? (
-          <nav className="cluster" aria-label="Pages">
-            <button type="button" disabled={offset === 0} onClick={() => page(Math.max(0, offset - PAGE))}>
-              Previous
-            </button>
-            <span className="note">
-              {offset + 1}–{Math.min(offset + PAGE, total)} of {total}
-            </span>
-            <button type="button" disabled={offset + PAGE >= total} onClick={() => page(offset + PAGE)}>
-              Next
-            </button>
+          <nav className="cluster" aria-label={t('page.issues.pages')}>
+            <button type="button" disabled={offset === 0} onClick={() => page(Math.max(0, offset - PAGE))}>{t('page.issues.previous')}</button>
+            <span className="note">{tr('page.issues.of', { v: offset + 1, min: Math.min(offset + PAGE, total), total: total })}</span>
+            <button type="button" disabled={offset + PAGE >= total} onClick={() => page(offset + PAGE)}>{t('page.issues.next')}</button>
           </nav>
         ) : null}
       </div>

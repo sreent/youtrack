@@ -7,6 +7,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import { Link } from 'react-router';
 import remarkGfm from 'remark-gfm';
 import { useUsers } from '../api/queries';
+import { t } from '../i18n';
 
 /**
  * Turn bare issue ids (BACK-12) and article ids (BACK-A-3) into links, outside code, so agents
@@ -102,7 +103,7 @@ function rehypeTasks() {
       if (node.tagName === 'li') {
         const box = node.children?.find((c) => c.tagName === 'input' && c.properties?.type === 'checkbox');
         if (box) {
-          box.properties = { ...box.properties, dataTask: String(n++), ariaLabel: textOf(node).trim().slice(0, 120) || 'A checklist item' };
+          box.properties = { ...box.properties, dataTask: String(n++), ariaLabel: textOf(node).trim().slice(0, 120) || t('ui.markdown.aChecklistItem') };
         }
       }
       node.children?.forEach(walk);
@@ -161,7 +162,7 @@ export function Markdown({
       const source = typeof src === 'string' ? src : '';
       if (!outside && imageAttachment(source)) return <img src={source} alt={alt ?? ''} loading="lazy" decoding="async" />;
       // Never fetched: from elsewhere, or a4a's own where nobody is signed in to see it.
-      const name = alt?.trim() || 'A picture';
+      const name = alt?.trim() || t('ui.markdown.aPicture');
       return /^https?:\/\//i.test(source) && !outside ? (
         <a className="image-elsewhere" href={source} target="_blank" rel="noreferrer noopener">
           {name}

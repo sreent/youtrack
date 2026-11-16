@@ -3,6 +3,7 @@
  * and the MCP layer. Response schemas carry an OpenAPI component id via `.meta`.
  */
 import { z } from 'zod';
+import { LOCALES } from './i18n';
 import {
   CHANNELS,
   CHAT_CHANGE_KINDS,
@@ -154,6 +155,8 @@ export const MeSchema = UserSchema.extend({
     .nullable()
     .describe('Your time zone (an IANA name): what "today" means in your searches, when your digest comes, and the times in your email. Null: the server\'s'),
   serverTimeZone: z.string().describe("The server's time zone, which yours falls back to"),
+  locale: z.enum(LOCALES).nullable().describe("The language you read a4a in (D49). Null: your browser's on the web, and the server's default in email"),
+  defaultLocale: z.enum(LOCALES).describe("The server's default language, for a browser that asks for none a4a speaks"),
   auth: z.object({
     method: z.enum(['session', 'token']),
     scopes: z.array(z.enum(SCOPES)),
@@ -200,6 +203,7 @@ export const UpdateMeBody = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().nullable().optional(),
   timeZone: z.string().min(1).max(64).nullable().optional().describe("An IANA time zone, such as Europe/Berlin; null for the server's"),
+  locale: z.enum(LOCALES).nullable().optional().describe("The language you read a4a in; null for your browser's"),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
   password: z.string().min(8).optional(),
   currentPassword: z.string().optional(),

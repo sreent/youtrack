@@ -4,6 +4,7 @@
  * attributes (Ocean's components/Burndown and the others): nothing here sets a style.
  */
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { t } from '../../i18n';
 
 /**
  * The width a chart is shown at. Drawn at that width, one unit to a pixel, a chart's words keep
@@ -97,5 +98,5 @@ export function column(x: number, y: number, w: number, base: number, r = 4): st
   const h = base - y;
   if (h <= 0 || w <= 0) return '';
   const rr = Math.min(r, w / 2, h);
-  return `M${x.toFixed(1)} ${base.toFixed(1)}V${(y + rr).toFixed(1)}Q${x.toFixed(1)} ${y.toFixed(1)} ${(x + rr).toFixed(1)} ${y.toFixed(1)}H${(x + w - rr).toFixed(1)}Q${(x + w).toFixed(1)} ${y.toFixed(1)} ${(x + w).toFixed(1)} ${(y + rr).toFixed(1)}V${base.toFixed(1)}Z`;
+  return t('reports.chart.mVQHQ', { toFixed: x.toFixed(1), toFixed2: base.toFixed(1), toFixed3: (y + rr).toFixed(1), toFixed4: x.toFixed(1), toFixed5: y.toFixed(1), toFixed6: (x + rr).toFixed(1), toFixed7: y.toFixed(1), toFixed8: (x + w - rr).toFixed(1), toFixed9: (x + w).toFixed(1), toFixed10: y.toFixed(1), toFixed11: (x + w).toFixed(1), toFixed12: (y + rr).toFixed(1), toFixed13: base.toFixed(1) });
 }

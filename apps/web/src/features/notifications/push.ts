@@ -9,6 +9,7 @@
 import type { PushDevice, PushKey, PushTestResult } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { del, get, post, qs } from '../../api/client';
+import { t } from '../../i18n';
 
 const OWNER = 'a4a.push.owner';
 
@@ -73,17 +74,17 @@ function ownerHere(): string | null {
 
 /** Ask the browser, subscribe with a4a's key, and give the subscription to a4a. */
 export async function turnPushOn(me: { id: string }): Promise<PushDevice> {
-  const reg = await (navigator.serviceWorker?.ready ?? Promise.reject(new Error('This browser has no service worker for a4a.')));
+  const reg = await (navigator.serviceWorker?.ready ?? Promise.reject(new Error(t('notifications.push.thisBrowserHasNoService'))));
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
     throw new Error(
       permission === 'denied'
-        ? 'Notifications are blocked for a4a in this browser. Allow them in its site settings, then try again.'
-        : 'Notifications weren’t allowed. Try again, and choose Allow.',
+        ? t('notifications.push.notificationsAreBlockedForA4a')
+        : t('notifications.push.notificationsWerenTAllowedTry'),
     );
   }
   const key = await get<PushKey>('/push/key');
-  if (!key.enabled || !key.publicKey) throw new Error('This server sends no push notifications.');
+  if (!key.enabled || !key.publicKey) throw new Error(t('notifications.push.thisServerSendsNoPush'));
   const applicationServerKey = fromBase64Url(key.publicKey);
   let subscription = await reg.pushManager.getSubscription();
   // One made with another key (the server's key changed) can't take a4a's pushes: start again.

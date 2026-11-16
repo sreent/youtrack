@@ -6,6 +6,8 @@ import { ago } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { CopyButton } from '../common/CopyButton';
+import { t as tx, tr } from '../../i18n';
+import type { ReactNode } from 'react';
 
 const scimKeys = { tokens: ['scim', 'tokens'] as const };
 
@@ -29,7 +31,7 @@ export function ProvisioningSection() {
   const revoke = useMutation({
     mutationFn: (t: ScimToken) => del(`/scim/tokens/${t.id}`),
     onSuccess: (_, t) => {
-      setSaid({ text: `${t.name}’s token is revoked: it provisions nothing from now on.` });
+      setSaid({ text: tx('identity.provisioning.sTokenIsRevokedIt', { name: t.name }) });
       if (made?.id === t.id) setMade(null);
       void qc.invalidateQueries({ queryKey: scimKeys.tokens });
     },
@@ -38,46 +40,39 @@ export function ProvisioningSection() {
   return (
     <section className="card" aria-labelledby="provisioning">
       <div className="section-head">
-        <h2 id="provisioning">Provisioning</h2>
-        <span className="note">SCIM 2.0, for an identity provider</span>
+        <h2 id="provisioning">{tx('identity.provisioning.provisioning')}</h2>
+        <span className="note">{tx('identity.provisioning.scim20ForAn')}</span>
       </div>
-      <p className="note section-note">
-        An identity provider such as Microsoft Entra ID can add people and groups here, change them, and ban those it deactivates. Give it the tenant URL and a
-        token: it acts as you while you’re an administrator. Groups it provisions follow it, as those the sign-in’s groups fill.
-      </p>
+      <p className="note section-note">{tx('identity.provisioning.anIdentityProviderSuchAs')}</p>
       <div className="stack">
-      {tokens.isLoading ? <Loading what="SCIM tokens" /> : null}
+      {tokens.isLoading ? <Loading what={tx('identity.provisioning.scimTokens')} /> : null}
       {tokens.error ? <ErrorNote error={tokens.error} /> : null}
       {tokens.data?.length ? (
-        <ul className="plain" aria-label="SCIM tokens">
+        <ul className="plain" aria-label={tx('identity.provisioning.scimTokens')}>
           {tokens.data.map((t) => (
             <li key={t.id} className="cluster">
               <span>
                 <strong>{t.name}</strong> <span className="mono">{t.prefix}…</span>{' '}
-                <span className="note">{t.lastUsedAt ? `used ${ago(t.lastUsedAt)}` : 'not used yet'}</span>
+                <span className="note">{t.lastUsedAt ? `used ${ago(t.lastUsedAt)}` : tx('identity.provisioning.notUsedYet')}</span>
               </span>
-              <button type="button" className="small" onClick={() => revoke.mutate(t)} disabled={revoke.isPending} aria-label={`Revoke ${t.name}’s token`}>
-                Revoke
-              </button>
+              <button type="button" className="small" onClick={() => revoke.mutate(t)} disabled={revoke.isPending} aria-label={tx('identity.provisioning.revokeSToken', { name: t.name })}>{tx('identity.provisioning.revoke')}</button>
             </li>
           ))}
         </ul>
       ) : tokens.data ? (
-        <p className="note">No identity provider provisions people here yet.</p>
+        <p className="note">{tx('identity.provisioning.noIdentityProviderProvisionsPeople')}</p>
       ) : null}
       {made ? (
         <div className="secret">
-          <p>
-            <strong>Copy it now.</strong> Give {made.name} these: a4a shows the token only this once, and keeps a fingerprint of it.
-          </p>
-          <FormField label="Tenant URL">
+          <p>{tr('identity.provisioning.copyItNowGiveThese', { t0: (c: ReactNode) => <strong>{c}</strong>, name: made.name })}</p>
+          <FormField label={tx('identity.provisioning.tenantUrl')}>
             {(id) => (
               <output id={id}>
                 <code>{made.baseUrl}</code>
               </output>
             )}
           </FormField>
-          <FormField label="Secret token">
+          <FormField label={tx('identity.provisioning.secretToken')}>
             {(id) => (
               <output id={id}>
                 <code>{made.token}</code>
@@ -85,10 +80,8 @@ export function ProvisioningSection() {
             )}
           </FormField>
           <div className="cluster">
-            <CopyButton text={made.token} label="Copy the token" what="the token" />
-            <button type="button" className="link" onClick={() => setMade(null)}>
-              I've given it
-            </button>
+            <CopyButton text={made.token} label={tx('identity.provisioning.copyTheToken')} what={tx('identity.provisioning.theToken')} />
+            <button type="button" className="link" onClick={() => setMade(null)}>{tx('identity.provisioning.iVeGivenIt')}</button>
           </div>
         </div>
       ) : null}
@@ -99,12 +92,12 @@ export function ProvisioningSection() {
           make.mutate();
         }}
       >
-        <FormField label="A token for" help="The provider it’s for, so you know which to revoke.">
-          {(id, help) => <input id={id} aria-describedby={help} value={name} onChange={(e) => setName(e.target.value)} placeholder="Microsoft Entra ID" maxLength={80} />}
+        <FormField label={tx('identity.provisioning.aTokenFor')} help={tx('identity.provisioning.theProviderItSFor')}>
+          {(id, help) => <input id={id} aria-describedby={help} value={name} onChange={(e) => setName(e.target.value)} placeholder={tx('identity.provisioning.microsoftEntraId')} maxLength={80} />}
         </FormField>
         <div className="cluster tw:col-span-full">
           <button type="submit" disabled={!name.trim() || make.isPending}>
-            {make.isPending ? 'Making…' : 'Make a SCIM token'}
+            {make.isPending ? tx('identity.provisioning.making') : tx('identity.provisioning.makeAScimToken')}
           </button>
         </div>
       </form>

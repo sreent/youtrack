@@ -8,6 +8,7 @@ import type { AITool } from '../common/queries';
 import { ChangeCard } from './ChangeCard';
 import type { Approval, LivePart, LiveTurn } from './live';
 import { stepOf, ToolRun, type RunStep } from './ToolRun';
+import { t, tr } from '../../i18n';
 
 type Row =
   | { kind: 'day'; key: string; label: string }
@@ -55,7 +56,7 @@ function storedRows(messages: ChatMessage[], live: LiveTurn | undefined): Row[] 
 
 function liveRows(live: LiveTurn, hasToday: boolean): Row[] {
   const rows: Row[] = [];
-  if (!hasToday) rows.push({ kind: 'day', key: 'live-day', label: 'Today' });
+  if (!hasToday) rows.push({ kind: 'day', key: 'live-day', label: t('assistant.talk.today') });
   if (live.said) rows.push({ kind: 'you', key: 'live-said', text: live.said, unsent: Boolean(live.failed) });
   live.parts.forEach((p: LivePart, i) => {
     const key = `live-${i}`;
@@ -99,13 +100,13 @@ function Note({ text, live }: { text: string; live?: boolean }) {
     <div className="talk-note">
       {live ? <span className="spin" aria-hidden="true" /> : <Icon name="agent" />}
       <p>
-        <span className="hidden">assistant's note: </span>
+        <span className="hidden">{t('assistant.talk.assistantSNote')}</span>
         {shown}
         {long ? (
           <>
             {' '}
             <button type="button" className="link" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-              {open ? 'Show less' : 'Show all'}
+              {open ? t('assistant.talk.showLess') : t('assistant.talk.showAll')}
             </button>
           </>
         ) : null}
@@ -166,12 +167,12 @@ export function Talk(props: TalkProps) {
 
   const canSend = aiOn && !running && !awaiting && !props.loading && detail?.status !== 'running';
   const placeholder = !aiOn
-    ? 'The assistant is off on this server'
+    ? t('assistant.talk.theAssistantIsOffOn2')
     : running || detail?.status === 'running'
       ? 'assistant is answering…'
       : awaiting
-        ? 'Decide on the change above first'
-        : 'Ask about your issues, boards and plans';
+        ? t('assistant.talk.decideOnTheChangeAbove')
+        : t('assistant.talk.askAboutYourIssuesBoards');
 
   // Keep the newest in view as it streams, unless the person has scrolled back to read.
   const stick = useRef(true);
@@ -226,7 +227,7 @@ export function Talk(props: TalkProps) {
       {r.kind === 'you' ? (
         <p className={r.unsent ? 'say you unsent' : 'say you'}>
           {r.text}
-          {r.unsent ? <span className="say-unsent">Not sent</span> : null}
+          {r.unsent ? <span className="say-unsent">{t('assistant.talk.notSent')}</span> : null}
         </p>
       ) : null}
       {r.kind === 'agent' ? (
@@ -259,7 +260,7 @@ export function Talk(props: TalkProps) {
       asked={lastYou?.text}
       decided={live?.decisions?.[a.toolUseId] ?? decisions[a.toolUseId]}
       busy={running}
-      blocked={aiOn ? undefined : "The assistant is off on this server, so it can't make this change or carry on."}
+      blocked={aiOn ? undefined : t('assistant.talk.theAssistantIsOffOn')}
       fieldNames={props.fieldNames}
       onDecide={(yes) => props.onDecide(a, yes)}
     />
@@ -268,84 +269,78 @@ export function Talk(props: TalkProps) {
   return (
     <section
       className="talk on-page tw:h-[clamp(28rem,calc(100vh_-_12.5rem),64rem)] tw:max-[900px]:h-[75dvh] tw:max-[900px]:-order-1"
-      aria-label="A conversation with assistant"
+      aria-label={t('assistant.talk.aConversationWithAssistant')}
     >
       <header className="talk-head">
         <Avatar kind="agent" name="assistant" />
         <span className="talk-who">
-          <strong>assistant</strong>
-          <span>Works on your issues, boards and plans, for {props.forName}</span>
+          <strong>{t('assistant.talk.assistant')}</strong>
+          <span>{tr('assistant.talk.worksOnYourIssuesBoards', { forName: props.forName })}</span>
         </span>
-        <button type="button" className="link" ref={factsButton} aria-expanded={facts} aria-controls={factsId} onClick={() => setFacts((f) => !f)}>
-          What it may do
-        </button>
+        <button type="button" className="link" ref={factsButton} aria-expanded={facts} aria-controls={factsId} onClick={() => setFacts((f) => !f)}>{t('assistant.talk.whatItMayDo')}</button>
         {props.remove}
       </header>
       {facts ? (
-        <section className="agent-facts talk-facts" id={factsId} aria-label="What assistant may do">
-          <h3>Agent facts</h3>
+        <section className="agent-facts talk-facts" id={factsId} aria-label={t('assistant.talk.whatAssistantMayDo')}>
+          <h3>{t('assistant.talk.agentFacts')}</h3>
           <div className="per">
-            <span>assistant</span>
+            <span>{t('assistant.talk.assistant')}</span>
             <span className="mono">{props.model}</span>
           </div>
           <div className="rule" />
           <dl>
             <div className="pair">
-              <dt>Works for</dt>
-              <dd>{props.forName}, as you</dd>
+              <dt>{t('assistant.talk.worksFor')}</dt>
+              <dd>{tr('assistant.talk.asYou', { forName: props.forName })}</dd>
             </div>
             <div className="pair">
-              <dt>Autonomy</dt>
-              <dd>{props.mode === 'ask' ? 'Asks: changes wait for your yes' : 'Acts: changes on its own, and says so'}</dd>
+              <dt>{t('assistant.talk.autonomy')}</dt>
+              <dd>{props.mode === 'ask' ? t('assistant.talk.asksChangesWaitForYour') : t('assistant.talk.actsChangesOnItsOwn')}</dd>
             </div>
             <div className="pair">
-              <dt>Reads</dt>
-              <dd>issues, boards, plans, activity</dd>
+              <dt>{t('assistant.talk.reads')}</dt>
+              <dd>{t('assistant.talk.issuesBoardsPlansActivity')}</dd>
             </div>
             <div className="pair">
-              <dt>Changes</dt>
-              <dd>issues, comments, links, work, baselines</dd>
+              <dt>{t('assistant.talk.changes')}</dt>
+              <dd>{t('assistant.talk.issuesCommentsLinksWorkBaselines')}</dd>
             </div>
             <div className="pair">
-              <dt>Deletes</dt>
-              <dd>nothing</dd>
+              <dt>{t('assistant.talk.deletes')}</dt>
+              <dd>{t('assistant.talk.nothing')}</dd>
             </div>
             <div className="pair">
-              <dt>Outside content</dt>
-              <dd>none</dd>
+              <dt>{t('assistant.talk.outsideContent')}</dt>
+              <dd>{t('assistant.talk.none')}</dd>
             </div>
             <div className="pair">
-              <dt>Data</dt>
-              <dd>what you may see</dd>
+              <dt>{t('assistant.talk.data')}</dt>
+              <dd>{t('assistant.talk.whatYouMaySee')}</dd>
             </div>
             {props.provider ? (
               <div className="pair">
-                <dt>Runs on</dt>
+                <dt>{t('assistant.talk.runsOn')}</dt>
                 <dd>{props.provider}</dd>
               </div>
             ) : null}
           </dl>
           <div className="thin" />
           <div className="per">
-            <span>Its tools</span>
+            <span>{t('assistant.talk.itsTools')}</span>
             <span>{tools.size}</span>
           </div>
           <dl>
             <div className="pair">
-              <dt>Read</dt>
+              <dt>{t('assistant.talk.read')}</dt>
               <dd>{readsCount}</dd>
             </div>
             <div className="pair">
-              <dt>Change a record</dt>
-              <dd>
-                {changes.length}, {changes.filter((t) => t.destructive).length} can overwrite
-              </dd>
+              <dt>{t('assistant.talk.changeARecord')}</dt>
+              <dd>{tr('assistant.talk.canOverwrite', { length: changes.length, length2: changes.filter((t) => t.destructive).length })}</dd>
             </div>
           </dl>
           <div className="thin" />
-          <p className="foot">
-            Issue text is data to it, never instructions. Every change it makes is in the issue's history, as yours, through the assistant.
-          </p>
+          <p className="foot">{t('assistant.talk.issueTextIsDataTo')}</p>
         </section>
       ) : null}
 
@@ -361,15 +356,11 @@ export function Talk(props: TalkProps) {
           <>
             <p className="say own">
               <Icon name="audit" />
-              <span>
-                assistant reads what you may read for this, and{' '}
-                {props.mode === 'ask' ? 'asks before it changes anything.' : 'changes what you ask on its own, and says so.'}
-                {context.issue
-                  ? ` It starts from ${context.issue}, the issue you came from.`
+              <span>{tr('assistant.talk.assistantReadsWhatYouMay', { v: props.mode === 'ask' ? t('assistant.talk.asksBeforeItChangesAnything') : t('assistant.talk.changesWhatYouAskOn'), v2: context.issue
+                  ? t('assistant.talk.itStartsFromTheIssue', { issue: context.issue })
                   : context.project
-                    ? ` It starts from project ${context.project}.`
-                    : ''}
-              </span>
+                    ? t('assistant.talk.itStartsFromProject', { project: context.project })
+                    : '' })}</span>
             </p>
             {aiOn ? (
               <div className="replies">
@@ -382,18 +373,15 @@ export function Talk(props: TalkProps) {
             ) : null}
           </>
         ) : null}
-        {props.loading && !rows.length ? <p className="talk-day">Loading the conversation…</p> : null}
+        {props.loading && !rows.length ? <p className="talk-day">{t('assistant.talk.loadingTheConversation')}</p> : null}
         {before.map(row)}
         {decidedCards.map(card)}
         {after.map(row)}
         {running && (!live?.parts.length || live.parts[live.parts.length - 1]!.kind === 'tool') ? (
-          <p className="talk-working" role="status">
-            <span className="spin" aria-hidden="true" />
-            assistant is working on it
-          </p>
+          <p className="talk-working" role="status">{tr('assistant.talk.assistantIsWorkingOnIt', { el: <span className="spin" aria-hidden="true" /> })}</p>
         ) : null}
         {approvals.map(card)}
-        {approvals.length > 1 && awaiting ? <p className="talk-day">Decide on each change; assistant carries on once you have.</p> : null}
+        {approvals.length > 1 && awaiting ? <p className="talk-day">{t('assistant.talk.decideOnEachChangeAssistant')}</p> : null}
       </div>
 
       <form
@@ -406,7 +394,7 @@ export function Talk(props: TalkProps) {
         <textarea
           ref={input}
           rows={1}
-          aria-label="Your message"
+          aria-label={t('assistant.talk.yourMessage')}
           placeholder={placeholder}
           value={text}
           disabled={!canSend}
@@ -418,7 +406,7 @@ export function Talk(props: TalkProps) {
             }
           }}
         />
-        <button type="submit" className={text.trim() && canSend ? 'round primary' : 'round'} aria-label="Send" disabled={!canSend || !text.trim()}>
+        <button type="submit" className={text.trim() && canSend ? 'round primary' : 'round'} aria-label={t('assistant.talk.send')} disabled={!canSend || !text.trim()}>
           <Icon name="send" />
         </button>
       </form>

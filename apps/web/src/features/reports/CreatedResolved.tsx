@@ -8,6 +8,7 @@ import type { CreatedResolved } from '@a4a/shared';
 import { useId } from 'react';
 import { dayMonth } from '../plan/dates';
 import { column, labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
+import { t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 230, left: 40, right: 16, top: 14, bottom: 34 };
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -35,7 +36,7 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{`Issues created and issues resolved, by ${r.interval}; the figures are in the table`}</title>
+        <title id={titleId}>{t('reports.createdResolved.issuesCreatedAndIssuesResolved', { interval: r.interval })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
@@ -61,38 +62,24 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
       </svg>
       <figcaption>
         <ul className="chart-key">
-          <li>
-            <span className="chart-swatch s1" aria-hidden="true" />
-            Created
-          </li>
-          <li>
-            <span className="chart-swatch s2" aria-hidden="true" />
-            Resolved
-          </li>
+          <li>{tr('reports.createdResolved.created', { el: <span className="chart-swatch s1" aria-hidden="true" /> })}</li>
+          <li>{tr('reports.createdResolved.resolved', { el: <span className="chart-swatch s2" aria-hidden="true" /> })}</li>
         </ul>
       </figcaption>
     </figure>
   );
 
   const table = (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label={`Created and resolved, by ${r.interval}`}>
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.createdResolved.createdAndResolvedBy', { interval: r.interval })}>
       <table className="figures chart-figures">
-        <caption>By {r.interval}</caption>
+        <caption>{tr('reports.createdResolved.by', { interval: r.interval })}</caption>
         <thead>
           <tr>
-            <th scope="col">{r.interval === 'day' ? 'Day' : r.interval === 'week' ? 'Week' : 'Month'}</th>
-            <th scope="col" className="num">
-              Created
-            </th>
-            <th scope="col" className="num">
-              Resolved
-            </th>
-            <th scope="col" className="num">
-              Reopened
-            </th>
-            <th scope="col" className="num">
-              Open at the end
-            </th>
+            <th scope="col">{r.interval === 'day' ? t('reports.createdResolved.day') : r.interval === 'week' ? t('reports.createdResolved.week') : t('reports.createdResolved.month')}</th>
+            <th scope="col" className="num">{t('reports.createdResolved.created2')}</th>
+            <th scope="col" className="num">{t('reports.createdResolved.resolved2')}</th>
+            <th scope="col" className="num">{t('reports.createdResolved.reopened')}</th>
+            <th scope="col" className="num">{t('reports.createdResolved.openAtTheEnd')}</th>
           </tr>
         </thead>
         <tbody>
@@ -115,7 +102,7 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
       <>
         {chart}
         <details className="chart-more">
-          <summary>The figures</summary>
+          <summary>{t('reports.createdResolved.theFigures')}</summary>
           {table}
         </details>
       </>
@@ -137,27 +124,25 @@ export function CreatedResolvedReport({ r, compact }: { r: CreatedResolved; comp
     <div className="report">
       <dl className="report-facts">
         <div>
-          <dt>Created</dt>
+          <dt>{t('reports.createdResolved.created2')}</dt>
           <dd>{r.totals.created}</dd>
         </div>
         <div>
-          <dt>Resolved</dt>
+          <dt>{t('reports.createdResolved.resolved2')}</dt>
           <dd>{r.totals.resolved}</dd>
         </div>
         <div>
-          <dt>Open now</dt>
+          <dt>{t('reports.createdResolved.openNow')}</dt>
           <dd>
             {open}{' '}
             {!compact && first ? (
-              <small>
-                {open > before ? `${open - before} more than` : open < before ? `${before - open} fewer than` : 'as many as'} at the start
-              </small>
+              <small>{tr('reports.createdResolved.atTheStart', { v: open > before ? `${open - before} more than` : open < before ? `${before - open} fewer than` : 'as many as' })}</small>
             ) : null}
           </dd>
         </div>
         {r.totals.reopened && !compact ? (
           <div>
-            <dt>Reopened</dt>
+            <dt>{t('reports.createdResolved.reopened')}</dt>
             <dd>{r.totals.reopened}</dd>
           </div>
         ) : null}

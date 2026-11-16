@@ -26,19 +26,20 @@ import { FromApiForm, OriginSummary, SOURCE_NAME, TokenFields } from '../feature
 import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../features/imports/MappingTable';
 import { whenRead } from '../features/common/format';
 import { plural } from '../features/plan/format';
+import { t, tr } from '../i18n';
 
-const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file', github: 'GitHub Issues', redmine: 'Redmine', zendesk: 'Zendesk' };
+const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file', github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk' };
 const FIRST = {
-  start: { name: 'Bring the issues', about: "Jira's or YouTrack's export as CSV, or read over an API: YouTrack's, Jira's, GitHub's, Redmine's or Zendesk's." },
-  file: { name: 'Upload the export', about: "Jira's or YouTrack's, as CSV." },
-  api: { name: 'Read the issues', about: "From the other tracker's API, with a token a4a doesn't keep." },
+  start: { name: 'Bring the issues', about: t('page.import.jiraSOrYoutrackS') },
+  file: { name: 'Upload the export', about: t('page.import.jiraSOrYoutrackS2') },
+  api: { name: 'Read the issues', about: t('page.import.fromTheOtherTrackerS') },
 };
 const STAGES = [
   FIRST.file,
-  { name: 'Map it', about: 'Its columns to the project\'s fields, and its states, priorities and people to a4a\'s.' },
-  { name: 'Check it', about: 'What it would create and update, and each row\'s problems. Nothing changes.' },
-  { name: 'Import it', about: 'As a job you can leave. Running it again never makes an issue twice.' },
-  { name: 'Read what it did', about: 'What it made, what it left out, and why; and undo it, if you need to.' },
+  { name: 'Map it', about: t('page.import.itsColumnsToTheProject') },
+  { name: 'Check it', about: t('page.import.whatItWouldCreateAnd') },
+  { name: 'Import it', about: t('page.import.asAJobYouCan') },
+  { name: 'Read what it did', about: t('page.import.whatItMadeWhatIt') },
 ];
 
 /** Where an import's issues come from, in the list: a file, or a tracker's API. */
@@ -48,7 +49,7 @@ const fromWords = (i: Import) => (i.origin ? `${SOURCE_NAME[i.origin.kind]}'s AP
 function Stages({ now, first = 'file' }: { now: number; first?: keyof typeof FIRST }) {
   return (
     <div className="journey-box">
-      <ol className="journey" aria-label="The import's steps">
+      <ol className="journey" aria-label={t('page.import.theImportSSteps')}>
         {[FIRST[first], ...STAGES.slice(1)].map((s, i) => {
           const state = i < now ? 'done' : i === now ? 'now' : 'later';
           return (
@@ -58,7 +59,7 @@ function Stages({ now, first = 'file' }: { now: number; first?: keyof typeof FIR
               </span>
               <span>
                 <strong>{s.name}</strong>
-                <span className="hidden">{state === 'done' ? ', done' : state === 'now' ? ', to do now' : ''}</span>
+                <span className="hidden">{state === 'done' ? t('page.import.done') : state === 'now' ? t('page.import.toDoNow') : ''}</span>
                 <span className="journey-about">{s.about}</span>
               </span>
             </li>
@@ -85,13 +86,13 @@ function Upload() {
     <>
       <Stages now={0} first="start" />
       <section className="card" aria-labelledby={`${id}-h`}>
-        <h2 id={`${id}-h`}>Upload an export</h2>
+        <h2 id={`${id}-h`}>{t('page.import.uploadAnExport')}</h2>
         <form
           className="form"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!project) return setProblem('Choose the project to import into.');
-            if (!file) return setProblem('Choose the CSV file to import.');
+            if (!project) return setProblem(t('page.import.chooseTheProjectToImport'));
+            if (!file) return setProblem(t('page.import.chooseTheCsvFileTo'));
             setBusy(true);
             setProblem(null);
             try {
@@ -107,9 +108,9 @@ function Upload() {
         >
           <div className="form-fields">
             <div className="form-field">
-              <label htmlFor={`${id}-project`}>Into the project</label>
+              <label htmlFor={`${id}-project`}>{t('page.import.intoTheProject')}</label>
               <select id={`${id}-project`} value={project} onChange={(e) => setProject(e.target.value)}>
-                <option value="">Choose a project</option>
+                <option value="">{t('page.import.chooseAProject')}</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.key}>
                     {p.name}
@@ -118,26 +119,24 @@ function Upload() {
               </select>
             </div>
             <div className="form-field">
-              <label htmlFor={`${id}-source`}>From</label>
+              <label htmlFor={`${id}-source`}>{t('page.import.from')}</label>
               <select id={`${id}-source`} value={source} onChange={(e) => setSource(e.target.value)}>
-                <option value="">Whichever wrote it (a4a reads it from the headers)</option>
-                <option value="jira">Jira</option>
-                <option value="youtrack">YouTrack</option>
-                <option value="csv">Another tracker</option>
+                <option value="">{t('page.import.whicheverWroteItA4aReads')}</option>
+                <option value="jira">{t('page.import.jira')}</option>
+                <option value="youtrack">{t('page.import.youtrack')}</option>
+                <option value="csv">{t('page.import.anotherTracker')}</option>
               </select>
             </div>
           </div>
           <div className="form-field">
-            <label htmlFor={`${id}-file`}>The CSV file</label>
+            <label htmlFor={`${id}-file`}>{t('page.import.theCsvFile')}</label>
             <input id={`${id}-file`} type="file" accept=".csv,text/csv" aria-describedby={`${id}-file-help`} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            <small className="field-help" id={`${id}-file-help`}>
-              In Jira, export the issues as CSV (all fields); in YouTrack, as CSV from the issues list. Up to 64 MB and 50,000 rows. Nothing is imported until you say so.
-            </small>
+            <small className="field-help" id={`${id}-file-help`}>{t('page.import.inJiraExportTheIssues')}</small>
           </div>
           {problem ? <Said text={problem} tone="bad" /> : null}
           <div className="cluster end">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Uploading…' : 'Upload it'}
+              {busy ? t('page.import.uploading') : t('page.import.uploadIt')}
             </button>
           </div>
         </form>
@@ -145,7 +144,7 @@ function Upload() {
       <FromApiForm />
       {past.data?.length ? (
         <section className="card" aria-labelledby={`${id}-past`}>
-          <h2 id={`${id}-past`}>Imports so far</h2>
+          <h2 id={`${id}-past`}>{t('page.import.importsSoFar')}</h2>
           <ul className="directory">
             {past.data.map((i) => (
               <li key={i.id}>
@@ -153,10 +152,7 @@ function Upload() {
                   <Link to={`/import/${i.id}`}>{i.fileName}</Link>
                   <span className="issue-id">{i.project.key}</span>
                 </span>
-                <p className="note">
-                  From {fromWords(i)}, {plural(i.rows, i.origin ? 'issue' : 'row')}, {whenRead(i.createdAt)}
-                  {i.result ? `, ${i.result.created} created, ${i.result.updated} updated` : ''} · {i.status}
-                </p>
+                <p className="note">{tr('page.import.from2', { fromWords: fromWords(i), plural: plural(i.rows, i.origin ? 'issue' : 'row'), whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: i.status })}</p>
               </li>
             ))}
           </ul>
@@ -173,18 +169,18 @@ function Progress({ imp }: { imp: Import }) {
   const words =
     phase === 'fetching'
       ? total
-        ? `Reading the issues from ${from}: ${done} of about ${total}`
-        : `Reading the issues from ${from}: ${done} so far`
+        ? t('page.import.readingTheIssuesFromOf', { from: from, done: done, total: total })
+        : t('page.import.readingTheIssuesFromSo', { from: from, done: done })
       : phase === 'links'
-        ? `Linking: ${done} of ${plural(total, 'issue')}`
-        : `Importing: ${done} of ${plural(total, imp.origin ? 'issue' : 'row')}`;
+        ? t('page.import.linkingOf', { done: done, plural: plural(total, 'issue') })
+        : t('page.import.importingOf', { done: done, plural: plural(total, imp.origin ? 'issue' : 'row') });
   return (
-    <div className="import-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={words} aria-label="How far the import is">
+    <div className="import-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={words} aria-label={t('page.import.howFarTheImportIs')}>
       <svg aria-hidden="true">
         <rect className="import-progress-track" width="100%" height="100%" rx="3" />
         <rect className="import-progress-done" width={`${pct}%`} height="100%" rx="3" />
       </svg>
-      <p>{words}. You can leave this page; it carries on.</p>
+      <p>{tr('page.import.youCanLeaveThisPage', { words: words })}</p>
     </div>
   );
 }
@@ -199,50 +195,41 @@ function Report({ imp }: { imp: Import }) {
   const rows = problems.data?.items ?? [];
   return (
     <>
-      <section className="card stack" aria-label="What the import did">
+      <section className="card stack" aria-label={t('page.import.whatTheImportDid')}>
         <div className="section-head">
-          <h2>What it did</h2>
-          {imp.status === 'undone' ? <Badge tone="idle">Undone</Badge> : <Badge tone="good">Done</Badge>}
+          <h2>{t('page.import.whatItDid')}</h2>
+          {imp.status === 'undone' ? <Badge tone="idle">{t('page.import.undone')}</Badge> : <Badge tone="good">{t('page.import.done2')}</Badge>}
         </div>
-        <Tally counts={r} label="What it did" />
+        <Tally counts={r} label={t('page.import.whatItDid')} />
         {r.linksMissing ? (
-          <p className="note">
-            {plural(r.linksMissing, 'link')} named issues neither {imp.origin ? 'among those read' : 'in the file'} nor imported before, so they were left out.
-          </p>
+          <p className="note">{tr('page.import.namedIssuesNeitherNorImported', { plural: plural(r.linksMissing, 'link'), v: imp.origin ? 'among those read' : 'in the file' })}</p>
         ) : null}
         {created.data?.items.length ? (
-          <p className="note">
-            It made{' '}
-            {created.data.items.slice(0, 12).map((row, i) => (
+          <p className="note">{tr('page.import.itMade', { map: created.data.items.slice(0, 12).map((row, i) => (
               <span key={row.row}>
                 {i ? ', ' : ''}
                 <Link className="issue-id" to={`/issues/${row.issue}`}>
                   {row.issue}
                 </Link>
               </span>
-            ))}
-            {created.data.total > 12 ? ` and ${created.data.total - 12} more` : ''}.
-          </p>
+            )), v: created.data.total > 12 ? t('page.import.andMore', { v: created.data.total - 12 }) : '' })}</p>
         ) : null}
       </section>
       {rows.length ? (
-        <section className="card stack" aria-label="Rows with problems">
-          <h2>{plural(problems.data!.total, 'row')} with problems</h2>
-          <ProblemsTable problems={rows.flatMap((row) => row.problems)} caption="Problems, row by row" />
+        <section className="card stack" aria-label={t('page.import.rowsWithProblems')}>
+          <h2>{tr('page.import.withProblems', { plural: plural(problems.data!.total, 'row') })}</h2>
+          <ProblemsTable problems={rows.flatMap((row) => row.problems)} caption={t('page.import.problemsRowByRow')} />
         </section>
       ) : null}
-      <section className="card stack" aria-label="Undo">
-        <h2>Undo it</h2>
-        <p className="note">
-          Undoing takes away the issues this import created, unless someone has worked on them since. Changes it made to issues that were already here stay: writing their old values back over whatever
-          happened since wouldn't be safe.
-        </p>
+      <section className="card stack" aria-label={t('page.import.undo')}>
+        <h2>{t('page.import.undoIt')}</h2>
+        <p className="note">{t('page.import.undoingTakesAwayTheIssues')}</p>
         <Said text={said?.text} tone={said?.tone} />
         {undo && !undo.applied ? (
           <div className="stack">
             <p>
-              {undo.remove.length ? `${plural(undo.remove.length, 'issue')} would go.` : 'Nothing would go.'}{' '}
-              {undo.keep.length ? `${plural(undo.keep.length, 'issue')} would stay, because someone has worked on them since:` : ''}
+              {undo.remove.length ? t('page.import.wouldGo', { plural: plural(undo.remove.length, 'issue') }) : t('page.import.nothingWouldGo')}{' '}
+              {undo.keep.length ? t('page.import.wouldStayBecauseSomeoneHas', { plural: plural(undo.keep.length, 'issue') }) : ''}
             </p>
             {undo.keep.length ? (
               <ul>
@@ -258,15 +245,15 @@ function Report({ imp }: { imp: Import }) {
             ) : null}
             {undo.remove.length ? (
               <Confirm
-                label={`Undo the import of ${plural(undo.remove.length, 'issue')}`}
-                title={`Delete the ${plural(undo.remove.length, 'issue')} this import created?`}
-                about="Their comments, links and logged time go with them, and nobody can bring them back. Running the import again would make them afresh."
-                confirm="Delete them"
+                label={t('page.import.undoTheImportOf', { plural: plural(undo.remove.length, 'issue') })}
+                title={t('page.import.deleteTheThisImportCreated', { plural: plural(undo.remove.length, 'issue') })}
+                about={t('page.import.theirCommentsLinksAndLogged')}
+                confirm={t('page.import.deleteThem')}
                 onConfirm={async () => {
                   try {
                     const done = await undoImport(imp.id, false);
                     setUndo(done);
-                    setSaid({ text: `${plural(done.remove.length, 'issue')} taken away${done.keep.length ? `; ${done.keep.length} stayed` : ''}.` });
+                    setSaid({ text: t('page.import.takenAway', { plural: plural(done.remove.length, 'issue'), v: done.keep.length ? `; ${done.keep.length} stayed` : '' }) });
                     await qc.invalidateQueries({ queryKey: importKeys.all });
                     await qc.invalidateQueries({ queryKey: ['issues'] });
                   } catch (e) {
@@ -278,9 +265,7 @@ function Report({ imp }: { imp: Import }) {
           </div>
         ) : (
           <div className="cluster">
-            <button type="button" disabled={imp.status === 'undone'} onClick={async () => setUndo(await undoImport(imp.id, true).catch((e) => (setSaid({ text: errorText(e), tone: 'bad' }), null)))}>
-              See what undoing would do
-            </button>
+            <button type="button" disabled={imp.status === 'undone'} onClick={async () => setUndo(await undoImport(imp.id, true).catch((e) => (setSaid({ text: errorText(e), tone: 'bad' }), null)))}>{t('page.import.seeWhatUndoingWouldDo')}</button>
           </div>
         )}
       </section>
@@ -297,11 +282,8 @@ function CarryOn({ imp }: { imp: Import }) {
   const [problem, setProblem] = useState<string | null>(null);
   return (
     <section className="card stack" aria-labelledby="carry-on">
-      <h2 id="carry-on">Carry on reading</h2>
-      <p className="note">
-        {plural(o.fetch.issues, 'issue')} read so far{o.fetch.total ? `, of about ${o.fetch.total}` : ''}. Carrying on starts where it stopped, and reads nothing twice. a4a doesn't keep the
-        token: give it again.
-      </p>
+      <h2 id="carry-on">{t('page.import.carryOnReading')}</h2>
+      <p className="note">{tr('page.import.readSoFarCarryingOn', { plural: plural(o.fetch.issues, 'issue'), v: o.fetch.total ? t('page.import.ofAbout', { total: o.fetch.total }) : '' })}</p>
       <form
         className="form"
         onSubmit={async (e) => {
@@ -323,7 +305,7 @@ function CarryOn({ imp }: { imp: Import }) {
         {problem ? <Said text={problem} tone="bad" /> : null}
         <div className="cluster end">
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? 'Starting…' : 'Carry on'}
+            {busy ? t('page.import.starting') : t('page.import.carryOn')}
           </button>
         </div>
       </form>
@@ -354,7 +336,7 @@ function ImportSteps({ imp }: { imp: Import }) {
       const next = await putMapping(imp.id, body);
       qc.setQueryData(importKeys.one(imp.id), next);
       setCheck(null);
-      setSaid({ text: 'Saved. Check it again to see what it would do now.' });
+      setSaid({ text: t('page.import.savedCheckItAgainTo') });
     } catch (e) {
       setSaid({ text: errorText(e), tone: 'bad' });
     }
@@ -367,21 +349,21 @@ function ImportSteps({ imp }: { imp: Import }) {
       {imp.status === 'stopped' ? (
         <p className="error-note" role="alert">
           <Icon name="cross" />
-          <strong>{unread ? 'Reading the issues stopped before the end, as when the server restarts.' : 'The import stopped before it finished, as when the server restarts.'}</strong>
+          <strong>{unread ? t('page.import.readingTheIssuesStoppedBefore') : t('page.import.theImportStoppedBeforeIt')}</strong>
         </p>
       ) : null}
       {imp.error ? <ErrorNote error={new Error(imp.error)} /> : null}
       {reading ? (
-        <section className="card stack" aria-label="Reading the issues">
-          <h2>Reading the issues for {imp.project.name}</h2>
+        <section className="card stack" aria-label={t('page.import.readingTheIssues')}>
+          <h2>{tr('page.import.readingTheIssuesFor', { name: imp.project.name })}</h2>
           <OriginSummary imp={imp} />
           <Progress imp={imp} />
         </section>
       ) : null}
       {unread ? <CarryOn imp={imp} /> : null}
       {running ? (
-        <section className="card stack" aria-label="Importing">
-          <h2>Importing into {imp.project.name}</h2>
+        <section className="card stack" aria-label={t('page.import.importing')}>
+          <h2>{tr('page.import.importingInto', { name: imp.project.name })}</h2>
           <Progress imp={imp} />
         </section>
       ) : null}
@@ -390,45 +372,39 @@ function ImportSteps({ imp }: { imp: Import }) {
         <>
           <section className="card stack" aria-labelledby="map-columns">
             <div className="section-head">
-              <h2 id="map-columns">Its columns</h2>
+              <h2 id="map-columns">{t('page.import.itsColumns')}</h2>
               {imp.origin ? (
                 <OriginSummary imp={imp} />
               ) : (
-                <p className="note">
-                  {imp.fileName}, from {SOURCES[imp.source]}: {plural(imp.rows, 'row')}, {plural(imp.columns.length, 'column')}.
-                </p>
+                <p className="note">{tr('page.import.from3', { fileName: imp.fileName, v: SOURCES[imp.source], plural: plural(imp.rows, 'row'), plural2: plural(imp.columns.length, 'column') })}</p>
               )}
             </div>
-            {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what="the project's fields" />}
+            {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what={t('page.import.theProjectSFields')} />}
           </section>
           {imp.values.map((map) => (
             <section key={map.target} className="card stack" aria-labelledby={`values-${map.target}`}>
               <div className="section-head">
                 <h2 id={`values-${map.target}`}>{map.label}</h2>
-                <p className="note">
-                  What each {map.label === 'Sprint' ? 'sprint' : 'value'} in {whereFrom(imp)} becomes here.
-                </p>
+                <p className="note">{tr('page.import.whatEachInBecomesHere', { v: map.label === 'Sprint' ? 'sprint' : 'value', whereFrom: whereFrom(imp) })}</p>
               </div>
               <ValuesTable map={map} from={whereFrom(imp)} onValue={(value, to) => change({ values: { [map.target]: { [value]: to } } })} />
             </section>
           ))}
           <section className="card stack" aria-labelledby="check-it">
-            <h2 id="check-it">Check it, then import it</h2>
+            <h2 id="check-it">{t('page.import.checkItThenImportIt')}</h2>
             <fieldset className="choice-group column">
-              <legend>An issue imported before, found again by its key</legend>
+              <legend>{t('page.import.anIssueImportedBeforeFound')}</legend>
               {(['update', 'skip'] as const).map((o) => (
                 <label key={o} className="choice">
                   <input type="radio" name="onExisting" checked={imp.options.onExisting === o} onChange={() => change({ options: { onExisting: o } })} />{' '}
-                  {o === 'update' ? 'Update what changed in the export since; what someone changed here stays' : 'Leave it as it is'}
+                  {o === 'update' ? t('page.import.updateWhatChangedInThe') : t('page.import.leaveItAsItIs')}
                 </label>
               ))}
             </fieldset>
-            <p className="note">Dates without a time zone are read in {imp.options.timeZone}.</p>
+            <p className="note">{tr('page.import.datesWithoutATimeZone', { timeZone: imp.options.timeZone })}</p>
             {needsToken && !holding ? (
               <div className="stack">
-                <p className="note">
-                  It brings {plural(imp.origin!.fetch.files, 'file')} from {SOURCE_NAME[imp.origin!.kind]}, downloaded as it runs. a4a doesn't keep the token: give it again to import.
-                </p>
+                <p className="note">{tr('page.import.itBringsFromDownloadedAs', { plural: plural(imp.origin!.fetch.files, 'file'), v: SOURCE_NAME[imp.origin!.kind] })}</p>
                 <TokenFields source={imp.origin!.kind} cloud={imp.origin!.kind === 'jira' ? imp.origin!.deployment === 'cloud' : false} credentials={credentials} onChange={setCredentials} />
               </div>
             ) : null}
@@ -447,9 +423,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                     setBusy(false);
                   }
                 }}
-              >
-                Check it
-              </button>
+              >{t('page.import.checkIt')}</button>
               {check ? (
                 <button
                   type="button"
@@ -468,14 +442,12 @@ function ImportSteps({ imp }: { imp: Import }) {
                       setBusy(false);
                     }
                   }}
-                >
-                  Import {plural(check.counts.created + check.counts.updated, 'issue')}
-                </button>
+                >{tr('page.import.import', { plural: plural(check.counts.created + check.counts.updated, 'issue') })}</button>
               ) : null}
             </div>
             {check ? (
               <div className="stack" aria-live="polite">
-                <Tally counts={check.counts} label="What it would do" planned />
+                <Tally counts={check.counts} label={t('page.import.whatItWouldDo')} planned />
                 {check.warnings.length ? (
                   <ul className="note">
                     {check.warnings.map((w) => (
@@ -483,8 +455,8 @@ function ImportSteps({ imp }: { imp: Import }) {
                     ))}
                   </ul>
                 ) : null}
-                <ProblemsTable problems={check.problems} caption="Problems, row by row" />
-                {check.counts.problems > check.problems.length ? <p className="note">The first {check.problems.length} of {plural(check.counts.problems, 'problem')}.</p> : null}
+                <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} />
+                {check.counts.problems > check.problems.length ? <p className="note">{tr('page.import.theFirstOf', { length: check.problems.length, plural: plural(check.counts.problems, 'problem') })}</p> : null}
               </div>
             ) : null}
           </section>
@@ -500,22 +472,22 @@ export default function ImportPage() {
   return (
     <ManagersOnly>
       <PageHead
-        title="Import"
+        title={t('page.import.import2')}
         crumbs={
           id ? (
             <>
-              <Link to="/import">Import</Link>
+              <Link to="/import">{t('page.import.import2')}</Link>
               <span className="sep" aria-hidden="true">
                 /
               </span>
             </>
           ) : undefined
         }
-        about="Bring issues over from Jira or YouTrack: their fields, comments, links and dates, recorded in each issue's history as imported."
+        about={t('page.import.bringIssuesOverFromJira')}
       />
       <div className="stack">
         {!id ? <Upload /> : null}
-        {id && imp.isLoading ? <Loading what="the import" /> : null}
+        {id && imp.isLoading ? <Loading what={t('page.import.theImport')} /> : null}
         {id && imp.error ? <ErrorNote error={imp.error} /> : null}
         {imp.data ? <ImportSteps imp={imp.data} /> : null}
       </div>
@@ -527,7 +499,7 @@ export default function ImportPage() {
 function ManagersOnly({ children }: { children: React.ReactNode }) {
   const projects = useProjects();
   if (projects.data && !projects.data.some((p) => p.access.manage)) {
-    return <PageHead title="Import" about="Importing is for a project's managers and administrators. Ask a manager of the project to import into it." />;
+    return <PageHead title={t('page.import.import2')} about={t('page.import.importingIsForAProject')} />;
   }
   return <>{children}</>;
 }

@@ -5,6 +5,7 @@ import { Icon } from '../../components/Icon';
 import { ErrorLine } from '../../components/States';
 import { ChangeLines } from '../common/ChangeLines';
 import { checkScript } from './api';
+import { t, tr } from '../../i18n';
 
 /** The line (from 1) that a place in the text is on. */
 function lineAt(text: string, at: number): number {
@@ -121,13 +122,11 @@ export function ScriptField({ text, onText, problems, label, describedBy }: { te
 /** Ocean's script run: what a script would do to one issue as it is now, from a dry run. */
 export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun }) {
   return (
-    <div className="script-run" role="group" aria-label={`What it would do to ${issue}`}>
-      <p className="label">
-        What it would do to <IssueLink id={issue} />
-      </p>
+    <div className="script-run" role="group" aria-label={t('workflow.scriptField.whatItWouldDoTo', { issue: issue })}>
+      <p className="label">{tr('workflow.scriptField.whatItWouldDoTo2', { el: <IssueLink id={issue} /> })}</p>
       {run.error ? <ErrorLine>{run.error.message}</ErrorLine> : null}
       {run.logs.length ? <pre className="script-log">{run.logs.join('\n')}</pre> : null}
-      {run.refusal !== null ? <p>It refuses: “{run.refusal}”</p> : null}
+      {run.refusal !== null ? <p>{tr('workflow.scriptField.itRefuses', { refusal: run.refusal })}</p> : null}
       {run.applies.length ? (
         <ul className="script-applies">
           {run.applies.map((a, i) => (
@@ -135,10 +134,7 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
               <span>
                 <code>{a.command}</code>
                 {a.issue && a.issue.id !== issue ? (
-                  <>
-                    {' '}
-                    on <IssueLink id={a.issue.id} />
-                  </>
+                  <>{tr('workflow.scriptField.on', { el: <IssueLink id={a.issue.id} /> })}</>
                 ) : null}
               </span>
               {a.changes.length ? <ChangeLines changes={a.changes} /> : null}
@@ -151,10 +147,8 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
           ))}
         </ul>
       ) : null}
-      {run.comments.length ? <p className="note">It would comment: {run.comments.map((c) => `“${c}”`).join(', ')}</p> : null}
-      <p className="note">
-        {run.note} It took {run.ms} ms.
-      </p>
+      {run.comments.length ? <p className="note">{tr('workflow.scriptField.itWouldComment', { join: run.comments.map((c) => `“${c}”`).join(', ') })}</p> : null}
+      <p className="note">{tr('workflow.scriptField.itTookMs', { note: run.note, ms: run.ms })}</p>
     </div>
   );
 }

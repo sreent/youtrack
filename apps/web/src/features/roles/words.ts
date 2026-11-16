@@ -1,17 +1,18 @@
 import type { Permission, RoleDef } from '@a4a/shared';
 import { BUILTIN_ROLE_NAMES, BUILTIN_ROLE_PERMISSIONS, PROJECT_ROLES } from '@a4a/shared/constants';
+import { t } from '../../i18n';
 
 /** What each permission lets someone do in a project (D37), as a short name and as a phrase. */
 export const PERMISSION_NAMES: Record<Permission, string> = {
-  read: 'Read',
-  comment: 'Comment',
-  create: 'Report issues',
-  edit: 'Change issues',
-  delete: 'Delete issues',
-  time: 'Log time',
-  costs: 'See time and costs',
-  boards: 'Change boards',
-  manage: 'Manage',
+  read: t('roles.words.read'),
+  comment: t('roles.words.comment'),
+  create: t('roles.words.reportIssues'),
+  edit: t('roles.words.changeIssues'),
+  delete: t('roles.words.deleteIssues'),
+  time: t('roles.words.logTime'),
+  costs: t('roles.words.seeTimeAndCosts'),
+  boards: t('roles.words.changeBoards'),
+  manage: t('roles.words.manage'),
 };
 
 const PHRASES: Record<Permission, string> = {
@@ -27,15 +28,15 @@ const PHRASES: Record<Permission, string> = {
 };
 
 export const PERMISSION_ABOUT: Record<Permission, string> = {
-  read: 'See the project and its issues. Every other permission needs it.',
-  comment: 'Comment on issues.',
-  create: 'Report new issues.',
-  edit: 'Change issues: their fields, words, tags, links, and who sees them.',
-  delete: 'Delete issues.',
-  time: 'Log time on issues.',
-  costs: 'See the time logged, and costs.',
-  boards: 'Make and change boards and sprints.',
-  manage: "Change the project's settings, people, rules, plan and help desk, and see every issue in it, whoever it's limited to.",
+  read: t('roles.words.seeTheProjectAndIts'),
+  comment: t('roles.words.commentOnIssues'),
+  create: t('roles.words.reportNewIssues'),
+  edit: t('roles.words.changeIssuesTheirFieldsWords'),
+  delete: t('roles.words.deleteIssues2'),
+  time: t('roles.words.logTimeOnIssues'),
+  costs: t('roles.words.seeTheTimeLoggedAnd'),
+  boards: t('roles.words.makeAndChangeBoardsAnd'),
+  manage: t('roles.words.changeTheProjectSSettings'),
 };
 
 /** "read its issues, comment on them and see time and costs", to follow "may". */

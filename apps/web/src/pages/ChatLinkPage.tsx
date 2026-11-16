@@ -7,6 +7,8 @@ import { useMe } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { chatKeys } from '../features/chat/Chat';
 import { errorText, Said } from '../features/common/bits';
+import { intlLocale, t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /** A sign-in link from the bot: who it would link, and linking it, by whoever signed in here. */
 export default function ChatLinkPage() {
@@ -19,12 +21,12 @@ export default function ChatLinkPage() {
     mutationFn: () => post<ChatAccount>(`/chat/links/${encodeURIComponent(token)}`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: chatKeys.accounts }),
   });
-  if (!token) return <PageHead title="Link a chat account" about="This page takes a link from a4a’s bot in Teams or Slack. Say “link” to the bot to get one." />;
-  if (link.isLoading) return <Loading what="the link" />;
+  if (!token) return <PageHead title={t('page.chatLink.linkAChatAccount')} about={t('page.chatLink.thisPageTakesALink')} />;
+  if (link.isLoading) return <Loading what={t('page.chatLink.theLink')} />;
   if (link.error || !link.data) {
     return (
       <>
-        <PageHead title="Link a chat account" />
+        <PageHead title={t('page.chatLink.linkAChatAccount')} />
         <ErrorNote error={link.error} />
       </>
     );
@@ -34,46 +36,42 @@ export default function ChatLinkPage() {
   if (accept.data) {
     return (
       <>
-        <PageHead title="Linked" about={`${l.name} on ${where} acts as you in a4a now. You can go back to ${where}.`} />
-        <p className="note">
-          It’s on <Link to="/me">your profile</Link>, where you can unlink it.
-        </p>
+        <PageHead title={t('page.chatLink.linked')} about={t('page.chatLink.onActsAsYouIn', { name: l.name, where: where, where2: where })} />
+        <p className="note">{tr('page.chatLink.itSOnYourProfile', { t0: (c: ReactNode) => <Link to="/me">{c}</Link> })}</p>
       </>
     );
   }
   return (
     <>
-      <PageHead title={`Link your ${where} account`} about={`${where} asked a4a to act as you there. Link it only if it’s yours: whoever uses it acts as you.`} />
+      <PageHead title={t('page.chatLink.linkYourAccount', { where: where })} about={t('page.chatLink.askedA4aToActAs', { where: where })} />
       <section className="card stack" aria-labelledby="chat-link">
-        <h2 id="chat-link">
-          {l.name} on {where}
-        </h2>
+        <h2 id="chat-link">{tr('page.chatLink.on', { name: l.name, where: where })}</h2>
         <dl className="facts-list">
           {l.workspace !== where ? (
             <div className="pair">
-              <dt>In</dt>
+              <dt>{t('page.chatLink.in')}</dt>
               <dd>{l.workspace}</dd>
             </div>
           ) : null}
           <div className="pair">
-            <dt>Acts as</dt>
+            <dt>{t('page.chatLink.actsAs')}</dt>
             <dd>
               {me.data?.name} ({me.data?.login})
             </dd>
           </div>
           {l.linkedTo ? (
             <div className="pair">
-              <dt>Now</dt>
-              <dd>Linked to {l.linkedTo.name}: linking it moves it to you.</dd>
+              <dt>{t('page.chatLink.now')}</dt>
+              <dd>{tr('page.chatLink.linkedToLinkingItMoves', { name: l.linkedTo.name })}</dd>
             </div>
           ) : null}
         </dl>
-        <p className="note">The link works once, until {new Date(l.expiresAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}.</p>
+        <p className="note">{tr('page.chatLink.theLinkWorksOnceUntil', { toLocaleTimeString: new Date(l.expiresAt).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) })}</p>
         <div className="cluster">
           <button type="button" className="primary" disabled={accept.isPending} onClick={() => accept.mutate()}>
-            {accept.isPending ? 'Linking…' : `Link it to ${me.data?.name ?? 'me'}`}
+            {accept.isPending ? t('page.chatLink.linking') : t('page.chatLink.linkItTo', { v: me.data?.name ?? 'me' })}
           </button>
-          <Link to="/inbox">Not mine</Link>
+          <Link to="/inbox">{t('page.chatLink.notMine')}</Link>
         </div>
         <Said text={accept.error ? errorText(accept.error) : null} tone={accept.error ? 'bad' : undefined} />
       </section>

@@ -1,20 +1,22 @@
 /** What a notification says, in plain words: the same in the inbox, over MCP and by email. */
 import type { NotificationKind, TrackerEvent } from '@a4a/shared';
+import type { Locale, Translator } from '@a4a/shared/i18n';
+import { intlTag } from '../i18n';
 
 /** Who did it, as a person reads it: a requester by their name, an agent by its id, an agent for a person says so. */
-export function actorName(e: TrackerEvent): string {
-  const person = e.actor.name ?? e.actor.login ?? 'Someone';
+export function actorName(tr: Translator, e: TrackerEvent): string {
+  const person = e.actor.name ?? e.actor.login ?? tr.t('server.notify.someone');
   switch (e.actor.channel) {
     case 'helpdesk':
-      return String((e.data as { requester?: { name?: string } }).requester?.name ?? 'The requester');
+      return String((e.data as { requester?: { name?: string } }).requester?.name ?? tr.t('server.notify.theRequester'));
     case 'automation':
-      return e.actor.login ?? 'An agent';
+      return e.actor.login ?? tr.t('server.notify.anAgent');
     case 'mcp':
-      return `${e.actor.token ?? 'an agent'} for ${person}`;
+      return tr.t('server.notify.agentFor', { agent: e.actor.token ?? tr.t('server.notify.anAgentLower'), person });
     case 'assistant':
-      return `assistant for ${person}`;
+      return tr.t('server.notify.assistantFor', { person });
     case 'api':
-      return e.actor.token ? `${e.actor.token} for ${person}` : person;
+      return e.actor.token ? tr.t('server.notify.agentFor', { agent: e.actor.token, person }) : person;
     case 'chat':
       return person;
     case 'system':
@@ -24,119 +26,113 @@ export function actorName(e: TrackerEvent): string {
   }
 }
 
-function list(words: string[]): string {
-  if (words.length <= 1) return words[0] ?? '';
-  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+function list(tr: Translator, words: string[]): string {
+  return new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words);
 }
 
 /** What one event did, as a verb phrase: "commented", "changed State and Priority". */
-export function eventVerb(e: TrackerEvent): string {
+export function eventVerb(tr: Translator, e: TrackerEvent): string {
   const data = e.data as Record<string, unknown>;
+  const t = tr.t;
   switch (e.type) {
     case 'issue.created':
-      return data.requester ? 'asked for help through the help desk' : 'reported it';
+      return data.requester ? t('server.notify.verb.askedForHelp') : t('server.notify.verb.reported');
     case 'issue.updated': {
       const fields = [...new Set(e.changes.map((c) => c.field))];
-      return fields.length ? `changed ${list(fields)}` : 'changed it';
+      return fields.length ? t('server.notify.verb.changedFields', { fields: list(tr, fields) }) : t('server.notify.verb.changedIt');
     }
     case 'comment.created':
-      return data.requester ? 'replied' : data.visibility === 'public' ? 'replied to the requester' : 'commented';
+      return data.requester ? t('server.notify.verb.replied') : data.visibility === 'public' ? t('server.notify.verb.repliedToRequester') : t('server.notify.verb.commented');
     case 'comment.updated':
-      return 'edited a comment';
+      return t('server.notify.verb.editedComment');
     case 'link.created':
-      return `linked it: ${String(data.phrase ?? 'relates to')} ${(data.target as { id?: string } | undefined)?.id ?? ''}`.trim();
+      return t('server.notify.verb.linked', { phrase: String(data.phrase ?? 'relates to'), target: (data.target as { id?: string } | undefined)?.id ?? '' }).trim();
     case 'link.deleted':
-      return `unlinked it from ${(data.target as { id?: string } | undefined)?.id ?? 'an issue'}`;
+      return t('server.notify.verb.unlinked', { target: (data.target as { id?: string } | undefined)?.id ?? t('server.notify.anIssue') });
     case 'attachment.added':
-      return `attached ${(data.attachment as { name?: string } | undefined)?.name ?? 'a file'}`;
+      return t('server.notify.verb.attached', { name: (data.attachment as { name?: string } | undefined)?.name ?? t('server.notify.aFile') });
     case 'attachment.removed':
-      return `removed the file ${(data.attachment as { name?: string } | undefined)?.name ?? ''}`.trim();
+      return t('server.notify.verb.removedFile', { name: (data.attachment as { name?: string } | undefined)?.name ?? '' }).trim();
     case 'issue.deleted':
-      return 'deleted it';
+      return t('server.notify.verb.deleted');
     case 'issue.moved':
-      return `moved it from ${String(data.from ?? 'another project')} to ${String(data.to ?? 'another project')}`;
+      return t('server.notify.verb.moved', { from: String(data.from ?? t('server.notify.anotherProject')), to: String(data.to ?? t('server.notify.anotherProject')) });
     case 'rule.notified':
-      return `passed on a message from the rule “${ruleName(e)}”`;
+      return t('server.notify.verb.ruleMessage', { rule: ruleName(tr, e) });
     case 'rule.called':
-      return `called a webhook for the rule “${ruleName(e)}”`;
+      return t('server.notify.verb.ruleWebhook', { rule: ruleName(tr, e) });
     // These reach only those whose saved search an issue came into (D31).
     case 'comment.deleted':
-      return 'deleted a comment';
+      return t('server.notify.verb.deletedComment');
     case 'work.logged':
-      return 'logged time on it';
+      return t('server.notify.verb.loggedTime');
     case 'work.deleted':
-      return 'removed time logged on it';
+      return t('server.notify.verb.removedTime');
     case 'work.updated':
-      return 'corrected time logged on it';
+      return t('server.notify.verb.correctedTime');
     case 'sprint.issue_added':
-      return 'added it to a sprint';
+      return t('server.notify.verb.addedToSprint');
     case 'sprint.issue_removed':
-      return 'took it out of a sprint';
+      return t('server.notify.verb.tookOutOfSprint');
     default:
-      return 'changed it';
+      return t('server.notify.verb.changedIt');
   }
 }
 
 /** The workflow rule an event came from, by its name. */
-function ruleName(e: TrackerEvent): string {
+function ruleName(tr: Translator, e: TrackerEvent): string {
   const name = (e.data.automation as { name?: unknown } | undefined)?.name;
-  return typeof name === 'string' ? name : 'a workflow rule';
+  return typeof name === 'string' ? name : tr.t('server.notify.aWorkflowRule');
 }
 
 /** The lines under an event: its changes, or what was said. */
-export function eventDetail(e: TrackerEvent): string[] {
+export function eventDetail(tr: Translator, e: TrackerEvent): string[] {
   const data = e.data as Record<string, unknown>;
   if (e.type === 'rule.notified') return typeof data.message === 'string' && data.message.trim() ? [data.message] : [];
-  if (e.type === 'issue.updated') return e.changes.map((c) => `${c.field}: ${c.from ?? 'none'} → ${c.to ?? 'none'}`);
+  if (e.type === 'issue.updated') return e.changes.map((c) => tr.t('server.notify.change', { field: c.field, from: c.from ?? tr.t('server.notify.none'), to: c.to ?? tr.t('server.notify.none') }));
   if (e.type === 'comment.created' || e.type === 'comment.updated') return String(data.text ?? '').trim() ? [String(data.text)] : [];
   if (e.type === 'issue.created' && typeof data.description === 'string' && data.description.trim()) return [data.description];
   return [];
 }
 
 /** "Anna Schmidt mentioned you", "Anna Schmidt and Ben Okafor made 4 changes". */
-export function notificationTitle(kind: NotificationKind, events: TrackerEvent[], reasons: Map<number, NotificationKind>): string {
-  if (!events.length) return 'Something changed';
+export function notificationTitle(tr: Translator, kind: NotificationKind, events: TrackerEvent[], reasons: Map<number, NotificationKind>): string {
+  const t = tr.t;
+  if (!events.length) return t('server.notify.title.somethingChanged');
   const lead = events.find((e) => reasons.get(e.id) === kind) ?? events[events.length - 1]!;
-  const who = actorName(lead);
+  const who = actorName(tr, lead);
   switch (kind) {
     case 'assigned':
-      return lead.type === 'issue.created' ? `${who} reported it and assigned it to you` : `${who} assigned it to you`;
+      return lead.type === 'issue.created' ? t('server.notify.title.reportedAndAssigned', { who }) : t('server.notify.title.assigned', { who });
     case 'mentioned':
-      return `${who} mentioned you`;
+      return t('server.notify.title.mentioned', { who });
     case 'request':
-      return `${who} asked for help through the help desk`;
+      return t('server.notify.title.request', { who });
     case 'rule':
-      return `The rule “${ruleName(lead)}” tells you`;
+      return t('server.notify.title.rule', { rule: ruleName(tr, lead) });
     default: {
-      if (events.length === 1) return `${who} ${eventVerb(lead)}`;
-      const people = [...new Set(events.map(actorName))];
-      const them = people.length === 1 ? who : `${list(people.slice(0, 3))}${people.length > 3 ? ' and others' : ''}`;
+      if (events.length === 1) return t('server.notify.title.one', { who, did: eventVerb(tr, lead) });
+      const people = [...new Set(events.map((e) => actorName(tr, e)))];
+      const them = people.length === 1 ? who : people.length > 3 ? t('server.notify.title.andOthers', { people: list(tr, people.slice(0, 3)) }) : list(tr, people);
       const comments = events.filter((e) => e.type === 'comment.created').length;
       const changes = events.length - comments;
-      const times = comments === 2 ? ' twice' : comments > 2 ? ` ${comments} times` : '';
-      if (!changes) return `${them} commented${people.length === 1 ? times : ''}`;
-      const made = `made ${changes} ${changes === 1 ? 'change' : 'changes'}`;
-      return comments ? `${them} commented and ${made}` : `${them} ${made}`;
+      if (!changes) return people.length === 1 ? t('server.notify.title.commentedTimes', { them, n: comments }) : t('server.notify.title.commented', { them });
+      return comments ? t('server.notify.title.commentedAndChanged', { them, n: changes }) : t('server.notify.title.changed', { them, n: changes });
     }
   }
 }
 
 /** Why an email came, for its footer. */
-export const BECAUSE: Record<NotificationKind, string> = {
-  assigned: 'it was assigned to you',
-  mentioned: 'you were mentioned',
-  request: 'you lead the project its help desk is for',
-  rule: 'a workflow rule of its project tells you of it',
-  watching: 'you watch the issue',
-  subscribed: 'you subscribed to it',
-};
+export function because(tr: Translator, kind: NotificationKind): string {
+  return tr.t(`server.notify.because.${kind}`);
+}
 
 /**
  * A moment as its reader reads it: in their time zone (D31), named, since they may be travelling:
  * "Mon 16 Nov, 10:02 CET". Without a zone, the server's.
  */
-export function emailTime(iso: string, timeZone?: string): string {
-  return new Date(iso).toLocaleString('en-GB', {
+export function emailTime(iso: string, timeZone?: string, locale: Locale = 'en'): string {
+  return new Date(iso).toLocaleString(intlTag(locale), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',

@@ -1,4 +1,5 @@
-/** Times, money and counts, as Ocean writes them. */
+/** Times, money and counts, as Ocean writes them, in the page's language (D49). */
+import { intlLocale, t } from '../../i18n';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -23,7 +24,7 @@ export function whenRead(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   if (sameDay(d, now)) return time;
-  const day = d.toLocaleDateString('en-GB', {
+  const day = d.toLocaleDateString(intlLocale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -35,11 +36,11 @@ export function whenRead(iso: string, now = new Date()): string {
 /** A day heading in a conversation: "Today", "Yesterday", or the day. */
 export function dayLabel(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  if (sameDay(d, now)) return 'Today';
+  if (sameDay(d, now)) return t('common.format.today');
   const y = new Date(now);
   y.setDate(now.getDate() - 1);
-  if (sameDay(d, y)) return 'Yesterday';
-  return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+  if (sameDay(d, y)) return t('common.format.yesterday');
+  return d.toLocaleDateString(intlLocale(), { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 }
 
 /** A calendar date as people read it ("9 Nov 2026"), from YYYY-MM-DD. */
@@ -47,21 +48,21 @@ export function dateRead(isoDate: string | null | undefined): string {
   if (!isoDate) return '';
   const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number);
   const dt = new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1));
-  return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return dt.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
 export function money(amount: number | null | undefined, currency = 'USD'): string {
   if (amount === null || amount === undefined) return '';
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
+    return new Intl.NumberFormat(intlLocale(), { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
   } catch {
-    return `${Math.round(amount).toLocaleString('en-GB')} ${currency}`;
+    return `${Math.round(amount).toLocaleString(intlLocale())} ${currency}`;
   }
 }
 
-/** "1 issue", "3 issues". */
-export function count(n: number, one: string, many = `${one}s`): string {
-  return `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
+/** "1 issue", "3 issues": a counted thing's message, an ICU plural of `n` (D49). */
+export function count(n: number, key: string): string {
+  return t(key, { n });
 }
 
 /** "Update an issue" → "update an issue", for "assistant asks to …". */

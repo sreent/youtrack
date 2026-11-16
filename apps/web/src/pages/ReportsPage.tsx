@@ -6,6 +6,7 @@ import { PageHead } from '../components/States';
 import { addDays, localToday, span } from '../features/plan/dates';
 import { csvHref, type ReportParams } from '../features/reports/api';
 import { REPORTS, ReportView } from '../features/reports/ReportView';
+import { t, tr } from '../i18n';
 
 const WINDOWS = [7, 14, 30, 90, 365] as const;
 
@@ -40,11 +41,11 @@ function BurndownControls({ params, set }: { params: URLSearchParams; set: (k: s
   const by = params.get('by') === 'count' ? 'count' : 'estimate';
   return (
     <>
-      <InlineSelect label="Board" value={board} onChange={(v) => {
+      <InlineSelect label={t('page.reports.board')} value={board} onChange={(v) => {
         set('sprint', null);
         set('board', v || null);
       }}>
-        <option value="">Choose a board</option>
+        <option value="">{t('page.reports.chooseABoard')}</option>
         {boards.map((b) => (
           <option key={b.id} value={b.id}>
             {b.name}
@@ -52,8 +53,8 @@ function BurndownControls({ params, set }: { params: URLSearchParams; set: (k: s
         ))}
       </InlineSelect>
       {board && view.data?.sprints.length ? (
-        <InlineSelect label="Sprint" value={params.get('sprint') ?? ''} onChange={(v) => set('sprint', v || null)}>
-          <option value="">The current one</option>
+        <InlineSelect label={t('page.reports.sprint')} value={params.get('sprint') ?? ''} onChange={(v) => set('sprint', v || null)}>
+          <option value="">{t('page.reports.theCurrentOne')}</option>
           {view.data.sprints.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -62,13 +63,9 @@ function BurndownControls({ params, set }: { params: URLSearchParams; set: (k: s
           ))}
         </InlineSelect>
       ) : null}
-      <div className="modes" role="group" aria-label="What to burn down">
-        <button type="button" aria-pressed={by === 'estimate'} onClick={() => set('by', null)}>
-          By estimate
-        </button>
-        <button type="button" aria-pressed={by === 'count'} onClick={() => set('by', 'count')}>
-          By issues
-        </button>
+      <div className="modes" role="group" aria-label={t('page.reports.whatToBurnDown')}>
+        <button type="button" aria-pressed={by === 'estimate'} onClick={() => set('by', null)}>{t('page.reports.byEstimate')}</button>
+        <button type="button" aria-pressed={by === 'count'} onClick={() => set('by', 'count')}>{t('page.reports.byIssues')}</button>
       </div>
     </>
   );
@@ -81,7 +78,7 @@ function FieldSelect({ label, name, params, set, fallback }: { label: string; na
   const names = ['Project', ...fields.map((f) => f.name).sort((a, b) => a.localeCompare(b))];
   return (
     <InlineSelect label={label} value={value} onChange={(v) => set(name, v || null)}>
-      {fallback === '' ? <option value="">None</option> : null}
+      {fallback === '' ? <option value="">{t('page.reports.none')}</option> : null}
       {value && !names.includes(value) ? <option value={value}>{value}</option> : null}
       {names.map((n) => (
         <option key={n} value={n}>
@@ -97,25 +94,25 @@ function MoreControls({ kind, params, set }: { kind: ReportKind; params: URLSear
   const boards = useBoards().data ?? [];
   return (
     <>
-      {kind === 'issues-per-field' ? <FieldSelect label="Field" name="field" params={params} set={set} fallback="Priority" /> : null}
+      {kind === 'issues-per-field' ? <FieldSelect label={t('page.reports.field')} name="field" params={params} set={set} fallback={t('page.reports.priority')} /> : null}
       {kind === 'matrix' ? (
         <>
-          <FieldSelect label="Rows" name="rows" params={params} set={set} fallback="Priority" />
-          <FieldSelect label="Columns" name="columns" params={params} set={set} fallback="State" />
+          <FieldSelect label={t('page.reports.rows')} name="rows" params={params} set={set} fallback={t('page.reports.priority')} />
+          <FieldSelect label={t('page.reports.columns')} name="columns" params={params} set={set} fallback={t('page.reports.state')} />
         </>
       ) : null}
       {kind === 'issues-per-field' || kind === 'matrix' ? (
-        <InlineSelect label="Dates by" value={params.get('interval') ?? ''} onChange={(v) => set('interval', v || null)}>
-          <option value="">Day, week or month, by their spread</option>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
+        <InlineSelect label={t('page.reports.datesBy')} value={params.get('interval') ?? ''} onChange={(v) => set('interval', v || null)}>
+          <option value="">{t('page.reports.dayWeekOrMonthBy')}</option>
+          <option value="day">{t('page.reports.day')}</option>
+          <option value="week">{t('page.reports.week')}</option>
+          <option value="month">{t('page.reports.month')}</option>
         </InlineSelect>
       ) : null}
-      {kind === 'average-age' ? <FieldSelect label="By" name="field" params={params} set={set} fallback="" /> : null}
+      {kind === 'average-age' ? <FieldSelect label={t('page.reports.by')} name="field" params={params} set={set} fallback="" /> : null}
       {kind === 'time-in-state' ? (
-        <InlineSelect label="Columns of" value={params.get('board') ?? ''} onChange={(v) => set('board', v || null)}>
-          <option value="">No board: states</option>
+        <InlineSelect label={t('page.reports.columnsOf')} value={params.get('board') ?? ''} onChange={(v) => set('board', v || null)}>
+          <option value="">{t('page.reports.noBoardStates')}</option>
           {boards.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
@@ -140,8 +137,8 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
   const choosing = w.days === null;
   return (
     <>
-      <InlineSelect label="Project" value={params.get('project') ?? ''} onChange={(v) => set('project', v || null)}>
-        <option value="">Every project</option>
+      <InlineSelect label={t('page.reports.project')} value={params.get('project') ?? ''} onChange={(v) => set('project', v || null)}>
+        <option value="">{t('page.reports.everyProject')}</option>
         {projects
           .filter((p) => !p.archived)
           .map((p) => (
@@ -152,7 +149,7 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
       </InlineSelect>
       {now ? null : (
       <InlineSelect
-        label="Days"
+        label={t('page.reports.days')}
         value={choosing ? 'dates' : String(w.days)}
         onChange={(v) => {
           if (v === 'dates') {
@@ -167,37 +164,35 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
         }}
       >
         {WINDOWS.map((d) => (
-          <option key={d} value={d}>
-            The last {d} days
-          </option>
+          <option key={d} value={d}>{tr('page.reports.theLastDays', { d: d })}</option>
         ))}
-        <option value="dates">Dates I choose</option>
+        <option value="dates">{t('page.reports.datesIChoose')}</option>
       </InlineSelect>
       )}
       <MoreControls kind={kind} params={params} set={set} />
       {choosing && !now ? (
         <>
           <span className="form-field inline">
-            <label htmlFor={`${queryId}-from`}>From</label>
+            <label htmlFor={`${queryId}-from`}>{t('page.reports.from')}</label>
             <input id={`${queryId}-from`} type="date" value={w.from} max={w.to} onChange={(e) => set('from', e.target.value || null)} />
           </span>
           <span className="form-field inline">
-            <label htmlFor={`${queryId}-to`}>To</label>
+            <label htmlFor={`${queryId}-to`}>{t('page.reports.to')}</label>
             <input id={`${queryId}-to`} type="date" value={w.to} min={w.from} max={localToday()} onChange={(e) => set('to', e.target.value || null)} />
           </span>
         </>
       ) : null}
       {kind === 'created-resolved' ? (
-        <InlineSelect label="By" value={params.get('interval') ?? ''} onChange={(v) => set('interval', v || null)}>
-          <option value="">Day, week or month, by the window</option>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
+        <InlineSelect label={t('page.reports.by')} value={params.get('interval') ?? ''} onChange={(v) => set('interval', v || null)}>
+          <option value="">{t('page.reports.dayWeekOrMonthBy2')}</option>
+          <option value="day">{t('page.reports.day')}</option>
+          <option value="week">{t('page.reports.week')}</option>
+          <option value="month">{t('page.reports.month')}</option>
         </InlineSelect>
       ) : null}
       {kind === 'time' ? (
-        <InlineSelect label="Person" value={params.get('author') ?? ''} onChange={(v) => set('author', v || null)}>
-          <option value="">Everyone</option>
+        <InlineSelect label={t('page.reports.person')} value={params.get('author') ?? ''} onChange={(v) => set('author', v || null)}>
+          <option value="">{t('page.reports.everyone')}</option>
           {users.map((u) => (
             <option key={u.id} value={u.login}>
               {u.isBot ? u.login : u.name}
@@ -214,16 +209,16 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
         }}
       >
         <span className="form-field inline grow">
-          <label htmlFor={queryId}>Only issues matching</label>
-          <input id={queryId} className="mono" value={query} placeholder="Type: Bug" onChange={(e) => setQuery(e.target.value)} />
+          <label htmlFor={queryId}>{t('page.reports.onlyIssuesMatching')}</label>
+          <input id={queryId} className="mono" value={query} placeholder={t('page.reports.typeBug')} onChange={(e) => setQuery(e.target.value)} />
         </span>
         {kind === 'cycle-time' ? (
           <span className="form-field inline">
-            <label htmlFor={startId}>Clock starts at</label>
-            <input id={startId} value={start} placeholder="In Progress" onChange={(e) => setStart(e.target.value)} />
+            <label htmlFor={startId}>{t('page.reports.clockStartsAt')}</label>
+            <input id={startId} value={start} placeholder={t('page.reports.inProgress')} onChange={(e) => setStart(e.target.value)} />
           </span>
         ) : null}
-        <button type="submit">Show</button>
+        <button type="submit">{t('page.reports.show')}</button>
       </form>
     </>
   );
@@ -278,9 +273,9 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageHead title="Reports" about="Worked out from each issue's history and the work logged on it, as of now. Days begin and end in your time zone." />
+      <PageHead title={t('page.reports.reports')} about={t('page.reports.workedOutFromEachIssue')} />
       <div className="stack">
-        <div className="modes report-choice" role="group" aria-label="Which report">
+        <div className="modes report-choice" role="group" aria-label={t('page.reports.whichReport')}>
           {REPORTS.map((r) => (
             <button key={r.kind} type="button" aria-pressed={r.kind === kind} onClick={() => navigate(`/reports/${r.kind}`)}>
               {r.label}
@@ -290,17 +285,13 @@ export default function ReportsPage() {
         <p className="note">{report.about}</p>
         <div className="cluster">{kind === 'burndown' ? <BurndownControls params={params} set={set} /> : <ScopeControls key={kind} kind={kind} params={params} set={set} />}</div>
         <section className="card" aria-label={report.label}>
-          {ready ? <ReportView kind={kind} params={query} /> : <p className="note">Choose a board with sprints to see its sprint's burndown.</p>}
+          {ready ? <ReportView kind={kind} params={query} /> : <p className="note">{t('page.reports.chooseABoardWithSprints')}</p>}
         </section>
         {ready ? (
           <div className="cluster">
-            <a className="button" href={csvHref(kind, query)} download>
-              Download the figures (CSV)
-            </a>
+            <a className="button" href={csvHref(kind, query)} download>{t('page.reports.downloadTheFiguresCsv')}</a>
             {kind === 'time' ? (
-              <a className="button" href={csvHref(kind, query, { rows: 'issue' })} download>
-                Download by issue (CSV)
-              </a>
+              <a className="button" href={csvHref(kind, query, { rows: 'issue' })} download>{t('page.reports.downloadByIssueCsv')}</a>
             ) : null}
           </div>
         ) : null}

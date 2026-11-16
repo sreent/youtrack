@@ -4,6 +4,7 @@ import { Link, NavLink } from 'react-router';
 import { Icon } from '../../components/Icon';
 import { ErrorNote, Loading } from '../../components/States';
 import { nest, useArticleTree, type TreeNode } from './api';
+import { t } from '../../i18n';
 
 /** The ids above an article, from its parent up. */
 function above(flat: Article[], id: string | undefined): string[] {
@@ -47,7 +48,7 @@ export function ArticleTree({ project, name, current, canWrite }: { project: str
               className="tree-toggle"
               aria-expanded={isOpen}
               aria-controls={`under-${a.id}`}
-              aria-label={`${isOpen ? 'Hide' : 'Show'} what's under ${a.title}`}
+              aria-label={t('articles.articleTree.whatSUnder', { v: isOpen ? t('articles.articleTree.hide') : t('articles.articleTree.show'), title: a.title })}
               onClick={() => toggle(a.id)}
             >
               <Icon name="chevron" />
@@ -72,18 +73,16 @@ export function ArticleTree({ project, name, current, canWrite }: { project: str
   };
 
   return (
-    <nav className="card side-card nav-card" aria-label={`${name}'s knowledge base`}>
+    <nav className="card side-card nav-card" aria-label={t('articles.articleTree.sKnowledgeBase', { name: name })}>
       <div className="cluster spread">
         <h2>{name}</h2>
         {canWrite ? (
-          <Link className="button small" to={`/articles/new?project=${project}`}>
-            New article
-          </Link>
+          <Link className="button small" to={`/articles/new?project=${project}`}>{t('articles.articleTree.newArticle')}</Link>
         ) : null}
       </div>
       {tree.isLoading ? <Loading what="articles" /> : null}
       {tree.error ? <ErrorNote error={tree.error} /> : null}
-      {tree.data && !tree.data.length ? <p className="note">No articles yet.</p> : null}
+      {tree.data && !tree.data.length ? <p className="note">{t('articles.articleTree.noArticlesYet')}</p> : null}
       {flat.length ? <ul className="nav-list tree">{nest(flat).map(render)}</ul> : null}
     </nav>
   );

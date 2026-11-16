@@ -32,6 +32,7 @@ import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
 import { APP_NAME } from '@a4a/shared';
+import { isLocale } from '@a4a/shared/i18n';
 import { getCookie } from 'hono/cookie';
 import type { HttpEnv } from '../env';
 import { clientIp, errorBody } from '../middleware';
@@ -44,6 +45,8 @@ export async function meDto(ctx: Ctx): Promise<Me> {
     ...userDto(ctx.actor.user),
     timeZone: ctx.actor.user.timeZone ?? null,
     serverTimeZone: serverTimeZone(),
+    locale: isLocale(ctx.actor.user.locale) ? ctx.actor.user.locale : null,
+    defaultLocale: ctx.app.config.defaultLocale,
     auth: {
       method: ctx.actor.authMethod === 'token' ? 'token' : 'session',
       scopes: ctx.actor.scopes,

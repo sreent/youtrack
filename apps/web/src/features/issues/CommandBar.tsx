@@ -7,6 +7,7 @@ import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
+import { t, tr } from '../../i18n';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -32,7 +33,7 @@ function IdList({ ids }: { ids: string[] }) {
           <span className="issue-id">{id}</span>
         </span>
       ))}
-      {rest ? ` and ${rest} more` : null}
+      {rest ? t('issues.commandBar.andMore', { rest: rest }) : null}
     </>
   );
 }
@@ -99,7 +100,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
     const timer = setTimeout(() => {
       post<Preview>('/commands', { issues: ids, command, dryRun: true })
         .then((result) => live && setPreview({ command, result }))
-        .catch((e) => live && setError(e instanceof ApiError ? e.message : 'Could not preview the command.'));
+        .catch((e) => live && setError(e instanceof ApiError ? e.message : t('issues.commandBar.couldNotPreviewTheCommand')));
     }, 220);
     return () => {
       live = false;
@@ -120,7 +121,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       setRead(res);
       if (res.comment && !comment) setComment(res.comment);
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : 'The assistant could not read that.');
+      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : t('issues.commandBar.theAssistantCouldNotRead'));
     } finally {
       setBusy(null);
     }
@@ -150,28 +151,26 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       onApplied?.();
       onClose();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : 'Could not apply the command.');
+      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : t('issues.commandBar.couldNotApplyTheCommand'));
     } finally {
       setBusy(null);
     }
   };
 
   const hint = problems.length
-    ? 'It applies once the problem is fixed.'
+    ? t('issues.commandBar.itAppliesOnceTheProblem')
     : words && !read
-      ? 'Say what to do, then let the assistant read it. Nothing changes until you apply it.'
+      ? t('issues.commandBar.sayWhatToDoThen')
       : command && current && !changing && !comment.trim()
-        ? 'This changes nothing on these issues.'
+        ? t('issues.commandBar.thisChangesNothingOnThese')
         : null;
   const ready = !busy && !problems.length && (current !== null ? changing > 0 || !!comment.trim() : !command && !!comment.trim());
-  const applyLabel = issues.length === 1 ? `Apply to ${issues[0]!.id}` : `Apply to ${plural(issues.length, 'issue')}`;
+  const applyLabel = issues.length === 1 ? t('issues.commandBar.applyTo', { id: issues[0]!.id }) : t('issues.commandBar.applyTo2', { plural: plural(issues.length, 'issue') });
 
   return (
     <dialog ref={dialog} className="dialog command" aria-labelledby={titleId} onClose={onClose}>
-      <h2 id={titleId}>Apply a command</h2>
-      <p className="command-to">
-        To {issues.length === 1 ? 'issue' : plural(issues.length, 'issue')}: <IdList ids={ids} />
-      </p>
+      <h2 id={titleId}>{t('issues.commandBar.applyACommand')}</h2>
+      <p className="command-to">{tr('issues.commandBar.to', { v: issues.length === 1 ? 'issue' : plural(issues.length, 'issue'), el: <IdList ids={ids} /> })}</p>
       <div className="query">
         <LanguageField
           text={text}
@@ -181,8 +180,8 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
           }}
           onCaret={lang.setCaret}
           onEnter={() => (words ? void askWords() : ready ? void apply() : undefined)}
-          label={words ? 'Say what to do, in words' : 'Command'}
-          placeholder={words ? 'move these to review and give them to anna' : 'State Fixed for me tag regression'}
+          label={words ? t('issues.commandBar.sayWhatToDoIn') : t('issues.commandBar.command')}
+          placeholder={words ? t('issues.commandBar.moveTheseToReviewAnd') : t('issues.commandBar.stateFixedForMeTag')}
           problems={problems}
           suggestions={words ? [] : lang.suggestions}
           words={words}
@@ -190,7 +189,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
           ask={{
             pressed: words,
             disabled: !ai.data?.enabled,
-            title: ai.data?.enabled ? 'An agent turns your words into a command' : 'AI is off on this server',
+            title: ai.data?.enabled ? t('issues.commandBar.anAgentTurnsYourWords') : t('issues.commandBar.aiIsOffOnThis'),
             onToggle: () => {
               setWords((w) => !w);
               setText(words ? (read?.command ?? '') : '');
@@ -199,14 +198,12 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
           }}
         />
         {busy === 'reading' ? (
-          <p className="query-found" role="status">
-            Reading your words…
-          </p>
+          <p className="query-found" role="status">{t('issues.commandBar.readingYourWords')}</p>
         ) : null}
         {read && (words || viaAssistant) ? (
           <p className="query-read">
             <Who kind="agent" name="assistant" small />
-            <span>Interpreted as:</span>
+            <span>{t('issues.commandBar.interpretedAs')}</span>
             <code>{read.command || 'no change'}</code>
             {words ? (
               <button
@@ -216,17 +213,15 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
                   setWords(false);
                   setText(read.command);
                 }}
-              >
-                Edit
-              </button>
+              >{t('issues.commandBar.edit')}</button>
             ) : null}
           </p>
         ) : null}
       </div>
 
       {current && command ? (
-        <div className="command-preview" role="group" aria-label="What it changes">
-          <p className="label">What it changes</p>
+        <div className="command-preview" role="group" aria-label={t('issues.commandBar.whatItChanges')}>
+          <p className="label">{t('issues.commandBar.whatItChanges')}</p>
           <ul className="command-issues">
             {current.results.map((r) => (
               <li key={r.issue}>
@@ -242,26 +237,21 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
         </div>
       ) : null}
 
-      <label className="command-comment">
-        A comment, if you want one
-        <textarea value={comment} onChange={(e) => setComment(e.target.value)} />
-      </label>
+      <label className="command-comment">{tr('issues.commandBar.aCommentIfYouWant', { el: <textarea value={comment} onChange={(e) => setComment(e.target.value)} /> })}</label>
 
       {error ? <ErrorLine>{error}</ErrorLine> : null}
-      {failed.length ? <ErrorLine>Some issues weren't changed: {failed.map((f) => `${f.issue} (${f.errors.join('; ')})`).join(', ')}</ErrorLine> : null}
+      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: failed.map((f) => `${f.issue} (${f.errors.join('; ')})`).join(', ') })}</ErrorLine> : null}
 
       <div className="dialog-actions">
         {hint ? <p className="command-hint">{hint}</p> : null}
-        <button type="button" onClick={onClose}>
-          Cancel
-        </button>
+        <button type="button" onClick={onClose}>{t('issues.commandBar.cancel')}</button>
         {words && !read ? (
           <button type="button" className="primary" disabled={!text.trim() || busy !== null} onClick={() => void askWords()}>
-            {busy === 'reading' ? 'Reading…' : 'Read my words'}
+            {busy === 'reading' ? t('issues.commandBar.reading') : t('issues.commandBar.readMyWords')}
           </button>
         ) : (
           <button type="button" className="primary" disabled={!ready} onClick={() => void apply()}>
-            {busy === 'applying' ? 'Applying…' : applyLabel}
+            {busy === 'applying' ? t('issues.commandBar.applying') : applyLabel}
           </button>
         )}
       </div>

@@ -11,6 +11,7 @@ import { errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { comesFrom, groupKeys, useGroup } from '../features/groups/api';
 import { providerNameOf } from '../features/groups/GroupsSection';
+import { t, tr } from '../i18n';
 
 function useRefresh(id: string) {
   const qc = useQueryClient();
@@ -34,7 +35,7 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
     mutationFn: () => post<GroupDetail>(`/groups/${group.id}/members`, { user: login }),
     onSuccess: () => {
       const who = choices.find((u) => u.login === login);
-      setSaid({ text: `${who?.name ?? login} is in ${group.name} now.` });
+      setSaid({ text: t('page.group.isInNow', { v: who?.name ?? login, name: group.name }) });
       setLogin('');
       void refresh();
     },
@@ -49,26 +50,23 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
   return (
     <section className="card" aria-labelledby="group-people">
       <div className="section-head">
-        <h2 id="group-people">People in it</h2>
+        <h2 id="group-people">{t('page.group.peopleInIt')}</h2>
         <span className="note">{comesFrom(group, provider)}</span>
       </div>
       {!byHand ? (
-        <p className="note section-note">
-          {provider ?? 'The identity provider'} says who is in it: people join as they sign in, when it names “{group.providerName}” among their groups, and leave
-          when it no longer does.
-        </p>
+        <p className="note section-note">{tr('page.group.saysWhoIsInIt', { v: provider ?? t('page.group.theIdentityProvider'), providerName: group.providerName })}</p>
       ) : null}
-      {!group.members.length ? <p className="note">{byHand ? 'Nobody is in it yet.' : 'Nobody has signed in from it yet.'}</p> : null}
+      {!group.members.length ? <p className="note">{byHand ? t('page.group.nobodyIsInItYet') : t('page.group.nobodyHasSignedInFrom')}</p> : null}
       {group.members.length ? (
-        <Scroll label={`People in ${group.name}`}>
+        <Scroll label={t('page.group.peopleIn', { name: group.name })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Person</th>
-                <th scope="col">In it since</th>
+                <th scope="col">{t('page.group.person')}</th>
+                <th scope="col">{t('page.group.inItSince')}</th>
                 {admin && byHand ? (
                   <th scope="col">
-                    <span className="hidden">Change</span>
+                    <span className="hidden">{t('page.group.change')}</span>
                   </th>
                 ) : null}
               </tr>
@@ -89,17 +87,17 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
                     </th>
                     <td>
                       {ago(m.addedAt)}
-                      <span className="item-about">{m.addedBy ? `added by ${m.addedBy.isBot ? m.addedBy.login : m.addedBy.name}` : `from ${provider ?? 'the identity provider'}`}</span>
+                      <span className="item-about">{m.addedBy ? t('page.group.addedBy', { v: m.addedBy.isBot ? m.addedBy.login : m.addedBy.name }) : `from ${provider ?? 'the identity provider'}`}</span>
                     </td>
                     {admin && byHand ? (
                       <td className="fit">
                         <Confirm
                           small
-                          label="Take out"
-                          name={`Take out ${name}`}
-                          title={`Take ${name} out of ${group.name}?`}
-                          about={`${name} loses the roles ${group.name} gives in projects, unless they have them another way. You can put them back.`}
-                          confirm="Take them out"
+                          label={t('page.group.takeOut')}
+                          name={t('page.group.takeOut2', { name: name })}
+                          title={t('page.group.takeOutOf', { name: name, name2: group.name })}
+                          about={t('page.group.losesTheRolesGivesIn', { name: name, name2: group.name })}
+                          confirm={t('page.group.takeThemOut')}
                           onConfirm={() => remove.mutate(m.user.login)}
                           disabled={remove.isPending}
                         />
@@ -121,15 +119,15 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
           }}
         >
           <fieldset className="form-card adding stack">
-            <legend>Put someone in it</legend>
+            <legend>{t('page.group.putSomeoneInIt')}</legend>
             <div className="form-fields">
-              <FormField label="Person">
+              <FormField label={t('page.group.person')}>
                 {(fid) => (
                   <select id={fid} value={login} onChange={(e) => setLogin(e.target.value)} required>
-                    <option value="">Choose someone</option>
+                    <option value="">{t('page.group.chooseSomeone')}</option>
                     {choices.map((u) => (
                       <option key={u.id} value={u.login}>
-                        {u.isBot ? `${u.login} (bot)` : u.name}
+                        {u.isBot ? t('page.group.bot', { login: u.login }) : u.name}
                       </option>
                     ))}
                   </select>
@@ -138,7 +136,7 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
             </div>
             <div className="cluster">
               <button type="submit" className="primary" disabled={!login || add.isPending}>
-                {add.isPending ? 'Adding…' : 'Put them in'}
+                {add.isPending ? t('page.group.adding') : t('page.group.putThemIn')}
               </button>
               <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
             </div>
@@ -155,17 +153,17 @@ function Roles({ group }: { group: GroupDetail }) {
   return (
     <section className="card" aria-labelledby="group-roles">
       <div className="section-head">
-        <h2 id="group-roles">Its roles in projects</h2>
-        <span className="note">Each project’s managers give it one, under People and access.</span>
+        <h2 id="group-roles">{t('page.group.itsRolesInProjects')}</h2>
+        <span className="note">{t('page.group.eachProjectSManagersGive')}</span>
       </div>
-      {!group.roles.length ? <p className="note">No project you can see gives it a role.</p> : null}
+      {!group.roles.length ? <p className="note">{t('page.group.noProjectYouCanSee')}</p> : null}
       {group.roles.length ? (
-        <Scroll label={`Roles of ${group.name}`}>
+        <Scroll label={t('page.group.rolesOf', { name: group.name })}>
           <table className="figures middle">
             <thead>
               <tr>
-                <th scope="col">Project</th>
-                <th scope="col">Its role there</th>
+                <th scope="col">{t('page.group.project')}</th>
+                <th scope="col">{t('page.group.itsRoleThere')}</th>
               </tr>
             </thead>
             <tbody>
@@ -201,7 +199,7 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
   const save = useMutation({
     mutationFn: () => patch<GroupDetail>(`/groups/${group.id}`, { name: form.name.trim(), description: form.description.trim(), providerName: form.providerName.trim() || null }),
     onSuccess: (g) => {
-      setSaid({ text: startsFromProvider ? `Saved. ${g.name} is empty now: people join it as they sign in.` : 'Saved.' });
+      setSaid({ text: startsFromProvider ? t('page.group.savedIsEmptyNowPeople', { name: g.name }) : t('page.group.saved') });
       void refresh();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -218,7 +216,7 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
   const set = (k: keyof typeof initial) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   return (
     <section className="card" aria-labelledby="group-settings">
-      <h2 id="group-settings">The group</h2>
+      <h2 id="group-settings">{t('page.group.theGroup')}</h2>
       <form
         className="form-fields"
         onSubmit={(e) => {
@@ -226,31 +224,31 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
           save.mutate();
         }}
       >
-        <FormField label="Name">{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={80} />}</FormField>
-        <FormField label="What it's for">{(id) => <input id={id} value={form.description} onChange={set('description')} maxLength={500} />}</FormField>
+        <FormField label={t('page.group.name')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required maxLength={80} />}</FormField>
+        <FormField label={t('page.group.whatItSFor')}>{(id) => <input id={id} value={form.description} onChange={set('description')} maxLength={500} />}</FormField>
         <FormField
-          label="Its name at the identity provider"
+          label={t('page.group.itsNameAtTheIdentity')}
           help={
             startsFromProvider
-              ? `Saving empties the group: from then on ${provider ?? 'the identity provider'} says who is in it, as they sign in.`
+              ? t('page.group.savingEmptiesTheGroupFrom', { v: provider ?? 'the identity provider' })
               : group.providerName
-                ? 'Clear it to keep the group by hand: whoever is in it stays.'
-                : `Optional. With it, ${provider ?? 'the identity provider'} says who is in the group.`
+                ? t('page.group.clearItToKeepThe')
+                : t('page.group.optionalWithItSaysWho', { v: provider ?? 'the identity provider' })
           }
         >
-          {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder="None" />}
+          {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder={t('page.group.none')} />}
         </FormField>
         <div className="cluster tw:col-span-full">
           <button type="submit" disabled={!dirty || !form.name.trim() || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save the group'}
+            {save.isPending ? t('page.group.saving') : t('page.group.saveTheGroup')}
           </button>
           <span className="grow" />
           <Confirm
             small
-            label="Delete it"
-            title={`Delete the group ${group.name}?`}
-            about={`Its roles in projects go with it, and its people lose them, unless they have them another way. Each project's history says so.`}
-            confirm="Delete it"
+            label={t('page.group.deleteIt')}
+            title={t('page.group.deleteTheGroup', { name: group.name })}
+            about={t('page.group.itsRolesInProjectsGo')}
+            confirm={t('page.group.deleteIt')}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
           />
@@ -269,12 +267,12 @@ export default function GroupPage() {
   const status = useSetupStatus();
   const admin = me.data?.auth.scopes.includes('admin') ?? false;
   const provider = providerNameOf(status.data);
-  const crumbs = admin ? <Link to="/admin">Administration</Link> : null;
-  if (group.isLoading) return <Loading what="the group" />;
+  const crumbs = admin ? <Link to="/admin">{t('page.group.administration')}</Link> : null;
+  if (group.isLoading) return <Loading what={t('page.group.theGroup2')} />;
   if (group.error || !group.data) {
     return (
       <>
-        <PageHead title="Group" crumbs={crumbs} />
+        <PageHead title={t('page.group.group')} crumbs={crumbs} />
         <ErrorNote error={group.error} />
       </>
     );
@@ -285,8 +283,8 @@ export default function GroupPage() {
       <PageHead
         title={g.name}
         crumbs={crumbs}
-        about={g.description || 'A group of people. A project can give it a role, as it gives one to a person.'}
-        badges={g.providerName ? <span className="chip">from {provider ?? 'the identity provider'}</span> : null}
+        about={g.description || t('page.group.aGroupOfPeopleA')}
+        badges={g.providerName ? <span className="chip">{tr('page.group.from', { v: provider ?? 'the identity provider' })}</span> : null}
       />
       <People group={g} admin={admin} provider={provider} />
       <Roles group={g} />

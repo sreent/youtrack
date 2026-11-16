@@ -5,6 +5,7 @@ import { keys } from '../../api/queries';
 import { Icon } from '../../components/Icon';
 import { errorText, Said } from '../common/bits';
 import { runAction, runTransition, useIssueWorkflow, workflowKeys } from './api';
+import { t } from '../../i18n';
 
 /**
  * Ocean's workflow bar, on the issue page: the moves out of the state the issue is in (its state
@@ -46,7 +47,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
     <section className="card" aria-labelledby={`${id}-head`}>
       <div className="workflow-bar" role="group" aria-labelledby={`${id}-head`}>
         <p className="label" id={`${id}-head`}>
-          {moves.length ? 'Move it on' : 'Its actions'}
+          {moves.length ? t('workflow.workflowBar.moveItOn') : t('workflow.workflowBar.itsActions')}
         </p>
         {moves.map((m, i) => (
           <button

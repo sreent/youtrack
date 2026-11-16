@@ -1,3 +1,4 @@
+import { intlLocale } from '../../i18n';
 /** Figures in words, as Ocean writes them: "1 task", "3 days", "$46,000", "6h". */
 
 export function plural(n: number, one: string, many = `${one}s`): string {
@@ -20,10 +21,10 @@ export function money(n: number, currency: string): string {
   let f = moneyFormats.get(currency);
   if (!f) {
     try {
-      f = new Intl.NumberFormat('en-US', { style: 'currency', currency, currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 });
+      f = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency, currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 });
     } catch {
       // not an ISO currency code: show the figure with the code beside it
-      const plain = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+      const plain = new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 0 });
       f = { format: (x: number) => `${plain.format(x)} ${currency}` } as Intl.NumberFormat;
     }
     moneyFormats.set(currency, f);

@@ -20,6 +20,8 @@ import { Confirm } from '../features/common/Confirm';
 import { whenRead } from '../features/common/format';
 import { errorText, useStateTones } from '../features/issues/api';
 import { AppWidgets } from '../features/apps/AppWidgets';
+import { intlLocale, t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 type View = 'home' | 'article' | 'new' | 'edit' | 'history';
 
@@ -71,7 +73,7 @@ function Beside({ project, name, current, children }: { project: string; name: s
 function Crumbs({ project, name, path }: { project: string; name: string; path?: { id: string; title: string }[] }) {
   return (
     <>
-      <Link to="/articles">Knowledge base</Link> / <Link to={`/articles?project=${project}`}>{name}</Link>
+      <Link to="/articles">{t('page.articles.knowledgeBase')}</Link> / <Link to={`/articles?project=${project}`}>{name}</Link>
       {(path ?? []).map((p) => (
         <Fragment key={p.id}>
           {' '}
@@ -85,10 +87,10 @@ function Crumbs({ project, name, path }: { project: string; name: string; path?:
 function NotHere({ id, error }: { id: string; error: unknown }) {
   return (
     <>
-      <PageHead title={id} crumbs={<Link to="/articles">Knowledge base</Link>} />
+      <PageHead title={id} crumbs={<Link to="/articles">{t('page.articles.knowledgeBase')}</Link>} />
       {error instanceof ApiError && error.status === 404 ? (
         <section className="card stack tight">
-          <p>There's no article {id}, or you can't see it.</p>
+          <p>{tr('page.articles.thereSNoArticleOr', { id: id })}</p>
           {error.hint ? <p className="note">{error.hint}</p> : null}
         </section>
       ) : (
@@ -131,13 +133,11 @@ function Home() {
 
   const head = (
     <PageHead
-      title="Knowledge base"
-      about="What the team knows, written down: each project's articles, in a tree. Write an article's id anywhere, such as BACK-A-3, and it links both ways."
+      title={t('page.articles.knowledgeBase')}
+      about={t('page.articles.whatTheTeamKnowsWritten')}
       actions={
         canWrite && project ? (
-          <Link className="button primary" to={`/articles/new?project=${project.key}`}>
-            New article
-          </Link>
+          <Link className="button primary" to={`/articles/new?project=${project.key}`}>{t('page.articles.newArticle')}</Link>
         ) : null
       }
     />
@@ -154,7 +154,7 @@ function Home() {
     return (
       <>
         {head}
-        <Empty title="No projects yet">Articles belong to a project, as its issues do. Make a project first, under Projects.</Empty>
+        <Empty title={t('page.articles.noProjectsYet')}>{t('page.articles.articlesBelongToAProject')}</Empty>
       </>
     );
   }
@@ -163,7 +163,7 @@ function Home() {
       {head}
       <form role="search" className="cluster" onSubmit={(e) => e.preventDefault()}>
         <div className="form-field inline">
-          <label htmlFor={projectId}>Project</label>
+          <label htmlFor={projectId}>{t('page.articles.project')}</label>
           <select
             id={projectId}
             value={project.key}
@@ -181,18 +181,18 @@ function Home() {
           </select>
         </div>
         <div className="form-field inline grow">
-          <label htmlFor={searchId}>Find</label>
-          <input id={searchId} className="grow" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Words in titles and articles" />
+          <label htmlFor={searchId}>{t('page.articles.find')}</label>
+          <input id={searchId} className="grow" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('page.articles.wordsInTitlesAndArticles')} />
         </div>
       </form>
       <Beside project={project.key} name={project.name}>
         <section className="card stack" aria-labelledby="kb-found" aria-busy={found.isFetching}>
           <h2 id="kb-found">
-            {words ? `${found.data?.total ?? 0} ${found.data?.total === 1 ? 'article' : 'articles'} for “${words}”` : `Latest changed in ${project.name}`}
+            {words ? t('page.articles.for', { v: found.data?.total ?? 0, v2: found.data?.total === 1 ? 'article' : 'articles', words: words }) : t('page.articles.latestChangedIn', { name: project.name })}
           </h2>
           {found.error ? <ErrorNote error={found.error} /> : null}
           {found.data && !found.data.items.length ? (
-            <p className="note">{words ? 'Nothing matches. Try fewer words, or the start of one.' : 'No articles yet. Write the first with New article.'}</p>
+            <p className="note">{words ? t('page.articles.nothingMatchesTryFewerWords') : t('page.articles.noArticlesYetWriteThe')}</p>
           ) : null}
           {found.data?.items.length ? (
             <ul className="article-results">
@@ -228,7 +228,7 @@ function MentionedIn({ a }: { a: ArticleDetail }) {
   const { issues, articles } = a.mentionedIn;
   return (
     <section className="card issue-links-box stack" aria-labelledby="mentioned-title">
-      <h2 id="mentioned-title">Mentioned in</h2>
+      <h2 id="mentioned-title">{t('page.articles.mentionedIn')}</h2>
       {issues.length || articles.length ? (
         <ul className="link-list">
           {issues.map((i) => (
@@ -246,7 +246,7 @@ function MentionedIn({ a }: { a: ArticleDetail }) {
           ))}
         </ul>
       ) : (
-        <p className="note">No issue or article mentions {a.id} yet. Write its id in one, and it shows here.</p>
+        <p className="note">{tr('page.articles.noIssueOrArticleMentions', { id: a.id })}</p>
       )}
     </section>
   );
@@ -260,7 +260,7 @@ function ArticleFiles({ a, canWrite }: { a: ArticleDetail; canWrite: boolean }) 
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList
-      label="Files"
+      label={t('page.articles.files')}
       owner={a.id}
       files={files.data ?? []}
       limits={limits.data}
@@ -308,7 +308,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
       const next = await patch<ArticleDetail>(`/articles/${a.id}`, { parent: parent || null, ...(position !== undefined ? { position } : {}) });
       qc.setQueryData(articleKeys.one(a.id), next);
       await qc.invalidateQueries({ queryKey: articleKeys.all });
-      setSaid({ text: next.parent ? `${a.id} sits under ${next.parent} now, in place ${next.position + 1}.` : `${a.id} sits at the top of the tree now, in place ${next.position + 1}.` });
+      setSaid({ text: next.parent ? t('page.articles.sitsUnderNowInPlace', { id: a.id, parent: next.parent, v: next.position + 1 }) : t('page.articles.sitsAtTheTopOf', { id: a.id, v: next.position + 1 }) });
     } catch (e) {
       setSaid({ text: errorText(e), bad: true });
     } finally {
@@ -320,7 +320,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
     try {
       await del(`/articles/${a.id}`);
       await qc.invalidateQueries({ queryKey: articleKeys.all });
-      navigate(a.parent ? `/articles/${a.parent}` : `/articles?project=${a.project.key}`, { state: { said: `${a.id} ${a.title} is gone.` } });
+      navigate(a.parent ? `/articles/${a.parent}` : `/articles?project=${a.project.key}`, { state: { said: t('page.articles.isGone', { id: a.id, title: a.title }) } });
     } catch (e) {
       setSaid({ text: errorText(e), bad: true });
     }
@@ -328,7 +328,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
 
   return (
     <section className="card stack" aria-labelledby="move-title">
-      <h2 id="move-title">Move or delete</h2>
+      <h2 id="move-title">{t('page.articles.moveOrDelete')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -338,7 +338,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
       >
         <div className="form-fields">
           <div className="form-field">
-            <label htmlFor={parentId}>Put it under</label>
+            <label htmlFor={parentId}>{t('page.articles.putItUnder')}</label>
             <select
               id={parentId}
               value={parent}
@@ -347,7 +347,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
                 setPlace(e.target.value === (a.parent ?? '') ? 'stay' : 'last');
               }}
             >
-              <option value="">The top of the tree</option>
+              <option value="">{t('page.articles.theTopOfTheTree')}</option>
               {flat
                 .filter((x) => !own.has(x.id))
                 .map((x) => (
@@ -359,29 +359,27 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor={placeId}>Its place</label>
+            <label htmlFor={placeId}>{t('page.articles.itsPlace')}</label>
             <select id={placeId} value={place} onChange={(e) => setPlace(e.target.value)}>
-              {same ? <option value="stay">Where it is now</option> : null}
-              <option value="first">First</option>
+              {same ? <option value="stay">{t('page.articles.whereItIsNow')}</option> : null}
+              <option value="first">{t('page.articles.first')}</option>
               {siblings.map((s) => (
-                <option key={s.id} value={`after:${s.id}`}>
-                  After {s.title}
-                </option>
+                <option key={s.id} value={`after:${s.id}`}>{tr('page.articles.after', { title: s.title })}</option>
               ))}
-              <option value="last">Last</option>
+              <option value="last">{t('page.articles.last')}</option>
             </select>
           </div>
         </div>
         <div className="cluster spread">
           <Confirm
-            label="Delete it"
-            title={`Delete ${a.id} ${a.title}?`}
-            about={`Its ${a.version === 1 ? 'version' : `${a.version} versions`} and its files go with it, and nobody can bring them back.${a.childCount ? ' Move or delete the articles under it first.' : ''}`}
-            confirm="Delete it"
+            label={t('page.articles.deleteIt')}
+            title={t('page.articles.delete', { id: a.id, title: a.title })}
+            about={t('page.articles.itsAndItsFilesGo', { v: a.version === 1 ? 'version' : `${a.version} versions`, v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
+            confirm={t('page.articles.deleteIt')}
             onConfirm={() => void remove()}
           />
           <button type="submit" disabled={!changes || busy}>
-            {busy ? 'Moving…' : 'Move it'}
+            {busy ? t('page.articles.moving') : t('page.articles.moveIt')}
           </button>
         </div>
       </form>
@@ -427,28 +425,17 @@ function ArticleView() {
         badges={<span className="issue-id">{a.id}</span>}
         meta={
           <>
-            <span>
-              {a.version === 1 ? 'Written' : 'Changed'} by {by}{' '}
-              <time dateTime={a.updatedAt} title={new Date(a.updatedAt).toLocaleString()}>
-                {whenRead(a.updatedAt)}
-              </time>
-            </span>
-            <span>Version {a.version}</span>
+            <span>{tr('page.articles.by', { v: a.version === 1 ? t('page.articles.written') : t('page.articles.changed'), by: by, whenRead: whenRead(a.updatedAt), t0: (c: ReactNode) => <time dateTime={a.updatedAt} title={new Date(a.updatedAt).toLocaleString(intlLocale())}>{c}</time> })}</span>
+            <span>{tr('page.articles.version', { version: a.version })}</span>
           </>
         }
         actions={
           <>
-            <Link className="button" to={`/articles/${a.id}/history`}>
-              History
-            </Link>
+            <Link className="button" to={`/articles/${a.id}/history`}>{t('page.articles.history')}</Link>
             {canWrite ? (
               <>
-                <Link className="button" to={`/articles/new?project=${a.project.key}&parent=${a.id}`}>
-                  New article under it
-                </Link>
-                <Link className="button primary" to={`/articles/${a.id}/edit`}>
-                  Edit
-                </Link>
+                <Link className="button" to={`/articles/new?project=${a.project.key}&parent=${a.id}`}>{t('page.articles.newArticleUnderIt')}</Link>
+                <Link className="button primary" to={`/articles/${a.id}/edit`}>{t('page.articles.edit')}</Link>
               </>
             ) : null}
           </>
@@ -461,16 +448,13 @@ function ArticleView() {
             {a.body.trim() ? (
               <Markdown text={ticked ?? a.body} className="article-body" headingsFrom={2} onToggleTask={canWrite && ticked === null ? (i, on) => void tick(i, on) : undefined} />
             ) : (
-              <p className="article-empty">
-                Nothing written yet.{' '}
-                {canWrite ? <Link to={`/articles/${a.id}/edit`}>Write it</Link> : null}
-              </p>
+              <p className="article-empty">{tr('page.articles.nothingWrittenYet', { v: canWrite ? <Link to={`/articles/${a.id}/edit`}>{t('page.articles.writeIt')}</Link> : null })}</p>
             )}
             {tickSaid ? <ErrorLine>{tickSaid}</ErrorLine> : null}
           </article>
           {a.children.length ? (
             <section className="card stack" aria-labelledby="under-title">
-              <h2 id="under-title">Under it</h2>
+              <h2 id="under-title">{t('page.articles.underIt')}</h2>
               <ul className="directory">
                 {a.children.map((c) => (
                   <li key={c.id}>
@@ -547,18 +531,18 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
       if (mode === 'new') {
         const made = await post<ArticleDetail>('/articles', { project, title, body, ...(parent ? { parent } : {}) });
         await qc.invalidateQueries({ queryKey: articleKeys.all });
-        navigate(`/articles/${made.id}`, { state: { said: `${made.id} is written.` } });
+        navigate(`/articles/${made.id}`, { state: { said: t('page.articles.isWritten', { id: made.id }) } });
       } else {
         const next = await patch<ArticleDetail>(`/articles/${id}`, { title, body, expectedVersion: loadedVersion ?? undefined });
         qc.setQueryData(articleKeys.one(next.id), next);
         await qc.invalidateQueries({ queryKey: articleKeys.all });
-        navigate(`/articles/${next.id}`, { state: { said: next.version === loadedVersion ? 'Nothing changed, so there is no new version.' : `Saved as version ${next.version}.` } });
+        navigate(`/articles/${next.id}`, { state: { said: next.version === loadedVersion ? t('page.articles.nothingChangedSoThereIs') : t('page.articles.savedAsVersion', { version: next.version }) } });
       }
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         const current = (e.details as { currentVersion?: number } | undefined)?.currentVersion ?? null;
         setStale(current);
-        setError(`Someone saved version ${current ?? 'a newer version'} of ${id} while you were writing. What you wrote is still here: copy what you need, reload it, and make your change again.`);
+        setError(t('page.articles.someoneSavedVersionOfWhile', { v: current ?? 'a newer version', id: id }));
       } else setError(errorText(e));
     } finally {
       setBusy(false);
@@ -580,14 +564,14 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
     <>
       <PageHead
         crumbs={<Crumbs project={project} name={name} path={mode === 'edit' ? [...(existing.data?.path ?? []), { id: id!, title: existing.data!.title }] : undefined} />}
-        title={mode === 'new' ? 'New article' : `Editing ${existing.data!.title}`}
+        title={mode === 'new' ? t('page.articles.newArticle') : t('page.articles.editing', { title: existing.data!.title })}
         badges={mode === 'edit' ? <span className="issue-id">{id}</span> : null}
-        about={mode === 'edit' ? `Saving makes version ${(loadedVersion ?? 0) + 1}; every earlier one stays in its history.` : `In ${name}'s knowledge base. Markdown works here; write an issue's or an article's id, such as BACK-12 or BACK-A-3, to link it.`}
+        about={mode === 'edit' ? t('page.articles.savingMakesVersionEveryEarlier', { v: (loadedVersion ?? 0) + 1 }) : t('page.articles.inSKnowledgeBaseMarkdown', { name: name })}
       />
       <form
         className="card article-editor"
         data-show={show}
-        aria-label={mode === 'new' ? 'A new article' : `Editing ${id}`}
+        aria-label={mode === 'new' ? t('page.articles.aNewArticle') : t('page.articles.editing2', { id: id })}
         onSubmit={(e) => {
           e.preventDefault();
           if (title.trim()) void save();
@@ -595,37 +579,31 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
       >
         <div className="form-fields">
           <div className="form-field">
-            <label htmlFor={titleId}>Title</label>
+            <label htmlFor={titleId}>{t('page.articles.title')}</label>
             <input id={titleId} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={250} required autoFocus={mode === 'new'} />
           </div>
           {mode === 'new' ? (
             <div className="form-field">
-              <label htmlFor={parentId}>Where it goes</label>
+              <label htmlFor={parentId}>{t('page.articles.whereItGoes')}</label>
               <select id={parentId} value={parent} onChange={(e) => setParent(e.target.value)}>
-                <option value="">The top of the tree</option>
+                <option value="">{t('page.articles.theTopOfTheTree')}</option>
                 {flat.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    Under {x.title} ({x.id})
-                  </option>
+                  <option key={x.id} value={x.id}>{tr('page.articles.under', { title: x.title, id: x.id })}</option>
                 ))}
               </select>
             </div>
           ) : null}
         </div>
-        <div className="modes" role="group" aria-label="Show">
-          <button type="button" aria-pressed={show === 'write'} onClick={() => setShow('write')}>
-            Write
-          </button>
-          <button type="button" aria-pressed={show === 'read'} onClick={() => setShow('read')}>
-            Preview
-          </button>
+        <div className="modes" role="group" aria-label={t('page.articles.show')}>
+          <button type="button" aria-pressed={show === 'write'} onClick={() => setShow('write')}>{t('page.articles.write')}</button>
+          <button type="button" aria-pressed={show === 'read'} onClick={() => setShow('read')}>{t('page.articles.preview')}</button>
         </div>
         <div className="article-editor-panes">
           <div className="form-field article-editor-write">
-            <label htmlFor={bodyId}>What it says</label>
+            <label htmlFor={bodyId}>{t('page.articles.whatItSays')}</label>
             <RichField
               id={bodyId}
-              label="What it says"
+              label={t('page.articles.whatItSays')}
               value={body}
               onChange={setBody}
               tall
@@ -633,26 +611,24 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.article(id ?? '') })}
             />
           </div>
-          <div className="article-preview" role="region" aria-label="How it will read">
-            {body.trim() ? <Markdown text={body} className="article-body" headingsFrom={2} /> : <p className="article-empty">How it reads shows here as you write.</p>}
+          <div className="article-preview" role="region" aria-label={t('page.articles.howItWillRead')}>
+            {body.trim() ? <Markdown text={body} className="article-body" headingsFrom={2} /> : <p className="article-empty">{t('page.articles.howItReadsShowsHere')}</p>}
           </div>
         </div>
         {error ? <ErrorLine>{error}</ErrorLine> : null}
         <div className="cluster end">
           {stale !== null ? (
             <Confirm
-              label="Reload it"
-              title={`Reload ${id}?`}
-              about={`Version ${stale} takes the place of what you wrote here, which goes for good. Copy anything you want to keep first.`}
-              confirm="Reload it"
+              label={t('page.articles.reloadIt')}
+              title={t('page.articles.reload', { id: id })}
+              about={t('page.articles.versionTakesThePlaceOf', { stale: stale })}
+              confirm={t('page.articles.reloadIt')}
               onConfirm={() => void reload()}
             />
           ) : null}
-          <Link className="button" to={back}>
-            Cancel
-          </Link>
+          <Link className="button" to={back}>{t('page.articles.cancel')}</Link>
           <button type="submit" className="primary" disabled={busy || !title.trim()}>
-            {busy ? 'Saving…' : mode === 'new' ? 'Save it' : `Save version ${(loadedVersion ?? 0) + 1}`}
+            {busy ? t('page.articles.saving') : mode === 'new' ? t('page.articles.saveIt') : t('page.articles.saveVersion', { v: (loadedVersion ?? 0) + 1 })}
           </button>
         </div>
       </form>
@@ -677,7 +653,7 @@ function History() {
   const detail = useArticleVersion(id, chosen);
   const [said, setSaid] = useState<string | null>(null);
 
-  if (article.isLoading || versions.isLoading) return <Loading what="its history" />;
+  if (article.isLoading || versions.isLoading) return <Loading what={t('page.articles.itsHistory')} />;
   if (article.error || !article.data) return <NotHere id={id} error={article.error} />;
   const a = article.data;
   const restore = async (version: number) => {
@@ -685,9 +661,9 @@ function History() {
     try {
       const next = await post<ArticleDetail>(`/articles/${a.id}/versions/${version}/restore`, { expectedVersion: a.version });
       await qc.invalidateQueries({ queryKey: articleKeys.all });
-      navigate(`/articles/${a.id}`, { state: { said: `Version ${version} is back, as version ${next.version}.` } });
+      navigate(`/articles/${a.id}`, { state: { said: t('page.articles.versionIsBackAsVersion', { version: version, version2: next.version }) } });
     } catch (e) {
-      setSaid(e instanceof ApiError && e.status === 409 ? `Someone saved a newer version just now. Look at it first, then bring this one back if you still want it.` : errorText(e));
+      setSaid(e instanceof ApiError && e.status === 409 ? t('page.articles.someoneSavedANewerVersion') : errorText(e));
       await qc.invalidateQueries({ queryKey: articleKeys.one(a.id) });
     }
   };
@@ -697,22 +673,22 @@ function History() {
     <>
       <PageHead
         crumbs={<Crumbs project={a.project.key} name={a.project.name} path={[...a.path, { id: a.id, title: a.title }]} />}
-        title={`History of ${a.title}`}
+        title={t('page.articles.historyOf', { title: a.title })}
         badges={<span className="issue-id">{a.id}</span>}
-        about="Every saved version, newest first. Each opens against the one before it."
+        about={t('page.articles.everySavedVersionNewestFirst')}
       />
       <div className="stack">
         {versions.error ? <ErrorNote error={versions.error} /> : null}
         <div className="tw:grid tw:grid-cols-[17rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
-          <nav className="card side-card nav-card" aria-label={`Versions of ${a.title}`}>
-            <h2>{versions.data?.length === 1 ? '1 version' : `${versions.data?.length ?? 0} versions`}</h2>
+          <nav className="card side-card nav-card" aria-label={t('page.articles.versionsOf', { title: a.title })}>
+            <h2>{versions.data?.length === 1 ? t('page.articles.n1Version') : `${versions.data?.length ?? 0} versions`}</h2>
             <ul className="nav-list scrolls">
               {(versions.data ?? []).map((v) => {
                 const by = actorWho({ id: v.author?.id ?? null, login: v.author?.login ?? null, name: v.author?.name ?? null, channel: v.channel, token: v.token, isBot: v.author?.isBot ?? false });
                 return (
                   <li key={v.version}>
                     <Link to={`/articles/${a.id}/history?v=${v.version}`} aria-current={v.version === chosen ? 'page' : undefined}>
-                      <span className="nav-list-name">Version {v.version}</span>
+                      <span className="nav-list-name">{tr('page.articles.version', { version: v.version })}</span>
                       <span className="nav-list-about">
                         <span>
                           {by.name}
@@ -728,11 +704,9 @@ function History() {
           </nav>
           <section className="card stack tw:max-[900px]:-order-1" aria-labelledby="version-title" aria-busy={detail.isFetching}>
             <div className="cluster spread">
-              <h2 id="version-title">{chosen ? `Version ${chosen}` : 'No versions'}</h2>
+              <h2 id="version-title">{chosen ? t('page.articles.version2', { chosen: chosen }) : t('page.articles.noVersions')}</h2>
               {canWrite && chosen && chosen !== latest ? (
-                <button type="button" className="small" onClick={() => void restore(chosen)}>
-                  Bring it back
-                </button>
+                <button type="button" className="small" onClick={() => void restore(chosen)}>{t('page.articles.bringItBack')}</button>
               ) : null}
             </div>
             {detail.error ? <ErrorNote error={detail.error} /> : null}
@@ -740,26 +714,26 @@ function History() {
               <>
                 <p className="article-meta">
                   <Who kind={who.kind} name={who.name} about={who.about || undefined} small />
-                  <time dateTime={d.createdAt} title={new Date(d.createdAt).toLocaleString()}>
+                  <time dateTime={d.createdAt} title={new Date(d.createdAt).toLocaleString(intlLocale())}>
                     {whenRead(d.createdAt)}
                   </time>
-                  <span>{d.against ? `${diffWords(d.diff)} against version ${d.against}` : 'The first version'}</span>
+                  <span>{d.against ? `${diffWords(d.diff)} against version ${d.against}` : t('page.articles.theFirstVersion')}</span>
                 </p>
                 {d.titleBefore !== null && d.titleBefore !== d.title ? (
                   <ul className="change-lines">
                     <li>
-                      <span className="change-field">Title:</span> <del>{d.titleBefore}</del> → <ins>{d.title}</ins>
+                      <span className="change-field">{t('page.articles.title2')}</span> <del>{d.titleBefore}</del> → <ins>{d.title}</ins>
                     </li>
                   </ul>
                 ) : null}
-                <Diff lines={d.diff} label={d.against ? `Version ${d.version} against version ${d.against}` : `Version ${d.version}`} />
+                <Diff lines={d.diff} label={d.against ? t('page.articles.versionAgainstVersion', { version: d.version, against: d.against }) : t('page.articles.version', { version: d.version })} />
               </>
             ) : detail.isLoading ? (
-              <Loading what="the version" />
+              <Loading what={t('page.articles.theVersion')} />
             ) : null}
             <Said text={said} tone={said ? 'bad' : undefined} />
             <p className="note">
-              <Link to={`/articles/${a.id}`}>Back to {a.title}</Link>
+              <Link to={`/articles/${a.id}`}>{tr('page.articles.backTo', { title: a.title })}</Link>
             </p>
           </section>
         </div>

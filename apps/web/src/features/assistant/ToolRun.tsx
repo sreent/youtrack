@@ -5,6 +5,7 @@ import { Linked } from '../common/bits';
 import { clock, excerpt, ISSUE_ID } from '../common/format';
 import type { AITool } from '../common/queries';
 import type { ToolStatus } from './live';
+import { t, tr } from '../../i18n';
 
 /** One tool call in a run: from a stored message, or as it streams. */
 export interface RunStep {
@@ -83,15 +84,15 @@ export function ToolRun({
                   <code>{s.name}</code> {what ? <Linked text={what} /> : null}
                   <span className="step-detail">
                     <Badge grammar={kind}>{kind}</Badge>
-                    {s.status === 'running' ? <span>{kind === 'reads' ? 'reading…' : 'changing…'}</span> : null}
-                    {s.status === 'pending_approval' ? <Badge tone="warn">waiting on you</Badge> : null}
-                    {s.status === 'error' ? <Badge tone="bad">failed</Badge> : null}
-                    {s.status === 'rejected' ? <Badge tone="idle">you declined it</Badge> : null}
-                    {s.status === 'done' && s.onItsOwn ? <span>on its own, as you let it</span> : null}
+                    {s.status === 'running' ? <span>{kind === 'reads' ? t('assistant.toolRun.reading') : t('assistant.toolRun.changing')}</span> : null}
+                    {s.status === 'pending_approval' ? <Badge tone="warn">{t('assistant.toolRun.waitingOnYou')}</Badge> : null}
+                    {s.status === 'error' ? <Badge tone="bad">{t('assistant.toolRun.failed')}</Badge> : null}
+                    {s.status === 'rejected' ? <Badge tone="idle">{t('assistant.toolRun.youDeclinedIt')}</Badge> : null}
+                    {s.status === 'done' && s.onItsOwn ? <span>{t('assistant.toolRun.onItsOwnAsYou')}</span> : null}
                     {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? (
                       <span className="step-took">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span>
                     ) : null}
-                    {tool?.destructive && s.status !== 'done' ? <span className="chip">can overwrite</span> : null}
+                    {tool?.destructive && s.status !== 'done' ? <span className="chip">{t('assistant.toolRun.canOverwrite')}</span> : null}
                   </span>
                 </span>
               </li>
@@ -113,36 +114,32 @@ function ActedAlone({ steps, onAskFirst }: { steps: RunStep[]; onAskFirst?: () =
   // The issues it changed, from what each step said and what it was given.
   const ids = [...new Set(steps.flatMap((s) => `${s.summary ?? ''} ${JSON.stringify(s.input ?? '')}`.match(ISSUE_ID) ?? []))];
   return (
-    <section className="draft acted" aria-label="What it did on its own">
+    <section className="draft acted" aria-label={t('assistant.toolRun.whatItDidOnIts')}>
       <div className="acted-head">
         <Avatar kind="agent" name="assistant" />
         <div>
           <strong>
-            <Linked text={steps.length === 1 ? (last.summary ?? 'Made a change') : `Made ${steps.length} changes`} />
+            <Linked text={steps.length === 1 ? (last.summary ?? t('assistant.toolRun.madeAChange')) : t('assistant.toolRun.madeChanges', { length: steps.length })} />
           </strong>
-          <p>assistant · on its own{last.at ? ` · ${clock(last.at)}` : ''}</p>
+          <p>{tr('assistant.toolRun.assistantOnItsOwn', { v: last.at ? ` · ${clock(last.at)}` : '' })}</p>
         </div>
       </div>
       <p className="commits">
-        <span className="badge changes">changes</span>
+        <span className="badge changes">{t('assistant.toolRun.changes')}</span>
         <span>
           {ids.length ? (
-            <>
-              It changed <Linked text={ids.join(', ')} />, and {ids.length === 1 ? 'its' : 'their'} history says so.
-            </>
+            <>{tr('assistant.toolRun.itChangedAndHistorySays', { el: <Linked text={ids.join(', ')} />, v: ids.length === 1 ? 'its' : 'their' })}</>
           ) : (
-            'It changed what you asked, and the history says so.'
+            t('assistant.toolRun.itChangedWhatYouAsked')
           )}
         </span>
       </p>
       <dl className="facts-sm">
-        <dt>Allowed by</dt>
-        <dd>You let it act, in this conversation</dd>
+        <dt>{t('assistant.toolRun.allowedBy')}</dt>
+        <dd>{t('assistant.toolRun.youLetItActIn')}</dd>
       </dl>
       {onAskFirst ? (
-        <button type="button" className="link" onClick={onAskFirst}>
-          Ask me first next time
-        </button>
+        <button type="button" className="link" onClick={onAskFirst}>{t('assistant.toolRun.askMeFirstNextTime')}</button>
       ) : null}
     </section>
   );

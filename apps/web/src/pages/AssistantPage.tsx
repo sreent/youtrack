@@ -12,10 +12,12 @@ import { errorText, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { LadderChoice, type Rung } from '../features/common/Ladder';
 import { useToolMap } from '../features/common/queries';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const RUNGS: Rung<'ask' | 'auto'>[] = [
-  { value: 'ask', name: 'Asks', lvl: 'ask', about: 'Each change waits for your yes, with exactly what it would do.' },
-  { value: 'auto', name: 'Acts', lvl: 'auto', about: 'Changes what you ask on its own, and says so at once.' },
+  { value: 'ask', name: 'Asks', lvl: 'ask', about: t('page.assistant.eachChangeWaitsForYour') },
+  { value: 'auto', name: 'Acts', lvl: 'auto', about: t('page.assistant.changesWhatYouAskOn') },
 ];
 
 /** The in-app agent, "assistant": your conversations beside the one you're in. */
@@ -55,7 +57,7 @@ export default function AssistantPage() {
         conversationId = conv.id;
         navigate(`/assistant/${conv.id}${keep}`);
       } catch (e) {
-        setSaid({ text: `It couldn't start a conversation: ${errorText(e)}`, bad: true });
+        setSaid({ text: t('page.assistant.itCouldnTStartA', { errorText: errorText(e) }), bad: true });
         return false;
       }
     }
@@ -90,7 +92,7 @@ export default function AssistantPage() {
       if (r.ok) return;
       // Nothing was decided: the changes wait again, and the page says why.
       setDecisions((d) => Object.fromEntries(Object.entries(d).filter(([k]) => !(k in chosen))));
-      if (r.message) setSaid({ text: `Your decision didn't go through: ${r.message}`, bad: true });
+      if (r.message) setSaid({ text: t('page.assistant.yourDecisionDidnTGo', { message: r.message }), bad: true });
     });
   };
 
@@ -99,7 +101,7 @@ export default function AssistantPage() {
     onSuccess: (_, cid) => {
       qc.removeQueries({ queryKey: keys.conversation(cid) });
       void qc.invalidateQueries({ queryKey: keys.conversations });
-      setSaid({ text: 'The conversation is gone.' });
+      setSaid({ text: t('page.assistant.theConversationIsGone') });
       navigate(`/assistant${keep}`);
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -111,33 +113,28 @@ export default function AssistantPage() {
   return (
     <>
       <PageHead
-        title="Assistant"
-        about="Ask about your projects in your own words. It reads what it needs, and asks before it changes anything unless you let it act."
+        title={t('page.assistant.assistant')}
+        about={t('page.assistant.askAboutYourProjectsIn')}
         actions={
           aiOn && id ? (
-            <Link className="button" to={`/assistant${keep}`}>
-              Start a new conversation
-            </Link>
+            <Link className="button" to={`/assistant${keep}`}>{t('page.assistant.startANewConversation')}</Link>
           ) : null
         }
       />
       {status.data && !status.data.enabled ? (
         <section className="card stack tight">
-          <h2>The assistant is off on this server</h2>
-          <p className="note">
-            {status.data.reason ? `${status.data.reason}. ` : ''}Whoever runs the server can turn it on there, and restart it. Until then you can read your past
-            conversations, and delete them.
-          </p>
+          <h2>{t('page.assistant.theAssistantIsOffOn')}</h2>
+          <p className="note">{tr('page.assistant.whoeverRunsTheServerCan', { v: status.data.reason ? `${status.data.reason}. ` : '' })}</p>
         </section>
       ) : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       <div className="tw:grid tw:grid-cols-[16rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
         <div className="stack">
-          <nav className="card side-card nav-card" aria-label="Your conversations">
-            <h2>Your conversations</h2>
+          <nav className="card side-card nav-card" aria-label={t('page.assistant.yourConversations')}>
+            <h2>{t('page.assistant.yourConversations')}</h2>
             {list.isLoading ? <Loading what="conversations" /> : null}
             {list.error ? <ErrorNote error={list.error} /> : null}
-            {list.data && !list.data.length ? <p className="note">None yet. What you ask starts one.</p> : null}
+            {list.data && !list.data.length ? <p className="note">{t('page.assistant.noneYetWhatYouAsk')}</p> : null}
             {list.data?.length ? (
               <ul className="nav-list scrolls">
                 {list.data.map((c) => (
@@ -147,12 +144,9 @@ export default function AssistantPage() {
                       <span className="nav-list-about">
                         {c.project ? <span className="issue-id">{c.project}</span> : null}
                         <span>{ago(c.updatedAt)}</span>
-                        {c.status === 'awaiting_approval' ? <Badge tone="warn">waiting on you</Badge> : null}
+                        {c.status === 'awaiting_approval' ? <Badge tone="warn">{t('page.assistant.waitingOnYou')}</Badge> : null}
                         {running.has(c.id) || c.status === 'running' ? (
-                          <span className="nav-list-busy">
-                            <span className="spin" aria-hidden="true" />
-                            answering
-                          </span>
+                          <span className="nav-list-busy">{tr('page.assistant.answering', { el: <span className="spin" aria-hidden="true" /> })}</span>
                         ) : null}
                       </span>
                     </NavLink>
@@ -163,22 +157,20 @@ export default function AssistantPage() {
           </nav>
           <section className="card side-card">
             <LadderChoice
-              legend="When it would change something"
+              legend={t('page.assistant.whenItWouldChangeSomething')}
               rungs={RUNGS}
               value={mode}
               onChange={aiOn ? setMode : undefined}
               disabled={!aiOn}
-              note="It never deletes. Each visit starts at Asks."
+              note={t('page.assistant.itNeverDeletesEachVisit')}
             />
           </section>
         </div>
         {notFound ? (
           <section className="card tw:max-[900px]:-order-1">
-            <h2>That conversation isn't here</h2>
+            <h2>{t('page.assistant.thatConversationIsnTHere')}</h2>
             <ErrorNote error={detail.error} />
-            <p className="note">
-              It may have been deleted. <Link to={`/assistant${keep}`}>Start a new conversation</Link>.
-            </p>
+            <p className="note">{tr('page.assistant.itMayHaveBeenDeleted', { t0: (c: ReactNode) => <Link to={`/assistant${keep}`}>{c}</Link> })}</p>
           </section>
         ) : (
           <Talk
@@ -202,10 +194,10 @@ export default function AssistantPage() {
               id && current ? (
                 <Confirm
                   small
-                  label="Delete"
-                  title={`Delete the conversation “${current.title}”?`}
-                  about="Its messages go with it, and nobody can bring them back. What it changed in your issues stays."
-                  confirm="Delete it"
+                  label={t('page.assistant.delete')}
+                  title={t('page.assistant.deleteTheConversation', { title: current.title })}
+                  about={t('page.assistant.itsMessagesGoWithIt')}
+                  confirm={t('page.assistant.deleteIt')}
                   disabled={remove.isPending || running.has(id)}
                   onConfirm={() => remove.mutate(id)}
                 />

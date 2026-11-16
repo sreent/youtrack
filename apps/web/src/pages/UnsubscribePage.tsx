@@ -5,6 +5,8 @@ import { Link, useSearchParams } from 'react-router';
 import { ApiError, get, post, qs } from '../api/client';
 import { Lone } from '../app/Auth';
 import { ErrorNote, Loading } from '../components/States';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /**
  * Where an email's "Stop emails like this" leads. Opening it changes nothing (mail scanners open
@@ -22,8 +24,8 @@ export default function UnsubscribePage() {
     const missing = !token || (described.error instanceof ApiError && described.error.status === 404);
     return (
       <Lone>
-        <h1>{missing ? "This link doesn't stop anything" : "This page didn't load"}</h1>
-        {missing ? <p className="note">It may have been copied only in part. If you can sign in, choose what a4a emails you on your profile.</p> : <ErrorNote error={described.error} />}
+        <h1>{missing ? t('page.unsubscribe.thisLinkDoesnTStop') : t('page.unsubscribe.thisPageDidnTLoad')}</h1>
+        {missing ? <p className="note">{t('page.unsubscribe.itMayHaveBeenCopied')}</p> : <ErrorNote error={described.error} />}
       </Lone>
     );
   }
@@ -48,21 +50,19 @@ export default function UnsubscribePage() {
   };
   return (
     <Lone>
-      <h1>{d.done ? 'Stopped' : 'Stop these emails?'}</h1>
-      <p>{d.done ? `No more of these: ${d.what.charAt(0).toLowerCase()}${d.what.slice(1)}` : d.what}</p>
+      <h1>{d.done ? t('page.unsubscribe.stopped') : t('page.unsubscribe.stopTheseEmails')}</h1>
+      <p>{d.done ? t('page.unsubscribe.noMoreOfThese', { toLowerCase: d.what.charAt(0).toLowerCase(), slice: d.what.slice(1) }) : d.what}</p>
       {error ? <ErrorNote error={error} /> : null}
       {d.done ? (
         d.kind === 'request' ? (
-          <p className="note">Your request's page still works, from the link in any email about it.</p>
+          <p className="note">{t('page.unsubscribe.yourRequestSPageStill')}</p>
         ) : (
-          <p className="note">
-            Changed your mind? Choose what a4a emails you on <Link to="/me">your profile</Link>.
-          </p>
+          <p className="note">{tr('page.unsubscribe.changedYourMindChooseWhat', { t0: (c: ReactNode) => <Link to="/me">{c}</Link> })}</p>
         )
       ) : (
         <div className="cluster">
           <button type="button" className="primary" onClick={() => void stop()} disabled={busy}>
-            {busy ? 'Stopping…' : 'Stop them'}
+            {busy ? t('page.unsubscribe.stopping') : t('page.unsubscribe.stopThem')}
           </button>
         </div>
       )}

@@ -20,6 +20,7 @@ import { eventDetail, notificationTitle } from '../notify/words';
 import { accessFor, eventSeen } from '../services/access';
 import { eventsOf, unreadCount } from '../services/notifications';
 import { deviceSignedIn, noteOutcome, sendPush, topicFor, type DeviceRow, type PushOptions, type PushPayload } from './service';
+import { localeOfPerson, translatorFor } from '../i18n';
 
 /** How long after a notification is made its push waits, so what follows at once goes with it. */
 export const PUSH_SETTLE_MS = 5_000;
@@ -90,9 +91,10 @@ export async function renderNotificationPush(app: AppServices, notificationId: s
   const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e, { fresh: true }) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
-  const said = notificationTitle(kind, events, reasons);
+  const tr = translatorFor(localeOfPerson(app, user));
+  const said = notificationTitle(tr, kind, events, reasons);
   const latest = events[events.length - 1]!;
-  const detail = eventDetail(latest)[0];
+  const detail = eventDetail(tr, latest)[0];
   // The badge: what's unread for them, counted as their inbox counts it.
   const asThem: Ctx = { app, db: app.db, actor: { user, scopes: effectiveScopes(user.role), channel: 'web', tokenId: null, tokenName: null, authMethod: 'system' } };
   const unread = await unreadCount(asThem).catch(() => null);

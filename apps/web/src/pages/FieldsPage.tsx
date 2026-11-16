@@ -12,16 +12,18 @@ import { AdminOnly, errorText, FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { count } from '../features/common/format';
 import { TYPE_WORDS } from '../features/projects/ProjectFields';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];
 const MULTI_TYPES: FieldType[] = ['enum', 'user', 'version'];
 
 const TONES: { tone: Tone | null; word: string }[] = [
-  { tone: null, word: 'A plain fact' },
-  { tone: 'good', word: 'Going well' },
-  { tone: 'warn', word: 'Waiting on someone' },
-  { tone: 'bad', word: 'Failed or late' },
-  { tone: 'idle', word: 'Not needed' },
+  { tone: null, word: t('page.fields.aPlainFact') },
+  { tone: 'good', word: t('page.fields.goingWell') },
+  { tone: 'warn', word: t('page.fields.waitingOnSomeone') },
+  { tone: 'bad', word: t('page.fields.failedOrLate') },
+  { tone: 'idle', word: t('page.fields.notNeeded') },
 ];
 
 function ToneSelect({ id, value, onChange, label }: { id?: string; value: Tone | null; onChange: (t: Tone | null) => void; label?: string }) {
@@ -61,7 +63,7 @@ function ValueRow({
   const save = useMutation({
     mutationFn: () => patch<FieldValue>(`/fields/${field.id}/values/${value.id}`, { ...form, name: form.name.trim() }),
     onSuccess: () => {
-      setSaid({ text: 'Saved.' });
+      setSaid({ text: t('page.fields.saved') });
       void qc.invalidateQueries({ queryKey: keys.fields });
       void qc.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -78,10 +80,10 @@ function ValueRow({
   return (
     <li className={value.archived ? 'value-row dimmed' : 'value-row'}>
       <span className="value-order">
-        <button type="button" className="round" aria-label={`Move ${value.name} up`} disabled={first} onClick={() => onMove(-1)}>
+        <button type="button" className="round" aria-label={t('page.fields.moveUp', { name: value.name })} disabled={first} onClick={() => onMove(-1)}>
           <Icon name="chevron" className="up" />
         </button>
-        <button type="button" className="round" aria-label={`Move ${value.name} down`} disabled={last} onClick={() => onMove(1)}>
+        <button type="button" className="round" aria-label={t('page.fields.moveDown', { name: value.name })} disabled={last} onClick={() => onMove(1)}>
           <Icon name="chevron" />
         </button>
       </span>
@@ -89,39 +91,37 @@ function ValueRow({
         className="value-name"
         value={form.name}
         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-        aria-label={`Name of ${value.name}`}
+        aria-label={t('page.fields.nameOf', { name: value.name })}
         maxLength={80}
       />
       <span className="value-tone">
-        <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label={`How ${value.name} shows`} />
+        <ToneSelect value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} label={t('page.fields.howShows', { name: value.name })} />
         <Badge tone={form.tone}>{form.name || value.name}</Badge>
       </span>
       <span className="value-more">
         {field.type === 'state' ? (
           <label className="choice">
             <input type="checkbox" checked={form.isResolved} onChange={(e) => setForm((f) => ({ ...f, isResolved: e.target.checked }))} />
-            <span>Resolves</span>
+            <span>{t('page.fields.resolves')}</span>
           </label>
         ) : null}
         <label className="choice">
           <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
-          <span>Archived</span>
+          <span>{t('page.fields.archived')}</span>
         </label>
         {value.projectId ? (
-          <span className="chip mono" title="Only in this project">
-            {projects.get(value.projectId) ?? 'one project'} only
-          </span>
+          <span className="chip mono" title={t('page.fields.onlyInThisProject')}>{tr('page.fields.only', { v: projects.get(value.projectId) ?? 'one project' })}</span>
         ) : null}
         <span className="cluster">
           <button type="button" className="small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>
-            {save.isPending ? 'Saving…' : 'Save'}
+            {save.isPending ? t('page.fields.saving') : t('page.fields.save')}
           </button>
           <Confirm
             small
-            label="Delete"
-            title={`Delete the value ${value.name} of ${field.name}?`}
-            about="Nobody can bring it back. a4a only deletes a value no issue has; archive it instead to keep it on the issues that have it."
-            confirm="Delete it"
+            label={t('page.fields.delete')}
+            title={t('page.fields.deleteTheValueOf', { name: value.name, name2: field.name })}
+            about={t('page.fields.nobodyCanBringItBack')}
+            confirm={t('page.fields.deleteIt')}
             disabled={remove.isPending}
             onConfirm={() => remove.mutate()}
           />
@@ -145,7 +145,7 @@ function AddValue({ field, projects }: { field: Field; projects: { key: string; 
         project: form.project || null,
       }),
     onSuccess: (v) => {
-      setSaid({ text: `${v.name} is added to ${field.name}.` });
+      setSaid({ text: t('page.fields.isAddedTo', { name: v.name, name2: field.name }) });
       setForm({ name: '', tone: null, isResolved: false, project: '' });
       void qc.invalidateQueries({ queryKey: keys.fields });
       void qc.invalidateQueries({ queryKey: ['projects'] });
@@ -161,29 +161,27 @@ function AddValue({ field, projects }: { field: Field; projects: { key: string; 
       }}
     >
       <fieldset className="form-card adding stack">
-        <legend>Add a value</legend>
+        <legend>{t('page.fields.addAValue')}</legend>
         <div className="form-fields">
-          <FormField label="Name">
+          <FormField label={t('page.fields.name')}>
             {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={80} />}
           </FormField>
-          <FormField label="Shows as">
+          <FormField label={t('page.fields.showsAs')}>
             {(id) => (
               <>
                 <ToneSelect id={id} value={form.tone} onChange={(tone) => setForm((f) => ({ ...f, tone }))} />
                 <span>
-                  <Badge tone={form.tone}>{form.name.trim() || 'Its name'}</Badge>
+                  <Badge tone={form.tone}>{form.name.trim() || t('page.fields.itsName')}</Badge>
                 </span>
               </>
             )}
           </FormField>
-          <FormField label="For" help="A value for one project can't move to others later.">
+          <FormField label={t('page.fields.for')} help={t('page.fields.aValueForOneProject')}>
             {(id, help) => (
               <select id={id} aria-describedby={help} value={form.project} onChange={(e) => setForm((f) => ({ ...f, project: e.target.value }))}>
-                <option value="">Every project</option>
+                <option value="">{t('page.fields.everyProject')}</option>
                 {projects.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.key} only
-                  </option>
+                  <option key={p.key} value={p.key}>{tr('page.fields.only2', { key: p.key })}</option>
                 ))}
               </select>
             )}
@@ -191,16 +189,13 @@ function AddValue({ field, projects }: { field: Field; projects: { key: string; 
           {field.type === 'state' ? (
             <label className="choice">
               <input type="checkbox" checked={form.isResolved} onChange={(e) => setForm((f) => ({ ...f, isResolved: e.target.checked }))} />
-              <span>
-                Resolves an issue
-                <small className="field-help">Issues in this state count as done.</small>
-              </span>
+              <span>{tr('page.fields.resolvesAnIssueIssuesIn', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
             </label>
           ) : null}
         </div>
         <div className="cluster">
           <button type="submit" disabled={!form.name.trim() || add.isPending}>
-            {add.isPending ? 'Adding…' : 'Add the value'}
+            {add.isPending ? t('page.fields.adding') : t('page.fields.addTheValue')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
@@ -223,7 +218,7 @@ function FieldEditor({ field }: { field: Field }) {
   const save = useMutation({
     mutationFn: () => patch<Field>(`/fields/${field.id}`, { name: form.name.trim(), description: form.description }),
     onSuccess: () => {
-      setSaid({ text: 'Saved. Queries and commands use the new name from now on.' });
+      setSaid({ text: t('page.fields.savedQueriesAndCommandsUse') });
       void qc.invalidateQueries({ queryKey: keys.fields });
       void qc.invalidateQueries({ queryKey: ['projects'] });
     },
@@ -260,18 +255,15 @@ function FieldEditor({ field }: { field: Field }) {
         <h2 id="field-title">{field.name}</h2>
         <Confirm
           small
-          label="Delete the field"
-          title={`Delete the field ${field.name}?`}
-          about={`Its values go with it, from every project and every issue that has them, and nobody can bring them back.`}
-          confirm="Delete it"
+          label={t('page.fields.deleteTheField')}
+          title={t('page.fields.deleteTheField2', { name: field.name })}
+          about={t('page.fields.itsValuesGoWithIt')}
+          confirm={t('page.fields.deleteIt')}
           disabled={remove.isPending}
           onConfirm={() => remove.mutate()}
         />
       </div>
-      <p className="note section-note">
-        {TYPE_WORDS[field.type][0]!.toUpperCase() + TYPE_WORDS[field.type].slice(1)}
-        {field.multi ? ', several at once' : ''}. Its kind can't change once it's made.
-      </p>
+      <p className="note section-note">{tr('page.fields.itsKindCanTChange', { v: TYPE_WORDS[field.type][0]!.toUpperCase() + TYPE_WORDS[field.type].slice(1), v2: field.multi ? t('page.fields.severalAtOnce') : '' })}</p>
       <form
         className="form"
         onSubmit={(e) => {
@@ -280,10 +272,10 @@ function FieldEditor({ field }: { field: Field }) {
         }}
       >
         <div className="form-fields">
-          <FormField label="Name">
+          <FormField label={t('page.fields.name')}>
             {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />}
           </FormField>
-          <FormField label="What it means" className="tw:col-span-full">
+          <FormField label={t('page.fields.whatItMeans')} className="tw:col-span-full">
             {(id) => (
               <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
             )}
@@ -291,19 +283,17 @@ function FieldEditor({ field }: { field: Field }) {
         </div>
         <div className="cluster">
           <button type="submit" disabled={!dirty || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save the field'}
+            {save.isPending ? t('page.fields.saving') : t('page.fields.saveTheField')}
           </button>
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
       </form>
       {options ? (
         <>
-          <h3>Its values ({values.length})</h3>
-          <p className="note">
-            In order: the first comes first in lists and sorts first. A value shows as the badge beside it, its colour a meaning, never a decoration.
-          </p>
+          <h3>{tr('page.fields.itsValues', { length: values.length })}</h3>
+          <p className="note">{t('page.fields.inOrderTheFirstComes')}</p>
           {values.length ? (
-            <ol className="value-rows" aria-label={`Values of ${field.name}`}>
+            <ol className="value-rows" aria-label={t('page.fields.valuesOf', { name: field.name })}>
               {values.map((v, i) => (
                 <ValueRow
                   key={v.id}
@@ -317,12 +307,12 @@ function FieldEditor({ field }: { field: Field }) {
               ))}
             </ol>
           ) : (
-            <p className="note">No values yet.</p>
+            <p className="note">{t('page.fields.noValuesYet')}</p>
           )}
           <AddValue field={field} projects={projects.data ?? []} />
         </>
       ) : (
-        <p className="note">{field.type === 'user' ? 'Its values are the people of a4a.' : 'People type its values, so it has no list.'}</p>
+        <p className="note">{field.type === 'user' ? t('page.fields.itsValuesAreThePeople') : t('page.fields.peopleTypeItsValuesSo')}</p>
       )}
     </section>
   );
@@ -345,14 +335,14 @@ function CreateField() {
     onSuccess: (f) => {
       void qc.invalidateQueries({ queryKey: keys.fields });
       setForm({ name: '', type: 'enum', multi: false, description: '' });
-      setSaid({ text: `${f.name} is made. Attach it to a project on the project's page.` });
+      setSaid({ text: t('page.fields.isMadeAttachItTo', { name: f.name }) });
       setSearch({ field: f.id }, { replace: true });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   return (
     <section className="card side-card" aria-labelledby="new-field">
-      <h2 id="new-field">Make a field</h2>
+      <h2 id="new-field">{t('page.fields.makeAField')}</h2>
       <form
         className="form"
         onSubmit={(e) => {
@@ -360,10 +350,10 @@ function CreateField() {
           create.mutate();
         }}
       >
-        <FormField label="Name">
+        <FormField label={t('page.fields.name')}>
           {(id) => <input id={id} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required maxLength={60} />}
         </FormField>
-        <FormField label="What it holds">
+        <FormField label={t('page.fields.whatItHolds')}>
           {(id) => (
             <select id={id} value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as FieldType }))}>
               {FIELD_TYPES.map((t) => (
@@ -377,17 +367,17 @@ function CreateField() {
         {MULTI_TYPES.includes(form.type) ? (
           <label className="choice">
             <input type="checkbox" checked={form.multi} onChange={(e) => setForm((f) => ({ ...f, multi: e.target.checked }))} />
-            <span>Several at once</span>
+            <span>{t('page.fields.severalAtOnce2')}</span>
           </label>
         ) : null}
-        <FormField label="What it means">
+        <FormField label={t('page.fields.whatItMeans')}>
           {(id) => (
             <textarea id={id} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} maxLength={1000} />
           )}
         </FormField>
         <div className="cluster">
           <button type="submit" className="primary" disabled={!form.name.trim() || create.isPending}>
-            {create.isPending ? 'Making…' : 'Make the field'}
+            {create.isPending ? t('page.fields.making') : t('page.fields.makeTheField')}
           </button>
         </div>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -403,15 +393,15 @@ export default function FieldsPage() {
   const chosenId = search.get('field');
   const chosen = fields.data?.find((f) => f.id === chosenId) ?? fields.data?.[0];
   return (
-    <AdminOnly title="Fields">
-      <PageHead title="Fields" about="The fields issues can have, and their values. Each project chooses the ones it uses, on its own page." />
+    <AdminOnly title={t('page.fields.fields2')}>
+      <PageHead title={t('page.fields.fields2')} about={t('page.fields.theFieldsIssuesCanHave')} />
       {fields.isLoading ? <Loading what="fields" /> : null}
       {fields.error ? <ErrorNote error={fields.error} /> : null}
       {fields.data ? (
         <div className="tw:grid tw:grid-cols-[15rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
           <div className="stack">
-            <nav className="card side-card nav-card" aria-label="Fields">
-              <h2>{count(fields.data.length, 'field')}</h2>
+            <nav className="card side-card nav-card" aria-label={t('page.fields.fields2')}>
+              <h2>{count(fields.data.length, 'page.fields.fields')}</h2>
               <ul className="nav-list">
                 {fields.data.map((f) => (
                   <li key={f.id}>
@@ -426,7 +416,7 @@ export default function FieldsPage() {
                       <span className="nav-list-name">{f.name}</span>
                       <span className="nav-list-about">
                         <span>{TYPE_WORDS[f.type]}</span>
-                        {OPTION_TYPES.includes(f.type) ? <span>{count(f.values.length, 'value')}</span> : null}
+                        {OPTION_TYPES.includes(f.type) ? <span>{count(f.values.length, 'page.fields.values')}</span> : null}
                       </span>
                     </a>
                   </li>
@@ -436,7 +426,7 @@ export default function FieldsPage() {
             <CreateField />
           </div>
           <div className="stack">
-            {chosen ? <FieldEditor key={chosen.id} field={chosen} /> : <p className="note">There are no fields yet. Make the first one.</p>}
+            {chosen ? <FieldEditor key={chosen.id} field={chosen} /> : <p className="note">{t('page.fields.thereAreNoFieldsYet')}</p>}
           </div>
         </div>
       ) : null}
