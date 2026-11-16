@@ -244,6 +244,9 @@ export default function ProjectPage() {
             <Link className="button" to={`/plan/${p.key}`}>
               Open its plan
             </Link>
+            <Link className="button" to={`/rules/${p.key}`}>
+              Open its rules
+            </Link>
           </>
         }
       />

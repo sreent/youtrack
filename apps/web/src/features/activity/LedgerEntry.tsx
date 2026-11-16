@@ -32,6 +32,12 @@ function targetOf(e: TrackerEvent): { id: string; summary: string } | null {
   return t?.id ? { id: t.id, summary: t.summary ?? '' } : null;
 }
 
+/** The workflow rule that made a change, by its name. */
+function ruleOf(e: TrackerEvent): string | null {
+  const a = e.data.automation as { name?: string } | undefined;
+  return typeof a?.name === 'string' ? a.name : null;
+}
+
 /** Through what, for whom, and where, in the ledger's words. */
 function byLine(e: TrackerEvent): string {
   const name = e.actor.name ?? e.actor.login ?? 'someone';
@@ -43,8 +49,10 @@ function byLine(e: TrackerEvent): string {
     automation: 'on its own',
     system: "a4a's own",
     helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
+    vcs: `from ${e.actor.token ?? 'version control'}`,
   };
-  return [through[e.actor.channel], e.actor.channel === 'api' || e.actor.channel === 'mcp' ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
+  const tokenNamed = e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs';
+  return [through[e.actor.channel], ruleOf(e) ? `the rule “${ruleOf(e)}”` : null, tokenNamed ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
     .filter(Boolean)
     .join(' · ');
 }
@@ -150,6 +158,34 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         more: <ChangeLines changes={e.changes} />,
       };
     }
+    case 'commit.linked': {
+      const command = str(e.data.command);
+      return {
+        text: (
+          <>
+            committed <span className="mono">{str(e.data.sha).slice(0, 7)}</span> to {issue}
+          </>
+        ),
+        badge: ['outside', 'links a commit'],
+        more: (
+          <span className="ledger-note">
+            {str(e.data.title)}
+            {command ? (e.data.applied ? ` · #${command}: ${str(e.data.note) || 'applied'}` : ` · #${command}, not applied: ${str(e.data.note).replace(/^Not applied:\s*/i, '')}`) : ''}
+          </span>
+        ),
+      };
+    }
+    case 'pull_request.linked':
+    case 'pull_request.updated':
+      return {
+        text: (
+          <>
+            {e.type === 'pull_request.linked' ? 'linked pull request' : 'saw pull request'} <span className="mono">#{str(e.data.number)}</span> to {issue}
+          </>
+        ),
+        badge: ['outside', e.type === 'pull_request.linked' ? 'links a pull request' : `pull request ${str(e.data.state)}`],
+        more: <span className="ledger-note">{str(e.data.title)}</span>,
+      };
     case 'baseline.created':
       return {
         text: (

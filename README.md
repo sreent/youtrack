@@ -13,6 +13,16 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Problems are underlined where they are, with the fix one click away: *Unknown value "Fixd" for State · Did you mean Fixed?* The API gives agents the same fix as data.
   - Or ask in words: an agent turns them into a query, and shows the query it read before it runs.
 - **Commands** change many issues at once: `State Fixed Assignee anna tag regression`, `subtask of BACK-3`. The web app shows what a command changes on each issue before it applies. It can also take the command in words.
+- **Workflow rules**, written in the same two languages and read as sentences:
+  - when an issue is created, changes or gets a comment, and then matches a query, a command changes it: *When an issue is created, if it matches `Type: Bug Priority: Critical`, then apply `Assignee anna tag urgent`*;
+  - on a schedule, every issue that matches gets the command: *every day at 09:00, `#Unresolved Due date: Overdue` gets `tag overdue`*;
+  - a guard refuses a change that would break it, and the change leaves nothing behind: *State Won't fix needs a comment*.
+  - Each is previewed before it's saved (its problems where they are, the issues it would touch now, and what it would change on a few), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep.
+  - A project's managers make its rules, and everyone who can see the project can read them. A rule acts only in its own project.
+- **Version control**: GitHub and GitLab send pushes and pull requests.
+  - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
+  - `BACK-12 #Fixed` in a commit message applies the command as its author, when their email is confirmed (by an administrator, or by single sign-on) and they can change the project's issues; otherwise the commit is linked and the issue says why.
+  - Deliveries are checked (GitHub's signature, GitLab's token), handled once, rate-limited and logged.
 - **Agile boards** with sprints, WIP limits and swimlanes.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
@@ -54,7 +64,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 35 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person.
+- **For agents**: an MCP server at `/mcp` with 37 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start

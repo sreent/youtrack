@@ -128,7 +128,7 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
         if (t.field.type === 'enum' || t.field.type === 'state' || t.field.type === 'version') {
           return [...new Set(allowedValues(s, t.field.id, null).map((v) => v.name))];
         }
-        if (t.field.type === 'date') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d'];
+        if (t.field.type === 'date') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d', 'Overdue'];
         return [];
       }
       switch (t.kind) {

@@ -36,6 +36,9 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'article.deleted': 'an article is deleted',
   'sprint.issue_added': 'an issue joins a sprint',
   'sprint.issue_removed': 'an issue leaves a sprint',
+  'commit.linked': 'a commit mentions an issue',
+  'pull_request.linked': 'a pull request mentions an issue',
+  'pull_request.updated': 'a pull request is merged or closed',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

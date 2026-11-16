@@ -43,6 +43,13 @@
       "when": 1794811896661,
       "tag": "0005_flat_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794812408599,
+      "tag": "0006_tough_hex",
+      "breakpoints": true
     }
   ]
 }

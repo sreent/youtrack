@@ -28,7 +28,7 @@ A query is a list of terms; terms side by side must all match ("and").
 Other words search summaries, descriptions and comments, by prefix: \`login saf\`. Quote an exact phrase: \`"rate limit"\`.
 
 ## Dates
-\`today\`, \`yesterday\`, \`tomorrow\`, \`{this week}\`, \`{last week}\`, \`{this month}\`, \`{last month}\`, \`{this year}\`, \`-7d\` (7 days ago), \`+2w\`, \`YYYY-MM-DD\`. Ranges: \`a .. b\`, open ends with \`*\`.
+\`today\`, \`yesterday\`, \`tomorrow\`, \`{this week}\`, \`{last week}\`, \`{this month}\`, \`{last month}\`, \`{this year}\`, \`-7d\` (7 days ago), \`+2w\`, \`YYYY-MM-DD\`, \`Overdue\` (any day before today: \`Due date: Overdue\`). Ranges: \`a .. b\`, open ends with \`*\`.
 
 ## Combining and sorting
 \`and\`, \`or\`, parentheses: \`(Type: Bug or Type: Feature) project: WEB\`

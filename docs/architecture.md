@@ -11,7 +11,7 @@ This is how a4a is put together, and why. Each decision says what it costs and w
   MCP clients ──▶│ /mcp         MCP, Streamable HTTP          ├─▶ services ──▶ Postgres / PGlite│
   stdio clients ─│  (a4a-mcp bridge ─▶ /mcp)            │      ▲  │                         │
                  │ assistant    Claude tool loop ─────────────┘      │  └─▶ activities (outbox)  │
-                 │ worker       webhooks · triage · notifier · SSE ◀─┘                          │
+                 │ worker       webhooks · rules · triage · notifier · SSE ◀─┘                  │
                  │ mail sender  the mail outbox ─────────────────────▶ SMTP (SMTP_URL)          │
   people outside▶│ /help /request  the help desk's public pages (no sign-in)                    │
                  └────────────────────────────────────────────────────────────────────────────┘
@@ -405,6 +405,7 @@ An article's id can't be read as an issue's, and the reverse:
 - **Two administrators**, one taking the tour and one for the flows, because the server allows each person 1200 API requests a minute, and the two together came to about 900 on four workers. The limit (`API_RATE_LIMIT`) is held at its default rather than raised, so a page that starts asking too much shows up as a 429 in its console.
 - **People of their own** for what a role changes: a spec makes the person, gives them their role, and signs in as them, so the administrators' sessions are never the ones signed out or kept out.
 - **What happens meanwhile** is made real: a spec changes an issue or a plan through the API between a page reading and saving, with the page's live feed held, to get the 409s people would get.
+- **Callers from outside come without a cookie.** A delivery from GitHub is sent from a request context of its own, signed as GitHub signs it: the page's own requests carry the session, and a cookie-authenticated POST with no Origin is refused as CSRF (403), which GitHub never meets.
 - **AI is answered in the browser** (`page.route`), typed by the contract, because the server has no key in CI and the model's answers aren't the UI's to test. The server's AI is tested in vitest with a fake client.
 - **Every page is watched**: a console error or a CSP violation fails the test, unless the test names the one it provokes. The page's clock is fixed at the run's start.
 - **Costs:** it needs `pnpm build` first (the script does it), and it can't catch what only the real model does.
@@ -432,7 +433,7 @@ An article's id can't be read as an issue's, and the reverse:
 
 - **The file is parsed as it streams** (RFC 4180: quoted fields, doubled quotes, newlines inside quotes, CRLF, LF or CR, a BOM; split anywhere between chunks; 64 MB and 50,000 rows at most) into `import_rows`, with each column's samples and distinct values, so mapping never reads the file again. Columns are found from Jira's and YouTrack's headers (repeated ones, such as Labels or Comment, too), values by name and synonym, people by email, then login, then name; a person maps the rest, and leaving a value unmapped says what it means ("Unassigned", "The project's default, Open").
 - **Known by the other tracker's key.** `external_issues` maps (project, source, key) to the issue, with the values the import last wrote. A rerun changes a field only where the export changed it since, so an edit made here to a field the export didn't change stays; it skips a row that didn't change, and never makes an issue twice (two runs racing meet the key's primary key).
-- **History as it was.** An issue keeps its created and updated dates and its reporter, and its `issue.created` says it was imported (`data.imported`: source, key, original dates), as do its comments and work; triage leaves imported issues alone. Only the importer can set those, through `createIssueInTx`'s import option: no request can.
+- **History as it was.** An issue keeps its created and updated dates and its reporter, and its `issue.created` says it was imported (`data.imported`: source, key, original dates), as do its comments and work. Triage, notifications (D22), rules on a change and guards (D25) leave them alone: an import brings history in, and isn't a change happening now. Only the importer can set those, through `createIssueInTx`'s import option: no request can.
 - **A dry run changes nothing:** the same reading and checks as a run, with the problems row by row and what applies to many rows said once.
 - **The run is a job:** one per project at a time, claimed by a conditional update, each row in its own transaction, then links and parents in a second pass by key, so a row can name one later in the file. Its progress and heartbeat are on its row, so every instance shows it; one whose heartbeat has stopped for a minute (its instance died) reads as stopped, and running it again carries on, since rows done already are matched by key.
 - **Undo** deletes, in one transaction, the issues the import made that nobody has touched since (no activity but the import's), and says why it keeps each of the others. It doesn't take back what it changed on issues that were already here: that would write old values over what happened since.
@@ -496,6 +497,56 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 - **Limits are shared** by every instance, in Postgres (`help_throttle`, fixed windows, emails and tokens counted by their hash), as the sign-in throttle is, so a spammer behind a load balancer gets what one instance would give.
 - **Costs:** no captcha, no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
 - **Revisit when:** a desk gets spam a honeypot doesn't stop (add a captcha), or requesters want to reply by email (inbound mail into the same reply path).
+### D25. Workflow rules: an outbox consumer that acts, and guards inside the write path
+
+A rule belongs to a project (or, for administrators, to every project) and is one of three kinds. All three are the query language for *which issues* and the command language for *what to change*, so a rule is checked, previewed and explained the way a query or a command is.
+
+**Rules on a change and scheduled rules act afterwards, as the workflow agent.**
+
+- Rules on a change run in the outbox worker, as a consumer of `issue.created`, `issue.updated` and `comment.created`. Each rule the event sets off acts when the issue, as it is when the rule runs, matches the rule's query. All of them are evaluated in one read, against the issue as the change left it. An import's events set none off (D21).
+- Scheduled rules (every hour, day or weekday, at a time, in the server's time zone) run as one of the worker's chores, which only the instance holding the worker's lease runs (D17). A turn is claimed by moving the rule's next run on (a conditional update), so it runs once even if the lease changes hands. Issues are read in pages by id, up to 2,000 a run, and a run stops between pages if the lease has gone to another instance.
+- Both apply through the command executor's own step (`commandSpec`, then `applyChanges`), as the `workflow` bot with channel `automation`, with "me" standing for whoever made the change that set them off. The bot runs as triage's does: administrator scopes, limited (`actor.projectIds`) to the project of the issue it acts on, members only or not. So a rule never reads, links to or changes another project's issues: a link changes both its issues, and a rule's command may link only within its project, which is checked when the rule is saved.
+- A rule that fails is written in its run log with why, and never stops the others or the outbox.
+
+**Who sees rules, and who makes them.**
+
+- Reading a project's rules and their run log needs only reading the project, and a rule of a project someone can't see answers as one that doesn't exist (404, in the same words). Making, changing, turning off and deleting them needs one of the project's managers (D15); a rule for every project needs an administrator whose token reaches every project.
+- A project's rule reads only its own project's names (`ruleWorld`, over `scopeSchema`): another project, its values and its issues are unknown words to it, as they are to someone who can't see them. So checking or previewing a rule can't probe another project, and a rule runs as it was checked. A rule for every project is checked and previewed over the projects the person can see, and counts only their issues.
+- Such a rule writes some runs for no one project: how a scheduled run went everywhere, or that it no longer reads. They count and name things in every project, so only those who see every project see them; the others see its runs on issues they can see.
+- Rules act for the project's managers, not for whoever sets them off. A viewer may comment, and a rule may act on that comment (a reply that reopens an issue waiting for one is the usual case): what it changes is the managers' choice, and "me" is all the viewer brings to it. A viewer can't make, change or turn off a rule.
+
+**Loops stop at a fixed depth, with each rule acting once per chain.** Every change a rule makes records its cause on every activity it writes (`data.automation`: the rule, the change that started the chain, how deep it is). Rules a rule sets off act one step deeper, up to three steps. And a rule acts on an issue at most once for each change that starts a chain: the run log's unique key (rule, issue, origin) is claimed in the same transaction as the rule's change. The same key makes a replayed event, which at-least-once delivery allows, do nothing. Chains are useful (a scheduled rule tags an issue overdue; a rule on that change raises its priority); the key guarantees they end, and the depth bounds how far they reach.
+
+**Guards are checked inside `applyChanges`, in the same transaction.** A guard says: a change that makes an issue match Q must leave it matching R. Before writing, `applyChanges` reads whether each of the project's guards holds; after writing everything (fields, tags, links, the comment) and before commit, it reads again. A change that takes the issue from keeping a guard to breaking it is refused (422), and the transaction takes all of it back. An issue that broke a guard before the guard existed can still be changed in other ways: a guard refuses only what makes things worse. A new issue has no "before", so `createIssue` checks its guards at the end of its own transaction, and a refused issue doesn't even use up its number.
+
+**Keeping the write path fast, and free of deadlocks.**
+
+- Rules are reference data: they load with the schema snapshot, so a project without guards pays a filter over memory and no query, and a rule change invalidates the snapshot like any other.
+- With guards, the two checks are one SELECT each, over every guard at once, on the transaction's own connection. Reads take no row locks and never wait on one (MVCC), so the checks add no edge to the wait-for graph: they can't take part in a deadlock. A snapshot reload inside the transaction runs on the transaction's connection (see `SchemaCache.get`), never the pool, so on PGlite it can't wait on itself.
+- A refusal is written to the run log on the pool and not awaited. The refused transaction never waits on it: on PGlite it queues behind the transaction, and on Postgres it waits for the issue's row lock, which the refused transaction releases as it ends.
+- The rule engine's own writes take the issue's row lock first, as every write to an issue does, then claim the run.
+
+**What it costs.** A rule acts a few seconds after a change (the outbox's settle time), not inside it, so a person sees their own change first and the rule's a moment later, each in the history under its own name. Dry runs don't evaluate guards (they write nothing to evaluate), so a command's preview can't say a guard will refuse it; applying it does, per issue. Guards see changes made through the write path: deleting a comment or logging work isn't checked. A new or changed guard holds on another instance once its snapshot reloads: at once, when the change's `NOTIFY` arrives, or within a minute if a notification is lost.
+
+**Agents can't make rules.** They list them and preview them over MCP. A rule acts later, on its own, on every issue that ever matches it: it would outlive the conversation and the caps on an agent's commands, and agents read text anyone can write.
+
+**Revisit when:** rules need to read more than one issue (a parent's state, a sprint's), or to do something other than a command (notify, call out): then a small expression language over the issue, still evaluated by the same engine.
+
+### D26. Version control: verified deliveries, idempotent links, commands as the verified author
+
+GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{integration}`.
+
+- **Who sent it.** GitHub's `X-Hub-Signature-256`, an HMAC-SHA256 of the raw body, is recomputed and compared in constant time; GitLab's `X-Gitlab-Token` is hashed and compared in constant time. The raw bytes are read before anything parses them. GitHub's secret is an HMAC key, so a4a keeps it to check signatures (as it keeps its own webhooks' secrets to sign); GitLab's token is kept only as a SHA-256. Neither is shown after it's made.
+- **How often.** Deliveries are rate-limited per integration; refusals are rate-limited per address, and those over the limit aren't logged, so the log can't be flooded. Like the general limits (D17), these are per instance.
+- **Once.** The provider's delivery id is claimed before the work. One sent again is answered as a duplicate. One that failed (or died, after ten minutes) may be handled again, which is safe because linking is idempotent per (issue, commit) and per (issue, pull request), held by unique keys.
+- **Commands.** `BACK-12 #Fixed` applies the command after `#` as the person whose *verified* email wrote the commit, with their own access as they would sign in, and only if they can change the project's issues (asked through `services/access.ts`): a viewer's command, or that of someone outside a members-only project, links and isn't applied. Like a token limited to projects, it reaches only the integration's projects, so a command can't link to an issue elsewhere. A commit's author email is whatever the committer typed, and a4a's own emails are whatever people typed, so an email counts only when it is confirmed: set or confirmed by an administrator, or verified by the identity provider (`users.email_verified`, the same flag single sign-on trusts, D16; a person changing their own clears it). Each (commit, issue) is one transaction that locks the issue first; the command runs in a savepoint, so a command that fails, or a guard that refuses it, leaves the link and says why.
+- **History.** Linking records `commit.linked`, `pull_request.linked` and `pull_request.updated`, on a new channel, `vcs`, as the matched person or as the integration itself, so the issue's history, the event feed and webhooks see it.
+- **Reach.** Linking needs no one's access in a4a: an integration links the issues of the projects an administrator gave it, and "every project" means members-only ones too. A commit's message and a pull request's title are their authors' words, shown as written, as a comment is.
+- **What the provider is told.** GitHub and GitLab show a delivery's reply to the repository's administrators, who aren't a4a's. So the reply names no issue and no person, and says nothing of who may do what in a4a: only what kind of delivery it was and how many links and commands came of it. a4a's own log of deliveries, which its administrators read, says the rest.
+
+**Costs.** One email per person, so commits under a provider's no-reply address run no commands. A push reads its first 500 commits.
+
+**Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
 ## Consistency and concurrency
 
@@ -513,7 +564,7 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 | Mail | At least once, idempotent per notification, digest day and help desk event (`dedupe_key`); claimed with `SKIP LOCKED` and a lease, so two senders never send one at once |
 | Unwatching just after commenting | Holds: watching starts in the change's own transaction, not later in a consumer |
 | Retried `POST` | `Idempotency-Key`: the key is claimed before the work, on any instance; the stored response is replayed, and a key reused with a different body gets 422. A claim left by an instance that died mid-request can be claimed again after 5 minutes |
-| Reference data (fields, values, users) | Cached in memory per instance, and reloaded on every instance after a change on any (`NOTIFY`; a change made inside a transaction is sent on its commit). A generation counter stops a slow reload from overwriting a newer invalidation. The 60s reload remains, for a notification that was lost |
+| Reference data (fields, values, users, workflow rules) | Cached in memory per instance, and reloaded on every instance after a change on any (`NOTIFY`; a change made inside a transaction is sent on its commit). A generation counter stops a slow reload from overwriting a newer invalidation. The 60s reload remains, for a notification that was lost |
 | Live events, several instances | Every instance sends every event once, in id order, within about a second of its commit. A stream resumes from its last event id on any instance, missing and repeating nothing. A missed `NOTIFY` (a dropped `LISTEN` connection, a crash before sending it) is caught up from the log: on reconnect, or by the 10-second backstop |
 | An id that commits late, or never | Readers of the log stop at a missing id until it appears, or until no transaction that was writing to the log when it went missing is running; one held for a minute is passed with a warning |
 | Sign-in throttle | Shared in Postgres, per IP and per login, and kept across restarts. An attempt is counted before its password is checked, so parallel guesses can't pass the limit |
@@ -521,6 +572,10 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 | Instances starting together | Migrations, defaults and the unattended first administrator run under an advisory lock: one instance at a time. So does `POST /auth/setup` |
 | An import run twice, or stopped halfway | Each issue is known by (project, source, key): a rerun updates or skips it, never makes it twice. Each row commits on its own, so a run that stopped carries on where it was |
 | Two people arrange one dashboard | `expectedVersion`: the second gets 409 and the current version |
+| A guard and the change it checks | Same transaction: the change is checked after it's written and before commit, and refused all or nothing (D25) |
+| A rule acting on a replayed event, or a loop of rules | Once per (rule, issue, change that started the chain), claimed in the rule's own transaction; chains stop three rules deep |
+| A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
+| A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
 
 ## Security
 
@@ -536,6 +591,7 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
+- **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email is confirmed, and only where they can change issues (D26). Links from a payload are shown only if they are http(s).
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
@@ -567,7 +623,6 @@ Planned, with the seams already in place:
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
-- a VCS integration (`BACK-12 #Fixed` in commits);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
 - in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).

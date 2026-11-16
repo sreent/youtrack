@@ -14,11 +14,18 @@ import {
   NOTIFICATION_KINDS,
   PROJECT_ROLES,
   PROJECT_VISIBILITIES,
+  PULL_REQUEST_STATES,
   ROLES,
+  RULE_EVERY,
+  RULE_KINDS,
+  RULE_OUTCOMES,
+  RULE_TRIGGERS,
   SCOPES,
   SLA_STATES,
   TRIAGE_MODES,
   WATCH_REASONS,
+  VCS_DELIVERY_OUTCOMES,
+  VCS_PROVIDERS,
 } from './constants';
 
 /**
@@ -1625,3 +1632,223 @@ export const TrackedRequestSchema = z
 export type TrackedRequest = z.infer<typeof TrackedRequestSchema>;
 
 export const HelpReplyBody = z.object({ text: z.string().trim().min(1).max(HELP_LIMITS.reply) });
+
+// ---------------------------------------------------------------------------
+// Workflow rules
+// ---------------------------------------------------------------------------
+
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected a time of day as HH:MM');
+
+export const RuleScheduleSchema = z
+  .object({
+    every: z.enum(RULE_EVERY).describe('"hour": at the start of every hour; "day": every day; "weekday": Monday to Friday'),
+    at: timeOfDay.optional().describe('For "day" and "weekday": the time of day, in the server\'s time zone. Defaults to 09:00'),
+  })
+  .meta({ id: 'RuleSchedule' });
+export type RuleSchedule = z.infer<typeof RuleScheduleSchema>;
+
+export const RuleBody = z.object({
+  project: z.string().nullable().describe('Project key; null for a global rule, for every project (administrators only)'),
+  name: z.string().min(1).max(80),
+  kind: z.enum(RULE_KINDS).describe('"change": when something happens; "schedule": every hour or day; "guard": refuses a change that breaks it'),
+  trigger: z.enum(RULE_TRIGGERS).nullable().optional().describe('A rule on a change: an issue is created, changes, or gets a comment'),
+  field: z.string().max(60).nullable().optional().describe('A rule on "updated": only when this field changes, e.g. "State"'),
+  schedule: RuleScheduleSchema.nullable().optional().describe('A scheduled rule: how often it runs'),
+  query: z
+    .string()
+    .max(2000)
+    .default('')
+    .describe('Which issues, in the query language. A rule on a change acts when the issue, as it is after the change, matches it; a guard checks a change that would make an issue match it'),
+  command: z.string().max(2000).default('').describe('What to change, in the command language, e.g. "Assignee anna tag urgent"'),
+  comment: z.string().max(5000).nullable().optional().describe('A comment the command posts with its change'),
+  requires: z.string().max(2000).nullable().optional().describe('A guard: what the issue must also match, e.g. "has: comments"'),
+  message: z.string().max(500).nullable().optional().describe('A guard: what a refused change is told, e.g. "Say why in a comment"'),
+  enabled: z.boolean().default(true),
+});
+export type RuleInput = z.input<typeof RuleBody>;
+
+export const RULE_PARTS = ['name', 'trigger', 'field', 'schedule', 'query', 'requires', 'command'] as const;
+export const RuleProblemSchema = QueryProblemSchema.extend({
+  part: z.enum(RULE_PARTS).describe('Which part of the rule it is in'),
+}).meta({ id: 'RuleProblem' });
+export type RuleProblem = z.infer<typeof RuleProblemSchema>;
+
+export const RuleRunSchema = z
+  .object({
+    id: z.number().int(),
+    rule: z.object({ id: z.string(), name: z.string() }),
+    issue: z.string().nullable().describe('Readable id of the issue it acted on, or null for a scheduled run as a whole'),
+    outcome: z.enum(RULE_OUTCOMES),
+    message: z.string(),
+    changes: z.array(ChangeSchema),
+    by: UserRefSchema.nullable().describe('Whose change set it off, or whose change it refused'),
+    at: timestamp,
+  })
+  .meta({ id: 'RuleRun' });
+export type RuleRun = z.infer<typeof RuleRunSchema>;
+
+export const RuleSchema = z
+  .object({
+    id: z.string(),
+    project: z.string().nullable().describe('Project key; null for a global rule'),
+    name: z.string(),
+    kind: z.enum(RULE_KINDS),
+    trigger: z.enum(RULE_TRIGGERS).nullable(),
+    field: z.string().nullable(),
+    schedule: RuleScheduleSchema.nullable(),
+    query: z.string(),
+    command: z.string(),
+    comment: z.string().nullable(),
+    requires: z.string().nullable(),
+    message: z.string().nullable(),
+    enabled: z.boolean(),
+    sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
+    problems: z
+      .array(RuleProblemSchema)
+      .describe('What no longer reads in it, e.g. after a value was renamed. A rule with problems does nothing until they are fixed'),
+    nextRunAt: timestamp.nullable(),
+    lastRunAt: timestamp.nullable(),
+    lastRun: RuleRunSchema.nullable(),
+    version: z.number().int().describe('Send as expectedVersion when changing it'),
+    createdBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  })
+  .meta({ id: 'Rule' });
+export type Rule = z.infer<typeof RuleSchema>;
+
+export const UpdateRuleBody = patchBody(RuleBody)
+  .omit({ project: true, kind: true })
+  .extend({ expectedVersion: z.number().int().optional().describe('Fail with 409 if the rule changed since this version') });
+
+export const RulePreviewSchema = z
+  .object({
+    ok: z.boolean().describe('Nothing in it needs fixing'),
+    problems: z.array(RuleProblemSchema),
+    sentence: z.string(),
+    matching: z.number().int().describe('Issues that match its query now'),
+    breaking: z
+      .number()
+      .int()
+      .nullable()
+      .describe('A guard: issues that match its query now but not what it requires (they were changed before it existed)'),
+    sample: z
+      .array(z.object({ issue: IssueRefSchema, changes: z.array(ChangeSchema), errors: z.array(z.string()) }))
+      .describe('A few of the matching issues, with what the command would change on each (a dry run)'),
+    note: z.string().describe('What the preview shows, in words'),
+  })
+  .meta({ id: 'RulePreview' });
+export type RulePreview = z.infer<typeof RulePreviewSchema>;
+
+export const RuleCheckBody = z.object({
+  project: z.string().nullable(),
+  kind: z.enum(RULE_KINDS),
+  part: z.enum(['query', 'requires', 'command']),
+  text: z.string().max(2000),
+  caret: z.number().int().min(0).optional(),
+});
+export const RuleCheckResultSchema = z
+  .object({ problems: z.array(QueryProblemSchema), description: z.string(), suggestions: z.array(SuggestItemSchema) })
+  .meta({ id: 'RuleCheckResult' });
+
+// ---------------------------------------------------------------------------
+// Version control
+// ---------------------------------------------------------------------------
+
+export const VcsIntegrationSchema = z
+  .object({
+    id: z.string(),
+    provider: z.enum(VCS_PROVIDERS),
+    name: z.string(),
+    projects: z.array(z.string()).describe('Project keys whose issue ids it looks for; empty: every project'),
+    active: z.boolean(),
+    webhookUrl: z.string().describe('Where the provider sends its deliveries'),
+    secretPrefix: z.string().describe("The secret's first characters, to recognise it by"),
+    createdAt: timestamp,
+    lastDeliveryAt: timestamp.nullable(),
+  })
+  .meta({ id: 'VcsIntegration' });
+export type VcsIntegration = z.infer<typeof VcsIntegrationSchema>;
+export const VcsIntegrationCreatedSchema = VcsIntegrationSchema.extend({
+  secret: z.string().describe('The webhook secret (GitHub) or secret token (GitLab). Shown only once'),
+}).meta({ id: 'VcsIntegrationCreated' });
+export type VcsIntegrationCreated = z.infer<typeof VcsIntegrationCreatedSchema>;
+export const VcsIntegrationBody = z.object({
+  provider: z.enum(VCS_PROVIDERS),
+  name: z.string().min(1).max(120).describe('What it is, e.g. the repository "acme/backend"'),
+  projects: z.array(z.string()).max(50).default([]).describe('Project keys whose issue ids to look for; empty for every project'),
+  active: z.boolean().default(true),
+});
+export const UpdateVcsIntegrationBody = z.object({
+  name: z.string().min(1).max(120).optional(),
+  projects: z.array(z.string()).max(50).optional(),
+  active: z.boolean().optional(),
+});
+
+export const VcsDeliverySchema = z
+  .object({
+    id: z.string(),
+    deliveryId: z.string().nullable(),
+    event: z.string(),
+    outcome: z.enum(VCS_DELIVERY_OUTCOMES),
+    statusCode: z.number().int(),
+    message: z.string(),
+    linked: z.number().int().describe('Commits and pull requests linked to issues'),
+    applied: z.number().int().describe('Commands from commits that were applied'),
+    test: z.boolean(),
+    createdAt: timestamp,
+  })
+  .meta({ id: 'VcsDelivery' });
+export type VcsDelivery = z.infer<typeof VcsDeliverySchema>;
+export const VcsTestResultSchema = z
+  .object({ delivered: z.boolean(), outcome: z.enum(VCS_DELIVERY_OUTCOMES), message: z.string() })
+  .meta({ id: 'VcsTestResult' });
+export type VcsTestResult = z.infer<typeof VcsTestResultSchema>;
+
+const VcsAuthorSchema = z.object({
+  name: z.string().nullable(),
+  login: z.string().nullable().describe('Their login with the provider'),
+  user: UserRefSchema.nullable().describe('The person in a4a, matched by their verified email'),
+});
+const VcsSourceSchema = z.object({ id: z.string(), name: z.string(), provider: z.enum(VCS_PROVIDERS) }).nullable();
+
+export const VcsCommitSchema = z
+  .object({
+    id: z.string(),
+    repository: z.string(),
+    sha: z.string(),
+    title: z.string().describe("The message's first line"),
+    body: z.string(),
+    url: z.string().nullable(),
+    branch: z.string().nullable(),
+    author: VcsAuthorSchema,
+    at: timestamp.nullable(),
+    command: z.string().nullable().describe('The command it gave this issue ("BACK-12 #Fixed" gives "Fixed")'),
+    applied: z.boolean().nullable().describe('Whether the command was applied; null when it gave none'),
+    note: z.string().nullable().describe('What the command changed, or why it was not applied'),
+    integration: VcsSourceSchema,
+  })
+  .meta({ id: 'VcsCommit' });
+export type VcsCommit = z.infer<typeof VcsCommitSchema>;
+
+export const VcsPullRequestSchema = z
+  .object({
+    id: z.string(),
+    repository: z.string(),
+    number: z.number().int(),
+    title: z.string(),
+    url: z.string().nullable(),
+    state: z.enum(PULL_REQUEST_STATES),
+    branch: z.string().nullable(),
+    target: z.string().nullable(),
+    author: VcsAuthorSchema,
+    at: timestamp.nullable(),
+    integration: VcsSourceSchema,
+  })
+  .meta({ id: 'VcsPullRequest' });
+export type VcsPullRequest = z.infer<typeof VcsPullRequestSchema>;
+
+export const IssueVcsSchema = z
+  .object({ commits: z.array(VcsCommitSchema), pullRequests: z.array(VcsPullRequestSchema) })
+  .meta({ id: 'IssueVcs' });
+export type IssueVcs = z.infer<typeof IssueVcsSchema>;

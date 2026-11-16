@@ -10,6 +10,7 @@ import { projectFieldDtos } from '../services/fields';
 import { getIssue } from '../services/issues';
 import { getProject, listProjects } from '../services/projects';
 import { getArticle, searchArticles } from '../services/articles';
+import { issueVcs } from '../vcs/links';
 import { presentField, TOOLS, toolErrorText, type ToolDef } from '../tools/registry';
 
 export const MCP_INSTRUCTIONS = `a4a is an issue tracker. You act as the person who owns your token, and every change you make is recorded with your token's name.
@@ -57,6 +58,11 @@ async function issueMarkdown(ctx: Ctx, id: string): Promise<string> {
     .map(([k, v]) => `- **${k}:** ${v}`)
     .join('\n');
   const links = i.links.map((l) => `- ${l.phrase} ${l.issue.id} — ${l.issue.summary}${l.issue.state ? ` (${l.issue.state})` : ''}`).join('\n');
+  const code = await issueVcs(ctx, i.id);
+  const changes = [
+    ...code.pullRequests.map((p) => `- ${p.repository} #${p.number} (${p.state}): ${p.title}`),
+    ...code.commits.slice(0, 20).map((c) => `- ${c.sha.slice(0, 7)} on ${c.branch ?? 'a branch'}: ${c.title}${c.command ? ` (#${c.command}: ${c.note ?? (c.applied ? 'applied' : 'not applied')})` : ''}`),
+  ].join('\n');
   const thread = comments
     .slice(-20)
     .map((c) => `**${c.author?.name ?? 'Someone'}** (${c.createdAt.slice(0, 16).replace('T', ' ')}):\n${excerpt(c.text, 2000)}`)
@@ -69,6 +75,7 @@ async function issueMarkdown(ctx: Ctx, id: string): Promise<string> {
     i.spentMinutes ? `Spent: ${formatPeriod(i.spentMinutes)}` : '',
     `## Description\n${i.description || '(none)'}`,
     links ? `## Links\n${links}` : '',
+    changes ? `## Commits and pull requests\n${changes}` : '',
     thread ? `## Comments\n${thread}` : '',
   ]
     .filter(Boolean)

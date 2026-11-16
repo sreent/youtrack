@@ -14,6 +14,11 @@ export interface CommandRequest {
   command: string;
   comment?: string;
   dryRun?: boolean;
+  /**
+   * Who "me" is in the command, when it isn't whoever applies it: a workflow rule applies as the
+   * workflow agent, and its "me" is the person whose change set it off.
+   */
+  meId?: string;
 }
 
 export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<CommandResult & { description: string }> {
@@ -53,7 +58,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
     const errors: string[] = [];
     let spec: ChangeSpec;
     try {
-      spec = await buildSpec(ctx, issue, parsed.ops, req.comment);
+      spec = await commandSpec(ctx, issue, parsed.ops, req.comment, { meId: req.meId });
     } catch (e) {
       results.push({ issue: rid, changes: [], errors: [e instanceof Error ? e.message : String(e)] });
       continue;
@@ -75,8 +80,21 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   return { applied: !req.dryRun && results.some((r) => r.changes.length > 0), problems: [], results, description };
 }
 
-async function buildSpec(ctx: Ctx, issue: IssueRow, ops: CommandOp[], comment?: string): Promise<ChangeSpec> {
-  const s = await ctx.app.schema.get();
+/**
+ * What a command's ops change on one issue, with names resolved in the issue's project: the step
+ * the executor takes for each issue, before applyChanges. "me" is `meId`, by default whoever acts.
+ * Inside a transaction, pass it as `db` (PGlite has one connection).
+ */
+export async function commandSpec(
+  ctx: Ctx,
+  issue: IssueRow,
+  ops: CommandOp[],
+  comment?: string,
+  opts: { meId?: string; db?: Db } = {},
+): Promise<ChangeSpec> {
+  const db = opts.db ?? ctx.db;
+  const meId = opts.meId ?? ctx.actor.user.id;
+  const s = await ctx.app.schema.get(opts.db);
   const project = s.projects.get(issue.projectId)!;
   const attached = new Set((s.projectFields.get(project.id) ?? []).map((pf) => pf.fieldId));
   const fields: FieldChangeSpec[] = [];
@@ -88,7 +106,7 @@ async function buildSpec(ctx: Ctx, issue: IssueRow, ops: CommandOp[], comment?: 
     switch (op.kind) {
       case 'field': {
         if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`);
-        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, ctx.actor.user.id));
+        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId));
         fields.push({ field: op.field, mode: op.mode, values });
         break;
       }
@@ -97,7 +115,8 @@ async function buildSpec(ctx: Ctx, issue: IssueRow, ops: CommandOp[], comment?: 
         break;
       case 'link':
         for (const t of op.targets) {
-          const target = await findVisibleIssue(ctx, t);
+          // A target the actor can't see is unknown, exactly as one that doesn't exist.
+          const target = await findVisibleIssue(ctx, t, db);
           if (!target) throw badRequest(`Unknown issue ${t}`);
           links.push({ phrase: op.phrase, target, remove: op.mode === 'remove' });
         }

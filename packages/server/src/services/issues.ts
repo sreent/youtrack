@@ -47,6 +47,7 @@ import {
 } from './schema-cache';
 import { ensureTags, tagDto } from './tags';
 import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
+import { enforceGuards, guardChecks, guardsHeld } from '../workflow/guards';
 import {
   fieldValueDto,
   presentValues,
@@ -341,14 +342,16 @@ function linkEndpoints(phrase: LinkPhrase, self: IssueRow, other: IssueRow) {
 
 /**
  * Validate and apply a change set to one issue inside `tx`. With `dryRun`, nothing
- * is written and the returned changes describe what would happen.
+ * is written and the returned changes describe what would happen. The project's guards
+ * (workflow rules that refuse a change) are checked before commit, unless `guards` is false
+ * because the caller checks them itself.
  */
 export async function applyChanges(
   tx: Db,
   ctx: Ctx,
   stale: IssueRow,
   spec: ChangeSpec,
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; guards?: boolean } = {},
 ): Promise<ApplyResult> {
   const s = await ctx.app.schema.get(tx);
   // Lock the issue row for the rest of the transaction so concurrent changes to the
@@ -472,6 +475,11 @@ export async function applyChanges(
   if (comment) changes.push({ field: 'Comment', from: null, to: excerpt(comment, 200) });
 
   if (opts.dryRun || !changes.length) return { changes, activities: [], issue };
+
+  // Guards: whether each holds before the change, so that one the change breaks refuses it below.
+  // An import's changes are history: the guards, made for new work, don't judge them.
+  const guards = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : guardChecks(ctx, s, issue.projectId);
+  const heldBefore = guards.length ? await guardsHeld(tx, guards, issue.id) : [];
 
   // ---- write ---------------------------------------------------------------
   const activities: ActivityRow[] = [];
@@ -618,6 +626,10 @@ export async function applyChanges(
       }),
     );
   }
+
+  // Everything is written and nothing is committed: a change that breaks a guard is refused here,
+  // and the caller's transaction takes all of it back.
+  await enforceGuards(tx, ctx, s, guards, heldBefore, updated!);
 
   return { changes, activities, issue: updated! };
 }
@@ -839,10 +851,13 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
 
   let issue = row!;
   if (p.links.length) {
-    const res = await applyChanges(tx, ctx, issue, { links: p.links, ...(imported ? { data: { imported: imported.data } } : {}) });
+    const res = await applyChanges(tx, ctx, issue, { links: p.links, ...(imported ? { data: { imported: imported.data } } : {}) }, { guards: false });
     activities.push(...res.activities);
     issue = res.issue;
   }
+  // A new issue has no "before": it must keep every guard it matches, or it isn't made at all.
+  // An imported one is history, which the team's guards, made for new work, don't judge.
+  if (!imported) await enforceGuards(tx, ctx, s, guardChecks(ctx, s, project.id), null, issue);
   await opts.inTransaction?.(tx, issue);
   return { issue, activities };
 }

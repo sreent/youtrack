@@ -6,6 +6,7 @@ import { openDatabase } from './db/client';
 import { seedDemo } from './db/seed';
 import { OutboxWorker, type Chore, type OutboxConsumer, type WorkerOptions } from './events/worker';
 import { webhookConsumer } from './events/webhooks';
+import { ruleChores, rulesConsumer } from './workflow/engine';
 import { createHttpApp } from './http/app';
 import { needsSetup, pruneSessions } from './services/auth';
 import { pruneLoginThrottle } from './services/login-throttle';
@@ -39,6 +40,7 @@ export function defaultChores(runtime: Runtime): Chore[] {
     { name: 'login-throttle', everyMs: 5 * 60_000, run: () => pruneLoginThrottle(runtime.db) },
     { name: 'sessions', everyMs: 60 * 60_000, run: () => pruneSessions(runtime.db) },
     ...choreFactories.flatMap((f) => f(runtime)),
+    ...ruleChores(runtime),
   ];
 }
 
@@ -85,7 +87,11 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
     });
   }
 
-  const consumers = [webhookConsumer(runtime), ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null)];
+  const consumers = [
+    webhookConsumer(runtime),
+    rulesConsumer(runtime),
+    ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null),
+  ];
   const background = await startBackground(runtime, consumers);
   const extras = backgroundFactories.map((f) => f(runtime)).filter((b): b is BackgroundWork => b !== null);
   for (const b of extras) b.start();

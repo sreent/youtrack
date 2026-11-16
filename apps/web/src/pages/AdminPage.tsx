@@ -121,7 +121,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
         />
         {unconfirmed ? (
           <span className="item-about">
-            They set it themselves, so single sign-on won’t find them by it.{' '}
+            They set it themselves, so single sign-on won’t find them by it, and their commits run no commands.{' '}
             <button type="button" className="link" onClick={() => confirm.mutate()} disabled={confirm.isPending}>
               Confirm it
             </button>

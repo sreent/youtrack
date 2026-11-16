@@ -2,7 +2,8 @@
  * Every page, light, dark and on a phone (390px): nothing goes wrong in the console, the CSP
  * blocks nothing, nothing scrolls sideways, and axe finds nothing against WCAG 2.2 AA.
  *
- * The tour only reads, so its stops run at once. It holds the live feed, so what other specs
+ * The tour only reads, or makes what a stop shows in a project of its own, so its stops run at
+ * once. It holds the live feed, so what other specs
  * change meanwhile can't redraw a page in the middle of a check. It's taken by an administrator
  * of its own (support/env.ts says why).
  *
@@ -11,7 +12,7 @@
  */
 import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
-import type { Api } from './support/api';
+import { unique, uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
@@ -27,6 +28,29 @@ interface Stop {
 const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
   await mockWaitingSuggestions(page, [triageSuggestion('BACK-3', BACK_3_TRIAGE)]);
   return to;
+};
+
+/** A project of the tour's own, with a rule of each kind. It has no issues, so they never act. */
+const withRules = async (api: Api) => {
+  const key = uniqueKey('TR');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await api.post('/rules', { project: key, name: 'Critical bugs get tagged', kind: 'change', trigger: 'created', query: 'Priority: Critical', command: 'tag urgent' });
+  await api.post('/rules', {
+    project: key,
+    name: "Won't fix says why",
+    kind: 'guard',
+    query: "State: {Won't fix}",
+    requires: 'has: comments',
+    message: "Say in a comment why it won't be fixed.",
+  });
+  await api.post('/rules', { project: key, name: 'Overdue issues get tagged', kind: 'schedule', schedule: { every: 'day', at: '09:00' }, query: '#Unresolved', command: 'tag overdue', enabled: false });
+  return `/rules/${key}`;
+};
+
+/** An integration of the tour's own: it only waits for deliveries. */
+const withIntegration = async (api: Api) => {
+  await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
+  return '/integrations';
 };
 
 const board = (name: string) => async (api: Api) => {
@@ -81,6 +105,8 @@ const STOPS: Stop[] = [
   { name: 'cycle time', path: '/reports/cycle-time', ready: (p) => p.getByRole('group', { name: 'Issues by how long they took' }) },
   { name: 'your dashboard', path: '/dashboard', ready: (p) => p.getByRole('heading', { name: 'How long work takes, the last 90 days' }) },
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
+  { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
+  { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
 ];
 
 const MODES = [

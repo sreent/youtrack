@@ -21,7 +21,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const FIELD_TYPES = [
@@ -68,6 +68,9 @@ export const EVENT_TYPES = [
   'article.deleted',
   'sprint.issue_added',
   'sprint.issue_removed',
+  'commit.linked',
+  'pull_request.linked',
+  'pull_request.updated',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -121,6 +124,31 @@ export type SlaState = (typeof SLA_STATES)[number];
 export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
 
 export const MAX_BULK_ISSUES = 50;
+
+/**
+ * Workflow rules: one that acts when something happens to an issue, one that acts on a schedule,
+ * and a guard, which refuses a change that breaks it.
+ */
+export const RULE_KINDS = ['change', 'schedule', 'guard'] as const;
+export type RuleKind = (typeof RULE_KINDS)[number];
+/** What sets off a rule on a change. */
+export const RULE_TRIGGERS = ['created', 'updated', 'commented'] as const;
+export type RuleTrigger = (typeof RULE_TRIGGERS)[number];
+/** How often a scheduled rule runs: every hour, every day, or Monday to Friday, at a time of day. */
+export const RULE_EVERY = ['hour', 'day', 'weekday'] as const;
+export type RuleEvery = (typeof RULE_EVERY)[number];
+/** How a rule's run went on an issue. */
+export const RULE_OUTCOMES = ['applied', 'unchanged', 'failed', 'skipped', 'refused'] as const;
+export type RuleOutcome = (typeof RULE_OUTCOMES)[number];
+
+/** Version control a4a takes pushes and pull requests from. */
+export const VCS_PROVIDERS = ['github', 'gitlab'] as const;
+export type VcsProvider = (typeof VCS_PROVIDERS)[number];
+export const PULL_REQUEST_STATES = ['open', 'merged', 'closed'] as const;
+export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
+/** How a delivery from GitHub or GitLab went. */
+export const VCS_DELIVERY_OUTCOMES = ['received', 'processed', 'ignored', 'refused', 'duplicate', 'failed'] as const;
+export type VcsDeliveryOutcome = (typeof VCS_DELIVERY_OUTCOMES)[number];
 export const MAX_PAGE_SIZE = 200;
 
 /**

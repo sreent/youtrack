@@ -19,6 +19,7 @@ import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
 import { IssueFiles } from '../features/attachments/IssueFiles';
 import { IssueArticles } from '../features/articles/IssueArticles';
+import { IssueCode } from '../features/vcs/IssueCode';
 import { FormField } from '../components/Form';
 import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
 import { WatchersCard, WatchToggle } from '../features/issues/Watching';
@@ -325,6 +326,7 @@ export default function IssuePage() {
           {canWrite ? openSuggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} compact />) : null}
           <IssueLinks issue={data} canEdit={canWrite} />
           <IssueArticles issueId={data.id} />
+          <IssueCode issue={data} />
           <IssueHistory issue={data} me={me.data} canComment={canComment} canReply={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
           <WorkLog issue={data} me={me.data} canEdit={canWrite} />
         </div>
