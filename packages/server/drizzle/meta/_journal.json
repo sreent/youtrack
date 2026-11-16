@@ -50,6 +50,13 @@
       "when": 1794812408599,
       "tag": "0006_rules_and_version_control",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794835152009,
+      "tag": "0007_oauth_for_mcp",
+      "breakpoints": true
     }
   ]
 }

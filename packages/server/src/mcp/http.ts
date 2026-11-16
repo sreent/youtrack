@@ -2,6 +2,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import type { Context } from 'hono';
 import type { HttpEnv } from '../http/env';
 import { errorBody } from '../http/middleware';
+import { mcpChallenge, oauthOn } from '../oauth/common';
 
 /**
  * Streamable HTTP, stateless: every request gets a fresh server bound to the
@@ -10,8 +11,17 @@ import { errorBody } from '../http/middleware';
 export async function handleMcp(c: Context<HttpEnv>): Promise<Response> {
   const ctx = c.get('ctx');
   if (!ctx) {
-    c.header('www-authenticate', 'Bearer realm="a4a"');
-    return c.json(errorBody('unauthorized', 'MCP needs "Authorization: Bearer <token>"', 'Create a token in a4a: Profile → API tokens.'), 401);
+    // With OAuth on, the challenge names where to sign in (RFC 9728), so a client can do it itself.
+    const config = c.get('runtime').config;
+    c.header('www-authenticate', mcpChallenge(config));
+    return c.json(
+      errorBody(
+        'unauthorized',
+        'MCP needs "Authorization: Bearer <token>"',
+        oauthOn(config) ? 'Sign in with OAuth, as MCP clients do, or create a token in a4a: Profile → API tokens.' : 'Create a token in a4a: Profile → API tokens.',
+      ),
+      401,
+    );
   }
   if (c.req.method === 'GET' || c.req.method === 'DELETE') {
     // No server-initiated streams or sessions in stateless mode.

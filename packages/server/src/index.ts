@@ -5,6 +5,7 @@ import { startServer } from './server';
 import './ai/register';
 import './knowledge/register';
 import './notify/register';
+import './oauth/register';
 
 const started = await startServer();
 const { runtime, url } = started;

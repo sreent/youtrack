@@ -65,9 +65,25 @@ export interface Config {
   notifyWindowMs: number;
   /** The hour (server time, 0-23) the daily digest goes out. */
   digestHour: number;
+  /**
+   * Whether a4a is the OAuth 2.1 authorization server for /mcp (MCP_OAUTH, on unless "false"), so
+   * MCP clients that sign in by themselves need no token (D28). Only over https, or plain http on
+   * this machine for development: with any other PUBLIC_URL it stays off.
+   */
+  mcpOAuth: boolean;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
+
+/** Whether an address is https, or plain http on this machine (for development and tests). */
+export function secureOrLocal(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || (u.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname));
+  } catch {
+    return false;
+  }
+}
 
 /** OIDC_* from the environment; a half-made configuration stops the server with what's missing. */
 export function oidcFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): OidcConfig | null {
@@ -151,6 +167,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   if (env.ATTACHMENT_STORAGE && env.ATTACHMENT_STORAGE !== 'local') {
     throw new Error(`ATTACHMENT_STORAGE=${env.ATTACHMENT_STORAGE} isn't available: files are stored on local disk ("local") so far`);
   }
+  // OAuth's endpoints must be https (MCP's authorization specification): elsewhere, tokens only.
+  const wantOAuth = truthy(env.MCP_OAUTH, true);
+  const mcpOAuth = wantOAuth && secureOrLocal(overrides.publicUrl ?? publicUrl);
+  if (wantOAuth && !mcpOAuth) console.warn('OAuth for MCP is off: PUBLIC_URL is not https, so MCP clients connect with API tokens only (set MCP_OAUTH=false to say so).');
   return {
     port,
     publicUrl,
@@ -178,6 +198,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
+    mcpOAuth,
     ...overrides,
   };
 }

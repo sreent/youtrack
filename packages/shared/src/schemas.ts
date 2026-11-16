@@ -151,6 +151,7 @@ export const SetupStatusSchema = z
         .object({ name: z.string().describe('The identity provider, by the name people see'), url: z.string().describe('Where the browser goes to start signing in') })
         .nullable(),
     }),
+    mcpOAuth: z.boolean().describe('Whether MCP clients may sign in with OAuth, instead of carrying a token (D28)'),
   })
   .meta({ id: 'SetupStatus' });
 export type SetupStatus = z.infer<typeof SetupStatusSchema>;
@@ -1852,3 +1853,92 @@ export const IssueVcsSchema = z
   .object({ commits: z.array(VcsCommitSchema), pullRequests: z.array(VcsPullRequestSchema) })
   .meta({ id: 'IssueVcs' });
 export type IssueVcs = z.infer<typeof IssueVcsSchema>;
+
+// ---------------------------------------------------------------------------
+// OAuth for remote MCP (docs/architecture.md, D28)
+// ---------------------------------------------------------------------------
+
+/** What an app may be allowed over OAuth. Never admin: administration reaches every project. */
+export const OAUTH_SCOPES = ['read', 'write'] as const;
+export type OAuthScope = (typeof OAUTH_SCOPES)[number];
+
+/**
+ * An authorization request, as the app put it in the address of a4a's consent page. Every part is
+ * optional here: what's missing or wrong is answered in OAuth's words, not as a bad request.
+ */
+export const OAuthRequestSchema = z
+  .object({
+    response_type: z.string().max(40).optional(),
+    client_id: z.string().max(200).optional(),
+    redirect_uri: z.string().max(2000).optional(),
+    code_challenge: z.string().max(200).optional(),
+    code_challenge_method: z.string().max(20).optional(),
+    state: z.string().max(1000).optional(),
+    scope: z.string().max(500).optional(),
+    resource: z.string().max(2000).optional(),
+  })
+  .meta({ id: 'OAuthRequest' });
+export type OAuthRequest = z.infer<typeof OAuthRequestSchema>;
+
+const OAuthChoiceSchema = z.object({
+  scopes: z.array(z.enum(OAUTH_SCOPES)),
+  projects: z.array(z.string()).nullable().describe('Keys of the only projects it reaches, or null for every project its person can see'),
+});
+
+export const OAuthAuthorizationSchema = z
+  .discriminatedUnion('ok', [
+    z.object({
+      ok: z.literal(true),
+      client: z.object({
+        id: z.string(),
+        name: z.string().nullable().describe('What the app calls itself. It said so when it registered, and a4a can’t check it'),
+        redirectUri: z.string().describe('Where the browser goes back with the answer'),
+        redirectHost: z.string(),
+        local: z.boolean().describe('Whether that is a program on this computer (a loopback address)'),
+        registeredAt: timestamp,
+      }),
+      asked: z.array(z.enum(OAUTH_SCOPES)).describe('What the app asks for; reading always comes with it'),
+      canWrite: z.boolean().describe('Whether your role lets you allow changes'),
+      remembered: OAuthChoiceSchema.nullable().describe('What you allowed this app before, if you did'),
+      ready: z.boolean().describe('It asks for no more than you allowed it before, so it may carry on without asking again'),
+    }),
+    z.object({
+      ok: z.literal(false),
+      error: z.string().describe('The OAuth error code, e.g. invalid_request'),
+      message: z.string(),
+      hint: z.string().optional(),
+      redirect: z.string().nullable().describe('Where to send the browser with the error; null when the app can’t be trusted with it'),
+    }),
+  ])
+  .meta({ id: 'OAuthAuthorization' });
+export type OAuthAuthorization = z.infer<typeof OAuthAuthorizationSchema>;
+
+export const OAuthDecisionBody = z
+  .object({
+    request: OAuthRequestSchema,
+    allow: z.boolean(),
+    scopes: z.array(z.enum(OAUTH_SCOPES)).default(['read']).describe('What you allow, of what it asked for; reading always'),
+    projects: z.array(z.string()).nullable().default(null).describe('Keys of the only projects it may reach, or null for every project you can see'),
+  })
+  .meta({ id: 'OAuthDecision' });
+export type OAuthDecision = z.input<typeof OAuthDecisionBody>;
+
+export const OAuthRedirectSchema = z.object({ redirect: z.string().describe('Where the browser goes next: back to the app') }).meta({ id: 'OAuthRedirect' });
+export type OAuthRedirect = z.infer<typeof OAuthRedirectSchema>;
+
+/** An app a person allowed, as they see it under Agents and tokens. */
+export const OAuthGrantSchema = z
+  .object({
+    id: z.string(),
+    client: z.object({
+      id: z.string(),
+      name: z.string().nullable().describe('What the app calls itself'),
+      redirectHosts: z.array(z.string()).describe('Where it sends people back, by host'),
+    }),
+    ...OAuthChoiceSchema.shape,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastUsedAt: timestamp.nullable(),
+  })
+  .meta({ id: 'OAuthGrant' });
+export type OAuthGrant = z.infer<typeof OAuthGrantSchema>;
