@@ -90,12 +90,20 @@ export default defineConfig({
       ADMIN_LOGIN: ADMIN.login,
       ADMIN_PASSWORD: ADMIN.password,
       SEED_DEMO: 'true',
-      // Never a developer's own database or Claude key, from their environment or a .env file:
-      // the server reads .env only for what isn't set, and an empty value counts as set.
+      // Never a developer's own database, AI provider or identity provider, from their environment
+      // or a .env file: the server reads .env only for what isn't set, and an empty value counts.
       DATABASE_URL: '',
+      DATABASE_LISTEN_URL: '',
+      AI_DISABLED: 'true',
+      AI_PROVIDER: '',
       ANTHROPIC_API_KEY: '',
       ANTHROPIC_AUTH_TOKEN: '',
-      AI_DISABLED: 'true',
+      OIDC_ISSUER: '',
+      PASSWORD_LOGIN: 'true',
+      // As production has them: the pages are held to the default request limit, so one that
+      // asks too much shows up as a 429 in its console.
+      API_RATE_LIMIT: '1200',
+      TRUST_PROXY: '0',
     },
   },
 });

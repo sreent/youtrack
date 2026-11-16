@@ -10,7 +10,8 @@ test('a project is created, and its settings are saved', async ({ page, api }) =
   const create = page.getByRole('region', { name: 'Create a project' });
   await create.getByLabel('Key').fill(key.toLowerCase());
   await create.getByLabel('Name').fill(name);
-  await create.getByLabel('Lead').selectOption({ label: 'Chloé Martin' });
+  await create.getByLabel('Lead', { exact: true }).selectOption({ label: 'Chloé Martin' });
+  await expect(create.getByRole('radio', { name: /^Open/ })).toBeChecked();
   await create.getByRole('radio', { name: /^Waterfall/ }).check();
   await create.getByRole('button', { name: 'Create the project' }).click();
 

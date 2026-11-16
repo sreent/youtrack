@@ -255,7 +255,8 @@ What it covers, in `apps/web/e2e`:
 - **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
 - **Boards**: dragging (saved with `expectedVersion`), moving from the keyboard, and a move refused.
 - **Plans**: the what-if, baselines, levelling, and levelling refused (409).
-- **Management**: tokens and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
+- **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
+- **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
 
 To see what a test did, record a trace and open it:

@@ -1,9 +1,10 @@
 /**
- * Agents and tokens: a token is shown once and works until it's revoked, and the MCP setup for
- * each kind of client carries this server's address and the token, exactly.
+ * Agents and tokens: a token is shown once and works until it's revoked; the MCP setup for each
+ * kind of client carries this server's address and the token, exactly; and a token limited to
+ * some projects sees only those.
  */
 import type { ApiToken } from '@a4a/shared';
-import { unique } from './support/api';
+import { unique, uniqueKey } from './support/api';
 import { BASE_URL } from './support/env';
 import { expect, test } from './support/fixtures';
 
@@ -25,7 +26,8 @@ test('a token is shown once, works, and stops working once revoked', async ({ pa
   const made = (await api.get<ApiToken[]>('/me/tokens')).find((t) => t.name === name)!;
   expect([made.scopes, Boolean(made.expiresAt)]).toEqual([['read'], true]);
   const asAgent = (path: string) => request.get(`/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
-  expect((await (await asAgent('/me')).json()).auth).toEqual({ method: 'token', scopes: ['read'], tokenName: name });
+  // Every project it can see (no limit to some of them), read-only.
+  expect((await (await asAgent('/me')).json()).auth).toEqual({ method: 'token', scopes: ['read'], tokenName: name, projects: null });
 
   // Once kept, it's never shown again: only its first letters, to tell it apart.
   await shown.getByRole('button', { name: "I've kept it" }).click();
@@ -81,4 +83,31 @@ test('the MCP setup for each client carries this server and the token', async ({
   await connect.getByRole('button', { name: 'Copy it' }).click();
   await expect(connect.getByRole('button', { name: 'Copied' })).toBeVisible();
   expect(JSON.parse(await page.evaluate(() => navigator.clipboard.readText()))).toEqual(desktop);
+});
+
+test('a token limited to some projects sees those, and no others', async ({ page, api, request }) => {
+  const name = `docs-bot-${unique()}`;
+  const key = uniqueKey('TK');
+  const other = uniqueKey('TX');
+  await api.createProject({ key, name: `API guide ${key}` });
+  await api.createProject({ key: other, name: `Elsewhere ${other}` });
+  const inside = await api.createIssue({ project: key, summary: 'Write the pagination section' });
+  const outside = await api.createIssue({ project: other, summary: 'Not for the docs bot' });
+
+  await page.goto('/agents');
+  const connect = page.getByRole('region', { name: 'Connect an agent' });
+  await connect.getByLabel('Name').fill(name);
+  await connect.getByRole('radio', { name: /^Only some projects/ }).check();
+  await expect(connect.getByText('Choose at least one project.')).toBeVisible();
+  await expect(connect.getByRole('button', { name: 'Create the token' })).toBeDisabled();
+  await connect.getByRole('group', { name: 'Its projects' }).getByRole('checkbox', { name: new RegExp(`^${key} `) }).check();
+  await connect.getByRole('button', { name: 'Create the token' }).click();
+  const token = (await connect.getByRole('status').filter({ hasText: 'Copy it now.' }).getByRole('code').textContent())!;
+  await expect(page.getByRole('row').filter({ hasText: name })).toContainText(key);
+
+  const asAgent = (path: string) => request.get(`/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
+  expect((await (await asAgent('/me')).json()).auth.projects).toEqual([key]);
+  expect((await asAgent(`/issues/${inside.id}`)).status()).toBe(200);
+  // Another project's issue doesn't exist for it.
+  expect((await asAgent(`/issues/${outside.id}`)).status()).toBe(404);
 });

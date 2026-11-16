@@ -332,7 +332,8 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 `apps/web/e2e` drives Chromium against what ships: the built server serving the built UI, under its real CSP, on a fresh embedded database with the demo data. A dev server would hide what only the build does (the CSP over every page, the bundled assets, the server serving them).
 
 - **Isolation by data, not by server.** One server per run; each spec file makes its own projects, boards and people, with keys no other file or retry has, so files run in parallel. Specs that only read (the tour) hold the live feed, so other specs' writes can't redraw a page mid-check.
-- **Two administrators**, one taking the tour and one for the flows, because the server allows each person 1200 API requests a minute, and the two together came to about 900 on four workers.
+- **Two administrators**, one taking the tour and one for the flows, because the server allows each person 1200 API requests a minute, and the two together came to about 900 on four workers. The limit (`API_RATE_LIMIT`) is held at its default rather than raised, so a page that starts asking too much shows up as a 429 in its console.
+- **People of their own** for what a role changes: a spec makes the person, gives them their role, and signs in as them, so the administrators' sessions are never the ones signed out or kept out.
 - **What happens meanwhile** is made real: a spec changes an issue or a plan through the API between a page reading and saving, with the page's live feed held, to get the 409s people would get.
 - **AI is answered in the browser** (`page.route`), typed by the contract, because the server has no key in CI and the model's answers aren't the UI's to test. The server's AI is tested in vitest with a fake client.
 - **Every page is watched**: a console error or a CSP violation fails the test, unless the test names the one it provokes. The page's clock is fixed at the run's start.

@@ -76,10 +76,11 @@ export const test = base.extend<{ watch: Watch; api: Api }, { workerApi: Api }>(
 
 /**
  * Keep the live feed quiet: the page never hears of changes made elsewhere, as when a change
- * lands between a person seeing something and acting on it. The request stays open, unanswered.
+ * lands between a person seeing something and acting on it. The request stays open, unanswered
+ * (a reconnect, with `?after=`, would be held the same way).
  */
 export async function holdLiveEvents(page: Page): Promise<void> {
-  await page.route('**/api/v1/events/stream', () => {});
+  await page.route((url) => url.pathname === '/api/v1/events/stream', () => {});
 }
 
 /** The page has drawn what it was loading: its heading is up and nothing says "Loading". */
