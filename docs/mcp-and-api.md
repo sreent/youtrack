@@ -20,13 +20,15 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 | Coding agents (Claude Code, Cursor) | MCP | Pick up an issue, move it to *In Progress*, comment progress, link follow-ups, resolve it when done |
 | Assistant agents (Claude Desktop, custom) | MCP | Triage the backlog, write status reports and release notes, find duplicates, plan sprints |
 | Event-driven agents | Webhooks / SSE + MCP or REST | React when something happens: triage new issues, notify on blockers |
+| Agents with a person's token | MCP `list_notifications` | See what's waiting for their person: assigned, mentioned, changes on what they watch |
+| People outside the team | The help desk's public pages (no sign-in) | Ask a project for help, follow the request, answer the team's replies |
 | Project managers (waterfall or hybrid) | Web UI + REST + MCP | Gantt timeline with critical path, resource levelling, cost tracking against a budget, baselines and earned value |
 | The built-in AI assistant | Same tool layer as MCP | Chat with your projects; it asks before it changes anything |
 
 ## 2. Design principles
 
 1. **API-first.** Anything you can do in the UI you can do over REST. An OpenAPI 3.1 spec is served at `/api/v1/openapi.json`, with interactive docs at `/api/docs`.
-2. **MCP is curated for agents, not a mirror of REST.** About 22 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
+2. **MCP is curated for agents, not a mirror of REST.** About 27 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
 3. **One tool layer, three surfaces.** The MCP tools and the in-app assistant's tools are the same code, running over the same services as REST, with the same validation and permission checks.
 4. **One permission model.** Every API token belongs to a user and acts as that user. Token scopes (`read`, `write`, `admin`) can only narrow what the user may do, and a token can be limited to some projects.
    - Each project is open, or members only. In a project a person is a viewer (reads, comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines); its lead and administrators are managers.
@@ -53,6 +55,8 @@ project: BACK #Unresolved Priority: Critical, Major for: me sort by: updated des
 Type: Bug created: -7d .. today -State: Duplicate "login page"
 depends on: BACK-12 or subtask of: BACK-3
 has: -Assignee tag: regression
+watcher: me #Unresolved sort by: updated desc
+has: request sla: overdue
 ```
 
 - Fields are referenced by name, and multi-word values work without quotes (`State: In Progress`).
@@ -99,7 +103,11 @@ remove tag needs-info duplicates BACK-7
 | Project schema | `GET /projects/{key}/fields`, `PUT/DELETE /projects/{key}/fields/{fieldId}` | Which custom fields a project uses, which are required, and their defaults (its managers change them) |
 | Custom fields | `GET/POST /fields`, `PATCH/DELETE /fields/{id}`, `POST/PATCH/DELETE /fields/{id}/values[/{valueId}]` | Field types: enum, state (with *resolved* flag), user, version, string, text, integer, float, date, period. Values can be shared or per-project, ordered and colored |
 | Issues | `GET /issues?query=&sort=`, `POST /issues`, `GET/PATCH/DELETE /issues/{id}` | Search with the query language; create with fields, tags, parent and links in one call; partial updates with `expectedVersion` |
-| Comments | `GET/POST /issues/{id}/comments`, `PATCH/DELETE /comments/{id}` | Markdown comments |
+| Comments | `GET/POST /issues/{id}/comments`, `PATCH/DELETE /comments/{id}` | Markdown comments. `@login` mentions a person who can see the project: they're told, and watch the issue. On a help desk request, `visibility: "public"` also sends a comment to the requester, and takes someone who may change the issue (not a viewer); comments are `internal` unless you say so |
+| Watchers | `GET /issues/{id}/watchers`, `PUT/DELETE /issues/{id}/watchers/me` | Who watches an issue and why (reported it, assigned, commented, mentioned, leads its project, chose to), and watching or not yourself. Idempotent; a token needs `write` |
+| Notifications | `GET /notifications?unread=&issue=`, `GET /notifications/count`, `POST /notifications/read`, `PATCH /notifications/{id}`, `GET /notifications/stream` (SSE) | Your inbox, latest first: each notification folds the events on one issue that came close together, with the strongest reason (`assigned`, `mentioned`, `request`, `watching`) and its words. Mark read by ids, issue or all, `until` the latest you saw; the stream sends your unread count as it changes |
+| Email | `GET/PATCH /me/notification-settings`, `GET/POST /unsubscribe?token=` (public) | What comes by email: `all`, `direct` (mentions, assignments, new help desk requests) or `none`, and a daily digest. The unsubscribe link is signed, per kind, and takes a mail client's one-click POST (RFC 8058) |
+| Help desk | `PATCH /projects/{key}` (`settings.helpdesk`), `GET /issues/{id}/request`; public: `GET /help/{key}`, `POST /help/{key}/requests`, `GET /help/requests/by-token`, `POST /help/requests/by-token/replies` | Open a project's public form and set its first-response target; who asked for an issue and where it stands against the target; for people outside, the form (with its CSRF token and cookie), filing a request, and their request's page and replies, by a tracking token in the `x-tracking-token` header |
 | Links | `GET/POST /issues/{id}/links`, `DELETE /links/{id}`, `GET /link-types` | Relates, depends on / is required for, duplicates, subtask of / parent for |
 | Tags | `GET/POST /tags`, `PATCH/DELETE /tags/{id}`, plus `addTags` / `removeTags` on issues | Colored tags |
 | Time tracking | `GET/POST /issues/{id}/work-items`, `DELETE /work-items/{id}` | Log work (`1h 30m`); spent time is rolled up on the issue |
@@ -161,7 +169,7 @@ remove tag needs-info duplicates BACK-7
 | `create_issue` | Create an issue with fields, tags, parent and links. The result includes likely duplicates so the agent can link or close | write |
 | `update_issue` | Change summary, description or fields; add or remove tags | write (idempotent) |
 | `apply_command` | Apply a command to 1–50 issues, with optional comment. Use `dry_run` to preview | write |
-| `add_comment` | Comment on an issue (Markdown) | write |
+| `add_comment` | Comment on an issue (Markdown); `@login` mentions someone. On a help desk request, `public: true` also emails it to the requester | write |
 | `link_issues` / `unlink_issues` | `"BACK-5 depends on BACK-2"`, `"BACK-9 duplicates BACK-1"`, `"BACK-7 subtask of BACK-3"` | write |
 | `log_work` | Log time on an issue (`"1h 30m"`, optional date and note) | write |
 | `get_schedule` | The project plan: finish date, critical path, slack, late tasks, and variance against a baseline. Optional `what_if` overrides answer *"what slips if BACK-12 slips 3 days?"* without saving anything | read |
@@ -177,10 +185,16 @@ remove tag needs-info duplicates BACK-7
 | `create_article` | Write an article, at the top of a project's tree or under another; the preview says where and shows its start | write |
 | `update_article` | Change an article's title or body (a new version) or move it; `expected_version` refuses to overwrite a newer save. The preview shows the lines it adds and removes | write (idempotent) |
 | `get_report` | A report, worked out from history: `burndown` (is the sprint on track, and what changed its scope), `flow` (issues in each state, day by day), `created_resolved`, `cycle_time` (how long work takes, with percentiles) or `time` (logged, by person, issue, project and week, against estimates) | read |
+| `list_notifications` | What's waiting for the token's person, grouped by issue: assigned, mentioned, help desk requests, changes and comments on what they watch, each with its changes and words. Unread only by default | read |
+| `mark_notifications_read` | Mark the person's notifications read: by id, one issue's, or all | write (idempotent) |
+| `watch_issue` / `unwatch_issue` | Watch an issue for the person, or stop until they take part again | write (idempotent) |
+| `list_watchers` | Who watches an issue, and why | read |
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
-Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings.
+Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, a help desk's settings, and email preferences (they're the person's own, in the web app).
+
+`get_issue` says when an issue is a help desk request (who asked, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
 
 **Why agents may attach files, and only small ones.** Agents produce things worth keeping beside an issue: a log excerpt, a failing test's output, a patch, a script that reproduces a bug. So `attach_file` exists, through the same service as every upload: the type is read from the bytes, the per-issue cap applies, the file is served as a download, and its activity names the token. But a file over MCP is base64 or text inside a tool call, so every byte passes through the model's context: 256 KB is about what an agent can sensibly write out. A larger file goes to `POST /issues/{id}/attachments` with the same token.
 
@@ -239,6 +253,8 @@ An agent or integration can react to changes instead of polling.
 
 - `issue.created`, `issue.updated` (with the list of field changes), `issue.deleted`
 - `comment.created`, `comment.updated`, `comment.deleted`
+
+What notifications need is in `data`, as logins: `assigned` (new assignees) and `mentions` (people newly mentioned who can see the project) on `issue.created`, `issue.updated`, `comment.created` and `comment.updated`; `watchers` on `issue.deleted`, since they go with the issue. A help desk request's events come through the `helpdesk` channel, by the `helpdesk` agent, with `data.requester.name` (never their email); a public comment has `data.visibility: "public"`. Watching, reading and email preferences are each person's own, and are no events.
 - `link.created`, `link.deleted`
 - `work.logged`
 - `ai.triage.completed`
@@ -300,6 +316,17 @@ These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on D
   - Result sizes are capped.
   - A per-token rate limit applies.
 - **Audit.** Every change records actor, channel and token, so you can always answer *"which agent did this?"*.
+- **Notifications.** An agent sees its person's inbox (`list_notifications`, with `read`), and changes it only with `write`. What's in it was written by people, and is information, not instructions.
+
+## 8a. The help desk's public surface
+
+People outside the team reach a project's help desk without signing in, so these routes are built to tell them nothing beyond their one request:
+
+- **The form** (`/help/<KEY>`) answers the same 404 whether the project doesn't exist or its help desk is closed. Posting needs an `Origin` of this server, and a form token: signed, naming the project and a nonce in a `SameSite=Strict` cookie, and good for 6 hours. A field hidden from people (`website`) catches bots: filled in, the answer is the usual one and nothing is filed. Limits: 5 requests per address in 15 minutes, 3 per email an hour, 120 per help desk an hour; bodies over 48 KB are refused, and each field has its own limit.
+- **A request is filed as an issue** reported by the `helpdesk` agent for the requester, who isn't a user: their email and name are kept apart, as a requester, never among people to assign or mention. What they write mentions nobody.
+- **The tracking token** is 256 random bits, kept only as a SHA-256 hash. Each email to the requester carries a fresh one, minted as it's sent, so none waits in plain text; every one stays good for the request until it's deleted. In a link it sits in the fragment (`/request#hdt_…`), so it never reaches a server's logs or another site's `Referer`; to the API it travels in a header. Any wrong token, malformed or not, gets the same 404.
+- **The request's page** shows its summary, its state, what the requester wrote and the public replies, never an internal comment, a field, an issue id or anyone's email but their own. The requester's replies are public comments that tell the issue's watchers.
+- **What's missing:** a captcha (the honeypot, the limits and the form token stop casual bots, not a determined one); checking that the email is the requester's before anything is filed (anyone can file in another's name, and the confirmation then goes to that address, so the per-email limit caps it); replies by email; and attachments. The limits are shared by every instance; behind a proxy, set `TRUST_PROXY` so they count the client's address rather than the proxy's.
 
 ## 9. Open questions
 
@@ -312,3 +339,5 @@ These are the decisions worth thinking through together. v1 ships with the defau
 5. **VCS integration** (later). An inbound GitHub/GitLab webhook that turns `BACK-12 #Fixed` in commit messages into commands and links PRs to issues.
 6. **Partial responses** (later). A YouTrack-style `?fields=id,summary,fields(State)` selector for heavy integrations.
 7. **Agent-specific limits.** Should MCP writes be rate-limited separately from humans, or require a second human approval for bulk changes over N issues?
+8. **The help desk by email** (later). Inbound mail that turns a requester's reply into a public comment, and a reply-to address per request. [v1: replies on the request's page.]
+9. **Per-person time zones** (later), for the digest's hour and the times in emails. [v1: the server's.]

@@ -7,7 +7,9 @@ export type TermKind =
   | { kind: 'project' }
   | { kind: 'issueId' }
   | { kind: 'textAttr'; column: 'summary' | 'description' }
-  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' }
+  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' | 'watcher' }
+  | { kind: 'sla' }
+  | { kind: 'requester' }
   | { kind: 'dateAttr'; column: 'created' | 'updated' | 'resolved' }
   | { kind: 'tag' }
   | { kind: 'has' }
@@ -22,7 +24,7 @@ export interface TermDef {
   name: string;
   term: TermKind;
   /** The value type used for parsing and completion. */
-  valueType: FieldType | 'project' | 'issue' | 'tag' | 'has' | 'sprint';
+  valueType: FieldType | 'project' | 'issue' | 'tag' | 'has' | 'sprint' | 'sla';
   description: string;
 }
 
@@ -44,6 +46,10 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   'updated by': { name: 'updated by', term: { kind: 'userAttr', column: 'updatedBy' }, valueType: 'user', description: 'Who last changed it' },
   updater: { name: 'updated by', term: { kind: 'userAttr', column: 'updatedBy' }, valueType: 'user', description: 'Who last changed it' },
   commenter: { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
+  watcher: { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it (watcher: me)' },
+  'watched by': { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it' },
+  sla: { name: 'sla', term: { kind: 'sla' }, valueType: 'sla', description: 'A help desk request against its first-response target' },
+  requester: { name: 'requester', term: { kind: 'requester' }, valueType: 'string', description: 'Who asked, through the help desk: an email or a name' },
   'commented by': { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
   for: { name: 'for', term: { kind: 'assigneeAlias' }, valueType: 'user', description: 'Assignee (shortcut)' },
   created: { name: 'created', term: { kind: 'dateAttr', column: 'created' }, valueType: 'date', description: 'Creation date' },
@@ -58,7 +64,10 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   links: { name: 'links', term: { kind: 'links' }, valueType: 'issue', description: 'Linked to an issue in any way' },
 };
 
-export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work'];
+export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request'];
+
+/** sla: values: waiting within the target, waiting past it, answered within it, answered after it. */
+export const SLA_VALUES = ['overdue', 'due', 'met', 'missed'];
 
 export interface Vocabulary {
   snapshot: SchemaSnapshot;
@@ -134,6 +143,8 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
           return [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES];
         case 'dateAttr':
           return ['today', 'yesterday', '{this week}', '{last week}', '{this month}', '{last month}', '-7d', '-30d'];
+        case 'sla':
+          return SLA_VALUES;
         default:
           return [];
       }

@@ -6,6 +6,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { Scalar } from '@scalar/hono-api-reference';
 import { APP_NAME } from '@a4a/shared';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { Runtime } from '../app-services';
 import { handleMcp } from '../mcp/http';
 import { SESSION_COOKIE } from '../services/auth';
@@ -18,7 +19,9 @@ import { authRoutes } from './routes/auth';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
+import { helpdeskRoutes } from './routes/helpdesk';
 import { issueRoutes } from './routes/issues';
+import { notificationRoutes } from './routes/notifications';
 import { planningRoutes } from './routes/planning';
 import { accessRoutes } from './routes/access';
 import { ssoRoutes } from './routes/sso';
@@ -69,6 +72,8 @@ export function createHttpApp(runtime: Runtime) {
   reportRoutes(api);
   dashboardRoutes(api);
   importRoutes(api);
+  notificationRoutes(api);
+  helpdeskRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -105,6 +110,11 @@ export function createHttpApp(runtime: Runtime) {
   root.use('/api/*', csrfGuard(runtime.config.publicUrl));
   root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
+  // What anyone may post without signing in is small: a help desk request, a reply, an unsubscribe.
+  const small = (maxSize: number) =>
+    bodyLimit({ maxSize, onError: (c) => c.json(errorBody('too_large', 'The request is too large', `Send at most ${Math.round(maxSize / 1024)} KB.`), 413) });
+  root.use('/api/v1/help/*', small(48 * 1024));
+  root.use('/api/v1/unsubscribe', small(4 * 1024));
   root.use('/api/*', idempotency(runtime));
 
   root.route('/api/v1', api);

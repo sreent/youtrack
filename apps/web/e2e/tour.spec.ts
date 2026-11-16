@@ -64,6 +64,15 @@ const STOPS: Stop[] = [
   { name: 'webhooks', path: '/webhooks', ready: (p) => p.getByRole('heading', { name: 'Where it sends' }) },
   { name: 'administration', path: '/admin', ready: (p) => p.getByRole('region', { name: 'Table of people' }) },
   { name: 'your profile', path: '/me', ready: (p) => p.getByRole('heading', { name: 'Password' }) },
+  { name: 'your inbox', path: '/inbox', ready: (p) => p.getByRole('heading', { name: "You're up to date" }).or(p.getByRole('list', { name: 'Unread, by issue' })) },
+  {
+    name: "a help desk's form",
+    path: async (api) => {
+      await api.patch('/projects/WEB', { settings: { helpdesk: { enabled: true, intro: 'Tell the web team what went wrong.' } } });
+      return '/help/WEB';
+    },
+    ready: (p) => p.getByRole('heading', { name: /^Ask .+ for help$/ }),
+  },
   { name: 'the knowledge base', path: '/articles?project=BACK', ready: (p) => p.getByRole('link', { name: 'Database failover' }).first() },
   { name: 'an article', path: '/articles/BACK-A-2', ready: (p) => p.getByRole('article', { name: 'Database failover' }) },
   { name: "an article's versions", path: '/articles/BACK-A-2/history', ready: (p) => p.getByRole('heading', { name: /^Version \d+$/ }) },

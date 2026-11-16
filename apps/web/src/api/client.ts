@@ -34,10 +34,12 @@ async function toError(res: Response): Promise<ApiError> {
 export interface RequestOptions {
   signal?: AbortSignal;
   idempotencyKey?: string;
+  /** More headers, such as a help desk request's tracking token. */
+  headers?: Record<string, string>;
 }
 
 export async function api<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { accept: 'application/json' };
+  const headers: Record<string, string> = { accept: 'application/json', ...opts.headers };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (opts.idempotencyKey) headers['idempotency-key'] = opts.idempotencyKey;
   const res = await fetch(`${BASE}${path}`, {
@@ -96,6 +98,33 @@ export async function postStream<E>(path: string, body: unknown, onEvent: (event
       if (data) onEvent(JSON.parse(data) as E);
     }
   }
+}
+
+/**
+ * Your unread count, live: on connecting, and whenever your inbox changes. It carries a count, not
+ * events, so a reconnect to any instance just starts again with the count as it is.
+ */
+export function subscribeInbox(onUnread: (unread: number) => void): () => void {
+  let source: EventSource | null = null;
+  let closed = false;
+  let retry = 1000;
+  const open = () => {
+    if (closed) return;
+    source = new EventSource(`${BASE}/notifications/stream`, { withCredentials: true });
+    source.addEventListener('unread', (e) => {
+      retry = 1000;
+      onUnread((JSON.parse((e as MessageEvent).data) as { unread: number }).unread);
+    });
+    source.onerror = () => {
+      source?.close();
+      setTimeout(open, (retry = Math.min(retry * 2, 30_000)));
+    };
+  };
+  open();
+  return () => {
+    closed = true;
+    source?.close();
+  };
 }
 
 /**

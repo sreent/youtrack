@@ -81,7 +81,8 @@ export const useWorkItems = (id: string) => useQuery({ queryKey: keys.issueSub(i
 export const useSuggestions = (id: string, enabled = true) =>
   useQuery({ queryKey: keys.issueSub(id, 'suggestions'), queryFn: () => get<Suggestion[]>(`/issues/${id}/suggestions`), enabled });
 
-export const useUsers = () => useQuery({ queryKey: keys.users, queryFn: () => get<User[]>('/users'), staleTime: 60_000 });
+export const useUsers = (opts: { enabled?: boolean } = {}) =>
+  useQuery({ queryKey: keys.users, queryFn: () => get<User[]>('/users'), staleTime: 60_000, enabled: opts.enabled ?? true });
 export const useTags = () => useQuery({ queryKey: keys.tags, queryFn: () => get<Tag[]>('/tags'), staleTime: 60_000 });
 export const useFields = () => useQuery({ queryKey: keys.fields, queryFn: () => get<Field[]>('/fields') });
 export const useLinkTypes = () => useQuery({ queryKey: keys.linkTypes, queryFn: () => get<LinkType[]>('/link-types'), staleTime: 300_000 });

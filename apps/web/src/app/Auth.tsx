@@ -9,13 +9,13 @@ import { Icon } from '../components/Icon';
 import { Shell } from './Shell';
 import { FormField } from '../components/Form';
 
-/** A page before the frame (Ocean's lone page): one card in the middle. */
-function Lone({ children }: { children: React.ReactNode }) {
+/** A page before the frame (Ocean's lone page): one card in the middle; `wide` for a conversation, as a help desk's. */
+export function Lone({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   useEffect(() => {
     document.body.classList.add('lone');
     return () => document.body.classList.remove('lone');
   }, []);
-  return <main className="card lone-card stack">{children}</main>;
+  return <main className={wide ? 'card lone-card wide stack' : 'card lone-card stack'}>{children}</main>;
 }
 
 /** Signed-in pages: the frame, or the way to sign in / set up. */

@@ -7,6 +7,7 @@ import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
+import { EmailSettings } from '../features/notifications/EmailSettings';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -169,6 +170,10 @@ export default function ProfilePage() {
       <section className="card" aria-labelledby="you">
         <h2 id="you">You</h2>
         <You me={m} />
+      </section>
+      <section className="card" aria-labelledby="notifications">
+        <h2 id="notifications">Notifications</h2>
+        <EmailSettings />
       </section>
       <section className="card" aria-labelledby="password">
         <h2 id="password">{passwords ? 'Password' : 'Signing in'}</h2>

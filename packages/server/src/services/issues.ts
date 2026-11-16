@@ -1,5 +1,6 @@
 import {
   type Change,
+  type CommentVisibility,
   type CreateIssueInput,
   type FieldsInputT,
   type Issue,
@@ -45,6 +46,7 @@ import {
   type SchemaSnapshot,
 } from './schema-cache';
 import { ensureTags, tagDto } from './tags';
+import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
 import {
   fieldValueDto,
   presentValues,
@@ -306,6 +308,10 @@ export interface ChangeSpec {
   expectedVersion?: number;
   /** Said about the change in its activity, e.g. that it accepts what triage worked out. */
   data?: Record<string, unknown>;
+  /** Who the comment is for: 'public' also reaches the requester of a help desk request. */
+  commentVisibility?: CommentVisibility;
+  /** The requester of a help desk request wrote the comment, on their tracking page (services/helpdesk.ts). */
+  commentRequester?: { id: string; name: string };
 }
 
 export interface ApplyResult {
@@ -506,13 +512,44 @@ export async function applyChanges(
   const states = await stateNames(tx, s, [issue.id]);
   const ref = issueRef(s, updated!, states.get(issue.id) ?? null);
 
+  // Who to tell, and who watches it now: a new assignee, people newly mentioned, whoever comments.
+  // Text from a help desk's requester mentions nobody: the public can't page the team.
+  const fromOutside = ctx.actor.channel === 'helpdesk';
+  // An import brings history, not news: who wrote its text there makes nobody here watch.
+  const imported = Boolean((spec.data as { imported?: unknown } | undefined)?.imported);
+  const assigneeField = assigneeFieldOf(s);
+  const assigneeUpdate = assigneeField ? fieldUpdates.find((u) => u.field.id === assigneeField.id) : undefined;
+  const assigned = assigneeUpdate
+    ? loginsOf(s, assigneeUpdate.values).filter((l) => !loginsOf(s, current.get(assigneeField!.id)).includes(l))
+    : [];
+  // Only people who can see the project are told or watch: a mention of anyone else tells nobody.
+  const commenter = comment && !fromOutside && !imported ? [ctx.actor.user.login] : [];
+  const mentionedNow = patch.description !== undefined && !fromOutside && !imported ? mentionsAdded(s, issue.description, patch.description) : [];
+  const mentionedInComment = comment && !fromOutside && !imported ? mentionsIn(s, comment) : [];
+  const seeing = await whoSees(tx, s, issue.projectId, [...assigned, ...commenter, ...mentionedNow, ...mentionedInComment]);
+  const describedMentions = mentionedNow.filter((l) => seeing.has(l.toLowerCase()));
+  const commentMentions = mentionedInComment.filter((l) => seeing.has(l.toLowerCase()));
+  await addWatchers(
+    tx,
+    s,
+    issue,
+    [
+      ...assigned.map((login) => ({ login, reason: 'assignee' as const })),
+      ...commenter.map((login) => ({ login, reason: 'commenter' as const })),
+      ...[...describedMentions, ...commentMentions].map((login) => ({ login, reason: 'mentioned' as const })),
+    ],
+    seeing,
+  );
+  const told = { ...(assigned.length ? { assigned } : {}), ...(describedMentions.length ? { mentions: describedMentions } : {}) };
+
   if (fieldOrMetaChanged) {
+    const data = spec.data || assigned.length || describedMentions.length ? { ...spec.data, ...told } : undefined;
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'issue.updated',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(spec.data ? { data: spec.data } : {}) },
+        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(data ? { data } : {}) },
       }),
     );
   }
@@ -552,13 +589,32 @@ export async function applyChanges(
 
   if (comment) {
     const id = newId();
-    await tx.insert(comments).values({ id, issueId: issue.id, authorId: ctx.actor.user.id, text: comment, channel: ctx.actor.channel });
+    const visibility = spec.commentVisibility ?? 'internal';
+    await tx.insert(comments).values({
+      id,
+      issueId: issue.id,
+      authorId: ctx.actor.user.id,
+      text: comment,
+      channel: ctx.actor.channel,
+      visibility,
+      requesterId: spec.commentRequester?.id ?? null,
+    });
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'comment.created',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, data: { ...spec.data, commentId: id, text: excerpt(comment, 1000) } },
+        payload: {
+          issue: ref,
+          data: {
+            ...spec.data,
+            commentId: id,
+            text: excerpt(comment, 1000),
+            ...(visibility === 'public' ? { visibility } : {}),
+            ...(spec.commentRequester ? { requester: { name: spec.commentRequester.name } } : {}),
+            ...(commentMentions.length ? { mentions: commentMentions } : {}),
+          },
+        },
       }),
     );
   }
@@ -628,6 +684,10 @@ export interface ImportedOrigin {
 
 export interface CreateOptions {
   imported?: ImportedOrigin;
+  /** Said about it in its activity, e.g. that a help desk's requester asked for it. */
+  data?: Record<string, unknown>;
+  /** More to write in the creating transaction, once the issue exists (services/helpdesk.ts). */
+  inTransaction?: (tx: Db, row: IssueRow) => Promise<void>;
 }
 
 interface PreparedIssue {
@@ -730,6 +790,29 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
       .values(tagRows.map((t) => ({ issueId: id, tagId: t.id })))
       .onConflictDoNothing();
   }
+  // Its reporter, its assignee and the people its description mentions watch it, and the last
+  // two are told. A help desk's requester mentions nobody. An imported issue comes in quietly:
+  // its reporter there and its assignee watch it, and nobody is told (it's history, not news).
+  const assigneeField = assigneeFieldOf(s);
+  const assigned = assigneeField ? loginsOf(s, values.get(assigneeField.id)) : [];
+  const fromOutside = ctx.actor.channel === 'helpdesk';
+  const reporterLogin = imported ? (imported.reporterId ? s.users.get(imported.reporterId)?.login : undefined) : ctx.actor.user.login;
+  const reporter = fromOutside || !reporterLogin ? [] : [reporterLogin];
+  const mentionedIn = fromOutside || imported ? [] : mentionsIn(s, p.description);
+  const seeing = await whoSees(tx, s, project.id, [...reporter, ...assigned, ...mentionedIn]);
+  const mentions = mentionedIn.filter((l) => seeing.has(l.toLowerCase()));
+  await addWatchers(
+    tx,
+    s,
+    { id, projectId: project.id },
+    [
+      ...reporter.map((login) => ({ login, reason: 'reporter' as const })),
+      ...assigned.map((login) => ({ login, reason: 'assignee' as const })),
+      ...mentions.map((login) => ({ login, reason: 'mentioned' as const })),
+    ],
+    seeing,
+  );
+  const told = imported ? {} : { ...(assigned.length ? { assigned } : {}), ...(mentions.length ? { mentions } : {}) };
   const states = await stateNames(tx, s, [id]);
   activities.push(
     await recordActivity(tx, ctx, {
@@ -747,17 +830,21 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
           tags: tagRows.map((t) => t.name),
           description: excerpt(p.description, 1000),
           ...(imported ? { imported: imported.data } : {}),
+          ...told,
+          ...(opts.data ?? {}),
         },
       },
     }),
   );
 
+  let issue = row!;
   if (p.links.length) {
-    const res = await applyChanges(tx, ctx, row!, { links: p.links, ...(imported ? { data: { imported: imported.data } } : {}) });
+    const res = await applyChanges(tx, ctx, issue, { links: p.links, ...(imported ? { data: { imported: imported.data } } : {}) });
     activities.push(...res.activities);
-    return { issue: res.issue, activities };
+    issue = res.issue;
   }
-  return { issue: row!, activities };
+  await opts.inTransaction?.(tx, issue);
+  return { issue, activities };
 }
 
 export async function createIssue(ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<IssueDetail> {
@@ -807,8 +894,15 @@ export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void>
   const ref: IssueRef = issueRef(s, issue, states.get(issue.id) ?? null);
   const activity = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
+    // Its watchers are told it's gone; their rows go with it, so the activity names them.
+    const watchers = (await watcherIds(tx, issue.id)).map((id) => s.users.get(id)?.login).filter((l): l is string => Boolean(l));
     await tx.delete(issues).where(eq(issues.id, issue.id));
-    return recordActivity(tx, ctx, { type: 'issue.deleted', projectId: issue.projectId, issueId: null, payload: { issue: ref } });
+    return recordActivity(tx, ctx, {
+      type: 'issue.deleted',
+      projectId: issue.projectId,
+      issueId: null,
+      payload: { issue: ref, ...(watchers.length ? { data: { watchers } } : {}) },
+    });
   });
   await publishActivities(ctx.app, [activity]);
 }

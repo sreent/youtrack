@@ -15,6 +15,7 @@ import { PeopleAndAccess, yourRole } from '../features/projects/PeopleAndAccess'
 import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
+import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -231,6 +232,7 @@ export default function ProjectPage() {
               {count(p.openIssueCount, 'open issue')} of {p.issueCount}
             </span>
             <span>Triage: {TRIAGE_WORDS[p.settings.triageMode]}</span>
+            {p.settings.helpdesk.enabled ? <span>Help desk: open</span> : null}
             {plan.budget !== null ? <span>Budget: {money(plan.budget, plan.currency)}</span> : null}
           </>
         }
@@ -265,6 +267,13 @@ export default function ProjectPage() {
           <span className="note">{p.visibility === 'members' ? 'Members only' : 'Open to everyone'}</span>
         </div>
         <PeopleAndAccess project={p} />
+      </section>
+      <section className="card" aria-labelledby="helpdesk">
+        <div className="section-head">
+          <h2 id="helpdesk">Help desk</h2>
+          <span className="note">A public form for people outside the team, and a page for each of their requests.</span>
+        </div>
+        <HelpdeskSettings project={p} canEdit={canEdit} />
       </section>
       <section className="card" aria-labelledby="plan">
         <div className="section-head">

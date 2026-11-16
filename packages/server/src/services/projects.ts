@@ -1,5 +1,6 @@
 import {
   WELL_KNOWN_FIELDS,
+  type HelpdeskSettings,
   type PlanSettings,
   type Project,
   type ProjectAccess,
@@ -28,11 +29,15 @@ export const DEFAULT_PLAN: PlanSettings = {
   currency: 'USD',
 };
 
+/** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
+export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '' };
+
 export function projectSettings(row: ProjectRow): ProjectSettings {
   const raw = (row.settings ?? {}) as Partial<ProjectSettings>;
   return {
     triageMode: (raw.triageMode as TriageMode) ?? 'suggest',
     plan: { ...DEFAULT_PLAN, ...(raw.plan ?? {}) },
+    helpdesk: { ...DEFAULT_HELPDESK, ...(raw.helpdesk ?? {}) },
   };
 }
 
@@ -129,7 +134,7 @@ export async function createProject(
   if (input.lead && !lead) throw notFound(`User ${input.lead}`);
   const defaultTriage = ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest';
   const id = newId();
-  const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) } };
+  const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK };
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     await tx.insert(projects).values({
@@ -168,7 +173,7 @@ export async function updateProject(
     lead?: string | null;
     archived?: boolean;
     visibility?: ProjectVisibility;
-    settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings> };
+    settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings> };
   },
 ): Promise<Project> {
   // A project's settings are its managers' (and administrators') to change.
@@ -185,6 +190,7 @@ export async function updateProject(
   const settings: ProjectSettings = {
     triageMode: input.settings?.triageMode ?? current.triageMode,
     plan: { ...current.plan, ...(input.settings?.plan ?? {}) },
+    helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;

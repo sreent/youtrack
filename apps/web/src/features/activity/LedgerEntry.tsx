@@ -42,6 +42,7 @@ function byLine(e: TrackerEvent): string {
     assistant: `through the assistant, for ${name}`,
     automation: 'on its own',
     system: "a4a's own",
+    helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
   };
   return [through[e.actor.channel], e.actor.channel === 'api' || e.actor.channel === 'mcp' ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
     .filter(Boolean)
@@ -201,7 +202,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
  * did, in the colour of what it did; and through what, for whom and where.
  */
 export function LedgerEntry({ event }: { event: TrackerEvent }) {
-  const who = actorWho(event.actor);
+  const who = actorWho(event.actor, event.data);
   const w = what(event);
   return (
     <li>

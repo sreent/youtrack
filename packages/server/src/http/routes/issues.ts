@@ -13,6 +13,7 @@ import {
   IssueListQuery,
   IssueListSchema,
   LinkBody,
+  NewCommentBody,
   ParseQueryResultSchema,
   SavedSearchBody,
   SavedSearchSchema,
@@ -81,7 +82,20 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
 
   // Comments
   route(app, { method: 'get', path: '/issues/{id}/comments', tags: ['Comments'], summary: 'List comments', params: Id, response: z.array(CommentSchema) }, ({ ctx, params }) => listComments(ctx, params.id));
-  route(app, { method: 'post', path: '/issues/{id}/comments', tags: ['Comments'], summary: 'Add a comment (Markdown)', params: Id, body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => addComment(ctx, params.id, body.text));
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/comments',
+      tags: ['Comments'],
+      summary: 'Add a comment (Markdown)',
+      description: '`@login` mentions a person: they are told, and watch the issue. On a help desk request, `visibility: "public"` also sends it to the requester, by email and on their tracking page; comments are internal unless you say so.',
+      params: Id,
+      body: NewCommentBody,
+      response: CommentSchema,
+    },
+    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility }),
+  );
   route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment', params: z.object({ id: z.string() }), body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text));
   route(app, { method: 'delete', path: '/comments/{id}', tags: ['Comments'], summary: 'Delete your comment', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteComment(ctx, params.id);

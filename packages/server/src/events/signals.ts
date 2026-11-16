@@ -13,7 +13,9 @@ export type Signal =
   /** Reference data (fields, values, projects, tags, link types, users) changed. */
   | { kind: 'schema'; origin: string }
   /** Signals may have been missed (the LISTEN connection was lost): catch up from the database. */
-  | { kind: 'resync' };
+  | { kind: 'resync' }
+  /** These people's notifications changed on another instance: their open inboxes count again. */
+  | { kind: 'inbox'; origin: string; users: string[] };
 
 export type SignalHandler = (signal: Signal) => void;
 
@@ -35,9 +37,11 @@ export interface Signals {
    * commits, to this instance too, and not at all if it rolls back.
    */
   announceSchemaChange(tx?: Db): Promise<void>;
+  /** After commit: tell the other instances whose notifications changed (this one tells its own streams). */
+  announceInbox(userIds: string[]): Promise<void>;
 }
 
-export const CHANNELS = { events: 'a4a_events', schema: 'a4a_schema', ping: 'a4a_ping' } as const;
+export const CHANNELS = { events: 'a4a_events', schema: 'a4a_schema', ping: 'a4a_ping', inbox: 'a4a_inbox' } as const;
 
 /** NOTIFY payloads must stay under 8000 bytes. */
 const MAX_PAYLOAD = 7_000;
@@ -119,6 +123,8 @@ export class LocalSignals implements Signals {
   async announceEvents(): Promise<void> {}
 
   async announceSchemaChange(): Promise<void> {}
+
+  async announceInbox(): Promise<void> {}
 }
 
 export interface PgSignalsOptions {
@@ -210,6 +216,22 @@ export class PgSignals implements Signals {
     await this.notify(tx ?? this.db, CHANNELS.schema, tx ? `${this.origin} tx` : this.origin);
   }
 
+  async announceInbox(userIds: string[]): Promise<void> {
+    // Ids, comma-separated, as many to a notification as fit.
+    let batch: string[] = [];
+    let size = 0;
+    for (const id of new Set(userIds)) {
+      if (batch.length && size + id.length + 1 > MAX_PAYLOAD) {
+        await this.notify(this.db, CHANNELS.inbox, `${this.origin} ${batch.join(',')}`);
+        batch = [];
+        size = 0;
+      }
+      batch.push(id);
+      size += id.length + 1;
+    }
+    if (batch.length) await this.notify(this.db, CHANNELS.inbox, `${this.origin} ${batch.join(',')}`);
+  }
+
   private async notify(db: Db, channel: string, payload: string): Promise<void> {
     await db.execute(sql`select pg_notify(${channel}, ${payload})`);
   }
@@ -230,7 +252,7 @@ export class PgSignals implements Signals {
       });
       client.on('notification', (msg) => this.received(msg.channel, msg.payload ?? ''));
       await client.connect();
-      await client.query(`LISTEN ${CHANNELS.events}; LISTEN ${CHANNELS.schema}; LISTEN ${CHANNELS.ping}`);
+      await client.query(`LISTEN ${CHANNELS.events}; LISTEN ${CHANNELS.schema}; LISTEN ${CHANNELS.ping}; LISTEN ${CHANNELS.inbox}`);
       const pid = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
       if (dead) throw new Error('the connection closed while it started listening');
       if (this.stopped) {
@@ -322,6 +344,9 @@ export class PgSignals implements Signals {
       if (origin !== this.origin || rest === 'tx') this.fanout.dispatch({ kind: 'schema', origin });
     } else if (channel === CHANNELS.ping) {
       if (origin === this.origin && this.pending?.token === rest) this.pending = null;
+    } else if (channel === CHANNELS.inbox) {
+      const users = rest.split(',').filter(Boolean);
+      if (origin !== this.origin && users.length) this.fanout.dispatch({ kind: 'inbox', origin, users });
     }
   }
 }

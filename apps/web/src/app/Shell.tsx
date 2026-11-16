@@ -6,6 +6,7 @@ import { post, subscribeEvents } from '../api/client';
 import { keys, useProjects } from '../api/queries';
 import { Icon, type IconName } from '../components/Icon';
 import { initials } from '../components/Who';
+import { useInboxLive, useUnreadCount } from '../features/notifications/api';
 
 interface NavItem {
   to: string;
@@ -14,6 +15,8 @@ interface NavItem {
   admin?: boolean;
   /** For someone who manages a project (or an administrator). */
   manager?: boolean;
+  /** A count beside it, such as what's unread. */
+  count?: 'unread';
 }
 
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -21,6 +24,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Work',
     items: [
       { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+      { to: '/inbox', label: 'Inbox', icon: 'bell', count: 'unread' },
       { to: '/issues', label: 'Issues', icon: 'tasks' },
       { to: '/boards', label: 'Boards', icon: 'board' },
       { to: '/plan', label: 'Plan', icon: 'timeline' },
@@ -85,9 +89,23 @@ function useAppFrame() {
   }, []);
 }
 
+/** What's unread, beside the inbox's link; screen readers hear it as part of the link's name. */
+function UnreadCount() {
+  const unread = useUnreadCount();
+  const n = unread.data ?? 0;
+  if (!n) return null;
+  return (
+    <span className="nav-count">
+      {n > 99 ? '99+' : n}
+      <span className="hidden"> unread</span>
+    </span>
+  );
+}
+
 export function Shell({ me }: { me: Me }) {
   useAppFrame();
   useLiveInvalidation();
+  useInboxLive();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const isAdmin = me.auth.scopes.includes('admin');
@@ -116,6 +134,7 @@ export function Shell({ me }: { me: Me }) {
                   <NavLink key={i.to} to={i.to}>
                     <Icon name={i.icon} />
                     <span>{i.label}</span>
+                    {i.count === 'unread' ? <UnreadCount /> : null}
                   </NavLink>
                 ))}
               </Fragment>

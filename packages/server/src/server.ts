@@ -20,11 +20,25 @@ export interface Started {
 /** Extra consumers (e.g. AI triage) register here before start. */
 export const consumerFactories: ((runtime: Runtime) => OutboxConsumer | null)[] = [];
 
+/** Extra upkeep for the lease holder (e.g. mail digests) registers here before start. */
+export const choreFactories: ((runtime: Runtime) => Chore[])[] = [];
+
+/**
+ * Other background work that runs on every instance and starts and stops with the server (e.g.
+ * the mail sender). stop() should end at once what holds a connection open, then wait for the rest.
+ */
+export interface BackgroundWork {
+  start(): void;
+  stop(): Promise<void>;
+}
+export const backgroundFactories: ((runtime: Runtime) => BackgroundWork | null)[] = [];
+
 /** Upkeep the lease holder does for every instance. */
 export function defaultChores(runtime: Runtime): Chore[] {
   return [
     { name: 'login-throttle', everyMs: 5 * 60_000, run: () => pruneLoginThrottle(runtime.db) },
     { name: 'sessions', everyMs: 60 * 60_000, run: () => pruneSessions(runtime.db) },
+    ...choreFactories.flatMap((f) => f(runtime)),
   ];
 }
 
@@ -73,6 +87,9 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
 
   const consumers = [webhookConsumer(runtime), ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null)];
   const background = await startBackground(runtime, consumers);
+  const extras = backgroundFactories.map((f) => f(runtime)).filter((b): b is BackgroundWork => b !== null);
+  for (const b of extras) b.start();
+  const stopExtras = () => Promise.all(extras.map((b) => b.stop().catch(() => {}))).then(() => {});
 
   const app = createHttpApp(runtime);
   const server = await new Promise<Server>((resolve, reject) => {
@@ -81,6 +98,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
       reject(err.code === 'EADDRINUSE' ? new Error(`Port ${config.port} is already in use; set PORT to another one`) : err);
     });
   }).catch(async (err) => {
+    await stopExtras();
     await background.stop();
     await database.close();
     throw err;
@@ -93,7 +111,9 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
       // End the live streams, or their connections would hold the server open; their
       // clients reconnect (to another instance, behind a load balancer) and resume.
       runtime.live.stop();
+      const extrasStopped = stopExtras();
       await closed;
+      await extrasStopped;
       await background.stop();
       await database.close();
     })());

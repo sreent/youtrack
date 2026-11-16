@@ -21,7 +21,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 export const FIELD_TYPES = [
@@ -92,6 +92,33 @@ export const WELL_KNOWN_FIELDS = {
 export const MINUTES_PER_HOUR = 60;
 export const DEFAULT_HOURS_PER_DAY = 8;
 export const DEFAULT_DAYS_PER_WEEK = 5;
+
+/**
+ * Why a notification reached someone, weakest first: a change on an issue they watch, a new help desk
+ * request in a project they lead, a mention, an assignment. A notification that folds several events
+ * together takes the strongest of their reasons.
+ */
+export const NOTIFICATION_KINDS = ['watching', 'request', 'mentioned', 'assigned'] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/** What a4a emails someone: everything, mentions and assignments only (`direct`), or nothing. In-app is always on. */
+export const EMAIL_LEVELS = ['all', 'direct', 'none'] as const;
+export type EmailLevel = (typeof EMAIL_LEVELS)[number];
+
+/** Why someone watches an issue: they chose to, or what they did or were given. */
+export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'] as const;
+export type WatchReason = (typeof WATCH_REASONS)[number];
+
+/** Who a comment is for: the team only, or also the requester of a help desk request, who is emailed it. */
+export const COMMENT_VISIBILITIES = ['internal', 'public'] as const;
+export type CommentVisibility = (typeof COMMENT_VISIBILITIES)[number];
+
+/** Where a help desk request stands against its project's first-response target. */
+export const SLA_STATES = ['none', 'due', 'overdue', 'met', 'missed'] as const;
+export type SlaState = (typeof SLA_STATES)[number];
+
+/** What a help desk's public form and tracking page take, at most (the server's limits, and the form's maxlength). */
+export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
 
 export const MAX_BULK_ISSUES = 50;
 export const MAX_PAGE_SIZE = 200;

@@ -24,8 +24,8 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#deb826df79ba442c5bd8b3b0f345a40afe499ee8
-        version: https://codeload.github.com/sreent/ocean/tar.gz/deb826df79ba442c5bd8b3b0f345a40afe499ee8
+        specifier: github:sreent/ocean#4e01d83a45e2dc555ae3e91e8e38f909a2750037
+        version: https://codeload.github.com/sreent/ocean/tar.gz/4e01d83a45e2dc555ae3e91e8e38f909a2750037
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -133,6 +133,9 @@ importers:
       hono:
         specifier: ^4.13.18
         version: 4.13.18
+      nodemailer:
+        specifier: 10.3.1
+        version: 10.3.1
       openid-client:
         specifier: ^6.8.9
         version: 6.8.9
@@ -158,6 +161,9 @@ importers:
       jose:
         specifier: ^6.2.17
         version: 6.2.17
+      smtp-server:
+        specifier: 3.21.3
+        version: 3.21.3
       tsup:
         specifier: ^9.0.0
         version: 9.0.0(jiti@2.7.0)(postcss@8.5.33)(tsx@4.23.15)(typescript@5.9.3)(yaml@2.9.1)
@@ -1245,8 +1251,8 @@ packages:
     resolution: {integrity: sha512-kUEVTgRFXAdNaR9DRncA2xfjFZtALn09kw1SBLhK5J7bXsqGYuPR94grpVC2K/G8r2ptICWDuzZIz+YABefgig==}
     engines: {node: '>=22.19.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/deb826df79ba442c5bd8b3b0f345a40afe499ee8':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/deb826df79ba442c5bd8b3b0f345a40afe499ee8}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/4e01d83a45e2dc555ae3e91e8e38f909a2750037':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/4e01d83a45e2dc555ae3e91e8e38f909a2750037}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -2232,6 +2238,9 @@ packages:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
 
+  ipv6-normalize@1.0.1:
+    resolution: {integrity: sha512-Bm6H79i01DjgGTCWjUuCjJ6QDo1HB96PT/xCYuyJUP9WFbVDrLSbG4EZCvOCun2rNswZb0c3e4Jt/ws795esHA==}
+
   is-absolute-url@4.0.1:
     resolution: {integrity: sha512-/51/TKE88Lmm7Gc4/8btclNXWS+g50wXhYJq8HWIBAGUBnoAdRu1aXeh364t/O7wXDAcTJDP8PNuNKWUDWie+A==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -2569,6 +2578,10 @@ packages:
   neverpanic@0.0.8:
     resolution: {integrity: sha512-vVdkelrLxaow/fdWDumzNBO+jwm6X8bxeLJc34THtpj70u0C5QBkcV6CRCu2X726km7XD45N0A3QtYCla4RvKw==}
 
+  nodemailer@10.3.1:
+    resolution: {integrity: sha512-uF0AFsJC07Y1vdW7p580DKAnh7rAO+4UPSSB3mDCPNDufoiaOebV6JmrzpxB14OjEEEiBsNdYoM2Y+fN8M7BBA==}
+    engines: {node: '>=20.0.0'}
+
   oauth4webapi@3.8.8:
     resolution: {integrity: sha512-8N28E+a/oxfXWBgOMt+ZP/JUf/XR+IFbvkAEPP3gznXOMv9BpAAwiIj0TFNz3tGTPc0ZQ8zmWBNgN1nAys0gng==}
 
@@ -2745,6 +2758,10 @@ packages:
     resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
     engines: {node: '>= 0.10'}
 
+  punycode.js@2.3.1:
+    resolution: {integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==}
+    engines: {node: '>=6'}
+
   qs@6.17.1:
     resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
     engines: {node: '>=0.6'}
@@ -2909,6 +2926,10 @@ packages:
   side-channel@1.1.1:
     resolution: {integrity: sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ==}
     engines: {node: '>= 0.4'}
+
+  smtp-server@3.21.3:
+    resolution: {integrity: sha512-RJRuhJWt+Zs8/c9Pa1Qrzz7RO49iRxrdj+7CXjz+zwRZLVliYyM/vrqF4VxsFH67eLCNW9kM3o5K9tHvlPuiIw==}
+    engines: {node: '>=20.0.0'}
 
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
@@ -4532,7 +4553,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/deb826df79ba442c5bd8b3b0f345a40afe499ee8': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/4e01d83a45e2dc555ae3e91e8e38f909a2750037': {}
 
   '@stablelib/base64@1.0.1': {}
 
@@ -5522,6 +5543,8 @@ snapshots:
 
   ipaddr.js@1.9.1: {}
 
+  ipv6-normalize@1.0.1: {}
+
   is-absolute-url@4.0.1: {}
 
   is-alphabetical@2.0.1: {}
@@ -6030,6 +6053,8 @@ snapshots:
 
   neverpanic@0.0.8: {}
 
+  nodemailer@10.3.1: {}
+
   oauth4webapi@3.8.8: {}
 
   object-assign@4.1.1: {}
@@ -6172,6 +6197,8 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
+
+  punycode.js@2.3.1: {}
 
   qs@6.17.1:
     dependencies:
@@ -6469,6 +6496,12 @@ snapshots:
       side-channel-list: 1.0.1
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
+
+  smtp-server@3.21.3:
+    dependencies:
+      ipv6-normalize: 1.0.1
+      nodemailer: 10.3.1
+      punycode.js: 2.3.1
 
   source-map-js@1.2.2: {}
 

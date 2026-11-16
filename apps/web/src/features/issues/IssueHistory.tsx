@@ -1,4 +1,4 @@
-import type { Attachment, Comment, IssueDetail, TrackerEvent, UserRef } from '@a4a/shared';
+import type { Attachment, Comment, CommentVisibility, IssueDetail, TrackerEvent, User, UserRef } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -7,12 +7,15 @@ import { attachmentKeys, formatBytes, refusal, uploadFile, useAttachmentLimits, 
 import { CommentFiles } from '../attachments/AttachmentList';
 import { Icon } from '../../components/Icon';
 import { keys, useActivity, useComments } from '../../api/queries';
+import { Badge } from '../../components/Badges';
 import { ChangeLines } from '../../components/Changes';
 import { Markdown } from '../../components/Markdown';
 import { ErrorNote, Loading, ErrorLine } from '../../components/States';
 import { Avatar, type WhoKind } from '../../components/Who';
 import { errorText } from './api';
 import { FormField } from '../../components/Form';
+import { useRequestInfo } from '../notifications/api';
+import { MentionField } from './MentionField';
 
 type Actor = TrackerEvent['actor'];
 
@@ -25,10 +28,12 @@ interface Who {
   via: string;
 }
 
-/** Who acted, for whom and through what, in Ocean's grammar. */
-export function whoOf(actor: Actor): Who {
+/** Who acted, for whom and through what, in Ocean's grammar. A requester, through the help desk, by the name they gave. */
+export function whoOf(actor: Actor, requester?: string | null): Who {
   const person = actor.name ?? actor.login ?? 'someone';
   switch (actor.channel) {
+    case 'helpdesk':
+      return { kind: 'person', name: requester ?? 'The requester', via: 'via the help desk' };
     case 'web':
       return { kind: 'person', name: person, via: 'via the web' };
     case 'api':
@@ -61,14 +66,16 @@ interface Entry {
   did?: React.ReactNode;
   body?: React.ReactNode;
   comment?: string;
+  /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
+  public?: 'reply' | 'theirs';
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
   anchor?: string;
 }
 
 function eventEntry(e: TrackerEvent): Entry | null {
-  const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor) };
   const data = e.data as Record<string, unknown>;
+  const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor, (data.requester as { name?: string } | undefined)?.name) };
   switch (e.type) {
     case 'issue.created': {
       // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
@@ -78,7 +85,7 @@ function eventEntry(e: TrackerEvent): Entry | null {
         const on = imported.createdAt ? `, where it was reported ${when(imported.createdAt)}${imported.reporter ? ` by ${imported.reporter}` : ''}` : '';
         return { ...base, did: `imported it from ${from} (${imported.key ?? 'its key there'})${on}` };
       }
-      return { ...base, did: 'reported it' };
+      return { ...base, did: data.requester ? 'asked for help' : 'reported it' };
     }
     case 'sprint.issue_added':
     case 'sprint.issue_removed':
@@ -163,10 +170,18 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     channel: c.channel,
     token: null,
   };
-  return { key: `c${c.id}`, at: c.createdAt, who: whoOf(actor), comment: c.text, files, anchor: `comment-${c.id}` };
+  return {
+    key: `c${c.id}`,
+    at: c.createdAt,
+    who: whoOf(actor, c.requester?.name),
+    comment: c.text,
+    public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+    files,
+    anchor: `comment-${c.id}`,
+  };
 }
 
-function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode }) {
+function Head({ who, at, did, badge }: { who: Who; at: string; did?: React.ReactNode; badge?: React.ReactNode }) {
   return (
     <p className="history-head">
       <strong className="who-name">{who.name}</strong>
@@ -176,22 +191,59 @@ function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode })
       <time dateTime={at} title={new Date(at).toLocaleString()}>
         {when(at)}
       </time>
+      {badge}
     </p>
+  );
+}
+
+/** Who sees a comment on a help desk request: the team alone, or the requester too, by email. */
+function Visibility({ value, onChange, requester }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string }) {
+  return (
+    <div className="stack tight">
+      <div className="modes" role="group" aria-label="Who sees this comment">
+        <button type="button" aria-pressed={value === 'internal'} onClick={() => onChange('internal')}>
+          Internal note
+        </button>
+        <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>
+          Reply to {requester}
+        </button>
+      </div>
+      <p className="field-help" id="visibility-help">
+        {value === 'public' ? `${requester} gets it by email, and sees it on their request's page.` : `Only the team sees it. ${requester} doesn't.`}
+      </p>
+    </div>
   );
 }
 
 /**
  * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then
  * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
+ * Replying to a help desk's requester takes `canReply` (someone who may change the issue); `people`
+ * are those a mention would reach.
  */
-export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDetail; me: UserRef | undefined; canComment?: boolean }) {
+export function IssueHistory({
+  issue,
+  me,
+  canComment = true,
+  canReply = true,
+  people,
+}: {
+  issue: IssueDetail;
+  me: UserRef | undefined;
+  canComment?: boolean;
+  canReply?: boolean;
+  people?: User[];
+}) {
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
   const files = useIssueAttachments(issue.id);
   const limits = useAttachmentLimits();
+  const request = useRequestInfo(issue);
+  const requester = request.data?.requester.name ?? null;
   const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  const [visibility, setVisibility] = useState<CommentVisibility>('internal');
   const [picked, setPicked] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -231,8 +283,9 @@ export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDet
     setBusy(true);
     setProgress(null);
     try {
-      const comment = await post<Comment>(`/issues/${issue.id}/comments`, { text });
+      const comment = await post<Comment>(`/issues/${issue.id}/comments`, { text, ...(requester && canReply ? { visibility } : {}) });
       setText('');
+      setVisibility('internal');
       const failed: string[] = [];
       for (const f of picked) {
         try {
@@ -266,10 +319,21 @@ export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDet
           <li key={e.key} id={e.anchor}>
             <Avatar kind={e.who.kind} name={e.who.name} small />
             <div className="history-body">
-              <Head who={e.who} at={e.at} did={e.did} />
+              <Head
+                who={e.who}
+                at={e.at}
+                did={e.did}
+                badge={
+                  e.public === 'reply' ? (
+                    <Badge grammar="outside">public: sent to {requester ?? 'the requester'}</Badge>
+                  ) : e.public === 'theirs' ? (
+                    <Badge grammar="outside">public: the requester wrote it</Badge>
+                  ) : null
+                }
+              />
               {e.body}
               {e.comment !== undefined ? (
-                <div className={e.files?.length ? 'history-comment stack tight' : 'history-comment'}>
+                <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>
                   <Markdown text={e.comment} />
                   {e.files?.length ? <CommentFiles files={e.files} /> : null}
                 </div>
@@ -294,14 +358,21 @@ export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDet
             pick([...e.dataTransfer.files]);
           }}
         >
-          <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
+          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+          {requester && !canReply ? (
+            <p className="field-help" id="visibility-help">
+              Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
+            </p>
+          ) : null}
+          <FormField label={`${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
             {(id) => (
-              <textarea
+              <MentionField
                 id={id}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={4}
-                placeholder="Markdown works here. Mention an issue or an article by its id, like BACK-12 or BACK-A-3."
+                onChange={setText}
+                describedBy={requester ? 'visibility-help' : undefined}
+                people={people}
+                placeholder="Markdown works here. Mention someone with @ and their login, and an issue or an article by its id, like BACK-12 or BACK-A-3."
               />
             )}
           </FormField>
@@ -342,7 +413,7 @@ export function IssueHistory({ issue, me, canComment = true }: { issue: IssueDet
               }}
             />
             <button type="submit" className="primary" disabled={!text.trim() || busy}>
-              {busy ? 'Commenting…' : 'Comment'}
+              {busy ? 'Sending…' : requester ? (canReply && visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
             </button>
           </div>
         </form>

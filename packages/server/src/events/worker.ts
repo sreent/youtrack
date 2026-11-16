@@ -103,7 +103,7 @@ export class OutboxWorker {
     // A commit here, or a NOTIFY from another instance, wakes the holder at once. Standbys
     // ignore them: they only wait for the lease, on the poll.
     this.unsubscribers.push(this.app.bus.subscribe(() => this.active && this.kick()));
-    this.unsubscribers.push(this.app.signals.subscribe((s) => s.kind !== 'schema' && this.active && this.kick()));
+    this.unsubscribers.push(this.app.signals.subscribe((s) => (s.kind === 'events' || s.kind === 'resync') && this.active && this.kick()));
     this.kick();
   }
 

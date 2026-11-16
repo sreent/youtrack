@@ -57,6 +57,14 @@ export interface Config {
   attachmentsPerIssueMaxBytes: number;
   /** Where files go: "local", under DATA_DIR/attachments, is the one store so far (ATTACHMENT_STORAGE). */
   attachmentStorage: 'local';
+  /** SMTP server for email, e.g. smtp://user:pass@mail.example.com:587. Without it, no email is sent and nothing fails. */
+  smtpUrl: string | undefined;
+  /** Who email comes from, e.g. "a4a <a4a@example.com>". */
+  mailFrom: string;
+  /** Changes to one issue within this long fold into one notification (and one email). */
+  notifyWindowMs: number;
+  /** The hour (server time, 0-23) the daily digest goes out. */
+  digestHour: number;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -117,6 +125,14 @@ function loadDotEnv() {
   }
 }
 
+function hostnameOf(url: string | undefined): string {
+  try {
+    return url ? new URL(url).hostname : 'localhost';
+  } catch {
+    return 'localhost';
+  }
+}
+
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   loadDotEnv();
   const env = process.env;
@@ -158,6 +174,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     attachmentMaxBytes: megabytes(env.ATTACHMENT_MAX_MB, 20),
     attachmentsPerIssueMaxBytes: megabytes(env.ATTACHMENTS_PER_ISSUE_MB, 100),
     attachmentStorage: 'local',
+    smtpUrl: env.SMTP_URL || undefined,
+    mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
+    notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
+    digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
     ...overrides,
   };
 }
