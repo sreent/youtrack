@@ -201,6 +201,7 @@ export async function testWebhook(ctx: Ctx, id: string): Promise<{ delivered: bo
       name: ctx.actor.user.name,
       channel: ctx.actor.channel,
       token: ctx.actor.tokenName,
+      isBot: ctx.actor.user.isBot,
     },
     project: null,
     issue: null,

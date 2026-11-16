@@ -1,4 +1,4 @@
-import type { QueryProblem, SuggestItem } from '@a4a/shared';
+import { isOwnAgent, type QueryProblem, type SuggestItem } from '@a4a/shared';
 import { fixValue, lex, type Token } from '../search/lexer';
 import { didYouMean, editDistance } from '../lib/text';
 import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
@@ -449,7 +449,8 @@ export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, 
   };
   const people = (): [string, SuggestItem['kind'], string?][] => [
     ['me', 'user'],
-    ...[...s.users.values()].filter((u) => !u.banned).map((u): [string, SuggestItem['kind'], string] => [u.login, 'user', u.name]),
+    // Whoever may take work: people, and agents an administrator added; not a4a's own agents (D34).
+    ...[...s.users.values()].filter((u) => !u.banned && !isOwnAgent(u)).map((u): [string, SuggestItem['kind'], string] => [u.login, 'user', u.isBot ? `${u.login} (agent)` : u.name]),
   ];
 
   /** What fits after the given words (lower case), or null when they say nothing about it. */

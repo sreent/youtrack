@@ -24,6 +24,24 @@ export type Scope = (typeof SCOPES)[number];
 export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
+/**
+ * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk),
+ * and take no tokens and no work. Any other bot account is an agent an administrator added, which
+ * holds tokens of its own and can be assigned issues (docs/architecture.md, D34).
+ */
+export const OWN_AGENTS = ['triage', 'workflow', 'helpdesk'] as const;
+
+export function isOwnAgent(user: { isBot: boolean; login: string }): boolean {
+  return user.isBot && (OWN_AGENTS as readonly string[]).includes(user.login.toLowerCase());
+}
+
+/**
+ * Where a change an agent made on its own stands, for the person reading the issue: it can be
+ * undone; what it changed has changed since, so undoing it would overwrite someone; or it was undone.
+ */
+export const UNDO_STATES = ['possible', 'changed_since', 'undone'] as const;
+export type UndoState = (typeof UNDO_STATES)[number];
+
 export const FIELD_TYPES = [
   'enum',
   'state',

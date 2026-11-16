@@ -306,7 +306,7 @@ describe('a members-only project, from outside', () => {
       id: 1,
       type: 'issue.created',
       occurredAt: new Date().toISOString(),
-      actor: { id: w.anna.id, login: 'anna', name: 'Anna', channel: 'api', token: null },
+      actor: { id: w.anna.id, login: 'anna', name: 'Anna', channel: 'api', token: null, isBot: false },
       project: 'SECRET',
       issue: { id: fresh.id, summary: fresh.summary, resolved: false, state: 'Open' },
       changes: [],

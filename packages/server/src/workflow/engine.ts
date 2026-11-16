@@ -135,6 +135,9 @@ export class RuleEngine {
     // An import brings history in; it isn't a change happening now (D21). Rules on a change leave it
     // be, as notifications and triage do. Scheduled rules see imported issues as any others.
     if ((event.data as { imported?: unknown } | undefined)?.imported) return;
+    // An undo puts back what an agent changed (D34). Rules saw the issue that way already; acting on it
+    // again, a rule could redo at once what a person just undid.
+    if ((event.data as { undoes?: unknown } | undefined)?.undoes !== undefined) return;
     const s = await this.app.schema.get();
     const project = s.projectsByKey.get(event.project.toUpperCase());
     if (!project) return;

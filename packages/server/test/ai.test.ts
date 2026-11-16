@@ -140,7 +140,7 @@ describe('triage', () => {
       id: 1,
       type: 'issue.created',
       occurredAt: new Date().toISOString(),
-      actor: { id: w.ben.id, login: 'ben', name: 'Ben Okafor', channel: 'api', token: null },
+      actor: { id: w.ben.id, login: 'ben', name: 'Ben Okafor', channel: 'api', token: null, isBot: false },
       project: 'BACK',
       issue: { id: created.id, summary: created.summary, resolved: false, state: 'Open' },
       changes: [],

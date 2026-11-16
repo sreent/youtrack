@@ -6,10 +6,11 @@ import { toEventDto } from '../events/activity';
 import { parseDateExpression } from '../lib/dates';
 import { badRequest } from '../lib/errors';
 import { eventsVisibleSql, projectAccess } from './access';
+import { undoStandings } from './agents';
 import { resolveIssue } from './issues';
 import { projectByKey } from './schema-cache';
 
-/** An issue's history, leaving out links to issues the caller can't see. */
+/** An issue's history, leaving out links to issues the caller can't see; an agent's change says whether it can be undone. */
 export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Promise<TrackerEvent[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
@@ -21,7 +22,10 @@ export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Pro
     .where(and(eq(activities.issueId, issue.id), seen))
     .orderBy(asc(activities.id))
     .limit(limit);
-  return rows.map((r) => toEventDto(s, r));
+  const events = rows.map((r) => toEventDto(s, r));
+  // A change an agent made on its own says whether a person can still undo it (D34).
+  const standings = await undoStandings(ctx.db, s, events);
+  return events.map((e) => (standings.has(e.id) ? { ...e, undo: standings.get(e.id) } : e));
 }
 
 export interface EventFeedOptions {
