@@ -15,7 +15,7 @@ import { ProvisioningSection } from '../features/identity/Provisioning';
 import { AppsSection } from '../features/apps/AppsSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Role, string> = {
@@ -40,8 +40,8 @@ function signsInWith(user: User, ways: SignInWays): { words: string; about: stri
   const now = [...(user.signIn?.password && ways.passwords ? [t('page.admin.password')] : []), ...providers];
   const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
   // Two-factor and provisioning (D38) say how, beside where.
-  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? t('page.admin.last', { when: ago(last) }) : null].filter(Boolean);
-  if (now.length) return { words: now.join(' and '), about: also.length ? also.join(' · ') : null };
+  const also = [user.signIn?.twoFactor ? t('page.admin.withTwoFactor') : null, user.signIn?.provisioned ? t('page.admin.provisioned') : null, last ? t('page.admin.last', { when: ago(last) }) : null].filter(Boolean);
+  if (now.length) return { words: formatList(now), about: also.length ? also.join(' · ') : null };
   if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: t('page.admin.notYet'), about: t('page.admin.findsThemByEmail', { name: ways.sso.name }) };
   if (ways.sso && user.email) return { words: t('page.admin.notYet'), about: t('page.admin.onceTheirEmailIsConfirmed') };
   return { words: t('page.admin.canTYet'), about: ways.sso ? t('page.admin.giveThemAPasswordOr') : t('page.admin.giveThemAPassword') };
@@ -392,13 +392,13 @@ export default function AdminPage() {
         <div className="section-head">
           <h2 id="people">{t('page.admin.people')}</h2>
           <span className="note">
-            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
+            {[t('count.people', { n: humans }), bots ? t('page.admin.bots', { n: bots }) : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
               .filter(Boolean)
               .join(', ')}
           </span>
         </div>
         <p className="note section-note">{t('page.admin.aRateAndHoursA')}</p>
-        {users.isLoading ? <Loading what="people" /> : null}
+        {users.isLoading ? <Loading what={t('loading.people')} /> : null}
         {users.error ? <ErrorNote error={users.error} /> : null}
         {people.length ? (
           <Scroll label={t('page.admin.tableOfPeople')}>
@@ -441,7 +441,7 @@ export default function AdminPage() {
       </section>
       <section className="card" aria-labelledby="instance">
         <h2 id="instance">{t('page.admin.thisInstance')}</h2>
-        {settings.isLoading ? <Loading what="settings" /> : null}
+        {settings.isLoading ? <Loading what={t('loading.settings')} /> : null}
         {settings.error ? <ErrorNote error={settings.error} /> : null}
         {settings.data ? <Instance settings={settings.data} /> : null}
       </section>

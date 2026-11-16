@@ -11,6 +11,7 @@ import { FormField, Scroll } from '../features/common/bits';
 import { TRIAGE_WORDS } from '../features/projects/triage';
 import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
+import { roleLabel } from '../features/roles/words';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
   { id: 'software', name: t('page.projects.software'), about: t('page.projects.statePriorityTypeAssigneeSubsystem') },
@@ -144,7 +145,7 @@ export default function ProjectsPage() {
         title={t('page.projects.projects')}
         about={t('page.projects.eachProjectHasAKey')}
       />
-      {projects.isLoading ? <Loading what="projects" /> : null}
+      {projects.isLoading ? <Loading what={t('loading.projects')} /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data ? (
         <section className="card figures-card" aria-label={t('page.projects.projects')}>
@@ -194,7 +195,7 @@ export default function ProjectsPage() {
                         <span className="of-total">{tr('page.projects.of', { openIssueCount: p.openIssueCount, t0: (c: ReactNode) => <strong>{c}</strong>, issueCount: p.issueCount })}</span>
                       </td>
                       <td>{TRIAGE_WORDS[p.settings.triageMode]}</td>
-                      <td>{p.access.via === 'admin' ? t('page.projects.administrator') : p.access.roleName}</td>
+                      <td>{p.access.via === 'admin' ? t('page.projects.administrator') : roleLabel(p.access.role, p.access.roleName)}</td>
                     </tr>
                   ))}
                 </tbody>

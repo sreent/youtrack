@@ -4,6 +4,7 @@
  * attributes (Ocean's components/Burndown and the others): nothing here sets a style.
  */
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { t } from '../../i18n';
 
 /**
  * The width a chart is shown at. Drawn at that width, one unit to a pixel, a chart's words keep
@@ -84,7 +85,7 @@ export function hoursOf(minutes: number): string {
 export function daysOf(days: number): string {
   if (days < 1) return `${Math.round(days * 24)}h`;
   const d = round1(days);
-  return `${Number.isInteger(d) ? d : d.toFixed(1)} ${d === 1 ? 'day' : 'days'}`;
+  return t('count.days', { n: d });
 }
 
 /** An SVG path through points, skipping none. */

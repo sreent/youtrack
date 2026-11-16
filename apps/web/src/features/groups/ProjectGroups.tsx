@@ -7,7 +7,7 @@ import { keys, useRoles } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { aRole, BUILTIN_ROLES, isBuiltinRole, roleHelp } from '../roles/words';
+import { aRole, BUILTIN_ROLES, roleHelp, roleLabel } from '../roles/words';
 import { groupKeys, useGroups, useProjectGroups } from './api';
 import { t } from '../../i18n';
 
@@ -30,7 +30,7 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectGroup>(`/projects/${project.key}/groups/${g.id}`, { role }),
     onSuccess: (r) => {
-      setSaid({ text: t('groups.projectGroups.everyoneInIsAtLeast', { name: g.name, aRole: aRole(r.roleName, isBuiltinRole(r.role)) }) });
+      setSaid({ text: t('groups.projectGroups.everyoneIsAtLeastRole', { name: g.name, role: aRole(r.role, r.roleName) }) });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -45,7 +45,7 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
       <th scope="row" className="row-head">
         <Link to={`/groups/${g.id}`}>{g.name}</Link>
         <span className="item-about">
-          {g.size} {g.size === 1 ? 'person' : 'people'}
+          {t('count.people', { n: g.size })}
           {g.providerName ? t('groups.projectGroups.fromTheIdentityProvider') : ''}
         </span>
       </th>
@@ -54,12 +54,12 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
           <select value={row.role} onChange={(e) => change.mutate(e.target.value)} aria-label={t('groups.projectGroups.roleOfIn', { name: g.name, key: project.key })} disabled={change.isPending}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {roleLabel(r.id, r.name)}
               </option>
             ))}
           </select>
         ) : (
-          row.roleName
+          roleLabel(row.role, row.roleName)
         )}
       </td>
       <td className="fit">
@@ -96,7 +96,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
   const add = useMutation({
     mutationFn: () => post<ProjectGroup>(`/projects/${project.key}/groups`, { group, role }),
     onSuccess: (r) => {
-      setSaid({ text: t('groups.projectGroups.everyoneInIsAtLeast2', { name: r.group.name, aRole: aRole(r.roleName, isBuiltinRole(r.role)), key: project.key }) });
+      setSaid({ text: t('groups.projectGroups.everyoneIsAtLeastRoleOf', { name: r.group.name, role: aRole(r.role, r.roleName), key: project.key }) });
       setGroup('');
       void invalidate();
     },
@@ -133,7 +133,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
               <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name}
+                    {roleLabel(r.id, r.name)}
                   </option>
                 ))}
               </select>

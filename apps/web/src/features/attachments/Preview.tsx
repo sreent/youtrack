@@ -69,7 +69,7 @@ function TextPreview({ file, id }: { file: Attachment; id: string }) {
   return (
     <div className="attachment-preview" id={id}>
       {/* Its own frame scrolls, so the keyboard can reach it. */}
-      <pre className="attachment-text" tabIndex={0} aria-label={which ? `${file.name}, ${end ? tx('attachments.preview.itsLast') : tx('attachments.preview.itsFirst')} ${shown}` : file.name}>
+      <pre className="attachment-text" tabIndex={0} aria-label={which ? tx(end ? 'attachments.preview.nameItsLast' : 'attachments.preview.nameItsFirst', { name: file.name, size: shown }) : file.name}>
         {withMarks(t.text)}
       </pre>
       <p className="attachment-preview-about">

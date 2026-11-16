@@ -141,7 +141,7 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
 function Baselines({ project }: { project: Project }) {
   const baselines = useBaselines(project.key);
   const currency = project.settings.plan.currency;
-  if (baselines.isLoading) return <Loading what="baselines" />;
+  if (baselines.isLoading) return <Loading what={t('loading.baselines')} />;
   if (baselines.error) return <ErrorNote error={baselines.error} />;
   if (!baselines.data?.length)
     return (

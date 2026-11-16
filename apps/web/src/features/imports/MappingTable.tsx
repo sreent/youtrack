@@ -5,7 +5,6 @@
  */
 import type { Import, ImportProblem, ImportValueMap, ProjectField } from '@a4a/shared';
 import { Badge, Chip } from '../../components/Badges';
-import { plural } from '../plan/format';
 import { t, tr } from '../../i18n';
 
 const FIXED: [string, string][] = [
@@ -54,7 +53,7 @@ export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp
             <tr key={c.index}>
               <th scope="row">
                 <span className="mapping-name">{c.name || t('imports.mappingTable.column', { v: c.index + 1 })}</span>
-                <span className="mapping-samples">{c.filled ? `${c.samples.join(' · ')}${c.filled > c.samples.length ? t('imports.mappingTable.withAValue', { plural: plural(c.filled, 'row') }) : ''}` : t('imports.mappingTable.emptyInEveryRow')}</span>
+                <span className="mapping-samples">{c.filled ? `${c.samples.join(' · ')}${c.filled > c.samples.length ? t('imports.mappingTable.rowsWithAValue', { n: c.filled }) : ''}` : t('imports.mappingTable.emptyInEveryRow')}</span>
               </th>
               <td>
                 <select aria-label={t('imports.mappingTable.whatBecomes', { name: c.name })} value={c.target} disabled={disabled} onChange={(e) => onTarget(c.index, e.target.value)}>
@@ -105,7 +104,7 @@ export function ValuesTable({ map, onValue, disabled, from = t('imports.mappingT
             <tr key={i.value}>
               <th scope="row">
                 <span className="mapping-name">{i.value}</span>
-                <span className="mapping-count">{plural(i.count, 'row')}</span>
+                <span className="mapping-count">{t('count.rows', { n: i.count })}</span>
               </th>
               <td>
                 <select aria-label={t('imports.mappingTable.whatBecomes2', { value: i.value })} value={i.to ?? ''} disabled={disabled} onChange={(e) => onValue(i.value, e.target.value || null)}>
@@ -122,7 +121,7 @@ export function ValuesTable({ map, onValue, disabled, from = t('imports.mappingT
           ))}
         </tbody>
       </table>
-      {map.more ? <p className="note">{tr('imports.mappingTable.andMatchedByNameWhere', { plural: plural(map.more, 'more value') })}</p> : null}
+      {map.more ? <p className="note">{tr('imports.mappingTable.andMoreValuesMatched', { n: map.more })}</p> : null}
     </div>
   );
 }

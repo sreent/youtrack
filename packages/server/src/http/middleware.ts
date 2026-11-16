@@ -1,3 +1,4 @@
+import { isLocale } from '@a4a/shared/i18n';
 import { localeOfRequest } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
@@ -88,7 +89,11 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
       ctx = await guestCtx(runtime);
     }
     // The language its answer's words for a person are in (D49): the page's, theirs, their browser's.
-    if (ctx) ctx.locale = localeOfRequest(ctx, { pageLocale: c.req.header('x-a4a-locale'), acceptLanguage: c.req.header('accept-language') });
+    if (ctx) {
+      const page = c.req.header('x-a4a-locale');
+      ctx.locale = localeOfRequest(ctx, { pageLocale: page, acceptLanguage: c.req.header('accept-language') });
+      if (isLocale(page)) ctx.pageLocale = page;
+    }
     c.set('ctx', ctx);
     await next();
   };

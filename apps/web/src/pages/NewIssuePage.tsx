@@ -14,6 +14,7 @@ import { FormField } from '../components/Form';
 import { t, tr } from '../i18n';
 
 /** Fields worth setting while reporting; the rest can wait for triage or the team. */
+// not words: a field's name, as a4a names it
 const ASKED = ['Type', 'Priority', 'Assignee', 'Subsystem', 'Due date'];
 
 function newKey(): string {
@@ -84,7 +85,7 @@ function Similar({ summary, description, project, judge }: { summary: string; de
               </Link>
               <span className="badges">
                 {s.issue.state ? <Badge tone={tones.get(s.issue.state) ?? null}>{s.issue.state}</Badge> : null}
-                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? t('page.newIssue.likelyTheSame') : 'related'}</Badge> : null}
+                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? t('page.newIssue.likelyTheSame') : t('page.newIssue.related')}</Badge> : null}
               </span>
               {s.reason ? <p className="note">{s.reason}</p> : null}
             </li>
@@ -193,7 +194,7 @@ export default function NewIssuePage() {
     }
   };
 
-  if (projects.isLoading) return <Loading what="projects" />;
+  if (projects.isLoading) return <Loading what={t('loading.projects')} />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const triageOn = ai.data?.enabled;
 

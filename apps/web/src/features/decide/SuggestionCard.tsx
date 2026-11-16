@@ -32,7 +32,7 @@ function before(field: string, value: string | null): string {
   return field.toLowerCase() === 'assignee' ? tx('decide.suggestionCard.unassigned') : tx('decide.suggestionCard.notSet');
 }
 
-const CONFIDENCE: Record<'low' | 'medium' | 'high', string> = { low: 'unsure', medium: 'fairly sure', high: 'sure' };
+const CONFIDENCE: Record<'low' | 'medium' | 'high', string> = { low: tx('decide.suggestionCard.unsure'), medium: tx('decide.suggestionCard.fairlySure'), high: tx('decide.suggestionCard.sure') };
 const RANK: Record<Suggestion['status'], number> = { pending: 0, partially_applied: 1, applied: 2, dismissed: 2 };
 
 /** Pending, or partly accepted with more to decide. */
@@ -154,7 +154,7 @@ export function SuggestionCard({
   if (compact && !open && !said && !p.duplicates.length && !p.tags.length) return null;
 
   const tagWords = openTags.length === 1 ? tx('decide.suggestionCard.aTag') : 'tags';
-  const likeWords = tx('decide.suggestionCard.likeThisOne', { v: p.duplicates.length === 1 ? tx('decide.suggestionCard.anIssue') : 'issues' });
+  const likeWords = tx(p.duplicates.length === 1 ? 'decide.suggestionCard.anIssueLikeThisOne' : 'decide.suggestionCard.issuesLikeThisOne');
   const title = compact
     ? openTags.length && p.duplicates.length
       ? tx('decide.suggestionCard.triageSuggestsAndFound', { tagWords: tagWords, likeWords: likeWords })
@@ -162,7 +162,7 @@ export function SuggestionCard({
         ? tx('decide.suggestionCard.triageSuggests', { tagWords: tagWords })
         : p.duplicates.length
           ? tx('decide.suggestionCard.triageFound', { likeWords: likeWords })
-          : 'triage suggests changes'
+          : tx('decide.suggestionCard.triageSuggestsChanges')
     : null;
   const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? tx('decide.suggestionCard.ofAccepted', { accepted: accepted, v: fields.length + tags.length }) : null]
     .filter(Boolean)
@@ -171,8 +171,12 @@ export function SuggestionCard({
   let resolved: string | null = null;
   if (!said && !open) {
     const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? tx('decide.suggestionCard.you') : s.resolvedBy.name) : tx('decide.suggestionCard.someone');
-    const when = s.resolvedAt ? ` ${ago(s.resolvedAt)}` : '';
-    resolved = s.status === 'dismissed' ? t('decide.suggestionCard.dismissedIt', { who: who, when: when }) : t('decide.suggestionCard.appliedIt', { who: who, when: when });
+    // The time is a value of the sentence, so a language puts it where it goes.
+    const when = s.resolvedAt ? ago(s.resolvedAt) : null;
+    resolved =
+      s.status === 'dismissed'
+        ? when ? t('decide.suggestionCard.whoDismissedItWhen', { who: who, when: when }) : t('decide.suggestionCard.whoDismissedIt', { who: who })
+        : when ? t('decide.suggestionCard.whoAppliedItWhen', { who: who, when: when }) : t('decide.suggestionCard.whoAppliedIt', { who: who });
   }
 
   const pick = (key: string, label: React.ReactNode, aria?: string) =>
@@ -198,7 +202,7 @@ export function SuggestionCard({
           <span>
             <Heading className="approval-title" id={titleId}>
               {title ?? (
-                <>{tr('decide.suggestionCard.triage', { v: fields.length || tags.length ? tx('decide.suggestionCard.suggestsChangesTo') : 'found issues like', el: <IssueLink id={s.issueId} /> })}</>
+                <>{tr(fields.length || tags.length ? 'decide.suggestionCard.triageSuggestsChangesTo' : 'decide.suggestionCard.triageFoundIssuesLike', { el: <IssueLink id={s.issueId} /> })}</>
               )}
             </Heading>
             <span className="who-about">{about}</span>

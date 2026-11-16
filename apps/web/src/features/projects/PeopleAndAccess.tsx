@@ -8,7 +8,7 @@ import { Avatar } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { ProjectGroups } from '../groups/ProjectGroups';
-import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp } from '../roles/words';
+import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp, roleLabel } from '../roles/words';
 import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -27,7 +27,7 @@ const YOU_MAY = {
 export function yourRole(project: Project): string {
   const a = project.access;
   if (a.via === 'admin') return t('projects.peopleAndAccess.asAnAdministratorYouMay');
-  const role = aRole(a.roleName, isBuiltinRole(a.role));
+  const role = aRole(a.role, a.roleName);
   const why =
     a.via === 'lead'
       ? t('projects.peopleAndAccess.asItsLead')
@@ -39,9 +39,9 @@ export function yourRole(project: Project): string {
           ? t('projects.peopleAndAccess.asOneOf', { v: a.group ?? t('projects.peopleAndAccess.aGroup') })
           : '';
   if (a.via === 'guest') return t('projects.peopleAndAccess.youReReadingAsA', { key: project.key });
-  if (!isBuiltinRole(a.role)) return t('projects.peopleAndAccess.youReHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) });
-  if (!a.comment) return t('projects.peopleAndAccess.youReHereButYour', { role: role, why: why });
-  return t('projects.peopleAndAccess.youReHere', { role: role, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
+  if (!isBuiltinRole(a.role)) return t('projects.peopleAndAccess.youAreRoleHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) });
+  if (!a.comment) return t('projects.peopleAndAccess.youAreRoleHereBut', { role: role, why: why });
+  return t('projects.peopleAndAccess.youAreRoleHere', { role: role, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
 }
 
 function useInvalidate(project: Project) {
@@ -143,7 +143,7 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectMember>(`/projects/${project.key}/members/${u.login}`, { role }),
     onSuccess: (m) => {
-      setSaid({ text: t('projects.peopleAndAccess.isNow', { name: name, aRole: aRole(m.roleName, isBuiltinRole(m.role)) }) });
+      setSaid({ text: t('projects.peopleAndAccess.isRoleNow', { name: name, role: aRole(m.role, m.roleName) }) });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -176,12 +176,12 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
           <select value={member.role} onChange={(e) => change.mutate(e.target.value)} aria-label={t('projects.peopleAndAccess.roleOfIn', { name: name, key: project.key })} disabled={change.isPending}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {roleLabel(r.id, r.name)}
               </option>
             ))}
           </select>
         ) : (
-          member.roleName
+          roleLabel(member.role, member.roleName)
         )}
       </td>
       <td className="fit">
@@ -216,7 +216,7 @@ function AddMember({ project, people, listed }: { project: Project; people: User
   const add = useMutation({
     mutationFn: () => post<ProjectMember>(`/projects/${project.key}/members`, { user: login, role }),
     onSuccess: (m) => {
-      setSaid({ text: t('projects.peopleAndAccess.isOfNow', { v: m.user.isBot ? m.user.login : m.user.name, aRole: aRole(m.roleName, isBuiltinRole(m.role)), key: project.key }) });
+      setSaid({ text: t('projects.peopleAndAccess.isRoleOfNow', { v: m.user.isBot ? m.user.login : m.user.name, role: aRole(m.role, m.roleName), key: project.key }) });
       setLogin('');
       void invalidate();
     },
@@ -250,7 +250,7 @@ function AddMember({ project, people, listed }: { project: Project; people: User
               <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name}
+                    {roleLabel(r.id, r.name)}
                   </option>
                 ))}
               </select>
@@ -278,7 +278,7 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => t('projects.peopleAndAccess.may', { aRole: aRole(r.name, r.builtin), permissionWords: permissionWords(r.permissions) })).join('; ') })}</p>
+      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) })).join('; ') })}</p>
       {members.isLoading ? <Loading what={t('projects.peopleAndAccess.itsPeople')} /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (

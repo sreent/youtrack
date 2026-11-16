@@ -128,7 +128,7 @@ function ActedAlone({ steps, onAskFirst }: { steps: RunStep[]; onAskFirst?: () =
         <span className="badge changes">{t('assistant.toolRun.changes')}</span>
         <span>
           {ids.length ? (
-            <>{tr('assistant.toolRun.itChangedAndHistorySays', { el: <Linked text={ids.join(', ')} />, v: ids.length === 1 ? 'its' : 'their' })}</>
+            <>{tr('assistant.toolRun.itChangedAndHistoriesSay', { el: <Linked text={ids.join(', ')} />, n: ids.length })}</>
           ) : (
             t('assistant.toolRun.itChangedWhatYouAsked')
           )}

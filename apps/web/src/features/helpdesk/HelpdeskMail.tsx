@@ -18,12 +18,12 @@ const mailKeys = {
 
 /** What became of a message, with its shape: filed or answered went well; set aside stood still; refused or failed, a cross. */
 const OUTCOME: Record<HelpdeskInboundOutcome, { tone?: 'good' | 'idle' | 'bad' | 'warn'; word: string }> = {
-  received: { tone: 'warn', word: 'being handled' },
+  received: { tone: 'warn', word: t('helpdesk.helpdeskMail.beingHandled') },
   request: { tone: 'good', word: t('helpdesk.helpdeskMail.aNewRequest') },
   reply: { tone: 'good', word: t('helpdesk.helpdeskMail.aReply') },
-  ignored: { tone: 'idle', word: 'set aside' },
-  refused: { tone: 'bad', word: 'refused' },
-  failed: { tone: 'bad', word: 'failed' },
+  ignored: { tone: 'idle', word: t('helpdesk.helpdeskMail.setAside') },
+  refused: { tone: 'bad', word: t('helpdesk.helpdeskMail.refused') },
+  failed: { tone: 'bad', word: t('helpdesk.helpdeskMail.failed') },
 };
 
 function Secret({ made, onKept }: { made: HelpdeskMailSecret; onKept: () => void }) {

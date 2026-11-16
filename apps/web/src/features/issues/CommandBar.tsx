@@ -165,12 +165,12 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
         ? t('issues.commandBar.thisChangesNothingOnThese')
         : null;
   const ready = !busy && !problems.length && (current !== null ? changing > 0 || !!comment.trim() : !command && !!comment.trim());
-  const applyLabel = issues.length === 1 ? t('issues.commandBar.applyTo', { id: issues[0]!.id }) : t('issues.commandBar.applyTo2', { plural: plural(issues.length, 'issue') });
+  const applyLabel = issues.length === 1 ? t('issues.commandBar.applyTo', { id: issues[0]!.id }) : t('issues.commandBar.applyToIssues', { n: issues.length });
 
   return (
     <dialog ref={dialog} className="dialog command" aria-labelledby={titleId} onClose={onClose}>
       <h2 id={titleId}>{t('issues.commandBar.applyACommand')}</h2>
-      <p className="command-to">{tr('issues.commandBar.to', { v: issues.length === 1 ? 'issue' : plural(issues.length, 'issue'), el: <IdList ids={ids} /> })}</p>
+      <p className="command-to">{tr('issues.commandBar.toIssues', { n: issues.length, el: <IdList ids={ids} /> })}</p>
       <div className="query">
         <LanguageField
           text={text}

@@ -1,17 +1,10 @@
 import { intlLocale, t } from '../../i18n';
 /** Figures in words, as Ocean writes them: "1 task", "3 days", "$46,000", "6h". */
 
-export function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-/** Working days, as a span of time: "1 day", "3 days". */
-export const days = (n: number) => plural(n, 'day');
-
-/** "2 days later", "1 day earlier"; "as it was" for none. */
+/** "2 days later", "1 day earlier"; "as it was" for none. A count is a message's own plural (D49). */
 export function shift(n: number): string {
   if (n === 0) return t('plan.format.asItWas');
-  return `${days(Math.abs(n))} ${n > 0 ? 'later' : 'earlier'}`;
+  return t(n > 0 ? 'plan.format.daysLater' : 'plan.format.daysEarlier', { n: Math.abs(n) });
 }
 
 const moneyFormats = new Map<string, Intl.NumberFormat>();

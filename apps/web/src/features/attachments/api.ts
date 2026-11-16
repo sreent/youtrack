@@ -1,7 +1,7 @@
 import type { Attachment, AttachmentLimits, TrackerEvent } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, get } from '../../api/client';
-import { t } from '../../i18n';
+import { formatNumber, t } from '../../i18n';
 
 export const attachmentKeys = {
   limits: ['attachments', 'limits'] as const,
@@ -23,15 +23,16 @@ export function contentPath(a: Pick<Attachment, 'id'>, download = false): string
 
 /** "12.3 KB", "4 MB": as the server says sizes, in units of 1024. */
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} ${n === 1 ? 'byte' : 'bytes'}`;
-  const units = ['KB', 'MB', 'GB'];
+  // In the page's language, figure and unit both: "12,3 MB" in German, "12,3 Mo" in French (D49).
+  if (n < 1024) return formatNumber(n, { style: 'unit', unit: 'byte', unitDisplay: 'long' });
+  const units = ['kilobyte', 'megabyte', 'gigabyte'] as const;
   let v = n / 1024;
   let u = 0;
   while (v >= 1024 && u < units.length - 1) {
     v /= 1024;
     u++;
   }
-  return `${v >= 10 || Number.isInteger(v) ? Math.round(v) : v.toFixed(1)} ${units[u]}`;
+  return formatNumber(v >= 10 || Number.isInteger(v) ? Math.round(v) : Math.round(v * 10) / 10, { style: 'unit', unit: units[u], unitDisplay: 'short', maximumFractionDigits: 1 });
 }
 
 /** Kinds the bytes say for sure, whatever the name says: an HTML page named .png is "html". */

@@ -9,7 +9,7 @@ import { Icon } from '../components/Icon';
 import { Shell } from './Shell';
 import { FormField } from '../components/Form';
 import { CodeField, Enrol, RecoveryCodeList } from '../features/identity/TwoFactor';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A page before the frame (Ocean's lone page): one card in the middle; `wide` for a conversation, as a help desk's. */
@@ -292,7 +292,7 @@ export function SetupPage() {
         <FormField label={t('app.auth.yourName')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required autoFocus />}</FormField>
         <FormField label={t('app.auth.login')}>{(id) => <input id={id} value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />}</FormField>
         {status.data?.signIn.password === false ? (
-          <FormField label={t('app.auth.emailYouLlSignIn', { v: status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? 'single sign-on' })}>
+          <FormField label={t('app.auth.emailYouLlSignIn', { v: status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? t('app.auth.singleSignOn') })}>
             {(id) => <input id={id} type="email" value={form.email} onChange={set('email')} required autoComplete="email" />}
           </FormField>
         ) : (
@@ -320,6 +320,6 @@ function GuestLink() {
   const projects = info.data?.projects ?? [];
   if (!projects.length) return null;
   return (
-    <p className="note">{tr('app.auth.openToAnyoneReadWithout', { join: projects.map((p) => p.name).join(', '), v: projects.length === 1 ? 'is' : 'are', t0: (c: ReactNode) => <Link to="/public">{c}</Link> })}</p>
+    <p className="note">{tr('app.auth.projectsOpenToAnyone', { join: formatList(projects.map((p) => p.name)), n: projects.length, t0: (c: ReactNode) => <Link to="/public">{c}</Link> })}</p>
   );
 }

@@ -58,7 +58,7 @@ export function WindowChoice({ chosen, onChoose, busy }: { chosen: LoadWindow | 
         <FormField label={t('plan.loadWindow.from')} className="inline">
           {(id) => <input id={id} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />}
         </FormField>
-        <FormField label="to" className="inline">
+        <FormField label={t('plan.loadWindow.to')} className="inline">
           {(id) => <input id={id} type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />}
         </FormField>
         <button type="submit" disabled={!ready || busy}>{t('plan.loadWindow.showTheseDays')}</button>

@@ -96,7 +96,7 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
           onClick={() => void toggle(r.emoji)}
         >
           {r.emoji} {r.count}
-          <span className="hidden"> {r.count === 1 ? 'reaction' : 'reactions'}{r.mine ? t('issues.moves.yoursAmongThem') : ''}</span>
+          <span className="hidden"> {t('issues.moves.reactionCount', { n: r.count })}{r.mine ? t('issues.moves.yoursAmongThem') : ''}</span>
         </button>
       ))}
       {canReact ? (

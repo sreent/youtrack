@@ -7,7 +7,7 @@ import { keys, useRoles } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { PERMISSION_ABOUT, PERMISSION_NAMES } from './words';
+import { PERMISSION_ABOUT, PERMISSION_NAMES, roleLabel } from './words';
 import { t } from '../../i18n';
 
 interface Draft {
@@ -89,7 +89,7 @@ function RoleRow({ role }: { role: RoleDef }) {
   return (
     <tr>
       <th scope="row" className="row-head">
-        {role.name}
+        {roleLabel(role.id, role.name)}
         {role.builtin ? <span className="item-about">{t('roles.rolesSection.builtIn')}</span> : role.description ? <span className="item-about">{role.description}</span> : null}
       </th>
       <td>
@@ -150,11 +150,11 @@ export function RolesSection() {
       <div className="section-head">
         <h2 id="roles">{t('roles.rolesSection.roles')}</h2>
         <span className="note">
-          {list.length} {list.length === 1 ? 'role' : 'roles'}
+          {t('count.roles', { n: list.length })}
         </span>
       </div>
       <p className="note section-note">{t('roles.rolesSection.aRoleIsASet')}</p>
-      {roles.isLoading ? <Loading what="roles" /> : null}
+      {roles.isLoading ? <Loading what={t('loading.roles')} /> : null}
       {roles.error ? <ErrorNote error={roles.error} /> : null}
       {list.length ? (
         <Scroll label={t('roles.rolesSection.tableOfRoles')}>

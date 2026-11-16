@@ -12,7 +12,7 @@ import { Who } from '../../components/Who';
 import { useCosts, useSchedule } from './api';
 import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
 import { addDays, dayMonth, diffDays, workCalendar, type WorkCalendar } from './dates';
-import { days, effort, hours, money } from './format';
+import { effort, hours, money } from './format';
 import { t, tr } from '../../i18n';
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ function spiWords(evm: Evm, behind: number | null): string {
   if (evm.spi === null) return t('plan.costs.nothingWasPlannedToBe');
   if (behind === null) return evm.spi < 1 ? t('plan.costs.behindThePlan') : evm.spi > 1 ? t('plan.costs.aheadOfThePlan') : t('plan.costs.onSchedule');
   if (behind === 0) return t('plan.costs.onSchedule');
-  return behind > 0 ? t('plan.costs.behind', { days: days(behind) }) : t('plan.costs.ahead', { days: days(-behind) });
+  return behind > 0 ? t('plan.costs.daysBehind', { n: behind }) : t('plan.costs.daysAhead', { n: -behind });
 }
 
 // ---------------------------------------------------------------------------

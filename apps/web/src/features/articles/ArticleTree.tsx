@@ -80,7 +80,7 @@ export function ArticleTree({ project, name, current, canWrite }: { project: str
           <Link className="button small" to={`/articles/new?project=${project}`}>{t('articles.articleTree.newArticle')}</Link>
         ) : null}
       </div>
-      {tree.isLoading ? <Loading what="articles" /> : null}
+      {tree.isLoading ? <Loading what={t('loading.articles')} /> : null}
       {tree.error ? <ErrorNote error={tree.error} /> : null}
       {tree.data && !tree.data.length ? <p className="note">{t('articles.articleTree.noArticlesYet')}</p> : null}
       {flat.length ? <ul className="nav-list tree">{nest(flat).map(render)}</ul> : null}

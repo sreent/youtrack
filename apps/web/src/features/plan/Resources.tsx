@@ -20,7 +20,7 @@ import { DaysAway } from '../away/DaysAway';
 import { FormField } from '../common/bits';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
 import { dayMonth, mondayOf, span, spanWords, weekdayName, workCalendar, type WorkCalendar } from './dates';
-import { andList, days, hours, plural, shift } from './format';
+import { andList, hours, shift } from './format';
 import { WindowChoice, windowRange } from './LoadWindow';
 import { t, tr } from '../../i18n';
 
@@ -222,7 +222,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
       const kept = done.keepsStart ? t('plan.resources.itsStartIsSetTo', { dayMonth: dayMonth(done.keepsStart) }) : '';
       setNotice({
         kind: 'levelled',
-        text: t('plan.resources.levelled', { plural: plural(moved.length, 'task') }),
+        text: t('plan.resources.levelledTasks', { n: moved.length }),
         detail:
           (moved.length === 1 && first
             ? t('plan.resources.nowStartsItsHistorySays', { issue: first.issue, dayMonth: dayMonth(first.toStart), dayMonth2: dayMonth(done.finishAfter) })
@@ -271,11 +271,11 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           ? t('plan.resources.allowDelayToSeeWhat', { v: unresolved.length ? t('plan.resources.canTMoveWithoutMoving', { named: named(unresolved), dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.noTaskCanMoveWithin') })
           : t('plan.resources.nothingMoves', { v: unresolved.length ? t('plan.resources.canTFindADay', { named: named(unresolved) }) : t('plan.resources.noTaskCanMove') });
     } else {
-      title = t('plan.resources.levellingWouldMove', { plural: plural(moved.length, 'task') });
+      title = t('plan.resources.levellingWouldMoveTasks', { n: moved.length });
       const outcome = r.overallocatedDaysAfter === 0 ? t('plan.resources.soNobodyIsBookedOver') : t('plan.resources.soFewerDaysAreOver', { overallocatedDaysAfter: r.overallocatedDaysAfter, overallocatedDaysBefore: r.overallocatedDaysBefore });
       const finish =
         mode === 'within_slack' || !finishMoves ? t('plan.resources.thePlanStillEndsOn', { dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.thePlanWouldEndOn', { dayMonth: dayMonth(r.finishAfter), dayMonth2: dayMonth(r.finishBefore) });
-      about = t('plan.resources.nothingMovesUntilYouLevel', { outcome: outcome, finish: finish, v: moved.length === 1 ? 'it' : 'them' });
+      about = t('plan.resources.nothingMovesUntilYouLevelThem', { outcome: outcome, finish: finish, n: moved.length });
     }
   }
 
@@ -347,22 +347,22 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
       {nowLate.length ? (
         <div className="badges">
           {nowLate.map((c) => (
-            <Badge key={c.issue} tone="bad">{tr('plan.resources.wouldBeLateItS', { issue: c.issue, days: days(Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish))), dayMonth: dayMonth(deadlines.get(c.issue)!) })}</Badge>
+            <Badge key={c.issue} tone="bad">{tr('plan.resources.wouldBeDaysLate', { issue: c.issue, n: (Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish))), dayMonth: dayMonth(deadlines.get(c.issue)!) })}</Badge>
           ))}
         </div>
       ) : null}
       {r && moved.length && unresolved.length ? (
-        <p className="note">{tr('plan.resources.canTBeLevelledSo', { named: named(unresolved), v: mode === 'within_slack' ? 'within slack' : t('plan.resources.atAll'), v2: unresolved.length === 1 ? t('plan.resources.itStays') : 'they stay', v3: unresolved.length === 1 ? t('plan.resources.itIs') : t('plan.resources.theyAre') })}</p>
+        <p className="note">{tr(mode === 'within_slack' ? 'plan.resources.cantBeLevelledWithinSlack' : 'plan.resources.cantBeLevelledAtAll', { named: named(unresolved), n: unresolved.length })}</p>
       ) : null}
       {r && moved.length ? (
         <div className="levelling-actions">
           <button type="button" className="primary" onClick={() => void level()} disabled={busy !== null || stale}>
-            {busy === 'levelling' ? t('plan.resources.levelling') : t('plan.resources.level', { plural: plural(moved.length, 'task') })}
+            {busy === 'levelling' ? t('plan.resources.levelling') : t('plan.resources.levelTasks', { n: moved.length })}
           </button>
           <p className="note">
             {mode === 'within_slack'
-              ? t('plan.resources.withinSlackAndHistorySays', { v: moved.length === 1 ? t('plan.resources.itMoves') : t('plan.resources.eachMoves'), v2: moved.length === 1 ? 'its' : 'its', v3: moved.length === 1 ? 'its' : t('plan.resources.eachOneS') })
-              : t('plan.resources.andTheHistorySaysLevelling', { v: moved.length === 1 ? t('plan.resources.itsStartDateChanges') : t('plan.resources.theirStartDatesChange'), v2: moved.length === 1 ? 'it' : 'them', v3: moved.length === 1 ? 'it' : 'them' })}
+              ? t('plan.resources.movesWithinSlackHistorySays', { n: moved.length })
+              : t('plan.resources.startDatesChangeHistorySays', { n: moved.length })}
           </p>
         </div>
       ) : null}

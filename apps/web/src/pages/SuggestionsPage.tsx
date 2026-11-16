@@ -58,7 +58,7 @@ export default function SuggestionsPage() {
             )}
           </FormField>
         </div>
-        {list.isLoading ? <Loading what="suggestions" /> : null}
+        {list.isLoading ? <Loading what={t('loading.suggestions')} /> : null}
         {list.error ? <ErrorNote error={list.error} /> : null}
         {list.data && !shown.length ? (
           <section className="card">

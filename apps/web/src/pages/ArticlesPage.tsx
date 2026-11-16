@@ -146,7 +146,7 @@ function Home() {
     return (
       <>
         {head}
-        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what="projects" />}
+        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what={t('loading.projects')} />}
       </>
     );
   }
@@ -188,7 +188,7 @@ function Home() {
       <Beside project={project.key} name={project.name}>
         <section className="card stack" aria-labelledby="kb-found" aria-busy={found.isFetching}>
           <h2 id="kb-found">
-            {words ? t('page.articles.for', { v: found.data?.total ?? 0, v2: found.data?.total === 1 ? 'article' : 'articles', words: words }) : t('page.articles.latestChangedIn', { name: project.name })}
+            {words ? t('page.articles.countFor', { n: found.data?.total ?? 0, words: words }) : t('page.articles.latestChangedIn', { name: project.name })}
           </h2>
           {found.error ? <ErrorNote error={found.error} /> : null}
           {found.data && !found.data.items.length ? (
@@ -256,7 +256,7 @@ function ArticleFiles({ a, canWrite }: { a: ArticleDetail; canWrite: boolean }) 
   const qc = useQueryClient();
   const files = useArticleAttachments(a.id);
   const limits = useAttachmentLimits();
-  if (files.isLoading) return <Loading what="files" />;
+  if (files.isLoading) return <Loading what={t('loading.files')} />;
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList

@@ -72,11 +72,11 @@ export function GroupsSection() {
       <div className="section-head">
         <h2 id="groups">{t('groups.groupsSection.groups')}</h2>
         <span className="note">
-          {list.length} {list.length === 1 ? 'group' : 'groups'}
+          {t('count.groups', { n: list.length })}
         </span>
       </div>
       <p className="note section-note">{t('groups.groupsSection.aProjectCanGiveA')}</p>
-      {groups.isLoading ? <Loading what="groups" /> : null}
+      {groups.isLoading ? <Loading what={t('loading.groups')} /> : null}
       {groups.error ? <ErrorNote error={groups.error} /> : null}
       {groups.data && !list.length ? <p className="note">{t('groups.groupsSection.noGroupsYet')}</p> : null}
       {list.length ? (

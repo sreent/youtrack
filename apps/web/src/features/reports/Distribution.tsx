@@ -7,9 +7,8 @@ import type { CycleTime } from '@a4a/shared';
 import { useId } from 'react';
 import { Link } from 'react-router';
 import { dayMonth } from '../plan/dates';
-import { plural } from '../plan/format';
 import { column, daysOf, labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
-import { t, tr } from '../../i18n';
+import { formatList, t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 240, left: 40, right: 24, top: 34, bottom: 34 };
 
@@ -197,7 +196,7 @@ export function CycleTimeReport({ c, compact }: { c: CycleTime; compact?: boolea
         </div>
       ) : null}
       {c.notStarted.length ? (
-        <p className="note">{tr('reports.distribution.resolvedWithoutEverBeingSo', { plural: plural(c.notStarted.length, t('reports.distribution.issueWas'), 'issues were'), join: c.startStates.join(' or '), v: c.notStarted.length === 1 ? t('reports.distribution.itIs') : t('reports.distribution.theyAre'), map: c.notStarted.slice(0, 8).map((i, k) => (
+        <p className="note">{tr('reports.distribution.issuesResolvedNeverStarted', { n: c.notStarted.length, states: formatList(c.startStates, 'disjunction'), map: c.notStarted.slice(0, 8).map((i, k) => (
             <span key={i.issue}>
               {k ? ', ' : ''}
               <Link className="issue-id" to={`/issues/${i.issue}`}>

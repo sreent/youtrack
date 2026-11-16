@@ -132,7 +132,7 @@ export function TwoFactorCard() {
     <div className="stack">
       <p className="note">
         {s.enabled
-          ? t('identity.twoFactor.onAfterYourPasswordA4a', { recoveryCodesLeft: s.recoveryCodesLeft, v: s.recoveryCodesLeft === 1 ? 'code' : 'codes' })
+          ? t('identity.twoFactor.onRecoveryCodesLeft', { n: s.recoveryCodesLeft })
           : s.required
             ? t('identity.twoFactor.thisInstanceAsksItOf')
             : t('identity.twoFactor.offYourPasswordAloneSigns')}

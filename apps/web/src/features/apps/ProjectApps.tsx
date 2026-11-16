@@ -76,7 +76,7 @@ export function ProjectApps({ project }: { project: string }) {
           <li key={a.name} className="app-card">
             <div className="cluster spread">
               <span>
-                <strong>{a.title}</strong> <span className="note">{a.version} · {a.enabled ? 'runs here' : 'off here'}</span>
+                <strong>{a.title}</strong> <span className="note">{a.version} · {a.enabled ? t('apps.projectApps.runsHere') : t('apps.projectApps.offHere')}</span>
               </span>
               <button type="button" className="small" onClick={() => toggle.mutate(a)} disabled={toggle.isPending} aria-label={t('apps.projectApps.in', { v: a.enabled ? t('apps.projectApps.turnOff') : t('apps.projectApps.turnOn'), title: a.title, project: project })}>
                 {a.enabled ? t('apps.projectApps.turnItOffHere') : t('apps.projectApps.turnItOnHere')}

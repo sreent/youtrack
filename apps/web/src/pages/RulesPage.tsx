@@ -39,7 +39,7 @@ export default function RulesPage() {
   // As the server decides it (services/access.ts): the project's managers make its rules.
   const manages = project?.access.manage ?? false;
 
-  if (projects.isLoading) return <Loading what="projects" />;
+  if (projects.isLoading) return <Loading what={t('loading.projects')} />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   if (!project) {
     return (

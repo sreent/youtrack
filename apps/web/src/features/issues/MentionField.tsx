@@ -165,7 +165,7 @@ export function MentionField({
         </ul>
       ) : null}
       <span className="hidden" role="status">
-        {open ? t('issues.mentionField.toMentionUpAndDown', { length: people.length, v: people.length === 1 ? 'person' : 'people' }) : ''}
+        {open ? t('issues.mentionField.countToMention', { n: people.length }) : ''}
       </span>
     </div>
   );

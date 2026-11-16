@@ -82,9 +82,8 @@ export function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
 export function diffWords(lines: DiffLine[]): string {
   const added = lines.filter((l) => l.op === 'add').length;
   const removed = lines.filter((l) => l.op === 'del').length;
-  const n = (k: number, what: string) => `${k} ${k === 1 ? 'line' : 'lines'} ${what}`;
-  if (added && removed) return t('articles.diff.removed2', { n: n(added, 'added'), removed: removed });
-  if (added) return n(added, 'added');
-  if (removed) return n(removed, 'removed');
+  if (added && removed) return t('articles.diff.linesAddedRemoved', { added, removed });
+  if (added) return t('articles.diff.linesAdded', { n: added });
+  if (removed) return t('articles.diff.linesRemoved', { n: removed });
   return t('articles.diff.noLinesChanged');
 }

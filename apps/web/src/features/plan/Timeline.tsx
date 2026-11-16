@@ -10,7 +10,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { useSchedule, useWhatIf, type WhatIfChange } from './api';
 import { BaselinePicker, SaveBaselineDialog, type BaselineChoice } from './Baselines';
 import { dayMonth, span, workCalendar, type WorkCalendar } from './dates';
-import { days, plural, shift } from './format';
+import { shift } from './format';
 import { Gantt } from './Gantt';
 import { ganttRows, isMilestone } from './gantt';
 import { t, tr } from '../../i18n';
@@ -34,10 +34,10 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
             {', '}
             {b.finishVarianceDays === 0
               ? t('plan.timeline.asPlanned', { name: b.name })
-              : t('plan.timeline.than', { days: days(Math.abs(b.finishVarianceDays)), v: b.finishVarianceDays > 0 ? 'later' : 'earlier', name: b.name, dayMonth: dayMonth(b.finish) })}
+              : t(b.finishVarianceDays > 0 ? 'plan.timeline.daysLaterThan' : 'plan.timeline.daysEarlierThan', { n: Math.abs(b.finishVarianceDays), name: b.name, dayMonth: dayMonth(b.finish) })}
           </>
         ) : null })}</li>
-      <li>{tr('plan.timeline.onTheCriticalPath', { plural: plural(s.criticalPath.length, 'task') })}</li>
+      <li>{tr('plan.timeline.tasksOnTheCriticalPath', { n: s.criticalPath.length })}</li>
       <li>
         {late.length ? (
           <Badge tone="bad">{late.length === 1 ? t('plan.timeline.isLate', { id: late[0]!.issue.id }) : t('plan.timeline.tasksAreLate', { length: late.length })}</Badge>
@@ -47,7 +47,7 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
       </li>
       {tight ? (
         <li>
-          <Badge tone="warn">{tr('plan.timeline.hasToSpareBeforeIt', { id: tight.t.issue.id, v: tight.spare === 0 ? t('plan.timeline.noDay') : days(tight.spare), dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
+          <Badge tone="warn">{tr('plan.timeline.daysToSpare', { id: tight.t.issue.id, n: tight.spare, dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
         </li>
       ) : null}
     </ul>
@@ -59,7 +59,7 @@ function Warnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
   return (
     <details className="plan-notes">
-      <summary>{tr('plan.timeline.a4aAssumedToDrawThis', { plural: plural(warnings.length, 'thing') })}</summary>
+      <summary>{tr('plan.timeline.thingsA4aAssumed', { n: warnings.length })}</summary>
       <ul>
         {warnings.map((w) => (
           <li key={w}>{w}</li>
@@ -73,7 +73,7 @@ type ChangeKind = 'delay' | 'estimate' | 'assignee';
 
 function describe(change: WhatIfChange, task: ScheduleTask | undefined, people: Map<string, string>): string {
   const id = change.issue;
-  if (change.delayDays !== undefined) return t('plan.timeline.ifStartsLater', { id: id, days: days(change.delayDays) });
+  if (change.delayDays !== undefined) return t('plan.timeline.ifStartsDaysLater', { id: id, n: change.delayDays });
   if (change.estimate !== undefined) return t('plan.timeline.ifIsEstimatedAt', { id: id, estimate: change.estimate });
   if (change.assignee === null) return t('plan.timeline.ifNobodyIsAssigned', { id: id });
   if (change.assignee !== undefined) return t('plan.timeline.ifDoes', { v: people.get(change.assignee) ?? change.assignee, id: id, v2: task?.assignee ? t('plan.timeline.insteadOf', { name: task.assignee.name }) : '' });
@@ -93,7 +93,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
         {lead},{' '}
         {delta === 0
           ? t('plan.timeline.thePlanStillEndsOn', { dayMonth: dayMonth(after.finish) })
-          : t('plan.timeline.thePlanEnds', { days: days(Math.abs(delta)), v: delta > 0 ? 'later' : 'earlier' })}
+          : t(delta > 0 ? 'plan.timeline.thePlanEndsDaysLater' : 'plan.timeline.thePlanEndsDaysEarlier', { n: Math.abs(delta) })}
       </p>
       <ul className="change-lines">
         <li>
@@ -115,7 +115,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
       {nowLate.length ? (
         <div className="badges">
           {nowLate.map((t) => (
-            <Badge key={t.issue.id} tone="bad">{tr('plan.timeline.wouldBeLateItS', { id: t.issue.id, days: days(Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish))), dayMonth: dayMonth(t.deadline!) })}</Badge>
+            <Badge key={t.issue.id} tone="bad">{tr('plan.timeline.wouldBeDaysLate', { id: t.issue.id, n: (Math.max(1, workCalendar(after.calendar).between(t.deadline!, t.finish))), dayMonth: dayMonth(t.deadline!) })}</Badge>
           ))}
         </div>
       ) : null}

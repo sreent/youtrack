@@ -28,12 +28,12 @@ const isBitbucket = (p: VcsProvider) => p === 'bitbucket' || p === 'bitbucket-dc
 
 /** How a delivery went, with its shape. */
 const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
-  processed: { tone: 'good', word: 'handled' },
-  ignored: { tone: 'idle', word: 'ignored' },
+  processed: { tone: 'good', word: t('page.integrations.handled') },
+  ignored: { tone: 'idle', word: t('page.integrations.ignored') },
   duplicate: { tone: 'idle', word: t('page.integrations.hadItAlready') },
-  received: { tone: 'warn', word: 'being handled' },
-  refused: { tone: 'bad', word: 'refused' },
-  failed: { tone: 'bad', word: 'failed' },
+  received: { tone: 'warn', word: t('page.integrations.beingHandled') },
+  refused: { tone: 'bad', word: t('page.integrations.refused') },
+  failed: { tone: 'bad', word: t('page.integrations.failed') },
 };
 
 /** Where to put the URL and secret, in the provider's own words. */
@@ -118,7 +118,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
                   {d.outcome === 'refused' || d.outcome === 'failed' ? `, ${d.statusCode}` : ''}
                 </Badge>
                 {d.linked || d.applied ? (
-                  <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.applied', { applied: d.applied, v: d.applied === 1 ? 'command' : 'commands' }) : '' })}</span>
+                  <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.commandsApplied', { n: d.applied }) : '' })}</span>
                 ) : null}
               </td>
               <td>{d.message}</td>
@@ -464,7 +464,7 @@ export default function IntegrationsPage() {
       />
       <section className="card" aria-labelledby="vcs-list">
         <h2 id="vcs-list">{t('page.integrations.whereTheyComeFrom')}</h2>
-        {integrations.isLoading ? <Loading what="integrations" /> : null}
+        {integrations.isLoading ? <Loading what={t('loading.integrations')} /> : null}
         {integrations.error ? <ErrorNote error={integrations.error} /> : null}
         {integrations.data && !integrations.data.length ? <p className="note">{t('page.integrations.nowhereYetAddAnIntegration')}</p> : null}
         {integrations.data?.length ? (

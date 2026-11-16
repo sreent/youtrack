@@ -8,11 +8,10 @@ import { intlLocale, t, tr } from '../../i18n';
 /** A length of time as people say it: "40 minutes", "3 hours", "2 days". */
 export function span(ms: number): string {
   const minutes = Math.max(1, Math.round(Math.abs(ms) / 60_000));
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  if (minutes < 60) return t('count.minutes', { n: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-  const days = Math.round(hours / 24);
-  return t('helpdesk.requestCard.days', { days: days });
+  if (hours < 48) return t('count.hours', { n: hours });
+  return t('count.days', { n: Math.round(hours / 24) });
 }
 
 /**

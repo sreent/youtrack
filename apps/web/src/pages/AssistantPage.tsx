@@ -132,7 +132,7 @@ export default function AssistantPage() {
         <div className="stack">
           <nav className="card side-card nav-card" aria-label={t('page.assistant.yourConversations')}>
             <h2>{t('page.assistant.yourConversations')}</h2>
-            {list.isLoading ? <Loading what="conversations" /> : null}
+            {list.isLoading ? <Loading what={t('loading.conversations')} /> : null}
             {list.error ? <ErrorNote error={list.error} /> : null}
             {list.data && !list.data.length ? <p className="note">{t('page.assistant.noneYetWhatYouAsk')}</p> : null}
             {list.data?.length ? (

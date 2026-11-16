@@ -20,7 +20,7 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
-import { intlLocale, t, tr } from '../../i18n';
+import { formatList, intlLocale, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Actor = TrackerEvent['actor'];
@@ -62,12 +62,12 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
       // An app's agent acting as itself (its rules), or a person through an app's widget or handler (D48).
       return actor.isBot
         ? { kind: 'agent', name: actor.name ?? actor.token ?? t('issues.issueHistory.anApp'), via: t('issues.issueHistory.anAppOnItsOwn') }
-        : { kind: 'person', name: person, via: t('issues.issueHistory.viaTheApp', { v: actor.token ?? 'an' }) };
+        : { kind: 'person', name: person, via: actor.token ? t('issues.issueHistory.viaTheApp', { v: actor.token }) : t('issues.issueHistory.viaAnApp') };
     case 'vcs':
       // A commit's author, known by a confirmed email or their login at the provider, or the integration itself.
       return actor.id
-        ? { kind: 'person', name: person, via: t('issues.issueHistory.from', { v: actor.token ?? 'version control' }) }
-        : { kind: 'service', name: actor.token ?? 'version control', via: t('issues.issueHistory.fromVersionControl') };
+        ? { kind: 'person', name: person, via: actor.token ? t('issues.issueHistory.from', { v: actor.token }) : t('issues.issueHistory.fromVersionControl') }
+        : { kind: 'service', name: actor.token ?? t('issues.issueHistory.versionControl'), via: t('issues.issueHistory.fromVersionControl') };
     case 'ci':
       // A build CI reported, through its build source (D46).
       return { kind: 'service', name: actor.token ?? 'CI', via: t('issues.issueHistory.fromABuild') };
@@ -134,7 +134,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
       const imported = data.imported as { source?: string; key?: string; createdAt?: string; reporter?: string } | undefined;
       if (imported) {
-        const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : 'another tracker';
+        const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : t('issues.issueHistory.anotherTracker');
         const on = imported.createdAt ? t('issues.issueHistory.whereItWasReported', { when: when(imported.createdAt), v: imported.reporter ? t('issues.issueHistory.by', { reporter: imported.reporter }) : '' }) : '';
         return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? t('issues.issueHistory.itsKeyThere'), on: on }) };
       }
@@ -142,7 +142,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'sprint.issue_added':
     case 'sprint.issue_removed':
-      return { ...base, did: `${e.type === 'sprint.issue_added' ? t('issues.issueHistory.putItIn') : t('issues.issueHistory.tookItOutOf')} ${String(data.sprint ?? t('issues.issueHistory.aSprint'))}${data.board ? t('issues.issueHistory.on2', { String: String(data.board) }) : ''}` };
+      return { ...base, did: t(e.type === 'sprint.issue_added' ? 'issues.issueHistory.putItInSprint' : 'issues.issueHistory.tookItOutOfSprint', { sprint: String(data.sprint ?? t('issues.issueHistory.aSprint')), on: data.board ? t('issues.issueHistory.on2', { String: String(data.board) }) : '' }) };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {
@@ -195,7 +195,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Moved to another project (D41): the id it had, the one it has, and what its fields became.
       return {
         ...base,
-        did: t('issues.issueHistory.movedItFromTo', { String: String(data.from ?? 'another project'), String2: String(data.to ?? t('issues.issueHistory.thisProject')) }),
+        did: t('issues.issueHistory.movedItFromTo', { String: data.from ? String(data.from) : t('issues.issueHistory.anotherProject'), String2: String(data.to ?? t('issues.issueHistory.thisProject')) }),
         body: (
           <ul className="change-lines">
             {e.changes.map((c) => (
@@ -241,7 +241,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         ),
       };
     case 'work.deleted':
-      return { ...base, did: 'removed some logged work' };
+      return { ...base, did: t('issues.issueHistory.removedSomeLoggedWork') };
     case 'attachment.added':
     case 'attachment.removed': {
       // A comment's files show under its words; only the issue's own are said here.
@@ -263,13 +263,13 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     case 'ai.triage.completed': {
       const n = Number(data.fields ?? 0);
       const dups = Number(data.duplicates ?? 0);
-      const parts = [n ? t('issues.issueHistory.workedOutForAPerson', { n: n, v: n === 1 ? 'field' : 'fields' }) : t('issues.issueHistory.lookedAtItAndSuggested')];
-      if (dups) parts.push(t('issues.issueHistory.foundPossible', { dups: dups, v: dups === 1 ? 'duplicate' : 'duplicates' }));
-      return { ...base, did: parts.join(t('issues.issueHistory.and')) };
+      const parts = [n ? t('issues.issueHistory.workedOutFields', { n: n }) : t('issues.issueHistory.lookedAtItAndSuggested')];
+      if (dups) parts.push(t('issues.issueHistory.foundPossibleDuplicates', { n: dups }));
+      return { ...base, did: formatList(parts) };
     }
     case 'rule.notified': {
       const people = Array.isArray(data.people) ? (data.people as unknown[]).map((p) => `@${String(p)}`) : [];
-      const told = people.length <= 1 ? (people[0] ?? t('issues.issueHistory.nobody')) : t('issues.issueHistory.and2', { join: people.slice(0, -1).join(', '), v: people[people.length - 1] });
+      const told = people.length ? formatList(people) : t('issues.issueHistory.nobody');
       return {
         ...base,
         did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told }),
@@ -285,12 +285,13 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     case 'sla.warning':
     case 'sla.breached': {
       // What time alone brought to a request's targets (D45), said by the help desk's agent.
-      const target = data.target === 'resolution' ? 'resolution' : 'first-response';
-      const policy = typeof data.policy === 'string' ? ` (${data.policy})` : '';
+      // Which target, as a code its message chooses words by; the policy by its name, where it has one.
+      const target = data.target === 'resolution' ? 'resolution' : 'first_response';
+      const policy = typeof data.policy === 'string' ? data.policy : null;
       const due = typeof data.dueAt === 'string' ? new Date(data.dueAt).toLocaleString(intlLocale()) : null;
       return {
         ...base,
-        did: e.type === 'sla.warning' ? t('issues.issueHistory.saidItsTargetIsAt', { target: target, policy: policy, v: due ? t('issues.issueHistory.due', { due: due }) : '' }) : t('issues.issueHistory.saidItWentPastIts', { target: target, policy: policy, v: due ? t('issues.issueHistory.due2', { due: due }) : '' }),
+        did: e.type === 'sla.warning' ? t(policy ? 'issues.issueHistory.slaAtRiskPolicy' : 'issues.issueHistory.slaAtRisk', { target: target, policy: policy, v: due ? t('issues.issueHistory.due', { due: due }) : '' }) : t(policy ? 'issues.issueHistory.slaBreachedPolicy' : 'issues.issueHistory.slaBreached', { target: target, policy: policy, v: due ? t('issues.issueHistory.due2', { due: due }) : '' }),
       };
     }
     default:

@@ -158,7 +158,7 @@ export function YourEmails() {
       {!canSend ? <p className="note">{t('vcs.people.a4aCanTSendEmail')}</p> : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {logins.data?.length ? (
-        <p className="note">{tr('vcs.people.versionControlKnowsYouBy', { v: logins.data.length > 1 ? 's' : '', map: logins.data.map((l, i) => (
+        <p className="note">{tr('vcs.people.versionControlKnowsYouByLogins', { n: logins.data.length, map: logins.data.map((l, i) => (
             <span key={l.id}>
               {i ? ', ' : ''}
               {VCS_PROVIDER_NAMES[l.provider]} <span className="mono">{l.login}</span>
@@ -174,8 +174,8 @@ const LOGIN_HELP: Record<VcsProvider, { help: string; placeholder: string }> = {
   github: { help: t('vcs.people.theirGithubUsername'), placeholder: 'anna-s' },
   gitlab: { help: t('vcs.people.theirGitlabUsernameGitlabNames'), placeholder: 'anna.s' },
   bitbucket: { help: t('vcs.people.theirAccountIdOrUuid'), placeholder: '557058:…' },
-  'bitbucket-dc': { help: t('vcs.people.theirBitbucketDataCenterUsername'), placeholder: 'anna' },
-  gitea: { help: t('vcs.people.theirGiteaOrForgejoUsername'), placeholder: 'anna' },
+  'bitbucket-dc': { help: t('vcs.people.theirBitbucketDataCenterUsername'), placeholder: 'anna' }, // not words: an example login
+  gitea: { help: t('vcs.people.theirGiteaOrForgejoUsername'), placeholder: 'anna' }, // not words: an example login
 };
 
 /** One person's emails and logins, as an administrator sees and changes them. */
@@ -230,7 +230,7 @@ function PersonPanel({ person }: { person: User }) {
   return (
     <div className="stack">
       <h3>{tr('vcs.people.emailsOf', { name: person.name })}</h3>
-      {emails.isLoading ? <Loading what="their emails" /> : null}
+      {emails.isLoading ? <Loading what={t('vcs.people.theirEmails')} /> : null}
       {emails.error ? <ErrorNote error={emails.error} /> : null}
       {emails.data && !emails.data.emails.length ? <p className="note">{t('vcs.people.noEmailYet')}</p> : null}
       {emails.data?.emails.length ? (
@@ -294,7 +294,7 @@ function PersonPanel({ person }: { person: User }) {
       </form>
 
       <h3>{tr('vcs.people.loginsOf', { name: person.name })}</h3>
-      {logins.isLoading ? <Loading what="their logins" /> : null}
+      {logins.isLoading ? <Loading what={t('vcs.people.theirLogins')} /> : null}
       {logins.error ? <ErrorNote error={logins.error} /> : null}
       {logins.data && !logins.data.length ? <p className="note">{t('vcs.people.noneRecorded')}</p> : null}
       {logins.data?.length ? (

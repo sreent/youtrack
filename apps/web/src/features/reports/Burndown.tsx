@@ -9,7 +9,6 @@ import { useId } from 'react';
 import { Link } from 'react-router';
 import { Badge } from '../../components/Badges';
 import { dayMonth, spanWords } from '../plan/dates';
-import { plural } from '../plan/format';
 import { hoursOf, labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
 import { t, tr } from '../../i18n';
 
@@ -27,7 +26,7 @@ const VERDICT: Record<Burndown['status']['verdict'], { tone: 'good' | 'warn' | '
 
 /** Its figure in the report's unit: "12h" by estimate, "3 issues" by count. */
 export function burnAmount(b: Burndown, n: number): string {
-  return b.by === 'count' ? plural(Math.round(n), 'issue') : hoursOf(n);
+  return b.by === 'count' ? t('count.issues', { n: Math.round(n) }) : hoursOf(n);
 }
 
 const short = (b: Burndown, n: number) => (b.by === 'count' ? String(Math.round(n)) : hoursOf(n));
@@ -235,7 +234,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
             {b.sprint.name} <span className="note">{tr('reports.burndown.on', { name: b.sprint.board.name })}</span>
           </h2>
           <p className="note">
-            {spanWords(b.sprint.startDate, b.sprint.endDate)}, {plural(b.workingDays, 'working day')}
+            {spanWords(b.sprint.startDate, b.sprint.endDate)}, {t('count.workingDays', { n: b.workingDays })}
             {b.sprint.goal ? ` · ${b.sprint.goal}` : ''}
           </p>
         </div>
@@ -271,7 +270,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
       ) : null}
       {!compact && b.changes.length ? (
         <details className="chart-more">
-          <summary>{tr('reports.burndown.toItsScopeAndProgress', { plural: plural(b.changes.length, 'change') })}</summary>
+          <summary>{tr('reports.burndown.changesToItsScope', { n: b.changes.length })}</summary>
           <ul>
             {b.changes.map((c, i) => (
               <li key={`${c.at}-${c.issue}-${i}`}>
