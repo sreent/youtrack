@@ -18,7 +18,11 @@ import {
   ROLES,
   RULE_EVERY,
   RULE_KINDS,
+  RULE_MATCH,
   RULE_OUTCOMES,
+  RULE_RELATIONS,
+  RULE_TARGETS,
+  RULE_TELL,
   RULE_TRIGGERS,
   SCOPES,
   SLA_STATES,
@@ -1647,6 +1651,41 @@ export const RuleScheduleSchema = z
   .meta({ id: 'RuleSchedule' });
 export type RuleSchedule = z.infer<typeof RuleScheduleSchema>;
 
+/** A further condition, on issues related to the one that set the rule off. */
+export const RuleRelatedSchema = z
+  .object({
+    of: z
+      .enum(RULE_RELATIONS)
+      .describe('"parent": its parent; "subtasks": its subtasks; "siblings": its parent\'s subtasks, itself among them; "linked": the issues linked to it as `phrase` says'),
+    phrase: z.string().max(60).nullable().optional().describe('For "linked": the link as it reads from this issue, e.g. "depends on", "is required for", "relates to"'),
+    match: z
+      .enum(RULE_MATCH)
+      .default('all')
+      .describe('"all": there is at least one, and every one matches; "any": at least one matches. A parent matches as "any"'),
+    query: z.string().max(2000).describe('What they must match, in the query language'),
+  })
+  .meta({ id: 'RuleRelated' });
+export type RuleRelated = z.infer<typeof RuleRelatedSchema>;
+
+/** The issues a rule acts on. */
+export const RuleTargetSchema = z
+  .object({
+    to: z.enum(RULE_TARGETS).default('issue').describe('"issue": the one that set it off (or matched, on a schedule); "parent", "subtasks", or "linked" as `phrase` says'),
+    phrase: z.string().max(60).nullable().optional().describe('For "linked": the link as it reads from the issue, e.g. "depends on"'),
+  })
+  .meta({ id: 'RuleTarget' });
+export type RuleTarget = z.infer<typeof RuleTargetSchema>;
+
+/** Whom a rule tells, and what. */
+export const RuleNotifySchema = z
+  .object({
+    to: z.array(z.enum(RULE_TELL)).max(RULE_TELL.length).default([]).describe("Of each issue it acts on: its assignee, its reporter, its watchers, its project's managers"),
+    people: z.array(z.string().max(40)).max(20).default([]).describe('People it tells besides, by login'),
+    message: z.string().trim().min(1).max(2000).describe("What they're told, in the rule's own words"),
+  })
+  .meta({ id: 'RuleNotify' });
+export type RuleNotify = z.infer<typeof RuleNotifySchema>;
+
 export const RuleBody = z.object({
   project: z.string().nullable().describe('Project key; null for a global rule, for every project (administrators only)'),
   name: z.string().min(1).max(80),
@@ -1663,11 +1702,21 @@ export const RuleBody = z.object({
   comment: z.string().max(5000).nullable().optional().describe('A comment the command posts with its change'),
   requires: z.string().max(2000).nullable().optional().describe('A guard: what the issue must also match, e.g. "has: comments"'),
   message: z.string().max(500).nullable().optional().describe('A guard: what a refused change is told, e.g. "Say why in a comment"'),
+  related: RuleRelatedSchema.nullable()
+    .optional()
+    .describe("A change or scheduled rule: a further condition, on its parent, its subtasks, its parent's subtasks or the issues linked to it"),
+  target: RuleTargetSchema.nullable().optional().describe('A change or scheduled rule: the issues it acts on. Without it, the issue itself'),
+  notify: RuleNotifySchema.nullable().optional().describe('A change or scheduled rule: whom it tells, and what, in their inbox and by email at their level'),
+  call: z
+    .object({ webhook: z.string().describe("A webhook's id") })
+    .nullable()
+    .optional()
+    .describe("A change or scheduled rule: a webhook it calls about each issue it acts on, signed with the webhook's secret. Administrators only, and only an https webhook"),
   enabled: z.boolean().default(true),
 });
 export type RuleInput = z.input<typeof RuleBody>;
 
-export const RULE_PARTS = ['name', 'trigger', 'field', 'schedule', 'query', 'requires', 'command'] as const;
+export const RULE_PARTS = ['name', 'trigger', 'field', 'schedule', 'query', 'requires', 'command', 'related', 'target', 'notify', 'call'] as const;
 export const RuleProblemSchema = QueryProblemSchema.extend({
   part: z.enum(RULE_PARTS).describe('Which part of the rule it is in'),
 }).meta({ id: 'RuleProblem' });
@@ -1701,6 +1750,13 @@ export const RuleSchema = z
     comment: z.string().nullable(),
     requires: z.string().nullable(),
     message: z.string().nullable(),
+    related: RuleRelatedSchema.nullable(),
+    target: RuleTargetSchema.describe('The issues it acts on; "issue" for the issue itself'),
+    notify: RuleNotifySchema.nullable(),
+    call: z
+      .object({ webhook: z.string(), origin: z.string().nullable().describe('Where the webhook is, without its path: https://host') })
+      .nullable()
+      .describe('The webhook it calls, if any'),
     enabled: z.boolean(),
     sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
     problems: z
@@ -1733,8 +1789,16 @@ export const RulePreviewSchema = z
       .nullable()
       .describe('A guard: issues that match its query now but not what it requires (they were changed before it existed)'),
     sample: z
-      .array(z.object({ issue: IssueRefSchema, changes: z.array(ChangeSchema), errors: z.array(z.string()) }))
-      .describe('A few of the matching issues, with what the command would change on each (a dry run)'),
+      .array(
+        z.object({
+          issue: IssueRefSchema,
+          changes: z.array(ChangeSchema),
+          errors: z.array(z.string()),
+          via: IssueRefSchema.nullable().optional().describe('When the rule acts on related issues: the matching issue this one is related to'),
+          told: z.array(UserRefSchema).optional().describe('Whom it would tell about this issue'),
+        }),
+      )
+      .describe('A few of the issues it would act on, with what the command would change on each (a dry run)'),
     note: z.string().describe('What the preview shows, in words'),
   })
   .meta({ id: 'RulePreview' });
@@ -1743,7 +1807,7 @@ export type RulePreview = z.infer<typeof RulePreviewSchema>;
 export const RuleCheckBody = z.object({
   project: z.string().nullable(),
   kind: z.enum(RULE_KINDS),
-  part: z.enum(['query', 'requires', 'command']),
+  part: z.enum(['query', 'requires', 'command', 'related']),
   text: z.string().max(2000),
   caret: z.number().int().min(0).optional(),
 });

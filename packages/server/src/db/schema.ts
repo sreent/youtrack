@@ -611,6 +611,14 @@ export const rules = pgTable(
     requires: text('requires'),
     /** A guard: what a refused change is told. */
     message: text('message'),
+    /** A further condition, on issues related to the one that set it off (RuleRelated). */
+    related: jsonb('related'),
+    /** The issues it acts on (RuleTarget); null: the issue itself. */
+    target: jsonb('target'),
+    /** Whom it tells about each issue it acts on, and what (RuleNotify). */
+    notify: jsonb('notify'),
+    /** A webhook it calls about each issue it acts on. A webhook a rule calls can't be deleted until the rule lets it go. */
+    callWebhookId: text('call_webhook_id').references(() => webhooks.id, { onDelete: 'restrict' }),
     enabled: boolean('enabled').notNull().default(true),
     nextRunAt: ts('next_run_at'),
     lastRunAt: ts('last_run_at'),

@@ -9,16 +9,23 @@
  * its own project's names (match.ts, ruleWorld), so nothing in it can probe another.
  */
 import {
+  RULE_MATCH,
+  RULE_RELATIONS,
+  RULE_TARGETS,
+  RULE_TELL,
   RULE_TRIGGERS,
   type Change,
   type QueryProblem,
   type Rule,
   type RuleInput,
   type RuleKind,
+  type RuleNotify,
   type RulePreview,
   type RuleProblem,
+  type RuleRelated,
   type RuleRun,
   type RuleSchedule,
+  type RuleTarget,
   type RuleTrigger,
   type SuggestItem,
 } from '@a4a/shared';
@@ -29,7 +36,8 @@ import { describeCommand, parseCommand, suggestCommand } from '../commands/parse
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
-import { issues, ruleRuns, rules } from '../db/schema';
+import { issues, ruleRuns, rules, webhooks } from '../db/schema';
+import { callableUrl, webhookOrigin } from '../events/webhooks';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { compileQuery } from '../search/compiler';
@@ -41,8 +49,9 @@ import { issueRefsById } from '../services/issue-refs';
 import { findVisibleIssue } from '../services/issues';
 import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
 import { resolveFieldInput, userRefDto } from '../services/values';
-import { condition, parsedQuery, ruleWorld } from './match';
-import { DEFAULT_AT, nextRunAfter, ruleSentence, scheduleWords, triggerWords } from './words';
+import { aggregationTypeIds, condition, parsedQuery, relatedSql, ruleWorld, rulePhrase, rulePhrases, targetIssues, type RelatedCondition } from './match';
+import { recipientsFor, seeingProject, tidyLogins } from './tell';
+import { DEFAULT_AT, nextRunAfter, relatedWords, ruleSentence, scheduleWords, targetWords, triggerWords } from './words';
 
 /** A rule as the service works with it: names resolved, every part present. */
 export interface Draft {
@@ -57,6 +66,13 @@ export interface Draft {
   comment: string | null;
   requires: string | null;
   message: string | null;
+  /** A further condition, on issues related to the one it acts for. */
+  related: RuleRelated | null;
+  /** The issues it acts on; null: the issue itself. */
+  target: RuleTarget | null;
+  notify: RuleNotify | null;
+  /** The webhook it calls, if any. */
+  callWebhookId: string | null;
   enabled: boolean;
 }
 
@@ -79,6 +95,32 @@ const trimmed = (v: string | null | undefined): string | null => {
   return t ? t : null;
 };
 
+const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T => typeof v === 'string' && (list as readonly string[]).includes(v);
+
+/** The stored parts, read back as they were checked when they were saved. */
+function relatedOf(v: unknown): RuleRelated | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  if (!oneOf(RULE_RELATIONS, r.of) || typeof r.query !== 'string') return null;
+  return { of: r.of, phrase: typeof r.phrase === 'string' ? r.phrase : null, match: oneOf(RULE_MATCH, r.match) ? r.match : 'all', query: r.query };
+}
+
+function targetOf(v: unknown): RuleTarget | null {
+  if (!v || typeof v !== 'object') return null;
+  const t = v as Record<string, unknown>;
+  if (!oneOf(RULE_TARGETS, t.to) || t.to === 'issue') return null;
+  return { to: t.to, phrase: typeof t.phrase === 'string' ? t.phrase : null };
+}
+
+function notifyOf(v: unknown): RuleNotify | null {
+  if (!v || typeof v !== 'object') return null;
+  const n = v as Record<string, unknown>;
+  if (typeof n.message !== 'string') return null;
+  const to = Array.isArray(n.to) ? n.to.filter((x): x is RuleNotify['to'][number] => oneOf(RULE_TELL, x)) : [];
+  const people = Array.isArray(n.people) ? n.people.filter((x): x is string => typeof x === 'string') : [];
+  return { to, people, message: n.message };
+}
+
 export function draftOf(row: RuleRow): Draft {
   return {
     projectId: row.projectId,
@@ -92,12 +134,20 @@ export function draftOf(row: RuleRow): Draft {
     comment: row.comment,
     requires: row.requires,
     message: row.message,
+    related: relatedOf(row.related),
+    target: targetOf(row.target),
+    notify: notifyOf(row.notify),
+    callWebhookId: row.callWebhookId,
     enabled: row.enabled,
   };
 }
 
 /** Only the parts that belong to the rule's kind, tidied. */
 function tidy(d: Draft): Draft {
+  const acts = d.kind !== 'guard';
+  const r = acts ? d.related : null;
+  const t = acts && d.target && d.target.to !== 'issue' ? d.target : null;
+  const n = acts ? d.notify : null;
   return {
     ...d,
     name: d.name.trim(),
@@ -109,6 +159,11 @@ function tidy(d: Draft): Draft {
     comment: d.kind === 'guard' ? null : trimmed(d.comment),
     requires: d.kind === 'guard' ? trimmed(d.requires) : null,
     message: d.kind === 'guard' ? trimmed(d.message) : null,
+    // A parent is one issue: it matches or it doesn't.
+    related: r ? { of: r.of, phrase: r.of === 'linked' ? trimmed(r.phrase) : null, match: r.of === 'parent' ? 'any' : (r.match ?? 'all'), query: r.query.trim() } : null,
+    target: t ? { to: t.to, phrase: t.to === 'linked' ? trimmed(t.phrase) : null } : null,
+    notify: n ? { to: RULE_TELL.filter((k) => n.to.includes(k)), people: tidyLogins(n.people), message: n.message.trim() } : null,
+    callWebhookId: acts ? d.callWebhookId : null,
   };
 }
 
@@ -138,6 +193,10 @@ function draftFrom(projectId: string | null, input: RuleInput): Draft {
     comment: input.comment ?? null,
     requires: input.requires ?? null,
     message: input.message ?? null,
+    related: input.related ? { of: input.related.of, phrase: input.related.phrase ?? null, match: input.related.match ?? 'all', query: input.related.query } : null,
+    target: input.target ? { to: input.target.to ?? 'issue', phrase: input.target.phrase ?? null } : null,
+    notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null,
+    callWebhookId: input.call?.webhook ?? null,
     enabled: input.enabled ?? true,
   });
 }
@@ -195,13 +254,66 @@ export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
   if (d.query) add('query', queryProblems(s, d, d.query));
   if (d.kind === 'guard' && d.requires) add('requires', queryProblems(s, d, d.requires));
   if (d.kind !== 'guard') {
-    if (!d.command && !d.comment) add('command', [{ message: 'Say what it changes, or a comment for it to post', hint: 'e.g. tag urgent', ...whole('') }]);
+    if (!d.command && !d.comment && !d.notify && !d.callWebhookId) {
+      add('command', [{ message: 'Say what it does: a change to make, a comment to post, whom to tell, or a webhook to call', hint: 'e.g. tag urgent', ...whole('') }]);
+    }
     if (d.command) {
       const parsed = parseCommand(d.command, s, projectIdsFor(s, d));
       add('command', d.kind === 'schedule' ? [...meProblems(d.command), ...parsed.problems] : parsed.problems);
     }
+    if (d.related) add('related', relatedProblems(s, d, d.related));
+    if (d.target) add('target', linkProblems(s, d.target.to, d.target.phrase));
+    if (d.notify) add('notify', notifyProblems(s, d.notify));
   }
   return out;
+}
+
+/** A link phrase a rule follows, or what's wrong with it; and that subtask links exist for a parent and subtasks. */
+function linkProblems(s: SchemaSnapshot, of: RuleRelated['of'] | RuleTarget['to'], phrase: string | null | undefined): QueryProblem[] {
+  if (of === 'issue') return [];
+  if (of !== 'linked') {
+    return aggregationTypeIds(s).length ? [] : [{ message: 'There is no subtask link here, so no issue has a parent or subtasks', hint: 'Add a link type that makes subtasks, or follow another link.', ...whole('') }];
+  }
+  const text = phrase?.trim() ?? '';
+  if (!text) return [{ message: 'Say which link: how it reads from the issue', hint: `e.g. ${rulePhrases(s)[0] ?? 'depends on'}`, ...whole('') }];
+  if (rulePhrase(s, text)) return [];
+  const sub = s.linkPhrases.find((x) => x.phrase === text.toLowerCase() && x.type.aggregation);
+  if (sub) return [{ message: `“${text}” is a subtask link`, hint: sub.direction === 'inward' ? 'Say “its parent” instead.' : 'Say “its subtasks” instead.', ...whole(text) }];
+  return [{ message: `There is no link “${text}” here`, hint: `Say one of: ${rulePhrases(s).join(', ')}.`, ...whole(text) }];
+}
+
+function relatedProblems(s: SchemaSnapshot, d: Draft, r: RuleRelated): QueryProblem[] {
+  const out = linkProblems(s, r.of, r.phrase);
+  if (!r.query.trim()) out.push({ message: 'Say what they must match', hint: 'e.g. #Resolved', ...whole('') });
+  else out.push(...queryProblems(s, d, r.query));
+  return out;
+}
+
+function notifyProblems(s: SchemaSnapshot, n: RuleNotify): QueryProblem[] {
+  const out: QueryProblem[] = [];
+  if (!n.to.length && !n.people.length) {
+    out.push({ message: "Say whom it tells: its assignee, its reporter, its watchers, the project's managers, or people by name", ...whole('') });
+  }
+  if (!n.message.trim()) out.push({ message: "Say what they're told", ...whole('') });
+  for (const login of n.people) {
+    const u = s.usersByLogin.get(login.toLowerCase());
+    if (!u) out.push({ message: `There is no one called “${login}”`, hint: 'Name someone by their login, e.g. anna.', ...whole(login) });
+    else if (u.isBot) out.push({ message: `${u.name} is an agent, and agents aren't told`, hint: 'Name a person.', ...whole(login) });
+  }
+  return out;
+}
+
+/** What stops a rule from calling its webhook: only administrators make such rules, and only https webhooks are called. */
+async function callProblems(ctx: Ctx, webhookId: string): Promise<RuleProblem[]> {
+  if (!ctx.actor.scopes.includes('admin')) {
+    return [{ part: 'call', message: 'Only administrators can make a rule call a webhook', hint: 'Tell people instead, or ask an administrator.', ...whole('') }];
+  }
+  const [hook] = await ctx.db.select({ url: webhooks.url }).from(webhooks).where(eq(webhooks.id, webhookId));
+  if (!hook) return [{ part: 'call', message: 'There is no such webhook', hint: 'Choose one on the Webhooks page.', ...whole('') }];
+  if (!callableUrl(hook.url)) {
+    return [{ part: 'call', message: "Its webhook's address isn't https", hint: 'A rule calls only https webhooks, or one on this machine.', ...whole('') }];
+  }
+  return [];
 }
 
 /**
@@ -211,6 +323,18 @@ export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
  */
 export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promise<RuleProblem[]> {
   const out = readingProblems(s, d);
+  if (d.kind !== 'guard' && d.callWebhookId) out.push(...(await callProblems(ctx, d.callWebhookId)));
+  // A project's rule tells only people who can see the project: naming someone who can't is a mistake to say now.
+  if (d.kind !== 'guard' && d.notify?.people.length && d.projectId) {
+    const named = d.notify.people.map((l) => s.usersByLogin.get(l.toLowerCase())).filter((u): u is UserRow => Boolean(u && !u.isBot));
+    const seeing = await seeingProject(ctx.db, d.projectId, named.map((u) => u.id));
+    const key = s.projects.get(d.projectId)?.key ?? 'the project';
+    for (const u of named) {
+      if (!seeing.has(u.id)) {
+        out.push({ part: 'notify', message: `${u.name} can't see ${key}, so the rule could never tell them`, hint: 'Name someone who can see it, or tell its watchers.', ...whole(u.login) });
+      }
+    }
+  }
   if (d.kind === 'guard' || !d.command || out.some((p) => p.part === 'command')) return out;
   const parsed = parseCommand(d.command, s, projectIdsFor(s, d));
   for (const op of parsed.ops) {
@@ -276,9 +400,10 @@ function runDto(s: SchemaSnapshot, row: RunRow, ruleName: string): RuleRun {
  * A rule as a reader sees it. `seen` is the tracker as they see it: a rule for every project is
  * read over it, so what it says is wrong with the rule names nothing they can't see.
  */
-export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undefined): Rule {
+export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undefined, origins: Map<string, string | null> = new Map()): Rule {
   const d = draftOf(row);
   const by = row.createdById ? s.users.get(row.createdById) : undefined;
+  const callOrigin = row.callWebhookId ? (origins.get(row.callWebhookId) ?? null) : null;
   return {
     id: row.id,
     project: row.projectId ? (s.projects.get(row.projectId)?.key ?? null) : null,
@@ -292,8 +417,12 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
     comment: row.comment,
     requires: row.requires,
     message: row.message,
+    related: d.related,
+    target: d.target ?? { to: 'issue', phrase: null },
+    notify: d.notify,
+    call: row.callWebhookId ? { webhook: row.callWebhookId, origin: callOrigin } : null,
     enabled: row.enabled,
-    sentence: ruleSentence(d),
+    sentence: ruleSentence({ ...d, callOrigin, calls: Boolean(row.callWebhookId) }),
     problems: readingProblems(row.projectId ? ruleWorld(s, row.projectId) : seen, d),
     nextRunAt: row.kind === 'schedule' && row.enabled ? (row.nextRunAt?.toISOString() ?? null) : null,
     lastRunAt: row.lastRunAt?.toISOString() ?? null,
@@ -330,6 +459,14 @@ async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {
   return new Map(rows.map((r) => [r.ruleId, r]));
 }
 
+/** Where the webhooks some rules call are (https://host), by id: what a rule's sentence says of its call. */
+async function webhookOrigins(db: Db, rows: RuleRow[]): Promise<Map<string, string | null>> {
+  const ids = [...new Set(rows.map((r) => r.callWebhookId).filter((id): id is string => Boolean(id)))];
+  if (!ids.length) return new Map();
+  const hooks = await db.select({ id: webhooks.id, url: webhooks.url }).from(webhooks).where(inArray(webhooks.id, ids));
+  return new Map(hooks.map((h) => [h.id, webhookOrigin(h.url)]));
+}
+
 // ---------------------------------------------------------------------------
 // Reading
 // ---------------------------------------------------------------------------
@@ -361,12 +498,13 @@ export async function listRules(ctx: Ctx, opts: { project?: string } = {}): Prom
   }
   const last = await lastRuns(ctx, rows.map((r) => r.id));
   const seen = await visibleSchema(ctx);
-  return rows.map((r) => ruleDto(s, seen, r, last.get(r.id)));
+  const origins = await webhookOrigins(ctx.db, rows);
+  return rows.map((r) => ruleDto(s, seen, r, last.get(r.id), origins));
 }
 
 export async function getRule(ctx: Ctx, id: string): Promise<Rule> {
   const row = await loadRule(ctx, id);
-  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row, (await lastRuns(ctx, [row.id])).get(row.id));
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row, (await lastRuns(ctx, [row.id])).get(row.id), await webhookOrigins(ctx.db, [row]));
 }
 
 /** What rules did: a rule's runs, or those in a project, newest first. */
@@ -408,6 +546,17 @@ async function assertCanManage(ctx: Ctx, projectId: string | null): Promise<void
   }
 }
 
+/**
+ * A rule that calls a webhook sends what it knows of issues to an address an administrator chose,
+ * on its own, every time it acts: making, changing or deleting one is theirs. A project's manager
+ * can still turn it off.
+ */
+function assertCanCall(ctx: Ctx): void {
+  if (!ctx.actor.scopes.includes('admin')) {
+    throw forbidden('Only administrators can make, change or delete a rule that calls a webhook', 'Turn it off instead, or ask an administrator.');
+  }
+}
+
 function refuseProblems(problems: RuleProblem[]): never {
   throw badRequest(`The rule needs fixing: ${problemText(problems)}`, 'Preview it to see each problem where it is.', { problems });
 }
@@ -416,6 +565,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
   requireScope(ctx, 'write');
   const d = draftFrom(await projectIdOf(ctx, input.project, 'manage'), input);
   await assertCanManage(ctx, d.projectId);
+  if (d.callWebhookId) assertCanCall(ctx);
   const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
   if (problems.length) refuseProblems(problems);
   const [row] = await ctx.db
@@ -433,6 +583,10 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
       comment: d.comment,
       requires: d.requires,
       message: d.message,
+      related: d.related,
+      target: d.target,
+      notify: d.notify,
+      callWebhookId: d.callWebhookId,
       enabled: d.enabled,
       nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null,
       createdById: ctx.actor.user.id,
@@ -440,7 +594,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
     })
     .returning();
   ctx.app.schema.invalidate();
-  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row!, undefined);
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), row!, undefined, await webhookOrigins(ctx.db, [row!]));
 }
 
 export type RuleChange = Partial<Omit<RuleInput, 'project' | 'kind'>> & { expectedVersion?: number };
@@ -464,11 +618,24 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     ...(input.comment !== undefined ? { comment: input.comment } : {}),
     ...(input.requires !== undefined ? { requires: input.requires } : {}),
     ...(input.message !== undefined ? { message: input.message } : {}),
+    ...(input.related !== undefined
+      ? { related: input.related ? { of: input.related.of, phrase: input.related.phrase ?? null, match: input.related.match ?? 'all', query: input.related.query } : null }
+      : {}),
+    ...(input.target !== undefined ? { target: input.target ? { to: input.target.to ?? 'issue', phrase: input.target.phrase ?? null } : null } : {}),
+    ...(input.notify !== undefined
+      ? { notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null }
+      : {}),
+    ...(input.call !== undefined ? { callWebhookId: input.call?.webhook ?? null } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
   });
+  // Turning off a rule that calls a webhook is anyone's who manages it; anything else about one is an administrator's.
+  const onlyTurningOff = input.enabled === false && Object.keys(input).every((k) => k === 'enabled' || k === 'expectedVersion');
+  if ((before.callWebhookId || d.callWebhookId) && !onlyTurningOff) assertCanCall(ctx);
   // Turning a rule off, or renaming it, never waits on fixing it: a rule that no longer reads
   // must be easy to stop. What it does, and turning it on, is checked.
-  const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires'] as const).some((k) => input[k] !== undefined);
+  const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires', 'related', 'target', 'notify', 'call'] as const).some(
+    (k) => input[k] !== undefined,
+  );
   if (reworked || (d.enabled && !before.enabled)) {
     const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
     if (problems.length) refuseProblems(problems);
@@ -488,6 +655,10 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
       comment: d.comment,
       requires: d.requires,
       message: d.message,
+      related: d.related,
+      target: d.target,
+      notify: d.notify,
+      callWebhookId: d.callWebhookId,
       enabled: d.enabled,
       ...(scheduleMoved ? { nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null } : {}),
       version: sql`${rules.version} + 1`,
@@ -498,13 +669,14 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     .returning();
   if (!updated) throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.');
   ctx.app.schema.invalidate();
-  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), updated, (await lastRuns(ctx, [updated.id])).get(updated.id));
+  return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), updated, (await lastRuns(ctx, [updated.id])).get(updated.id), await webhookOrigins(ctx.db, [updated]));
 }
 
 export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const row = await loadRule(ctx, id);
   await assertCanManage(ctx, row.projectId);
+  if (row.callWebhookId) assertCanCall(ctx);
   await ctx.db.delete(rules).where(eq(rules.id, row.id));
   ctx.app.schema.invalidate();
 }
@@ -534,10 +706,15 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
   if (problems.some((p) => p.part === 'query' || p.part === 'requires')) {
     return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.' };
   }
+  if (problems.some((p) => p.part === 'related' || p.part === 'target')) {
+    return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.' };
+  }
   const me = ctx.actor.user.id;
   const when = condition(s, d.query, { meId: me, projectId: d.projectId });
   const scope = await visibleScope(ctx);
-  const where = when.where ? and(scope, when.where)! : scope;
+  let where = when.where ? and(scope, when.where)! : scope;
+  // Related issues count only where the rule reads: its project, or for a rule for every project, what you can see.
+  if (d.kind !== 'guard' && d.related) where = and(where, relatedSql(s, relatedCondition(s, d, d.related, me, d.projectId ? null : scope)))!;
   const count = async (w: SQL) => Number((await ctx.db.select({ n: sql<number>`count(*)::int` }).from(issues).where(w))[0]?.n ?? 0);
   const matching = await count(where);
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -562,17 +739,38 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
   }
 
   const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
-  const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.id));
-  let sample: RulePreview['sample'] = rows.map((r) => ({ issue: refs.get(r.id)!, changes: [], errors: [] }));
-  if (rows.length && !problems.some((p) => p.part === 'command')) {
+  const full = await ctx.app.schema.get();
+  // The issues it would act on: each matching one, or the issues related to it that the rule reaches.
+  const acted: { target: typeof issues.$inferSelect; via: typeof issues.$inferSelect | null }[] = [];
+  let outside = 0;
+  for (const r of rows) {
+    if (!d.target) {
+      acted.push({ target: r, via: null });
+      continue;
+    }
+    for (const t of await targetIssues(ctx.db, full, d.target.to, d.target.phrase ?? null, r.id)) {
+      if (d.projectId && t.projectId !== d.projectId) outside++;
+      else if (await canReadProject(ctx, t.projectId)) acted.push({ target: t, via: r });
+    }
+    if (acted.length >= PREVIEW_SAMPLE) break;
+  }
+  const shownActs = acted.slice(0, PREVIEW_SAMPLE);
+  const refs = await issueRefsById(ctx.db, s, [...new Set(shownActs.flatMap((a) => [a.target.id, ...(a.via ? [a.via.id] : [])]))]);
+  let sample: RulePreview['sample'] = [];
+  for (const a of shownActs) {
+    const told = d.notify ? (await recipientsFor(ctx.db, full, d.notify, a.target)).map(userRefDto) : undefined;
+    sample.push({ issue: refs.get(a.target.id)!, changes: [], errors: [], via: a.via ? (refs.get(a.via.id) ?? null) : null, ...(told ? { told } : {}) });
+  }
+  const targets = shownActs.map((a) => a.target);
+  if (targets.length && (d.command || d.comment) && !problems.some((p) => p.part === 'command')) {
     // Exactly what it would do: the executor's dry run, as the workflow agent, with "me" as you.
     // The agent reaches only the project of the issue it acts on, so each project's issues get their own.
     const bot = s.usersByLogin.get(WORKFLOW_BOT);
     if (bot) {
       const byId = new Map<string, { changes: Change[]; errors: string[] }>();
-      for (const projectId of new Set(rows.map((r) => r.projectId))) {
+      for (const projectId of new Set(targets.map((r) => r.projectId))) {
         const dry = await runCommand(botCtx(ctx.app, bot, projectId), {
-          issues: rows.filter((r) => r.projectId === projectId).map((r) => r.id),
+          issues: [...new Set(targets.filter((r) => r.projectId === projectId).map((r) => r.id))],
           command: d.command,
           comment: d.comment ?? undefined,
           dryRun: true,
@@ -582,12 +780,17 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
       }
       sample = sample.map((x) => {
         const r = byId.get(x.issue.id);
-        return r ? { issue: x.issue, changes: r.changes, errors: r.errors } : x;
+        return r ? { ...x, changes: r.changes, errors: r.errors } : x;
       });
     }
   }
-  const acts = d.kind === 'change' ? `It acts on one only when ${triggerWords(d.trigger, d.field)}.` : `${scheduleWords(d.schedule)}, each of them gets the command.`;
-  const shown = sample.length ? ` Here is what it would change on ${sample.length} of them, as they are now.` : '';
+  const acts = d.kind === 'change' ? `It acts on one only when ${triggerWords(d.trigger, d.field)}.` : `${scheduleWords(d.schedule)}, ${d.target ? 'it acts for each of them' : 'it acts on each of them'}.`;
+  const onWhat = d.target ? ` It acts on${targetWords(d.target).replace(/^ to/, '')}.` : '';
+  const key = d.projectId ? (s.projects.get(d.projectId)?.key ?? 'its project') : null;
+  const left = outside ? ` ${plural(outside, 'issue it would act on is', 'issues it would act on are')} in another project, and a rule of ${key} leaves ${outside === 1 ? 'it' : 'them'} alone.` : '';
+  const shown = sample.length
+    ? ` Here is what it would do to ${sample.length} of ${d.target ? 'those' : 'them'}, as they are now${d.notify ? ', and whom it would tell (whoever sets it off is never told)' : ''}.`
+    : '';
   return {
     ok: problems.length === 0,
     problems,
@@ -595,14 +798,32 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
     matching,
     breaking: null,
     sample,
-    note: `${plural(matching, 'issue matches', 'issues match')} it now. ${acts}${shown}`,
+    note: `${plural(matching, 'issue matches', 'issues match')} it now. ${acts}${onWhat}${left}${shown}`,
+  };
+}
+
+/**
+ * A rule's further condition, for relatedSql: what the related issues must match ("me" as given),
+ * and which issues it reads at all: its project's, or for a rule for every project, `everywhere`
+ * (null: every project; a preview passes what the person previewing can see).
+ */
+export function relatedCondition(s: SchemaSnapshot, d: Pick<Draft, 'projectId'>, r: RuleRelated, meId: string | null, everywhere: SQL | null = null): RelatedCondition {
+  const world = ruleWorld(s, d.projectId);
+  const matching = condition(world, r.query, { meId, projectId: d.projectId }).where;
+  const readable = d.projectId ? sql`${issues.projectId} = ${d.projectId}` : everywhere;
+  return {
+    of: r.of,
+    phrase: r.phrase ?? null,
+    match: r.match ?? 'all',
+    matching: everywhere && !d.projectId ? (matching ? sql`(${everywhere} AND ${matching})` : everywhere) : matching,
+    readable,
   };
 }
 
 /** Live problems, a reading and suggestions for one part of a rule as it's typed, as the command bar has them. */
 export async function checkRulePart(
   ctx: Ctx,
-  body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command'; text: string; caret?: number },
+  body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command' | 'related'; text: string; caret?: number },
 ): Promise<{ problems: QueryProblem[]; description: string; suggestions: SuggestItem[] }> {
   requireScope(ctx, 'read');
   const projectId = await projectIdOf(ctx, body.project);

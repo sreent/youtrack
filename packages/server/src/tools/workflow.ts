@@ -3,7 +3,7 @@
  * change rules (docs/architecture.md, D25): a rule acts later, on its own and on every issue that
  * matches it, so it is a person's to make.
  */
-import { RULE_EVERY, RULE_KINDS, RULE_TRIGGERS, type RuleInput, type RuleProblem } from '@a4a/shared';
+import { RULE_EVERY, RULE_KINDS, RULE_TRIGGERS, RuleNotifySchema, RuleRelatedSchema, RuleTargetSchema, type RuleInput, type RuleProblem } from '@a4a/shared';
 import { z } from 'zod';
 import { badRequest } from '../lib/errors';
 import { withFixes } from '../search/lexer';
@@ -55,7 +55,7 @@ const previewRuleTool = defineTool({
   name: 'preview_rule',
   title: 'Preview a rule',
   description:
-    "What a workflow rule would do, without saving or changing anything: what needs fixing in it (with the text fixed, where a4a knows the fix), how many issues match it now, and what its command would change on a few of them, as a dry run. Pass `rule` for a saved one, or describe one. Kinds: 'change' acts when an issue is created, changes (optionally only `field`) or gets a comment, if it then matches `query`; 'schedule' gives every issue matching `query` the command, every hour, day or weekday at `at`; 'guard' refuses a change that would make an issue match `query` without matching `requires`. Agents can't make rules: give the person the preview, and they can make it on the Rules page.",
+    "What a workflow rule would do, without saving or changing anything: what needs fixing in it (with the text fixed, where a4a knows the fix), how many issues match it now, and what its command would change on a few of them, as a dry run, with whom it would tell. Pass `rule` for a saved one, or describe one. Kinds: 'change' acts when an issue is created, changes (optionally only `field`) or gets a comment, if it then matches `query`; 'schedule' acts on every issue matching `query`, every hour, day or weekday at `at`; 'guard' refuses a change that would make an issue match `query` without matching `requires`. A change or scheduled rule can also ask something of related issues (`related`: its parent, its subtasks, its parent's subtasks, or the issues linked to it), act on related issues instead (`target`), and tell people (`notify`). The classic: change, trigger 'updated', field 'State', query '#Resolved', related { of: 'siblings', match: 'all', query: '#Resolved' }, target { to: 'parent' }, command 'State Fixed'. Agents can't make rules: give the person the preview, and they can make it on the Rules page.",
   input: z.object({
     rule: z.string().optional().describe('A saved rule id; or describe one with the fields below'),
     project: z.string().optional().describe('Project key; leave out for a rule for every project'),
@@ -70,13 +70,32 @@ const previewRuleTool = defineTool({
     comment: z.string().max(5000).optional(),
     requires: z.string().max(2000).optional().describe("A 'guard': what the issue must also match"),
     message: z.string().max(500).optional().describe("A 'guard': what a refused change is told"),
+    related: RuleRelatedSchema.optional().describe('A further condition, on issues related to the one it acts for'),
+    target: RuleTargetSchema.optional().describe('The issues it acts on, instead of the issue itself'),
+    notify: RuleNotifySchema.optional().describe('Whom it tells about each issue it acts on, and what'),
   }),
   kind: 'reads',
   async run(ctx, input) {
     let draft: RuleInput;
     if (input.rule) {
       const r = await getRule(ctx, input.rule);
-      draft = { project: r.project, name: r.name, kind: r.kind, trigger: r.trigger, field: r.field, schedule: r.schedule, query: r.query, command: r.command, comment: r.comment, requires: r.requires, message: r.message };
+      draft = {
+        project: r.project,
+        name: r.name,
+        kind: r.kind,
+        trigger: r.trigger,
+        field: r.field,
+        schedule: r.schedule,
+        query: r.query,
+        command: r.command,
+        comment: r.comment,
+        requires: r.requires,
+        message: r.message,
+        related: r.related,
+        target: r.target,
+        notify: r.notify,
+        call: r.call ? { webhook: r.call.webhook } : null,
+      };
     } else {
       if (!input.kind) throw badRequest('Say which kind of rule it is: change, schedule or guard', 'Or pass rule, the id of a saved one (list_rules).');
       draft = {
@@ -91,6 +110,9 @@ const previewRuleTool = defineTool({
         comment: input.comment ?? null,
         requires: input.requires ?? null,
         message: input.message ?? null,
+        related: input.related ?? null,
+        target: input.target ?? null,
+        notify: input.notify ?? null,
       };
     }
     const p = await previewRule(ctx, draft);
@@ -102,7 +124,14 @@ const previewRuleTool = defineTool({
         fixed: fixed(draft, p.problems),
         matching: p.matching,
         breaking: p.breaking ?? undefined,
-        sample: p.sample.map((x) => ({ issue: x.issue.id, summary: x.issue.summary, changes: x.changes.map(change), errors: x.errors.length ? x.errors : undefined })),
+        sample: p.sample.map((x) => ({
+          issue: x.issue.id,
+          summary: x.issue.summary,
+          for: x.via ? x.via.id : undefined,
+          changes: x.changes.map(change),
+          tells: x.told?.map((u) => u.name),
+          errors: x.errors.length ? x.errors : undefined,
+        })),
         note: p.note,
       },
       summary: p.ok ? `Previewed: ${p.matching} ${p.matching === 1 ? 'issue matches' : 'issues match'}` : `The rule needs fixing: ${p.problems.length} ${p.problems.length === 1 ? 'problem' : 'problems'}`,

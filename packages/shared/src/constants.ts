@@ -71,6 +71,8 @@ export const EVENT_TYPES = [
   'commit.linked',
   'pull_request.linked',
   'pull_request.updated',
+  'rule.notified',
+  'rule.called',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -101,7 +103,8 @@ export const DEFAULT_DAYS_PER_WEEK = 5;
  * request in a project they lead, a mention, an assignment. A notification that folds several events
  * together takes the strongest of their reasons.
  */
-export const NOTIFICATION_KINDS = ['watching', 'request', 'mentioned', 'assigned'] as const;
+/** Why a notification reached someone, weakest first: when several reasons fold into one, the strongest names it. */
+export const NOTIFICATION_KINDS = ['watching', 'rule', 'request', 'mentioned', 'assigned'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** What a4a emails someone: everything, mentions and assignments only (`direct`), or nothing. In-app is always on. */
@@ -140,6 +143,21 @@ export type RuleEvery = (typeof RULE_EVERY)[number];
 /** How a rule's run went on an issue. */
 export const RULE_OUTCOMES = ['applied', 'unchanged', 'failed', 'skipped', 'refused'] as const;
 export type RuleOutcome = (typeof RULE_OUTCOMES)[number];
+/**
+ * The issues a rule's further condition reads, from the issue that set it off: its parent, its
+ * subtasks, its parent's subtasks (itself among them), or the issues linked to it by a phrase.
+ */
+export const RULE_RELATIONS = ['parent', 'subtasks', 'siblings', 'linked'] as const;
+export type RuleRelation = (typeof RULE_RELATIONS)[number];
+/** How many of them must match: all of them (and there is at least one), or any one. */
+export const RULE_MATCH = ['all', 'any'] as const;
+export type RuleMatch = (typeof RULE_MATCH)[number];
+/** The issues a rule acts on: the issue itself, its parent, its subtasks, or the issues linked to it by a phrase. */
+export const RULE_TARGETS = ['issue', 'parent', 'subtasks', 'linked'] as const;
+export type RuleTargetKind = (typeof RULE_TARGETS)[number];
+/** Whom a rule tells, of each issue it acts on, besides the people it names. */
+export const RULE_TELL = ['assignee', 'reporter', 'watchers', 'managers'] as const;
+export type RuleTell = (typeof RULE_TELL)[number];
 
 /** Version control a4a takes pushes and pull requests from. */
 export const VCS_PROVIDERS = ['github', 'gitlab'] as const;
