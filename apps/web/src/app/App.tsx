@@ -28,6 +28,7 @@ const ArticlesPage = lazy(() => import('../pages/ArticlesPage'));
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const ReportsPage = lazy(() => import('../pages/ReportsPage'));
 const ImportPage = lazy(() => import('../pages/ImportPage'));
+const AppPage = lazy(() => import('../features/apps/AppWidgets').then((m) => ({ default: m.AppPage })));
 const InboxPage = lazy(() => import('../pages/InboxPage'));
 // Public: a help desk's form and a request's page, and where an email's unsubscribe link leads.
 const HelpPage = lazy(() => import('../pages/HelpPage'));
@@ -91,6 +92,7 @@ export function App() {
           <Route path="/reports/:kind" element={<Page><ReportsPage /></Page>} />
           <Route path="/import" element={<Page><ImportPage /></Page>} />
           <Route path="/import/:id" element={<Page><ImportPage /></Page>} />
+          <Route path="/apps/:app/:widget" element={<Page><AppPage /></Page>} />
           <Route path="*" element={<Navigate to="/issues" replace />} />
         </Route>
       </Routes>

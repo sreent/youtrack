@@ -52,6 +52,8 @@ function byLine(e: TrackerEvent): string {
     system: "a4a's own",
     helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
     vcs: `from ${e.actor.token ?? 'version control'}`,
+    // An app's agent on its own (its rules), or a person through an app's widget or handler (D48).
+    app: e.actor.isBot ? `as the ${e.actor.token ?? 'an'} app, on its own` : `through the ${e.actor.token ?? 'an'} app, for ${name}`,
   };
   const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs');
   return [through[e.actor.channel], ruleOf(e) ? `the rule “${ruleOf(e)}”` : null, tokenNamed ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
