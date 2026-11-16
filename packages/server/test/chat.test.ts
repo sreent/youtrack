@@ -10,7 +10,9 @@ import { chatConsumer, ChatWorker, queueChatPosts } from '../src/chat/outbox';
 import { teamsAppPackage } from '../src/chat/package';
 import { acceptChatLink, chatLinkInfo, createChatSubscription, listChatChannels, listChatSubscriptions, myChatAccounts } from '../src/chat/service';
 import type { Ctx, UserRow } from '../src/context';
-import { activities, chatOutbox, chatSubscriptions, helpdeskRequests, requesters, userIdentities } from '../src/db/schema';
+import { cardIssue } from '../src/chat/cards';
+import { teamsChannelPost } from '../src/chat/teams';
+import { activities, chatOutbox, chatSubscriptions, helpdeskRequests, requesters, userIdentities, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { newId } from '../src/lib/ids';
 import { addComment } from '../src/services/comments';
@@ -195,7 +197,7 @@ describe('Teams: a team, its channels, and people', () => {
     await expect(acceptChatLink(w.as(w.ben), decodeURIComponent(token!))).rejects.toThrow(/Only a person/);
     const account = await acceptChatLink(web(w.ben), decodeURIComponent(token!), async (row, user) => {
       const { teamsLinked } = await import('../src/chat/teams');
-      await teamsLinked(w.app, row.reply, user.name);
+      await teamsLinked(w.app, row.reply, user);
     });
     expect(account).toMatchObject({ platform: 'teams', name: 'Ben Okafor', via: 'link' });
     expect(String(teams.postsTo(`a:personal-${BEN_TEAMS}`).at(-1)!.text)).toMatch(/You're linked: I act as Ben Okafor/);
@@ -326,6 +328,69 @@ describe('Teams: a card’s actions, as whoever acts', () => {
   });
 });
 
+describe('in each reader’s language (D49)', () => {
+  const I18N = '19:i18n@thread.tacv2';
+  const invoke = (from: ReturnType<typeof anna>, verb: string, data: Record<string, unknown>) =>
+    fromTeams({
+      type: 'invoke',
+      name: 'adaptiveCard/action',
+      from,
+      conversation: { id: `${TEAM};messageid=1`, conversationType: 'channel', tenantId: teams.tenantId },
+      channelData: channelData(),
+      value: { action: { type: 'Action.Execute', verb, data }, trigger: 'manual' },
+    });
+
+  it('says a card and an answer in their person’s language, and what a channel reads in the server’s', async () => {
+    await w.app.db.update(users).set({ locale: 'de' }).where(eq(users.id, w.anna.id));
+    try {
+      const issue = await createIssue(w.as(w.ben), { project: 'BACK', summary: 'Antworten auf Deutsch' });
+      const card = JSON.stringify((await invoke(anna(), 'assign', { issue: issue.id })).body);
+      expect(card).toContain('Ihnen zugewiesen.');
+      for (const word of ['Aktualisieren', 'Mir zuweisen', 'Verschieben nach…', 'Kommentieren', 'In a4a öffnen']) expect(card).toContain(word);
+      expect(card).not.toContain('Assign to me');
+      // The state's field keeps the name people gave it.
+      expect(card).toContain('"label":"State"');
+
+      await inPersonal('help', anna());
+      expect(String(teams.postsTo(`a:personal-${ANNA_TEAMS}`).at(-1)!.text)).toMatch(/^Was ich verstehe/);
+
+      // A channel's people read its posts together: in the server's language, whoever asked.
+      await inChannel('subscribe BACK new', anna(), I18N);
+      expect(teams.postsTo(`${I18N};messageid=1`).at(-1)!.text).toBe('Anna Schmidt subscribed this channel: New issues in Backend.');
+      await inChannel('unsubscribe BACK', anna(), I18N);
+      expect(teams.postsTo(`${I18N};messageid=1`).at(-1)!.text).toBe('Anna Schmidt unsubscribed this channel: New issues in Backend.');
+    } finally {
+      await w.app.db.update(users).set({ locale: null }).where(eq(users.id, w.anna.id));
+    }
+  });
+
+  it('writes to someone it doesn’t know yet in the language their Teams says', async () => {
+    const someone = { id: '29:jemand', aadObjectId: 'oid-jemand', name: 'Jemand' };
+    await fromTeams({
+      type: 'message',
+      id: `m-${newId(6)}`,
+      text: 'help',
+      locale: 'de-DE',
+      from: someone,
+      recipient: { id: `28:${teams.appId}` },
+      conversation: { id: `a:personal-${someone.id}`, conversationType: 'personal', tenantId: teams.tenantId },
+      channelData: { tenant: { id: teams.tenantId } },
+    });
+    expect(String(teams.postsTo(`a:personal-${someone.id}`).at(-1)!.text)).toMatch(/^Ich weiß noch nicht, wer Sie in a4a sind\./);
+  });
+
+  it('posts a channel’s card in the server’s language when that isn’t English', async () => {
+    const issue = await createIssue(w.as(w.ben), { project: 'BACK', summary: 'Ein Kanal auf Deutsch' });
+    const shown = cardIssue(w.app, await w.app.schema.get(), await getIssue(w.adminCtx, issue.id));
+    const german = { ...w.app, config: { ...w.app.config, defaultLocale: 'de' as const } };
+    const post = teamsChannelPost(german, shown, await lastEvent());
+    expect(cardText(post)).toContain('Mir zuweisen');
+    expect(cardText(post)).not.toContain('Assign to me');
+    // Its default, English, as before.
+    expect(cardText(teamsChannelPost(w.app, shown, await lastEvent()))).toContain('Assign to me');
+  });
+});
+
 describe('when posting fails', () => {
   it('waits as long as Teams asks, then posts', async () => {
     await deliver();
@@ -373,7 +438,7 @@ describe('Slack', () => {
     const token = /\/chat\/link\?token=([^\s]+)/.exec(String(res.body!.text))?.[1];
     await acceptChatLink(web(w.anna), decodeURIComponent(token!), async (row, user) => {
       const { slackLinked } = await import('../src/chat/slack');
-      await slackLinked(w.app, row.externalUserId, user.name);
+      await slackLinked(w.app, row.externalUserId, user);
     });
     expect(slack.callsOf('chat.postMessage').at(-1)!.body).toMatchObject({ channel: 'U0ANNA' });
     res = await fromSlack('commands', slash('BACK-1 State Fixed'));

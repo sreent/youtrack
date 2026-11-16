@@ -3,7 +3,9 @@
  * and what an answer to someone is.
  */
 import { CHAT_PLATFORM_NAMES, type ChatPlatform } from '@a4a/shared';
+import type { Locale, Translator } from '@a4a/shared/i18n';
 import { effectiveScopes, type AppServices, type Ctx, type UserRow } from '../context';
+import { localeOfPerson, translatorFor } from '../i18n';
 import { open, seal } from '../lib/secret-box';
 
 /** A linked person, acting from chat: as themselves, with their own access, through the chat channel. */
@@ -12,8 +14,16 @@ export function chatCtx(app: AppServices, user: UserRow, platform: ChatPlatform)
     app,
     db: app.db,
     actor: { user, scopes: effectiveScopes(user.role), channel: 'chat', tokenId: null, tokenName: CHAT_PLATFORM_NAMES[platform], authMethod: 'session', projectIds: null },
+    // What a4a says to them in chat is in their language (D49).
+    locale: localeOfPerson(app, user),
   };
 }
+
+/** Whom a4a answers in chat: their language, or the server's when they chose none (D49). */
+export const personTr = (app: AppServices, user: Pick<UserRow, 'locale'>): Translator => translatorFor(localeOfPerson(app, user));
+
+/** A channel's language: the server's, since its people read a post together (D49). */
+export const channelTr = (app: AppServices): Translator => translatorFor(app.config.defaultLocale);
 
 const keySource = (app: AppServices) => ({ secretKey: app.config.secretKey, dataDir: app.config.dataDir });
 export const sealSecret = (app: AppServices, plain: string) => seal(keySource(app), plain);
@@ -62,6 +72,8 @@ export function retryAfterMs(header: string | null | undefined): number | undefi
 /** What a4a says back to one person, as each chat draws it. */
 export interface Answer {
   text: string;
+  /** The language it's in, for the cards beside it. */
+  locale: Locale;
   /** Issues to show as cards, as the person sees them. */
   issues?: import('./cards').CardIssue[];
   /** Whether the whole channel may see it (a subscription's confirmation); otherwise only the person. */
