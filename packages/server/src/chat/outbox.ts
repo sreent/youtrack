@@ -100,6 +100,8 @@ export async function queueChatPosts(app: AppServices, event: TrackerEvent): Pro
   let queued = 0;
   for (const { sub } of subs) {
     if (!sub.kinds.some((k) => kinds.includes(k as ChatChangeKind))) continue;
+    // A channel hears of what happens from when it's subscribed, however late the outbox hands it over.
+    if (new Date(event.occurredAt).getTime() < sub.createdAt.getTime()) continue;
     if (sub.projectId && sub.projectId !== row.projectId) continue;
     if (sub.savedSearchId && !(await inSearch(app, sub, row.issueId))) continue;
     // Its subscriber vouches for the channel: still, for this project?
