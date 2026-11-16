@@ -94,8 +94,8 @@ export default function HelpPage() {
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    let solved: CaptchaSolution | undefined;
     try {
-      let solved: CaptchaSolution | undefined;
       const pending = captcha();
       if (pending) {
         setBusy('checking');
@@ -105,8 +105,9 @@ export default function HelpPage() {
       setReceived(await post<HelpRequestReceived>(`/help/${encodeURIComponent(f.project.key)}/requests`, { ...fields, csrf: f.csrf, ...(solved ? { captcha: solved } : {}) }));
     } catch (err) {
       setError(err);
-      // An expired form, or a check that's spent, gets a fresh one; what was typed stays.
-      if (err instanceof ApiError && ['form_expired', 'captcha_expired', 'captcha_failed'].includes(err.code)) void form.refetch();
+      // An expired form gets a fresh one, and so does a check once its answer has gone to the server,
+      // since each answer counts once; what was typed stays.
+      if (err instanceof ApiError && (err.code === 'form_expired' || solved)) void form.refetch();
     } finally {
       setBusy(false);
     }
