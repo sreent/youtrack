@@ -5,17 +5,20 @@ import { activities } from '../db/schema';
 import { toEventDto } from '../events/activity';
 import { parseDateExpression } from '../lib/dates';
 import { badRequest } from '../lib/errors';
+import { eventsVisibleSql, projectAccess } from './access';
 import { resolveIssue } from './issues';
 import { projectByKey } from './schema-cache';
 
+/** An issue's history, leaving out links to issues the caller can't see. */
 export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Promise<TrackerEvent[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
+  const seen = eventsVisibleSql(await projectAccess(ctx), s);
   const rows = await ctx.db
     .select()
     .from(activities)
-    .where(eq(activities.issueId, issue.id))
+    .where(and(eq(activities.issueId, issue.id), seen))
     .orderBy(asc(activities.id))
     .limit(limit);
   return rows.map((r) => toEventDto(s, r));
@@ -31,11 +34,17 @@ export interface EventFeedOptions {
   order?: 'asc' | 'desc';
 }
 
-/** Durable change feed: poll with `after=<last id>`. */
+/**
+ * Durable change feed: poll with `after=<last id>`. It holds only what the caller may see (the
+ * filter is SQL, so pages stay full and the cursor never stalls behind events they can't see).
+ */
 export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<TrackerEvent[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
   const conds: SQL[] = [];
+  const seen = eventsVisibleSql(view, s);
+  if (seen) conds.push(seen);
   if (opts.after !== undefined) conds.push(gt(activities.id, opts.after));
   if (opts.since) {
     const range = parseDateExpression(opts.since);
@@ -45,7 +54,8 @@ export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<Track
   }
   if (opts.project) {
     const p = projectByKey(s, opts.project);
-    if (!p) throw badRequest(`Unknown project ${opts.project}`);
+    // A project the caller can't see is unknown, in the same words as one that doesn't exist.
+    if (!p || !view.canRead(p.id)) throw badRequest(`Unknown project ${opts.project}`);
     conds.push(eq(activities.projectId, p.id));
   }
   if (opts.issue) {

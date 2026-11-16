@@ -1,13 +1,14 @@
 import type { Comment } from '@a4a/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { isAdmin, requireScope, type Ctx } from '../context';
+import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import { forbidden, notFound } from '../lib/errors';
 import { excerpt } from '../lib/text';
+import { assertCanCommentProject, projectAccess } from './access';
 import { issueRefsById, readableId } from './issue-refs';
-import { applyChanges, resolveIssue } from './issues';
+import { applyChanges, findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
 
 type CommentRow = typeof comments.$inferSelect;
@@ -39,10 +40,12 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
   return Promise.all(rows.map((r) => commentDto(ctx, r, rid)));
 }
 
+/** Comment on an issue: anyone with a role in its project may (a viewer too), with the write scope. */
 export async function addComment(ctx: Ctx, issueId: string, text: string): Promise<Comment> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
+  await assertCanCommentProject(ctx, issue.projectId);
   const result = await ctx.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, issue, { comment: text }));
   await publishActivities(ctx.app, result.activities);
   const created = result.activities.find((a) => a.type === 'comment.created');
@@ -52,10 +55,18 @@ export async function addComment(ctx: Ctx, issueId: string, text: string): Promi
   return commentDto(ctx, row, readableId(s, issue));
 }
 
+/**
+ * A comment the caller may change: their own, or anyone's when they manage its project. A
+ * comment on an issue they can't see is not found, exactly as one that doesn't exist.
+ */
 async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
   const [row] = await ctx.db.select().from(comments).where(and(eq(comments.id, id), isNull(comments.deletedAt)));
-  if (!row) throw notFound('Comment');
-  if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('You can only change your own comments');
+  const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
+  if (!row || !issue) throw notFound('Comment');
+  await assertCanCommentProject(ctx, issue.projectId);
+  if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
+    throw forbidden('You can only change your own comments', 'Managers of the project can change anyone’s.');
+  }
   return row;
 }
 

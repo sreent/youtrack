@@ -8,6 +8,8 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   LEVELING_MODES,
+  PROJECT_ROLES,
+  PROJECT_VISIBILITIES,
   ROLES,
   SCOPES,
   TRIAGE_MODES,
@@ -78,6 +80,25 @@ export const UserRefSchema = z
   .meta({ id: 'UserRef' });
 export type UserRef = z.infer<typeof UserRefSchema>;
 
+/** How someone signs in. Only administrators see it. */
+export const SignInSchema = z
+  .object({
+    password: z.boolean().describe('They have a password'),
+    emailConfirmed: z
+      .boolean()
+      .describe('Their email was set by an administrator or verified by the identity provider, so single sign-on may find them by it'),
+    identities: z.array(
+      z.object({
+        provider: z.string().describe('The identity provider, by the name people see'),
+        email: z.string().nullable(),
+        linkedAt: timestamp,
+        lastSignInAt: timestamp.nullable(),
+      }),
+    ),
+  })
+  .meta({ id: 'SignIn' });
+export type SignIn = z.infer<typeof SignInSchema>;
+
 export const UserSchema = UserRefSchema.extend({
   email: z.string().nullable(),
   role: z.enum(ROLES),
@@ -85,6 +106,7 @@ export const UserSchema = UserRefSchema.extend({
   hourlyRate: z.number().nullable().describe('Cost rate per hour, used for cost tracking'),
   capacityHoursPerDay: z.number().describe('Working hours per day available for planned work'),
   createdAt: timestamp,
+  signIn: SignInSchema.optional().describe('How they sign in: only in what administrators get'),
 }).meta({ id: 'User' });
 export type User = z.infer<typeof UserSchema>;
 
@@ -93,6 +115,7 @@ export const MeSchema = UserSchema.extend({
     method: z.enum(['session', 'token']),
     scopes: z.array(z.enum(SCOPES)),
     tokenName: z.string().nullable(),
+    projects: z.array(z.string()).nullable().describe("The keys of the projects this token is limited to, or null when it isn't"),
   }),
 }).meta({ id: 'Me' });
 export type Me = z.infer<typeof MeSchema>;
@@ -105,7 +128,19 @@ export const SetupBody = z.object({
   password: z.string().min(8),
   seedDemo: z.boolean().default(true).describe('Create demo projects, issues and users'),
 });
-export const SetupStatusSchema = z.object({ needsSetup: z.boolean(), instanceName: z.string() }).meta({ id: 'SetupStatus' });
+export const SetupStatusSchema = z
+  .object({
+    needsSetup: z.boolean(),
+    instanceName: z.string(),
+    signIn: z.object({
+      password: z.boolean().describe('Whether people may sign in with a login and password'),
+      sso: z
+        .object({ name: z.string().describe('The identity provider, by the name people see'), url: z.string().describe('Where the browser goes to start signing in') })
+        .nullable(),
+    }),
+  })
+  .meta({ id: 'SetupStatus' });
+export type SetupStatus = z.infer<typeof SetupStatusSchema>;
 
 export const UpdateMeBody = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -140,6 +175,10 @@ export const ApiTokenSchema = z
     name: z.string(),
     prefix: z.string().describe('First characters of the token, for recognition'),
     scopes: z.array(z.enum(SCOPES)),
+    projects: z
+      .array(z.string())
+      .nullable()
+      .describe('Keys of the only projects it reaches, or null for every project its person can see. Empty when those projects are gone or out of sight'),
     createdAt: timestamp,
     lastUsedAt: timestamp.nullable(),
     expiresAt: timestamp.nullable(),
@@ -149,10 +188,21 @@ export type ApiToken = z.infer<typeof ApiTokenSchema>;
 export const ApiTokenCreatedSchema = ApiTokenSchema.extend({
   token: z.string().describe('The secret. Shown only once.'),
 }).meta({ id: 'ApiTokenCreated' });
+const TokenProjects = z
+  .array(z.string().min(1).max(10))
+  .min(1)
+  .max(100)
+  .nullable()
+  .describe("Project keys: the token reaches these projects only, as far as you may. Null or left out: every project you can see. Can't go with the admin scope");
 export const CreateTokenBody = z.object({
   name: z.string().min(1).max(80),
   scopes: z.array(z.enum(SCOPES)).min(1).default(['read', 'write']),
   expiresInDays: z.number().int().min(1).max(3650).nullable().optional(),
+  projects: TokenProjects.optional(),
+});
+export const UpdateTokenBody = z.object({
+  name: z.string().min(1).max(80).optional(),
+  projects: TokenProjects.optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -184,14 +234,29 @@ export const ProjectRefSchema = z
   .meta({ id: 'ProjectRef' });
 export type ProjectRef = z.infer<typeof ProjectRefSchema>;
 
+/** What the caller may do in a project. */
+export const ProjectAccessSchema = z
+  .object({
+    role: z.enum(PROJECT_ROLES).describe('Their role in it, as it works out: a manager for administrators and the lead'),
+    via: z.enum(['admin', 'lead', 'member', 'open']).describe('Where the role comes from: being an administrator, leading it, being one of its people, or its being open'),
+    read: z.boolean(),
+    comment: z.boolean(),
+    write: z.boolean().describe('Change its issues'),
+    manage: z.boolean().describe('Change its settings, people, boards and baselines'),
+  })
+  .meta({ id: 'ProjectAccess' });
+export type ProjectAccess = z.infer<typeof ProjectAccessSchema>;
+
 export const ProjectSchema = ProjectRefSchema.extend({
   description: z.string(),
   lead: UserRefSchema.nullable(),
   archived: z.boolean(),
+  visibility: z.enum(PROJECT_VISIBILITIES).describe('open: everyone sees it and works in it; members: only its people and administrators see it'),
   settings: ProjectSettingsSchema,
   issueCount: z.number().int(),
   openIssueCount: z.number().int(),
   createdAt: timestamp,
+  access: ProjectAccessSchema,
 }).meta({ id: 'Project' });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -208,12 +273,14 @@ export const CreateProjectBody = z.object({
     .enum(['software', 'waterfall', 'blank'])
     .default('software')
     .describe('Which standard fields to attach'),
+  visibility: z.enum(PROJECT_VISIBILITIES).default('open'),
 });
 export const UpdateProjectBody = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(5000).optional(),
   lead: z.string().nullable().optional(),
   archived: z.boolean().optional(),
+  visibility: z.enum(PROJECT_VISIBILITIES).optional(),
   settings: z
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
@@ -221,6 +288,23 @@ export const UpdateProjectBody = z.object({
     })
     .optional(),
 });
+
+/** Someone with a role in a project. */
+export const ProjectMemberSchema = z
+  .object({
+    user: UserRefSchema,
+    role: z.enum(PROJECT_ROLES),
+    lead: z.boolean().describe('They lead the project, which makes them a manager of it whatever their role here'),
+    addedAt: timestamp.nullable().describe('Null for a lead who was never added by hand'),
+    addedBy: UserRefSchema.nullable(),
+  })
+  .meta({ id: 'ProjectMember' });
+export type ProjectMember = z.infer<typeof ProjectMemberSchema>;
+export const AddMemberBody = z.object({
+  user: z.string().min(1).describe('Login of the person or bot'),
+  role: z.enum(PROJECT_ROLES).default('member'),
+});
+export const UpdateMemberBody = z.object({ role: z.enum(PROJECT_ROLES) });
 
 export const FieldValueSchema = z
   .object({
@@ -983,7 +1067,12 @@ export const BaselineBody = z.object({
 // ---------------------------------------------------------------------------
 
 export const AIStatusSchema = z
-  .object({ enabled: z.boolean(), model: z.string(), reason: z.string().nullable() })
+  .object({
+    enabled: z.boolean(),
+    provider: z.string().describe('Who serves the model, such as Anthropic or DeepSeek: issue text the AI reads goes to them'),
+    model: z.string(),
+    reason: z.string().nullable().describe('Why the AI is off, when it is'),
+  })
   .meta({ id: 'AIStatus' });
 export type AIStatus = z.infer<typeof AIStatusSchema>;
 
@@ -1021,7 +1110,7 @@ export const SimilarBody = z.object({
   project: z.string().optional(),
   excludeIssue: z.string().optional(),
   limit: z.number().int().min(1).max(20).default(5),
-  judge: z.boolean().default(false).describe('Ask Claude to label each candidate (duplicate / related / different)'),
+  judge: z.boolean().default(false).describe('Ask the AI to label each candidate (duplicate / related / different)'),
 });
 export const SimilarIssueSchema = z
   .object({

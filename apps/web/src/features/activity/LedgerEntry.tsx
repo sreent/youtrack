@@ -127,6 +127,25 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           </span>
         ),
       };
+    case 'project.member.added':
+    case 'project.member.changed':
+    case 'project.member.removed': {
+      const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project';
+      const who = str(e.data.name) || str(e.data.user);
+      if (e.type === 'project.member.added') return { text: <>made {who} a {str(e.data.role)} of {project}</>, badge: ['changes', 'gives a role'] };
+      if (e.type === 'project.member.removed') return { text: <>took {who} out of {project}</>, badge: ['changes', 'takes a role away'] };
+      return { text: <>made {who} a {str(e.data.to)} of {project}, not a {str(e.data.from)}</>, badge: ['changes', 'changes a role'] };
+    }
+    case 'project.visibility.changed':
+      return {
+        text: (
+          <>
+            made {e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project'}{' '}
+            {str(e.data.to) === 'members' ? 'visible to its members only' : 'open to everyone'}
+          </>
+        ),
+        badge: ['changes', 'changes who sees it'],
+      };
     default:
       return {
         text: (

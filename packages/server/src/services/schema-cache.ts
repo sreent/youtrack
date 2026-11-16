@@ -40,8 +40,9 @@ const TTL_MS = 60_000;
 
 /**
  * Small, frequently read reference data (fields, values, projects, tags, link
- * types, users). Reloaded after local writes and at most once a minute
- * otherwise, so several server instances sharing Postgres converge quickly.
+ * types, users). Reloaded after a write on any instance: locally at once, on the
+ * others when the write's NOTIFY arrives. A reload at most a minute old is the
+ * safety net for a notification that was lost.
  */
 export class SchemaCache {
   private snapshot: SchemaSnapshot | null = null;
@@ -52,10 +53,28 @@ export class SchemaCache {
    * hidden for a whole TTL.
    */
   private generation = 0;
+  /** Tells the other instances (set by the runtime; see Signals.announceSchemaChange). */
+  broadcast: ((tx?: Db) => Promise<void>) | null = null;
 
   constructor(private db: Db) {}
 
+  /** After a committed write: reload here, and tell the other instances. */
   invalidate(): void {
+    this.drop();
+    this.broadcast?.().catch((e) => console.warn(`schema cache: NOTIFY failed (${e instanceof Error ? e.message : e}); other instances reload within a minute`));
+  }
+
+  /**
+   * Inside a transaction: reload here now, and on every instance (this one too)
+   * once `tx` commits; nothing is sent if it rolls back.
+   */
+  async invalidateOnCommit(tx: Db): Promise<void> {
+    this.drop();
+    await this.broadcast?.(tx);
+  }
+
+  /** A change another instance made: reload here only. */
+  drop(): void {
     this.generation++;
     this.snapshot = null;
     this.loading = null;

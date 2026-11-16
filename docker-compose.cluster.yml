@@ -1,0 +1,67 @@
+# a4a as two instances behind a proxy, on one Postgres. Start:
+#   docker compose -f docker-compose.cluster.yml up --build
+# then open http://localhost:3000. Any instance can serve any request: live events,
+# the reference-data cache, sign-in limits and the background worker behave as one
+# (docs/architecture.md, D17). Stop one (docker compose -f docker-compose.cluster.yml
+# stop a4a-1) and the other carries on; open live streams reconnect and resume.
+
+x-a4a: &a4a
+  build: .
+  image: a4a:cluster
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+  environment:
+    DATABASE_URL: postgres://a4a:a4a@postgres:5432/a4a
+    # The address people open, through the proxy: links, MCP snippets and the CSRF check.
+    PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+    # The proxy appends the client's address to X-Forwarded-For; trust that one hop.
+    TRUST_PROXY: '1'
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Optional unattended first administrator. Both instances may try; one creates it.
+    ADMIN_LOGIN: ${ADMIN_LOGIN:-}
+    ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    SEED_DEMO: ${SEED_DEMO:-false}
+  # The image's own check (GET /api/v1/health), more often, so the proxy starts sooner.
+  healthcheck:
+    interval: 5s
+    timeout: 5s
+    start_period: 20s
+    retries: 3
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: a4a
+      POSTGRES_PASSWORD: a4a
+      POSTGRES_DB: a4a
+    volumes:
+      - pgdata-cluster:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U a4a']
+      interval: 5s
+      retries: 20
+
+  a4a-1:
+    <<: *a4a
+
+  a4a-2:
+    <<: *a4a
+
+  proxy:
+    image: caddy:2
+    depends_on:
+      a4a-1:
+        condition: service_healthy
+      a4a-2:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - '3000:80'
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  pgdata-cluster:

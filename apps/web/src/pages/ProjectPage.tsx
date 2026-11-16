@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { patch } from '../api/client';
-import { keys, useAIStatus, useFields, useMe, useProject, useProjectFields, useUsers } from '../api/queries';
+import { keys, useAIStatus, useFields, useProject, useProjectFields, useUsers } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
@@ -11,6 +11,7 @@ import { errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { count, dateRead, money } from '../features/common/format';
 import { LadderChoice } from '../features/common/Ladder';
 import { useBaselines } from '../features/common/queries';
+import { PeopleAndAccess, yourRole } from '../features/projects/PeopleAndAccess';
 import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
@@ -188,9 +189,7 @@ export default function ProjectPage() {
   const projectFields = useProjectFields(key.toUpperCase());
   const allFields = useFields();
   const users = useUsers();
-  const me = useMe();
   const ai = useAIStatus();
-  const canEdit = Boolean(me.data?.auth.scopes.includes('admin'));
 
   if (project.isLoading) return <Loading what="the project" />;
   if (project.error || !project.data)
@@ -202,6 +201,8 @@ export default function ProjectPage() {
     );
   const p = project.data;
   const plan = p.settings.plan;
+  // Its managers (and administrators) change a project; everyone who sees it sees how it's set up.
+  const canEdit = p.access.manage;
   return (
     <>
       <PageHead
@@ -216,6 +217,7 @@ export default function ProjectPage() {
         badges={
           <>
             <span className="chip mono">{p.key}</span>
+            {p.visibility === 'members' ? <span className="chip">members only</span> : null}
             {p.archived ? <Badge tone="idle">archived</Badge> : null}
           </>
         }
@@ -243,7 +245,10 @@ export default function ProjectPage() {
           </>
         }
       />
-      {!canEdit ? <p className="note">Only administrators can change a project. You can see how it's set up.</p> : null}
+      <p className="note">
+        {yourRole(p)}
+        {!canEdit ? ' Its managers change how it’s set up; you can see it here.' : ''}
+      </p>
       <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <section className="card" aria-labelledby="details">
           <h2 id="details">Details</h2>
@@ -254,6 +259,13 @@ export default function ProjectPage() {
           <Triage project={p} canEdit={canEdit} aiOn={Boolean(ai.data?.enabled)} />
         </section>
       </div>
+      <section className="card" aria-labelledby="people">
+        <div className="section-head">
+          <h2 id="people">People and access</h2>
+          <span className="note">{p.visibility === 'members' ? 'Members only' : 'Open to everyone'}</span>
+        </div>
+        <PeopleAndAccess project={p} />
+      </section>
       <section className="card" aria-labelledby="plan">
         <div className="section-head">
           <h2 id="plan">Plan settings</h2>

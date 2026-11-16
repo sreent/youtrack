@@ -23,7 +23,8 @@ function refOf(i: IssueDetail): IssueRef {
 const READABLE_ID = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 
 /** Ocean's IssueLinks: an issue's links grouped by what they say, and a way to add one. */
-export function IssueLinks({ issue }: { issue: IssueDetail }) {
+/** `canEdit` false: someone who may only read its project sees the links, with nothing to change them. */
+export function IssueLinks({ issue, canEdit = true }: { issue: IssueDetail; canEdit?: boolean }) {
   const id = useId();
   const qc = useQueryClient();
   const types = useLinkTypes();
@@ -103,9 +104,11 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
       <div className="issue-links">
         <div className="issue-links-head">
           <h2 id={`${id}-title`}>Links</h2>
-          <button type="button" aria-expanded={adding} aria-controls={`${id}-add`} onClick={() => setAdding((a) => !a)}>
-            Add link
-          </button>
+          {canEdit ? (
+            <button type="button" aria-expanded={adding} aria-controls={`${id}-add`} onClick={() => setAdding((a) => !a)}>
+              Add link
+            </button>
+          ) : null}
         </div>
         {adding ? (
           <fieldset className="link-add" id={`${id}-add`}>
@@ -176,9 +179,11 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                   <Link to={`/issues/${l.issue.id}`}>{l.issue.summary}</Link>
                   <span className="cluster">
                     <RefBadge issue={l.issue} tones={tones} />
-                    <button type="button" className="link" aria-label={`Unlink ${l.issue.id}`} onClick={() => void unlink(l)}>
-                      Unlink
-                    </button>
+                    {canEdit ? (
+                      <button type="button" className="link" aria-label={`Unlink ${l.issue.id}`} onClick={() => void unlink(l)}>
+                        Unlink
+                      </button>
+                    ) : null}
                   </span>
                 </li>
               ))}

@@ -18,8 +18,18 @@ export type Db = PgDatabase<PgQueryResultHKT, Schema>;
 export interface Database {
   db: Db;
   kind: 'pglite' | 'postgres';
+  /** The Postgres URL, for connections outside the pool (LISTEN). */
+  url?: string;
+  /**
+   * Run `fn` while no other instance runs its own: migrations and first-start setup,
+   * which several instances starting together would otherwise race through.
+   */
+  exclusive<T>(fn: () => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
+
+/** Advisory lock key for startup work (any constant shared by every instance). */
+const STARTUP_LOCK = 4_734_241;
 
 export interface OpenOptions {
   /** Postgres connection string. When empty, the embedded PGlite database is used. */
@@ -53,9 +63,32 @@ export async function openDatabase(opts: OpenOptions): Promise<Database> {
     // the pool replaces the client on the next checkout, so logging is enough.
     pool.on('error', (err) => console.error(`postgres: idle connection lost (${err.message})`));
     const db = drizzlePg(pool, { schema }) as unknown as Db;
-    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
-    await migratePg(db as never, { migrationsFolder: folder });
-    return { db, kind: 'postgres', close: () => pool.end() };
+    // A session lock on a connection of its own, outside the pool (whose connections the
+    // work itself needs): held across the pool's statements, and released by Postgres if
+    // this process dies while holding it.
+    const url = opts.url;
+    const exclusive = async <T>(fn: () => Promise<T>): Promise<T> => {
+      const client = new pg.Client({ connectionString: url, application_name: 'a4a startup' });
+      client.on('error', () => {});
+      await client.connect();
+      try {
+        await client.query('SELECT pg_advisory_lock($1)', [STARTUP_LOCK]);
+        return await fn();
+      } finally {
+        // Ending the session releases the lock, also when the unlock can't be sent.
+        await client.end().catch(() => {});
+      }
+    };
+    try {
+      await exclusive(async () => {
+        await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+        await migratePg(db as never, { migrationsFolder: folder });
+      });
+    } catch (e) {
+      await pool.end().catch(() => {});
+      throw e;
+    }
+    return { db, kind: 'postgres', url: opts.url, exclusive, close: () => pool.end() };
   }
 
   let client: PGlite;
@@ -74,6 +107,8 @@ export async function openDatabase(opts: OpenOptions): Promise<Database> {
   return {
     db,
     kind: 'pglite',
+    // One process by construction (the lock file), so there is nobody to wait for.
+    exclusive: (fn) => fn(),
     close: async () => {
       await client.close();
       release();

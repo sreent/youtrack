@@ -36,6 +36,11 @@ export const users = pgTable(
     login: text('login').notNull(),
     name: text('name').notNull(),
     email: text('email'),
+    /**
+     * The email was set by an administrator or verified by the identity provider. Only then may
+     * single sign-on find the account by it: an email people type for themselves proves nothing.
+     */
+    emailVerified: boolean('email_verified').notNull().default(false),
     passwordHash: text('password_hash'),
     role: text('role').notNull().default('member'),
     isBot: boolean('is_bot').notNull().default(false),
@@ -74,6 +79,8 @@ export const apiTokens = pgTable(
     tokenHash: text('token_hash').notNull().unique(),
     prefix: text('prefix').notNull(),
     scopes: text('scopes').array().notNull(),
+    /** The only projects the token reaches (ids), or null for every project its person can see. */
+    projectIds: text('project_ids').array(),
     createdAt: created(),
     lastUsedAt: ts('last_used_at'),
     expiresAt: ts('expires_at'),
@@ -81,6 +88,36 @@ export const apiTokens = pgTable(
   },
   (t) => [index('api_tokens_user').on(t.userId)],
 );
+
+/** A person's account at an identity provider (OpenID Connect), by the provider's issuer and its subject. */
+export const userIdentities = pgTable(
+  'user_identities',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    subject: text('subject').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    email: text('email'),
+    createdAt: created(),
+    lastSignInAt: ts('last_sign_in_at'),
+  },
+  (t) => [uniqueIndex('user_identities_subject').on(t.provider, t.subject), index('user_identities_user').on(t.userId)],
+);
+
+/**
+ * Single sign-ons in flight: what the callback must check, keyed by the state's hash. A row is
+ * taken (deleted) by the one callback that uses it, so a state can't be replayed.
+ */
+export const authStates = pgTable('auth_states', {
+  id: text('id').primaryKey(),
+  codeVerifier: text('code_verifier').notNull(),
+  nonce: text('nonce').notNull(),
+  returnTo: text('return_to').notNull(),
+  createdAt: created(),
+  expiresAt: ts('expires_at').notNull(),
+});
 
 // ---------------------------------------------------------------------------
 // Projects & custom fields
@@ -96,11 +133,30 @@ export const projects = pgTable(
     leadId: text('lead_id').references(() => users.id, { onDelete: 'set null' }),
     nextNumber: integer('next_number').notNull().default(1),
     archived: boolean('archived').notNull().default(false),
+    /** 'open': everyone sees it and works in it. 'members': only its people and administrators see it. */
+    visibility: text('visibility').notNull().default('open'),
     settings: jsonb('settings').notNull(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('projects_key_upper').on(sql`upper(${t.key})`)],
+);
+
+/** People's roles in projects (viewer, member, manager). services/access.ts reads it. */
+export const projectMembers = pgTable(
+  'project_members',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.userId] }), index('project_members_user').on(t.userId)],
 );
 
 export const fields = pgTable(
@@ -560,6 +616,21 @@ export const outboxCursors = pgTable('outbox_cursors', {
   lastId: bigint('last_id', { mode: 'number' }).notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/**
+ * Failed sign-ins per IP and per login, in a fixed window, shared by every instance
+ * and kept across restarts. One row per key ("ip:203.0.113.9", "login:anna"), written
+ * with an upsert per attempt; housekeeping deletes rows whose window has passed.
+ */
+export const loginThrottle = pgTable(
+  'login_throttle',
+  {
+    key: text('key').primaryKey(),
+    windowStart: ts('window_start').notNull(),
+    failures: integer('failures').notNull(),
+  },
+  (t) => [index('login_throttle_window').on(t.windowStart)],
+);
 
 // ---------------------------------------------------------------------------
 // Dashboards

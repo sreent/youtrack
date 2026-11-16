@@ -1,10 +1,14 @@
 import type { Ctx } from '../context';
 import { todayISO } from '../lib/dates';
+import { visibleSchema } from '../services/access';
 import { allowedValues, type SchemaSnapshot } from '../services/schema-cache';
 
-/** A compact picture of the tracker for prompts: projects, fields and values, people, tags, link phrases. */
+/**
+ * A compact picture of the tracker for prompts: projects, fields and values, people, tags, link
+ * phrases. Only what the caller can see goes to Claude: a project they can't see isn't named.
+ */
 export async function schemaSummary(ctx: Ctx, opts: { projectId?: string; maxUsers?: number } = {}): Promise<string> {
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const projects = opts.projectId ? [s.projects.get(opts.projectId)!].filter(Boolean) : [...s.projects.values()].filter((p) => !p.archived);
   const lines: string[] = [];
   lines.push(`Today: ${todayISO()}. You act for ${ctx.actor.user.name} (login "${ctx.actor.user.login}"; "me" in queries).`);
