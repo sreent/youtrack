@@ -348,13 +348,13 @@ If anything fails after the bytes are stored, they're removed; what a crash leav
 
 **The store** is three calls, `write(key, stream)`, `read(key, range?)` and `remove(key)`, behind `BlobStorage`. Local disk (`DATA_DIR/attachments`) writes to a part file, syncs it, and renames it into place, so a key never holds half a file. Keys are random and sharded by their first two characters.
 
-An S3-compatible store (S3, MinIO, R2) would be one class:
+An S3-compatible store (S3, MinIO, R2) is one class, `ATTACHMENT_STORAGE=s3` (D35):
 
-- `write` with `@aws-sdk/lib-storage`'s `Upload`, which streams a body of unknown length as a multipart upload, so memory stays at a few parts; a bucket lifecycle rule aborts multipart uploads left incomplete.
+- `write` with `@aws-sdk/lib-storage`'s `Upload`, which streams a body of unknown length as a multipart upload, so memory stays at a few parts.
 - `read` with `GetObject` and its `Range`; `remove` with `DeleteObject`.
-- Config: `ATTACHMENT_STORAGE=s3`, a bucket, an endpoint and a region, credentials from the usual AWS chain.
+- Config: a bucket, an endpoint and a region, and keys or the usual AWS chain.
 
-Downloads would keep coming through a4a, so the access check and the headers stay ours; presigned URLs, with `response-content-disposition` and `response-content-type` set by a4a, are the step after, for large files. The sweeper needs nothing new.
+Downloads keep coming through a4a, so the access check and the headers stay ours; presigned URLs, with `response-content-disposition` and `response-content-type` set by a4a, are the step after, for large files. The sweeper also aborts multipart uploads left unfinished.
 
 **Serving.** `GET /attachments/{id}/content` reads the project through `services/access.ts`; a hidden one looks like a missing file.
 
@@ -548,6 +548,47 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D35. Files in an S3-compatible bucket, served in ranges, and shown in place
+
+D18's store, still three calls, can be a bucket: S3, MinIO, R2 and the like, chosen with `ATTACHMENT_STORAGE=s3` and `S3_*`. Then several instances share files without a shared volume.
+
+**Writing.** An upload streams on as it arrives, through the same counting and hashing, into lib-storage's `Upload`: one `PutObject` under 5 MiB, a multipart upload past it, with two 5 MiB parts in flight, so an upload holds about 10 MiB of memory. An object appears only when its upload completes. So a file over its limit, or a client that goes away, leaves nothing under its key: the parts are aborted, and the store passes the source's own error on (a 413 stays a 413). Two things learned on the way:
+
+- lib-storage takes a body's length from its `size`, `length` or `byteLength`, if it has one, and then expects that many parts. The upload path's counter has a `size`, which is 0 when the upload starts, so a large upload was refused for the parts that came. The store hands lib-storage a plain stream between.
+- By default the SDK sends checksums as `aws-chunked` bodies with trailers, which not every S3-compatible store takes. With an endpoint other than AWS's, it sends them only where an operation needs one. TLS keeps the bytes whole on their way, and the copy command reads every file back.
+
+**Reading, removing, sweeping.** `GetObject` (with its `Range`) and `DeleteObject`. The sweep aborts multipart uploads under a4a's prefix left unfinished for six hours, as it removes part files from disk. Servers that list unfinished uploads only by a whole key (MinIO among them) clear stale ones themselves. With `S3_PREFIX` a bucket can hold more than a4a's files; only keys of a4a's own shape are ever touched.
+
+**Downloads still come through a4a.** The access check and the headers that keep a file from running (D18) stay a4a's. The bucket is never handed out, so it needs no public access and no CORS.
+
+**When the bucket fails.**
+
+- At start, a bucket that can't be reached, doesn't exist or refuses a4a stops the server, saying which bucket and what to check: the keys, `S3_ENDPOINT`, the machine's role.
+- Later, a failing store answers 503, `storage_unavailable`: "Files can't be reached right now". Why goes to the server's log, naming the bucket, and never to the person.
+- An upload whose bytes the store couldn't remove keeps its record, so the sweeper takes it once the store answers.
+
+**Moving from disk.** `pnpm --filter @a4a/server files:to-s3` (`node packages/server/dist/files-to-s3.js` from a build) copies every file a4a points at:
+
+1. Each file is read from disk and hashed on its way up; then its copy is read back and hashed again. Only a copy whose SHA-256 is the one taken at upload counts. A file on disk that doesn't match its own checksum is reported, and not copied.
+2. Verified copies go in a manifest beside the files, one key and checksum a line. A rerun skips them. A file in the bucket but not in the manifest (in flight when a run stopped) is read back, and copied again if it doesn't match. A bucket that fails stops the run, and the next carries on.
+3. Run it while the server still runs on disk; stop the server and run it again, which copies only what came since; then start with `ATTACHMENT_STORAGE=s3`. Nothing on disk is deleted.
+
+**Ranges.** `GET /attachments/{id}/content` answers one byte range with 206 and `Content-Range`, from either store: players seek with ranges, and Safari plays no video without them. It says `Accept-Ranges: bytes`, answers 416 past the end, and honours `If-Range`; several ranges at once get the whole file.
+
+**Shown in place.** A file on an issue or an article can be shown under its row, when asked for:
+
+- **Text** (`text`: logs, code, CSV, JSON, Markdown, and HTML and SVG as their source) comes through `GET /attachments/{id}/text`: the first 64 KB, or the last. It's React text in a `<pre>`, so nothing in it is markup. A character that changes the direction text reads in shows as its code (`U+202E`), so a line can't pass for another.
+- **Sound and video** (`play`, from the bytes: MP3, AAC, M4A, Ogg, WAV, FLAC; MP4 and WebM) play in the browser's own player, from the same URL, with `nosniff`. The page's policy gains `media-src 'self'`.
+- QuickTime, AVI and Matroska download, since browsers don't all play them. Sniffing now tells WebM from Matroska by its DocType, and knows MP3 without an ID3 tag and AAC in ADTS frames.
+
+**Not shown in place:**
+
+- **PDFs.** A browser shows a PDF in its own viewer, in a frame. Under the file's `sandbox` policy Chrome's viewer refuses, and lifting the sandbox would let a PDF's scripts run as a4a. pdf.js in the page would cost a megabyte and a worker. PDFs download.
+- **Thumbnails made on the server.** They would mean decoding untrusted images on the server (a native library, and its bugs) for what `loading="lazy"` and the browser's scaling already do. Images show as themselves.
+
+- **Costs:** every download crosses a4a's bandwidth as well as the bucket's. A copy reads each file twice, up and back. The SDK loads only when the bucket is first used, so a server on disk never loads it.
+- **Revisit when:** files are large or many: presigned URLs then, with a4a setting the response's type and disposition. Or when people ask for PDFs in place: pdf.js in a worker.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -587,7 +628,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Single sign-on:** see D16.
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
-- **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
+- **Uploaded files:** their type is read from their bytes. Only raster images open in place. Text shows as text, never as markup, and sound and video play in the browser's own player (D35). Everything else is a download. All are served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system or a bucket's keys.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
@@ -612,7 +653,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
-- **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
+- **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 
 ## Not yet
 
@@ -623,7 +664,6 @@ Planned, with the seams already in place:
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
-- an S3-compatible store for files, so several instances need no shared volume (D18);
 - rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
 - matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;

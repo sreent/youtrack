@@ -65,6 +65,36 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @a4a/server test
 
+  s3:
+    name: Files in an S3-compatible bucket (MinIO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # test/s3-live.test.ts runs against this server; everywhere else it's skipped.
+      TEST_S3_ENDPOINT: http://localhost:9000
+      TEST_S3_BUCKET: a4a-ci
+      TEST_S3_ACCESS_KEY_ID: a4a-ci
+      TEST_S3_SECRET_ACCESS_KEY: a4a-ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # A service container can't be given MinIO's command, so it starts here: a pinned release,
+      # so a new one can't change the run.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER="$TEST_S3_ACCESS_KEY_ID" -e MINIO_ROOT_PASSWORD="$TEST_S3_SECRET_ACCESS_KEY" \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for i in $(seq 1 30); do curl -fsS http://localhost:9000/minio/health/live && exit 0; sleep 1; done
+          docker logs minio
+          exit 1
+      - run: pnpm --filter @a4a/server exec vitest run test/s3-live.test.ts
+
   e2e:
     name: Browser tests, Chromium, against the production build
     runs-on: ubuntu-latest

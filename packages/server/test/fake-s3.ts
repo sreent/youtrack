@@ -138,6 +138,12 @@ export async function startFakeS3(opts: { bucket?: string; accessKeyId?: string;
       error(res, 403, 'InvalidAccessKeyId', 'The AWS Access Key Id you provided does not exist in our records.', head);
       return;
     }
+    if (op === 'PUTBucket') {
+      if (buckets.has(name)) return error(res, 409, 'BucketAlreadyOwnedByYou', 'Your previous request to create the named bucket succeeded and you already own it.');
+      buckets.set(name, new Map());
+      send(res, 200, '', { location: `/${name}` });
+      return;
+    }
     const objects = buckets.get(name);
     if (!objects) {
       error(res, 404, 'NoSuchBucket', 'The specified bucket does not exist', head);
