@@ -65,6 +65,10 @@ export function receiveFile(req: Request, opts: { maxBytes: number; tooLargeMess
       }
       file = stream;
       settled = true;
+      // Whoever takes the file reads it only after a few database round trips. If the client
+      // goes away meanwhile, the error must not be left unhandled, which would end the
+      // process. The stream keeps it as its error, so the pipeline that reads it still fails.
+      stream.on('error', () => {});
       resolve({ name: info.filename ?? 'file', stream, abort });
     });
     parser.on('filesLimit', () => file?.destroy(badRequest('Send one file per request', 'Upload each file on its own.')));
