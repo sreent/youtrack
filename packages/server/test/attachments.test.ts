@@ -227,6 +227,31 @@ describe('uploading, serving and deleting', () => {
     expect(exact.status).toBe(201);
   });
 
+  it('leaves nothing behind when the client goes away mid-upload', async () => {
+    const before = (await w.app.db.select().from(attachmentBlobs)).length;
+    const files = filesUnder(root).length;
+    const boundary = 'cut-short-boundary';
+    const head = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="cut.bin"\r\nContent-Type: application/octet-stream\r\n\r\n`;
+    let sent = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent++ === 0) controller.enqueue(new TextEncoder().encode(head));
+        else if (sent < 5) controller.enqueue(new Uint8Array(8192).fill(1));
+        else controller.error(new Error('connection reset by peer'));
+      },
+    });
+    const res = await app.request(`/api/v1/issues/${other}/attachments`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tokens.anna}`, 'content-type': `multipart/form-data; boundary=${boundary}` },
+      body,
+      duplex: 'half',
+    } as RequestInit);
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toMatch(/didn't finish|cut short|could not be read/);
+    expect(await w.app.db.select().from(attachmentBlobs)).toHaveLength(before);
+    expect(filesUnder(root)).toHaveLength(files);
+  });
+
   it('caps what one issue holds, even when uploads race', async () => {
     const fresh = (await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Full of files' })).id;
     const part = Buffer.alloc(60 * 1024, 2);

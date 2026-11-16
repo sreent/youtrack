@@ -374,7 +374,7 @@ export async function readAttachmentText(ctx: Ctx, id: string, opts: { offset?: 
   let text: string;
   if (charset === 'utf-16le' || charset === 'utf-16be') {
     let a = from % 2;
-    let b = buf.length - ((buf.length - a) % 2);
+    const b = buf.length - ((buf.length - a) % 2);
     if (from === 0 && b - a >= 2) a += 2; // the byte-order mark
     const part = Buffer.from(buf.subarray(a, b));
     text = (charset === 'utf-16be' ? part.swap16() : part).toString('utf16le');
