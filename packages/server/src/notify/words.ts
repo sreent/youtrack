@@ -74,16 +74,15 @@ export function notificationTitle(kind: NotificationKind, events: TrackerEvent[]
     case 'request':
       return `${who} asked for help through the help desk`;
     default: {
-      const people = [...new Set(events.map(actorName))];
       if (events.length === 1) return `${who} ${eventVerb(lead)}`;
-      if (people.length === 1) {
-        const comments = events.filter((e) => e.type === 'comment.created').length;
-        const changes = events.length - comments;
-        if (!changes) return `${who} commented ${comments} times`;
-        if (!comments) return `${who} made ${events.length} changes`;
-        return `${who} commented and made ${changes} ${changes === 1 ? 'change' : 'changes'}`;
-      }
-      return `${list(people.slice(0, 3))}${people.length > 3 ? ' and others' : ''} made ${events.length} changes`;
+      const people = [...new Set(events.map(actorName))];
+      const them = people.length === 1 ? who : `${list(people.slice(0, 3))}${people.length > 3 ? ' and others' : ''}`;
+      const comments = events.filter((e) => e.type === 'comment.created').length;
+      const changes = events.length - comments;
+      const times = comments === 2 ? ' twice' : comments > 2 ? ` ${comments} times` : '';
+      if (!changes) return `${them} commented${people.length === 1 ? times : ''}`;
+      const made = `made ${changes} ${changes === 1 ? 'change' : 'changes'}`;
+      return comments ? `${them} commented and ${made}` : `${them} ${made}`;
     }
   }
 }

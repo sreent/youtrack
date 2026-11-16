@@ -22,6 +22,8 @@ const OCEAN: Record<string, string[]> = {
   run: ['M8 5.5l10 6.5-10 6.5z'],
   trace: ['M6 15.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z', 'M18 3.8a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4z', 'M7.6 16.4l8.8-8.8'],
   chat: ['M4 5.5h16v10.5H9l-5 4z'],
+  bell: ['M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2H5z', 'M10 20.5h4'],
+  message: ['M4 5.5h16v10.5H9l-5 4z', 'M8 9.5h8', 'M8 12.5h5'],
 };
 
 /** Drawn for a4a in Ocean's manner. */

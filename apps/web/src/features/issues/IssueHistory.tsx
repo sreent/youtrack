@@ -1,15 +1,18 @@
-import type { Comment, IssueDetail, TrackerEvent, UserRef } from '@a4a/shared';
+import type { Comment, CommentVisibility, IssueDetail, TrackerEvent, UserRef } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { post } from '../../api/client';
 import { keys, useActivity, useComments } from '../../api/queries';
+import { Badge } from '../../components/Badges';
 import { ChangeLines } from '../../components/Changes';
 import { Markdown } from '../../components/Markdown';
 import { ErrorNote, Loading, ErrorLine } from '../../components/States';
 import { Avatar, type WhoKind } from '../../components/Who';
 import { errorText } from './api';
 import { FormField } from '../../components/Form';
+import { useRequestInfo } from '../notifications/api';
+import { MentionField } from './MentionField';
 
 type Actor = TrackerEvent['actor'];
 
@@ -22,10 +25,12 @@ interface Who {
   via: string;
 }
 
-/** Who acted, for whom and through what, in Ocean's grammar. */
-export function whoOf(actor: Actor): Who {
+/** Who acted, for whom and through what, in Ocean's grammar. A requester, through the help desk, by the name they gave. */
+export function whoOf(actor: Actor, requester?: string | null): Who {
   const person = actor.name ?? actor.login ?? 'someone';
   switch (actor.channel) {
+    case 'helpdesk':
+      return { kind: 'person', name: requester ?? 'The requester', via: 'via the help desk' };
     case 'web':
       return { kind: 'person', name: person, via: 'via the web' };
     case 'api':
@@ -58,14 +63,16 @@ interface Entry {
   did?: React.ReactNode;
   body?: React.ReactNode;
   comment?: string;
+  /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
+  public?: 'reply' | 'theirs';
 }
 
 function eventEntry(e: TrackerEvent): Entry | null {
-  const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor) };
   const data = e.data as Record<string, unknown>;
+  const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor, (data.requester as { name?: string } | undefined)?.name) };
   switch (e.type) {
     case 'issue.created':
-      return { ...base, did: 'reported it' };
+      return { ...base, did: data.requester ? 'asked for help' : 'reported it' };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {
@@ -128,10 +135,16 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>): Entry {
     channel: c.channel,
     token: null,
   };
-  return { key: `c${c.id}`, at: c.createdAt, who: whoOf(actor), comment: c.text };
+  return {
+    key: `c${c.id}`,
+    at: c.createdAt,
+    who: whoOf(actor, c.requester?.name),
+    comment: c.text,
+    public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+  };
 }
 
-function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode }) {
+function Head({ who, at, did, badge }: { who: Who; at: string; did?: React.ReactNode; badge?: React.ReactNode }) {
   return (
     <p className="history-head">
       <strong className="who-name">{who.name}</strong>
@@ -141,7 +154,27 @@ function Head({ who, at, did }: { who: Who; at: string; did?: React.ReactNode })
       <time dateTime={at} title={new Date(at).toLocaleString()}>
         {when(at)}
       </time>
+      {badge}
     </p>
+  );
+}
+
+/** Who sees a comment on a help desk request: the team alone, or the requester too, by email. */
+function Visibility({ value, onChange, requester }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string }) {
+  return (
+    <div className="stack tight">
+      <div className="modes" role="group" aria-label="Who sees this comment">
+        <button type="button" aria-pressed={value === 'internal'} onClick={() => onChange('internal')}>
+          Internal note
+        </button>
+        <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>
+          Reply to {requester}
+        </button>
+      </div>
+      <p className="field-help" id="visibility-help">
+        {value === 'public' ? `${requester} gets it by email, and sees it on their request's page.` : `Only the team sees it. ${requester} doesn't.`}
+      </p>
+    </div>
   );
 }
 
@@ -150,7 +183,10 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
+  const request = useRequestInfo(issue);
+  const requester = request.data?.requester.name ?? null;
   const [text, setText] = useState('');
+  const [visibility, setVisibility] = useState<CommentVisibility>('internal');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,8 +206,9 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
     setBusy(true);
     setError(null);
     try {
-      await post(`/issues/${issue.id}/comments`, { text });
+      await post(`/issues/${issue.id}/comments`, { text, ...(requester ? { visibility } : {}) });
       setText('');
+      setVisibility('internal');
       await Promise.all([
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') }),
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'activity') }),
@@ -192,10 +229,21 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
           <li key={e.key}>
             <Avatar kind={e.who.kind} name={e.who.name} small />
             <div className="history-body">
-              <Head who={e.who} at={e.at} did={e.did} />
+              <Head
+                who={e.who}
+                at={e.at}
+                did={e.did}
+                badge={
+                  e.public === 'reply' ? (
+                    <Badge grammar="outside">public: sent to {requester ?? 'the requester'}</Badge>
+                  ) : e.public === 'theirs' ? (
+                    <Badge grammar="outside">public: the requester wrote it</Badge>
+                  ) : null
+                }
+              />
               {e.body}
               {e.comment !== undefined ? (
-                <div className="history-comment">
+                <div className={e.public ? 'history-comment public' : 'history-comment'}>
                   <Markdown text={e.comment} />
                 </div>
               ) : null}
@@ -210,15 +258,24 @@ export function IssueHistory({ issue, me }: { issue: IssueDetail; me: UserRef | 
           if (text.trim()) void send();
         }}
       >
-        <FormField label={`A comment${me ? `, as ${me.name}` : ''}`}>
-          {(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Markdown works here. Mention an issue by its id, like BACK-12." />}
+        {requester ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+        <FormField label={`${requester && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
+          {(id) => (
+            <MentionField
+              id={id}
+              value={text}
+              onChange={setText}
+              describedBy={requester ? 'visibility-help' : undefined}
+              placeholder="Markdown works here. Mention someone with @ and their login, and an issue by its id, like BACK-12."
+            />
+          )}
         </FormField>
         {error ? (
           <ErrorLine>{error}</ErrorLine>
         ) : null}
         <div className="cluster end">
           <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Commenting…' : 'Comment'}
+            {busy ? 'Sending…' : requester ? (visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
           </button>
         </div>
       </form>

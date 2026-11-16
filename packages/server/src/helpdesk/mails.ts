@@ -9,7 +9,6 @@ import { comments, helpdeskRequests, helpdeskTokens, issues, requesters } from '
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
 import { sha256 } from '../lib/crypto';
-import { excerpt } from '../lib/text';
 import { mintTrackingToken, trackingUrl } from '../services/helpdesk';
 import { unsubscribeToken } from '../services/notifications';
 
@@ -28,7 +27,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   if (row.kind !== 'request-received' && request.emailMutedAt) return null;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  const desk = `${project?.name ?? 'the'} help desk`;
+  const desk = project ? `${project.name}'s help desk` : 'the help desk';
 
   let subject = `Re: ${issue.summary}`;
   let lead: string;
@@ -38,7 +37,8 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     subject = issue.summary;
     lead = `We have your request, ${requester.name}. The team will reply on its page, and we'll email you when they do.`;
     head = 'You asked:';
-    quote = [issue.summary, excerpt(issue.description, 4000)].filter(Boolean).join('\n\n');
+    const asked = issue.description.trim();
+    quote = [issue.summary, asked.length > 4000 ? `${asked.slice(0, 3999)}…` : asked].filter(Boolean).join('\n\n');
   } else if (row.kind === 'request-reply') {
     const [comment] = await app.db
       .select()

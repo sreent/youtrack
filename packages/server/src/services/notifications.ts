@@ -167,7 +167,7 @@ export async function markNotifications(
 export async function getNotificationSettings(ctx: Ctx): Promise<NotificationSettings> {
   requirePersonalRead(ctx);
   const prefs = await emailPrefs(ctx.db, ctx.actor.user.id);
-  return { ...prefs, address: ctx.actor.user.email, mailConfigured: mailConfigured(ctx.app) };
+  return { ...prefs, address: ctx.actor.user.email, mailConfigured: mailConfigured(ctx.app), digestHour: ctx.app.config.digestHour };
 }
 
 export async function updateNotificationSettings(ctx: Ctx, input: { email?: EmailLevel; digest?: boolean }): Promise<NotificationSettings> {
@@ -221,7 +221,7 @@ async function readToken(app: AppServices, token: string): Promise<{ kind: Unsub
 
 export async function describeUnsubscribe(app: AppServices, token: string): Promise<Unsubscribe> {
   const { kind, subject } = await readToken(app, token);
-  return { what: WORDS[kind], done: await isStopped(app.db, kind, subject) };
+  return { kind, what: WORDS[kind], done: await isStopped(app.db, kind, subject) };
 }
 
 async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promise<boolean> {
@@ -251,7 +251,7 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
     else if (kind === 'watching' && prefs.email === 'all') await saveSettings(app.db, subject, { email: 'direct' });
     else if (kind === 'direct') await saveSettings(app.db, subject, { email: 'none' });
   }
-  return { what: WORDS[kind], done: true };
+  return { kind, what: WORDS[kind], done: true };
 }
 
 /** Notifications of a person, unread and not emailed, whose latest event falls in (since, until]: a digest's. */

@@ -20,6 +20,11 @@ const AgentsPage = lazy(() => import('../pages/AgentsPage'));
 const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const InboxPage = lazy(() => import('../pages/InboxPage'));
+// Public: a help desk's form and a request's page, and where an email's unsubscribe link leads.
+const HelpPage = lazy(() => import('../pages/HelpPage'));
+const TrackPage = lazy(() => import('../pages/TrackPage'));
+const UnsubscribePage = lazy(() => import('../pages/UnsubscribePage'));
 
 export function App() {
   return (
@@ -29,8 +34,12 @@ export function App() {
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/help/:key" element={<HelpPage />} />
+        <Route path="/request" element={<TrackPage />} />
+        <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route element={<RequireUser />}>
           <Route index element={<Navigate to="/issues" replace />} />
+          <Route path="/inbox" element={<Page><InboxPage /></Page>} />
           <Route path="/issues" element={<Page><IssuesPage /></Page>} />
           <Route path="/issues/new" element={<Page><NewIssuePage /></Page>} />
           <Route path="/issues/:id" element={<Page><IssuePage /></Page>} />

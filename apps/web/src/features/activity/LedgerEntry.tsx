@@ -140,7 +140,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
  * did, in the colour of what it did; and through what, for whom and where.
  */
 export function LedgerEntry({ event }: { event: TrackerEvent }) {
-  const who = actorWho(event.actor);
+  const who = actorWho(event.actor, event.data);
   const w = what(event);
   return (
     <li>

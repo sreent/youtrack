@@ -128,6 +128,28 @@ describe('watchers', () => {
     expect((await listWatchers(readOnly, issue.id)).watching).toBe(false);
   });
 
+  it('gives issues from before watching existed their watchers, once', async () => {
+    const quiet = await createWorld();
+    try {
+      const issue = await createIssue(quiet.as(quiet.anna), { project: 'BACK', summary: 'Old issue', fields: { Assignee: 'ben' } });
+      await addComment(quiet.as(quiet.viewer), issue.id, 'Me too.').catch(() => undefined); // a viewer can't comment
+      await addComment(quiet.adminCtx, issue.id, 'Noted.');
+      // As it was before watching existed: no watchers, and never backfilled.
+      await quiet.app.db.delete((await import('../src/db/schema')).issueWatchers);
+      const { backfillWatchers } = await import('../src/services/watchers');
+      expect(await backfillWatchers(quiet.app)).toBe(3);
+      const watchers = await listWatchers(quiet.as(quiet.anna), issue.id);
+      expect(watchers.watchers.map((x) => [x.user.login, x.reason]).sort()).toEqual([
+        ['admin', 'commenter'],
+        ['anna', 'reporter'],
+        ['ben', 'assignee'],
+      ]);
+      expect(await backfillWatchers(quiet.app)).toBe(0);
+    } finally {
+      await quiet.close();
+    }
+  });
+
   it('finds what you watch with watcher: me', async () => {
     const watched = await createIssue(as(w.ben), { project: 'BACK', summary: 'Rotate the signing keys' });
     const mine = (await searchIssues(as(w.ben), 'watcher: me', 0, 200)).items.map((i) => i.id);

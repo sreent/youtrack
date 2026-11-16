@@ -7,11 +7,12 @@
  * goes into no history and no webhook, and a viewer may watch what they can read.
  */
 import { findMentions, newMentions, type WatchReason, type Watchers } from '@a4a/shared';
-import { and, asc, eq, inArray } from 'drizzle-orm';
-import { requireScope, type Ctx } from '../context';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issueWatchers } from '../db/schema';
 import { resolveIssue } from './issues';
+import { getSetting, setSetting } from './settings';
 import { fieldByName, type FieldRow, type SchemaSnapshot } from './schema-cache';
 import type { ResolvedValue } from './values';
 import { userRefDto } from './values';
@@ -99,6 +100,43 @@ export async function listWatchers(ctx: Ctx, issue: string): Promise<Watchers> {
   requireScope(ctx, 'read');
   const row = await resolveIssue(ctx, issue);
   return watchersOf(ctx, row.id);
+}
+
+const BACKFILLED = 'watchersBackfilledAt';
+
+/**
+ * Once per database: issues from before watching existed get the watchers they would have had, their
+ * reporter, assignee and commenters (people, not agents). Every instance may try; it's idempotent.
+ */
+export async function backfillWatchers(app: AppServices): Promise<number> {
+  if (await getSetting(app.db, BACKFILLED)) return 0;
+  const s = await app.schema.get();
+  const assignee = assigneeFieldOf(s);
+  const counted = (res: unknown) => (res as { rows?: unknown[]; rowCount?: number }).rowCount ?? (res as { rows?: unknown[] }).rows?.length ?? 0;
+  let added = counted(
+    await app.db.execute(sql`
+      INSERT INTO issue_watchers (issue_id, user_id, reason)
+      SELECT i.id, i.reporter_id, 'reporter' FROM issues i JOIN users u ON u.id = i.reporter_id WHERE NOT u.is_bot AND NOT u.banned
+      ON CONFLICT DO NOTHING RETURNING issue_id`),
+  );
+  if (assignee) {
+    added += counted(
+      await app.db.execute(sql`
+        INSERT INTO issue_watchers (issue_id, user_id, reason)
+        SELECT DISTINCT ifv.issue_id, ifv.user_id, 'assignee' FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id
+        WHERE ifv.field_id = ${assignee.id} AND NOT u.is_bot AND NOT u.banned
+        ON CONFLICT DO NOTHING RETURNING issue_id`),
+    );
+  }
+  added += counted(
+    await app.db.execute(sql`
+      INSERT INTO issue_watchers (issue_id, user_id, reason)
+      SELECT DISTINCT c.issue_id, c.author_id, 'commenter' FROM comments c JOIN users u ON u.id = c.author_id
+      WHERE c.deleted_at IS NULL AND NOT u.is_bot AND NOT u.banned
+      ON CONFLICT DO NOTHING RETURNING issue_id`),
+  );
+  await setSetting(app.db, BACKFILLED, new Date().toISOString());
+  return added;
 }
 
 /** Watch an issue yourself. Watching it already (say, as its reporter) changes nothing. */

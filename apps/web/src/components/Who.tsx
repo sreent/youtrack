@@ -59,9 +59,14 @@ export function UserWho({ user, small, about }: { user: UserRef | null | undefin
  * Who acted, in Ocean's grammar: a person on the web; an agent (the assistant, an
  * MCP client) acting for a person; a service (a script with an API token).
  */
-export function actorWho(actor: TrackerEvent['actor']): { kind: WhoKind; name: string; about: string } {
+export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data']): { kind: WhoKind; name: string; about: string } {
   const name = actor.name ?? actor.login ?? 'a4a';
   switch (actor.channel) {
+    case 'helpdesk': {
+      // Someone outside, through the help desk: a person, by the name they gave.
+      const requester = (data?.requester as { name?: string } | undefined)?.name;
+      return { kind: 'person', name: requester ?? 'A requester', about: 'through the help desk' };
+    }
     case 'assistant':
       return { kind: 'agent', name: 'assistant', about: `for ${name}` };
     case 'mcp':

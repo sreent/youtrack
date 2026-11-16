@@ -9,6 +9,7 @@ import {
   EMAIL_LEVELS,
   EVENT_TYPES,
   FIELD_TYPES,
+  HELP_LIMITS,
   LEVELING_MODES,
   NOTIFICATION_KINDS,
   ROLES,
@@ -1277,6 +1278,7 @@ export const NotificationSettingsSchema = z
     digest: z.boolean().describe("A daily email of what's still unread and wasn't emailed"),
     address: z.string().nullable().describe('Where emails go: your email, from your profile'),
     mailConfigured: z.boolean().describe('Whether this server sends email at all (SMTP_URL)'),
+    digestHour: z.number().int().describe("The hour the digest goes out, in the server's time zone (DIGEST_HOUR)"),
   })
   .meta({ id: 'NotificationSettings' });
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
@@ -1288,6 +1290,7 @@ export const NotificationSettingsBody = z.object({
 export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) });
 export const UnsubscribeSchema = z
   .object({
+    kind: z.enum(['watching', 'direct', 'digest', 'request']).describe("What the link is for: a person's kind of email, or a help desk request's emails to its requester"),
     what: z.string().describe('What the link stops, in words'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
@@ -1328,8 +1331,6 @@ export const HelpFormSchema = z
   })
   .meta({ id: 'HelpForm' });
 export type HelpForm = z.infer<typeof HelpFormSchema>;
-
-export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
 
 export const HelpRequestBody = z.object({
   name: z.string().trim().min(1).max(HELP_LIMITS.name),

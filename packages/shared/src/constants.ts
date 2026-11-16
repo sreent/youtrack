@@ -95,5 +95,8 @@ export type CommentVisibility = (typeof COMMENT_VISIBILITIES)[number];
 export const SLA_STATES = ['none', 'due', 'overdue', 'met', 'missed'] as const;
 export type SlaState = (typeof SLA_STATES)[number];
 
+/** What a help desk's public form and tracking page take, at most (the server's limits, and the form's maxlength). */
+export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
+
 export const MAX_BULK_ISSUES = 50;
 export const MAX_PAGE_SIZE = 200;

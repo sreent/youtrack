@@ -18,6 +18,9 @@ import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
 import { FormField } from '../components/Form';
+import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
+import { WatchersCard, WatchToggle } from '../features/issues/Watching';
+import { useRequestInfo } from '../features/notifications/api';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -181,6 +184,7 @@ export default function IssuePage() {
   const users = useUsers();
   const projectFields = useProjectFields(issue.data?.project.key);
   const suggestions = useSuggestions(id, Boolean(issue.data));
+  const request = useRequestInfo(issue.data);
   const [commanding, setCommanding] = useState(false);
   const [triaging, setTriaging] = useState<string | null>(null);
 
@@ -247,12 +251,14 @@ export default function IssuePage() {
           <>
             <span className="issue-id">{data.id}</span>
             <StateBadge fields={data.fields} />
+            {request.data ? <SlaBadge sla={request.data.firstResponse} since={request.data.createdAt} /> : null}
           </>
         }
         meta={
           <>
             <span>
-              Reported by {data.reporter?.name ?? 'someone'} <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+              {request.data ? `Asked by ${request.data.requester.name} through the help desk` : `Reported by ${data.reporter?.name ?? 'someone'}`}{' '}
+              <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
             </span>
             {data.tags.length ? (
               <span className="chips">
@@ -267,6 +273,7 @@ export default function IssuePage() {
         }
         actions={
           <>
+            <WatchToggle issue={data.id} />
             {ai.data?.enabled ? (
               <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title="Ask triage to work out its fields and look for duplicates">
                 <Icon name="agent" />
@@ -292,11 +299,15 @@ export default function IssuePage() {
           <IssueHistory issue={data} me={me.data} />
           <WorkLog issue={data} me={me.data} />
         </div>
-        {projectFields.data && users.data ? (
-          <FieldPanel issue={data} fields={projectFields.data} users={users.data} proposals={proposals} />
-        ) : (
-          <Loading what="fields" />
-        )}
+        <div className="stack">
+          {projectFields.data && users.data ? (
+            <FieldPanel issue={data} fields={projectFields.data} users={users.data} proposals={proposals} />
+          ) : (
+            <Loading what="fields" />
+          )}
+          <RequestCard issue={data} />
+          <WatchersCard issue={data.id} />
+        </div>
       </div>
       <CommandBar issues={[{ id: data.id, summary: data.summary }]} open={commanding} onClose={() => setCommanding(false)} />
     </>
