@@ -19,14 +19,19 @@ interface Choice {
   text: string;
   view: React.ReactNode;
   kind?: string;
+  /** Its name, when its view doesn't say it in words (a PriorityMeter is named "Priority"). */
+  label?: string;
 }
 
 const EMPTY: Record<string, string> = { Assignee: 'Unassigned', 'Due date': 'No due date', 'Start date': 'No start date', 'Fix versions': 'None yet' };
 const emptyWords = (name: string) => EMPTY[name] ?? 'Not set';
 
-function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }) {
+/** A field whose values show as a PriorityMeter, which names itself "Priority" whatever it shows. */
+const isMeter = (field: ProjectField) => field.name === 'Priority';
+
+function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }, wordId?: string) {
   if (field.type === 'state') return <Badge tone={v.tone}>{v.name}</Badge>;
-  if (field.name === 'Priority') return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} />;
+  if (isMeter(field)) return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} wordId={wordId} />;
   return <>{v.name}</>;
 }
 
@@ -35,11 +40,16 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. */
+/**
+ * The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. It is
+ * named by its label and itself ("State, In Progress"), or by its label and `valueNameId`, the
+ * element whose words say the value, when the view's own name doesn't (a PriorityMeter's).
+ */
 function ChoiceValue({
   labelId,
   name,
   view,
+  valueNameId,
   choices,
   chosen,
   multi,
@@ -49,6 +59,7 @@ function ChoiceValue({
   labelId: string;
   name: string;
   view: React.ReactNode;
+  valueNameId?: string;
   choices: Choice[];
   chosen: Set<string>;
   multi: boolean;
@@ -112,7 +123,7 @@ function ChoiceValue({
         type="button"
         className={proposedId ? 'fields-value proposed' : 'fields-value'}
         id={`${id}-value`}
-        aria-labelledby={`${labelId} ${id}-value`}
+        aria-labelledby={`${labelId} ${valueNameId ?? `${id}-value`}`}
         aria-describedby={proposedId}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -141,6 +152,7 @@ function ChoiceValue({
               key={c.key}
               id={`${listId}-${i}`}
               role="option"
+              aria-label={c.label}
               aria-selected={chosen.has(c.key)}
               className={i === active ? 'active' : undefined}
               onMouseDown={(e) => e.preventDefault()}
@@ -175,6 +187,7 @@ function TextValue({
   proposedId?: string;
   onSave: (v: string) => Promise<void>;
 }) {
+  const ownId = useId();
   const [text, setText] = useState(initial);
   const [editingDate, setEditingDate] = useState(false);
   useEffect(() => setText(initial), [initial]);
@@ -189,9 +202,10 @@ function TextValue({
   const cls = ['fields-value', mono ? 'mono' : '', proposedId ? 'proposed' : ''].filter(Boolean).join(' ');
 
   // A date reads as words at rest ("No due date", "12 Nov 2026") and becomes a date field to change it.
+  // At rest it's a button, so, like a choice, it's named by its label and the words it shows.
   if (type === 'date' && !editingDate) {
     return (
-      <button type="button" className={cls} aria-labelledby={labelId} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
+      <button type="button" className={cls} id={ownId} aria-labelledby={`${labelId} ${ownId}`} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
         {initial ? formatDate(initial) : <span className="empty">{placeholder}</span>}
       </button>
     );
@@ -292,13 +306,15 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             const chosen = new Set(chosenValues.map((v) => v.name));
             const values = pf.values.filter((v) => !v.archived || chosen.has(v.name));
             const shown = proposal ? values.find((v) => v.name === proposal.value) : null;
+            // A meter's word, not the meter, says which value it is.
+            const wordId = isMeter(pf) && !pf.multi && (shown || chosenValues.length) ? `${labelId}-word` : undefined;
             const view = shown ? (
-              optionView(pf, shown)
+              optionView(pf, shown, wordId)
             ) : chosenValues.length ? (
               pf.multi ? (
                 <span className="mono">{chosenValues.map((v) => v.name).join(', ')}</span>
               ) : (
-                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone })
+                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone }, wordId)
               )
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
@@ -308,17 +324,16 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                 labelId={labelId}
                 name={pf.name}
                 view={view}
+                valueNameId={wordId}
                 multi={pf.multi}
                 chosen={chosen}
                 proposedId={proposedId}
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
-                  ...values.map((v) => ({
-                    key: v.name,
-                    text: v.name,
-                    view: optionView(pf, v),
-                    kind: chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined,
-                  })),
+                  ...values.map((v) => {
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined;
+                    return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
+                  }),
                 ]}
                 onPick={(keys) => void set(pf.name, pf.multi ? keys : keys[0] || null).catch(() => {})}
               />
