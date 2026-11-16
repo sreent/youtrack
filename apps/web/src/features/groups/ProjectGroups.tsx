@@ -29,7 +29,7 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectGroup>(`/projects/${project.key}/groups/${g.id}`, { role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${g.name} is ${aRole(r.roleName, isBuiltinRole(r.role))} now, at least.` });
+      setSaid({ text: `Everyone in ${g.name} is at least ${aRole(r.roleName, isBuiltinRole(r.role))} now.` });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -95,7 +95,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
   const add = useMutation({
     mutationFn: () => post<ProjectGroup>(`/projects/${project.key}/groups`, { group, role }),
     onSuccess: (r) => {
-      setSaid({ text: `Everyone in ${r.group.name} is ${aRole(r.roleName, isBuiltinRole(r.role))} of ${project.key} now, at least.` });
+      setSaid({ text: `Everyone in ${r.group.name} is at least ${aRole(r.roleName, isBuiltinRole(r.role))} of ${project.key} now.` });
       setGroup('');
       void invalidate();
     },

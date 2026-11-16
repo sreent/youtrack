@@ -73,7 +73,7 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
       qc.setQueryData(keys.issue(issue.id), next);
       void qc.invalidateQueries({ queryKey: keys.issue(issue.id) });
       setEditing(null);
-      setSaid({ text: next.visibleTo ? `Only ${audience(next.visibleTo)} see it now, besides those who always do.` : `Everyone who sees ${key} sees it now.` });
+      setSaid({ text: next.visibleTo ? `It's limited to ${audience(next.visibleTo)} now, besides those who always see it.` : `Everyone who sees ${key} sees it now.` });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });

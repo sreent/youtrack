@@ -15,6 +15,12 @@ const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
   { id: 'members', name: 'Members only', about: 'Only the people below, and administrators, see it at all. To anyone else it doesn’t exist.' },
 ];
 
+const YOU_MAY = {
+  viewer: 'you read its issues and comment on them',
+  member: 'you read, comment on and change its issues',
+  manager: 'you change its issues, settings, people, boards and baselines',
+};
+
 /** Your own place in the project, in a sentence. */
 export function yourRole(project: Project): string {
   const a = project.access;
@@ -31,8 +37,9 @@ export function yourRole(project: Project): string {
           ? `, as one of ${a.group ?? 'a group'}`
           : '';
   if (a.via === 'guest') return `You're reading ${project.key} as a guest. Sign in to do more.`;
-  if (!a.comment) return `You're ${role} here${why}, and may only read.`;
-  return `You're ${role} here${why}: you may ${permissionWords(a.permissions)}.`;
+  if (!isBuiltinRole(a.role)) return `You're ${role} here${why}: you may ${permissionWords(a.permissions)}.`;
+  if (!a.comment) return `You're ${role} here${why}, but your account only reads.`;
+  return `You're ${role} here${why}: ${YOU_MAY[a.role as keyof typeof YOU_MAY]}.`;
 }
 
 function useInvalidate(project: Project) {
