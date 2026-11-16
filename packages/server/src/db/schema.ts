@@ -139,6 +139,8 @@ export const projects = pgTable(
     archived: boolean('archived').notNull().default(false),
     /** 'open': everyone sees it and works in it. 'members': only its people and administrators see it. */
     visibility: text('visibility').notNull().default('open'),
+    /** Anyone may read it without signing in (D37). */
+    guestAccess: boolean('guest_access').notNull().default(false),
     settings: jsonb('settings').notNull(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -240,6 +242,13 @@ export const issues = pgTable(
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(summary, '')), 'A') || setweight(to_tsvector('english', coalesce(description, '')), 'B')`,
     ),
+    /**
+     * Limited to some people and groups (D37): then only they see it, besides its reporter, its
+     * assignee, the project's managers and administrators.
+     */
+    limited: boolean('limited').notNull().default(false),
+    visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
+    visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [
     uniqueIndex('issues_project_number').on(t.projectId, t.number),
@@ -352,6 +361,10 @@ export const comments = pgTable(
     visibility: text('visibility').notNull().default('internal'),
     /** Set when the requester of a help desk request wrote it, on their tracking page. */
     requesterId: text('requester_id').references(() => requesters.id, { onDelete: 'set null' }),
+    /** Limited to some people and groups (D37): then only they see it, besides its author, the project's managers and administrators. */
+    limited: boolean('limited').notNull().default(false),
+    visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
+    visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [index('comments_issue').on(t.issueId, t.createdAt), index('comments_search').using('gin', t.searchVector)],
 );
@@ -1847,4 +1860,27 @@ export const workflowActions = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('workflow_actions_name').on(t.projectId, sql`lower(${t.name})`)],
+);
+
+// ---------------------------------------------------------------------------
+// Access in depth (D37): roles an administrator defines
+// ---------------------------------------------------------------------------
+
+/**
+ * A custom role: a set of permissions (PERMISSIONS in @a4a/shared). People and groups are given it
+ * in projects as they're given the built-in viewer, member and manager, which aren't rows: their
+ * ids are the role column's values there, and a custom role's id goes beside them.
+ */
+export const roles = pgTable(
+  'roles',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    permissions: text('permissions').array().notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('roles_name').on(sql`lower(${t.name})`)],
 );

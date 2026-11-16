@@ -15,7 +15,7 @@ import { issues, projectFields, projects } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { accessChanged, projectAccess, requireProject, type AccessView } from './access';
+import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
 import { getSetting } from './settings';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
@@ -68,14 +68,17 @@ const TEMPLATE_FIELDS: Record<Template, { name: string; required?: boolean; defa
   blank: [{ name: WELL_KNOWN_FIELDS.state, required: true, defaultValue: 'Open' }, { name: WELL_KNOWN_FIELDS.assignee }],
 };
 
-async function counts(db: Db): Promise<Map<string, { total: number; open: number }>> {
-  const rows = await db
+/** How many issues each project has, and how many are open, that the caller sees (D37: limited ones only where they see them). */
+async function counts(ctx: Ctx, view: AccessView): Promise<Map<string, { total: number; open: number }>> {
+  const seen = issueSeenSql(view, await ctx.app.schema.get());
+  const rows = await ctx.db
     .select({
       projectId: issues.projectId,
       total: sql<number>`count(*)::int`,
       open: sql<number>`count(*) filter (where ${issues.resolvedAt} is null)::int`,
     })
     .from(issues)
+    .where(seen)
     .groupBy(issues.projectId);
   return new Map(rows.map((r) => [r.projectId, { total: Number(r.total), open: Number(r.open) }]));
 }
@@ -84,7 +87,7 @@ export function projectVisibility(row: ProjectRow): ProjectVisibility {
   return row.visibility === 'members' ? 'members' : 'open';
 }
 
-const NO_ACCESS: ProjectAccess = { role: 'viewer', via: 'open', read: false, comment: false, write: false, manage: false };
+const NO_ACCESS: ProjectAccess = { role: 'viewer', roleName: 'Viewer', via: 'open', permissions: [], read: false, comment: false, write: false, manage: false };
 
 /** A project as the caller sees it, with what they may do in it. */
 export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView, c?: { total: number; open: number }): Project {
@@ -102,6 +105,7 @@ export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView,
     openIssueCount: c?.open ?? 0,
     createdAt: row.createdAt.toISOString(),
     access: view.describe(row.id) ?? NO_ACCESS,
+    guestAccess: row.guestAccess,
   };
 }
 
@@ -109,7 +113,7 @@ export async function listProjects(ctx: Ctx): Promise<Project[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const view = await projectAccess(ctx);
-  const c = await counts(ctx.db);
+  const c = await counts(ctx, view);
   const out: Project[] = [];
   for (const p of s.projects.values()) if (view.canRead(p.id)) out.push(projectDto(s, p, view, c.get(p.id)));
   return out;
@@ -118,8 +122,9 @@ export async function listProjects(ctx: Ctx): Promise<Project[]> {
 export async function getProject(ctx: Ctx, key: string): Promise<Project> {
   const p = await requireProject(ctx, key);
   const s = await ctx.app.schema.get();
-  const c = await counts(ctx.db);
-  return projectDto(s, p, await projectAccess(ctx), c.get(p.id));
+  const view = await projectAccess(ctx);
+  const c = await counts(ctx, view);
+  return projectDto(s, p, view, c.get(p.id));
 }
 
 export async function createProject(
@@ -173,6 +178,7 @@ export async function updateProject(
     lead?: string | null;
     archived?: boolean;
     visibility?: ProjectVisibility;
+    guestAccess?: boolean;
     settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings> };
   },
 ): Promise<Project> {
@@ -194,6 +200,14 @@ export async function updateProject(
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
+  // Opening a project to guests (D37) is an administrator's call, and only an open project can be:
+  // one its people alone see isn't for anyone who passes. Closing it to its people closes it to guests.
+  let guestAccess = input.guestAccess !== undefined && input.guestAccess !== p.guestAccess ? input.guestAccess : undefined;
+  if (guestAccess !== undefined) requireScope(ctx, 'admin');
+  if (guestAccess && (visibility ?? projectVisibility(p)) !== 'open') {
+    throw badRequest(`Only an open project can be open to guests, and ${p.key} is for its members only`, 'Make it open first, then let guests read it.');
+  }
+  if (visibility === 'members' && p.guestAccess) guestAccess = false;
   const activities: ActivityRow[] = [];
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -205,23 +219,24 @@ export async function updateProject(
         ...(leadId !== undefined ? { leadId } : {}),
         ...(input.archived !== undefined ? { archived: input.archived } : {}),
         ...(visibility ? { visibility } : {}),
+        ...(guestAccess !== undefined ? { guestAccess } : {}),
         settings,
         updatedAt: new Date(),
       })
       .where(eq(projects.id, p.id));
-    if (visibility) {
+    if (visibility || guestAccess !== undefined) {
       activities.push(
         await recordActivity(tx, ctx, {
           type: 'project.visibility.changed',
           projectId: p.id,
           issueId: null,
-          payload: { data: { from: projectVisibility(p), to: visibility } },
+          payload: { data: { from: projectVisibility(p), to: visibility ?? projectVisibility(p), ...(guestAccess !== undefined ? { guests: guestAccess } : {}) } },
         }),
       );
     }
   });
   ctx.app.schema.invalidate();
-  if (visibility || leadId !== undefined) accessChanged(ctx.app);
+  if (visibility || leadId !== undefined || guestAccess !== undefined) accessChanged(ctx.app);
   await publishActivities(ctx.app, activities);
   return getProject(ctx, key);
 }

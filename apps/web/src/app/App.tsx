@@ -35,6 +35,9 @@ const TrackPage = lazy(() => import('../pages/TrackPage'));
 const UnsubscribePage = lazy(() => import('../pages/UnsubscribePage'));
 // Before the frame: an app that asks to work in a4a as someone (OAuth for MCP); it signs them in itself.
 const OAuthConsentPage = lazy(() => import('../pages/OAuthConsentPage'));
+// Guests (D37): the projects open to anyone, read without signing in.
+const GuestHome = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestHome })));
+const GuestIssue = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestIssue })));
 
 export function App() {
   return (
@@ -48,6 +51,8 @@ export function App() {
         <Route path="/request" element={<TrackPage />} />
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
+        <Route path="/public" element={<GuestHome />} />
+        <Route path="/public/issues/:id" element={<GuestIssue />} />
         <Route element={<RequireUser />}>
           <Route index element={<Navigate to="/issues" replace />} />
           <Route path="/inbox" element={<Page><InboxPage /></Page>} />

@@ -17,6 +17,7 @@ import type {
   Project,
   ProjectField,
   ProjectMember,
+  RoleDef,
   SavedSearch,
   Settings,
   SetupStatus,
@@ -37,6 +38,7 @@ export const keys = {
   project: (key: string) => ['projects', key] as const,
   projectFields: (key: string) => ['projects', key, 'fields'] as const,
   members: (key: string) => ['projects', key, 'members'] as const,
+  roles: ['roles'] as const,
   issues: (query: string, offset: number, limit: number) => ['issues', 'list', query, offset, limit] as const,
   issue: (id: string) => ['issues', 'one', id] as const,
   issueSub: (id: string, what: string) => ['issues', 'one', id, what] as const,
@@ -62,6 +64,8 @@ export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => get<Me>(
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: () => get<Project[]>('/projects'), staleTime: 30_000 });
 export const useProject = (key: string | undefined) =>
   useQuery({ queryKey: keys.project(key ?? ''), queryFn: () => get<Project>(`/projects/${key}`), enabled: Boolean(key) });
+/** Roles and what each allows (D37): the built-in three, then the ones administrators made. */
+export const useRoles = () => useQuery({ queryKey: keys.roles, queryFn: () => get<RoleDef[]>('/roles'), staleTime: 60_000 });
 export const useMembers = (key: string | undefined) =>
   useQuery({ queryKey: keys.members(key ?? ''), queryFn: () => get<ProjectMember[]>(`/projects/${key}/members`), enabled: Boolean(key), staleTime: 30_000 });
 export const useProjectFields = (key: string | undefined) =>

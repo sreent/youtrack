@@ -11,7 +11,8 @@ import type { OutboxConsumer } from '../events/worker';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
-import { assertCanWriteProject, canReadIssueId, projectAccess, projectRolesOf, redactHiddenIds, requireProject, type AccessView } from '../services/access';
+import { assertCanWriteProject, canReadIssueId, projectAccess, projectRolesOf, redactUnseenIds, requireProject, seenIssueIds, type AccessView } from '../services/access';
+import { findIssue } from '../services/issues';
 import { getIssue, resolveIssue, updateIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
 import { projectSettings, projectVisibility } from '../services/projects';
@@ -36,11 +37,14 @@ async function dto(ctx: Ctx, row: SuggestionRow, view?: AccessView): Promise<Sug
   const by = row.resolvedById ? s.users.get(row.resolvedById) : undefined;
   const ref = (await issueRefsById(ctx.db, s, [row.issueId])).get(row.issueId);
   const raw = row.payload as TriagePayload;
+  // Possible duplicates limited away from the caller (D37) go too, and their ids from the words.
+  const dupRows = await Promise.all(raw.duplicates.filter((d) => canReadIssueId(v, s, d.issue)).map(async (d) => ({ d, row: await findIssue(ctx.db, s, String(d.issue)) })));
+  const seen = await seenIssueIds(ctx, dupRows.flatMap((x) => (x.row ? [x.row.id] : [])));
   const payload: TriagePayload = {
     ...raw,
-    fields: raw.fields.map((f) => ({ ...f, reason: redactHiddenIds(f.reason, v, s) })),
-    duplicates: raw.duplicates.filter((d) => canReadIssueId(v, s, d.issue)).map((d) => ({ ...d, reason: redactHiddenIds(d.reason, v, s) })),
-    summary: redactHiddenIds(raw.summary, v, s),
+    fields: await Promise.all(raw.fields.map(async (f) => ({ ...f, reason: await redactUnseenIds(ctx, f.reason) }))),
+    duplicates: await Promise.all(dupRows.filter((x) => x.row && seen.has(x.row.id)).map(async ({ d }) => ({ ...d, reason: await redactUnseenIds(ctx, d.reason) }))),
+    summary: await redactUnseenIds(ctx, raw.summary),
   };
   return {
     id: row.id,

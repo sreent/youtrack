@@ -513,6 +513,10 @@ const addCommentTool = defineTool({
     issue: z.string(),
     text: z.string().min(1).max(50_000),
     public: z.boolean().optional().describe('Help desk requests only: send it to the requester too. Internal unless true.'),
+    visibleTo: z
+      .object({ users: z.array(z.string()).default([]).describe('Logins'), groups: z.array(z.string()).default([]).describe('Group names') })
+      .optional()
+      .describe("Limit the comment to these people and groups: its author, the project's managers and administrators still see it. Everyone who sees the issue sees it otherwise."),
   }),
   kind: 'changes',
   async preview(_ctx, input) {
@@ -521,8 +525,8 @@ const addCommentTool = defineTool({
       : `Comment on ${input.issue.toUpperCase()}: "${excerpt(input.text, 160)}"`;
   },
   async run(ctx, input) {
-    const c = await addComment(ctx, input.issue, input.text, { visibility: input.public ? 'public' : 'internal' });
-    return { data: { id: c.id, issue: c.issueId, public: c.visibility === 'public' || undefined }, summary: `${input.public ? 'Replied publicly on' : 'Commented on'} ${c.issueId}` };
+    const c = await addComment(ctx, input.issue, input.text, { visibility: input.public ? 'public' : 'internal', visibleTo: input.visibleTo ?? null });
+    return { data: { id: c.id, issue: c.issueId, public: c.visibility === 'public' || undefined, limited: c.visibleTo ? true : undefined }, summary: `${input.public ? 'Replied publicly on' : 'Commented on'} ${c.issueId}` };
   },
 });
 

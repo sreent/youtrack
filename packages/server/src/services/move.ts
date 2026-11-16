@@ -278,6 +278,11 @@ export async function cloneIssue(ctx: Ctx, idOrReadable: string, input: CloneIss
       description: source.description,
       tags: tagRows.map((t) => t.name),
       ...(parent ? { parent } : {}),
+      // A copy says what its source says, so it's seen by whom its source is (D37); its cloner, its
+      // reporter, still sees it.
+      ...(source.limited
+        ? { visibleTo: { users: source.visibleUserIds.flatMap((id) => s.users.get(id)?.login ?? []), groups: source.visibleGroupIds } }
+        : {}),
       links: clones ? [{ relation: clones.phrase, issue: original }] : [],
     },
     { carry: [...values.entries()].map(([fid, vals]) => ({ field: s.fields.get(fid)!, values: vals })), data: { clonedFrom: original } },

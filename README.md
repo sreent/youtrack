@@ -79,7 +79,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Projects with their own people**:
   - a project is open to everyone, or seen only by its members and administrators;
   - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
-  - **groups** get roles as people do, and someone's role is the highest of their own and their groups';
+  - **roles are sets of permissions** (read, comment, create, edit, delete, time, costs, boards, manage): administrators add their own beside the three built-in ones;
+  - **groups** get roles as people do, and someone may do what any of their own and their groups' roles allows;
+  - **an issue or a comment can be limited** to some people and groups: everyone else, everywhere, finds it missing;
+  - **guests** read a project opened to anyone, without signing in, and change nothing;
   - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;
   - tokens can be limited to some projects.
 - **Single sign-on** with your identity provider, by OpenID Connect or SAML 2.0 (or both), with password sign-in optional.
@@ -183,6 +186,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
 | `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
 | `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
+| `GUEST_RATE_LIMIT` | `300` | Requests a minute per address from guests, who read projects open to anyone without signing in (D37) |
 | `MCP_OAUTH` | `true` | Let MCP clients sign in with OAuth 2.1, so they need no token (docs/architecture.md, D28). It works only when `PUBLIC_URL` is https, or on this computer; elsewhere, or with `false`, clients use API tokens |
 | `DATA_DIR` | `./data` | Where the embedded database and attached files live |
 | `AI_PROVIDER` | `anthropic` | Who serves the model: `anthropic`, `deepseek`, `qwen`, or `compatible` for another service that speaks Anthropic's Messages API. Issue text the AI reads goes to them |
@@ -395,6 +399,7 @@ What it covers, in `apps/web/e2e`:
 - **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **Groups**: an administrator makes a group and puts someone in it, and a project gives the group a role; someone in it sees a members-only project as far as that role goes, and not once they're taken out; a group from the identity provider can't be filled by hand.
+- **Access in depth**: an administrator makes a role and a project gives it; an issue and a comment limited to one person are missing to another; a project opened to guests is read signed out.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
 
 To see what a test did, record a trace and open it:

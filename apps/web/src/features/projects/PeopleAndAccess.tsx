@@ -1,29 +1,21 @@
-import type { Project, ProjectMember, ProjectRole, ProjectVisibility, User } from '@a4a/shared';
-import { PROJECT_ROLES } from '@a4a/shared/constants';
+import type { Project, ProjectMember, ProjectVisibility, User } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { del, patch, post } from '../../api/client';
-import { keys, useMembers, useUsers } from '../../api/queries';
+import { keys, useMembers, useRoles, useUsers } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { Avatar } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { ProjectGroups } from '../groups/ProjectGroups';
-
-export const ROLE_NAMES: Record<ProjectRole, string> = { viewer: 'Viewer', member: 'Member', manager: 'Manager' };
-
-export const ROLE_WORDS: Record<ProjectRole, string> = {
-  viewer: 'reads its issues and comments on them',
-  member: 'also changes its issues',
-  manager: 'also changes its settings, people, boards and baselines',
-};
+import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp } from '../roles/words';
 
 const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
   { id: 'open', name: 'Open', about: 'Everyone sees it and works in it. The people below have the role given them; everyone else is a member.' },
   { id: 'members', name: 'Members only', about: 'Only the people below, and administrators, see it at all. To anyone else it doesn’t exist.' },
 ];
 
-const YOU_MAY: Record<ProjectRole, string> = {
+const YOU_MAY = {
   viewer: 'you read its issues and comment on them',
   member: 'you read, comment on and change its issues',
   manager: 'you change its issues, settings, people, boards and baselines',
@@ -33,17 +25,21 @@ const YOU_MAY: Record<ProjectRole, string> = {
 export function yourRole(project: Project): string {
   const a = project.access;
   if (a.via === 'admin') return 'As an administrator, you may change everything here.';
-  const role = ROLE_NAMES[a.role].toLowerCase();
+  const role = aRole(a.roleName, isBuiltinRole(a.role));
   const why =
     a.via === 'lead'
       ? ', as its lead'
-      : a.via === 'open'
+      : a.via === 'guest'
+        ? ', as a guest: the project is open to anyone, signed in or not'
+        : a.via === 'open'
         ? ', as everyone is in an open project'
         : a.via === 'group'
           ? `, as one of ${a.group ?? 'a group'}`
           : '';
-  if (!a.comment) return `You're a ${role} here${why}, but your account only reads.`;
-  return `You're a ${role} here${why}: ${YOU_MAY[a.role]}.`;
+  if (a.via === 'guest') return `You're reading ${project.key} as a guest. Sign in to do more.`;
+  if (!isBuiltinRole(a.role)) return `You're ${role} here${why}: you may ${permissionWords(a.permissions)}.`;
+  if (!a.comment) return `You're ${role} here${why}, but your account only reads.`;
+  return `You're ${role} here${why}: ${YOU_MAY[a.role as keyof typeof YOU_MAY]}.`;
 }
 
 function useInvalidate(project: Project) {
@@ -98,19 +94,59 @@ function Visibility({ project, canEdit }: { project: Project; canEdit: boolean }
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
       ) : null}
+      <Guests project={project} />
     </form>
+  );
+}
+
+/** Whether anyone may read an open project without signing in (D37): administrators decide. */
+function Guests({ project }: { project: Project }) {
+  const qc = useQueryClient();
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const admin = project.access.via === 'admin';
+  const save = useMutation({
+    mutationFn: (guestAccess: boolean) => patch<Project>(`/projects/${project.key}`, { guestAccess }),
+    onSuccess: (p) => {
+      qc.setQueryData(keys.project(p.key), p);
+      void qc.invalidateQueries({ queryKey: keys.projects });
+      setSaid({ text: p.guestAccess ? `Anyone may read ${p.key} now, signed in or not.` : `Only people who sign in see ${p.key} now.` });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (!admin && !project.guestAccess) return null;
+  return (
+    <div className="stack tight">
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={project.guestAccess}
+          disabled={!admin || save.isPending || (project.visibility !== 'open' && !project.guestAccess)}
+          onChange={(e) => save.mutate(e.target.checked)}
+        />
+        <span>
+          Open to guests
+          <small className="field-help">
+            {project.visibility === 'open'
+              ? `Anyone may read its issues, comments, files and articles without signing in, and change nothing. Issues and comments limited to some people stay theirs. ${admin ? '' : 'Administrators decide this.'}`
+              : 'Only an open project can be open to guests.'}
+          </small>
+        </span>
+      </label>
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </div>
   );
 }
 
 function MemberRow({ project, member, canEdit }: { project: Project; member: ProjectMember; canEdit: boolean }) {
   const invalidate = useInvalidate(project);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const roles = useRoles().data ?? BUILTIN_ROLES;
   const u = member.user;
   const name = u.isBot ? u.login : u.name;
   const change = useMutation({
-    mutationFn: (role: ProjectRole) => patch<ProjectMember>(`/projects/${project.key}/members/${u.login}`, { role }),
+    mutationFn: (role: string) => patch<ProjectMember>(`/projects/${project.key}/members/${u.login}`, { role }),
     onSuccess: (m) => {
-      setSaid({ text: `${name} is a ${ROLE_NAMES[m.role].toLowerCase()} now.` });
+      setSaid({ text: `${name} is ${aRole(m.roleName, isBuiltinRole(m.role))} now.` });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -142,15 +178,15 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
             Manager<span className="item-about">as its lead</span>
           </span>
         ) : canEdit ? (
-          <select value={member.role} onChange={(e) => change.mutate(e.target.value as ProjectRole)} aria-label={`Role of ${name} in ${project.key}`} disabled={change.isPending}>
-            {PROJECT_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_NAMES[r]}
+          <select value={member.role} onChange={(e) => change.mutate(e.target.value)} aria-label={`Role of ${name} in ${project.key}`} disabled={change.isPending}>
+            {roles.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
               </option>
             ))}
           </select>
         ) : (
-          ROLE_NAMES[member.role]
+          member.roleName
         )}
       </td>
       <td className="fit">
@@ -179,12 +215,13 @@ function AddMember({ project, people, listed }: { project: Project; people: User
   const invalidate = useInvalidate(project);
   const choices = people.filter((u) => !u.banned && !listed.has(u.id));
   const [login, setLogin] = useState('');
-  const [role, setRole] = useState<ProjectRole>('member');
+  const roles = useRoles().data ?? BUILTIN_ROLES;
+  const [role, setRole] = useState<string>('member');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const add = useMutation({
     mutationFn: () => post<ProjectMember>(`/projects/${project.key}/members`, { user: login, role }),
     onSuccess: (m) => {
-      setSaid({ text: `${m.user.isBot ? m.user.login : m.user.name} is a ${ROLE_NAMES[m.role].toLowerCase()} of ${project.key} now.` });
+      setSaid({ text: `${m.user.isBot ? m.user.login : m.user.name} is ${aRole(m.roleName, isBuiltinRole(m.role))} of ${project.key} now.` });
       setLogin('');
       void invalidate();
     },
@@ -213,12 +250,12 @@ function AddMember({ project, people, listed }: { project: Project; people: User
               </select>
             )}
           </FormField>
-          <FormField label="Role" help={`A ${ROLE_NAMES[role].toLowerCase()} ${ROLE_WORDS[role]}.`}>
+          <FormField label="Role" help={roleHelp(roles, role)}>
             {(id, help) => (
-              <select id={id} value={role} onChange={(e) => setRole(e.target.value as ProjectRole)} aria-describedby={help}>
-                {PROJECT_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_NAMES[r]}
+              <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
                   </option>
                 ))}
               </select>
@@ -240,14 +277,15 @@ function AddMember({ project, people, listed }: { project: Project; people: User
 export function PeopleAndAccess({ project }: { project: Project }) {
   const members = useMembers(project.key);
   const users = useUsers();
+  const roles = useRoles().data ?? BUILTIN_ROLES;
   const canEdit = project.access.manage;
   const list = members.data ?? [];
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
       <p className="note section-note">
-        Roles: a viewer {ROLE_WORDS.viewer}; a member {ROLE_WORDS.member}; a manager {ROLE_WORDS.manager}. Its lead is a manager, and administrators may do
-        everything in every project.
+        Roles: {roles.map((r) => `${aRole(r.name, r.builtin)} may ${permissionWords(r.permissions)}`).join('; ')}. Its lead is a manager, and administrators
+        may do everything in every project.
       </p>
       {members.isLoading ? <Loading what="its people" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}

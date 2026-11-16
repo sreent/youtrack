@@ -51,7 +51,14 @@ type Target = { kind: 'issue' | 'comment'; id: string };
 const keyOf = (t: Target) => `${t.kind}:${t.id}`;
 
 /** Every reaction on an issue (its description, and each of its comments), by target ("issue:<id>", "comment:<id>"). */
-export async function reactionsOf(db: Db, s: SchemaSnapshot, issueId: string, meId: string): Promise<Map<string, ReactionSummary[]>> {
+export async function reactionsOf(
+  db: Db,
+  s: SchemaSnapshot,
+  issueId: string,
+  meId: string,
+  /** A guest (D37) reaches no people: how many reacted, never who. */
+  opts: { anonymous?: boolean } = {},
+): Promise<Map<string, ReactionSummary[]>> {
   const rows = await db.select().from(reactions).where(eq(reactions.issueId, issueId)).orderBy(reactions.createdAt);
   const byTarget = new Map<string, Map<string, string[]>>();
   for (const r of rows) {
@@ -66,7 +73,7 @@ export async function reactionsOf(db: Db, s: SchemaSnapshot, issueId: string, me
       key,
       REACTIONS.filter((e) => emojis.get(e)?.length).map((emoji) => {
         const who = emojis.get(emoji)!;
-        const people = who.flatMap((id) => {
+        const people = opts.anonymous ? [] : who.flatMap((id) => {
           const u = s.users.get(id);
           return u ? [userRefDto(u)] : [];
         });

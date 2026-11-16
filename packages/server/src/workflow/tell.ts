@@ -10,8 +10,8 @@ import type { RuleNotify } from '@a4a/shared';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import type { UserRow } from '../context';
 import type { Db } from '../db/client';
-import { groupMembers, issueFieldValues, projectGroupRoles, projectMembers } from '../db/schema';
-import { projectRolesOf } from '../services/access';
+import { issueFieldValues } from '../db/schema';
+import { managersOf, projectRolesOf, whoSeesIssue } from '../services/access';
 import type { IssueRow } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { assigneeFieldOf, watcherIds } from '../services/watchers';
@@ -37,22 +37,8 @@ export async function recipientsFor(
   }
   if (to.has('reporter') && issue.reporterId) ids.add(issue.reporterId);
   if (to.has('watchers')) for (const id of await watcherIds(db, issue.id)) ids.add(id);
-  if (to.has('managers')) {
-    const lead = s.projects.get(issue.projectId)?.leadId;
-    if (lead) ids.add(lead);
-    const rows = await db
-      .select({ userId: projectMembers.userId })
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, issue.projectId), eq(projectMembers.role, 'manager')));
-    for (const r of rows) ids.add(r.userId);
-    // Managers by a group's role count as managers by their own (D27).
-    const viaGroups = await db
-      .select({ userId: groupMembers.userId })
-      .from(projectGroupRoles)
-      .innerJoin(groupMembers, eq(groupMembers.groupId, projectGroupRoles.groupId))
-      .where(and(eq(projectGroupRoles.projectId, issue.projectId), eq(projectGroupRoles.role, 'manager')));
-    for (const r of viaGroups) ids.add(r.userId);
-  }
+  // Whoever manages it: its lead, and those whose role, or a group's role, lets them manage it (D27, D37).
+  if (to.has('managers')) for (const id of await managersOf(db, issue.projectId)) ids.add(id);
   for (const login of notify.people) {
     const u = s.usersByLogin.get(login.trim().toLowerCase());
     if (u) ids.add(u.id);
@@ -60,7 +46,8 @@ export async function recipientsFor(
   if (opts.exclude) ids.delete(opts.exclude);
   const people = [...ids].map((id) => s.users.get(id)).filter((u): u is UserRow => Boolean(u && !u.isBot && !u.banned));
   if (!people.length) return [];
-  const seeing = await projectRolesOf(db, issue.projectId, people.map((u) => u.id));
+  // Only who sees it, as they would signing in: its project, and the issue if it's limited (D37).
+  const seeing = await whoSeesIssue(db, s, issue, people.map((u) => u.id));
   return people.filter((u) => seeing.has(u.id)).sort((a, b) => a.name.localeCompare(b.name));
 }
 

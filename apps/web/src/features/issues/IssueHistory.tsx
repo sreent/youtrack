@@ -18,6 +18,7 @@ import { FormField } from '../../components/Form';
 import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { MentionField } from './MentionField';
+import { audience, LimitPicker, type Limit } from './VisibleTo';
 
 type Actor = TrackerEvent['actor'];
 
@@ -85,6 +86,8 @@ interface Entry {
   comment?: string;
   /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
   public?: 'reply' | 'theirs';
+  /** Who a limited comment is for, besides those who always see it (D37). */
+  limited?: string;
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
   anchor?: string;
@@ -286,6 +289,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     who: whoOf(actor, c.requester?.name),
     comment: c.text,
     public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+    limited: c.visibleTo ? audience(c.visibleTo) : undefined,
     files,
     anchor: `comment-${c.id}`,
     reactions: { id: c.id, list: c.reactions },
@@ -359,6 +363,7 @@ export function IssueHistory({
   const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const [visibility, setVisibility] = useState<CommentVisibility>('internal');
+  const [limit, setLimit] = useState<Limit | null>(null);
   const [picked, setPicked] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -422,9 +427,15 @@ export function IssueHistory({
     setBusy(true);
     setProgress(null);
     try {
-      const comment = await post<Comment>(`/issues/${issue.id}/comments`, { text, ...(requester && canReply ? { visibility } : {}) });
+      const isPublic = Boolean(requester && canReply && visibility === 'public');
+      const comment = await post<Comment>(`/issues/${issue.id}/comments`, {
+        text,
+        ...(requester && canReply ? { visibility } : {}),
+        ...(limit && !isPublic ? { visibleTo: limit } : {}),
+      });
       setText('');
       setVisibility('internal');
+      setLimit(null);
       const failed: string[] = [];
       for (const f of picked) {
         try {
@@ -467,6 +478,10 @@ export function IssueHistory({
                     <Badge grammar="outside">public: sent to {requester ?? 'the requester'}</Badge>
                   ) : e.public === 'theirs' ? (
                     <Badge grammar="outside">public: the requester wrote it</Badge>
+                  ) : e.limited ? (
+                    <Badge tone="idle" title="Its author, the project's managers and administrators see it too">
+                      visible to {e.limited}
+                    </Badge>
                   ) : e.undo?.state === 'undone' ? (
                     <Badge tone="idle" title={e.undo.note}>
                       undone
@@ -517,6 +532,9 @@ export function IssueHistory({
           }}
         >
           {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+          {limit && !(requester && canReply && visibility === 'public') ? (
+            <LimitPicker value={limit} onChange={setLimit} always={`You, ${issue.project.key}'s managers and administrators see it too.`} />
+          ) : null}
           {requester && !canReply ? (
             <p className="field-help" id="visibility-help">
               Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
@@ -556,10 +574,17 @@ export function IssueHistory({
             {busy ? (progress ?? 'Commenting…') : (progress ?? '')}
           </p>
           <div className="cluster spread">
-            <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
-              <Icon name="attach" />
-              Attach files
-            </button>
+            <span className="cluster">
+              <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
+                <Icon name="attach" />
+                Attach files
+              </button>
+              {requester && canReply && visibility === 'public' ? null : (
+                <button type="button" aria-pressed={Boolean(limit)} onClick={() => setLimit(limit ? null : { users: [], groups: [] })} disabled={busy}>
+                  {limit ? 'Let everyone see it' : 'Limit who sees it'}
+                </button>
+              )}
+            </span>
             <input
               ref={picker}
               type="file"

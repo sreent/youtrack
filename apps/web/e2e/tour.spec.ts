@@ -186,6 +186,32 @@ const withGroup = async (api: Api) => {
   return `/groups/${group.id}`;
 };
 
+/** An issue limited to one person, with a comment limited to them too (D37). */
+const limitedIssue = async (api: Api) => {
+  const key = uniqueKey('TV');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const login = `erin.${unique()}`;
+  await api.createUser({ login, name: 'Erin Hall', password: 'e2e-person-pass-1', role: 'member' });
+  const issue = await api.createIssue({ project: key, summary: 'Due diligence on Initech', visibleTo: { users: [login], groups: [] } });
+  await api.post(`/issues/${issue.id}/comments`, { text: 'The numbers are in the data room.', visibleTo: { users: [login], groups: [] } });
+  return `/issues/${issue.id}`;
+};
+
+/** Administration, with a role of the tour's own among the built-in ones (D37). */
+const withRole = async (api: Api) => {
+  await api.post('/roles', { name: `Tour role ${unique()}`, description: 'Files and comments', permissions: ['read', 'comment', 'create'] });
+  return '/admin';
+};
+
+/** A project open to guests, read signed out (D37). */
+const guestProject = async (api: Api) => {
+  const key = uniqueKey('TP');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await api.patch(`/projects/${key}`, { guestAccess: true });
+  await api.createIssue({ project: key, summary: 'Dark mode for the mobile app' });
+  return `/public?project=${key}`;
+};
+
 /** An agent of the tour's own, with a token issued to it (D34). */
 const withAgent = async (api: Api) => {
   await api.createAgent(`tour-${unique()}`);
@@ -287,6 +313,8 @@ const STOPS: Stop[] = [
   { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
   { name: "an agent's change to undo", path: agentsChanges, ready: (p) => p.getByRole('button', { name: /^Undo tour-.+’s change$/ }) },
   { name: 'your subscriptions', path: withSubscriptions, ready: (p) => p.getByRole('region', { name: 'Table of your subscriptions' }) },
+  { name: 'an issue limited to some people', path: limitedIssue, ready: (p) => p.getByRole('region', { name: 'Visible to' }).getByRole('listitem') },
+  { name: 'roles', path: withRole, ready: (p) => p.getByRole('row', { name: /^Tour role / }) },
 ];
 
 const MODES = [
@@ -322,6 +350,9 @@ for (const mode of MODES) {
       test.use({ storageState: { cookies: [], origins: [] } });
       test('sign in', async ({ page }) => {
         await visit(page, '/login', page.getByRole('button', { name: 'Sign in' }));
+      });
+      test('a project open to guests', async ({ page, api }) => {
+        await visit(page, await guestProject(api), page.getByRole('link', { name: /Dark mode for the mobile app/ }));
       });
     });
   });

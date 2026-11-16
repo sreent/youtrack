@@ -21,7 +21,7 @@ import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
 import { inboxChanged, mailConfigured, sign, verify } from '../notify/state';
 import { notificationTitle } from '../notify/words';
-import { eventVisible, projectAccess, visibleProjectIds } from './access';
+import { eventSeen, issueSeenSql, projectAccess, visibleProjectIds } from './access';
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
@@ -39,7 +39,7 @@ export async function eventsOf(
   db: Db,
   s: SchemaSnapshot,
   ids: string[],
-  opts: { last?: number; visible?: (e: TrackerEvent) => boolean } = {},
+  opts: { last?: number; visible?: (e: TrackerEvent) => boolean | Promise<boolean> } = {},
 ): Promise<Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>> {
   const last = opts.last ?? 20;
   const out = new Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>();
@@ -52,7 +52,7 @@ export async function eventsOf(
     .orderBy(asc(activities.id));
   for (const r of rows) {
     const event = toEventDto(s, r.activity);
-    if (opts.visible && !opts.visible(event)) continue;
+    if (opts.visible && !(await opts.visible(event))) continue;
     let entry = out.get(r.notificationId);
     if (!entry) out.set(r.notificationId, (entry = { events: [], reasons: new Map() }));
     entry.events.push(event);
@@ -65,7 +65,7 @@ export async function eventsOf(
 async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> {
   const s = await ctx.app.schema.get();
   const view = await projectAccess(ctx);
-  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventVisible(view, s, e) });
+  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, ctx.db, s, e) });
   // What a subscribed one came for (D31), while that subscription lasts.
   const subscribed = rows.filter((r) => r.kind === 'subscribed' && r.subscriptionId);
   const abouts = await aboutSubscriptions(ctx.db, s, subscribed.map((r) => r.subscriptionId!));
@@ -97,6 +97,9 @@ async function mine(ctx: Ctx): Promise<SQL> {
   if (visible !== null) {
     conds.push(visible.length ? inArray(notifications.projectId, visible) : sql`FALSE`);
   }
+  // Nor an issue limited away from you since (D37): it drops out as its project would.
+  const seen = issueSeenSql(await projectAccess(ctx), await ctx.app.schema.get(), 'seen_ni');
+  if (seen) conds.push(sql`NOT EXISTS (SELECT 1 FROM issues seen_ni WHERE seen_ni.id = ${notifications.issueId} AND NOT ${seen})`);
   return and(...conds)!;
 }
 

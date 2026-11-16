@@ -35,6 +35,7 @@ import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
 import { absenceRoutes } from './routes/absences';
 import { groupRoutes } from './routes/groups';
+import { guestRoutes, roleRoutes } from './routes/roles';
 import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
 
@@ -89,6 +90,8 @@ export function createHttpApp(runtime: Runtime) {
   oauthRoutes(api);
   absenceRoutes(api);
   groupRoutes(api);
+  roleRoutes(api);
+  guestRoutes(api);
   samlRoutes(api);
   agentRoutes(api);
   emailRoutes(api);
@@ -127,7 +130,7 @@ export function createHttpApp(runtime: Runtime) {
   root.use('*', authenticate(runtime));
   // The SAML assertion consumer takes the provider's post: signed, answering a request of this browser's (D27).
   root.use('/api/*', csrfGuard(runtime.config.publicUrl, ['/api/v1/auth/saml/acs']));
-  root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
+  root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy, new RateLimiter(runtime.config.guestRateLimit, 60_000)));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
   // What anyone may post without signing in is small: a help desk request, a reply, an unsubscribe.
   const small = (maxSize: number) =>

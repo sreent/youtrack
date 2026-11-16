@@ -7,7 +7,7 @@ import { publishActivities, recordActivity, type ActivityRow } from '../events/a
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { searchIssueRows } from '../search/service';
-import { assertCanManageProject, assertCanWriteProject, projectAccess, scopeSchema, type AccessView } from './access';
+import { assertCanProject, assertCanWriteProject, issueSeenSql, projectAccess, scopeSchema, type AccessView } from './access';
 import { issueRefsById } from './issue-refs';
 import { issueDtos } from './issues';
 import { resolveIssue } from './issues';
@@ -49,7 +49,7 @@ function boardDto(s: SchemaSnapshot, row: BoardRow): Board {
 }
 
 /** Sprints, counting only the issues the caller can see. */
-async function sprintDtos(db: Db, view: AccessView, rows: SprintRow[]): Promise<Sprint[]> {
+async function sprintDtos(db: Db, view: AccessView, rows: SprintRow[], s: SchemaSnapshot): Promise<Sprint[]> {
   if (!rows.length) return [];
   const visible = view.visibleIds();
   const counts = await db
@@ -60,6 +60,7 @@ async function sprintDtos(db: Db, view: AccessView, rows: SprintRow[]): Promise<
       and(
         inArray(sprintIssues.sprintId, rows.map((r) => r.id)),
         visible === null ? undefined : visible.length ? inArray(issues.projectId, visible) : sql`FALSE`,
+        issueSeenSql(view, s),
       ),
     )
     .groupBy(sprintIssues.sprintId);
@@ -147,7 +148,7 @@ async function assertCanManageBoard(ctx: Ctx, view: AccessView, projectIds: stri
   if (projectIds.some((id) => !view.canRead(id))) {
     throw forbidden('Only managers of every project on this board can change it', 'Ask an administrator.');
   }
-  for (const id of projectIds) await assertCanManageProject(ctx, id);
+  for (const id of projectIds) await assertCanProject(ctx, id, 'boards');
 }
 
 export async function getBoard(ctx: Ctx, id: string): Promise<Board> {
@@ -254,7 +255,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
   const board = boardDto(s, row);
   const readable = row.projectIds.filter((pid) => view.canRead(pid));
   const sprintRows = await ctx.db.select().from(sprints).where(eq(sprints.boardId, id)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
-  const allSprints = await sprintDtos(ctx.db, view, sprintRows);
+  const allSprints = await sprintDtos(ctx.db, view, sprintRows, s);
   let sprint: Sprint | null = null;
   if (row.sprintsEnabled) {
     const today = new Date().toISOString().slice(0, 10);
@@ -315,7 +316,7 @@ export async function createSprint(
     .insert(sprints)
     .values({ id: newId(), boardId, name: input.name, goal: input.goal ?? '', startDate: input.startDate ?? null, endDate: input.endDate ?? null })
     .returning();
-  return (await sprintDtos(ctx.db, await projectAccess(ctx), [row!]))[0]!;
+  return (await sprintDtos(ctx.db, await projectAccess(ctx), [row!], await ctx.app.schema.get()))[0]!;
 }
 
 /** A sprint on a board the caller sees (404 otherwise, as for one that doesn't exist). */
@@ -348,7 +349,7 @@ export async function updateSprint(
     .where(eq(sprints.id, id))
     .returning();
   if (!row) throw notFound('Sprint');
-  return (await sprintDtos(ctx.db, await projectAccess(ctx), [row]))[0]!;
+  return (await sprintDtos(ctx.db, await projectAccess(ctx), [row], await ctx.app.schema.get()))[0]!;
 }
 
 export async function deleteSprint(ctx: Ctx, id: string): Promise<void> {
@@ -369,7 +370,7 @@ export async function setSprintIssues(ctx: Ctx, sprintId: string, issueIds: stri
   for (const pid of new Set(rows.map((r) => r.projectId))) await assertCanWriteProject(ctx, pid);
   const recorded = await ctx.db.transaction(async (txRaw) => changeSprintInTx(txRaw as unknown as Db, ctx, sprint, board, rows, remove));
   await publishActivities(ctx.app, recorded);
-  return (await sprintDtos(ctx.db, await projectAccess(ctx), [sprint]))[0]!;
+  return (await sprintDtos(ctx.db, await projectAccess(ctx), [sprint], await ctx.app.schema.get()))[0]!;
 }
 
 /**

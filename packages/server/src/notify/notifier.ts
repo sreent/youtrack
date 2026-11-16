@@ -18,7 +18,7 @@ import { activities, notificationEvents, notifications, notificationSettings, us
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { enqueueMail } from '../mail/outbox';
-import { keyOfReadableId, projectRolesOf } from '../services/access';
+import { accessFor, eventSeen, keyOfReadableId, projectRolesOf } from '../services/access';
 import { watcherIds } from '../services/watchers';
 import { inboxChanged, mailConfigured } from './state';
 import { projectSubscribed, SEARCH_EVENT_TYPES, searchSubscribed } from './subscribed';
@@ -179,6 +179,8 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
     const user = s.users.get(userId);
     if (!user || user.banned) continue;
     if (!seeing.every((roles) => roles.has(userId))) continue;
+    // The issue, the comment or the link's other end limited away from them (D37): not theirs to hear of.
+    if (!(await eventSeen(await accessFor(app.db, user), app.db, s, event))) continue;
     try {
       if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId, subscribed.get(userId) ?? null)) told.push(userId);
     } catch (e) {

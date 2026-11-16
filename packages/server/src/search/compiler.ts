@@ -22,6 +22,11 @@ export interface CompileContext {
    * created, updated and resolved. The asker's own, or the server's when there is none.
    */
   timeZone?: string;
+  /**
+   * Over a `comments` row as `c`: whether the asker sees it (D37). Text, "commenter" and "has: comments"
+   * match only comments they see. Left out, every comment counts (rules, which run as nobody in particular).
+   */
+  commentSeen?: SQL;
 }
 
 export interface CompiledQuery {
@@ -80,6 +85,11 @@ class Compiler {
     this.today = cc.today ?? todayIn(this.zone, (cc.now ?? new Date()).getTime());
   }
 
+  /** " AND <the asker sees c>", or nothing: see CompileContext.commentSeen. */
+  private seenComments(): SQL {
+    return this.cc.commentSeen ? sql` AND ${this.cc.commentSeen}` : sql``;
+  }
+
   /** The instant a calendar day begins where the asker is: its local midnight, across clock changes too. */
   private midnight(iso: string): Date {
     return new Date(startOfDay(iso, this.zone));
@@ -127,13 +137,13 @@ class Compiler {
     if (exact) {
       const like = `%${text.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
       parts.push(
-        sql`(${issues.summary} ILIKE ${like} OR ${issues.description} ILIKE ${like} OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.text ILIKE ${like}))`,
+        sql`(${issues.summary} ILIKE ${like} OR ${issues.description} ILIKE ${like} OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.text ILIKE ${like}))`,
       );
     } else {
       const q = prefixTsQuery(text);
       if (q) {
         parts.push(
-          sql`(${issues.searchVector} @@ to_tsquery('english', ${q}) OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.search_vector @@ to_tsquery('english', ${q})))`,
+          sql`(${issues.searchVector} @@ to_tsquery('english', ${q}) OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.search_vector @@ to_tsquery('english', ${q})))`,
         );
       }
     }
@@ -418,7 +428,7 @@ class Compiler {
         if (t.column === 'updatedBy') return sql`${issues.updatedById} = ${u.id}`;
         if (t.column === 'watcher') return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id} AND w.user_id = ${u.id})`;
         if (t.column === 'voter') return sql`EXISTS (SELECT 1 FROM issue_votes iv WHERE iv.issue_id = ${issues.id} AND iv.user_id = ${u.id})`;
-        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.author_id = ${u.id})`;
+        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.author_id = ${u.id})`;
       }
       case 'dateAttr': {
         const range = this.dateRange(v, def.name);
@@ -532,7 +542,7 @@ class Compiler {
         return sql`${issues.description} <> ''`;
       case 'comments':
       case 'comment':
-        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL)`;
+        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()})`;
       case 'links':
         return sql`EXISTS (SELECT 1 FROM issue_links l WHERE l.source_id = ${issues.id} OR l.target_id = ${issues.id})`;
       case 'tags':

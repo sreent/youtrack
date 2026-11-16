@@ -10,6 +10,7 @@ import { ago } from '../components/Badges';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
 import { GroupsSection } from '../features/groups/GroupsSection';
+import { RolesSection } from '../features/roles/RolesSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
 
@@ -410,6 +411,7 @@ export default function AdminPage() {
         <AddPerson />
       </section>
       <GroupsSection />
+      <RolesSection />
       <section className="card" aria-labelledby="vcs-people">
         <div className="section-head">
           <h2 id="vcs-people">Who wrote which commits</h2>

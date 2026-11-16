@@ -11,7 +11,8 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issueWatchers } from '../db/schema';
-import { projectRolesOf } from './access';
+import { projectRolesOf, whoSeesComment, whoSeesIssue } from './access';
+import type { Limits } from './visibility';
 import { resolveIssue } from './issues';
 import { getSetting, setSetting } from './settings';
 import { fieldByName, type FieldRow, type SchemaSnapshot } from './schema-cache';
@@ -58,7 +59,14 @@ export function loginsOf(s: SchemaSnapshot, values: ResolvedValue[] | undefined)
  * Whatever reaches a person about an issue goes only to them: someone mentioned in a members-only
  * project they aren't in is told nothing, and doesn't watch it.
  */
-export async function whoSees(db: Db, s: SchemaSnapshot, projectId: string, logins: string[]): Promise<Set<string>> {
+export async function whoSees(
+  db: Db,
+  s: SchemaSnapshot,
+  projectId: string,
+  logins: string[],
+  issue?: Limits & { id: string; projectId: string; reporterId: string | null },
+  comment?: Limits & { authorId: string | null },
+): Promise<Set<string>> {
   const ids = new Map<string, string>();
   for (const l of logins) {
     const u = s.usersByLogin.get(l.toLowerCase());
@@ -66,7 +74,17 @@ export async function whoSees(db: Db, s: SchemaSnapshot, projectId: string, logi
   }
   if (!ids.size) return new Set();
   const roles = await projectRolesOf(db, projectId, [...ids.keys()]);
-  return new Set([...ids].filter(([id]) => roles.has(id)).map(([, login]) => login));
+  let seen = [...ids.keys()].filter((id) => roles.has(id));
+  // A limited issue, or comment, is seen by fewer (D37): only they are told of it or watch.
+  if (issue?.limited && seen.length) {
+    const ok = await whoSeesIssue(db, s, issue, seen);
+    seen = seen.filter((id) => ok.has(id));
+  }
+  if (comment?.limited && seen.length) {
+    const ok = await whoSeesComment(db, projectId, comment, seen);
+    seen = seen.filter((id) => ok.has(id));
+  }
+  return new Set(seen.map((id) => ids.get(id)!));
 }
 
 /**

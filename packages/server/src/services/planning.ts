@@ -41,7 +41,7 @@ import {
 } from '../planning';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { canReadProject, projectAccess, requireProject, type ProjectNeed } from './access';
+import { canReadProject, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
@@ -77,7 +77,13 @@ export async function loadPlan(
   const { s, project } = await projectFor(ctx, key, opts.need);
   const rows: IssueRow[] = opts.query?.trim()
     ? (await searchIssueRows(ctx, opts.query, { projectId: project.id, limit: MAX_PLAN_ISSUES })).rows
-    : await ctx.db.select().from(issues).where(eq(issues.projectId, project.id)).orderBy(asc(issues.number)).limit(MAX_PLAN_ISSUES);
+    : await ctx.db
+        .select()
+        .from(issues)
+        // A plan holds the issues the caller sees (D37): its managers, who level it, see them all.
+        .where(and(eq(issues.projectId, project.id), issueSeenSql(await projectAccess(ctx), s)))
+        .orderBy(asc(issues.number))
+        .limit(MAX_PLAN_ISSUES);
   const ids = rows.map((r) => r.id);
   const rid = new Map(rows.map((r) => [r.id, readableId(s, r)]));
 
@@ -120,7 +126,8 @@ export async function loadPlan(
     // plan's warnings must not give away an issue they can't open.
     const view = await projectAccess(ctx);
     const ext = await ctx.db.select().from(issues).where(inArray(issues.id, [...externalIds]));
-    for (const e of ext) if (view.canRead(e.projectId)) rid.set(e.id, readableId(s, e));
+    const seen = await seenIssueIds(ctx, ext.map((e) => e.id));
+    for (const e of ext) if (view.canRead(e.projectId) && seen.has(e.id)) rid.set(e.id, readableId(s, e));
   }
 
   const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
@@ -400,7 +407,8 @@ function sameStarts(a: Record<string, string>, b: Record<string, string>): boole
 }
 
 export async function getCostReport(ctx: Ctx, key: string, opts: { baseline?: string } = {}): Promise<CostReport> {
-  const l = await loadPlan(ctx, key, { baselineId: opts.baseline });
+  // Costs are for roles that see time and costs (D37).
+  const l = await loadPlan(ctx, key, { baselineId: opts.baseline, need: 'costs' });
   const schedule = computeSchedule(l.input);
   const c = computeCosts(l.input, schedule);
   return {

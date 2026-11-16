@@ -8,7 +8,6 @@ import { Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
 import { FormField, Scroll } from '../features/common/bits';
-import { ROLE_NAMES } from '../features/projects/PeopleAndAccess';
 import { TRIAGE_WORDS } from '../features/projects/triage';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
@@ -206,7 +205,7 @@ export default function ProjectsPage() {
                         </span>
                       </td>
                       <td>{TRIAGE_WORDS[p.settings.triageMode]}</td>
-                      <td>{p.access.via === 'admin' ? 'Administrator' : ROLE_NAMES[p.access.role]}</td>
+                      <td>{p.access.via === 'admin' ? 'Administrator' : p.access.roleName}</td>
                     </tr>
                   ))}
                 </tbody>

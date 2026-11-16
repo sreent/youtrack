@@ -14,6 +14,7 @@ import {
   NOTIFICATION_KINDS,
   PLAY_KINDS,
   PROJECT_ROLES,
+  PERMISSIONS,
   PROJECT_VISIBILITIES,
   PULL_REQUEST_STATES,
   REACTIONS,
@@ -288,11 +289,13 @@ export type ProjectRef = z.infer<typeof ProjectRefSchema>;
 /** What the caller may do in a project. */
 export const ProjectAccessSchema = z
   .object({
-    role: z.enum(PROJECT_ROLES).describe('Their role in it, as it works out: a manager for administrators and the lead'),
+    role: z.string().describe("Their role in it, as it works out: a built-in role's id (viewer, member, manager) or a custom role's; a manager for administrators and the lead"),
+    roleName: z.string().describe("The role's name, to show"),
     via: z
-      .enum(['admin', 'lead', 'member', 'group', 'open'])
-      .describe('Where the role comes from: being an administrator, leading it, being one of its people, being in a group it gives the role, or its being open'),
+      .enum(['admin', 'lead', 'member', 'group', 'open', 'guest'])
+      .describe('Where the role comes from: being an administrator, leading it, being one of its people, being in a group it gives the role, its being open, or its being readable without signing in'),
     group: z.string().nullable().optional().describe('With `via: group`, the group the role comes from (the first by name, when several give it)'),
+    permissions: z.array(z.enum(PERMISSIONS)).describe('What they may do in it (D37), as far as their account or token allows'),
     read: z.boolean(),
     comment: z.boolean(),
     write: z.boolean().describe('Change its issues'),
@@ -311,6 +314,7 @@ export const ProjectSchema = ProjectRefSchema.extend({
   openIssueCount: z.number().int(),
   createdAt: timestamp,
   access: ProjectAccessSchema,
+  guestAccess: z.boolean().describe("Anyone may read it without signing in (D37): its issues, comments, files and articles, never its people's emails"),
 }).meta({ id: 'Project' });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -335,6 +339,7 @@ export const UpdateProjectBody = z.object({
   lead: z.string().nullable().optional(),
   archived: z.boolean().optional(),
   visibility: z.enum(PROJECT_VISIBILITIES).optional(),
+  guestAccess: z.boolean().optional().describe('Let anyone read it without signing in (administrators only)'),
   settings: z
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
@@ -348,7 +353,8 @@ export const UpdateProjectBody = z.object({
 export const ProjectMemberSchema = z
   .object({
     user: UserRefSchema,
-    role: z.enum(PROJECT_ROLES),
+    role: z.string().describe("The role's id: viewer, member, manager, or a custom role's"),
+    roleName: z.string(),
     lead: z.boolean().describe('They lead the project, which makes them a manager of it whatever their role here'),
     addedAt: timestamp.nullable().describe('Null for a lead who was never added by hand'),
     addedBy: UserRefSchema.nullable(),
@@ -357,9 +363,9 @@ export const ProjectMemberSchema = z
 export type ProjectMember = z.infer<typeof ProjectMemberSchema>;
 export const AddMemberBody = z.object({
   user: z.string().min(1).describe('Login of the person or bot'),
-  role: z.enum(PROJECT_ROLES).default('member'),
+  role: z.string().min(1).default('member').describe("A role's id or name: viewer, member, manager, or a custom role (D37)"),
 });
-export const UpdateMemberBody = z.object({ role: z.enum(PROJECT_ROLES) });
+export const UpdateMemberBody = z.object({ role: z.string().min(1).describe("A role's id or name") });
 
 export const FieldValueSchema = z
   .object({
@@ -520,6 +526,24 @@ export const IssueRefSchema = z
   .meta({ id: 'IssueRef' });
 export type IssueRef = z.infer<typeof IssueRefSchema>;
 
+/** Who besides the usual few may see an issue or a comment that is limited (D37). */
+export const VisibleToSchema = z
+  .object({
+    users: z.array(UserRefSchema),
+    groups: z.array(z.object({ id: z.string(), name: z.string() })),
+  })
+  .meta({ id: 'VisibleTo' });
+export type VisibleTo = z.infer<typeof VisibleToSchema>;
+export const VisibleToInput = z
+  .object({
+    users: z.array(z.string().min(1)).max(100).default([]).describe('Logins'),
+    groups: z.array(z.string().min(1)).max(100).default([]).describe("Groups' ids or names"),
+  })
+  .describe(
+    "Limit it to these people and groups. Its reporter, its assignee, the project's managers and administrators still see it (a comment: its author, the project's managers and administrators)",
+  );
+export type VisibleToInput = z.input<typeof VisibleToInput>;
+
 export const IssueSchema = z
   .object({
     id: z.string().describe('Readable id, e.g. BACK-12'),
@@ -536,6 +560,7 @@ export const IssueSchema = z
     tags: z.array(TagSchema),
     commentCount: z.number().int(),
     votes: z.number().int().describe('How many people voted for it (D41)'),
+    limited: z.boolean().describe('Limited to some people and groups (D37)'),
   })
   .meta({ id: 'Issue' });
 export type Issue = z.infer<typeof IssueSchema>;
@@ -565,6 +590,7 @@ export type ReactionSummary = z.infer<typeof ReactionSummarySchema>;
 
 export const IssueDetailSchema = IssueSchema.extend({
   description: z.string(),
+  visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees its project sees it. Otherwise only these, besides its reporter, its assignee, the project's managers and administrators"),
   updatedBy: UserRefSchema.nullable(),
   links: z.array(IssueLinkSchema),
   parent: IssueRefSchema.nullable(),
@@ -592,6 +618,7 @@ export const CreateIssueBody = z.object({
   description: z.string().max(100_000).default(''),
   fields: FieldsInput.optional(),
   tags: z.array(z.string()).optional(),
+  visibleTo: VisibleToInput.nullable().optional(),
   parent: z.string().optional().describe('Readable id of the parent issue (creates a subtask link)'),
   links: z
     .array(z.object({ relation: z.string().describe('e.g. "depends on", "relates to"'), issue: z.string() }))
@@ -637,6 +664,7 @@ export const CommentSchema = z
       .object({ name: z.string() })
       .nullable()
       .describe('Set when the requester of a help desk request wrote it, on their tracking page'),
+    visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees the issue sees it. Otherwise only these, besides its author, the project's managers and administrators"),
     reactions: z.array(ReactionSummarySchema),
   })
   .meta({ id: 'Comment' });
@@ -647,6 +675,7 @@ export const NewCommentBody = CommentBody.extend({
     .enum(COMMENT_VISIBILITIES)
     .default('internal')
     .describe('public sends it to the requester of a help desk request, by email and on their tracking page; only requests take it'),
+  visibleTo: VisibleToInput.nullable().optional(),
 });
 
 export const LinkTypeSchema = z
@@ -2254,7 +2283,7 @@ export type GroupMember = z.infer<typeof GroupMemberSchema>;
 export const GroupDetailSchema = GroupSchema.extend({
   members: z.array(GroupMemberSchema),
   roles: z
-    .array(z.object({ project: ProjectRefSchema, role: z.enum(PROJECT_ROLES) }))
+    .array(z.object({ project: ProjectRefSchema, role: z.string(), roleName: z.string() }))
     .describe('Its role in each project, of those the caller can see'),
 }).meta({ id: 'GroupDetail' });
 export type GroupDetail = z.infer<typeof GroupDetailSchema>;
@@ -2282,7 +2311,8 @@ export const AddGroupMemberBody = z.object({ user: z.string().min(1).describe('L
 export const ProjectGroupSchema = z
   .object({
     group: GroupRefSchema,
-    role: z.enum(PROJECT_ROLES),
+    role: z.string().describe("The role's id: viewer, member, manager, or a custom role's"),
+    roleName: z.string(),
     people: z.array(UserRefSchema).describe("Who is in it: as anyone who sees a project sees who is in it, so a members-only project's issues go only to them"),
     addedAt: timestamp,
     addedBy: UserRefSchema.nullable(),
@@ -2291,9 +2321,9 @@ export const ProjectGroupSchema = z
 export type ProjectGroup = z.infer<typeof ProjectGroupSchema>;
 export const AddProjectGroupBody = z.object({
   group: z.string().min(1).describe("The group's id or name"),
-  role: z.enum(PROJECT_ROLES).default('member'),
+  role: z.string().min(1).default('member').describe("A role's id or name"),
 });
-export const UpdateProjectGroupBody = z.object({ role: z.enum(PROJECT_ROLES) });
+export const UpdateProjectGroupBody = z.object({ role: z.string().min(1).describe("A role's id or name") });
 
 // The help desk by email (D30)
 // ---------------------------------------------------------------------------
@@ -2664,3 +2694,41 @@ export const TransitionBody = z.object({
   expectedVersion: z.number().int().optional(),
 });
 export const RunActionBody = z.object({ expectedVersion: z.number().int().optional() });
+
+// ---------------------------------------------------------------------------
+// Access in depth (D37): custom roles, who sees an issue or a comment, guests
+// ---------------------------------------------------------------------------
+
+export const RoleDefSchema = z
+  .object({
+    id: z.string().describe("viewer, member, manager, or a custom role's id"),
+    name: z.string(),
+    description: z.string(),
+    permissions: z.array(z.enum(PERMISSIONS)),
+    builtin: z.boolean().describe('The built-in roles can be given but not changed'),
+    uses: z.number().int().describe('How many people and groups have it in some project'),
+    version: z.number().int(),
+  })
+  .meta({ id: 'RoleDefinition' });
+export type RoleDef = z.infer<typeof RoleDefSchema>;
+export const CreateRoleBody = z.object({
+  name: z.string().trim().min(1).max(60),
+  description: z.string().max(500).default(''),
+  permissions: z.array(z.enum(PERMISSIONS)).min(1).describe('read is needed for any other'),
+});
+export const UpdateRoleBody = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  description: z.string().max(500).optional(),
+  permissions: z.array(z.enum(PERMISSIONS)).min(1).optional(),
+  expectedVersion: z.number().int().optional(),
+});
+export const SetVisibilityBody = z.object({
+  visibleTo: VisibleToInput.nullable().describe('Null: everyone who sees the project (or the issue, for a comment)'),
+  expectedVersion: z.number().int().optional().describe("The issue's version, for an issue"),
+});
+export const GuestInfoSchema = z
+  .object({
+    projects: z.array(ProjectRefSchema).describe('The projects anyone may read without signing in'),
+  })
+  .meta({ id: 'GuestInfo' });
+export type GuestInfo = z.infer<typeof GuestInfoSchema>;

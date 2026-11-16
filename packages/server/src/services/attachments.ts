@@ -5,7 +5,7 @@
  */
 import type { ArticleRef, Attachment, AttachmentLimits, AttachmentText, IssueRef } from '@a4a/shared';
 import { INLINE_IMAGE_TYPES } from '@a4a/shared';
-import { and, asc, eq, exists, isNotNull, isNull, lt, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, eq, exists, isNotNull, isNull, lt, notExists, or, sql, type SQL } from 'drizzle-orm';
 import { pipeline, type Readable } from 'node:stream';
 import { isAdmin, requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -17,10 +17,10 @@ import { newId } from '../lib/ids';
 import { Inspector, tooLarge } from '../attachments/receive';
 import { baseType, describeType, formatBytes, isInline, isText, playableAs, safeFileName, sniffContentType } from '../attachments/sniff';
 import { attachmentStorage, BlobNotFound, newBlobKey, StorageUnavailable } from '../attachments/storage';
-import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject } from './access';
+import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject, commentSeenSql, projectAccess, seesCommentRow } from './access';
 import { articleReadableId, articleRef, articleRefsById, resolveArticle, type ArticleRow } from './article-refs';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
-import { resolveIssue } from './issues';
+import { findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
 
 export type AttachmentRow = typeof attachments.$inferSelect;
@@ -103,15 +103,16 @@ async function toDtos(ctx: Ctx, rows: AttachmentRow[]): Promise<Attachment[]> {
   });
 }
 
-/** Files still in view: a deleted comment's go with it. */
-const visibleOnIssue = (issueId: string) => and(eq(attachments.issueId, issueId), or(isNull(attachments.commentId), isNull(comments.deletedAt)));
+/** Files still in view: a deleted comment's go with it, and a comment's limited away from the caller (D37). */
+const visibleOnIssue = (issueId: string, commentSeen: SQL | undefined) =>
+  and(eq(attachments.issueId, issueId), or(isNull(attachments.commentId), and(isNull(comments.deletedAt), commentSeen)));
 
-async function issueRows(db: Db, issueId: string): Promise<AttachmentRow[]> {
+async function issueRows(db: Db, issueId: string, commentSeen: SQL | undefined): Promise<AttachmentRow[]> {
   const rows = await db
     .select({ a: attachments })
     .from(attachments)
     .leftJoin(comments, eq(comments.id, attachments.commentId))
-    .where(visibleOnIssue(issueId))
+    .where(visibleOnIssue(issueId, commentSeen))
     .orderBy(asc(attachments.createdAt));
   return rows.map((r) => r.a);
 }
@@ -120,7 +121,7 @@ async function issueRows(db: Db, issueId: string): Promise<AttachmentRow[]> {
 export async function listIssueAttachments(ctx: Ctx, issueId: string): Promise<Attachment[]> {
   requireScope(ctx, 'read');
   const issue = await resolveIssue(ctx, issueId);
-  return toDtos(ctx, await issueRows(ctx.db, issue.id));
+  return toDtos(ctx, await issueRows(ctx.db, issue.id, commentSeenSql(await projectAccess(ctx), 'comments')));
 }
 
 export async function listArticleAttachments(ctx: Ctx, articleId: string): Promise<Attachment[]> {
@@ -134,16 +135,19 @@ export async function listArticleAttachments(ctx: Ctx, articleId: string): Promi
 async function loadVisible(ctx: Ctx, id: string): Promise<AttachmentRow> {
   requireScope(ctx, 'read');
   const [found] = await ctx.db
-    .select({ a: attachments, deletedAt: comments.deletedAt })
+    .select({ a: attachments, comment: comments })
     .from(attachments)
     .leftJoin(comments, eq(comments.id, attachments.commentId))
     .where(eq(attachments.id, id));
   const missing = () => notFound('Attachment', 'List the files on the issue or article to find its id.');
-  if (!found || found.deletedAt) throw missing();
+  if (!found || found.comment?.deletedAt) throw missing();
   // One the caller can't see answers in the very words of one that doesn't exist.
   await assertCanReadProject(ctx, found.a.projectId).catch(() => {
     throw missing();
   });
+  // So does one on an issue, or a comment, limited away from them (D37).
+  if (found.a.issueId && !(await findVisibleIssue(ctx, found.a.issueId))) throw missing();
+  if (found.comment && !seesCommentRow(await projectAccess(ctx), found.a.projectId, found.comment)) throw missing();
   return found.a;
 }
 
@@ -207,7 +211,7 @@ async function usedBytes(db: Db, target: UploadTarget): Promise<number> {
           .select({ n: sql<string>`coalesce(sum(${attachments.size}), 0)` })
           .from(attachments)
           .leftJoin(comments, eq(comments.id, attachments.commentId))
-          .where(visibleOnIssue(target.issue.id));
+          .where(visibleOnIssue(target.issue.id, undefined));
   return Number(row?.n ?? 0);
 }
 

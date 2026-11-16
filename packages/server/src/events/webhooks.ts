@@ -5,6 +5,7 @@ import { rules, webhookDeliveries, webhooks } from '../db/schema';
 import { hmacSha256, randomToken } from '../lib/crypto';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { eventLimited } from '../services/access';
 import { projectByKey } from '../services/schema-cache';
 import type { OutboxConsumer } from './worker';
 
@@ -215,9 +216,12 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
     name: 'webhooks',
     async handle(event) {
       // A rule's call is for the one webhook it names, whatever that webhook listens for.
+      const s = await app.schema.get();
+      // A webhook's address is outside a4a, where nobody's access is known: what's limited to some
+      // people (D37) isn't sent there, a rule's call included.
+      if (await eventLimited(app.db, s, event)) return;
       if (event.type === 'rule.called') return callFromRule(app, event);
       const hooks = await app.db.select().from(webhooks).where(eq(webhooks.active, true));
-      const s = await app.schema.get();
       const matching = hooks.filter((h) => {
         if (!h.events.includes('*') && !h.events.includes(event.type)) return false;
         if (!h.projectId) return true;
