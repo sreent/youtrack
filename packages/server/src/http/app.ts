@@ -41,6 +41,7 @@ import { groupRoutes } from './routes/groups';
 import { guestRoutes, roleRoutes } from './routes/roles';
 import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
+import { chatRoutes } from './routes/chat';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -101,6 +102,7 @@ export function createHttpApp(runtime: Runtime) {
   samlRoutes(api);
   agentRoutes(api);
   emailRoutes(api);
+  chatRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

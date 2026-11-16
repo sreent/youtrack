@@ -194,6 +194,16 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     },
   );
   if (cfg.groupsClaim) await syncProviderGroups(app, user.id, providerGroupNames(claims[cfg.groupsClaim]));
+  // Microsoft Entra ID names a person by their object id in a tenant (`oid`, `tid`), as Teams does,
+  // which then knows them without their linking anything (D42). Kept from each sign-in.
+  const oid = claimText(claims, 'oid');
+  const tid = claimText(claims, 'tid');
+  if (oid && tid) {
+    await app.db
+      .update(userIdentities)
+      .set({ objectId: oid, tenantId: tid })
+      .where(and(eq(userIdentities.provider, cfg.issuer), eq(userIdentities.subject, claims.sub)));
+  }
   return user;
 }
 

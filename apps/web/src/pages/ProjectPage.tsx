@@ -19,6 +19,7 @@ import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
 import { WorkTypes } from '../features/projects/WorkTypes';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
+import { ProjectChannels } from '../features/chat/Chat';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -294,6 +295,13 @@ export default function ProjectPage() {
           <HelpdeskMail project={p} />
         </section>
       ) : null}
+      <section className="card" aria-labelledby="chat-channels">
+        <div className="section-head">
+          <h2 id="chat-channels">Chat channels</h2>
+          <span className="note">Teams and Slack channels told of its issues</span>
+        </div>
+        <ProjectChannels project={p} canAdd={p.visibility === 'members' ? canEdit : p.access.write || canEdit} />
+      </section>
       <section className="card" aria-labelledby="plan">
         <div className="section-head">
           <h2 id="plan">Plan settings</h2>

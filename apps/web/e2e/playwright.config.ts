@@ -36,10 +36,12 @@ if (!process.env.E2E_RUN_DIR) {
   process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
 }
 process.env.E2E_PORT ||= freePort();
+// Where the chat spec's Bot Framework listens (support/teams.ts): the server is told before it starts.
+process.env.E2E_TEAMS_PORT ||= freePort();
 process.env.E2E_NOW ||= new Date().toISOString();
 
 // Read only once the environment is set.
-const { ADMIN, AUTH_FILE, BASE_URL, DATA_DIR, PORT } = await import('./support/env');
+const { ADMIN, AUTH_FILE, BASE_URL, DATA_DIR, PORT, TEAMS } = await import('./support/env');
 
 export default defineConfig({
   testDir: '.',
@@ -110,6 +112,14 @@ export default defineConfig({
       // http: allowed for tests alone (support/youtrack.ts).
       IMPORT_ALLOW_HTTP_LOOPBACK: 'true',
       IMPORT_ALLOW_HOSTS: '',
+      // A Teams bot whose Bot Framework is the chat spec's, on this machine (support/teams.ts).
+      TEAMS_APP_ID: TEAMS.appId,
+      TEAMS_APP_PASSWORD: TEAMS.appPassword,
+      TEAMS_TENANT_ID: TEAMS.tenantId,
+      TEAMS_OPENID_METADATA_URL: `${TEAMS.url}/openid`,
+      TEAMS_TOKEN_URL: `${TEAMS.url}/token`,
+      CHAT_ALLOW_HTTP_LOOPBACK: 'true',
+      SLACK_API_URL: '',
     },
   },
 });

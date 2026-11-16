@@ -13,6 +13,7 @@ import { EmailSettings } from '../features/notifications/EmailSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
+import { ChatAccounts } from '../features/chat/Chat';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -277,6 +278,13 @@ export default function ProfilePage() {
           <TwoFactorCard />
         </section>
       ) : null}
+      <section className="card" aria-labelledby="chat-accounts">
+        <div className="section-head">
+          <h2 id="chat-accounts">Chat accounts</h2>
+          <span className="note">Teams and Slack accounts that act as you</span>
+        </div>
+        <ChatAccounts />
+      </section>
       <section className="card" aria-labelledby="agents">
         <h2 id="agents">Tokens for agents and scripts</h2>
         <p className="note">

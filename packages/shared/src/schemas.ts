@@ -5,7 +5,10 @@
 import { z } from 'zod';
 import {
   CHANNELS,
+  CHAT_CHANGE_KINDS,
+  CHAT_PLATFORMS,
   COMMENT_VISIBILITIES,
+  DEFAULT_CHAT_KINDS,
   EMAIL_LEVELS,
   EVENT_TYPES,
   FIELD_TYPES,
@@ -2979,3 +2982,102 @@ export const TimesheetCellBody = z.object({
   user: z.string().optional().describe('Whose (a login); yours by default'),
 });
 export type TimesheetCellInput = z.infer<typeof TimesheetCellBody>;
+
+// ---------------------------------------------------------------------------
+// Chat: Microsoft Teams and Slack (docs/architecture.md, D42)
+// ---------------------------------------------------------------------------
+
+export const ChatChannelSchema = z
+  .object({
+    id: z.string(),
+    platform: z.enum(CHAT_PLATFORMS),
+    workspace: z.string().describe("The Teams team's name, or the Slack workspace's"),
+    name: z.string().describe('The channel\'s name, e.g. "General"'),
+    gone: z.string().nullable().describe('Why a4a can no longer post there; null while it can'),
+  })
+  .meta({ id: 'ChatChannel' });
+export type ChatChannel = z.infer<typeof ChatChannelSchema>;
+
+export const ChatSubscriptionSchema = z
+  .object({
+    id: z.string(),
+    channel: ChatChannelSchema,
+    target: z.enum(['project', 'search']),
+    project: z.object({ key: z.string(), name: z.string() }).nullable(),
+    search: z.object({ id: z.string(), name: z.string() }).nullable(),
+    kinds: z.array(z.enum(CHAT_CHANGE_KINDS)),
+    about: z.string().describe('What the channel hears of, in words: "New issues and state changes in Backend"'),
+    createdBy: UserRefSchema.nullable().describe('Who subscribed the channel, and vouches for its people'),
+    createdAt: timestamp,
+    ended: z
+      .object({ at: timestamp, reason: z.string() })
+      .nullable()
+      .describe('Set when it no longer posts: its channel went, the app was removed, or its subscriber lost the project'),
+  })
+  .meta({ id: 'ChatSubscription' });
+export type ChatSubscription = z.infer<typeof ChatSubscriptionSchema>;
+
+export const CreateChatSubscriptionBody = z.object({
+  channel: z.string().min(1).describe("The channel's id, from GET /chat/channels"),
+  project: z.string().optional().describe('A project key: its issues'),
+  savedSearch: z.string().optional().describe("A saved search's id or name, yours or a shared one: the issues it finds for you"),
+  kinds: z
+    .array(z.enum(CHAT_CHANGE_KINDS))
+    .min(1)
+    .default([...DEFAULT_CHAT_KINDS])
+    .describe('What the channel hears of: created, state, assigned, commented, fields'),
+});
+export type CreateChatSubscriptionInput = z.input<typeof CreateChatSubscriptionBody>;
+export const UpdateChatSubscriptionBody = z.object({ kinds: z.array(z.enum(CHAT_CHANGE_KINDS)).min(1) });
+
+export const ChatAccountSchema = z
+  .object({
+    id: z.string(),
+    platform: z.enum(CHAT_PLATFORMS),
+    workspace: z.string().describe('The Teams tenant or Slack workspace it belongs to'),
+    name: z.string().describe('Their name there'),
+    linkedAt: timestamp,
+    via: z.enum(['link', 'entra']).describe('link: they linked it with a sign-in link. entra: Teams knows them by their Microsoft Entra ID sign-in'),
+  })
+  .meta({ id: 'ChatAccount' });
+export type ChatAccount = z.infer<typeof ChatAccountSchema>;
+
+export const ChatLinkSchema = z
+  .object({
+    platform: z.enum(CHAT_PLATFORMS),
+    workspace: z.string(),
+    name: z.string().describe('The chat account to link: its name there'),
+    expiresAt: timestamp,
+    linkedTo: UserRefSchema.nullable().describe('Who it is linked to already, if anyone'),
+  })
+  .meta({ id: 'ChatLink' });
+export type ChatLink = z.infer<typeof ChatLinkSchema>;
+
+export const ChatStatusSchema = z
+  .object({
+    teams: z.object({
+      configured: z.boolean().describe('TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID are set'),
+      botId: z.string().nullable(),
+      tenantId: z.string().nullable(),
+      messagingEndpoint: z.string().describe("The bot's messaging endpoint, for Azure Bot Service"),
+      teams: z.array(z.object({ id: z.string(), name: z.string(), installedAt: timestamp, removed: z.string().nullable() })),
+    }),
+    slack: z.object({
+      connected: z.boolean(),
+      workspace: z.string().nullable(),
+      connectedBy: UserRefSchema.nullable(),
+      connectedAt: timestamp.nullable(),
+      removed: z.string().nullable().describe('Why it stopped: the app was removed, or its token revoked'),
+      requestUrls: z
+        .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
+        .describe("Where Slack sends what people do, for the app's settings"),
+    }),
+    channels: z.array(ChatChannelSchema),
+  })
+  .meta({ id: 'ChatStatus' });
+export type ChatStatus = z.infer<typeof ChatStatusSchema>;
+
+export const ConnectSlackBody = z.object({
+  botToken: z.string().trim().regex(/^xoxb-/, "A bot token starts with xoxb-: it's under OAuth & Permissions in the app's settings"),
+  signingSecret: z.string().trim().min(16).describe("Under Basic Information in the app's settings"),
+});

@@ -41,8 +41,22 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat'] as const;
 export type Channel = (typeof CHANNELS)[number];
+
+/** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */
+export const CHAT_PLATFORMS = ['teams', 'slack'] as const;
+export type ChatPlatform = (typeof CHAT_PLATFORMS)[number];
+export const CHAT_PLATFORM_NAMES: Record<ChatPlatform, string> = { teams: 'Microsoft Teams', slack: 'Slack' };
+
+/**
+ * The kinds of change a channel can hear of (D42): a new issue, its state, who it's assigned to, a
+ * comment, and its other fields. Time logged, files and links stay off chat.
+ */
+export const CHAT_CHANGE_KINDS = ['created', 'state', 'assigned', 'commented', 'fields'] as const;
+export type ChatChangeKind = (typeof CHAT_CHANGE_KINDS)[number];
+/** What a channel hears of when nobody says otherwise. */
+export const DEFAULT_CHAT_KINDS: readonly ChatChangeKind[] = ['created', 'state', 'assigned', 'commented'];
 
 /**
  * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk),

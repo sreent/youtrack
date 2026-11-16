@@ -46,3 +46,11 @@ export const SECOND = { login: 'theo', name: 'Theo Ruiz', password: 'e2e-second-
  * and reads "just now".
  */
 export const NOW = new Date(required('E2E_NOW'));
+
+/** The Teams bot the server is set up with, and where the chat spec's Bot Framework listens (support/teams.ts). */
+export const TEAMS = {
+  appId: '6a4f2e1d-e2e0-4a4a-9c1b-000000000e2e',
+  appPassword: 'e2e-bot-secret',
+  tenantId: '0e2e0e2e-1111-2222-3333-444455556666',
+  url: `http://127.0.0.1:${Number(required('E2E_TEAMS_PORT'))}`,
+} as const;

@@ -27,8 +27,8 @@ importers:
         specifier: 7.23.0
         version: 7.23.0(@codemirror/language@6.13.1)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(typescript@5.9.3)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#5131377df64e4aea583c9bd028970d974cf959a4
-        version: https://codeload.github.com/sreent/ocean/tar.gz/5131377df64e4aea583c9bd028970d974cf959a4
+        specifier: github:sreent/ocean#60c3e29a643332c7df835149fe0f887063aa3602
+        version: https://codeload.github.com/sreent/ocean/tar.gz/60c3e29a643332c7df835149fe0f887063aa3602
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -136,6 +136,9 @@ importers:
       '@scalar/hono-api-reference':
         specifier: ^0.12.20
         version: 0.12.20(hono@4.13.18)
+      '@sreent/ocean':
+        specifier: github:sreent/ocean#60c3e29a643332c7df835149fe0f887063aa3602
+        version: https://codeload.github.com/sreent/ocean/tar.gz/60c3e29a643332c7df835149fe0f887063aa3602
       '@xmldom/xmldom':
         specifier: ^0.8.15
         version: 0.8.15
@@ -1638,8 +1641,8 @@ packages:
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/5131377df64e4aea583c9bd028970d974cf959a4':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/5131377df64e4aea583c9bd028970d974cf959a4}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/60c3e29a643332c7df835149fe0f887063aa3602':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/60c3e29a643332c7df835149fe0f887063aa3602}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -6088,7 +6091,7 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/5131377df64e4aea583c9bd028970d974cf959a4': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/60c3e29a643332c7df835149fe0f887063aa3602': {}
 
   '@stablelib/base64@1.0.1': {}
 

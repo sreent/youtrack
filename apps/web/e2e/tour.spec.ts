@@ -384,6 +384,7 @@ const STOPS: Stop[] = [
   { name: 'state machines and actions', path: workflowRules, ready: (p) => p.getByRole('heading', { name: 'Escalate' }) },
   { name: "an issue's moves and actions", path: withWorkflows, ready: (p) => p.getByRole('group', { name: 'Move it on' }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
+  { name: 'chat', path: '/chat', ready: (p) => p.getByRole('heading', { name: 'What’s subscribed where' }) },
   { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },
   { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
   { name: "an agent's change to undo", path: agentsChanges, ready: (p) => p.getByRole('button', { name: /^Undo tour-.+’s change$/ }) },

@@ -1,0 +1,310 @@
+/**
+ * Chat on the web (D42): channels' subscriptions, for a project and for administrators, and a
+ * person's chat accounts on their profile.
+ */
+import type { ChatAccount, ChatChannel, ChatSubscription, Project } from '@a4a/shared';
+import { CHAT_CHANGE_KINDS, CHAT_PLATFORM_NAMES, DEFAULT_CHAT_KINDS, type ChatChangeKind } from '@a4a/shared/constants';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { del, get, patch, post, qs } from '../../api/client';
+import { ago, Badge } from '../../components/Badges';
+import { ErrorNote, Loading } from '../../components/States';
+import { UserWho } from '../../components/Who';
+import { errorText, FormField, Said, Scroll } from '../common/bits';
+import { Confirm } from '../common/Confirm';
+
+export const chatKeys = {
+  all: ['chat'] as const,
+  status: ['chat', 'status'] as const,
+  channels: ['chat', 'channels'] as const,
+  subscriptions: (project?: string) => ['chat', 'subscriptions', project ?? '*'] as const,
+  accounts: ['chat', 'accounts'] as const,
+};
+
+export const useChatChannels = () => useQuery({ queryKey: chatKeys.channels, queryFn: () => get<ChatChannel[]>('/chat/channels') });
+export const useChatSubscriptions = (project?: string) =>
+  useQuery({ queryKey: chatKeys.subscriptions(project), queryFn: () => get<ChatSubscription[]>(`/chat/subscriptions${qs({ project })}`) });
+const useChatAccounts = () => useQuery({ queryKey: chatKeys.accounts, queryFn: () => get<ChatAccount[]>('/chat/accounts') });
+
+export const KIND_NAMES: Record<ChatChangeKind, { name: string; about: string }> = {
+  created: { name: 'New issues', about: 'Each issue reported in it' },
+  state: { name: 'State changes', about: 'Moved to another state' },
+  assigned: { name: 'Assignments', about: 'Who it’s assigned to' },
+  commented: { name: 'Comments', about: 'What people say on it' },
+  fields: { name: 'Other changes', about: 'Its other fields, its summary and description' },
+};
+
+/** "#eng, Acme on Slack". */
+export const channelName = (c: ChatChannel) => `${c.name}, ${c.workspace} on ${CHAT_PLATFORM_NAMES[c.platform]}`;
+
+function KindChoices({ value, onChange, legend, disabled }: { value: ChatChangeKind[]; onChange: (v: ChatChangeKind[]) => void; legend: string; disabled?: boolean }) {
+  return (
+    <fieldset className="choice-group columns" disabled={disabled}>
+      <legend>{legend}</legend>
+      {CHAT_CHANGE_KINDS.map((k) => (
+        <label key={k} className="choice">
+          <input
+            type="checkbox"
+            checked={value.includes(k)}
+            onChange={(e) => onChange(e.target.checked ? CHAT_CHANGE_KINDS.filter((x) => x === k || value.includes(x)) : value.filter((x) => x !== k))}
+          />
+          <span>
+            {KIND_NAMES[k].name}
+            <small className="field-help">{KIND_NAMES[k].about}</small>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showTarget: boolean; onSaid: (said: { text: string; bad?: boolean }) => void }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [kinds, setKinds] = useState<ChatChangeKind[]>(s.kinds);
+  const refresh = () => void qc.invalidateQueries({ queryKey: chatKeys.all });
+  const save = useMutation({
+    mutationFn: () => patch<ChatSubscription>(`/chat/subscriptions/${s.id}`, { kinds }),
+    onSuccess: (u) => {
+      refresh();
+      setEditing(false);
+      onSaid({ text: `${u.channel.name} hears of ${u.about.charAt(0).toLowerCase()}${u.about.slice(1)}.` });
+    },
+    onError: (e) => onSaid({ text: errorText(e), bad: true }),
+  });
+  const stop = useMutation({
+    mutationFn: () => del(`/chat/subscriptions/${s.id}`),
+    onSuccess: () => {
+      refresh();
+      onSaid({ text: s.ended ? 'Taken off the list.' : `${s.channel.name} hears of it no more.` });
+    },
+    onError: (e) => onSaid({ text: errorText(e), bad: true }),
+  });
+  const target = s.project?.name ?? `“${s.search?.name ?? 'a saved search'}”`;
+  return (
+    <tr className={s.ended ? 'muted' : undefined}>
+      <th scope="row" className="row-head">
+        {/* Wide enough to read on a phone: the table scrolls in its frame rather than break words. */}
+        <span className="tw:block tw:min-w-36">
+          <span className="item-name">{s.channel.name}</span>
+          <span className="item-about">
+            {s.channel.workspace} · {CHAT_PLATFORM_NAMES[s.channel.platform]}
+          </span>
+        </span>
+      </th>
+      {showTarget ? <td>{s.project ? s.project.name : <>{target} · a saved search</>}</td> : null}
+      <td>
+        {editing ? (
+          <form
+            className="stack tight"
+            onSubmit={(e) => {
+              e.preventDefault();
+              save.mutate();
+            }}
+          >
+            <KindChoices value={kinds} onChange={setKinds} legend={`What ${s.channel.name} hears of`} disabled={save.isPending} />
+            <div className="cluster">
+              <button type="submit" className="small primary" disabled={!kinds.length || save.isPending}>
+                Save
+              </button>
+              <button type="button" className="small" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <span className="tw:block tw:min-w-48">
+            {s.about}
+            {s.ended ? (
+              <span className="item-about">
+                <Badge tone="idle">stopped</Badge> {s.ended.reason}
+              </span>
+            ) : null}
+          </span>
+        )}
+      </td>
+      <td>
+        <span className="tw:block tw:min-w-36">
+          <UserWho user={s.createdBy} small />
+          <span className="item-about">subscribed it {ago(s.createdAt)}</span>
+        </span>
+      </td>
+      <td className="fit">
+        <div className="cluster">
+          {!s.ended && !editing ? (
+            <button type="button" className="small" onClick={() => setEditing(true)}>
+              Change<span className="hidden"> what {s.channel.name} hears of</span>
+            </button>
+          ) : null}
+          <Confirm
+            small
+            label={s.ended ? 'Remove' : 'Stop'}
+            name={`${s.ended ? 'Remove' : 'Stop'} ${s.channel.name}'s subscription to ${target}`}
+            title={s.ended ? `Take ${s.channel.name}’s stopped subscription off the list?` : `Stop telling ${s.channel.name} of ${target}?`}
+            about={s.ended ? 'It posts nothing already.' : 'Nothing more is posted there about it. What was posted stays.'}
+            confirm={s.ended ? 'Remove it' : 'Stop it'}
+            disabled={stop.isPending}
+            onConfirm={() => stop.mutate()}
+          />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/** Channels' subscriptions as a table: the channel, what it hears of, who vouches for it. */
+export function ChatSubscriptionTable({ subs, showTarget, label }: { subs: ChatSubscription[]; showTarget: boolean; label: string }) {
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  return (
+    <div className="stack">
+      <Scroll label={label}>
+        <table className="figures middle">
+          <thead>
+            <tr>
+              <th scope="col">Channel</th>
+              {showTarget ? <th scope="col">Of</th> : null}
+              <th scope="col">It hears of</th>
+              <th scope="col">Who vouches for it</th>
+              <th scope="col">
+                <span className="hidden">Change or stop</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {subs.map((s) => (
+              <SubscriptionRow key={s.id} s={s} showTarget={showTarget} onSaid={setSaid} />
+            ))}
+          </tbody>
+        </table>
+      </Scroll>
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </div>
+  );
+}
+
+/** Tell one of the channels a4a can post to of a project's issues. */
+function AddChannel({ project }: { project: Project }) {
+  const qc = useQueryClient();
+  const channels = useChatChannels();
+  const [channel, setChannel] = useState('');
+  const [kinds, setKinds] = useState<ChatChangeKind[]>([...DEFAULT_CHAT_KINDS]);
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const add = useMutation({
+    mutationFn: () => post<ChatSubscription>('/chat/subscriptions', { channel, project: project.key, kinds }),
+    onSuccess: (s) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.all });
+      setChannel('');
+      setSaid({ text: `${s.channel.name} hears of ${s.about.charAt(0).toLowerCase()}${s.about.slice(1)}.` });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (channels.isLoading) return <Loading what="channels" />;
+  if (!channels.data?.length) {
+    return <p className="note">a4a can post to no channel yet. An administrator connects Teams or Slack on the Chat page; then a channel is subscribed here, or by asking the bot in it.</p>;
+  }
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (channel) add.mutate();
+      }}
+    >
+      <FormField
+        label="Channel"
+        help={
+          project.visibility === 'members'
+            ? `${project.name} is open to its members alone: only someone who manages it can have a channel told of it.`
+            : 'Its people see what every reader of the project may: never what’s limited to some people.'
+        }
+      >
+        {(id, help) => (
+          <select id={id} aria-describedby={help} value={channel} onChange={(e) => setChannel(e.target.value)} required>
+            <option value="">Choose a channel</option>
+            {channels.data.map((c) => (
+              <option key={c.id} value={c.id}>
+                {channelName(c)}
+              </option>
+            ))}
+          </select>
+        )}
+      </FormField>
+      <KindChoices value={kinds} onChange={setKinds} legend="It hears of" disabled={add.isPending} />
+      <div className="cluster">
+        <button type="submit" className="primary" disabled={!channel || !kinds.length || add.isPending}>
+          {add.isPending ? 'Subscribing…' : 'Tell the channel'}
+        </button>
+      </div>
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </form>
+  );
+}
+
+/** A project's page: the channels told of its issues, and telling another. */
+export function ProjectChannels({ project, canAdd }: { project: Project; canAdd: boolean }) {
+  const subs = useChatSubscriptions(project.key);
+  if (subs.isLoading) return <Loading what="its channels" />;
+  if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
+  return (
+    <div className="stack">
+      {subs.data.length ? (
+        <ChatSubscriptionTable subs={subs.data} showTarget={false} label={`Table of the channels told of ${project.name}`} />
+      ) : (
+        <p className="note">No channel hears of {project.name} yet.</p>
+      )}
+      {canAdd ? <AddChannel project={project} /> : null}
+    </div>
+  );
+}
+
+/** Your profile: the chat accounts that act as you, and unlinking one. */
+export function ChatAccounts() {
+  const qc = useQueryClient();
+  const accounts = useChatAccounts();
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const unlink = useMutation({
+    mutationFn: (a: ChatAccount) => del(`/chat/accounts/${a.id}`).then(() => a),
+    onSuccess: (a) => {
+      void qc.invalidateQueries({ queryKey: chatKeys.accounts });
+      setSaid({ text: `${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]} doesn’t act as you any more.` });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (accounts.isLoading) return <Loading what="your chat accounts" />;
+  if (accounts.error || !accounts.data) return <ErrorNote error={accounts.error} />;
+  return (
+    <div className="stack">
+      {accounts.data.length ? (
+        <ul className="plain" aria-label="Your chat accounts">
+          {accounts.data.map((a) => (
+            <li key={a.id} className="cluster spread">
+              <span>
+                <span className="item-name">
+                  {a.name} on {CHAT_PLATFORM_NAMES[a.platform]}
+                </span>
+                <span className="item-about">
+                  {a.via === 'entra' ? 'Teams knows you by your Microsoft Entra ID sign-in' : `${a.workspace} · linked ${ago(a.linkedAt)}`}
+                </span>
+              </span>
+              {a.via === 'link' ? (
+                <Confirm
+                  small
+                  label="Unlink"
+                  name={`Unlink ${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]}`}
+                  title={`Unlink ${a.name} on ${CHAT_PLATFORM_NAMES[a.platform]}?`}
+                  about="It stops acting as you at once. To link it again, say “link” to the bot there."
+                  confirm="Unlink it"
+                  disabled={unlink.isPending}
+                  onConfirm={() => unlink.mutate(a)}
+                />
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="note">None yet. Say “link” to a4a’s bot in Teams or Slack, and it sends you a link to confirm here.</p>
+      )}
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </div>
+  );
+}
