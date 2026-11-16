@@ -28,11 +28,12 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   if (Number(n) > 0) return; // never seed over real data
 
   const ctx = adminCtx(app, admin, 'system');
+  // Their emails are the administrator's to vouch for, as if they had added them: single sign-on may find them by it.
   const people = {
-    anna: await insertUser(app.db, { login: 'anna', name: 'Anna Schmidt', email: 'anna@example.com', hourlyRate: 95 }),
-    ben: await insertUser(app.db, { login: 'ben', name: 'Ben Okafor', email: 'ben@example.com', hourlyRate: 85 }),
-    chloe: await insertUser(app.db, { login: 'chloe', name: 'Chloé Martin', email: 'chloe@example.com', hourlyRate: 100 }),
-    diego: await insertUser(app.db, { login: 'diego', name: 'Diego Alvarez', email: 'diego@example.com', hourlyRate: 70, capacityHoursPerDay: 6 }),
+    anna: await insertUser(app.db, { login: 'anna', name: 'Anna Schmidt', email: 'anna@example.com', emailVerified: true, hourlyRate: 95 }),
+    ben: await insertUser(app.db, { login: 'ben', name: 'Ben Okafor', email: 'ben@example.com', emailVerified: true, hourlyRate: 85 }),
+    chloe: await insertUser(app.db, { login: 'chloe', name: 'Chloé Martin', email: 'chloe@example.com', emailVerified: true, hourlyRate: 100 }),
+    diego: await insertUser(app.db, { login: 'diego', name: 'Diego Alvarez', email: 'diego@example.com', emailVerified: true, hourlyRate: 70, capacityHoursPerDay: 6 }),
   };
   app.schema.invalidate();
   const as = (u: UserRow) => systemCtx(app, u, 'web');

@@ -28,7 +28,8 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   const login = process.env.ADMIN_LOGIN;
   const password = process.env.ADMIN_PASSWORD;
   if (login && password && (await needsSetup(runtime.db))) {
-    const admin = await insertUser(runtime.db, { login, name: process.env.ADMIN_NAME ?? login, password, role: 'admin' });
+    const email = process.env.ADMIN_EMAIL?.trim() || null;
+    const admin = await insertUser(runtime.db, { login, name: process.env.ADMIN_NAME ?? login, email, emailVerified: Boolean(email), password, role: 'admin' });
     runtime.schema.invalidate();
     if (config.seedDemo) await seedDemo(runtime, admin);
   }

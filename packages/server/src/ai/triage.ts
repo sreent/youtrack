@@ -11,7 +11,7 @@ import type { OutboxConsumer } from '../events/worker';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
-import { canReadIssueId, projectAccess, projectRolesOf, redactHiddenIds, requireProject, type AccessView } from '../services/access';
+import { assertCanWriteProject, canReadIssueId, projectAccess, projectRolesOf, redactHiddenIds, requireProject, type AccessView } from '../services/access';
 import { getIssue, resolveIssue, updateIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
 import { projectSettings, projectVisibility } from '../services/projects';
@@ -212,9 +212,11 @@ async function loadOpen(ctx: Ctx, id: string): Promise<SuggestionRow> {
   const [row] = await ctx.db.select().from(aiSuggestions).where(eq(aiSuggestions.id, id));
   // A suggestion on an issue the caller can't see is not found, as one that doesn't exist.
   if (!row) throw notFound('Suggestion');
-  await resolveIssue(ctx, row.issueId).catch(() => {
+  const issue = await resolveIssue(ctx, row.issueId).catch(() => {
     throw notFound('Suggestion');
   });
+  // Deciding on a suggestion is work on the issue: its project's members decide.
+  await assertCanWriteProject(ctx, issue.projectId);
   if (row.status !== 'pending' && row.status !== 'partially_applied') throw badRequest(`This suggestion was already ${row.status}`);
   return row;
 }

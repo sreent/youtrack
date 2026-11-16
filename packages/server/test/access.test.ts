@@ -7,7 +7,7 @@ import { createConversation } from '../src/ai/chat/agent';
 import { setClaudeClientForTests, type ClaudeClient } from '../src/ai/client';
 import { judgeDuplicates, summarizeIssue, wordsToQuery } from '../src/ai/nl';
 import { findSimilar } from '../src/ai/similar';
-import { listPendingSuggestions, listSuggestions, triageConsumer, triageIssue } from '../src/ai/triage';
+import { dismissSuggestion, listPendingSuggestions, listSuggestions, triageConsumer, triageIssue } from '../src/ai/triage';
 import { adminCtx } from '../src/app-services';
 import { runCommand } from '../src/commands/executor';
 import type { Ctx } from '../src/context';
@@ -353,6 +353,18 @@ describe('roles in a project', () => {
       expect(f.message).toMatch(/SECRET/);
     }
     expect((await getProject(vic, 'SECRET')).access).toMatchObject({ role: 'viewer', read: true, comment: true, write: false, manage: false });
+    // Deciding on what triage suggests is work on the issue, so a viewer can't.
+    await w.app.db.insert(aiSuggestions).values({
+      id: 'sugg-viewer',
+      issueId: secretUid,
+      kind: 'triage',
+      status: 'pending',
+      model: 'claude-opus-5-5',
+      payload: { fields: [], tags: [], duplicates: [], summary: 'Nothing.' },
+    });
+    expect((await failure(dismissSuggestion(vic, 'sugg-viewer'))).status).toBe(403);
+    expect((await failure(dismissSuggestion(ben, 'sugg-viewer'))).status).toBe(404);
+    expect((await dismissSuggestion(anna, 'sugg-viewer')).status).toBe('dismissed');
   });
 
   it('lets a member change issues but not the project', async () => {

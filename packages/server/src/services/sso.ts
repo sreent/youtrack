@@ -14,7 +14,7 @@
  */
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { SignIn } from '@a4a/shared';
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, lt, sql } from 'drizzle-orm';
 import * as oidc from 'openid-client';
 import type { AppServices } from '../context';
 import type { OidcConfig } from '../config';
@@ -253,7 +253,7 @@ async function freeLogin(db: Db, wanted: string): Promise<string> {
 /** How each person signs in, for administrators. */
 export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Promise<Map<string, SignIn>> {
   const out = new Map<string, SignIn>();
-  const links = people.length ? await db.select().from(userIdentities) : [];
+  const links = people.length ? await db.select().from(userIdentities).where(inArray(userIdentities.userId, people.map((u) => u.id))) : [];
   const providerName = (issuer: string) => (app.config.oidc?.issuer === issuer ? app.config.oidc.name : (() => {
     try {
       return new URL(issuer).hostname;

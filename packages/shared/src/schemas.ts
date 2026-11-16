@@ -140,6 +140,7 @@ export const SetupStatusSchema = z
     }),
   })
   .meta({ id: 'SetupStatus' });
+export type SetupStatus = z.infer<typeof SetupStatusSchema>;
 
 export const UpdateMeBody = z.object({
   name: z.string().min(1).max(100).optional(),
