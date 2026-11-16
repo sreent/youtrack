@@ -37,39 +37,29 @@ export function NotifyKindsSettingsCard() {
   };
   return (
     <div className="stack" aria-label="The kinds of change that tell you">
-      <div className="table-wrap">
-        <table className="table">
-          <caption>The kinds of change that tell you</caption>
-          <thead>
-            <tr>
-              <th scope="col">Change</th>
-              <th scope="col">Watched: inbox</th>
-              <th scope="col">Watched: email</th>
-              <th scope="col">Subscribed: inbox</th>
-              <th scope="col">Subscribed: email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {NOTIFY_KINDS.map((k) => (
-              <tr key={k}>
-                <th scope="row">{WORDS[k]}</th>
-                {(['watching', 'defaults'] as const).flatMap((scope) =>
-                  (['inbox', 'email'] as const).map((way) => (
-                    <td key={`${scope}-${way}`}>
-                      <input
-                        type="checkbox"
-                        aria-label={`${WORDS[k]}, ${scope === 'watching' ? 'issues you watch' : 'your subscriptions'}, ${way}`}
-                        checked={s[scope][k][way]}
-                        disabled={save.isPending}
-                        onChange={(e) => toggle(scope, k, way, e.target.checked)}
-                      />
-                    </td>
-                  )),
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* A fieldset per kind, its four choices wrapping: a table of five columns is too wide for a phone. */}
+      <div role="group" aria-label="The kinds of change that tell you" className="stack">
+        {NOTIFY_KINDS.map((k) => (
+          <fieldset key={k} className="unframed stack tight">
+            <legend>{WORDS[k]}</legend>
+            <div className="cluster">
+              {(['watching', 'defaults'] as const).flatMap((scope) =>
+                (['inbox', 'email'] as const).map((way) => (
+                  <label key={`${scope}-${way}`} className="check">
+                    <input
+                      type="checkbox"
+                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? 'issues you watch' : 'your subscriptions'}, ${way}`}
+                      checked={s[scope][k][way]}
+                      disabled={save.isPending}
+                      onChange={(e) => toggle(scope, k, way, e.target.checked)}
+                    />
+                    {scope === 'watching' ? 'Watched' : 'Subscribed'}: {way}
+                  </label>
+                )),
+              )}
+            </div>
+          </fieldset>
+        ))}
       </div>
       <p className="note">Whatever you choose, {s.always.join(', ')} always tell you. Email still follows your email level above.</p>
       {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}

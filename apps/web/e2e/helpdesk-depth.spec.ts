@@ -71,7 +71,7 @@ test('the portal asks for an email to send a sign-in link to', async ({ browser 
 
 test('a person chooses the kinds of change that tell them', async ({ page }) => {
   await page.goto('/me');
-  const kinds = page.getByRole('table', { name: 'The kinds of change that tell you' });
+  const kinds = page.getByRole('group', { name: 'The kinds of change that tell you' });
   const box = () => kinds.getByRole('checkbox', { name: 'Commented on, issues you watch, email' });
   // Whatever it was, it's turned the other way, kept, and turned back.
   const was = await box().isChecked();
