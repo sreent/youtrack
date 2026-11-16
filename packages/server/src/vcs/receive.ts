@@ -14,7 +14,7 @@
  */
 import type { VcsDeliveryOutcome } from '@a4a/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { and, eq, inArray, lt } from 'drizzle-orm';
+import { and, eq, lt, or } from 'drizzle-orm';
 import { ZodError } from 'zod';
 import type { AppServices } from '../context';
 import { vcsDeliveries, vcsIntegrations } from '../db/schema';
@@ -118,10 +118,17 @@ async function claim(app: AppServices, integration: IntegrationRow, deliveryId: 
   // One that failed, or died while it was handled, may be handled again.
   const retry = first.outcome === 'failed' || (first.outcome === 'received' && Date.now() - first.createdAt.getTime() > STALE_CLAIM_MS);
   if (retry) {
+    // The same test, in the update: of two retries at once, the first makes the row fresh and
+    // "received", so the second no longer matches.
     const [again] = await app.db
       .update(vcsDeliveries)
       .set({ outcome: 'received', statusCode: 202, message: '', createdAt: new Date(), finishedAt: null })
-      .where(and(eq(vcsDeliveries.id, first.id), inArray(vcsDeliveries.outcome, ['failed', 'received'])))
+      .where(
+        and(
+          eq(vcsDeliveries.id, first.id),
+          or(eq(vcsDeliveries.outcome, 'failed'), and(eq(vcsDeliveries.outcome, 'received'), lt(vcsDeliveries.createdAt, new Date(Date.now() - STALE_CLAIM_MS)))),
+        ),
+      )
       .returning({ id: vcsDeliveries.id });
     if (again) return again;
   }

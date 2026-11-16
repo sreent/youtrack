@@ -272,14 +272,26 @@ export function ruleDto(s: SchemaSnapshot, row: RuleRow, lastRun: RunRow | undef
   };
 }
 
-async function lastRuns(db: Db, ids: string[]): Promise<Map<string, RunRow>> {
+/**
+ * The runs a reader may see: those in projects they can read, through the access seam. A rule for
+ * every project runs in all of them, and its runs name their issues.
+ */
+async function visibleRuns(ctx: Ctx): Promise<SQL | null> {
+  const visible = await visibleProjectIds(ctx);
+  if (visible === null) return null;
+  return visible.length ? or(inArray(ruleRuns.projectId, visible), isNull(ruleRuns.projectId))! : isNull(ruleRuns.projectId);
+}
+
+async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {
   if (!ids.length) return new Map();
-  const res = await db.execute(sql`
-    SELECT DISTINCT ON (rule_id) id FROM rule_runs WHERE rule_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+  const seen = await visibleRuns(ctx);
+  const res = await ctx.db.execute(sql`
+    SELECT DISTINCT ON (rule_id) id FROM rule_runs
+    WHERE rule_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) ${seen ? sql`AND ${seen}` : sql``}
     ORDER BY rule_id, id DESC`);
   const runIds = (res as unknown as { rows: { id: number | string }[] }).rows.map((r) => Number(r.id));
   if (!runIds.length) return new Map();
-  const rows = await db.select().from(ruleRuns).where(inArray(ruleRuns.id, runIds));
+  const rows = await ctx.db.select().from(ruleRuns).where(inArray(ruleRuns.id, runIds));
   return new Map(rows.map((r) => [r.ruleId, r]));
 }
 
@@ -316,7 +328,7 @@ export async function listRules(ctx: Ctx, opts: { project?: string } = {}): Prom
     rows = [];
     for (const r of all) if (!r.projectId || (await canReadProject(ctx, r.projectId))) rows.push(r);
   }
-  const last = await lastRuns(ctx.db, rows.map((r) => r.id));
+  const last = await lastRuns(ctx, rows.map((r) => r.id));
   return rows.map((r) => ruleDto(s, r, last.get(r.id)));
 }
 
@@ -324,7 +336,7 @@ export async function getRule(ctx: Ctx, id: string): Promise<Rule> {
   requireScope(ctx, 'read');
   const row = await loadRule(ctx, id);
   const s = await ctx.app.schema.get();
-  return ruleDto(s, row, (await lastRuns(ctx.db, [row.id])).get(row.id));
+  return ruleDto(s, row, (await lastRuns(ctx, [row.id])).get(row.id));
 }
 
 /** What rules did: a rule's runs, or those in a project, newest first. */
@@ -342,10 +354,8 @@ export async function listRuleRuns(ctx: Ctx, opts: { project?: string; rule?: st
     await assertCanReadProject(ctx, projectId);
     conds.push(eq(ruleRuns.projectId, projectId));
   }
-  if (!opts.rule && !opts.project) {
-    const visible = await visibleProjectIds(ctx);
-    if (visible !== null) conds.push(visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`);
-  }
+  const seen = await visibleRuns(ctx);
+  if (seen) conds.push(seen);
   const rows = await ctx.db
     .select({ run: ruleRuns, name: rules.name })
     .from(ruleRuns)
@@ -460,7 +470,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     .returning();
   if (!updated) throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.');
   ctx.app.schema.invalidate();
-  return ruleDto(await ctx.app.schema.get(), updated, (await lastRuns(ctx.db, [updated.id])).get(updated.id));
+  return ruleDto(await ctx.app.schema.get(), updated, (await lastRuns(ctx, [updated.id])).get(updated.id));
 }
 
 export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
