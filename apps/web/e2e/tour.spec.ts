@@ -84,6 +84,35 @@ const withDaysAway = async (api: Api) => {
   return `/plan/${key}/resources`;
 };
 
+/** A sprint board of its own to plan: a backlog, a sprint with dates and work in it (D43). */
+const sprintToPlan = async (api: Api) => {
+  const key = uniqueKey('TS');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const today = new Date().toLocaleDateString('en-CA');
+  const end = new Date(Date.parse(`${today}T00:00:00Z`) + 13 * 86_400_000).toISOString().slice(0, 10);
+  const b = await api.post<{ id: string }>('/boards', { name: `Sprints ${key}`, projects: [key], sprintsEnabled: true });
+  const sprint = await api.post<{ id: string }>(`/boards/${b.id}/sprints`, { name: 'Sprint 1', startDate: today, endDate: end });
+  const ids: string[] = [];
+  for (const [summary, estimate] of [['Rotate signing keys', '2d'], ['Paginate the audit log', '1d'], ['Retry webhooks with backoff', '4h'], ['Sessions survive a deploy', '3d']]) {
+    ids.push((await api.createIssue({ project: key, summary, fields: { Estimation: estimate!, Assignee: 'admin' } })).id);
+  }
+  await api.post(`/sprints/${sprint.id}/issues`, { issues: ids.slice(0, 2) });
+  return `/boards/${b.id}/plan`;
+};
+
+/** A week of time on issues of a project of its own (D43). */
+const aWeekOfTime = async (api: Api) => {
+  const key = uniqueKey('TW');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await api.post(`/projects/${key}/work-types`, { name: 'Development' });
+  const today = new Date().toLocaleDateString('en-CA');
+  const a = await api.createIssue({ project: key, summary: 'Write the migration' });
+  const b = await api.createIssue({ project: key, summary: 'Review the rollout plan' });
+  await api.post(`/issues/${a.id}/work-items`, { duration: '2h 30m', date: today, type: 'Development' });
+  await api.post(`/issues/${b.id}/work-items`, { duration: '1h', date: today });
+  return '/timesheet';
+};
+
 const withRules = async (api: Api) => {
   const key = uniqueKey('TR');
   await api.createProject({ key, name: `Tour ${key}` });
@@ -218,6 +247,8 @@ const STOPS: Stop[] = [
   { name: 'boards', path: '/boards', ready: (p) => p.getByRole('link', { name: 'Backend sprints' }) },
   { name: 'a sprint board', path: board('Backend sprints'), ready: (p) => p.getByRole('group', { name: "Sprint 14's columns" }) },
   { name: 'a kanban board with lanes', path: board('Web kanban'), ready: (p) => p.getByRole('group', { name: "Web kanban's columns" }) },
+  { name: 'planning sprints', path: sprintToPlan, ready: (p) => p.getByRole('list', { name: 'Backlog, in rank order' }) },
+  { name: 'your timesheet', path: aWeekOfTime, ready: (p) => p.getByRole('region', { name: 'Your week' }) },
   { name: 'plans', path: '/plan', ready: (p) => p.getByRole('link', { name: 'Data center migration' }) },
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },

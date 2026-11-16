@@ -24,8 +24,8 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#38e84a433ec6474ebd43419d3b681e37e0d27709
-        version: https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709
+        specifier: link:../../data/ocean
+        version: link:../../data/ocean
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -1483,11 +1483,6 @@ packages:
   '@smithy/types@4.20.0':
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
-
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709}
-    version: 0.1.0
-    engines: {node: '>=20'}
 
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
@@ -5365,8 +5360,6 @@ snapshots:
   '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.9.1
-
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709': {}
 
   '@stablelib/base64@1.0.1': {}
 
