@@ -92,6 +92,7 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   await mk('slow', people.anna, { project: 'BACK', summary: 'Slow query on the activity feed for large projects', description: 'p95 is 2.3s for projects with more than 50k events.', fields: { Type: 'Bug', Priority: 'Major', Assignee: 'anna', Subsystem: 'Database', Estimation: '2d' }, tags: ['performance'] }, 3);
   await mk('v1export', people.ben, { project: 'BACK', summary: 'Remove the deprecated v1 export endpoint', fields: { Type: 'Task', Priority: 'Minor', Assignee: 'ben' } }, 25);
 
+  await updateIssue(as(people.ben), ids.webhook!, { fields: { State: 'In Progress' } });
   await updateIssue(as(people.ben), ids.webhook!, { fields: { State: 'Fixed', 'Fix versions': ['1.1'] } });
   await updateIssue(as(people.ben), ids.v1export!, { fields: { State: "Won't fix" } });
   await addComment(as(people.ben), ids.sso!, 'I can reproduce it with the Okta sandbox. The SameSite attribute on the session cookie looks wrong after the redirect.');
@@ -108,7 +109,9 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   await mk('typo', people.diego, { project: 'WEB', summary: 'Fix the typo on the pricing page', fields: { Type: 'Bug', Priority: 'Minor', Assignee: 'ben' } }, 11);
   await mk('empty', people.ben, { project: 'WEB', summary: 'Improve empty states on the issues page', fields: { Type: 'Task', Priority: 'Minor' } }, 8);
   await mk('back', people.diego, { project: 'WEB', summary: 'Search box loses the query after navigating back', fields: { Type: 'Bug', Priority: 'Normal', Assignee: 'ben' } }, 13);
+  await updateIssue(as(people.ben), ids.typo!, { fields: { State: 'In Progress' } });
   await updateIssue(as(people.ben), ids.typo!, { fields: { State: 'Fixed' } });
+  await updateIssue(as(people.ben), ids.back!, { fields: { State: 'In Progress' } });
   await updateIssue(as(people.diego), ids.back!, { fields: { State: 'Verified' } });
   await linkIssues(as(people.ben), ids.charts!, 'relates to', ids.sso!);
 
@@ -171,9 +174,15 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   await createSprint(ctx, backBoard.id, { name: 'Sprint 15', goal: 'Key rotation', startDate: addDays(today, 7), endDate: addDays(today, 20) });
   await setSprintIssues(ctx, current.id, [ids.sso!, ids.rate!, ids.sessions!, ids.pagination!, ids.keys!, ids.slow!, ids.webhook!], false);
   // The sprint's history, as its burndown reads it: planned the afternoon before it began, and the
-  // webhook retries fixed in its first week.
+  // webhook retries started in its first days and fixed in its first week. Work on the web app
+  // started and finished days apart too, so how long work takes has something to time.
   await backdateEvents(app, sql`${activities.type} = 'sprint.issue_added'`, `${addDays(today, -8)}T16:00:00`);
-  await backdateEvents(app, and(eq(activities.type, 'issue.updated'), eq(activities.issueId, await uidOf(app, ids.webhook!)))!, `${addDays(today, -4)}T11:00:00`);
+  await backdateState(app, ids.webhook!, 'In Progress', `${addDays(today, -6)}T09:30:00`);
+  await backdateState(app, ids.webhook!, 'Fixed', `${addDays(today, -4)}T11:00:00`, true);
+  await backdateState(app, ids.back!, 'In Progress', `${addDays(today, -9)}T10:00:00`);
+  await backdateState(app, ids.back!, 'Verified', `${addDays(today, -5)}T16:00:00`, true);
+  await backdateState(app, ids.typo!, 'In Progress', `${addDays(today, -3)}T09:00:00`);
+  await backdateState(app, ids.typo!, 'Fixed', `${addDays(today, -2)}T14:30:00`, true);
   await createBoard(ctx, {
     name: 'Web kanban',
     projects: ['WEB'],
@@ -236,5 +245,12 @@ async function uidOf(app: AppServices, readable: string): Promise<string> {
 /** Place the events that match `where` at a time in the past (local time), as if they had happened then. */
 async function backdateEvents(app: AppServices, where: SQL, localTime: string) {
   await app.db.update(activities).set({ createdAt: new Date(localTime) }).where(where);
+}
+
+/** Place the change that moved an issue into `state` at a time in the past; a resolution moves its resolved date too. */
+async function backdateState(app: AppServices, readable: string, state: string, localTime: string, resolves = false) {
+  const id = await uidOf(app, readable);
+  await backdateEvents(app, and(eq(activities.type, 'issue.updated'), eq(activities.issueId, id), sql`${activities.payload}->'issue'->>'state' = ${state}`)!, localTime);
+  if (resolves) await app.db.update(issues).set({ resolvedAt: new Date(localTime) }).where(eq(issues.id, id));
 }
 

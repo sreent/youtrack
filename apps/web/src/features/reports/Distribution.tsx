@@ -30,6 +30,19 @@ export function DistributionChart({ c, compact }: { c: CycleTime; compact?: bool
     { p: c.percentiles.p85, words: '85%' },
   ].filter((m): m is { p: number; words: string } => m.p !== null);
   const edges = labelled(c.buckets.length + 1, labelRoom(f, 56));
+  // Each mark's words beside its line: to its right, or to its left where they'd run past the
+  // chart's edge; the second a line lower where it would meet the first.
+  const placed: { words: string; label: string; px: number; end: boolean; lower: boolean; from: number; to: number }[] = [];
+  for (const m of marks) {
+    const px = xv(Math.min(m.p, span));
+    const label = `${m.words} by ${daysOf(m.p)}`;
+    const room = label.length * 6.5;
+    const end = px + 5 + room > f.width;
+    const from = end ? px - 5 - room : px + 5;
+    const to = end ? px - 5 : px + 5 + room;
+    const lower = placed.some((o) => !o.lower && from < o.to + 6 && to > o.from - 6);
+    placed.push({ words: m.words, label, px, end, lower, from, to });
+  }
 
   const chart = (
     <figure className="chart" ref={ref}>
@@ -57,18 +70,14 @@ export function DistributionChart({ c, compact }: { c: CycleTime; compact?: bool
             </g>
           ) : null,
         )}
-        {marks.map((m, i) => {
-          const px = xv(Math.min(m.p, span));
-          const close = i > 0 && Math.abs(px - xv(Math.min(marks[0]!.p, span))) < 90;
-          return (
-            <g key={m.words}>
-              <line className="dist-mark" x1={px} x2={px} y1={f.top - 4} y2={base} />
-              <text className="chart-label" x={px + 5} y={f.top - (close ? -10 : 10)}>
-                {m.words} by {daysOf(m.p)}
-              </text>
-            </g>
-          );
-        })}
+        {placed.map((m) => (
+          <g key={m.words}>
+            <line className="dist-mark" x1={m.px} x2={m.px} y1={f.top - 4} y2={base} />
+            <text className="chart-label" x={m.end ? m.px - 5 : m.px + 5} y={m.lower ? f.top + 10 : f.top - 10} textAnchor={m.end ? 'end' : 'start'}>
+              {m.label}
+            </text>
+          </g>
+        ))}
       </svg>
       <figcaption>
         <ul className="chart-key">
