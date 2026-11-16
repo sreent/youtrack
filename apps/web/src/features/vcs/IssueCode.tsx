@@ -14,9 +14,9 @@ export const useIssueVcs = (id: string) => useQuery({ queryKey: keys.issueSub(id
 
 /** How a pull request stands, in Ocean's grammar: open waits on review; merged went well; closed unmerged isn't needed. */
 const STATE: Record<PullRequestState, { tone: 'warn' | 'good' | 'idle'; word: string }> = {
-  open: { tone: 'warn', word: 'open' },
-  merged: { tone: 'good', word: 'merged' },
-  closed: { tone: 'idle', word: 'closed' },
+  open: { tone: 'warn', word: t('vcs.issueCode.open') },
+  merged: { tone: 'good', word: t('vcs.issueCode.merged') },
+  closed: { tone: 'idle', word: t('vcs.issueCode.closed') },
 };
 
 /** Only what the provider gave as http(s) becomes a link. */

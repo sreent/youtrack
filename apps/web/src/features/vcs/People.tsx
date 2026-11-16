@@ -174,8 +174,8 @@ const LOGIN_HELP: Record<VcsProvider, { help: string; placeholder: string }> = {
   github: { help: t('vcs.people.theirGithubUsername'), placeholder: 'anna-s' },
   gitlab: { help: t('vcs.people.theirGitlabUsernameGitlabNames'), placeholder: 'anna.s' },
   bitbucket: { help: t('vcs.people.theirAccountIdOrUuid'), placeholder: '557058:…' },
-  'bitbucket-dc': { help: t('vcs.people.theirBitbucketDataCenterUsername'), placeholder: 'anna' },
-  gitea: { help: t('vcs.people.theirGiteaOrForgejoUsername'), placeholder: 'anna' },
+  'bitbucket-dc': { help: t('vcs.people.theirBitbucketDataCenterUsername'), placeholder: 'anna' }, // not words: an example login
+  gitea: { help: t('vcs.people.theirGiteaOrForgejoUsername'), placeholder: 'anna' }, // not words: an example login
 };
 
 /** One person's emails and logins, as an administrator sees and changes them. */

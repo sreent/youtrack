@@ -29,9 +29,9 @@ export const useIssueBuilds = (id: string) => useQuery({ queryKey: keys.issueSub
 
 /** How a build ended, in Ocean's grammar. */
 export const STATUS: Record<BuildStatus, { tone: 'good' | 'bad' | 'idle'; word: string }> = {
-  success: { tone: 'good', word: 'passed' },
-  failure: { tone: 'bad', word: 'failed' },
-  cancelled: { tone: 'idle', word: 'cancelled' },
+  success: { tone: 'good', word: t('builds.builds.passed') },
+  failure: { tone: 'bad', word: t('builds.builds.failed') },
+  cancelled: { tone: 'idle', word: t('builds.builds.cancelled') },
 };
 
 /** What a build did to an issue. */

@@ -6,8 +6,13 @@
  *   - code says a key no catalog has, or a catalog keeps a key nothing says;
  *   - words are written straight into the web app's JSX (text, or an attribute a person reads), or
  *     into what a page says from code (a status line, a label in a ternary).
- * A string that only looks like words (a query, a field's name kept as data) says so with a
- * `// not words` comment on its line or the one above.
+ *   - a phrase (two words or more) sits anywhere code keeps words for a person: a value, an array,
+ *     a ternary, a template, an argument; or a single word does, as a label, a title, a "what";
+ *   - an English plural is made by hand (n === 1 ? 'issue' : 'issues'): a message's plural says it.
+ * Where a string sits says when it's code: a class name or another attribute nobody reads, a call
+ * that takes code, a comparison, a case, an object's key. A string that only looks like words there
+ * (a query, a command, a field's name kept as data) says so with a `// not words` comment on its line
+ * or the one above. CHECK_WORDS_ROOT checks another tree with this one's rules (a reviewer's "before").
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -15,10 +20,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, '../../..');
+const repo = path.resolve(here, '../../..');
+const root = process.env.CHECK_WORDS_ROOT ? path.resolve(process.env.CHECK_WORDS_ROOT) : repo;
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
-const { IntlMessageFormat } = require(require.resolve('intl-messageformat', { paths: [path.join(root, 'packages/shared')] }));
+const { IntlMessageFormat } = require(require.resolve('intl-messageformat', { paths: [path.join(repo, 'packages/shared')] }));
 
 const problems = [];
 const say = (where, what) => problems.push(`${where}: ${what}`);
@@ -92,13 +98,28 @@ const NON_TEXT_ATTR = new Set(['className', 'id', 'type', 'role', 'href', 'to', 
 const VERBATIM = new Set(['code', 'pre', 'kbd', 'samp', 'var', 'script', 'style']);
 const UI_PROPS = new Set(['text', 'label', 'title', 'help', 'hint', 'placeholder', 'message', 'description', 'heading', 'confirm', 'empty', 'emptyText', 'legend', 'tooltip', 'caption', 'note', 'okLabel', 'cancelLabel', 'busyLabel', 'about', 'word', 'words', 'group', 'why', 'did', 'verb', 'sub', 'long', 'short']);
 // What the server sends people: emails, push and chat messages say every word through a translator.
-const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/cards|helpdesk\/mails)\.ts$/;
+const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/cards|helpdesk\/mails|search\/explain)\.ts$/;
 // What the chat bot says to people, beside the API's problems (which stay English) in the same files:
 // a reply's or a note's text, and an answer to a card's action.
 const CHAT_SAYS = /packages\/server\/src\/chat\/(service|teams|slack)\.ts$/;
 const CHAT_PROPS = new Set(['text', 'note']);
 const CHAT_CALLS = new Set(['message']);
 const UI_CALLS = new Set(['setSaid', 'onSaid', 'setError', 'setStatus', 'setMessage', 'setNote', 'setProgress', 'setWarning', 'toast', 'alert', 'confirm']);
+// Attributes a person reads, where even one word is words: <Loading what="projects" />.
+const UI_ATTRS = new Set(['what', 'label', 'title', 'placeholder', 'alt', 'aria-label', 'aria-description', 'summary', 'caption', 'heading', 'empty', 'hint', 'help', 'legend', 'okLabel', 'cancelLabel', 'busyLabel', 'confirm', 'about']);
+// Keys whose values are code, beside the attributes nobody reads.
+const DATA_KEYS = new Set(['args', 'class', 'queryKey', 'tone', 'kind', 'verb', 'event', 'channel', 'pattern', 'command', 'query', 'sort', 'order', 'contentType', 'accept', 'method', 'credentials', 'cache', 'sandbox', 'allow', 'rel', 'target', 'inputMode', 'enterKeyHint', 'mime', 'shape', 'appearance', 'style', 'weight', 'spacing', 'image', 'iconName']);
+// Calls whose strings are code: selectors, storage keys, string tests, requests, keys of messages.
+const CODE_CALLS = new Set(['querySelector', 'querySelectorAll', 'closest', 'matches', 'matchMedia', 'addEventListener', 'removeEventListener', 'dispatchEvent', 'getItem', 'setItem', 'removeItem', 'getAttribute', 'setAttribute', 'removeAttribute', 'startsWith', 'endsWith', 'includes', 'indexOf', 'split', 'replace', 'replaceAll', 'test', 'exec', 'match', 'matchAll', 'padStart', 'padEnd', 'get', 'set', 'has', 'delete', 'append', 'fetch', 'post', 'patch', 'put', 'del', 'request', 'invalidateQueries', 'setQueryData', 'getQueryData', 'cancelQueries', 'refetchQueries', 'createElement', 'require', 'navigate', 'open', 'postMessage', 'encodeURIComponent', 'decodeURIComponent', 't', 'tr', 'tx', 'tw_', 'count', 'formatNumber', 'toLocaleString', 'toLocaleDateString', 'toLocaleTimeString']);
+const GLOBAL_CODE = /^(console|Intl|JSON|Math|Object|Array|Number|String|Date|URL|URLSearchParams|RegExp|Error|TypeError|RangeError|Symbol|Promise|Reflect|crypto|navigator|document|window|location|history|localStorage|sessionStorage)$/;
+const textOf = (n) => (ts.isTemplateExpression(n) ? [n.head.text, ...n.templateSpans.map((span) => span.literal.text)].join(' ') : n.text);
+const literalish = (n) => ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateExpression(n);
+/** Two plain words or more: what a person reads, not a path, a query or markup. */
+function phrase(s) {
+  const t = s.trim();
+  if (!letters(t) || /^(\/|\.\/|\.\.\/|https?:|mailto:|#|@|data:|--)/.test(t) || /[{}<>=|\\]|\$\{/.test(t)) return false;
+  return t.split(/\s+/).filter((w) => /^[A-Za-zÀ-ÿ][a-zà-ÿ’']+[.,;:!?…]?$/.test(w)).length >= 2;
+}
 const letters = (s) => /[A-Za-zÀ-ÿ]/.test(s);
 const looksLikeCode = (s) => {
   const t = s.trim();
@@ -120,6 +141,47 @@ function checkFile(file, { web }) {
     return /\/[/*] not words/.test(lines[line] ?? '') || /\/\/ not words/.test(lines[line - 1] ?? '');
   };
   const at = (node) => `${rel}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
+  /** Where a literal sits says it's code: an attribute nobody reads, a call taking code, a comparison, a key. */
+  const codeContext = (node) => {
+    let n = node;
+    let p = node.parent;
+    while (p) {
+      if (ts.isJsxAttribute(p)) {
+        const name = p.name.getText(sf);
+        return NON_TEXT_ATTR.has(name) || name.startsWith('data-') || (name.startsWith('aria-') && !UI_ATTRS.has(name));
+      }
+      if (ts.isPropertyAssignment(p)) {
+        if (p.name === n) return true;
+        const key = p.name.getText(sf).replace(/['"]/g, '');
+        return NON_TEXT_ATTR.has(key) || DATA_KEYS.has(key);
+      }
+      if (ts.isCallExpression(p) || ts.isNewExpression(p)) {
+        if (p.expression === n) return true;
+        const callee = p.expression;
+        const name = ts.isPropertyAccessExpression(callee) ? callee.name.text : ts.isIdentifier(callee) ? callee.text : '';
+        const owner = ts.isPropertyAccessExpression(callee) ? callee.expression.getText(sf) : name;
+        return CODE_CALLS.has(name) || GLOBAL_CODE.test(owner) || GLOBAL_CODE.test(name);
+      }
+      if (ts.isBinaryExpression(p) && /^(===|!==|==|!=|in|instanceof)$/.test(p.operatorToken.getText(sf))) return true;
+      // A list worked on by a method ([...].filter(Boolean).join(' ')): code, as class names are.
+      if (ts.isPropertyAccessExpression(p) && p.expression === n) return true;
+      if (ts.isConditionalExpression(p) && p.condition === n) return true;
+      if (ts.isCaseClause(p) || ts.isElementAccessExpression(p) || ts.isLiteralTypeNode(p) || ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isTypeReferenceNode(p) || ts.isEnumMember(p)) return true;
+      if (ts.isJsxExpression(p) || ts.isConditionalExpression(p) || ts.isParenthesizedExpression(p) || ts.isBinaryExpression(p) || ts.isTemplateSpan(p) || ts.isTemplateExpression(p) || ts.isArrayLiteralExpression(p) || ts.isAsExpression(p) || ts.isNonNullExpression(p) || ts.isSpreadElement(p) || (ts.isSatisfiesExpression && ts.isSatisfiesExpression(p))) {
+        n = p;
+        p = p.parent;
+        continue;
+      }
+      return false;
+    }
+    return false;
+  };
+  /** n === 1 ? 'issue' : 'issues': English's plural, which a message's says in every language. */
+  const handPlural = (c) => {
+    if (!/(===|!==|>=|<=|>|<)\s*1\b/.test(c.condition.getText(sf))) return false;
+    const word = (x) => (ts.isStringLiteral(x) || ts.isNoSubstitutionTemplateLiteral(x)) && /^[A-Za-z’' ]+$/.test(x.text);
+    return word(c.whenTrue) && word(c.whenFalse) && c.whenTrue.text !== c.whenFalse.text && !allowed(c);
+  };
   const visit = (node, verbatim) => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       if (KEY.test(node.text) && node.text in en) used.add(node.text);
@@ -156,9 +218,11 @@ function checkFile(file, { web }) {
     if (ts.isJsxText(node) && !verbatim && letters(node.text) && !allowed(node)) say(at(node), `words in JSX: "${node.text.trim().slice(0, 60)}"`);
     if (ts.isJsxAttribute(node) && node.initializer && ts.isStringLiteral(node.initializer)) {
       const name = node.name.getText(sf);
-      if (!NON_TEXT_ATTR.has(name) && !name.startsWith('data-') && wordsLike(node.initializer.text) && !allowed(node)) say(at(node), `words in ${name}="${node.initializer.text.slice(0, 60)}"`);
+      const one = UI_ATTRS.has(name) && /^[a-z][a-z’']+$/.test(node.initializer.text);
+      if (!NON_TEXT_ATTR.has(name) && !name.startsWith('data-') && (wordsLike(node.initializer.text) || one) && !allowed(node)) say(at(node), `words in ${name}="${node.initializer.text.slice(0, 60)}"`);
     }
-    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isJsxAttribute(node.parent) && wordsLike(node.text) && !allowed(node)) {
+    let flagged = false;
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isJsxAttribute(node.parent) && !allowed(node)) {
       let n = node;
       let p = n.parent;
       while (p && (ts.isConditionalExpression(p) || ts.isParenthesizedExpression(p) || (ts.isBinaryExpression(p) && ['??', '||'].includes(p.operatorToken.getText(sf))))) {
@@ -169,8 +233,17 @@ function checkFile(file, { web }) {
       const inJsx = p && ts.isJsxExpression(p) && (ts.isJsxElement(p.parent) || ts.isJsxFragment(p.parent) || (ts.isJsxAttribute(p.parent) && !NON_TEXT_ATTR.has(p.parent.name.getText(sf))));
       const inProp = p && ts.isPropertyAssignment(p) && p.initializer === n && UI_PROPS.has(p.name.getText(sf).replace(/['"]/g, ''));
       const inCall = p && ts.isCallExpression(p) && p.arguments.includes(n) && UI_CALLS.has(ts.isIdentifier(p.expression) ? p.expression.text : '');
-      if (inJsx || inProp || inCall) say(at(node), `words in code: '${node.text.slice(0, 60)}'`);
+      // One word is words where a person reads it as a label: { word: 'refused' }.
+      const one = inProp && /^[a-z][a-z’']+$/.test(node.text.trim());
+      if ((inJsx || inProp || inCall) && (wordsLike(node.text) || one)) {
+        say(at(node), `words in code: '${node.text.slice(0, 60)}'`);
+        flagged = true;
+      }
     }
+    if (!flagged && literalish(node) && !ts.isJsxAttribute(node.parent) && phrase(textOf(node)) && !codeContext(node) && !allowed(node) && !KEY.test(textOf(node))) {
+      say(at(node), `words in code: '${textOf(node).slice(0, 60)}'`);
+    }
+    if (ts.isConditionalExpression(node) && handPlural(node)) say(at(node), `an English plural made by hand: ${node.getText(sf).slice(0, 70)}`);
     ts.forEachChild(node, (c) => visit(c, verbatim));
   };
   visit(sf, false);

@@ -127,6 +127,7 @@ export const EXAMPLES: { label: string; draft: Draft }[] = [
   },
   {
     label: t('rules.ruleForm.wonTFixNeedsA'),
+    // not words: a query
     draft: { ...EMPTY, name: t('rules.ruleForm.wonTFixSaysWhy'), when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: t('rules.ruleForm.sayInACommentWhy') },
   },
   {

@@ -143,6 +143,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
+  // not words: a command to paste
   const command = issued ? `claude mcp add --transport http a4a ${origin}/mcp --header "Authorization: Bearer ${issued.token}"` : '';
   return (
     <li className="card hook">

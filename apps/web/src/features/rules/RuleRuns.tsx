@@ -9,11 +9,11 @@ import { t } from '../../i18n';
 
 /** How a run went, with its shape: applied went well; nothing to change and skipped stood still; failed and refused, a cross. */
 const OUTCOME: Record<RuleOutcome, { tone: 'good' | 'idle' | 'bad'; word: string }> = {
-  applied: { tone: 'good', word: 'applied' },
+  applied: { tone: 'good', word: t('rules.ruleRuns.applied') },
   unchanged: { tone: 'idle', word: t('rules.ruleRuns.nothingToChange') },
-  skipped: { tone: 'idle', word: 'skipped' },
-  failed: { tone: 'bad', word: 'failed' },
-  refused: { tone: 'bad', word: 'refused' },
+  skipped: { tone: 'idle', word: t('rules.ruleRuns.skipped') },
+  failed: { tone: 'bad', word: t('rules.ruleRuns.failed') },
+  refused: { tone: 'bad', word: t('rules.ruleRuns.refused') },
 };
 
 function cause(run: RuleRun): string {

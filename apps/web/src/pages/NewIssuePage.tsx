@@ -14,6 +14,7 @@ import { FormField } from '../components/Form';
 import { t, tr } from '../i18n';
 
 /** Fields worth setting while reporting; the rest can wait for triage or the team. */
+// not words: a field's name, as a4a names it
 const ASKED = ['Type', 'Priority', 'Assignee', 'Subsystem', 'Due date'];
 
 function newKey(): string {

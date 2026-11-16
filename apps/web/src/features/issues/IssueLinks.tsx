@@ -31,6 +31,7 @@ export function IssueLinks({ issue, canEdit = true }: { issue: IssueDetail; canE
   const types = useLinkTypes();
   const tones = useStateTones();
   const [adding, setAdding] = useState(false);
+  // not words: the link type's name, as a4a names it
   const [relation, setRelation] = useState('relates to');
   const [target, setTarget] = useState('');
   const [found, setFound] = useState<{ for: string; issue: IssueRef | null; error?: string } | null>(null);

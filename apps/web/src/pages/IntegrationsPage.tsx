@@ -118,7 +118,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
                   {d.outcome === 'refused' || d.outcome === 'failed' ? `, ${d.statusCode}` : ''}
                 </Badge>
                 {d.linked || d.applied ? (
-                  <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.applied', { applied: d.applied, v: d.applied === 1 ? 'command' : 'commands' }) : '' })}</span>
+                  <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.commandsApplied', { n: d.applied }) : '' })}</span>
                 ) : null}
               </td>
               <td>{d.message}</td>

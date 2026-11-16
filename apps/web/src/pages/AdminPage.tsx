@@ -392,7 +392,7 @@ export default function AdminPage() {
         <div className="section-head">
           <h2 id="people">{t('page.admin.people')}</h2>
           <span className="note">
-            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
+            {[t('count.people', { n: humans }), bots ? t('page.admin.bots', { n: bots }) : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
               .filter(Boolean)
               .join(', ')}
           </span>
