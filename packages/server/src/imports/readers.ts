@@ -15,8 +15,9 @@
  * - Jira Data Center: GET /rest/api/2/search with startAt and total (wiki markup), the same paths
  *   under /rest/api/2. A personal access token, as a bearer token.
  */
-import type { ImportBring, ImportCredentials } from '@a4a/shared';
+import type { ApiImportSource, ImportBring, ImportCredentials } from '@a4a/shared';
 import { adfToMarkdown, wikiToMarkdown } from './markup';
+import { GithubReader, RedmineReader, ZendeskReader } from './readers-more';
 import { checkAddress, Remote, RemoteError, type RemotePolicy } from './remote';
 
 export interface RemotePerson {
@@ -27,11 +28,17 @@ export interface RemotePerson {
 
 /** What an issue brings beside its cells, each item with its id there. */
 export interface RowExtra {
-  comments: { id: string; at: number; by: RemotePerson | null; text: string }[];
+  /**
+   * Who sees each comment, where the tracker says (Zendesk's public replies and internal notes,
+   * D46), and whether the request's requester wrote it: kept so on a help desk's request.
+   */
+  comments: { id: string; at: number; by: RemotePerson | null; text: string; visibility?: 'public' | 'internal'; byRequester?: boolean }[];
   work: { id: string; date: string; minutes: number; by: RemotePerson | null; text: string }[];
   files: { id: string; name: string; size: number; type: string | null; href: string; at: number; by: RemotePerson | null; comment: string | null }[];
   /** Comments only some people may see there: left out. */
   leftComments: number;
+  /** Who asked, for a help desk's request (Zendesk's requester, D46). */
+  requester?: RemotePerson | null;
 }
 
 export interface RemoteIssue {
@@ -63,7 +70,7 @@ export interface Reader {
 }
 
 export interface OriginRef {
-  kind: 'youtrack' | 'jira';
+  kind: ApiImportSource;
   url: string;
   query: string;
   bring: ImportBring;
@@ -587,20 +594,71 @@ const JIRA_NAMES = {
   badRequestHint: 'Check the JQL: the one you would type in Jira\'s advanced search, such as project = BACK.',
 };
 
+const GITHUB_NAMES = {
+  name: 'GitHub',
+  example: 'https://api.github.com',
+  authHint: 'Give a token that may read the repository’s issues: a fine-grained token with Issues read, or a classic one with repo.',
+  badRequestHint: 'Check the repository: owner/name, then state:open or label:bug if you like.',
+};
+const REDMINE_NAMES = {
+  name: 'Redmine',
+  example: 'https://redmine.acme.example',
+  authHint: 'Give your API key (My account, API access key; the REST API must be on, under Administration, Settings, API), or your login as the email with your password as the token.',
+  badRequestHint: "Check the project's identifier, as in its address: /projects/backend is backend.",
+};
+const ZENDESK_NAMES = {
+  name: 'Zendesk',
+  example: 'https://acme.zendesk.com',
+  authHint: "Give an agent's email with an API token (Admin Center, Apps and integrations, Zendesk API), or an OAuth token alone.",
+  badRequestHint: 'Write all, or since 2026-01-01.',
+};
+const NAMES_OF: Record<ApiImportSource, typeof YT_NAMES> = { youtrack: YT_NAMES, jira: JIRA_NAMES, github: GITHUB_NAMES, redmine: REDMINE_NAMES, zendesk: ZENDESK_NAMES };
+
 /** The base address a4a keeps: checked, without a query or a fragment, and without a trailing slash. */
-export function baseAddress(policy: RemotePolicy, kind: 'youtrack' | 'jira', raw: string): URL {
-  const url = checkAddress(policy, raw, kind === 'youtrack' ? YT_NAMES.example : JIRA_NAMES.example);
+export function baseAddress(policy: RemotePolicy, kind: ApiImportSource, raw: string): URL {
+  const url = checkAddress(policy, raw, NAMES_OF[kind].example);
   url.search = '';
   url.hash = '';
+  // GitHub's own site is read through its API's address.
+  if (kind === 'github' && /^(www\.)?github\.com$/i.test(url.hostname)) return new URL('https://api.github.com');
+  if (kind !== 'youtrack' && kind !== 'jira') {
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    if (kind === 'zendesk') url.pathname = url.pathname.replace(/\/(agent|api|hc)(\/.*)?$/i, '');
+    if (kind === 'redmine') url.pathname = url.pathname.replace(/\/(projects|issues|my)(\/.*)?$/i, '');
+    return url;
+  }
   // People paste the address of a page in it: keep what precedes YouTrack's and Jira's own paths.
   url.pathname = url.pathname.replace(/\/(issues?|api|rest|browse|projects?|agiles|secure|jira\/software|jira\/core|dashboard)(\/.*)?$/i, '').replace(/\/+$/, '');
   return url;
 }
 
 /** A reader of where an import reads from, with the credentials given for this fetch or run. */
-export function readerFor(policy: RemotePolicy, origin: OriginRef, credentials: ImportCredentials): Reader {
+export function readerFor(
+  policy: RemotePolicy,
+  origin: OriginRef,
+  credentials: ImportCredentials,
+  /** GitHub: people a4a knows by their login there (D33, D46). */
+  known?: ReadonlyMap<string, RemotePerson>,
+): Reader {
   const base = baseAddress(policy, origin.kind, origin.url);
   const token = credentials.token.trim();
+  const email = credentials.email?.trim();
+  const b64 = (v: string) => Buffer.from(v).toString('base64');
+  switch (origin.kind) {
+    case 'github':
+      return new GithubReader(new Remote(base, `Bearer ${token}`, [token], policy, GITHUB_NAMES), origin.query, origin.bring, known);
+    case 'redmine': {
+      // An API key goes as Basic's user name, with any password; a login goes with its password.
+      const basic = b64(email ? `${email}:${token}` : `${token}:x`);
+      return new RedmineReader(new Remote(base, `Basic ${basic}`, [token, basic], policy, REDMINE_NAMES), origin.query, origin.bring);
+    }
+    case 'zendesk': {
+      const basic = email ? b64(`${email}/token:${token}`) : '';
+      return new ZendeskReader(new Remote(base, email ? `Basic ${basic}` : `Bearer ${token}`, [token, basic].filter(Boolean), policy, ZENDESK_NAMES), origin.query, origin.bring);
+    }
+    default:
+      break;
+  }
   if (origin.kind === 'youtrack') {
     const remote = new Remote(base, `Bearer ${token}`, [token], policy, YT_NAMES);
     return new YouTrackReader(remote, origin.query, origin.bring);

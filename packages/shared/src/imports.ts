@@ -7,7 +7,7 @@ import { ProjectRefSchema, UserRefSchema } from './schemas';
 
 const timestamp = z.string().describe('ISO 8601 timestamp');
 
-export const IMPORT_SOURCES = ['jira', 'youtrack', 'csv'] as const;
+export const IMPORT_SOURCES = ['jira', 'youtrack', 'csv', 'github', 'redmine', 'zendesk'] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
 /** The targets a column can have, besides `field:<name>` (a project field) and `link:<phrase>` (a link, by external key). */
@@ -110,7 +110,8 @@ export type ImportCounts = z.infer<typeof ImportCountsSchema>;
 // HTTPS with a token that is used for the fetch and the run, and never kept.
 // ---------------------------------------------------------------------------
 
-export const API_IMPORT_SOURCES = ['youtrack', 'jira'] as const;
+/** D29: YouTrack and Jira. D46: GitHub Issues, Redmine, and Zendesk into a help desk. */
+export const API_IMPORT_SOURCES = ['youtrack', 'jira', 'github', 'redmine', 'zendesk'] as const;
 export type ApiImportSource = (typeof API_IMPORT_SOURCES)[number];
 
 export const ImportCredentialsSchema = z
@@ -119,13 +120,17 @@ export const ImportCredentialsSchema = z
       .string()
       .min(1)
       .max(4096)
-      .describe('YouTrack: a permanent token. Jira Cloud: an API token, with the email of its account. Jira Data Center: a personal access token'),
+      .describe(
+        'YouTrack: a permanent token. Jira Cloud: an API token, with the email of its account. Jira Data Center: a personal access token. GitHub: a token that may read the repository\'s issues. Redmine: an API key (or a password, with the login as email). Zendesk: an API token, with the email of its agent (or an OAuth token alone)',
+      ),
     email: z
       .string()
       .email()
       .max(320)
       .optional()
-      .describe('Jira Cloud: the email of the Atlassian account the API token belongs to. Without it, the token goes as a bearer token, as Jira Data Center takes it'),
+      .describe(
+        "Jira Cloud: the email of the Atlassian account the API token belongs to. Zendesk: the agent's email the API token goes with. Redmine: a login, with its password as the token. Without it, the token goes as a bearer token (or Redmine's API key)",
+      ),
   })
   .meta({ id: 'ImportCredentials' });
 export type ImportCredentials = z.infer<typeof ImportCredentialsSchema>;
@@ -142,8 +147,21 @@ export type ImportBring = z.infer<typeof ImportBringSchema>;
 export const ImportFromApiBody = z.object({
   project: z.string().describe('Project key to import into'),
   source: z.enum(API_IMPORT_SOURCES),
-  url: z.string().min(1).max(2000).describe("The tracker's base address, https: e.g. https://example.youtrack.cloud or https://example.atlassian.net"),
-  query: z.string().trim().min(1).max(4000).describe('Which issues: a YouTrack query (project: BACK) or a JQL (project = BACK)'),
+  url: z
+    .string()
+    .min(1)
+    .max(2000)
+    .describe(
+      "The tracker's base address, https: e.g. https://example.youtrack.cloud, https://example.atlassian.net, https://api.github.com (or GitHub Enterprise's https://github.acme.example/api/v3), https://redmine.acme.example, https://acme.zendesk.com",
+    ),
+  query: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4000)
+    .describe(
+      'Which issues: a YouTrack query (project: BACK), a JQL (project = BACK), a GitHub repository (acme/backend, then state:open or label:bug if you like), a Redmine project identifier (backend), or for Zendesk "all" or "since 2026-01-01"',
+    ),
   credentials: ImportCredentialsSchema,
   bring: ImportBringSchema.optional(),
 });
@@ -159,7 +177,7 @@ export const ImportRunBody = z.object({
 export const ImportOriginSchema = z
   .object({
     kind: z.enum(API_IMPORT_SOURCES),
-    deployment: z.enum(['cloud', 'datacenter']).nullable().describe('Jira: Cloud (an email and an API token) or Data Center (a personal access token); null for YouTrack'),
+    deployment: z.enum(['cloud', 'datacenter']).nullable().describe('Jira: Cloud (an email and an API token) or Data Center (a personal access token); null for the others'),
     url: z.string().describe('The base address it reads from'),
     query: z.string(),
     account: z.string().nullable().describe('Whom the token signed in as, there'),

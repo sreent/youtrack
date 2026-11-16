@@ -27,7 +27,7 @@ test('issues are read from YouTrack, mapped, checked and imported with their com
   const key = uniqueKey('YI');
   await api.createProject({ key, name: `Old tracker ${key}` });
   await page.goto('/import');
-  const form = page.getByRole('region', { name: 'Read from YouTrack or Jira' });
+  const form = page.getByRole('region', { name: 'Read from another tracker' });
   await form.getByLabel('Into the project').selectOption(key);
   await form.getByLabel('Its address').fill(yt.url);
   await form.getByLabel('Which issues: a query').fill('project: OLD');

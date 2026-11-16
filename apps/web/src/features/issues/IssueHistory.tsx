@@ -59,6 +59,9 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
       return actor.id
         ? { kind: 'person', name: person, via: `from ${actor.token ?? 'version control'}` }
         : { kind: 'service', name: actor.token ?? 'version control', via: 'from version control' };
+    case 'ci':
+      // A build CI reported, through its build source (D46).
+      return { kind: 'service', name: actor.token ?? 'CI', via: 'from a build' };
     default:
       return { kind: 'own', name: 'a4a', via: '' };
   }

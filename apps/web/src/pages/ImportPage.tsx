@@ -27,11 +27,11 @@ import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../f
 import { whenRead } from '../features/common/format';
 import { plural } from '../features/plan/format';
 
-const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file' };
+const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file', github: 'GitHub Issues', redmine: 'Redmine', zendesk: 'Zendesk' };
 const FIRST = {
-  start: { name: 'Bring the issues', about: "Jira's or YouTrack's export as CSV, or read over their API." },
+  start: { name: 'Bring the issues', about: "Jira's or YouTrack's export as CSV, or read over an API: YouTrack's, Jira's, GitHub's, Redmine's or Zendesk's." },
   file: { name: 'Upload the export', about: "Jira's or YouTrack's, as CSV." },
-  api: { name: 'Read the issues', about: "From YouTrack's or Jira's API, with a token a4a doesn't keep." },
+  api: { name: 'Read the issues', about: "From the other tracker's API, with a token a4a doesn't keep." },
 };
 const STAGES = [
   FIRST.file,

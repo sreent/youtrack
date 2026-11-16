@@ -24,6 +24,7 @@ const RulesPage = lazy(() => import('../pages/RulesPage'));
 const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
 const ChatPage = lazy(() => import('../pages/ChatPage'));
 const ChatLinkPage = lazy(() => import('../pages/ChatLinkPage'));
+const BuildsPage = lazy(() => import('../pages/BuildsPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const GroupPage = lazy(() => import('../pages/GroupPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
@@ -89,6 +90,7 @@ export function App() {
           <Route path="/integrations" element={<Page><IntegrationsPage /></Page>} />
           <Route path="/chat" element={<Page><ChatPage /></Page>} />
           <Route path="/chat/link" element={<Page><ChatLinkPage /></Page>} />
+          <Route path="/builds/:key" element={<Page><BuildsPage /></Page>} />
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
           <Route path="/groups/:id" element={<Page><GroupPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />

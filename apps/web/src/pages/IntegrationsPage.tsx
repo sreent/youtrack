@@ -11,6 +11,7 @@ import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/commo
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
+import { BuildSources } from '../features/builds/Builds';
 
 const vcsKeys = {
   all: ['vcs', 'integrations'] as const,
@@ -46,7 +47,8 @@ function Steps({ provider }: { provider: VcsProvider }) {
             Payload URL: the URL above. Content type: <code>application/json</code>. Secret: the secret above.
           </li>
           <li>
-            Under “Which events”, choose <strong>Let me select individual events</strong>, and tick <strong>Pushes</strong> and <strong>Pull requests</strong>.
+            Under “Which events”, choose <strong>Let me select individual events</strong>, and tick <strong>Pushes</strong> and <strong>Pull requests</strong>; and{' '}
+            <strong>Workflow runs</strong>, if its GitHub Actions runs are builds.
           </li>
         </ol>
       );
@@ -180,6 +182,7 @@ function Secret({ made, onKept }: { made: VcsIntegrationCreated; onKept: () => v
 
 /** What an access token is for, at each Bitbucket. */
 const TOKEN_HELP: Partial<Record<VcsProvider, string>> = {
+  github: "Optional. With a token that may read the repository's contents, a4a asks GitHub which commits each build holds, those it never saw pushed included.",
   bitbucket: 'Optional. Bitbucket sends the latest five commits a push gives a branch; with a repository access token that may read it, a4a reads the rest.',
   'bitbucket-dc': 'Its pushes name the commits they moved, not what they say: with an HTTP access token that may read the repository, a4a reads them.',
 };
@@ -195,7 +198,16 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
       void qc.invalidateQueries({ queryKey: vcsKeys.all });
       setOpen(false);
       setToken('');
-      onSaid({ text: i.hasAccessToken ? 'Saved: a4a reads the commits a delivery leaves out with it.' : 'The token is gone: a4a reads what deliveries carry.' });
+      const github = integration.provider === 'github';
+      onSaid({
+        text: i.hasAccessToken
+          ? github
+            ? "Saved: a4a asks GitHub which commits each build holds with it."
+            : 'Saved: a4a reads the commits a delivery leaves out with it.'
+          : github
+            ? 'The token is gone: a build holds the commits a4a saw pushed.'
+            : 'The token is gone: a4a reads what deliveries carry.',
+      });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -213,7 +225,9 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
             about={
               integration.provider === 'bitbucket-dc'
                 ? 'Without it, a4a can’t read what pushes’ commits say, so it links none.'
-                : 'Without it, a4a reads the latest five commits a push gives a branch.'
+                : integration.provider === 'github'
+                  ? 'Without it, a build holds the commits a4a saw pushed to its branch.'
+                  : 'Without it, a4a reads the latest five commits a push gives a branch.'
             }
             confirm="Remove it"
             disabled={save.isPending}
@@ -300,7 +314,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
         <code className="hook-url">{integration.webhookUrl}</code>
         <CopyButton text={integration.webhookUrl} label="Copy it" what="the URL" />
       </div>
-      {bitbucket ? (
+      {bitbucket || integration.provider === 'github' ? (
         <div className="cluster">
           {integration.provider === 'bitbucket-dc' && integration.baseUrl ? (
             <span className="note">
@@ -308,7 +322,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
             </span>
           ) : null}
           {integration.hasAccessToken ? (
-            <Badge tone="good">reads commits with its token</Badge>
+            <Badge tone="good">{bitbucket ? 'reads commits with its token' : "reads builds' commits with its token"}</Badge>
           ) : (
             <Badge tone={integration.provider === 'bitbucket-dc' ? 'warn' : 'idle'}>{integration.provider === 'bitbucket-dc' ? 'no access token: links no commits' : 'no access token'}</Badge>
           )}
@@ -504,6 +518,7 @@ export default function IntegrationsPage() {
           </ul>
         ) : null}
       </section>
+      <BuildSources integrations={integrations.data ?? []} />
       <div className="tw:grid tw:grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] tw:items-start tw:gap-x-4">
         <AddIntegration />
         <section className="card" aria-labelledby="vcs-how">

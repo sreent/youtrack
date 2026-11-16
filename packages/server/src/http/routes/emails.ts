@@ -139,7 +139,7 @@ export function emailRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'delete',
       path: '/users/{id}/provider-logins/{loginId}',
       tags,
-      summary: "Forget someone's login at a provider (admin)",
+      summary: "Forget someone's login at a provider (admin; or yours, if you connected it)",
       params: z.object({ id: z.string(), loginId: z.string() }),
       status: 204,
     },

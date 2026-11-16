@@ -263,13 +263,16 @@ describe('Bitbucket Data Center', () => {
     fake.answer('/rest/api/1.0/projects/PROJ/repos/backend/commits', () => json('bitbucket-dc-commits'));
   });
 
-  it('needs an https address, and takes a token only for Bitbucket', async () => {
+  it('needs an https address, and takes a token only for Bitbucket and GitHub', async () => {
     const none = await failure(createIntegration(w.adminCtx, { provider: 'bitbucket-dc', name: 'PROJ/x' }));
     expect([none.status, none.message]).toEqual([400, 'Give Bitbucket Data Center’s address']);
     const plain = await failure(createIntegration(w.adminCtx, { provider: 'bitbucket-dc', name: 'PROJ/x', baseUrl: 'http://bitbucket.acme.example' }));
     expect([plain.status, plain.message]).toEqual([400, 'Bitbucket’s address must be https']);
-    const github = await failure(createIntegration(w.adminCtx, { provider: 'github', name: 'acme/x', accessToken: 'ghp_x' }));
-    expect([github.status, github.message]).toEqual([400, 'GitHub integrations take no address or access token']);
+    const gitlab = await failure(createIntegration(w.adminCtx, { provider: 'gitlab', name: 'acme/x', accessToken: 'glpat_x' }));
+    expect([gitlab.status, gitlab.message]).toEqual([400, 'GitLab integrations take no address or access token']);
+    // GitHub takes one since D46, to ask which commits a build holds, and keeps it sealed.
+    const github = await createIntegration(w.adminCtx, { provider: 'github', name: 'acme/x', accessToken: 'ghp_x' });
+    expect(github).toMatchObject({ hasAccessToken: true });
     const remove = await failure(updateIntegration(w.adminCtx, dc.id, { baseUrl: null }));
     expect(remove.message).toBe('Give Bitbucket Data Center’s address');
     // Kept without its trailing slash; the token is never shown.

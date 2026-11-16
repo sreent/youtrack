@@ -33,31 +33,33 @@ type LinkRow = typeof vcsLinks.$inferSelect;
 
 const BODY_MAX = 4000;
 
+/** Nobody in particular: a change made through an integration rather than as a person. */
+export const NOBODY = {
+  id: 'system',
+  login: 'system',
+  name: 'a4a',
+  email: null,
+  emailVerified: false,
+  passwordHash: null,
+  role: 'viewer',
+  isBot: true,
+  avatarColor: '',
+  banned: false,
+  hourlyRate: null,
+  capacityHoursPerDay: 0,
+  workWeek: null,
+  timeZone: null,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+} satisfies UserRow;
+
 /**
  * Changes made from version control: as the commit's author when a4a knows them (with their own
  * access, as they would sign in), else as nobody, through the integration. Like a token limited to
  * projects, it reaches only the integration's projects, when it lists some.
  */
 function vcsCtx(app: AppServices, integration: IntegrationRow, person: UserRow | null): Ctx {
-  const nobody = {
-    id: 'system',
-    login: 'system',
-    name: 'a4a',
-    email: null,
-    emailVerified: false,
-    passwordHash: null,
-    role: 'viewer',
-    isBot: true,
-    avatarColor: '',
-    banned: false,
-    hourlyRate: null,
-    capacityHoursPerDay: 0,
-    workWeek: null,
-    timeZone: null,
-    createdAt: new Date(0),
-    updatedAt: new Date(0),
-  } satisfies UserRow;
-  const ctx = systemCtx(app, person ?? nobody, 'vcs');
+  const ctx = systemCtx(app, person ?? NOBODY, 'vcs');
   ctx.actor.tokenName = integration.name;
   ctx.actor.projectIds = integration.projectIds.length ? [...integration.projectIds] : null;
   return ctx;

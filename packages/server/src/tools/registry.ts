@@ -35,6 +35,7 @@ import { articlesMentioningIssue } from '../services/articles';
 import { reportTools } from './reports';
 import { notificationTools } from './notifications';
 import { chatTools } from './chat';
+import { buildTools } from './builds';
 import { requestOf } from '../services/helpdesk';
 import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
@@ -612,6 +613,7 @@ export const TOOLS: ToolDef[] = [
   ...workflowTools,
   ...issueMoveTools,
   ...chatTools,
+  ...buildTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

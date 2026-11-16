@@ -2036,7 +2036,7 @@ export const VcsIntegrationSchema = z
     webhookUrl: z.string().describe('Where the provider sends its deliveries'),
     secretPrefix: z.string().describe("The secret's first characters, to recognise it by"),
     baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; null for the others"),
-    hasAccessToken: z.boolean().describe('Whether a4a has an access token to read the commits a delivery leaves out (Bitbucket only). The token is never shown'),
+    hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2049,13 +2049,15 @@ export type VcsIntegrationCreated = z.infer<typeof VcsIntegrationCreatedSchema>;
 const VcsBaseUrl = z
   .string()
   .max(500)
-  .describe("Bitbucket Data Center: the instance's address (https), as people open it, e.g. https://bitbucket.acme.example");
+  .describe(
+    "Bitbucket Data Center: the instance's address (https), as people open it, e.g. https://bitbucket.acme.example. GitHub Enterprise Server: its API's address, e.g. https://github.acme.example/api/v3 (D46)",
+  );
 const VcsAccessToken = z
   .string()
   .min(1)
   .max(1000)
   .describe(
-    'Bitbucket: an access token that may read the repository. Data Center sends no commits with a push, and Bitbucket Cloud the latest five a branch got: with it, a4a reads them. Never shown again',
+    "Bitbucket: an access token that may read the repository. Data Center sends no commits with a push, and Bitbucket Cloud the latest five a branch got: with it, a4a reads them. GitHub: a token that may read the repository's contents, with which a4a asks GitHub which commits a build holds when it hasn't seen them (D46). Kept encrypted, never shown again",
   );
 export const VcsIntegrationBody = z.object({
   provider: z.enum(VCS_PROVIDERS),
@@ -2546,8 +2548,9 @@ export const ProviderLoginSchema = z
   .object({
     id: z.string(),
     provider: z.enum(VCS_PROVIDERS),
-    login: z.string().describe('As the administrator recorded it'),
+    login: z.string().describe('As the administrator recorded it, or as the provider names the account they connected'),
     addedBy: UserRefSchema.nullable(),
+    connected: z.boolean().describe('They connected it themselves, by signing in at the provider (D46): proof the account is theirs'),
     createdAt: timestamp,
   })
   .meta({ id: 'ProviderLogin' });
@@ -3081,3 +3084,147 @@ export const ConnectSlackBody = z.object({
   botToken: z.string().trim().regex(/^xoxb-/, "A bot token starts with xoxb-: it's under OAuth & Permissions in the app's settings"),
   signingSecret: z.string().trim().min(16).describe("Under Basic Information in the app's settings"),
 });
+
+// ---------------------------------------------------------------------------
+// Integrations (docs/architecture.md, D46): CI builds, and code-host accounts people connect
+// ---------------------------------------------------------------------------
+
+export const BUILD_SOURCE_KINDS = ['github', 'generic'] as const;
+export type BuildSourceKind = (typeof BUILD_SOURCE_KINDS)[number];
+export const BUILD_STATUSES = ['success', 'failure', 'cancelled'] as const;
+export type BuildStatus = (typeof BUILD_STATUSES)[number];
+export const BUILD_ISSUE_OUTCOMES = ['marked', 'already', 'open', 'refused'] as const;
+export type BuildIssueOutcome = (typeof BUILD_ISSUE_OUTCOMES)[number];
+
+export const BuildSourceSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(BUILD_SOURCE_KINDS).describe("github: a GitHub integration's workflow runs. generic: any CI, posting each build with a token"),
+    name: z.string(),
+    project: z.string().describe('The project whose builds they are, by key'),
+    field: z.string().nullable().describe('The build field its builds go in, by name; null when the project has none yet'),
+    integration: z.object({ id: z.string(), name: z.string() }).nullable().describe('github: the integration whose workflow runs it takes'),
+    branch: z.string().nullable().describe('github: the branch whose runs are builds; null: any'),
+    workflow: z.string().nullable().describe('github: the workflow, by name or file; null: any'),
+    hookUrl: z.string().nullable().describe('generic: where a CI posts its builds'),
+    tokenPrefix: z.string().nullable().describe("generic: the token's first characters, to recognise it by"),
+    active: z.boolean(),
+    createdAt: timestamp,
+    lastBuildAt: timestamp.nullable(),
+  })
+  .meta({ id: 'BuildSource' });
+export type BuildSource = z.infer<typeof BuildSourceSchema>;
+export const BuildSourceCreatedSchema = BuildSourceSchema.extend({
+  token: z.string().nullable().describe('generic: the token a CI sends as a Bearer token. Shown only once'),
+}).meta({ id: 'BuildSourceCreated' });
+export type BuildSourceCreated = z.infer<typeof BuildSourceCreatedSchema>;
+export const BuildSourceBody = z.object({
+  kind: z.enum(BUILD_SOURCE_KINDS),
+  name: z.string().trim().min(1).max(120).describe('What it is, e.g. "Jenkins: backend" or "GitHub Actions: CI"'),
+  project: z.string().describe('The project whose builds they are'),
+  field: z
+    .string()
+    .nullable()
+    .optional()
+    .describe('The build field to fill, by name or id. Left out: the project\'s "Fixed in build", or its one build field; with none, a4a makes "Fixed in build" and gives it the project'),
+  integration: z.string().optional().describe('github: the GitHub integration (its id) whose workflow_run deliveries it takes'),
+  branch: z.string().trim().max(200).nullable().optional().describe('github: only runs on this branch are builds; null: any'),
+  workflow: z.string().trim().max(200).nullable().optional().describe('github: only this workflow, by name or file; null: any'),
+  active: z.boolean().default(true),
+});
+export const UpdateBuildSourceBody = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  field: z.string().nullable().optional(),
+  branch: z.string().trim().max(200).nullable().optional(),
+  workflow: z.string().trim().max(200).nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export const BuildIssueSchema = z
+  .object({
+    issue: IssueRefSchema,
+    outcome: z
+      .enum(BUILD_ISSUE_OUTCOMES)
+      .describe('marked: the build field set to this build. already: it named a build already. open: not resolved, so left. refused: a guard or a permission said no'),
+    note: z.string().nullable(),
+    commit: z.string().nullable().describe('The commit that tied it to the build'),
+  })
+  .meta({ id: 'BuildIssue' });
+export type BuildIssue = z.infer<typeof BuildIssueSchema>;
+
+export const BuildSchema = z
+  .object({
+    id: z.string(),
+    project: z.string(),
+    name: z.string().describe("Its number or name: the build field's value"),
+    status: z.enum(BUILD_STATUSES),
+    url: z.string().nullable(),
+    repository: z.string().nullable(),
+    branch: z.string().nullable(),
+    headSha: z.string().nullable(),
+    commits: z.number().int().describe('How many commits it holds, as far as a4a knows them'),
+    marked: z.number().int().describe('Issues it marked as fixed in it'),
+    source: z.object({ id: z.string(), name: z.string(), kind: z.enum(BUILD_SOURCE_KINDS) }).nullable(),
+    finishedAt: timestamp.nullable(),
+    createdAt: timestamp,
+    issues: z.array(BuildIssueSchema).describe('What it did to each issue its commits name, that the caller can see'),
+  })
+  .meta({ id: 'Build' });
+export type Build = z.infer<typeof BuildSchema>;
+
+/** What a CI posts: a build, and the commits it holds (their shas, their messages, or a range a4a asks GitHub about). */
+export const ReportBuildBody = z.object({
+  build: z.string().trim().min(1).max(200).describe('Its number or name, e.g. 1.4.207: the value the build field gets'),
+  status: z.enum(BUILD_STATUSES).default('success').describe('Only a successful build goes in the build field and marks issues'),
+  url: z.string().max(2000).optional().describe('Where the build is, on the CI'),
+  finishedAt: z.string().datetime({ offset: true }).optional(),
+  repository: z.string().trim().max(300).optional().describe('owner/name: only commits linked from this repository count'),
+  branch: z.string().trim().max(200).optional(),
+  commits: z
+    .array(z.union([z.string().trim().min(4).max(64), z.object({ sha: z.string().trim().min(4).max(64).optional(), message: z.string().max(20_000).optional() })]))
+    .max(2000)
+    .optional()
+    .describe("The commits it holds since the last build: shas, or { sha, message }, whose messages are read for issue ids too"),
+  range: z
+    .object({ from: z.string().trim().min(4).max(64), to: z.string().trim().min(4).max(64) })
+    .optional()
+    .describe('A range of commits (from excluded, to included) for a4a to ask GitHub about, with the access token of a GitHub integration of the repository'),
+});
+
+export const BuildReportedSchema = z
+  .object({
+    build: z.string(),
+    status: z.enum(BUILD_STATUSES),
+    outcome: z.enum(['recorded', 'again']).describe('again: the build was reported before; what it holds now was added'),
+    commits: z.number().int(),
+    marked: z.number().int(),
+    message: z.string(),
+  })
+  .meta({ id: 'BuildReported' });
+export type BuildReported = z.infer<typeof BuildReportedSchema>;
+
+export const IssueBuildSchema = z
+  .object({
+    build: z.string(),
+    status: z.enum(BUILD_STATUSES),
+    url: z.string().nullable(),
+    outcome: z.enum(BUILD_ISSUE_OUTCOMES),
+    note: z.string().nullable(),
+    commit: z.string().nullable(),
+    finishedAt: timestamp.nullable(),
+  })
+  .meta({ id: 'IssueBuild' });
+export type IssueBuild = z.infer<typeof IssueBuildSchema>;
+
+export const CODE_HOSTS = ['github', 'gitlab', 'bitbucket'] as const;
+export type CodeHost = (typeof CODE_HOSTS)[number];
+
+export const CodeHostSchema = z
+  .object({
+    provider: z.enum(CODE_HOSTS),
+    name: z.string(),
+    available: z.boolean().describe('Whether an administrator has set up signing in there, to connect accounts'),
+  })
+  .meta({ id: 'CodeHost' });
+export type CodeHostInfo = z.infer<typeof CodeHostSchema>;
+export const ConnectStartSchema = z.object({ url: z.string().describe("The provider's page to sign in and let a4a read who you are") }).meta({ id: 'ConnectStart' });

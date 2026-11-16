@@ -8,7 +8,7 @@ import { parsePeriod } from '@a4a/shared';
 import { normalizeName } from '../lib/text';
 import { zonedTime } from '../reports/tz';
 
-export type Source = 'jira' | 'youtrack' | 'csv';
+export type Source = 'jira' | 'youtrack' | 'csv' | 'github' | 'redmine' | 'zendesk';
 
 /** A header, as matched: lower case, single spaces, without Jira's "Custom field (…)". */
 export function headerKey(name: string): string {

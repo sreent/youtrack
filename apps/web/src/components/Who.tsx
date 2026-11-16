@@ -85,6 +85,9 @@ export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data
     case 'chat':
       // A person, from Teams or Slack, as themselves (D42).
       return { kind: 'person', name, about: `from ${actor.token ?? 'chat'}` };
+    case 'ci':
+      // A build CI reported, through its build source (D46).
+      return { kind: 'service', name: actor.token ?? 'CI', about: 'from a build' };
     case 'system':
       return { kind: 'own', name: 'a4a', about: '' };
     default:

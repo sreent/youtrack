@@ -1,5 +1,5 @@
 /** Imports over the API: the upload is the file itself, streamed as the body; the rest is JSON. */
-import type { Import, ImportBring, ImportCheck, ImportCredentials, ImportRow, ImportUndo } from '@a4a/shared';
+import type { ApiImportSource, Import, ImportBring, ImportCheck, ImportCredentials, ImportRow, ImportUndo } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError, get, post, qs } from '../../api/client';
 
@@ -48,7 +48,7 @@ export const undoImport = (id: string, dryRun: boolean) => post<ImportUndo>(`/im
 
 export interface FromApi {
   project: string;
-  source: 'youtrack' | 'jira';
+  source: ApiImportSource;
   url: string;
   query: string;
   credentials: ImportCredentials;

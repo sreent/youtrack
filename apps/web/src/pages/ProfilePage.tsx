@@ -12,6 +12,7 @@ import { WorkWeek } from '../features/away/WorkWeek';
 import { EmailSettings } from '../features/notifications/EmailSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
+import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
 import { ChatAccounts } from '../features/chat/Chat';
 
@@ -235,6 +236,7 @@ export default function ProfilePage() {
         </div>
         <YourEmails />
       </section>
+      <CodeHostAccounts />
       <section className="card" aria-labelledby="notifications">
         <h2 id="notifications">Notifications</h2>
         <EmailSettings />

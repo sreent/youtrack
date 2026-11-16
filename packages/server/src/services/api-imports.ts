@@ -11,12 +11,12 @@
  * Issues and comments only some people may see there are left out: a4a can't tell who they were
  * for, and here they would reach everyone who can see the project.
  */
-import type { Import, ImportBring, ImportCredentials } from '@a4a/shared';
+import type { ApiImportSource, Import, ImportBring, ImportCredentials } from '@a4a/shared';
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import type { Db } from '../db/client';
-import { importRows, imports } from '../db/schema';
-import { readerFor, type Reader, type StoredOrigin } from '../imports/readers';
+import { importRows, imports, providerLogins, users } from '../db/schema';
+import { readerFor, type Reader, type RemotePerson, type StoredOrigin } from '../imports/readers';
 import { badRequest, conflict } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { ColumnTally, contextFor, firstMapping, getImport, loadImport, projectFor, remotePolicy, sourceError, statusOf } from './imports';
@@ -26,7 +26,7 @@ const MAX_ROWS = 50_000;
 /** A fetch whose heartbeat is older than this has stopped; while it waits on the other tracker it keeps beating. */
 const BEAT_EVERY_MS = 10_000;
 const KEYS_SHOWN = 20;
-const NAMES = { youtrack: 'YouTrack', jira: 'Jira' } as const;
+const NAMES = { youtrack: 'YouTrack', jira: 'Jira', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk' } as const;
 
 const fetching = new Map<string, Promise<void>>();
 
@@ -40,10 +40,24 @@ function labelOf(origin: StoredOrigin): string {
   return `${NAMES[origin.kind]} ${new URL(origin.url).host}: ${origin.query}`.slice(0, 200);
 }
 
+/**
+ * People a4a knows by their GitHub login (an administrator's record, or an account they connected,
+ * D33 and D46), with the email the mapping finds them by: GitHub names people by login alone.
+ */
+export async function githubPeople(db: Db): Promise<Map<string, RemotePerson>> {
+  const rows = await db
+    .select({ login: providerLogins.login, name: users.name, email: users.email })
+    .from(providerLogins)
+    .innerJoin(users, eq(users.id, providerLogins.userId))
+    .where(eq(providerLogins.provider, 'github'));
+  return new Map(rows.map((r) => [r.login.toLowerCase(), { name: r.name, login: r.login, email: r.email }]));
+}
+
 /** A reader with the credentials given now, its refusals in the API's words. */
 async function signIn(ctx: Ctx, origin: StoredOrigin, credentials: ImportCredentials): Promise<{ reader: Reader; account: string | null }> {
   try {
-    const reader = readerFor(remotePolicy(ctx), origin, credentials);
+    const known = origin.kind === 'github' ? await githubPeople(ctx.db) : undefined;
+    const reader = readerFor(remotePolicy(ctx), origin, credentials, known);
     return { reader, account: await reader.probe() };
   } catch (e) {
     throw sourceError(e);
@@ -57,7 +71,7 @@ async function signIn(ctx: Ctx, origin: StoredOrigin, credentials: ImportCredent
  */
 export async function importFromApi(
   ctx: Ctx,
-  body: { project: string; source: 'youtrack' | 'jira'; url: string; query: string; credentials: ImportCredentials; bring?: Partial<ImportBring> },
+  body: { project: string; source: ApiImportSource; url: string; query: string; credentials: ImportCredentials; bring?: Partial<ImportBring> },
 ): Promise<Import> {
   const project = await projectFor(ctx, body.project);
   if (body.source === 'youtrack' && body.credentials.email) {
@@ -81,7 +95,8 @@ export async function importFromApi(
     throw sourceError(e);
   }
   if (origin.fetch.total === 0) {
-    throw badRequest(`Nothing in ${NAMES[origin.kind]} matches ${origin.query}`, origin.kind === 'youtrack' ? 'Check the query, such as project: BACK.' : 'Check the JQL, such as project = BACK.');
+    const hint = { youtrack: 'Check the query, such as project: BACK.', jira: 'Check the JQL, such as project = BACK.', github: 'Check the repository, and state: or label: after it.', redmine: "Check the project's identifier.", zendesk: 'Check the date: since 2026-01-01.' }[origin.kind];
+    throw badRequest(`Nothing in ${NAMES[origin.kind]} matches ${origin.query}`, hint);
   }
   if (origin.fetch.total !== null && origin.fetch.total > MAX_ROWS) {
     throw badRequest(`${origin.fetch.total.toLocaleString('en')} issues match, more than the ${MAX_ROWS.toLocaleString('en')} one import takes`, 'Narrow the query, and import the rest in another.');

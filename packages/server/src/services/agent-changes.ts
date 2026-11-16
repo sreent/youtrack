@@ -43,7 +43,7 @@ export type AgentUndo = FieldsUndo | LinkUndo;
  */
 export function actsAsAgent(ctx: Ctx): boolean {
   const { user, channel } = ctx.actor;
-  if (user.id === 'system' || channel === 'helpdesk' || channel === 'vcs' || channel === 'system') return false;
+  if (user.id === 'system' || channel === 'helpdesk' || channel === 'vcs' || channel === 'ci' || channel === 'system') return false;
   return user.isBot || channel === 'mcp' || channel === 'assistant' || channel === 'automation';
 }
 

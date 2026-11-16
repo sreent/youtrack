@@ -1108,7 +1108,7 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **What it costs.** An issue's page reads its aliases, its votes and its reactions, and answers all its fields' conditions in one query. A list reads none of these: `votes` is on the issue's row.
 
-**Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
+**Revisit when:** a project's key can be renamed, which is an alias for each of its issues. (CI now reports builds itself: D46.)
 
 ### D42. Chat: Teams and Slack, told only what every reader may see, and people acting as themselves
 
@@ -1217,6 +1217,48 @@ Four more reports, worked out on request as D21's are, each on the Reports page,
 
 **Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead); or a project's key can be renamed (moves name keys).
 
+### D46. Integrations: builds from CI, three more importers, accounts people connect, and VS Code
+
+Four pieces that bring the work around the code into a4a, each through a path a4a already has.
+
+**Builds.** A build is a project's: its number or name, how it ended, a link, and the commits it holds. They come from a build source (`ci/builds.ts`), an administrator's, one of two kinds:
+
+- **A GitHub integration's workflow runs.** The integration (D26) takes `workflow_run` deliveries, signed as its pushes are. A run of the source's workflow (by name or file) on its branch that finishes is a build. Its commits are those since the source's last passing build on that branch: asked of GitHub's compare API with the integration's access token, or, without one, those a4a saw pushed to the branch since, by when they were made. The run's number names it; a source taking any workflow names it by the workflow too, since every workflow numbers its own runs.
+- **Any other CI** (Jenkins, TeamCity, GitLab CI, a script) posts to `/builds/hooks/{source}` with the source's token as a Bearer token: random, kept as a hash, shown once, checked in constant time. That path takes no other credential, as SCIM's doesn't (D38). The build names its commits: shas, `{ sha, message }` whose messages are read for issue ids too, or a range a4a asks GitHub about with the token of a GitHub integration that has seen the repository. The answer gives counts, never an issue's id: a CI's log is read by whoever runs the CI.
+
+What a build does:
+
+- **One that passes** becomes a value of the project's build field (D41): the source's choice, else the project's "Fixed in build", else its one build field. A project with none gets "Fixed in build", made if it isn't there and given to the project, when the source is added.
+- **The resolved issues its commits name** get it, through applyChanges, each in a transaction of its own with the issue's row lock, as a4a's builds agent on the `ci` channel: their history says "from a build" and names the source, and rules act on the change as on any other. Only the build's project's issues: a build is a project's.
+- **The rest it leaves, and says why**, in `build_issues` beside the build: not resolved yet (a later report of the same build marks it once it is); naming a build already (the fix went out in that one; a multi-valued field takes the build too); refused by a guard or a permission.
+- **One that fails or is cancelled** marks nothing and isn't a value, but keeps what it holds, so the same build run again and passing marks it all.
+- **The same build reported again** (a re-run, a retried request) is the same build: one row per name in a project, what it holds now added to what it held.
+
+Builds are listed on a project's builds page, under an issue's commits (the build it was fixed in), to agents (`list_builds`) and as `build.recorded` events. A search reads a build field's values in the order CI reported them, so `Fixed in build: 120 .. 130` is a range, its ends included.
+
+**Three importers more**, beside YouTrack's and Jira's (D29) and through their path: a dry run first, people matched by email, external keys remembered so a run again makes nothing twice, files brought as the run goes, quiet events, a fetch that stops carrying on where it was. The token is for the fetch and the run, never kept (`imports/readers-more.ts`).
+
+- **GitHub Issues**: a repository's issues, not its pull requests, page by page by its Link header; labels as tags, the milestone as Fix versions, how one was closed as its state (completed: Fixed; not planned: Won't fix; duplicate: Duplicate), and comments. GitHub names people by login: those a4a knows by theirs (an administrator's record, or an account they connected) come with their email, so the mapping finds them. Its rate limits are waited out: `x-ratelimit-reset`, and its secondary limit's 403 with Retry-After.
+- **Redmine**: a project's issues, each read with its journals (private notes left out, counted), relations as links, custom fields, attachments and time entries. An API key goes as Basic's user name, which Redmine takes.
+- **Zendesk**: tickets by its incremental export, into a help desk: each ticket's requester becomes the request's requester (D17), its comments keep who saw them there (public replies, internal notes), and the requester's own are theirs, as on the tracking page. The first comment is the description; deleted tickets stay out.
+
+**Accounts people connect.** D33 has an administrator record a person's login at a provider. Now a person can prove an account theirs, from their profile, by signing in at GitHub, GitLab or Bitbucket (`vcs/connect.ts`): OAuth's authorization code, with PKCE where the provider takes it (GitHub, GitLab), exchanged by the server with the provider app's secret. The account becomes their provider login, with the provider's own id for it, so its commits and pull requests are theirs. The token is used to ask who it is, once, and dropped: nothing a4a does later needs it.
+
+- **Bound to who started it.** The state is random, kept as a hash for ten minutes and taken once, and the callback must come back to the same signed-in person, so nobody can connect their own account to someone else's a4a by sending them a link.
+- **One person's.** An account already someone else's is refused; an administrator can move it.
+- **Theirs to undo.** A person disconnects an account they connected; one an administrator recorded stays the administrator's to remove.
+
+**VS Code** (`packages/vscode`): an Issues view (a search, yours by default), an issue opened beside the code with a box for a command, an issue made from the selected code (where it is, and the code quoted), an issue named at the start of the commit message, and a4a's MCP server offered to VS Code's agent.
+
+- **It speaks MCP.** An app's OAuth token works at /mcp alone (D28), and an API token works there too, so the extension calls a4a's tools: what an agent can do, it can do, with the same checks.
+- **Signing in** is an MCP app's: dynamic registration as a public client, the browser sent to a4a's consent page, the code back to a loopback port only the extension listens on (RFC 8252), PKCE and the resource indicator. Or a personal API token. Either is kept in VS Code's secret storage, never in settings.
+- **No CSS of its own.** The issue's webview is drawn with Ocean's stylesheet and fonts, copied into the extension when it's built, under a policy that lets in nothing else; its words are escaped, and its one script only sends a command back.
+- **Access tokens kept sealed.** GitHub integrations now take an access token, for the compare. It and new Bitbucket tokens are sealed with SECRET_KEY (D38's secret box); one kept as given before is still read.
+
+**What it costs.** A build reads the links of the commits it holds (one query per 500) and the issues their messages name, then takes each issue's row lock in turn, so a build of hundreds of fixes is that many small transactions, outside any request but the CI's. A run without an access token holds what a4a saw pushed, by commit time: a commit pushed late, or rebased, can fall in the next build instead. GitHub's compare answers 250 commits; past that, a build holds those, and the delivery's log says the rest weren't read. The importers read each issue's comments (GitHub, Zendesk) or each issue in full (Redmine) one request at a time, so a large project takes a while, its heartbeat kept. A Zendesk import into a project that isn't a help desk brings the tickets as issues, without requesters. The extension's tests run against a stand-in for VS Code; nothing here runs VS Code itself.
+
+**Revisit when:** a CI wants builds of several projects from one pipeline (a source per project today); a build should hold what it holds by the commit graph rather than by time (a4a would keep the pushes' parents); GitHub Issues' reactions should come along (they'd need each reaction's person, by login); people want GitLab's or Bitbucket's pipelines as GitHub's runs are; or the extension should work offline, or show boards.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1308,12 +1350,11 @@ Four more reports, worked out on request as D21's are, each on the Reports page,
 Planned, with the seams already in place:
 
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
-- people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - days away from an HR calendar (D36);
 - fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
-- CI reporting builds to a build field on its own, with a token per pipeline (D41);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
-- ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43).
+- ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
+- builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46).

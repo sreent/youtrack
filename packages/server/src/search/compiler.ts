@@ -240,6 +240,28 @@ class Compiler {
     return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId} AND ifv.value_id IN (${list(valueIds)}))`;
   }
 
+  /**
+   * Builds in a range (`fixed in build: 120 .. 130`): a build field's values come in the order CI
+   * reported them (D46), so a range is the builds from one to the other, both included. An open end
+   * (`*`) runs to the first or the latest.
+   */
+  private buildRange(field: FieldRow, from: string | null, to: string | null, span: Span): SQL | null {
+    const all = this.cc.s.valuesByField.get(field.id) ?? [];
+    const ordinalOf = (raw: string, pick: 'min' | 'max'): number | null => {
+      const found = all.filter((x) => x.name.toLowerCase() === raw.toLowerCase()).map((x) => x.ordinal);
+      if (found.length) return pick === 'min' ? Math.min(...found) : Math.max(...found);
+      const names = [...new Set(all.map((x) => x.name))];
+      const guess = didYouMean(raw, names);
+      this.problem(`Unknown build "${raw}" for ${field.name}`, span, guess ? `Did you mean "${guess}"?` : `Latest builds: ${names.slice(-10).reverse().join(', ')}`, guess);
+      return null;
+    };
+    const lo = from === null ? -Infinity : ordinalOf(from, 'min');
+    const hi = to === null ? Infinity : ordinalOf(to, 'max');
+    if (lo === null || hi === null) return FALSE;
+    const ids = all.filter((x) => x.ordinal >= lo && x.ordinal <= hi).map((x) => x.id);
+    return ids.length ? this.optionIn(field.id, ids) : FALSE;
+  }
+
   private customField(field: FieldRow, values: ValueNode[], span: Span): SQL {
     const s = this.cc.s;
     return this.combine(values, (v) => {
@@ -250,6 +272,7 @@ class Compiler {
         case 'version':
         case 'build':
         case 'owned': {
+          if (v.kind === 'range' && field.type === 'build') return this.buildRange(field, v.from, v.to, v.span);
           if (v.kind === 'range') {
             this.problem(`Ranges are not supported for ${field.name}`, v.span);
             return null;

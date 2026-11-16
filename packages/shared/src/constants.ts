@@ -41,7 +41,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */
@@ -59,11 +59,11 @@ export type ChatChangeKind = (typeof CHAT_CHANGE_KINDS)[number];
 export const DEFAULT_CHAT_KINDS: readonly ChatChangeKind[] = ['created', 'state', 'assigned', 'commented'];
 
 /**
- * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk),
+ * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk, builds),
  * and take no tokens and no work. Any other bot account is an agent an administrator added, which
  * holds tokens of its own and can be assigned issues (docs/architecture.md, D34).
  */
-export const OWN_AGENTS = ['triage', 'workflow', 'helpdesk'] as const;
+export const OWN_AGENTS = ['triage', 'workflow', 'helpdesk', 'builds'] as const;
 
 export function isOwnAgent(user: { isBot: boolean; login: string }): boolean {
   return user.isBot && (OWN_AGENTS as readonly string[]).includes(user.login.toLowerCase());
@@ -139,6 +139,7 @@ export const EVENT_TYPES = [
   'project.group.removed',
   'issue.moved',
   'work.updated',
+  'build.recorded',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

@@ -350,8 +350,12 @@ export class Remote {
         throw this.networkError(e, url);
       }
       const status = got.res.statusCode ?? 0;
-      if (status === 429 || status === 503) {
-        const asked = retryAfterMs(got.res.headers['retry-after']);
+      // GitHub says it's out of requests with a 403, and when they come back (x-ratelimit-reset, in seconds
+      // since 1970); its secondary limit, with a 403 and Retry-After.
+      const spent = status === 403 && (got.res.headers['x-ratelimit-remaining'] === '0' || got.res.headers['retry-after'] !== undefined);
+      if (status === 429 || status === 503 || spent) {
+        const reset = Number(got.res.headers['x-ratelimit-reset']);
+        const asked = retryAfterMs(got.res.headers['retry-after']) ?? (spent && Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) + 1000 : null);
         got.res.resume();
         const ms = asked ?? 1000 * 2 ** Math.min(slow, 6);
         if (slow < SLOW_DOWN_TRIES && ms <= MAX_WAIT_MS) {
@@ -361,9 +365,9 @@ export class Remote {
         }
         const minutes = Math.ceil(ms / 60_000);
         throw new RemoteError(
-          status === 429 ? `${this.names.name} asks a4a to wait ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} before reading more` : `${this.names.name} is unavailable for now`,
+          status === 503 ? `${this.names.name} is unavailable for now` : `${this.names.name} asks a4a to wait ${minutes} ${minutes === 1 ? 'minute' : 'minutes'} before reading more`,
           'Carry on later: what has been read so far is kept.',
-          status === 429 ? 'slow_down' : 'unavailable',
+          status === 503 ? 'unavailable' : 'slow_down',
           status,
         );
       }
@@ -386,6 +390,27 @@ export class Remote {
     if (status >= 400) throw this.httpError(status, text, at);
     try {
       return JSON.parse(text) as T;
+    } catch {
+      throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status);
+    }
+  }
+
+  /**
+   * JSON with the answer's headers (a Link to the next page, D46): from a path under the base, or
+   * an address a page gave, which must be on the base's own origin.
+   */
+  async jsonWithHeaders<T>(pathOrHref: string, query: Record<string, string | number | null | undefined> = {}): Promise<{ data: T; headers: IncomingHttpHeaders }> {
+    let url: URL;
+    if (/^https?:\/\//i.test(pathOrHref)) {
+      url = new URL(pathOrHref);
+      if (url.origin !== this.base.origin) throw new RemoteError(`${this.names.name} pointed a4a elsewhere (${url.host})`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'shape');
+    } else url = this.url(pathOrHref, query);
+    const { res, url: at } = await this.attempt(url, 'GET', { accept: 'application/json' });
+    const text = await this.text(res, at);
+    const status = res.statusCode ?? 0;
+    if (status >= 400) throw this.httpError(status, text, at);
+    try {
+      return { data: JSON.parse(text) as T, headers: res.headers };
     } catch {
       throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status);
     }
