@@ -70,6 +70,9 @@ export function actorWho(actor: TrackerEvent['actor']): { kind: WhoKind; name: s
       return { kind: 'service', name: actor.token ?? 'a script', about: `through the API, as ${name}` };
     case 'automation':
       return { kind: 'agent', name: actor.login ?? 'automation', about: 'on its own' };
+    case 'vcs':
+      // A commit's author a4a knows, through the integration; or the integration itself.
+      return actor.id ? { kind: 'person', name, about: `from ${actor.token ?? 'version control'}` } : { kind: 'service', name: actor.token ?? 'version control', about: 'from version control' };
     case 'system':
       return { kind: 'own', name: 'a4a', about: '' };
     default:

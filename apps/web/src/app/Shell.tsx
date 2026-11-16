@@ -29,6 +29,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: 'Build',
     items: [
       { to: '/projects', label: 'Projects', icon: 'book' },
+      { to: '/rules', label: 'Rules', icon: 'sync' },
       { to: '/fields', label: 'Fields', icon: 'settings', admin: true },
     ],
   },
@@ -38,6 +39,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/activity', label: 'Activity', icon: 'audit' },
       { to: '/agents', label: 'Agents and tokens', icon: 'key' },
       { to: '/webhooks', label: 'Webhooks', icon: 'send', admin: true },
+      { to: '/integrations', label: 'Integrations', icon: 'code', admin: true },
       { to: '/admin', label: 'Administration', icon: 'people', admin: true },
     ],
   },

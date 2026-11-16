@@ -17,6 +17,7 @@ import { isOption, isPeriod, isUser } from '../features/issues/fields';
 import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
+import { IssueCode } from '../features/vcs/IssueCode';
 import { FormField } from '../components/Form';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
@@ -289,6 +290,7 @@ export default function IssuePage() {
             <SuggestionCard key={s.id} suggestion={s} compact />
           ))}
           <IssueLinks issue={data} />
+          <IssueCode issue={data} />
           <IssueHistory issue={data} me={me.data} />
           <WorkLog issue={data} me={me.data} />
         </div>

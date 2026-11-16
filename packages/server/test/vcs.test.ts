@@ -167,6 +167,20 @@ describe('GitHub', () => {
     expect((await issueActivity(w.adminCtx, 'BACK-5')).length).toBe(events);
   });
 
+  it('does the same commit once when deliveries race', async () => {
+    const base = JSON.parse(fixture('github-push'));
+    const body = JSON.stringify({ ...base, commits: [{ ...base.commits[0], id: '18293a4b5c6d7e8f9012345678a1b2c3d4e5f607', message: 'Retry exports\n\nBACK-5 #tag raced' }] });
+    const delivery = randomUUID();
+    // The same delivery twice at once, and the same commit in another delivery at the same time.
+    const answers = await Promise.all([fromGithub('push', body, delivery), fromGithub('push', body, delivery), fromGithub('push', body)]);
+    expect(answers.map((a) => a.status)).toEqual([200, 200, 200]);
+    expect(answers.filter((a) => a.body.outcome === 'duplicate')).toHaveLength(1);
+    expect(answers.reduce((n, a) => n + Number(a.body.linked ?? 0), 0)).toBe(1);
+    expect(answers.reduce((n, a) => n + Number(a.body.applied ?? 0), 0)).toBe(1);
+    const tagged = (await issueActivity(w.adminCtx, 'BACK-5')).filter((e) => e.type === 'issue.updated' && e.changes.some((c) => c.to?.includes('raced')));
+    expect(tagged).toHaveLength(1);
+  });
+
   it('handles again a delivery that failed the first time', async () => {
     const delivery = randomUUID();
     const broken = await fromGithub('push', '{"ref": "refs/heads/main", "repository": {}}', delivery);

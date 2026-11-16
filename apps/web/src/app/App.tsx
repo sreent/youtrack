@@ -18,6 +18,8 @@ const FieldsPage = lazy(() => import('../pages/FieldsPage'));
 const ActivityPage = lazy(() => import('../pages/ActivityPage'));
 const AgentsPage = lazy(() => import('../pages/AgentsPage'));
 const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
+const RulesPage = lazy(() => import('../pages/RulesPage'));
+const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 
@@ -48,6 +50,9 @@ export function App() {
           <Route path="/activity" element={<Page><ActivityPage /></Page>} />
           <Route path="/agents" element={<Page><AgentsPage /></Page>} />
           <Route path="/webhooks" element={<Page><WebhooksPage /></Page>} />
+          <Route path="/rules" element={<Page><RulesPage /></Page>} />
+          <Route path="/rules/:project" element={<Page><RulesPage /></Page>} />
+          <Route path="/integrations" element={<Page><IntegrationsPage /></Page>} />
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />
           <Route path="*" element={<Navigate to="/issues" replace />} />

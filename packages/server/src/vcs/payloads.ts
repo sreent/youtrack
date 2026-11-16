@@ -39,6 +39,8 @@ export type Delivery =
   | { kind: 'other'; event: string };
 
 const text = z.string().nullish();
+/** A link a4a will show: http(s) only, so a payload can't hand the page a javascript: URL. */
+const link = (v: string | null | undefined): string | null => (v && /^https?:\/\/[^\s]+$/i.test(v) && v.length <= 2000 ? v : null);
 const when = (v: string | null | undefined): Date | null => {
   if (!v) return null;
   const d = new Date(v);
@@ -98,7 +100,7 @@ function github(event: string, body: unknown): Delivery {
         commits: p.commits.map((c) => ({
           sha: c.id,
           message: c.message,
-          url: c.url ?? null,
+          url: link(c.url),
           at: when(c.timestamp),
           author: { name: c.author?.name ?? null, email: c.author?.email ?? null, login: c.author?.username ?? null },
         })),
@@ -114,7 +116,7 @@ function github(event: string, body: unknown): Delivery {
         number: pr.number,
         title: pr.title,
         body: pr.body ?? '',
-        url: pr.html_url ?? null,
+        url: link(pr.html_url),
         branch: pr.head?.ref ?? null,
         target: pr.base?.ref ?? null,
         state: pr.merged || pr.merged_at ? 'merged' : pr.state === 'closed' ? 'closed' : 'open',
@@ -179,7 +181,7 @@ function gitlab(event: string, body: unknown): Delivery {
       commits: p.commits.map((c) => ({
         sha: c.id,
         message: c.message,
-        url: c.url ?? null,
+        url: link(c.url),
         at: when(c.timestamp),
         author: { name: c.author?.name ?? null, email: c.author?.email ?? null, login: null },
       })),
@@ -195,7 +197,7 @@ function gitlab(event: string, body: unknown): Delivery {
       number: mr.iid,
       title: mr.title,
       body: mr.description ?? '',
-      url: mr.url ?? null,
+      url: link(mr.url),
       branch: mr.source_branch ?? null,
       target: mr.target_branch ?? null,
       state: mr.state === 'merged' ? 'merged' : mr.state === 'closed' ? 'closed' : 'open',

@@ -36,9 +36,20 @@ export function whoOf(actor: Actor): Who {
       return { kind: 'agent', name: 'assistant', forWhom: person, via: 'asked in words' };
     case 'automation':
       return { kind: 'agent', name: actor.login ?? 'automation', via: 'on its own' };
+    case 'vcs':
+      // A commit's author, known by their verified email, or the integration itself.
+      return actor.id
+        ? { kind: 'person', name: person, via: `from ${actor.token ?? 'version control'}` }
+        : { kind: 'service', name: actor.token ?? 'version control', via: 'from version control' };
     default:
       return { kind: 'own', name: 'a4a', via: '' };
   }
+}
+
+/** "applied the rule “Critical bugs go to Anna”", when a workflow rule made the change. */
+function byRule(data: Record<string, unknown>): string | undefined {
+  const name = (data.automation as { name?: unknown } | undefined)?.name;
+  return typeof name === 'string' ? `applied the rule “${name}”` : undefined;
 }
 
 /** Today's time alone; older ones with their day, as people read them. */
@@ -70,8 +81,53 @@ function eventEntry(e: TrackerEvent): Entry | null {
       if (!e.changes.length) return null;
       return {
         ...base,
-        did: data.acceptedFrom === 'triage' ? 'accepted what triage worked out' : undefined,
+        did: data.acceptedFrom === 'triage' ? 'accepted what triage worked out' : byRule(data),
         body: <ChangeLines changes={e.changes} />,
+      };
+    case 'commit.linked': {
+      const sha = String(data.sha ?? '');
+      const command = typeof data.command === 'string' ? data.command : null;
+      return {
+        ...base,
+        did: (
+          <>
+            committed{' '}
+            {typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
+              <a className="mono" href={data.url} rel="noreferrer noopener" target="_blank">
+                {sha.slice(0, 7)}
+              </a>
+            ) : (
+              <span className="mono">{sha.slice(0, 7)}</span>
+            )}
+            {data.branch ? <> on <span className="mono">{String(data.branch)}</span></> : null}
+          </>
+        ),
+        body: (
+          <ul className="change-lines">
+            <li>{String(data.title ?? '')}</li>
+            {command ? (
+              <li className="same">
+                #{command}
+                {data.applied ? `: ${String(data.note ?? 'applied')}` : `, not applied: ${String(data.note ?? '').replace(/^Not applied:\s*/i, '') || 'see the commit'}`}
+              </li>
+            ) : null}
+          </ul>
+        ),
+      };
+    }
+    case 'pull_request.linked':
+    case 'pull_request.updated':
+      return {
+        ...base,
+        did:
+          e.type === 'pull_request.linked'
+            ? `linked pull request #${String(data.number ?? '')} (${String(data.state ?? 'open')})`
+            : `saw pull request #${String(data.number ?? '')} ${data.state === 'merged' ? 'merged' : data.state === 'closed' ? 'closed' : 'reopened'}`,
+        body: (
+          <ul className="change-lines">
+            <li>{String(data.title ?? '')}</li>
+          </ul>
+        ),
       };
     case 'link.created':
     case 'link.deleted': {

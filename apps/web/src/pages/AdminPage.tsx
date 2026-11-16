@@ -56,6 +56,15 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
+  // An email someone set for themselves isn't vouched for until an administrator confirms it (commits run commands by it).
+  const verify = useMutation({
+    mutationFn: () => patch<User>(`/users/${user.id}`, { emailVerified: true }),
+    onSuccess: () => {
+      setSaid({ text: `${user.email} is verified.` });
+      void qc.invalidateQueries({ queryKey: keys.users });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
   const label = (what: string) => `${what} of ${user.name}`;
   return (
     <tr className={form.banned ? 'dimmed' : undefined}>
@@ -93,6 +102,20 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           placeholder="None"
           className="tw:w-48"
         />
+        {user.email ? (
+          <span className="item-about">
+            {user.emailVerified ? (
+              'verified'
+            ) : (
+              <>
+                not verified, so their commits run no commands ·{' '}
+                <button type="button" className="link" disabled={verify.isPending} onClick={() => verify.mutate()} aria-label={`Verify ${user.email} for ${user.name}`}>
+                  Verify it
+                </button>
+              </>
+            )}
+          </span>
+        ) : null}
       </td>
       <td>
         <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label('Role')} disabled={isMe}>

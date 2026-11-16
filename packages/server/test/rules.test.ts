@@ -16,6 +16,9 @@ import { MAX_DEPTH, RuleEngine } from '../src/workflow/engine';
 import { createRule, deleteRule, listRuleRuns, listRules, previewRule, updateRule } from '../src/workflow/rules';
 import { nextRunAfter } from '../src/workflow/words';
 import { addDays, todayISO } from '../src/lib/dates';
+import { createHttpApp } from '../src/http/app';
+import { issueTokenFor } from '../src/services/auth';
+import { toolByName } from '../src/tools/registry';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -414,5 +417,62 @@ describe('managing rules', () => {
     await deleteRule(w.adminCtx, rule.id);
     const [row] = await w.app.db.select({ n: count() }).from(ruleRuns).where(and(eq(ruleRuns.ruleId, rule.id)));
     expect(Number(row!.n)).toBe(0);
+  });
+});
+
+describe('over REST and MCP', () => {
+  async function client() {
+    const http = createHttpApp(w.app);
+    const admin = (await issueTokenFor(w.app.db, w.admin.id, { name: 'ops', scopes: ['read', 'write', 'admin'] })).token;
+    const anna = (await issueTokenFor(w.app.db, w.anna.id, { name: 'anna-cli', scopes: ['read', 'write'] })).token;
+    return async (token: string, method: string, path: string, body?: unknown) => {
+      const res = await http.request(`/api/v1${path}`, {
+        method,
+        headers: { authorization: `Bearer ${token}`, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      return { status: res.status, body: text ? JSON.parse(text) : null, tokens: { admin, anna } };
+    };
+  }
+
+  it('makes, previews, checks, changes and lists rules, and is in the OpenAPI document', async () => {
+    const call = await client();
+    const { admin, anna } = (await call('', 'GET', '/health')).tokens;
+    const draft = { project: 'BACK', name: 'Blocked needs a reason', kind: 'guard', query: 'State: Blocked', requires: 'has: comments', message: 'Say what blocks it.' };
+    const checked = await call(anna, 'POST', '/rules/check', { project: 'BACK', kind: 'guard', part: 'query', text: 'State: Blokced', caret: 14 });
+    expect(checked.status).toBe(200);
+    expect(checked.body.problems[0]).toMatchObject({ message: 'Unknown value "Blokced" for State', fix: 'Blocked' });
+    const preview = await call(anna, 'POST', '/rules/preview', draft);
+    expect(preview.status).toBe(200);
+    expect(preview.body).toMatchObject({ ok: true, breaking: 0 });
+    expect((await call(anna, 'POST', '/rules', draft)).status).toBe(403);
+    const made = await call(admin, 'POST', '/rules', draft);
+    expect(made.status).toBe(201);
+    expect(made.body).toMatchObject({ kind: 'guard', enabled: true, project: 'BACK', problems: [] });
+    const off = await call(admin, 'PATCH', `/rules/${made.body.id}`, { enabled: false, expectedVersion: made.body.version });
+    expect(off.body).toMatchObject({ enabled: false, requires: 'has: comments' });
+    const bad = await call(admin, 'POST', '/rules', { ...draft, requires: 'has: commnets' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.details.problems[0]).toMatchObject({ part: 'requires', message: 'Unknown attribute "commnets" for has:', hint: 'Did you mean "comments"?' });
+    expect((await call(anna, 'GET', '/rules?project=BACK')).body.map((r: { name: string }) => r.name)).toEqual(['Blocked needs a reason']);
+    expect((await call(anna, 'GET', `/rule-runs?rule=${made.body.id}`)).status).toBe(200);
+    expect((await call(admin, 'DELETE', `/rules/${made.body.id}`)).status).toBe(204);
+    const doc = (await call('', 'GET', '/openapi.json')).body as { paths: Record<string, unknown> };
+    expect(Object.keys(doc.paths)).toEqual(
+      expect.arrayContaining(['/rules', '/rules/{id}', '/rules/preview', '/rules/check', '/rule-runs', '/vcs/integrations', '/vcs/hooks/{id}', '/issues/{id}/vcs']),
+    );
+  });
+
+  it('gives agents list_rules and preview_rule, and no way to make one', async () => {
+    await createRule(w.adminCtx, { project: 'BACK', name: 'Critical bugs go to Anna', kind: 'change', trigger: 'created', query: 'Type: Bug Priority: Critical', command: 'Assignee anna' });
+    const listed = await toolByName('list_rules')!.run(w.as(w.anna), { project: 'BACK' });
+    expect(listed.data).toEqual([
+      expect.objectContaining({ name: 'Critical bugs go to Anna', kind: 'change', on: true, rule: 'When an issue is created, if it matches “Type: Bug Priority: Critical”, then apply “Assignee anna”.' }),
+    ]);
+    const previewed = await toolByName('preview_rule')!.run(w.as(w.anna), { project: 'BACK', kind: 'schedule', every: 'day', at: '07:30', query: '#Unresolved Priority: Critcal', command: 'tag hot' });
+    expect(previewed.data).toMatchObject({ ok: false, fixed: { query: '#Unresolved Priority: Critical' } });
+    expect(toolByName('preview_rule')!.kind).toBe('reads');
+    expect(['create_rule', 'update_rule', 'delete_rule'].map((n) => toolByName(n))).toEqual([undefined, undefined, undefined]);
   });
 });

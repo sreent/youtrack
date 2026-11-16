@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
-    "@sreent/ocean": "github:sreent/ocean#1de81f1839ec2ef6552d1ca26d6981e52b466ee3",
+    "@sreent/ocean": "link:../../data/ocean",
     "@tanstack/react-query": "^5.107.1",
     "@a4a/shared": "workspace:*",
     "clsx": "^2.1.1",
