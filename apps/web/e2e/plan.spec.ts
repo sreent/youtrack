@@ -9,7 +9,11 @@
  */
 import type { LevelingResult, Schedule } from '@a4a/shared';
 import { fieldValue, uniqueKey, type Api } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 /** Today, as the server (on this machine) reads it. */
 const today = () => new Date().toLocaleDateString('en-CA');

@@ -5,7 +5,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { expect, test as setup, type Page } from '@playwright/test';
-import { ADMIN, AUTH_FILE, BASE_URL, GUIDE, TOKEN_FILE, TOUR_AUTH_FILE } from './support/env';
+import { ADMIN, AUTH_FILE, BASE_URL, GUIDE, SECOND, SECOND_AUTH_FILE, TOKEN_FILE, TOUR_AUTH_FILE } from './support/env';
 
 async function signIn(page: Page, who: { login: string; password: string }) {
   await page.goto('/login');
@@ -24,7 +24,7 @@ async function createToken(page: Page, name: string, scopes: string[]): Promise<
   return ((await created.json()) as { token: string }).token;
 }
 
-setup('sign in as the administrator, and as the one who takes the tour', async ({ browser }) => {
+setup('sign in as the administrators: two for the flows, and the one who takes the tour', async ({ browser }) => {
   const admin = await browser.newPage();
   await signIn(admin, ADMIN);
   await admin.context().storageState({ path: AUTH_FILE });
@@ -32,12 +32,19 @@ setup('sign in as the administrator, and as the one who takes the tour', async (
   const token = await createToken(admin, 'e2e', ['read', 'write', 'admin']);
   writeFileSync(TOKEN_FILE, JSON.stringify({ token }));
 
-  const made = await admin.request.post('/api/v1/users', {
-    data: { login: GUIDE.login, name: GUIDE.name, password: GUIDE.password, role: 'admin' },
-    headers: { authorization: `Bearer ${token}` },
-  });
-  expect(made.status(), await made.text()).toBe(201);
+  for (const person of [GUIDE, SECOND]) {
+    const made = await admin.request.post('/api/v1/users', {
+      data: { login: person.login, name: person.name, password: person.password, role: 'admin' },
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(made.status(), await made.text()).toBe(201);
+  }
   await admin.close();
+
+  const second = await browser.newPage();
+  await signIn(second, SECOND);
+  await second.context().storageState({ path: SECOND_AUTH_FILE });
+  await second.close();
 
   const guide = await browser.newPage();
   await signIn(guide, GUIDE);

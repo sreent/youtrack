@@ -1,7 +1,11 @@
 /** Projects: one is created from the waterfall template, and its details, triage rung and plan settings saved. */
 import type { Project, ProjectField } from '@a4a/shared';
 import { uniqueKey } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 test('a project is created, and its settings are saved', async ({ page, api }) => {
   const key = uniqueKey('PR');

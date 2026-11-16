@@ -8,7 +8,11 @@
 import type { Page } from '@playwright/test';
 import type { IssueDetail } from '@a4a/shared';
 import { fieldValue, unique, uniqueKey, type Api } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 /** A rule acts after the outbox's settle time, not inside the change. */
 const ACTS_WITHIN = { timeout: 30_000 };

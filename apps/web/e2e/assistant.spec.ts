@@ -5,7 +5,11 @@
  */
 import { mockAssistant, takeIssue } from './support/ai';
 import { uniqueKey } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 test('a streamed answer asks before it changes anything, and the decisions go back in one request', async ({ page, api }) => {
   const key = uniqueKey('AS');

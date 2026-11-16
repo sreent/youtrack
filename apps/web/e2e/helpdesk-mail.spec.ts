@@ -5,8 +5,12 @@
  * that asks for a proof of work gets one from the form, solved in the browser, before it sends.
  */
 import { unique, uniqueKey } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
 import { message, postMail } from './support/helpdesk';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 test('a desk takes mail: set up on its project page, a message becomes a request, and its log says so', async ({ page, api }) => {
   const key = uniqueKey('HM');

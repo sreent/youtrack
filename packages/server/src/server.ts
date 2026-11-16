@@ -16,7 +16,22 @@ import { insertUser } from './services/users';
 export interface Started {
   runtime: Runtime;
   url: string;
+  /** The HTTP server itself: where it listens, and its timeouts. */
+  server: Server;
   stop(): Promise<void>;
+}
+
+/**
+ * How long an idle connection stays open. Behind a load balancer it must outlast the balancer's own
+ * idle timeout (60 s is common, and AWS's load balancers' default), or the balancer can send a
+ * request down a connection a4a has just closed, and its client gets a 502 or a reset. Node's
+ * default is 5 s. Headers get a second longer, as Node asks.
+ */
+export const KEEP_ALIVE_MS = 65_000;
+
+export function keepConnections(server: Server): void {
+  server.keepAliveTimeout = KEEP_ALIVE_MS;
+  server.headersTimeout = KEEP_ALIVE_MS + 1_000;
 }
 
 /** Extra consumers (e.g. AI triage) register here before start. */
@@ -115,6 +130,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
     await database.close();
     throw err;
   });
+  keepConnections(server);
 
   let stopping: Promise<void> | null = null;
   const stop = () =>
@@ -130,5 +146,5 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
       await database.close();
     })());
 
-  return { runtime, url: config.publicUrl, stop };
+  return { runtime, url: config.publicUrl, server, stop };
 }

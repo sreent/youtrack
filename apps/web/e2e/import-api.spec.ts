@@ -6,8 +6,12 @@
  */
 import { uniqueKey } from './support/api';
 import { expectAccessible } from './support/checks';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
 import { startYouTrack, YT_TOKEN, type FakeYouTrack } from './support/youtrack';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 let yt: FakeYouTrack;
 

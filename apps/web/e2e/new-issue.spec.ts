@@ -3,7 +3,11 @@
  * its answer was lost is made once, because the retry carries the same Idempotency-Key.
  */
 import { uniqueKey } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 let key: string;
 

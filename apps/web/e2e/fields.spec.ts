@@ -1,7 +1,11 @@
 /** Fields: a field of this test's own is made, values are added to it, and put in another order. */
 import type { Field } from '@a4a/shared';
 import { unique } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 test('values are added to a field, and put in another order', async ({ page, api }) => {
   const name = `Severity ${unique()}`;

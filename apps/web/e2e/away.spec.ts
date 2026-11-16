@@ -11,7 +11,11 @@ import type { Page } from '@playwright/test';
 import type { Absence, Preferences, Schedule } from '@a4a/shared';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 const PASSWORD = 'e2e-away-pass-1';
 

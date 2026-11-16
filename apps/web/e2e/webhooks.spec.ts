@@ -6,8 +6,12 @@
 import { createHmac } from 'node:crypto';
 import type { Webhook } from '@a4a/shared';
 import { unique } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
 import { startReceiver } from './support/receiver';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 let receiver: Awaited<ReturnType<typeof startReceiver>>;
 

@@ -9,7 +9,11 @@ import { fileURLToPath } from 'node:url';
 import type { Locator, Page } from '@playwright/test';
 import { uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 

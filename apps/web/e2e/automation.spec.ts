@@ -12,7 +12,11 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { Page } from '@playwright/test';
 import { fieldValue, unique, uniqueKey } from './support/api';
+import { SECOND_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The second of the flows' administrators (support/env.ts says why).
+test.use({ storageState: SECOND_AUTH_FILE });
 
 /** A rule acts after the outbox's settle time, not inside the change. */
 const ACTS_WITHIN = { timeout: 30_000 };
