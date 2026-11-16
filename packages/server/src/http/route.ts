@@ -1,0 +1,102 @@
+import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
+import { ErrorSchema } from '@a4a/shared';
+import type { Context } from 'hono';
+import type { z } from 'zod';
+import type { Ctx } from '../context';
+import { unauthorized } from '../lib/errors';
+import type { HttpEnv } from './env';
+
+type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
+type AnyObject = z.ZodObject<z.ZodRawShape>;
+
+export interface RouteSpec<P extends AnyObject | undefined, Q extends AnyObject | undefined, B extends z.ZodType | undefined> {
+  method: Method;
+  path: string;
+  tags: string[];
+  summary: string;
+  description?: string;
+  params?: P;
+  query?: Q;
+  body?: B;
+  response?: z.ZodType;
+  status?: 200 | 201 | 202 | 204;
+  /** 'required' (default): 401 without a user. 'none': public. */
+  auth?: 'required' | 'none';
+  /** Hidden from the OpenAPI document. */
+  hidden?: boolean;
+}
+
+type Infer<T> = T extends z.ZodType ? z.infer<T> : undefined;
+
+export interface HandlerArgs<P, Q, B> {
+  c: Context<HttpEnv>;
+  ctx: Ctx;
+  params: P;
+  query: Q;
+  body: B;
+}
+
+const errorContent = { 'application/json': { schema: ErrorSchema } };
+const ERRORS = {
+  400: { description: 'Invalid request: the error says what to fix', content: errorContent },
+  401: { description: 'Not signed in, or the token is unknown, expired or revoked', content: errorContent },
+  403: { description: 'Not allowed for this role or token scope', content: errorContent },
+  404: { description: 'Not found', content: errorContent },
+  409: { description: 'Conflict, e.g. the issue changed since expectedVersion', content: errorContent },
+};
+
+/**
+ * Register a typed, documented endpoint. Validation, OpenAPI and the context
+ * (who is acting) come from the spec; handlers return data or a Response.
+ */
+export function route<P extends AnyObject | undefined, Q extends AnyObject | undefined, B extends z.ZodType | undefined>(
+  app: OpenAPIHono<HttpEnv>,
+  spec: RouteSpec<P, Q, B>,
+  handler: (args: HandlerArgs<Infer<P>, Infer<Q>, Infer<B>>) => Promise<unknown>,
+): void {
+  const status = spec.status ?? (spec.method === 'post' ? 201 : 200);
+  const config = createRoute({
+    method: spec.method,
+    path: spec.path,
+    tags: spec.tags,
+    summary: spec.summary,
+    description: spec.description,
+    hide: spec.hidden,
+    security: spec.auth === 'none' ? [] : [{ bearerAuth: [] }, { cookieAuth: [] }],
+    request: {
+      ...(spec.params ? { params: spec.params } : {}),
+      ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.body ? { body: { content: { 'application/json': { schema: spec.body } }, required: true } } : {}),
+    },
+    responses: {
+      [status]:
+        spec.response && status !== 204
+          ? { description: 'OK', content: { 'application/json': { schema: spec.response } } }
+          : { description: status === 204 ? 'Done' : 'OK' },
+      ...ERRORS,
+    },
+  });
+  // The handler's return type is checked by the service signatures; Hono's typed
+  // responses add nothing here, so the registration is untyped.
+  (app as unknown as { openapi: (r: unknown, h: (c: Context<HttpEnv>) => Promise<Response>) => void }).openapi(
+    config,
+    async (c) => {
+      const ctx = c.get('ctx');
+      if (spec.auth !== 'none' && !ctx) {
+        throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token in Profile → API tokens.');
+      }
+      const req = c.req as unknown as { valid: (t: string) => unknown };
+      const args = {
+        c,
+        ctx: ctx as Ctx,
+        params: (spec.params ? req.valid('param') : undefined) as Infer<P>,
+        query: (spec.query ? req.valid('query') : undefined) as Infer<Q>,
+        body: (spec.body ? req.valid('json') : undefined) as Infer<B>,
+      };
+      const result = await handler(args);
+      if (result instanceof Response) return result;
+      if (status === 204) return c.body(null, 204);
+      return c.json(result as object, status as 200);
+    },
+  );
+}

@@ -1,0 +1,182 @@
+import type { Me } from '@a4a/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { patch } from '../api/client';
+import { keys, useMe } from '../api/queries';
+import { ErrorLine, Loading, PageHead } from '../components/States';
+import { Avatar } from '../components/Who';
+import { errorText, FormField, Said } from '../features/common/bits';
+
+const ROLE_WORDS: Record<Me['role'], string> = {
+  admin: 'an administrator: you may change everything',
+  member: 'a member: you read and change issues',
+  viewer: 'a viewer: you read',
+};
+
+function You({ me }: { me: Me }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(me.name);
+  const [email, setEmail] = useState(me.email ?? '');
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  useEffect(() => {
+    setName(me.name);
+    setEmail(me.email ?? '');
+  }, [me.name, me.email]);
+  const dirty = name !== me.name || email !== (me.email ?? '');
+  const save = useMutation({
+    mutationFn: () => patch<Me>('/me', { name: name.trim(), email: email.trim() || null }),
+    onSuccess: (m) => {
+      qc.setQueryData(keys.me, m);
+      void qc.invalidateQueries({ queryKey: keys.users });
+      setSaid({ text: 'Saved. People see your new name from now on.' });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <div className="form-fields">
+        <FormField label="Name">
+          {(id) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoComplete="name" />}
+        </FormField>
+        <FormField label="Email" help="Optional.">
+          {(id, help) => <input id={id} aria-describedby={help} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />}
+        </FormField>
+      </div>
+      <div className="cluster">
+        <button type="submit" className="primary" disabled={!dirty || !name.trim() || save.isPending}>
+          {save.isPending ? 'Saving…' : 'Save the changes'}
+        </button>
+        <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      </div>
+    </form>
+  );
+}
+
+function Password({ me }: { me: Me }) {
+  const qc = useQueryClient();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [changed, setChanged] = useState(false);
+  const change = useMutation({
+    mutationFn: () => patch<Me>('/me', { password: next, currentPassword: current }),
+    onSuccess: () => {
+      setCurrent('');
+      setNext('');
+      setAgain('');
+      setChanged(true);
+      setSaid({ text: 'Your password is changed, and every session is signed out, this one too.' });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  const mismatch = again.length > 0 && again !== next;
+  return (
+    <form
+      className="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (next !== again) {
+          setSaid({ text: "The new passwords aren't the same. Type it again.", bad: true });
+          return;
+        }
+        change.mutate();
+      }}
+    >
+      <input type="text" name="username" autoComplete="username" value={me.login} readOnly hidden />
+      <div className="form-fields">
+        <FormField label="Current password">
+          {(id) => <input id={id} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required autoComplete="current-password" />}
+        </FormField>
+        <FormField label="New password" help="At least 8 characters.">
+          {(id, help) => (
+            <input
+              id={id}
+              type="password"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              required
+              minLength={8}
+              autoComplete="new-password"
+              aria-describedby={help}
+            />
+          )}
+        </FormField>
+        <FormField label="The new one again">
+          {(id) => (
+            <>
+              <input
+                id={id}
+                type="password"
+                value={again}
+                onChange={(e) => setAgain(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                aria-invalid={mismatch || undefined}
+                aria-describedby={mismatch ? 'pw-mismatch' : undefined}
+              />
+              {mismatch ? <ErrorLine id="pw-mismatch">Not the same as the new password.</ErrorLine> : null}
+            </>
+          )}
+        </FormField>
+      </div>
+      <div className="cluster">
+        {changed ? (
+          <Link className="button" to="/login" onClick={() => qc.clear()}>
+            Sign in again
+          </Link>
+        ) : (
+          <button type="submit" disabled={!current || next.length < 8 || mismatch || change.isPending}>
+            {change.isPending ? 'Changing…' : 'Change the password'}
+          </button>
+        )}
+        <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      </div>
+    </form>
+  );
+}
+
+/** How a4a names you, and how you sign in. */
+export default function ProfilePage() {
+  const me = useMe();
+  if (!me.data) return <Loading what="your profile" />;
+  const m = me.data;
+  return (
+    <>
+      <PageHead
+        title="Your profile"
+        about="How a4a names you to others, and how you sign in."
+        meta={
+          <>
+            <span className="tw:inline-flex tw:items-center tw:gap-2">
+              <Avatar kind="person" name={m.name} small /> <span className="mono">{m.login}</span>
+            </span>
+            <span>You're {ROLE_WORDS[m.role]}.</span>
+          </>
+        }
+      />
+      <section className="card" aria-labelledby="you">
+        <h2 id="you">You</h2>
+        <You me={m} />
+      </section>
+      <section className="card" aria-labelledby="password">
+        <h2 id="password">Password</h2>
+        <Password me={m} />
+      </section>
+      <section className="card" aria-labelledby="agents">
+        <h2 id="agents">Tokens for agents and scripts</h2>
+        <p className="note">
+          An agent or a script acts as you with a token of its own, which you can revoke at any time. They're on <Link to="/agents">Agents and tokens</Link>.
+        </p>
+      </section>
+    </>
+  );
+}

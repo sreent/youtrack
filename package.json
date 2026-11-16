@@ -1,0 +1,24 @@
+{
+  "name": "a4a",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A YouTrack-style issue tracker with a REST API, an MCP server and Claude-powered AI features",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"pnpm --filter @a4a/server dev\" \"pnpm --filter @a4a/web dev\"",
+    "build": "pnpm --filter @a4a/web build && pnpm --filter @a4a/server build && pnpm --filter a4a-mcp build",
+    "start": "pnpm --filter @a4a/server start",
+    "test": "pnpm --filter @a4a/web check:design && pnpm --filter @a4a/server test",
+    "typecheck": "pnpm -r typecheck",
+    "db:seed": "pnpm --filter @a4a/server db:seed",
+    "db:generate": "pnpm --filter @a4a/server db:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "5.9.3"
+  }
+}

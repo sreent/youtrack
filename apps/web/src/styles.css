@@ -1,0 +1,69 @@
+/*
+ * a4a's look is Ocean (github.com/sreent/ocean, pinned in package.json).
+ * Ocean's CSS is unlayered, so it wins over everything Tailwind emits; Tailwind
+ * gives layout utilities only (no preflight), and its palette is replaced by
+ * Ocean's meanings, so a colour of our own can't creep in.
+ *
+ * Tailwind's utilities carry a prefix (tw:grid, tw:text-muted). Tailwind makes a
+ * utility of every word in the sources that names one, and Ocean's classes are
+ * plain words: without the prefix, Ocean's .hidden (off the page, still read
+ * aloud) picked up Tailwind's display: none, and screen readers lost every
+ * hidden label. With it, no word in the code can become a rule.
+ */
+@layer theme, utilities;
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@import "@sreent/ocean/tokens.css";
+@import "@sreent/ocean/components.css";
+@import "@sreent/ocean/charts.css";
+
+@theme inline {
+  --color-*: initial;
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-focus: var(--focus);
+  --color-agent: var(--agent-tone);
+  --color-agent-soft: var(--agent-tone-soft);
+  --color-reads: var(--reads);
+  --color-reads-bg: var(--reads-bg);
+  --color-writes: var(--writes);
+  --color-writes-bg: var(--writes-bg);
+  --color-changes: var(--changes);
+  --color-changes-bg: var(--changes-bg);
+  --color-outside: var(--outside);
+  --color-outside-bg: var(--outside-bg);
+  --color-own: var(--own);
+  --color-own-bg: var(--own-bg);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-idle: var(--idle);
+  --color-idle-bg: var(--idle-bg);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+}
+
+/* React mounts the frame in #root; let the sidebar and page be body.app's grid items. This is
+   the one rule a4a keeps: everything its pages look like, and how they place Ocean's pieces, is
+   Ocean's (scripts/check-design.mjs holds it to that). */
+#root {
+  display: contents;
+}
