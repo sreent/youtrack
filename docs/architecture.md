@@ -920,6 +920,66 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 
 **Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
 
+### D40. Scripted workflows: rules in JavaScript, state machines and custom actions
+
+D25's rules say what they do in the query and command languages. Some workflows need more than a sentence: a computed value, a loop over subtasks, a decision on what changed. Three things now cover them: a rule can be a script, a state field can have a state machine, and a project can have named actions.
+
+- **Scripts run in a sandbox.**
+  - QuickJS, compiled to WebAssembly (`quickjs-emscripten`), with a new runtime for every run (`workflow/sandbox.ts`).
+  - A script reaches nothing but what a4a hands it: no network, files, timers, modules or host objects. `fetch`, `setTimeout`, `require` and `process` don't exist in it.
+  - Each run has a time limit (250 ms; a guard's, 60 ms, since it runs inside the write path) and a memory limit (16 MB). A run past either is stopped and says so.
+  - It's given three globals, as frozen data parsed inside the sandbox from text, so no host object crosses:
+    - `issue`: its fields by name (people by login, numbers as numbers, a period in minutes, a date as YYYY-MM-DD), tags, links in its project with how each reads, its parent and subtasks, and its latest 20 comments;
+    - `change`: who made the change and what changed, field by field, or the new comment, or that it's a scheduled turn, or an action;
+    - `project`.
+  - It has four functions, which only write down what it asks for: `apply(command[, issueId])`, `comment(text)`, `refuse(message)` and `log(...)`. A run asks for 20 commands and 5 comments at most, and each text is clipped at 2,000 characters.
+- **A script's changes go the way every change goes (D4).**
+  - Once the script ends, a4a reads each command in the command language and turns it into a change with the command executor.
+  - It does so as whoever the script acts for: the workflow agent for a rule, with "me" as whoever set it off; the person for an action.
+  - Then it applies them with `applyChanges`, in one transaction, so access, guards, state machines, the activity log and undo all hold.
+  - A script changes its own issue, or one linked to it in its project (its parent, a subtask, a linked issue). It changes nothing it can't see from the issue it runs on.
+- **D25's guarantees hold for scripted rules.**
+  - A change or scheduled rule with a script runs it in place of its command. The query, if it has one, still picks the issues.
+  - What the script asks for is applied in the same transaction that claims the run (`rule_runs`' unique rule, issue and origin). So a scripted rule acts on an issue once for each change that starts a chain, chains stop at `MAX_DEPTH`, and a replayed event does nothing.
+  - The run log says what it changed, what it logged (the first five lines), and where it stopped, with the line ("Its script stopped: TypeError: … (line 2)").
+  - `refuse()` in a rule that acts means "not this one": the run is `skipped`, with its words.
+  - The preview runs the script on a few matching issues as a dry run. `POST /rules/test` runs it on one issue, as it is now, and says what it logged, refused and would change. Nothing is saved.
+- **Scripted guards.**
+  - A guard with a script runs after the change and before commit, inside the write path's transaction. It reads the issue as the change left it, from the transaction's own connection (on PGlite, reading on the pool would wait on itself).
+  - `refuse(message)` refuses the change (422 `refused_by_rule`, in the script's words), and the transaction takes all of it back. A new issue is judged too.
+  - A guard whose script fails, or whose query no longer reads, refuses nothing, and says so in its run log once an hour, as a guard that no longer reads does: a broken script mustn't stop every change in its project.
+  - Imports aren't judged, as with D25's guards.
+- **Who writes scripts: administrators.**
+  - A script is code that runs on the server on every change it's set off by, as the workflow agent, which has administrator scopes in its project. A careless one costs everyone's writes in time, however well it's sandboxed.
+  - Administrators already hold every power a script could use, so writing one gives nobody more than they have.
+  - A project's managers see scripts, preview them and turn them off, as with a rule that calls a webhook (D32), but don't write, change or delete them.
+  - Running a script by hand (`/rules/test`) is an administrator's too: it's for writing one.
+  - Machines and command actions hold only queries and commands, which anyone who manages the project already writes, so they're the managers'.
+- **State machines.**
+  - For a state field (one value from a list) of a project: named transitions, each from some states (or `*`, any) to one, with an optional condition (a query the issue must match as the transition finds it) and an optional command (applied after the move, as whoever makes it, in the same transaction).
+  - `applyChanges` asks which transition each change to a governed field makes, before writing. Every way of changing an issue goes through it: the issue page, a board, a command, an agent, a rule, a script. A change no transition allows is refused (422 `refused_by_state_machine`), saying where the issue can go from where it is.
+  - A transition that names its state wins over one from `*`, so "Reopen from anywhere" sits beside "Accept from Submitted". Two transitions for the same move are refused when the machine is saved.
+  - What's free:
+    - a move from no value or to none, so a new issue starts wherever it's put;
+    - an import, which is history;
+    - an undo (D34), which puts back what was.
+    Administrators are held to it like anyone.
+  - A machine with problems (a state renamed since, say) refuses nothing until it's fixed, and says what to fix.
+  - Each transition's name reads as a command ("Start work"). The issue page shows the moves out of the state the issue is in, as buttons. One whose condition the issue doesn't meet is shown but can't be pressed, with why.
+- **Custom actions.**
+  - Named, per project: a command, or a script (an administrator's), with an optional condition that says when it's offered.
+  - An action runs as whoever runs it, who must be able to change the issue: from its button on the issue page (`POST /issues/{id}/actions/{action}`), or by its name in the command language, which reaches agents through `apply_command`.
+  - A scripted action from its button may change the issue and issues linked to it, all or nothing. Through the command language, which works issue by issue, it changes only the issue it's applied to. `refuse()` in one answers 422 `refused_by_action`.
+  - An action's name can't be a field, a value or a link's phrase, nor start with a word the command language starts a clause with, nor be a transition's name, so a command reads one way only.
+
+**What it costs.**
+- A run builds a fresh QuickJS runtime (about a millisecond) and reads the issue with a handful of queries.
+- A project with no scripted guards pays nothing on the write path: the guards come from the schema snapshot in memory, and a filter finds none.
+- A change to a governed field checks its machine's transitions and one condition, in the transaction.
+- The module is loaded once per process.
+
+**Revisit when:** scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1000,6 +1060,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time. One from an API reads up to 50,000 issues, each page of its answers 64 MB at most, and waits out a `Retry-After` of up to ten minutes at a time.
 - **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
+- **A workflow script** runs for 250 ms (a guard for 60 ms) in 16 MB at most, is 20,000 characters at most, asks for 20 commands and 5 comments a run, and sees an issue's latest 20 comments and 100 links (D40).
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 - **One shared help desk mailbox,** read once a minute by default; desks are told apart by the address mail was sent to, and a desk's replies need its mail server to deliver plus addresses (D30).
@@ -1012,4 +1073,5 @@ Planned, with the seams already in place:
 - client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
-- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36).
+- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
+- scripts that call out through a signed webhook, and code shared between a project's scripts (D40).

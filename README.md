@@ -21,6 +21,13 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Beyond a change: a rule can tell people (its assignee, reporter, watchers, the project's managers, or people by name) in its own words, in their inbox and by email at their level, and an administrator's rule can call a webhook, signed with its secret.
   - Each is previewed before it's saved (its problems where they are, the issues it would touch now, what it would change on a few, and whom it would tell), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep, and a rule acts on an issue once for each change that set it off.
   - A project's managers make its rules, and everyone who can see the project can read them. A rule acts only in its own project.
+- **Scripted workflows** (D40):
+  - An administrator can write a rule as a script, in JavaScript. It sees the issue, what changed and who changed it, and asks with `apply(command)`, `comment(text)` and `refuse(why)`.
+  - Scripts run in a sandbox: QuickJS in WebAssembly, with no network, files or timers, and 250 ms and 16 MB a run.
+  - What a script asks for goes through the command executor, so a scripted rule keeps the run log, the depth limit and acting once for each change. A scripted guard refuses a change in its own words, before it's saved.
+  - The Rules page underlines a script's syntax errors as it's typed and test-runs it on an issue, saving nothing.
+  - **State machines**: a project's state field moves only by its named transitions, each with an optional condition and command. A change that skips one is refused, however it's made, and the issue page offers the moves as buttons.
+  - **Custom actions**: named commands or scripts per project, shown as buttons on the issues they're offered for, and run by name as commands too.
 - **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
   - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.
