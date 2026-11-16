@@ -223,6 +223,9 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
 function VelocityChart({ v }: { v: Velocity }) {
   const titleId = useId();
   if (!v.sprints.length) return <p className="note">No sprint has begun yet, so there's no velocity to show.</p>;
+  if (v.sprints.every((s) => s.committed === 0 && s.done === 0)) {
+    return <p className="note">Nothing was committed to or done in {v.sprints.length === 1 ? v.sprints[0]!.name : 'its sprints'} yet, in {v.unit}.</p>;
+  }
   const top = Math.max(1, ...v.sprints.map((s) => Math.max(s.committed, s.done)));
   const H = 140;
   const slot = 56;
@@ -376,6 +379,7 @@ export default function SprintPlanningPage() {
       <PageHead title="Plan sprints" crumbs={crumbs} about={`${v.board.name}'s backlog, its sprints, and how much they get done.`} />
       <p role="status" className="hidden">{said}</p>
       <div className="split">
+        <div className="stack">
         <section className="card stack" aria-labelledby="backlog">
           <div className="section-head">
             <h2 id="backlog">Backlog</h2>
@@ -389,7 +393,6 @@ export default function SprintPlanningPage() {
           {backlog.error ? <ErrorNote error={backlog.error} /> : null}
           {backlog.data ? <BacklogList board={v.board} backlog={backlog.data} target={sprint} onMoved={setSaid} /> : <Loading what="the backlog" />}
         </section>
-        <div className="stack">
           <section className="card stack" aria-labelledby="sprint-load">
             <div className="section-head">
               <h2 id="sprint-load">Load against capacity</h2>
@@ -420,6 +423,8 @@ export default function SprintPlanningPage() {
               </>
             ) : null}
           </section>
+        </div>
+        <div className="stack">
           <section className="card stack" aria-labelledby="velocity">
             <div className="section-head">
               <h2 id="velocity">Velocity</h2>

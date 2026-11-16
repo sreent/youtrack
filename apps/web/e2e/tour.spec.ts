@@ -16,7 +16,7 @@ import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import { Api, unique, uniqueKey } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
-import { BASE_URL, TOUR_AUTH_FILE } from './support/env';
+import { BASE_URL, GUIDE, TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 import { deskTakingMail, message, postMail } from './support/helpdesk';
 import { startYouTrack, YT_TOKEN } from './support/youtrack';
@@ -108,8 +108,9 @@ const aWeekOfTime = async (api: Api) => {
   const today = new Date().toLocaleDateString('en-CA');
   const a = await api.createIssue({ project: key, summary: 'Write the migration' });
   const b = await api.createIssue({ project: key, summary: 'Review the rollout plan' });
-  await api.post(`/issues/${a.id}/work-items`, { duration: '2h 30m', date: today, type: 'Development' });
-  await api.post(`/issues/${b.id}/work-items`, { duration: '1h', date: today });
+  // The tour's person's own time: their timesheet is theirs.
+  await api.post(`/issues/${a.id}/work-items`, { duration: '2h 30m', date: today, type: 'Development', author: GUIDE.login });
+  await api.post(`/issues/${b.id}/work-items`, { duration: '1h', date: today, author: GUIDE.login });
   return '/timesheet';
 };
 
@@ -248,7 +249,7 @@ const STOPS: Stop[] = [
   { name: 'a sprint board', path: board('Backend sprints'), ready: (p) => p.getByRole('group', { name: "Sprint 14's columns" }) },
   { name: 'a kanban board with lanes', path: board('Web kanban'), ready: (p) => p.getByRole('group', { name: "Web kanban's columns" }) },
   { name: 'planning sprints', path: sprintToPlan, ready: (p) => p.getByRole('list', { name: 'Backlog, in rank order' }) },
-  { name: 'your timesheet', path: aWeekOfTime, ready: (p) => p.getByRole('region', { name: 'Your week' }) },
+  { name: 'your timesheet', path: aWeekOfTime, ready: (p) => p.getByRole('region', { name: 'Your week' }).getByRole('row').filter({ hasText: 'Write the migration' }) },
   { name: 'plans', path: '/plan', ready: (p) => p.getByRole('link', { name: 'Data center migration' }) },
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
