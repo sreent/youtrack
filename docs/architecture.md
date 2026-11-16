@@ -918,7 +918,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - The backward pass reuses the forward pass's length. That's off only when a half day falls between the earliest and the latest a task could start.
 - A plan's people's days away are read with the plan: one query.
 
-**Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
+**Revisit when:** days away should come from an HR system (iCal or its API), as the same rows. (People working part time on a pattern have a working week of their own: D43.)
 
 ### D37. Access in depth: who sees an issue or a comment, roles as permissions, and guests
 
@@ -1110,6 +1110,45 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
 
+### D43. Agile and time tracking: a backlog to plan sprints from, story points, timers and the timesheet
+
+A board plans its sprints from a backlog, counts story points, and shows how much its sprints get done. People time their work, enter it by the week, and each has a working week of their own, which every plan uses.
+
+- **The backlog** is a board's saved query: `backlog_query`, `#Unresolved` when the board doesn't say. It holds what that finds in the board's projects the caller can read, less the issues of the board's open sprints (not archived, and not over). An issue in a sprint that has ended comes back to it, so unfinished work isn't lost from view.
+- **Rank.** An issue's place is the board's (`board_ranks`), one order shared by the backlog and the board's cards.
+  - Ranks are numbers with gaps. A move takes the middle of the gap; when a gap runs out, the board's ranks are spaced out again in the same transaction.
+  - An issue without a rank comes after those with one, in the query's order. Placed next to one without a rank, the issue gives that one, and those without one shown above it, places after the ranked ones, in the order shown, so nothing on the screen jumps.
+  - People rank by dragging, or from the keyboard: Alt and an arrow moves the issue a place, with what moved said where a screen reader hears it. Placing an issue is work on it: it takes being able to change its issues.
+- **Into a sprint** by dragging an issue from the backlog onto a sprint, with `PUT /sprints/{id}/issues`, or with the command `sprint Sprint 4` (and `remove sprint Sprint 4`).
+  - The command finds the sprint by name on the boards of the issue's project that use sprints, and refuses a name two such sprints have, or an archived sprint for an issue going in. It joins the sprint in the same transaction as the command's other changes: all of it, or none.
+  - "sprint" is a field's name where a project has a field called Sprint: then it's that field, as it was.
+  - A rule's command can't move issues between sprints. Rules change fields; who plans a sprint is people.
+- **Story points** are a number field the board chooses (`points_field_id`). The board sums them on each column and for the sprint shown, and the backlog for what it holds.
+- **Velocity** is, per sprint that has begun (the last twelve), what it held when it started and what was resolved in it by its end, in points, estimated hours or issues; and the average done over the last three that are over. Both come from history, as the burndown's do (D21): the burndown's reading of a sprint is shared, and counts a board's points where it counted estimates. A sprint without dates has no velocity. An issue limited away from the reader (D37) counts for nothing in a sprint's burndown or velocity, as in its count.
+- **A sprint's plan** sets its load against its people's capacity. Load is each assignee's remaining estimate on their unresolved issues in it (estimate less work logged); capacity is the hours they can work from its start (today, once it has begun) to its end, on the board's first project's calendar, their working week and their days away. Its people are its assignees; the unassigned are a row of their own, with no capacity.
+- **Timers.** A person's timer on an issue starts, pauses and stops; one runs at a time per person (a partial unique index), so starting one pauses the other.
+  - Stopping it logs the minutes it counted, rounded, as a work item, or a duration given instead, with a date (today where they are, D31), a note and a type. Under half a minute logs nothing.
+  - The timer is taken before the work is logged, so stopping it twice at once logs the time once. When logging is refused (a type the project requires is missing), the timer is put back as it was.
+  - A timer is the person's own: no event, nobody told, and a timer on an issue they can no longer see is out of sight.
+  - Timing work, the timesheet and correcting logged work take the time permission in the issue's project, as logging it does (D37).
+- **Work types** are a list per project, kept by its managers. Work is logged as one (`work_type_id`), and a project can require one on every work item (`settings.time.workTypeRequired`). A type that has been used is archived, not deleted: it stays on that work and is no longer offered.
+- **The weekly timesheet** shows a person's week, Monday to Sunday, a row per issue and work type, with each day's total against their working hours that day.
+  - Setting a cell logs an entry where there's none, corrects the one there (`work.updated`, a new event, with what it was), and deletes it at 0. A day of several entries is refused (409) and changed on the issue, one by one: a cell can't say which of them to change.
+  - People see and change their own; administrators anyone's. A manager may log work for someone, as before, but a timesheet is a person's own week across projects.
+  - Work logged in projects the reader can't see is left out, as everywhere.
+- **The working week** is each person's (`users.work_week`): hours on each weekday, Sunday first, or none for the plan's working days at their capacity. They set it on their profile; an administrator can set anyone's.
+  - The engine gives each person the plan's working days on which they have hours, and each of those days its share of their capacity, alongside their days away (D36). Someone whose week changes nothing (every working day, at their capacity) keeps the plan's own calendar, so plans come out exactly as they did.
+  - Scheduling, levelling, the load grid, a sprint's capacity and the timesheet's hours all read it.
+- **The Gantt draws days away** (D36): the schedule says, per assignee, their days away on the plan's working days between its start and finish, and the Gantt marks them on that person's bars. It never says why.
+
+**What it costs.**
+- The backlog is a search: at most 500 issues, the rest counted, like a board.
+- A move reads the board's ranks, one query, and writes one row, or all of them when a gap runs out. Placing next to an unranked issue first reads the backlog.
+- Velocity reads each sprint's history as a burndown does: twelve sprints are twelve burndowns' reading.
+- A timesheet is one query for the week's work and one for the person's days away.
+
+**Revisit when:** people want cards ranked by dragging on the board itself (the rank is already the board's); a team is more than a sprint's assignees (capacity for people with nothing in it yet); timesheets are submitted and approved; or a rule should plan sprints (`sprint` in a rule's command), which wants a decision about who plans.
+
 ### D44. More reports: issues per field, a matrix, average age and time in state
 
 Four more reports, worked out on request as D21's are, each on the Reports page, as a dashboard widget, as CSV and in `get_report`. Two count issues as they are now; two read the history, each day as it stood.
@@ -1226,8 +1265,9 @@ Planned, with the seams already in place:
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
-- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
+- days away from an HR calendar (D36);
 - fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
-- CI reporting builds to a build field on its own, with a token per pipeline (D41).
+- CI reporting builds to a build field on its own, with a token per pipeline (D41);
+- ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43).

@@ -13,7 +13,9 @@ export type CommandOp =
   /** A project's custom action, by name (D40): what it does is read in each issue's project. */
   | { kind: 'action'; name: string }
   /** A state machine's transition, by name (D40): its field moves to `to`, by that transition. */
-  | { kind: 'transition'; name: string; field: string; to: string };
+  | { kind: 'transition'; name: string; field: string; to: string }
+  /** Into or out of a sprint of a board of the issue's project, by its name (D43). */
+  | { kind: 'sprint'; mode: 'add' | 'remove'; name: string };
 
 type Named = { kind: 'action'; name: string } | { kind: 'transition'; name: string; field: string; to: string };
 
@@ -124,7 +126,30 @@ class CommandParser {
     const w = this.word();
     if (!w) return false;
     if (['add', 'remove', 'tag', 'untag', 'for', 'comment'].includes(w)) return true;
+    if (w === 'sprint' && this.sprintClause()) return true;
     return this.matchPhrase(this.fieldPhrases).length > 0 || this.matchPhrase(this.linkPhrases).length > 0 || this.matchPhrase(this.namedPhrases).length > 0;
+  }
+
+  /**
+   * "sprint" begins the sprint clause (D43), unless the issues have a field called Sprint: then it
+   * is that field, as it always was.
+   */
+  private sprintClause(): boolean {
+    return !this.fieldsInScope.some((f) => f.name.toLowerCase() === 'sprint' || f.name.toLowerCase() === 'sprints');
+  }
+
+  /** A sprint's name: one quoted or braced token, or the words up to the next clause. */
+  private readSprintName(): string | null {
+    const t = this.peek();
+    if (!t) return null;
+    if (t.kind === 'quoted' || t.kind === 'braced') {
+      this.pos++;
+      return t.value;
+    }
+    const first = this.pos;
+    while (this.peek() && this.peek()!.kind !== 'comma' && this.peek()!.kind !== 'hash' && (this.pos === first || !this.atClauseStart())) this.pos++;
+    if (this.pos === first) return null;
+    return this.input.slice(this.tokens[first]!.start, this.tokens[this.pos - 1]!.end).trim() || null;
   }
 
   parse(): ParsedCommand {
@@ -172,6 +197,13 @@ class CommandParser {
       const start = this.peek()!.end;
       this.ops.push({ kind: 'comment', text: this.input.slice(start).trim(), at: this.peek()!.start });
       this.pos = this.tokens.length;
+      return;
+    }
+    if ((w2 === 'sprint' || w2 === 'sprints') && this.sprintClause()) {
+      this.pos++;
+      const name = this.readSprintName();
+      if (!name) return this.problem('Expected the name of a sprint', this.peek() ?? t, 'e.g. "sprint Sprint 4", or "remove sprint Sprint 4"');
+      this.ops.push({ kind: 'sprint', mode: mode === 'remove' ? 'remove' : 'add', name });
       return;
     }
     if (w2 === 'for') {
@@ -507,6 +539,8 @@ export function describeCommand(ops: CommandOp[]): string {
           return `run the action “${op.name}”`;
         case 'transition':
           return `${op.name}: set ${op.field} to ${op.to}`;
+        case 'sprint':
+          return `${op.mode === 'add' ? 'add to' : 'remove from'} sprint ${op.name}`;
       }
     })
     .join('; ');

@@ -148,8 +148,15 @@ function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
       </text>
     </>
   ) : null;
+  // Days its assignee is away while it's on: shaded behind the bar, half a day dashed (D43).
+  const away = t.away.map((a) => (
+    <rect key={a.date} className={a.part === 'day' ? 'gantt-away' : 'gantt-away half'} x={s.x(a.date)} y={top + 3} width={s.dayWidth} height={22}>
+      <title>{a.part === 'day' ? 'Away' : `Away in the ${a.part}`}</title>
+    </rect>
+  ));
   return (
     <g className={cls} data-task={t.id}>
+      {away}
       {base}
       {slack}
       {shape}

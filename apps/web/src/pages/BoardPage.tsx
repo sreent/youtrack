@@ -94,12 +94,13 @@ export default function BoardPage() {
   const projects = v.board.projects.map((p) => p.name).join(', ');
   const kind = v.board.sprintsEnabled ? 'A sprint board' : 'A kanban board';
   const total = v.columns.reduce((n, c) => n + c.count, 0);
+  const points = v.points !== null ? ` ${v.sprint ? v.sprint.name : 'It'} holds ${v.points} story points.` : '';
   return (
     <>
       <PageHead
         title={v.board.name}
         crumbs={crumbs}
-        about={`${kind} for ${projects || 'no project'}, in columns by ${v.board.columnField}${v.board.swimlaneField ? ` and lanes by ${v.board.swimlaneField}` : ''}.`}
+        about={`${kind} for ${projects || 'no project'}, in columns by ${v.board.columnField}${v.board.swimlaneField ? ` and lanes by ${v.board.swimlaneField}` : ''}.${points}`}
         actions={
           <>
             {v.sprints.length > 1 ? (
@@ -112,6 +113,11 @@ export default function BoardPage() {
                   return next;
                 })}
               />
+            ) : null}
+            {v.board.sprintsEnabled ? (
+              <Link className="button" to={`/boards/${v.board.id}/plan`}>
+                Plan sprints
+              </Link>
             ) : null}
             {v.sprint?.startDate && v.sprint.endDate ? (
               <Link className="button" to={`/reports/burndown?board=${v.board.id}&sprint=${v.sprint.id}`}>

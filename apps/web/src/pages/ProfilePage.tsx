@@ -8,6 +8,7 @@ import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
 import { DaysAway } from '../features/away/DaysAway';
+import { WorkWeek } from '../features/away/WorkWeek';
 import { EmailSettings } from '../features/notifications/EmailSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
@@ -244,6 +245,15 @@ export default function ProfilePage() {
         </div>
         <p className="section-note">Everyone sees when you're away; why, only you, administrators and whoever enters it.</p>
         <DaysAway person={{ login: m.login, name: m.name }} you canEnter={m.auth.scopes.includes('write') && !m.isBot} />
+      </section>
+
+      <section className="card" aria-labelledby="week">
+        <div className="section-head">
+          <h2 id="week">Working week</h2>
+          <span className="note">Your hours each day</span>
+        </div>
+        <p className="section-note">Part time, or a weekday off: plans give you work on the days you work, those hours each, and your timesheet measures each day against them.</p>
+        <WorkWeek week={m.workWeek} capacity={m.capacityHoursPerDay} canChange={m.auth.scopes.includes('write') && !m.isBot} />
       </section>
 
       <section className="card" aria-labelledby="subscriptions">

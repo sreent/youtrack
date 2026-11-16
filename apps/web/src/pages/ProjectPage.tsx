@@ -17,6 +17,7 @@ import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { WorkTypes } from '../features/projects/WorkTypes';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
@@ -299,6 +300,14 @@ export default function ProjectPage() {
           <span className="note">The plan's calendar and its money. People's own hours and rates are under Administration.</span>
         </div>
         <PlanSettings project={p} canEdit={canEdit} />
+      </section>
+
+      <section className="card" aria-labelledby="work-types">
+        <div className="section-head">
+          <h2 id="work-types">Work types</h2>
+          <span className="note">The kinds of work time is logged as here</span>
+        </div>
+        <WorkTypes project={p} canEdit={canEdit} />
       </section>
       <section className="card" aria-labelledby="fields">
         <div className="section-head">

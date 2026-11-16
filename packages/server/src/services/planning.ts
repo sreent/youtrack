@@ -21,7 +21,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, projects, workItems } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
-import { todayISO } from '../lib/dates';
+import { addDays, maxDate, minDate, todayISO } from '../lib/dates';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import {
@@ -39,6 +39,8 @@ import {
   type ScheduledTask,
   type ScheduleResult,
 } from '../planning';
+import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
+import type { AwayPart } from '../planning/types';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
 import { canReadProject, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
@@ -174,7 +176,7 @@ export async function loadPlan(
   const resources: PlanResource[] = [...people]
     .map((id) => s.users.get(id))
     .filter((u): u is NonNullable<typeof u> => Boolean(u))
-    .map((u) => ({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate }));
+    .map((u) => ({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate, week: u.workWeek }));
   const items: PlanWorkItem[] = work.map((w) => ({ taskId: rid.get(w.issueId)!, authorId: w.authorId, date: w.date, minutes: w.minutes, hourlyRate: w.hourlyRate }));
 
   let baseline: PlanBaseline | null = null;
@@ -243,7 +245,32 @@ function scheduleDto(l: Loaded, r: ScheduleResult): Schedule {
     tasks: r.tasks.map((t) => taskDto(l, t)),
     warnings: r.warnings,
     baseline: r.baseline,
+    away: awayDto(l, r),
   };
+}
+
+/** Assignees' days away on the plan's working days between its start and finish, for the Gantt (D36, D43). */
+function awayDto(l: Loaded, r: ScheduleResult): Schedule['away'] {
+  const assignees = new Set(r.tasks.map((t) => t.assigneeId).filter((id): id is string => Boolean(id)));
+  const cal = normalizeCalendar(l.input.calendar);
+  const byLogin = new Map<string, Map<string, AwayPart>>();
+  for (const a of l.input.absences ?? []) {
+    const login = assignees.has(a.resourceId) ? l.s.users.get(a.resourceId)?.login : undefined;
+    if (!login) continue;
+    const days = byLogin.get(login) ?? new Map<string, AwayPart>();
+    byLogin.set(login, days);
+    const last = a.half ? a.from : minDate(a.to, r.finish);
+    for (let d = maxDate(a.from, r.start); d <= last; d = addDays(d, 1)) {
+      if (d > r.finish || !isWorkingDay(cal, d)) continue;
+      const had = days.get(d);
+      // A morning and an afternoon away are the whole day.
+      days.set(d, !a.half || had === 'day' || (had && had !== a.half) ? 'day' : a.half);
+    }
+  }
+  return [...byLogin]
+    .filter(([, days]) => days.size > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([assignee, days]) => ({ assignee, days: [...days].sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, part]) => ({ date, part })) }));
 }
 
 export async function getSchedule(ctx: Ctx, key: string, opts: { query?: string; baseline?: string } = {}): Promise<Schedule> {
@@ -277,7 +304,7 @@ function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[]
         if (!u) throw badRequest(`Unknown user "${o.assignee}"`);
         out.assigneeId = u.id;
         if (!l.input.resources.some((r) => r.id === u.id)) {
-          l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate });
+          l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate, week: u.workWeek });
         }
       }
     }

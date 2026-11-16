@@ -177,11 +177,12 @@ function Cell({ lane, column, label, children }: { lane: number; column: number;
   );
 }
 
-function ColumnHead({ name, count, limit }: { name: string; count: number; limit: number | null }) {
+function ColumnHead({ name, count, limit, points = null }: { name: string; count: number; limit: number | null; points?: number | null }) {
   const load = columnLoad(count, limit);
   return (
     <div className="board-col-head">
       <h3>{name}</h3>
+      {points !== null ? <span className="board-points">{points} pts<span className="hidden"> of story points</span></span> : null}
       {limit === null ? (
         <span className="board-count">
           {count}
@@ -414,7 +415,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
           <div className="board-grid">
             <div className="board-cols">
               {view.columns.map((c, i) => (
-                <ColumnHead key={c.name} name={c.name} count={counts[i] ?? 0} limit={c.wipLimit} />
+                <ColumnHead key={c.name} name={c.name} count={counts[i] ?? 0} limit={c.wipLimit} points={c.points ?? null} />
               ))}
             </div>
             {lanes.length ? (

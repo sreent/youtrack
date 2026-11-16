@@ -64,6 +64,8 @@ export function eventVerb(e: TrackerEvent): string {
       return 'logged time on it';
     case 'work.deleted':
       return 'removed time logged on it';
+    case 'work.updated':
+      return 'corrected time logged on it';
     case 'sprint.issue_added':
       return 'added it to a sprint';
     case 'sprint.issue_removed':

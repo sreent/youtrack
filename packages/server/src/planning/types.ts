@@ -28,6 +28,11 @@ export interface PlanResource {
   name: string;
   capacityHoursPerDay: number;
   hourlyRate: number | null;
+  /**
+   * Their working week (D43): hours on each weekday, Sunday first. They work the plan's working
+   * days on which they have hours, those hours each. Absent or null: every working day, at capacity.
+   */
+  week?: readonly number[] | null;
 }
 
 export interface PlanTaskInput {

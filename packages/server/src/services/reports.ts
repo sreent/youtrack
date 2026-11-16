@@ -27,7 +27,7 @@ import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, perce
 import { buildTimelines, insideDuring, leftSprint, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
-import { issueSeenSql, projectAccess, requireProject, visibleProjectIds } from './access';
+import { issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
 import { allowedValues, fieldByName, findUser, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
@@ -156,13 +156,33 @@ function ms(v: unknown): number | null {
  * Events that shape issues (created, changed, deleted) matching `where`, oldest first. Only the
  * parts of each payload a report reads leave the database; estimates only when asked for.
  */
+/** What a burndown counts of an issue: its estimate in minutes, or a board's story points (D43). */
+export interface Measure {
+  /** The names the field has gone by in history. */
+  names: string[];
+  parse(value: unknown): number | null;
+}
+
+/** Story points, from the board's points field. */
+export function pointsMeasure(name: string): Measure {
+  return {
+    names: [name],
+    parse: (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    },
+  };
+}
+
 export async function loadEvents(
   ctx: Ctx,
   s: SchemaSnapshot,
   where: SQL,
-  opts: { sprintEvents?: boolean; estimates?: boolean; /** Follow this field's value, by name (D44). */ field?: string } = {},
+  opts: { sprintEvents?: boolean; estimates?: boolean; measure?: Measure; /** Follow this field's value, by name (D44). */ field?: string } = {},
 ): Promise<HistoryEvent[]> {
-  const names = estimateNames(s);
+  const measure = opts.measure ?? { names: estimateNames(s), parse: (v: unknown) => minutesOf(v as string | null) };
+  const names = measure.names;
   const est = names[0]!;
   const nameList = sql.join(
     names.map((n) => sql`${n}`),
@@ -210,12 +230,12 @@ export async function loadEvents(
       e.resolved = r.resolved === 'true';
     }
     if (r.type === 'issue.created') {
-      if (opts.estimates) e.estimate = { minutes: minutesOf(r.createdEstimate) };
+      if (opts.estimates) e.estimate = { minutes: measure.parse(r.createdEstimate) };
       const created = ms(r.importedCreated);
       if (created !== null) e.imported = { createdAt: created, resolvedAt: ms(r.importedResolved) };
     } else if (r.estimateChange) {
       const change = typeof r.estimateChange === 'string' ? (JSON.parse(r.estimateChange) as { to: string | null }) : r.estimateChange;
-      e.estimate = { minutes: minutesOf(change.to) };
+      e.estimate = { minutes: measure.parse(change.to) };
     }
     if (r.sprintId) e.sprintId = r.sprintId;
     if (r.move) {
@@ -487,30 +507,29 @@ export function dayMonth(iso: string, today: string): string {
   return `${d} ${MONTHS[m - 1]}${String(y) === today.slice(0, 4) ? '' : ` ${y}`}`;
 }
 
-export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?: string; by?: 'estimate' | 'count'; timeZone?: string }, now = Date.now()): Promise<Burndown> {
-  requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const tz = timeZoneOrThrow(input.timeZone);
-  const today = todayIn(tz, now);
-  const by = input.by ?? 'estimate';
-  const { sprint, board } = await findSprint(ctx, input, today);
-  // As the board shows it: the issues of the projects the caller can read, and no others.
-  const view = await projectAccess(ctx);
-  const readable = board.projectIds.filter((id) => view.canRead(id));
-  if (!sprint.startDate || !sprint.endDate) {
-    throw badRequest(`${sprint.name} has no ${sprint.startDate ? 'end' : 'start'} date`, `Give it its dates (PATCH /sprints/${sprint.id}) to see its burndown.`);
-  }
-  if (sprint.endDate < sprint.startDate) throw badRequest(`${sprint.name} ends before it starts`, 'Correct its dates.');
-  if (diffDays(sprint.startDate, sprint.endDate) > 366) throw badRequest(`${sprint.name} is longer than a year`, 'A burndown is for a sprint of days or weeks.');
-  const projects = readable.map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));
-
+/**
+ * A sprint's burndown as the engine works it out, from the history of the issues of `projects`
+ * in it: shared by the burndown report and velocity (D43), which may count story points instead
+ * of estimates (`measure`).
+ */
+export async function sprintBurn(
+  ctx: Ctx,
+  s: SchemaSnapshot,
+  sprint: { id: string; name: string; startDate: string; endDate: string },
+  projects: ProjectRow[],
+  by: 'estimate' | 'count',
+  tz: string,
+  now: number,
+  measure?: Measure,
+) {
+  const readable = projects.map((p) => p.id);
   // Who is in it now, and every record of joining or leaving it.
-  const current = await ctx.db
+  const inSprint = await ctx.db
     .select({ id: issues.id, projectId: issues.projectId, number: issues.number, createdAt: issues.createdAt })
     .from(sprintIssues)
     .innerJoin(issues, eq(issues.id, sprintIssues.issueId))
     .where(and(eq(sprintIssues.sprintId, sprint.id), inList(sql`${issues.projectId}`, readable)));
-  const sprintRows = await ctx.db
+  const records = await ctx.db
     .select({ issueId: activities.issueId, rid: sql<string | null>`${activities.payload}->'issue'->>'id'`, type: activities.type })
     .from(activities)
     .where(
@@ -521,6 +540,11 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
       ),
     )
     .orderBy(asc(activities.id));
+  // An issue limited away from the caller (D37) counts for nothing here, as in the sprint's count:
+  // not its points, not its changes, not its summary. A deleted issue's records still count.
+  const seen = await seenIssueIds(ctx, [...inSprint.map((c) => c.id), ...records.flatMap((r) => (r.issueId ? [r.issueId] : []))]);
+  const current = inSprint.filter((c) => seen.has(c.id));
+  const sprintRows = records.filter((r) => !r.issueId || seen.has(r.issueId));
   const ridOf = (r: { projectId: string; number: number }) => `${s.projects.get(r.projectId)?.key ?? '?'}-${r.number}`;
   const liveIds = new Set(current.map((c) => c.id));
   const deletedRids = new Set<string>();
@@ -534,7 +558,7 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
     conds.push(and(inList(activities.projectId, readable), inList(sql`${activities.payload}->'issue'->>'id'`, [...deletedRids]))!);
   }
   const events = conds.length
-    ? await loadEvents(ctx, s, conds.length === 1 ? conds[0]! : sql`(${sql.join(conds, sql` OR `)})`, { sprintEvents: true, estimates: true })
+    ? await loadEvents(ctx, s, conds.length === 1 ? conds[0]! : sql`(${sql.join(conds, sql` OR `)})`, { sprintEvents: true, estimates: true, measure })
     : [];
   const timelines = buildTimelines(events, openStates(s));
   // A move that left this sprint (D41) names it, not its id: file it under the sprint's.
@@ -567,6 +591,27 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
   }
   const days = workDates.map((date) => ({ date, start: startOfDay(date, tz), end: startOfDay(addDays(date, 1), tz) }));
   const res = burndown({ timelines: [...timelines.values()], sprintId: sprint.id, legacy, days, start, end, now, by });
+  return { res, workDates, warnings, current, sprintRows, days, start, end, cal, legacy, timelines };
+}
+
+export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?: string; by?: 'estimate' | 'count'; timeZone?: string }, now = Date.now()): Promise<Burndown> {
+  requireScope(ctx, 'read');
+  const s = await ctx.app.schema.get();
+  const tz = timeZoneOrThrow(input.timeZone);
+  const today = todayIn(tz, now);
+  const by = input.by ?? 'estimate';
+  const { sprint, board } = await findSprint(ctx, input, today);
+  // As the board shows it: the issues of the projects the caller can read, and no others.
+  const view = await projectAccess(ctx);
+  const readable = board.projectIds.filter((id) => view.canRead(id));
+  if (!sprint.startDate || !sprint.endDate) {
+    throw badRequest(`${sprint.name} has no ${sprint.startDate ? 'end' : 'start'} date`, `Give it its dates (PATCH /sprints/${sprint.id}) to see its burndown.`);
+  }
+  if (sprint.endDate < sprint.startDate) throw badRequest(`${sprint.name} ends before it starts`, 'Correct its dates.');
+  if (diffDays(sprint.startDate, sprint.endDate) > 366) throw badRequest(`${sprint.name} is longer than a year`, 'A burndown is for a sprint of days or weeks.');
+  const projects = readable.map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));
+
+  const { res, workDates, warnings, current, sprintRows, days, start, end, cal, legacy, timelines } = await sprintBurn(ctx, s, { ...sprint, startDate: sprint.startDate, endDate: sprint.endDate }, projects, by, tz, now);
 
   // Spent time: work logged on the sprint's issues on its days.
   const memberIds = current.map((c) => c.id);

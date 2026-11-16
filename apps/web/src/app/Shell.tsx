@@ -28,6 +28,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/issues', label: 'Issues', icon: 'tasks' },
       { to: '/boards', label: 'Boards', icon: 'board' },
       { to: '/plan', label: 'Plan', icon: 'timeline' },
+      { to: '/timesheet', label: 'Timesheet', icon: 'clock' },
       { to: '/articles', label: 'Knowledge base', icon: 'book' },
       { to: '/reports', label: 'Reports', icon: 'report' },
       { to: '/assistant', label: 'Assistant', icon: 'agent' },

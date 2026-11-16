@@ -124,6 +124,7 @@ export const EVENT_TYPES = [
   'project.group.changed',
   'project.group.removed',
   'issue.moved',
+  'work.updated',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

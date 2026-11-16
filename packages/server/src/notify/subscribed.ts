@@ -52,6 +52,7 @@ export const SEARCH_EVENT_TYPES = [
   'attachment.removed',
   'work.logged',
   'work.deleted',
+  'work.updated',
   'sprint.issue_added',
   'sprint.issue_removed',
 ] as const;

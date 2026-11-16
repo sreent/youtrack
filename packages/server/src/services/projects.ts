@@ -1,6 +1,7 @@
 import {
   WELL_KNOWN_FIELDS,
   type HelpdeskSettings,
+  type TimeSettings,
   type PlanSettings,
   type Project,
   type ProjectAccess,
@@ -32,12 +33,16 @@ export const DEFAULT_PLAN: PlanSettings = {
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
 export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false };
 
+/** Work types are offered, not required, until a manager of the project says so (D43). */
+export const DEFAULT_TIME: TimeSettings = { workTypeRequired: false };
+
 export function projectSettings(row: ProjectRow): ProjectSettings {
   const raw = (row.settings ?? {}) as Partial<ProjectSettings>;
   return {
     triageMode: (raw.triageMode as TriageMode) ?? 'suggest',
     plan: { ...DEFAULT_PLAN, ...(raw.plan ?? {}) },
     helpdesk: { ...DEFAULT_HELPDESK, ...(raw.helpdesk ?? {}) },
+    time: { ...DEFAULT_TIME, ...(raw.time ?? {}) },
   };
 }
 
@@ -139,7 +144,7 @@ export async function createProject(
   if (input.lead && !lead) throw notFound(`User ${input.lead}`);
   const defaultTriage = ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest';
   const id = newId();
-  const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK };
+  const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK, time: DEFAULT_TIME };
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     await tx.insert(projects).values({
@@ -179,7 +184,7 @@ export async function updateProject(
     archived?: boolean;
     visibility?: ProjectVisibility;
     guestAccess?: boolean;
-    settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings> };
+    settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings>; time?: Partial<TimeSettings> };
   },
 ): Promise<Project> {
   // A project's settings are its managers' (and administrators') to change.
@@ -197,6 +202,7 @@ export async function updateProject(
     triageMode: input.settings?.triageMode ?? current.triageMode,
     plan: { ...current.plan, ...(input.settings?.plan ?? {}) },
     helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
+    time: { ...current.time, ...(input.settings?.time ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;

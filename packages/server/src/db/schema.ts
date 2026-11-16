@@ -50,6 +50,11 @@ export const users = pgTable(
     banned: boolean('banned').notNull().default(false),
     hourlyRate: doublePrecision('hourly_rate'),
     capacityHoursPerDay: doublePrecision('capacity_hours_per_day').notNull().default(8),
+    /**
+     * Their working week (D43): hours on each weekday, Sunday first. Null: the plan's working
+     * days at their capacity. The timesheet, the load grid, scheduling and levelling use it.
+     */
+    workWeek: jsonb('work_week').$type<number[]>(),
     /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
     timeZone: text('time_zone'),
     createdAt: created(),
@@ -383,6 +388,8 @@ export const workItems = pgTable(
     minutes: integer('minutes').notNull(),
     description: text('description').notNull().default(''),
     hourlyRate: doublePrecision('hourly_rate'),
+    /** What kind of work it was, from the project's list (D43). */
+    workTypeId: text('work_type_id').references((): AnyPgColumn => workTypes.id, { onDelete: 'set null' }),
     createdAt: created(),
   },
   (t) => [index('work_items_issue').on(t.issueId), index('work_items_author_date').on(t.authorId, t.date)],
@@ -441,6 +448,10 @@ export const boards = pgTable('boards', {
   columns: jsonb('columns').notNull(),
   swimlaneFieldId: text('swimlane_field_id').references(() => fields.id, { onDelete: 'set null' }),
   query: text('query'),
+  /** The query its backlog is planned from (D43); null: unresolved issues of its projects. */
+  backlogQuery: text('backlog_query'),
+  /** The field its story points are in (D43), summed on columns and sprints. */
+  pointsFieldId: text('points_field_id').references(() => fields.id, { onDelete: 'set null' }),
   sprintsEnabled: boolean('sprints_enabled').notNull().default(false),
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -1985,3 +1996,67 @@ export const scimGroups = pgTable('scim_groups', {
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Agile and time tracking (docs/architecture.md, D43)
+// ---------------------------------------------------------------------------
+
+/**
+ * An issue's place on a board, shared by its backlog and its columns: lower comes first. Ranks
+ * are numbers with gaps; an issue without one comes after those with one, in the query's order.
+ */
+export const boardRanks = pgTable(
+  'board_ranks',
+  {
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    rank: doublePrecision('rank').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_ranks_rank').on(t.boardId, t.rank)],
+);
+
+/** A project's kinds of work (development, testing, …), chosen when work is logged. */
+export const workTypes = pgTable(
+  'work_types',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    ordinal: integer('ordinal').notNull().default(0),
+    /** Kept on the work logged with it, but no longer offered. */
+    archived: boolean('archived').notNull().default(false),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('work_types_project_name').on(t.projectId, sql`lower(${t.name})`)],
+);
+
+/**
+ * A person's timer on an issue: running since `running_since`, or paused (null) with
+ * `elapsed_seconds` counted so far. At most one runs per person; stopping it logs the work.
+ */
+export const timers = pgTable(
+  'timers',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    runningSince: ts('running_since'),
+    elapsedSeconds: integer('elapsed_seconds').notNull().default(0),
+    createdAt: created(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.issueId] }),
+    uniqueIndex('timers_one_running')
+      .on(t.userId)
+      .where(sql`${t.runningSince} IS NOT NULL`),
+  ],
+);

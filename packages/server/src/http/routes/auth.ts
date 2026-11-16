@@ -151,7 +151,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'get', path: '/me', tags, summary: 'Who you are, and what this session or token may do', response: MeSchema }, async ({ ctx }) => meDto(ctx));
 
-  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email, password or time zone', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
+  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email, password, time zone or working week', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
     const user = await updateMe(ctx, body);
     // Answer with you as saved: the row the request began with is from before the change.
     const [row] = await ctx.db.select().from(users).where(eq(users.id, ctx.actor.user.id));

@@ -17,9 +17,10 @@ import { commentUploadTarget, getAttachment, listIssueAttachments, storeAttachme
 import { createBoard, boardView, createSprint, setSprintIssues } from '../src/services/boards';
 import { mentionsConsumer, mentionsOf } from '../src/services/mentions';
 import { getSchedule } from '../src/services/planning';
-import { createdResolvedReport, timeReport } from '../src/services/reports';
+import { burndownReport, createdResolvedReport, timeReport } from '../src/services/reports';
 import { averageAgeReport, issuesPerFieldReport, matrixReport } from '../src/services/more-reports';
 import { logWork, listWorkItems } from '../src/services/workitems';
+import { setTimesheetCell, startTimer } from '../src/services/time';
 import { recipientsFor } from '../src/workflow/tell';
 import { eventLimited } from '../src/services/access';
 import { issueTokenFor } from '../src/services/auth';
@@ -211,6 +212,14 @@ describe('everything else that reads issues', () => {
     const counted = async (ctx: Ctx) => (await boardView(ctx, board.id, sprint.id)).sprint?.issueCount;
     expect(await counted(ben)).toBe(1);
     expect(await counted(chloe)).toBe(2);
+    // Its burndown leaves it out too, its summary among the changes included, and so velocity (D43).
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const dated = await createSprint(chloe, board.id, { name: 'Sprint 2', startDate: day(-3), endDate: day(4) });
+    await setSprintIssues(chloe, dated.id, [secretId, plainId], false);
+    const burn = async (ctx: Ctx) => burndownReport(ctx, { sprint: dated.id, by: 'count' });
+    expect((await burn(chloe)).changes.map((c) => c.summary)).toContain('Falcon payroll export breaks');
+    expect((await burn(ben)).changes.map((c) => c.summary)).not.toContain('Falcon payroll export breaks');
+    expect((await burn(ben)).changes).toHaveLength((await burn(chloe)).changes.length - 1);
     const created = async (ctx: Ctx) => (await createdResolvedReport(ctx, { project: 'BACK' })).buckets.reduce((n, b) => n + b.created, 0);
     expect(await created(chloe)).toBeGreaterThan(await created(ben));
     // And the reports of D44: limited issues count for their readers alone, as search finds them.
@@ -248,6 +257,16 @@ describe('everything else that reads issues', () => {
     await logWork(admin, hr.id, { duration: '2h' });
     expect((await failure(() => logWork(dan, hr.id, { duration: '1h' }))).status).toBe(403);
     expect((await failure(() => listWorkItems(dan, hr.id))).status).toBe(403);
+    // A timer and the timesheet log work too, so they take the time permission, not editing (D43).
+    expect((await failure(() => startTimer(dan, hr.id))).status).toBe(403);
+    const today = new Date().toISOString().slice(0, 10);
+    expect((await failure(() => setTimesheetCell(dan, { issue: hr.id, date: today, minutes: 60 }))).status).toBe(403);
+    await createRole(admin, { name: 'Timekeeper', permissions: ['read', 'time'] });
+    await createRole(admin, { name: 'Copy editor', permissions: ['read', 'edit'] });
+    await addMember(admin, 'HR', { user: 'erin', role: 'Timekeeper' });
+    await addMember(admin, 'HR', { user: 'ben', role: 'Copy editor' });
+    expect((await startTimer(erin, hr.id)).running).toBe(true);
+    expect((await failure(() => startTimer(ben, hr.id))).status).toBe(403);
     expect((await timeReport(dan, { project: 'HR' })).totalMinutes).toBe(0);
     expect((await timeReport(admin, { project: 'HR' })).totalMinutes).toBe(120);
   });
