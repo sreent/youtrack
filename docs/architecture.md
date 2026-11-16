@@ -949,6 +949,29 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
 
+### D44. More reports: issues per field, a matrix, average age and time in state
+
+Four more reports, worked out on request as D21's are, each on the Reports page, as a dashboard widget, as CSV and in `get_report`. Two count issues as they are now; two read the history, each day as it stood.
+
+- **Issues per field** counts the issues a query finds by any field's values, of any kind, or by Project. Dates, and dates and times, go by day, week or month: by their spread unless asked. A date and time falls on its day where the reader is. A multi-valued field counts an issue under each of its values, so the values can add up to more than the issues.
+- **The matrix** crosses two such fields, with each row's and column's total, and the whole.
+- **Each count opens its issues.** It carries the query that finds them now (`project: BACK (Type: Bug) Priority: Critical`, `Due date: {no value}`), which the web app opens in the issues list and an agent can run.
+  - Values go by name, as the query language does, so a value two projects each have counts once.
+  - Past 100 values (50 a side in a matrix), the fewest fold into one count, which no one query finds.
+- **Average age.** Each day, the issues unresolved at its end, and their average and median age, from each one's creation. With a field, also by the value each had that day, as history showed it then: a value renamed since keeps its old name for the days before.
+- **Time in state.** For the issues resolved in the window and still resolved at its end: the days each spent in each state until then, and per state the median and 85th percentile, among the issues that were there. Beside them, the open issues, by how long each has been where it is.
+  - With a board, its columns instead. A column's time is its states' (or, when its column field isn't the state, that field's values', read from history).
+- **Moved issues (D41).** History knew an issue by its readable id, which a move changes. Now the move's event joins the two, so its events under either id are one history, known by the id it last had in the report's projects.
+  - With a project, a moved issue counts on the days it was there. Moved in, it arrives: it wasn't created there, and arriving resolved doesn't resolve it there. Moved out, it leaves, neither deleted nor resolved there. Cumulative flow, created against resolved, cycle time, average age and time in state all read it so. Cycle time and time in state count only the time it spent there; its age is its own.
+  - With a query, the issues it matches now count over their whole history, in any project the caller can see.
+  - A move that left a sprint leaves its burndown.
+  - A move is filed under the project it joins, so a project's history also reads the moves out of it.
+- **Access.** A project the caller can't see answers as one that doesn't exist. Fields are named from the report's own projects, so a field only a hidden project has is unknown, and the hint lists only the others. Reports read what their projects show: an issue limited to some people within a project they can see still counts.
+
+**What it costs.** Issues per field and the matrix read the issues in scope and one field's values: two queries, up to 100,000 issues. Average age and time in state read history as the other reports do, up to 400,000 events, with one more expression when a field is followed. Every history report now reads moves too, and joins their ids in memory.
+
+**Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead); a project's key can be renamed (moves name keys); or issues can be hidden within a project, when a report should leave out what the caller can't open.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1042,4 +1065,5 @@ Planned, with the seams already in place:
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
-- CI reporting builds to a build field on its own, with a token per pipeline (D41).
+- CI reporting builds to a build field on its own, with a token per pipeline (D41);
+- reports leaving out issues hidden within a project the caller can see, once issues can be (D44).

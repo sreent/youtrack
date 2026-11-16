@@ -16,10 +16,11 @@ const dayMonth = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(i
 const fixed1 = (n: number | null) => (n === null ? '—' : String(Math.round(n * 10) / 10));
 
 /** A count that opens its issues, when one query finds them. */
-function Count({ n, query }: { n: number; query: string | null }) {
+function Count({ n, query, shaded }: { n: number; query: string | null; shaded?: boolean }) {
   if (!n || query === null) return <>{n}</>;
   return (
-    <Link to={issuesHref(query)} aria-label={`${plural(n, 'issue')}: open them`}>
+    // On a shaded cell, the figure keeps the shade's own ink, as the load grid's figures do.
+    <Link to={issuesHref(query)} title={`Open ${n === 1 ? 'this issue' : `these ${n} issues`}`} style={shaded ? { color: 'inherit' } : undefined}>
       {n}
     </Link>
   );
@@ -132,7 +133,7 @@ export function MatrixView({ m }: { m: Matrix; compact?: boolean }) {
               <th scope="row">{r.label}</th>
               {m.cells[i]!.map((c, j) => (
                 <td key={j} className="num load-cell" data-load={shade(c.count, max)}>
-                  <Count n={c.count} query={c.query} />
+                  <Count n={c.count} query={c.query} shaded />
                 </td>
               ))}
               <td className="num">
