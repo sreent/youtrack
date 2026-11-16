@@ -96,10 +96,13 @@ remove tag needs-info duplicates BACK-7
 |---|---|---|
 | Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, single sign-on) |
 | Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
+| SAML sign-in | `GET /auth/saml/start?next=`, `POST /auth/saml/acs`, `GET /auth/saml/metadata` | SAML 2.0, for browsers (D27): an AuthnRequest by redirect, the signed response posted back, a new session on success; and a4a's service-provider metadata, for the identity provider |
 | API tokens | `GET/POST /me/tokens`, `PATCH/DELETE /me/tokens/{id}` | Personal tokens with scopes, expiry and, optionally, the only projects they reach (`projects`); the secret is shown once and stored hashed; last-used time is tracked |
 | Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users; administrators also see how each person signs in (`signIn`) |
 | Projects | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{key}` | Projects with short keys (`BACK`), leads, who sees them (`visibility`: `open` or `members`), AI triage mode; each says what you may do in it (`access`) |
 | Project people | `GET/POST /projects/{key}/members`, `PATCH/DELETE /projects/{key}/members/{login}` | Who is in a project and their role (`viewer`, `member`, `manager`). Anyone who sees the project sees its people; its managers change them |
+| Project groups | `GET/POST /projects/{key}/groups`, `PATCH/DELETE /projects/{key}/groups/{group}` | The groups with a role in a project. Everyone in one has at least its role there; someone's role is the highest of their own and their groups'. Its managers change them |
+| Groups | `GET/POST /groups`, `GET/PATCH/DELETE /groups/{id}`, `POST /groups/{id}/members`, `DELETE /groups/{id}/members/{login}` | Groups of people (D27). Anyone signed in sees them and who is in them; administrators make and fill them. One with `providerName` takes its people from the identity provider at each sign-in, never by hand |
 | Project schema | `GET /projects/{key}/fields`, `PUT/DELETE /projects/{key}/fields/{fieldId}` | Which custom fields a project uses, which are required, and their defaults (its managers change them) |
 | Custom fields | `GET/POST /fields`, `PATCH/DELETE /fields/{id}`, `POST/PATCH/DELETE /fields/{id}/values[/{valueId}]` | Field types: enum, state (with *resolved* flag), user, version, string, text, integer, float, date, period. Values can be shared or per-project, ordered and colored |
 | Issues | `GET /issues?query=&sort=`, `POST /issues`, `GET/PATCH/DELETE /issues/{id}` | Search with the query language; create with fields, tags, parent and links in one call; partial updates with `expectedVersion` |
@@ -180,7 +183,7 @@ remove tag needs-info duplicates BACK-7
 | `get_cost_report` | Budget vs. planned vs. actual cost, plus earned value against a baseline | read |
 | `level_resources` | Propose (`dry_run`, default) or apply a levelled schedule that resolves over-allocation; `expect` applies only the proposal the person agreed to | write |
 | `create_baseline` | Snapshot the current plan under a name | write |
-| `list_project_members` | Who is in a project and their role, whether it is members only, and what you may do in it. Assign a members-only project's issues only to its people | read |
+| `list_project_members` | Who is in a project and their role, by name or through a group (with who is in each group), whether it is members only, and what you may do in it. Assign a members-only project's issues only to its people | read |
 | `read_attachment` | Read a text file on an issue, comment or article (a log, a stack trace), up to 128 KB at a time, from an offset or from its end; images and other binary files are refused with where to download them | read |
 | `attach_file` | Attach a small file (256 KB at most, given as `text` or `base64`) to an issue, the agent's own comment, or an article. It goes through the same checks as any upload, and is recorded with the token's name | write |
 | `search_articles` | Find knowledge base articles by words in titles and bodies, in one project or all, with snippets; without words, the latest changed | read |
@@ -265,6 +268,7 @@ What notifications need is in `data`, as logins: `assigned` (new assignees) and 
 - `ai.triage.completed`
 - `baseline.created`
 - `project.member.added`, `project.member.changed`, `project.member.removed`, `project.visibility.changed`
+- `project.group.added`, `project.group.changed`, `project.group.removed`: a group's role in a project (`data` names the group; a group deleted carries `deleted: true`)
 - `attachment.added`, `attachment.removed` (with the file's name, size, type, checksum and link; on an issue, its comment's id when it's a comment's)
 - `article.created`, `article.updated` (with what changed: title, content, parent, position), `article.deleted`
 - `sprint.issue_added`, `sprint.issue_removed`: an issue joined or left a sprint (`data` names the sprint and its board), the history a burndown reads

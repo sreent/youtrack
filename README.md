@@ -56,10 +56,12 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Projects with their own people**:
   - a project is open to everyone, or seen only by its members and administrators;
   - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
+  - **groups** get roles as people do, and someone's role is the highest of their own and their groups';
   - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;
   - tokens can be limited to some projects.
-- **Single sign-on** with your identity provider (OpenID Connect), with password sign-in optional.
+- **Single sign-on** with your identity provider, by OpenID Connect or SAML 2.0 (or both), with password sign-in optional.
   - Accounts are linked by a verified email, can be made on first sign-in, and can be kept to your email domains.
+  - Groups can come from the provider: who is in them follows its groups claim or attribute, at each sign-in.
 - **For integrations**:
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
@@ -159,6 +161,18 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `OIDC_SCOPES` | `openid email profile` | Scopes asked for |
 | `OIDC_ALLOWED_DOMAINS` | empty | Comma-separated email domains allowed in; empty allows any the provider verifies |
 | `OIDC_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
+| `OIDC_GROUPS_CLAIM` | empty | The ID token claim that lists someone's groups (often `groups`): it fills the groups that come from the provider, at each sign-in |
+| `SAML_IDP_METADATA_URL` | empty | Turn on SAML 2.0 sign-in: where the identity provider's metadata is (https). Register `PUBLIC_URL/api/v1/auth/saml/acs` (HTTP-POST) with the provider, or give it `PUBLIC_URL/api/v1/auth/saml/metadata` |
+| `SAML_IDP_ENTITY_ID`, `SAML_IDP_SSO_URL`, `SAML_IDP_CERT` | empty | Or the provider set out by hand: its entity id, its sign-in URL (HTTP-Redirect), and its signing certificates (PEM, or base64 separated by commas) |
+| `SAML_NAME` | the provider's host | What the sign-in page calls it |
+| `SAML_SP_ENTITY_ID` | `PUBLIC_URL/api/v1/auth/saml/metadata` | a4a's own entity id |
+| `SAML_EMAIL_ATTRIBUTE`, `SAML_NAME_ATTRIBUTE` | the usual names | Where the email and the name are; by default `email`, `mail` and their URIs, and `displayName` or given name and surname |
+| `SAML_GROUPS_ATTRIBUTE` | empty | The attribute that lists someone's groups: it fills the groups that come from the provider, at each sign-in |
+| `SAML_TRUST_EMAIL` | `false` | Count the email the provider asserts as verified (SAML has no `email_verified`), so it links existing accounts |
+| `SAML_ALLOWED_DOMAINS` | empty | Comma-separated email domains allowed in (needs `SAML_TRUST_EMAIL`) |
+| `SAML_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
+| `SAML_NAMEID_FORMAT` | empty | The NameID format to ask for; empty takes the provider's (a persistent one is best) |
+| `SAML_ALLOW_IDP_INITIATED` | `false` | Take sign-ins started at the provider, which answer no request of a4a's |
 | `PASSWORD_LOGIN` | `true` | `false` turns password sign-in off, while single sign-on is on |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
 | `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
@@ -292,6 +306,7 @@ What it covers, in `apps/web/e2e`:
 - **Plans**: the what-if, baselines, levelling, and levelling refused (409).
 - **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
+- **Groups**: an administrator makes a group and puts someone in it, and a project gives the group a role; someone in it sees a members-only project as far as that role goes, and not once they're taken out; a group from the identity provider can't be filled by hand.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
 
 To see what a test did, record a trace and open it:
