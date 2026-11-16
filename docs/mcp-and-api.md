@@ -60,7 +60,7 @@ has: request sla: overdue
 ```
 
 - Fields are referenced by name, and multi-word values work without quotes (`State: In Progress`).
-- Supported: ranges (`a .. b`, `*`), negation (`-value`), `and` / `or` / parentheses, and relative dates (`today`, `{this week}`, `-14d`, and `Overdue`, any day before today).
+- Supported: ranges (`a .. b`, `*`), negation (`-value`), `and` / `or` / parentheses, and relative dates (`today`, `{this week}`, `-14d`, and `Overdue`, any day before today). Dates are read in the asker's time zone (their profile's, or the server's), and a day of `created`, `updated` or `resolved` runs from their midnight to their next; a query's explanation names the zone when its dates depend on it. Workflow rules read them in the server's.
 - Free text is searched across summaries, descriptions and comments.
 - `sort by:` accepts several keys.
 
@@ -94,7 +94,7 @@ remove tag needs-info duplicates BACK-7
 
 | Area | Endpoints | What it enables |
 |---|---|---|
-| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, single sign-on) |
+| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, single sign-on). Your `timeZone` (an IANA name, or null for the server's, `serverTimeZone`) is where your dates are read: "today" in your searches and commands, your digest's hour, your email's times |
 | Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
 | API tokens | `GET/POST /me/tokens`, `PATCH/DELETE /me/tokens/{id}` | Personal tokens with scopes, expiry and, optionally, the only projects they reach (`projects`); the secret is shown once and stored hashed; last-used time is tracked |
 | Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users; administrators also see how each person signs in (`signIn`) |
@@ -105,8 +105,9 @@ remove tag needs-info duplicates BACK-7
 | Issues | `GET /issues?query=&sort=`, `POST /issues`, `GET/PATCH/DELETE /issues/{id}` | Search with the query language; create with fields, tags, parent and links in one call; partial updates with `expectedVersion` |
 | Comments | `GET/POST /issues/{id}/comments`, `PATCH/DELETE /comments/{id}` | Markdown comments. `@login` mentions a person who can see the project: they're told, and watch the issue. On a help desk request, `visibility: "public"` also sends a comment to the requester, and takes someone who may change the issue (not a viewer); comments are `internal` unless you say so |
 | Watchers | `GET /issues/{id}/watchers`, `PUT/DELETE /issues/{id}/watchers/me` | Who watches an issue and why (reported it, assigned, commented, mentioned, leads its project, chose to), and watching or not yourself. Idempotent; a token needs `write` |
-| Notifications | `GET /notifications?unread=&issue=`, `GET /notifications/count`, `POST /notifications/read`, `PATCH /notifications/{id}`, `GET /notifications/stream` (SSE) | Your inbox, latest first: each notification folds the events on one issue that came close together, with the strongest reason (`assigned`, `mentioned`, `request`, `watching`) and its words. Mark read by ids, issue or all, `until` the latest you saw; the stream sends your unread count as it changes |
-| Email | `GET/PATCH /me/notification-settings`, `GET/POST /unsubscribe?token=` (public) | What comes by email: `all`, `direct` (mentions, assignments, new help desk requests) or `none`, and a daily digest. The unsubscribe link is signed, per kind, and takes a mail client's one-click POST (RFC 8058) |
+| Notifications | `GET /notifications?unread=&issue=`, `GET /notifications/count`, `POST /notifications/read`, `PATCH /notifications/{id}`, `GET /notifications/stream` (SSE) | Your inbox, latest first: each notification folds the events on one issue that came close together, with the strongest reason (`assigned`, `mentioned`, `request`, `watching`, `subscribed`) and its words, and for `subscribed` which subscription brought it. Mark read by ids, issue or all, `until` the latest you saw; the stream sends your unread count as it changes |
+| Subscriptions | `GET/POST /subscriptions`, `GET/PATCH/DELETE /subscriptions/{id}` | Yours, to a `project` (its `new` issues, or `all`: every change in it) or a `savedSearch` (an issue coming into it, `new`, or any change to one in it, `all`), each saying whether it emails. Posting one for the same project or search again changes it. What a search finds already isn't news. A token needs `write` to change them |
+| Email | `GET/PATCH /me/notification-settings`, `GET/POST /unsubscribe?token=` (public) | What comes by email: `all`, `direct` (mentions, assignments, new help desk requests) or `none` (subscriptions too), and a daily digest at `digestHour` in your time zone. The unsubscribe link is signed, per kind (one subscription's email, for a subscription's), and takes a mail client's one-click POST (RFC 8058) |
 | Help desk | `PATCH /projects/{key}` (`settings.helpdesk`), `GET /issues/{id}/request`; public: `GET /help/{key}`, `POST /help/{key}/requests`, `GET /help/requests/by-token`, `POST /help/requests/by-token/replies` | Open a project's public form and set its first-response target; who asked for an issue and where it stands against the target; for people outside, the form (with its CSRF token and cookie), filing a request, and their request's page and replies, by a tracking token in the `x-tracking-token` header |
 | Links | `GET/POST /issues/{id}/links`, `DELETE /links/{id}`, `GET /link-types` | Relates, depends on / is required for, duplicates, subtask of / parent for |
 | Tags | `GET/POST /tags`, `PATCH/DELETE /tags/{id}`, plus `addTags` / `removeTags` on issues | Colored tags |
@@ -188,10 +189,12 @@ remove tag needs-info duplicates BACK-7
 | `create_article` | Write an article, at the top of a project's tree or under another; the preview says where and shows its start | write |
 | `update_article` | Change an article's title or body (a new version) or move it; `expected_version` refuses to overwrite a newer save. The preview shows the lines it adds and removes | write (idempotent) |
 | `get_report` | A report, worked out from history: `burndown` (is the sprint on track, and what changed its scope), `flow` (issues in each state, day by day), `created_resolved`, `cycle_time` (how long work takes, with percentiles) or `time` (logged, by person, issue, project and week, against estimates) | read |
-| `list_notifications` | What's waiting for the token's person, grouped by issue: assigned, mentioned, help desk requests, changes and comments on what they watch, each with its changes and words. Unread only by default | read |
+| `list_notifications` | What's waiting for the token's person, grouped by issue: assigned, mentioned, help desk requests, changes and comments on what they watch, and what they subscribed to (`because` says which subscription), each with its changes and words. Unread only by default | read |
 | `mark_notifications_read` | Mark the person's notifications read: by id, one issue's, or all | write (idempotent) |
 | `watch_issue` / `unwatch_issue` | Watch an issue for the person, or stop until they take part again | write (idempotent) |
 | `list_watchers` | Who watches an issue, and why | read |
+| `list_subscriptions` | The projects and saved searches the person subscribes to, and what each tells them of. A notification's `because` names the one that brought it | read |
+| `subscribe` | Subscribe the person to a project (its new issues, or every change) or to a saved search, by name or id (an issue coming into it, or any change to one in it); `events: "none"` ends it. Subscribing again changes it | write (idempotent) |
 | `list_rules` | A project's workflow rules, each in words ("When an issue is created, if it matches …, then apply …"), with when it next runs, what it did last, and anything that no longer reads | read |
 | `preview_rule` | What a rule would do, saved or described, without saving or changing anything: its problems (with the text fixed where a4a knows the fix), how many issues match now, and what its command would change on a few (a dry run) | read |
 
@@ -348,4 +351,4 @@ These are the decisions worth thinking through together. v1 ships with the defau
 6. **Partial responses** (later). A YouTrack-style `?fields=id,summary,fields(State)` selector for heavy integrations.
 7. **Agent-specific limits.** Should MCP writes be rate-limited separately from humans, or require a second human approval for bulk changes over N issues?
 8. **The help desk by email** (later). Inbound mail that turns a requester's reply into a public comment, and a reply-to address per request. [v1: replies on the request's page.]
-9. **Per-person time zones** (later), for the digest's hour and the times in emails. [v1: the server's.]
+9. **Per-person time zones.** Done (D31): a person's zone, on their profile, is where their searches read "today", when their digest comes and the zone of their email's times. Rules and agents with no person read the server's.

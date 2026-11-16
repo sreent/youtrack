@@ -45,7 +45,9 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Notifications** of what concerns you:
   - You watch what you report, are assigned, comment on or are mentioned in (`@anna`), and what you choose to; `watcher: me` finds it.
   - An inbox under Work, by issue, its unread count live in the sidebar. Changes close together on one issue are one notification, and nobody hears of their own changes.
-  - Email if you want it: everything, mentions and assignments only, or never, and a daily digest. Each email stops its kind in one click.
+  - Subscriptions: to a project's new issues or every change in it (on its page), and to an issue coming into a saved search or any change to one in it (on the Issues page). Your inbox says which brought what, and your profile lists them.
+  - Email if you want it: everything, mentions and assignments only, or never, and a daily digest; each subscription says whether it emails too. Each email stops its kind in one click.
+  - Your time zone, on your profile: what "today" means in your searches and commands, when your digest comes, and the times in your email.
 - **A help desk** per project: a public form at `/help/<KEY>` for people who aren't users, a page of their own for each request, where they follow the public replies and answer them, and a first-response target (`sla: overdue`). Comments stay internal unless the team makes one public.
 - **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
@@ -167,7 +169,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
-| `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
+| `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 
 ## Production
 

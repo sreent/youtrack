@@ -448,7 +448,7 @@ People watch what they report, are assigned, comment on or are mentioned in (`@l
 
 The change's activity says what notifications need, as logins, worked out against the issue before the change: `data.assigned` (new assignees), `data.mentions` (people newly mentioned, not those mentioned already), and on deletion `data.watchers`, whose rows go with the issue. Text from a help desk's requester mentions nobody.
 
-The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `watching`), and leaves out whoever acted and whoever can't see the project as they would signing in (`projectRolesOf`), and, for a link, the issue at its other end. Each person's delivery is one transaction:
+The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `watching` over `subscribed`, D31), and leaves out whoever acted and whoever can't see the project as they would signing in (`projectRolesOf`), and, for a link, the issue at its other end. Each person's delivery is one transaction:
 
 1. **Once.** `notification_events (user_id, event_id)` is the key. An event the outbox hands over twice, or two instances deliver at once, reaches a person once.
 2. **A burst is one.** An unread notification about the same issue, begun within `NOTIFY_WINDOW_SECONDS` of this event (by the events' own times, so a replay folds the same way) and not yet sealed by its email, takes the event under `FOR UPDATE`; otherwise a new one starts. A read one never takes more: what came after you read it is new.
@@ -468,7 +468,7 @@ Watching, reading and email preferences are the person's own, like their tokens:
 The unread count is live on every instance: a change tells this process's open streams (`GET /notifications/stream`) and, by `NOTIFY` on `a4a_inbox` with the people's ids only, every other instance's. Each stream also counts again every 15 seconds, and after `LISTEN` reconnects, for a notification that was lost. A stream ends when its instance stops, and the client reconnects, to any instance: it carries a count, not events, so there's nothing to resume.
 
 - **Costs:** a row per person per event in `notification_events`; read notifications are kept 180 days.
-- **Revisit when:** a team wants per-project or per-kind subscriptions. Today it's per issue, plus the email level.
+- **Revisit when:** a team wants subscriptions by kind of change. Subscriptions to a project or a saved search are D31.
 
 ### D23. Mail is an outbox too: rendered when sent, at least once
 
@@ -478,7 +478,7 @@ Mail is a row in `mail_outbox` first, written in the transaction that calls for 
 - **Retries.** A failure waits 1, 5 and 15 minutes, then 1, 3, 6 and 12 hours, then gives up; a permanent refusal (SMTP 5xx) gives up at once.
 - **Rendered when sent,** from the row's payload, so a mail says what is true then: a notification's email seals it first (it takes no more events), and isn't sent if it was read in the app meanwhile, or the person no longer wants that kind. A digest with nothing unread isn't sent.
 - **Plain text and simple HTML,** the same lines, the HTML escaped, links only: no images, scripts or styles, nothing loaded. What people wrote is quoted as written, never rendered.
-- **Unsubscribe** is one click per kind (RFC 8058: `List-Unsubscribe` and `List-Unsubscribe-Post`), signed with HMAC-SHA256 by a key kept in settings (`notifySecret`), checked in constant time. Email levels nest (`all`, `direct`, `none`), so stopping the emails about watched issues leaves mentions and assignments. Opening the link changes nothing (scanners open links); the page's button, or the client's POST, does.
+- **Unsubscribe** is one click per kind (RFC 8058: `List-Unsubscribe` and `List-Unsubscribe-Post`), signed with HMAC-SHA256 by a key kept in settings (`notifySecret`), checked in constant time. Email levels nest (`all`, `direct`, `none`), so stopping the emails about watched issues leaves mentions and assignments. A subscription's email stops that subscription's email alone (D31). Opening the link changes nothing (scanners open links); the page's button, or the client's POST, does.
 - **Threading.** Mail about one issue references `<issue-…@host>`; a help desk request's, its confirmation.
 - **Why nodemailer:** it is the SMTP client for Node, with pooling, TLS and the RFC details right, and nothing else in the stack does SMTP. Tests run it against a real SMTP server (`smtp-server`).
 - **Costs:** a mail can go twice after a crash; sent mail is kept 30 days.
@@ -548,6 +548,36 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D31. Subscriptions keep their search's issues; dates are read where the person is
+
+**Subscriptions.** A person subscribes to a project: its new issues (`new`), or every change in it too (`all`: what watchers hear of, D22). Or to a saved search, theirs or a shared one: an issue coming into it (`new`), or any change to an issue in it, the one that takes it out included (`all`). The notifier tells them with a reason of its own, `subscribed`, the weakest, so being assigned, mentioned or watching names a notification first. Where a person subscribes to both, a search's subscription is named before a project's, as the more particular.
+
+- **Coming into a search.** An event can't say whether an issue came in: a query is SQL over the issues as they are, not as they were. So each search subscription keeps the issues its search finds for its person (`subscription_issues`). It's filled when the subscription starts, since what's in the search already isn't news, and again when its search's query changes. Every change to an issue, an import's, a logged hour's and a sprint's included, is checked against every search subscription in one read, as the rules engine reads its rules (D25), and the subscriptions it came into or went out of are written down. Only then are imports left out (D21), so an issue an import brought in isn't told as new at its next change.
+- **As its person sees it.** A search is read as its person would read it signing in: their projects, "me" as them, dates in their zone. Someone who can't see an issue's project can't find it, and the notifier checks everyone's access again before telling them (D22). A shared search that is unshared leaves only its owner subscribed, and one deleted ends its subscriptions. A project subscription to a project its person no longer sees tells them nothing, and isn't listed; in the same words as one that doesn't exist.
+- **Email.** A subscription says for itself whether it emails (`email`), and the person's level still rules: "none" stops it. The levels keep their meaning for what calls on you and for what you watch. A subscription's email links to stopping that subscription's email alone, and its entry in the inbox says which subscription brought it.
+- **Agents** list their person's subscriptions and subscribe them (`list_subscriptions`, `subscribe`, taking a saved search by its name), as they watch issues for them. Subscriptions are personal, as watching is: no activity, nothing in any history.
+
+**Time zones.** A person's time zone is on their profile: an IANA name, kept canonical, with the browser's offered. `zoneOf(ctx)` gives the zone a call reads dates in: its person's own, or the server's.
+
+- **What it decides:**
+  - "today", "{this week}", "-7d" and "Overdue" in searches, and the bounds of a day for created, updated and resolved. A day runs from local midnight to local midnight: 23 or 25 hours where clocks change (`startOfDay`, as reports work out their days, D21).
+  - "today" typed for a date field, in a form or a command.
+  - The day logged work falls on when no date is given.
+  - When their digest comes: at `DIGEST_HOUR` where they are, once per day of theirs.
+  - The times in their email, with the zone named.
+  - "today" in the assistant's prompt.
+- **It says so.** A search whose dates depend on the zone says which: "… (dates in Asia/Tokyo)".
+- **What reads the server's zone:**
+  - rules and guards, so a rule means the same whoever's change sets it off;
+  - scheduled work, and agents with no person of their own (the workflow agent, triage);
+  - plans, whose calendar is the project's.
+- **Agents acting for a person** (the assistant, a token over MCP) read dates in that person's zone.
+- **The web app** shows times in the browser's zone, as it did. Someone travelling sees the local time, while their dates stay in their own zone until they change it.
+
+**Costs.** A search subscription keeps a row per issue its search finds. Each change to an issue compiles each search subscription's query for its person, and reads them all for that issue in one query: fine at a team's scale (Limits). An issue that comes into a search by time alone (one becoming overdue), or by a change to another issue (a link), is told at its own next change.
+
+**Revisit when:** many people subscribe to large searches. Compile each subscription once per schema version, and check changes in batches. Or when someone wants subscriptions by kind of change (only resolutions), or to hear of what time alone brings into a search: a chore that reads the searches again.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -561,6 +591,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 | A history entry without its change, or the reverse | Impossible: same transaction |
 | Webhooks and triage | At least once, in id order, from the outbox, by the one instance that holds the lease. The lease runs on the database's clock and is renewed while a consumer is busy; a cursor moves only while its lease holds |
 | Notifications | At least once in, once out: `notification_events` keys each person's events, so a redelivered event reaches nobody twice. Folding into an unread notification and its email sealing it are serialised on the notification's row |
+| The issues a search subscription knows | Kept by the notifier, one event at a time in id order, by the one instance holding the lease (D31). An event handed over twice finds its issue already written down, so it tells nobody twice |
 | Mail | At least once, idempotent per notification, digest day and help desk event (`dedupe_key`); claimed with `SKIP LOCKED` and a lease, so two senders never send one at once |
 | Unwatching just after commenting | Holds: watching starts in the change's own transaction, not later in a consumer |
 | Retried `POST` | `Idempotency-Key`: the key is claimed before the work, on any instance; the stored response is replayed, and a key reused with a different body gets 422. A claim left by an instance that died mid-request can be claimed again after 5 minutes |
@@ -608,7 +639,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. The sign-in throttle is shared.
 - **A token's last-used time** is written at most once a minute per instance.
 - **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
-- **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
+- **Time zones.** Dates in a person's searches ("today", "{this week}"), their digest's hour and their email's times follow their own time zone, or the server's when they set none; rules and agents with no person read dates in the server's (D31). The web app shows times in the browser's zone.
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
@@ -622,7 +653,7 @@ Planned, with the seams already in place:
 - OAuth 2.1 for remote MCP (what it takes is in D16);
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
-- per-project subscriptions, and per-person time zones for the digest;
+- subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - an S3-compatible store for files, so several instances need no shared volume (D18);
 - rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
 - matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
