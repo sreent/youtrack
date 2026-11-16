@@ -16,7 +16,7 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 | Client | Surface | Typical jobs |
 |---|---|---|
 | People in the browser | Web UI → REST API | Everything. The UI has no private endpoints. |
-| Scripts and integrations | REST API + webhooks | CI files a bug when a build breaks; a commit hook resolves `PROJ-12`; importers; dashboards and reports |
+| Scripts and integrations | REST API + webhooks | CI files a bug when a build breaks; GitHub or GitLab links commits and pull requests, and `PROJ-12 #Fixed` resolves an issue; importers; dashboards and reports |
 | Coding agents (Claude Code, Cursor) | MCP | Pick up an issue, move it to *In Progress*, comment progress, link follow-ups, resolve it when done |
 | Assistant agents (Claude Desktop, custom) | MCP | Triage the backlog, write status reports and release notes, find duplicates, plan sprints |
 | Event-driven agents | Webhooks / SSE + MCP or REST | React when something happens: triage new issues, notify on blockers |
@@ -26,7 +26,7 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
 ## 2. Design principles
 
 1. **API-first.** Anything you can do in the UI you can do over REST. An OpenAPI 3.1 spec is served at `/api/v1/openapi.json`, with interactive docs at `/api/docs`.
-2. **MCP is curated for agents, not a mirror of REST.** About 22 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
+2. **MCP is curated for agents, not a mirror of REST.** About 24 task-shaped tools instead of ~100 endpoints. They take readable IDs (`PROJ-12`) and names (`"Priority": "Critical"`), not internal IDs. Output is compact and agent-readable. Errors tell the agent how to fix the call (for example *"Unknown value 'Fixd' for State. Did you mean 'Fixed'?"*).
 3. **One tool layer, three surfaces.** The MCP tools and the in-app assistant's tools are the same code, running over the same services as REST, with the same validation and permission checks.
 4. **One permission model.** Every API token belongs to a user and acts as that user. Token scopes (`read`, `write`, `admin`) can only narrow what the user may do.
 5. **Safe by default for agents.**
@@ -35,7 +35,7 @@ Items marked **(later)** are deliberately out of v1 and listed under [Open quest
    - Bulk commands are capped at 50 issues per call.
    - Every tool carries MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`), so a client can auto-approve reads and ask before writes.
    - The in-app assistant asks the user before every write.
-6. **Everything is attributed.** The activity log records who made each change and through which channel: `web`, `api`, `mcp`, `assistant`, `automation` or `system`, plus the token name. History reads *"anna (via MCP · token 'claude-code') changed State: Open → In Progress"*.
+6. **Everything is attributed.** The activity log records who made each change and through which channel: `web`, `api`, `mcp`, `assistant`, `automation`, `system` or `vcs` (a commit or pull request, through an integration), plus the token or integration name. History reads *"anna (via MCP · token 'claude-code') changed State: Open → In Progress"*. A change a workflow rule made says which rule, in its `data.automation`.
 7. **Built for retries and concurrent editors.**
    - Any `POST` accepts an `Idempotency-Key` header, so a retried request doesn't create a second issue.
    - Issue updates accept `expectedVersion` and return `409 Conflict` when someone else changed the issue first, so an agent can't silently overwrite a human's edit.
@@ -54,7 +54,7 @@ has: -Assignee tag: regression
 ```
 
 - Fields are referenced by name, and multi-word values work without quotes (`State: In Progress`).
-- Supported: ranges (`a .. b`, `*`), negation (`-value`), `and` / `or` / parentheses, and relative dates (`today`, `{this week}`, `-14d`).
+- Supported: ranges (`a .. b`, `*`), negation (`-value`), `and` / `or` / parentheses, and relative dates (`today`, `{this week}`, `-14d`, and `Overdue`, any day before today).
 - Free text is searched across summaries, descriptions and comments.
 - `sort by:` accepts several keys.
 
@@ -90,7 +90,7 @@ remove tag needs-info duplicates BACK-7
 |---|---|---|
 | Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile |
 | API tokens | `GET/POST /me/tokens`, `DELETE /me/tokens/{id}` | Personal tokens with scopes and expiry; the secret is shown once and stored hashed; last-used time is tracked |
-| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users |
+| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users. An email is `emailVerified` when an administrator set or confirmed it (`PATCH {emailVerified: true}`); one a person changed themselves isn't, until then |
 | Projects | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{key}` | Projects with short keys (`BACK`), leads, and AI triage mode |
 | Project schema | `GET /projects/{key}/fields`, `PUT/DELETE /projects/{key}/fields/{fieldId}` | Which custom fields a project uses, which are required, and their defaults |
 | Custom fields | `GET/POST /fields`, `PATCH/DELETE /fields/{id}`, `POST/PATCH/DELETE /fields/{id}/values[/{valueId}]` | Field types: enum, state (with *resolved* flag), user, version, string, text, integer, float, date, period. Values can be shared or per-project, ordered and colored |
@@ -112,6 +112,9 @@ remove tag needs-info duplicates BACK-7
 | Plan settings | `PATCH /projects/{key}` (`plan`), `PATCH /users/{id}` (`hourlyRate`, `capacityHoursPerDay`) | Working days, hours per day, holidays, project start, budget and currency; per-person rate and capacity |
 | Events | `GET /events?after=`, `GET /events/stream` (SSE) | A durable change feed: poll it, or stream it live |
 | Webhooks | `GET/POST /webhooks`, `PATCH/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/{id}/test` | Signed push notifications with retries and a delivery log |
+| Workflow rules | `GET/POST /rules`, `GET/PATCH/DELETE /rules/{id}`, `POST /rules/preview`, `POST /rules/check`, `GET /rule-runs?project=&rule=` | Rules that change issues on their own, as the workflow agent: **on a change** (an issue is created, changes, optionally only a named field, or gets a comment) when the issue then matches a query; **on a schedule** (every hour, day or weekday at a time) for every issue that matches; or a **guard**, which refuses a change that would make an issue match one query without matching another, with a message. Preview shows problems where they are, how many issues match now, and what the command would change on a few of them (the executor's dry run). `PATCH {enabled: false}` turns one off. The run log says, issue by issue, applied, unchanged, failed, skipped or refused, and why. Managing a project's rules needs its manager (v1: its lead) or an administrator; rules for every project (`project: null`), an administrator |
+| Version control | `GET/POST /vcs/integrations`, `PATCH/DELETE /vcs/integrations/{id}`, `POST /vcs/integrations/{id}/secret`, `GET /vcs/integrations/{id}/deliveries`, `POST /vcs/integrations/{id}/test`, `GET /issues/{id}/vcs` | Administrators add a GitHub or GitLab integration and get its webhook URL and a secret, shown once (a new secret is shown once too). Deliveries, refused ones included, are logged; a test sends one through a4a's own handling. An issue's commits and pull requests, with the command each commit gave and whether it was applied |
+| Deliveries from GitHub and GitLab | `POST /vcs/hooks/{id}` (public) | Checked with `X-Hub-Signature-256` (an HMAC-SHA256 of the raw body) or `X-Gitlab-Token`, in constant time; rate-limited; handled once per delivery id (`X-GitHub-Delivery`, GitLab's `Idempotency-Key` or `X-Gitlab-Event-UUID`). A push links each commit to the issues its message mentions; `BACK-12 #Fixed` or `BACK-12 #State Fixed Assignee anna` applies the command after `#`, as the person whose verified email wrote the commit, if they can change the project's issues, else links only and says why. Pull and merge requests are linked by title, branch and description, and keep their state (open, merged, closed) |
 | AI | see [section 7](#7-ai-endpoints) | Triage, duplicates, natural language → query or command, summaries, chat |
 | Settings | `GET/PATCH /settings` | Instance name, default AI triage mode |
 | System | `GET /health`, `GET /openapi.json` | Probes, spec |
@@ -121,7 +124,7 @@ remove tag needs-info duplicates BACK-7
 - **CI bot**
   1. On a red build it sends `POST /issues` with `Idempotency-Key: build-4711`, `Type: Bug` and `tag: ci-failure`, so a retry never duplicates the issue.
   2. When the build goes green again it sends `POST /commands` with `State Fixed`.
-- **Commit hook.** A message like `BACK-12 #Fixed` becomes `POST /commands {issues:["BACK-12"], command:"State Fixed", comment:"Fixed in a1b2c3"}`.
+- **Commit hook.** Built in: add a GitHub or GitLab integration, and a commit message like `BACK-12 #Fixed` links the commit and applies the command as its author. Without one, a hook can send `POST /commands {issues:["BACK-12"], command:"State Fixed", comment:"Fixed in a1b2c3"}`.
 - **Weekly report.** `POST /search/count {query:"project: BACK #Unresolved", groupBy:"Priority"}`.
 - **Chat bot.** Read `GET /events/stream` and post "BACK-12 moved to In Progress by anna".
 
@@ -140,7 +143,7 @@ remove tag needs-info duplicates BACK-7
 | `list_projects` | Projects with key, name, description, open-issue counts | read |
 | `get_project` | A project's fields and allowed values (states marked resolved/unresolved), link types, tags, people | read |
 | `search_issues` | Run a query. Returns total + compact rows (id, summary, state, priority, type, assignee, updated). Invalid queries return the error position and a suggestion | read |
-| `get_issue` | One issue in full: fields, description, links (subtasks, blockers, duplicates), recent comments, spent time, pending AI triage suggestions | read |
+| `get_issue` | One issue in full: fields, description, links (subtasks, blockers, duplicates), recent comments, spent time, pending AI triage suggestions, and the commits and pull requests that mention it (with each commit's command and whether it was applied) | read |
 | `count_issues` | Count issues matching a query, optionally grouped by a field ("open bugs by priority") | read |
 | `get_activity` | Recent changes: who changed what and when, filtered by issue, project, query or time ("what happened since yesterday?") | read |
 | `find_similar_issues` | Rank existing issues by similarity to some text. Use before filing an issue to avoid duplicates | read |
@@ -157,8 +160,10 @@ remove tag needs-info duplicates BACK-7
 | `get_cost_report` | Budget vs. planned vs. actual cost, plus earned value against a baseline | read |
 | `level_resources` | Propose (`dry_run`, default) or apply a levelled schedule that resolves over-allocation; `expect` applies only the proposal the person agreed to | write |
 | `create_baseline` | Snapshot the current plan under a name | write |
+| `list_rules` | A project's workflow rules, each in words ("When an issue is created, if it matches …, then apply …"), with when it next runs, what it did last, and anything that no longer reads | read |
+| `preview_rule` | What a rule would do, saved or described, without saving or changing anything: its problems (with the text fixed where a4a knows the fix), how many issues match now, and what its command would change on a few (a dry run) | read |
 
-Deliberately **not** exposed over MCP in v1: deleting issues, user and permission admin, webhooks, settings.
+Deliberately **not** exposed over MCP in v1: deleting issues, user and permission admin, webhooks, settings, integrations, and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
 
 ### 5.2 Resources (read-only context a client can attach)
 
@@ -217,6 +222,9 @@ An agent or integration can react to changes instead of polling.
 - `link.created`, `link.deleted`
 - `work.logged`
 - `ai.triage.completed`
+- `commit.linked` (with the command it gave, whether it was applied and why), `pull_request.linked`, `pull_request.updated` (its state moved: open, merged, closed)
+
+A change a workflow rule made carries `data.automation`: the rule's id and name, and how many rules deep in a chain it is.
 
 **Payload**
 
@@ -274,6 +282,6 @@ These are the decisions worth thinking through together. v1 ships with the defau
 2. **Agents as teammates** (later). Assignable bot users that pick up issues assigned to them and report back, triggered by webhooks. This was the AI feature not picked for v1; the event feed and MCP make it a small step.
 3. **OAuth 2.1 for remote MCP** (later). Needed for claude.ai custom connectors and one-click sign-in from MCP clients. [v1 uses bearer tokens.]
 4. **Per-project token restrictions** (later). For example, a token that can only touch `BACK`. [v1 has scopes only.]
-5. **VCS integration** (later). An inbound GitHub/GitLab webhook that turns `BACK-12 #Fixed` in commit messages into commands and links PRs to issues.
+5. **VCS integration.** [Done: GitHub and GitLab integrations link commits and pull requests, and `BACK-12 #Fixed` applies as the commit's author, by their verified email.] Still open: several emails per person, or a mapping from a provider's logins, so a commit under a no-reply address can run commands too.
 6. **Partial responses** (later). A YouTrack-style `?fields=id,summary,fields(State)` selector for heavy integrations.
 7. **Agent-specific limits.** Should MCP writes be rate-limited separately from humans, or require a second human approval for bulk changes over N issues?

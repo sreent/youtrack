@@ -11,7 +11,7 @@ This is how a4a is put together, and why. Each decision says what it costs and w
   MCP clients ──▶│ /mcp         MCP, Streamable HTTP          ├─▶ services ──▶ Postgres / PGlite│
   stdio clients ─│  (a4a-mcp bridge ─▶ /mcp)            │      ▲  │                         │
                  │ assistant    Claude tool loop ─────────────┘      │  └─▶ activities (outbox)  │
-                 │ worker       webhooks · AI triage · live events ◀─┘                            │
+                 │ worker       webhooks · rules · AI triage · live events ◀─┘                    │
                  └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -203,6 +203,48 @@ A query or command problem names its span and, when there is a likely fix, the t
 - Agents over MCP or the API can apply it the same way.
 - A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
 
+### D14. Workflow rules: an outbox consumer that acts, and guards inside the write path
+
+A rule belongs to a project (or, for administrators, to every project) and is one of three kinds. All three are the query language for *which issues* and the command language for *what to change*, so a rule is checked, previewed and explained the way a query or a command is.
+
+**Rules on a change and scheduled rules act afterwards, as the workflow agent.**
+
+- Rules on a change run in the outbox worker, as a consumer of `issue.created`, `issue.updated` and `comment.created`. Each rule the event sets off acts when the issue, as it is when the rule runs, matches the rule's query. All of them are evaluated in one read, against the issue as the change left it.
+- Scheduled rules (every hour, day or weekday, at a time, in the server's time zone) run in the same worker's periodic step, which only the instance holding the worker's lease reaches. A turn is claimed by moving the rule's next run on (a conditional update), so it runs once even if the lease changes hands. Issues are read in pages by id, renewing the lease between pages, up to 2,000 a run.
+- Both apply through the command executor's own step (`commandSpec`, then `applyChanges`), as the `workflow` bot with channel `automation`, with "me" standing for whoever made the change that set them off. The bot acts with administrator scopes, confined by the rule's own project scope; a rule's author must be able to see what its command links to.
+- A rule that fails is written in its run log with why, and never stops the others or the outbox.
+
+**Loops stop at a fixed depth, with each rule acting once per chain.** Every change a rule makes records its cause on every activity it writes (`data.automation`: the rule, the change that started the chain, how deep it is). Rules a rule sets off act one step deeper, up to three steps. And a rule acts on an issue at most once for each change that starts a chain: the run log's unique key (rule, issue, origin) is claimed in the same transaction as the rule's change. The same key makes a replayed event, which at-least-once delivery allows, do nothing. Chains are useful (a scheduled rule tags an issue overdue; a rule on that change raises its priority); the key guarantees they end, and the depth bounds how far they reach.
+
+**Guards are checked inside `applyChanges`, in the same transaction.** A guard says: a change that makes an issue match Q must leave it matching R. Before writing, `applyChanges` reads whether each of the project's guards holds; after writing everything (fields, tags, links, the comment) and before commit, it reads again. A change that takes the issue from keeping a guard to breaking it is refused (422), and the transaction takes all of it back. An issue that broke a guard before the guard existed can still be changed in other ways: a guard refuses only what makes things worse. A new issue has no "before", so `createIssue` checks its guards at the end of its own transaction, and a refused issue doesn't even use up its number.
+
+**Keeping the write path fast, and free of deadlocks.**
+
+- Rules are reference data: they load with the schema snapshot, so a project without guards pays a filter over memory and no query, and a rule change invalidates the snapshot like any other.
+- With guards, the two checks are one SELECT each, over every guard at once, on the transaction's own connection. Reads take no row locks and never wait on one (MVCC), so the checks add no edge to the wait-for graph: they can't take part in a deadlock. A snapshot reload inside the transaction runs on the transaction's connection (see `SchemaCache.get`), never the pool, so on PGlite it can't wait on itself.
+- A refusal is written to the run log on the pool and not awaited. The refused transaction never waits on it: on PGlite it queues behind the transaction, and on Postgres it waits for the issue's row lock, which the refused transaction releases as it ends.
+- The rule engine's own writes take the issue's row lock first, as every write to an issue does, then claim the run.
+
+**What it costs.** A rule acts a few seconds after a change (the outbox's settle time), not inside it, so a person sees their own change first and the rule's a moment later, each in the history under its own name. Dry runs don't evaluate guards (they write nothing to evaluate), so a command's preview can't say a guard will refuse it; applying it does, per issue. Guards see changes made through the write path: deleting a comment or logging work isn't checked.
+
+**Agents can't make rules.** They list them and preview them over MCP. A rule acts later, on its own, on every issue that ever matches it: it would outlive the conversation and the caps on an agent's commands, and agents read text anyone can write.
+
+**Revisit when:** rules need to read more than one issue (a parent's state, a sprint's), or to do something other than a command (notify, call out): then a small expression language over the issue, still evaluated by the same engine.
+
+### D15. Version control: verified deliveries, idempotent links, commands as the verified author
+
+GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{integration}`.
+
+- **Who sent it.** GitHub's `X-Hub-Signature-256`, an HMAC-SHA256 of the raw body, is recomputed and compared in constant time; GitLab's `X-Gitlab-Token` is hashed and compared in constant time. The raw bytes are read before anything parses them. GitHub's secret is an HMAC key, so a4a keeps it to check signatures (as it keeps its own webhooks' secrets to sign); GitLab's token is kept only as a SHA-256. Neither is shown after it's made.
+- **How often.** Deliveries are rate-limited per integration; refusals are rate-limited per address, and those over the limit aren't logged, so the log can't be flooded.
+- **Once.** The provider's delivery id is claimed before the work. One sent again is answered as a duplicate. One that failed (or died, after ten minutes) may be handled again, which is safe because linking is idempotent per (issue, commit) and per (issue, pull request), held by unique keys.
+- **Commands.** `BACK-12 #Fixed` applies the command after `#` as the person whose *verified* email wrote the commit, and only if they can write to the project (asked through `services/access.ts`). A commit's author email is whatever the committer typed, and a4a's own emails are whatever people typed, so an email counts only when an administrator set or confirmed it (`users.email_verified_at`; a person changing their own clears it). Each (commit, issue) is one transaction that locks the issue first; the command runs in a savepoint, so a command that fails, or a guard that refuses it, leaves the link and says why.
+- **History.** Linking records `commit.linked`, `pull_request.linked` and `pull_request.updated`, on a new channel, `vcs`, as the matched person or as the integration itself, so the issue's history, the event feed and webhooks see it.
+
+**Costs.** One email per person, so commits under a provider's no-reply address run no commands. A push reads its first 500 commits.
+
+**Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -213,7 +255,11 @@ A query or command problem names its span and, when there is a likely fix, the t
 | A history entry without its change, or the reverse | Impossible: same transaction |
 | Webhooks and triage | At least once, from the outbox, by one worker at a time |
 | Retried `POST` | `Idempotency-Key`: the key is claimed before the work, the stored response is replayed, and a key reused with a different body gets 422 |
-| Reference data (fields, values, users) | Cached in memory per instance and invalidated after local writes. A generation counter stops a slow reload from overwriting a newer invalidation. Other instances see changes within 60s |
+| Reference data (fields, values, users, workflow rules) | Cached in memory per instance and invalidated after local writes. A generation counter stops a slow reload from overwriting a newer invalidation. Other instances see changes within 60s |
+| A guard and the change it checks | Same transaction: the change is checked after it's written and before commit, and refused all or nothing (D14) |
+| A rule acting on a replayed event, or a loop of rules | Once per (rule, issue, change that started the chain), claimed in the rule's own transaction; chains stop three rules deep |
+| A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
+| A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
 
 ## Security
 
@@ -224,6 +270,7 @@ A query or command problem names its span and, when there is a likely fix, the t
 - **Login:** throttled per IP and login.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
+- **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email an administrator vouched for, and only where they can write (D15). Links from a payload are shown only if they are http(s).
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
@@ -247,7 +294,6 @@ Planned, with the seams already in place:
 - attachments;
 - a knowledge base;
 - notifications;
-- a VCS integration (`BACK-12 #Fixed` in commits);
 - `LISTEN/NOTIFY` for multi-instance live events;
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
