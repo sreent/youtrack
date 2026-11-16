@@ -1110,6 +1110,23 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
 
+### D47. a4a on a phone: installed from the browser, offline-shy, and pushing what the inbox gets
+
+Not native apps: the web app is the product, and a phone can install it. What that takes is a manifest, a service worker, push, and pages made for a thumb.
+
+- **Installable.** `manifest.webmanifest` names a4a, its icons (drawn from its mark by `apps/web/scripts/make-icons.mjs`, at the sizes Android and iOS ask for, and a maskable one), Ocean's page colours in light and dark, `display: standalone`, shortcuts to New issue and the inbox, and a share target: a page or text shared from another app opens New issue with it filled in (a GET to `/issues/new`, so no service worker reads a form).
+- **What the service worker keeps** (`apps/web/sw/service-worker.js`, written by the build as `/sw.js` with the build's id and the files of its shell): the app shell alone, index.html and the build's own scripts, styles, fonts, icons and manifest. They are the same for everyone and hold nobody's data. The API (`/api`, `/mcp`, `/oauth`, `/scim`, `/.well-known`) is never kept, so nothing outlives a sign-out and nothing of one person's is shown to another on a shared device. A page is the network's when it answers within four seconds, the kept shell's otherwise; opened offline, a4a says so and waits for the network (React Query asks again when it's back).
+- **A new version** is fetched and kept beside the old one, and takes over on the next start; meanwhile a quiet notice above the page offers to reload into it. The worker and the manifest are served `no-cache`, and the worker registered with `updateViaCache: 'none'`.
+- **Push.** A person turns push on per device from their profile. The browser's push subscription (its push service's address, and the device's key and secret) is kept as `push_subscriptions`, with the session that sent it: signing out there, a new password or an administrator ending the sign-in ends it, as does a push service saying the device is gone (404, 410), or five refusals in a row. The notifier queues a push to each device in the same transaction as the notification (`push_outbox`), by the person's push level (`all`, `direct`, `none`, as email's, `all` taking what they subscribe to). A sender on every instance sends it five seconds later, so a burst on one issue goes as one push; a notification pushes again only when it comes to call on them more (a mention folding into what they watch). What it says is worked out when it's sent: nothing once read, once they can't see it (the project, or the issue limited away from them, read fresh rather than from access's ten-second memory), or once the device's sign-in has ended.
+- **Its cryptography is Node's own**: VAPID (RFC 8292) signs a short token for each push service with a key from `VAPID_*`, or made once and kept in the database, its private half sealed with `SECRET_KEY` as two-factor secrets are, so every instance signs alike; each message is encrypted to its device (RFC 8291, aes128gcm), checked in the tests against the RFC's worked example. The push service carries what it can't read.
+- **Where pushes go** is the browser's choice, someone else's address: so only the browsers' push services (`PUSH_HOSTS`: FCM, Mozilla's, Apple's and Windows'), over https on 443, no credentials in the address, and a redirect is an answer, never a place to go. A test may use plain http on this machine (`PUSH_ALLOW_HTTP_LOOPBACK`).
+- **On the device** a push is a notification per issue (its tag), alerting again as it's replaced; tapping it opens the issue in the a4a window already open, or a new one. The app's badge shows what's unread, from each push and from the page.
+- **Pages for a thumb** (Ocean): on a touch screen everything to tap is 44px at the least; a dense row's links and boxes grow their target, not their look. The page reaches the screen's edges and keeps clear of the notch and the home indicator; the keyboard shortens the page rather than covering what's typed (`interactive-widget=resizes-content`); a board's columns are most of the screen wide, a swipe settling on each. The browser flows hold the issue list, an issue, New issue, the inbox and a board to that at 390px, in light and dark.
+
+**What it costs.** The shell is about 1.8 MB, fetched once per version. A push is a few queries to render and one request per device, and a sender's poll every five seconds on each instance. iOS and iPadOS push only to a4a added to the Home Screen and opened from there (16.4 and later); the profile says so. A headless browser can't subscribe to a real push service, so the browser flows use a push service of their own and the worker's notifications are checked as asked for, not as drawn.
+
+**Revisit when:** people want to act from a notification (assign to me, a state) without opening a4a, which wants notification actions and a way to authenticate them from the worker; or to read and write offline, which wants a store on the device that's cleared at sign-out, and a way to reconcile what was written meanwhile; or a native app is wanted for what the web can't do there.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1201,6 +1218,7 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 Planned, with the seams already in place:
 
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
+- acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
