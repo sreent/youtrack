@@ -24,7 +24,7 @@ import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { listIssueAttachments } from '../src/services/attachments';
 import { listComments } from '../src/services/comments';
-import { requestOf } from '../src/services/helpdesk';
+import { deskAddress, requestOf } from '../src/services/helpdesk';
 import { deskMail, inboundLog, newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
 import { getIssue } from '../src/services/issues';
 import { updateProject } from '../src/services/projects';
@@ -105,6 +105,7 @@ beforeAll(async () => {
   w.app.schema.invalidate();
   await updateProject(w.adminCtx, 'BACK', { lead: 'anna', settings: { helpdesk: { enabled: true, firstResponseHours: 4, intro: '' } } });
   await setDeskAddress(w.adminCtx, 'BACK', DESK);
+  await newMailSecret(w.adminCtx, 'BACK');
   back = projectByKey(await w.app.schema.get(), 'BACK')!;
   http = createHttpApp(w.app);
   outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], {}, [], () => {});
@@ -326,8 +327,21 @@ describe("a desk's address and webhook", () => {
     await expect(setDeskAddress(w.adminCtx, 'WEB', 'SUPPORT@desk.test')).rejects.toMatchObject({ status: 409, code: 'address_taken' });
     const tooLong = `${'x'.repeat(40)}@desk.test`;
     await expect(setDeskAddress(w.adminCtx, 'WEB', tooLong)).rejects.toMatchObject({ status: 400 });
+    // An address mail can't reach yet is offered to nobody: not on the form, not as a reply address.
+    const web = projectByKey(await w.app.schema.get(), 'WEB')!;
+    await setDeskAddress(w.adminCtx, 'WEB', 'web@desk.test');
+    expect(await deskAddress(w.app, web.id)).toBeNull();
+    await newMailSecret(w.adminCtx, 'WEB');
+    expect(await deskAddress(w.app, web.id)).toBe('web@desk.test');
+    await setDeskAddress(w.adminCtx, 'WEB', null);
+    expect(await deskAddress(w.app, web.id)).toBeNull();
     const mailbox = await deskMail(w.adminCtx, 'BACK');
-    expect(mailbox).toMatchObject({ address: DESK, replyAddress: 'support+k7q2x9…@desk.test', inbound: { url: `${BASE}/api/v1/mail/inbound/BACK`, secretPrefix: null }, imap: { configured: false } });
+    expect(mailbox).toMatchObject({
+      address: DESK,
+      replyAddress: 'support+k7q2x9…@desk.test',
+      inbound: { url: `${BASE}/api/v1/mail/inbound/BACK`, secretPrefix: expect.stringMatching(/^hdm_.{4}$/) },
+      imap: { configured: false },
+    });
   });
 
   it('takes posts only with its secret, as HTTP Basic, and answers alike for any other', async () => {

@@ -117,14 +117,20 @@ export async function helpForm(app: AppServices, key: string, nonce: string): Pr
     csrf: await formToken(app, p.key, nonce),
     mail: mailConfigured(app),
     captcha: settings.captcha ? await captchaChallenge(app, p.key) : null,
-    email: await deskAddress(app.db, p.id),
+    email: await deskAddress(app, p.id),
   };
 }
 
-/** The address a desk takes mail at, or null when it takes none (D30). */
-export async function deskAddress(db: Db, projectId: string): Promise<string | null> {
-  const [row] = await db.select({ address: helpdeskMailboxes.address }).from(helpdeskMailboxes).where(eq(helpdeskMailboxes.projectId, projectId));
-  return row?.address ?? null;
+/**
+ * The address a desk takes mail at (D30): only once mail can reach it, by its webhook's secret or
+ * the shared mailbox, so nobody is offered an address, or a reply address, that leads nowhere.
+ */
+export async function deskAddress(app: AppServices, projectId: string): Promise<string | null> {
+  const [row] = await app.db
+    .select({ address: helpdeskMailboxes.address, secret: helpdeskMailboxes.secretHash })
+    .from(helpdeskMailboxes)
+    .where(eq(helpdeskMailboxes.projectId, projectId));
+  return row && (row.secret || app.config.helpdeskImapUrl) ? row.address : null;
 }
 
 /**

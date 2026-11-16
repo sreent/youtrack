@@ -58,7 +58,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   const stop = await unsubscribeToken(app, 'request', issue.id);
   // A desk that takes mail gets answers by email too: each email's reply address carries a token
   // of its own, minted as it's sent, as the tracking link's is (D30).
-  const deskMail = await deskAddress(app.db, issue.projectId);
+  const deskMail = await deskAddress(app, issue.projectId);
   const replyToken = deskMail ? await mintReplyToken(app.db, issue.id) : null;
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
