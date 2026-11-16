@@ -16,6 +16,7 @@ import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { ProjectSubscription } from '../features/notifications/Subscriptions';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -262,6 +263,10 @@ export default function ProjectPage() {
         <section className="card" aria-labelledby="triage">
           <h2 id="triage">AI triage</h2>
           <Triage project={p} canEdit={canEdit} aiOn={Boolean(ai.data?.enabled)} />
+        </section>
+        <section className="card" aria-labelledby="subscription">
+          <h2 id="subscription">Your subscription</h2>
+          <ProjectSubscription project={p} />
         </section>
       </div>
       <section className="card" aria-labelledby="people">

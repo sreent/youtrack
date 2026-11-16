@@ -14,7 +14,7 @@ import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
-import { TOUR_AUTH_FILE } from './support/env';
+import { BASE_URL, TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 
 interface Stop {
@@ -48,6 +48,24 @@ const withRules = async (api: Api) => {
 };
 
 /** An integration of the tour's own: it only waits for deliveries. */
+/**
+ * The guide subscribes, in their own session, to a project of the tour's own and to a saved search
+ * in it: their profile lists them. Nothing happens in that project, so nothing is told.
+ */
+const withSubscriptions = async (api: Api, page: Page) => {
+  const key = uniqueKey('TS');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const theirs = async <T,>(path: string, data: unknown): Promise<T> => {
+    const res = await page.request.post(`/api/v1${path}`, { data, headers: { origin: BASE_URL } });
+    expect(res.ok(), `POST ${path}: ${res.status()}`).toBe(true);
+    return (await res.json()) as T;
+  };
+  await theirs('/subscriptions', { project: key, events: 'all', email: false });
+  const search = await theirs<{ id: string }>('/saved-searches', { name: `Critical in ${key}`, query: `project: ${key} Priority: Critical`, shared: false });
+  await theirs('/subscriptions', { savedSearch: search.id, events: 'new' });
+  return '/me';
+};
+
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
   return '/integrations';
@@ -107,6 +125,7 @@ const STOPS: Stop[] = [
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
+  { name: 'your subscriptions', path: withSubscriptions, ready: (p) => p.getByRole('region', { name: 'Table of your subscriptions' }) },
 ];
 
 const MODES = [

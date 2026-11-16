@@ -62,6 +62,7 @@ function NotificationEntry({ n }: { n: Notification }) {
             {whenRead(n.lastAt)}
           </time>
         </p>
+        {n.subscription ? <p className="note">Because you subscribed to {n.subscription.about}.</p> : null}
         {changes.length ? <ChangeLines changes={changes} /> : null}
         {links.map((e) => (
           <p key={e.id} className="note">
@@ -138,7 +139,7 @@ export default function InboxPage() {
     <>
       <PageHead
         title="Inbox"
-        about="What concerns you: issues assigned to you, mentions, new help desk requests, and changes and comments on issues you watch."
+        about="What concerns you: issues assigned to you, mentions, new help desk requests, changes and comments on issues you watch, and what you subscribe to."
         meta={
           <>
             <span>{unread ? `${count(unread, 'unread notification')}` : 'Nothing unread'}</span>
