@@ -49,7 +49,7 @@ describe('the secret box', () => {
     expect(sealed).not.toContain('JBSWY3DPEHPK3PXP');
     expect(open(key, sealed)).toBe('JBSWY3DPEHPK3PXP');
     const parts = sealed.split('.');
-    const flipped = [...parts.slice(0, 3), parts[3]!.slice(0, -2) + (parts[3]!.endsWith('A') ? 'B' : 'A') + parts[3]!.slice(-1)].join('.');
+    const flipped = [...parts.slice(0, 3), parts[3]!.slice(0, -2) + (parts[3]!.at(-2) === 'A' ? 'B' : 'A') + parts[3]!.slice(-1)].join('.');
     expect(open(key, flipped)).toBeNull();
     expect(open({ ...key, secretKey: 'another key' }, sealed)).toBeNull();
     expect(open(key, 'not sealed at all')).toBeNull();

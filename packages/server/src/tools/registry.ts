@@ -28,6 +28,7 @@ import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
 import { accessTools } from './access';
+import { appTools } from './apps';
 import { articleTools } from './articles';
 import { attachmentTools } from './attachments';
 import { formatBytes, listIssueAttachments } from '../services/attachments';
@@ -614,6 +615,7 @@ export const TOOLS: ToolDef[] = [
   ...issueMoveTools,
   ...chatTools,
   ...buildTools,
+  ...appTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

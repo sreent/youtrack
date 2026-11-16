@@ -29,6 +29,7 @@ import { VisibleToCard } from '../features/issues/VisibleTo';
 import { useRequestInfo } from '../features/notifications/api';
 import { useProjectGroups } from '../features/groups/api';
 import { WorkflowBar } from '../features/workflow/WorkflowBar';
+import { AppWidgets } from '../features/apps/AppWidgets';
 import { attachmentKeys } from '../features/attachments/api';
 import { RichField } from '../features/editor/RichField';
 
@@ -379,6 +380,7 @@ export default function IssuePage() {
       />
       {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
       {moving ? <MoveIssue issue={data} onClose={() => setMoving(false)} /> : null}
+      <AppWidgets at="issue-below-summary" issue={data.id} />
       {project.data && !project.data.access.write ? (
         <p className="note">
           {project.data.access.comment
@@ -417,6 +419,7 @@ export default function IssuePage() {
           <RequestCard issue={data} />
           <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />
+          <AppWidgets at="issue-panel" issue={data.id} />
         </div>
       </div>
       <CommandBar issues={[{ id: data.id, summary: data.summary }]} open={commanding} onClose={() => setCommanding(false)} />

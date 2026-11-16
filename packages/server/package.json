@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx src/db/seed-cli.ts",
-    "files:to-s3": "tsx src/attachments/copy-cli.ts"
+    "files:to-s3": "tsx src/attachments/copy-cli.ts",
+    "apps:pack": "tsx scripts/app-pack.ts"
   },
   "dependencies": {
     "@a4a/shared": "workspace:*",
@@ -26,11 +27,12 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@node-saml/node-saml": "^5.2.0",
     "@scalar/api-reference": "^1.78.1",
-    "@sreent/ocean": "github:sreent/ocean#966b220155861273afcb60cc169b5dafb4b99247",
+    "@sreent/ocean": "github:sreent/ocean#6e36b53fd5e05c5d36793c74999168e20faef4db",
     "@scalar/hono-api-reference": "^0.12.20",
     "@xmldom/xmldom": "^0.8.15",
     "busboy": "^1.6.0",
     "drizzle-orm": "^0.45.4",
+    "fflate": "0.8.2",
     "hono": "^4.13.18",
     "html-to-text": "10.0.1",
     "imapflow": "^2.12.1",
@@ -39,8 +41,8 @@
     "nodemailer": "10.3.1",
     "openid-client": "^6.8.9",
     "pg": "^8.23.1",
-    "quickjs-emscripten": "0.31.0",
     "qrcode": "^1.5.4",
+    "quickjs-emscripten": "0.31.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

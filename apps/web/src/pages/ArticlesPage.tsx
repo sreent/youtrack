@@ -19,6 +19,7 @@ import { FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { whenRead } from '../features/common/format';
 import { errorText, useStateTones } from '../features/issues/api';
+import { AppWidgets } from '../features/apps/AppWidgets';
 
 type View = 'home' | 'article' | 'new' | 'edit' | 'history';
 
@@ -484,6 +485,7 @@ function ArticleView() {
           ) : null}
           <MentionedIn a={a} />
           <ArticleFiles key={`files-${a.id}`} a={a} canWrite={canWrite} />
+          <AppWidgets at="article-panel" article={a.id} />
           {canWrite ? <MoveOrDelete key={`move-${a.id}`} a={a} /> : null}
         </Beside>
       </div>

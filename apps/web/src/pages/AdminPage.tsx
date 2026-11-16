@@ -12,6 +12,7 @@ import { LadderChoice } from '../features/common/Ladder';
 import { GroupsSection } from '../features/groups/GroupsSection';
 import { RolesSection } from '../features/roles/RolesSection';
 import { ProvisioningSection } from '../features/identity/Provisioning';
+import { AppsSection } from '../features/apps/AppsSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
 
@@ -446,6 +447,7 @@ export default function AdminPage() {
       <GroupsSection />
       <RolesSection />
       <ProvisioningSection />
+      <AppsSection />
       <section className="card" aria-labelledby="vcs-people">
         <div className="section-head">
           <h2 id="vcs-people">Who wrote which commits</h2>

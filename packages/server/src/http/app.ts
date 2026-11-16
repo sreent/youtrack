@@ -46,6 +46,8 @@ import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
 import { chatRoutes } from './routes/chat';
 import { pushRoutes } from './routes/push';
+import { appRoutes, mountAppFiles } from './routes/apps';
+import { appCallGuard } from './app-calls';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -112,6 +114,7 @@ export function createHttpApp(runtime: Runtime) {
   emailRoutes(api);
   chatRoutes(api);
   pushRoutes(api);
+  appRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -147,6 +150,8 @@ export function createHttpApp(runtime: Runtime) {
   root.use('*', authenticate(runtime));
   // The SAML assertion consumer takes the provider's post: signed, answering a request of this browser's (D27).
   root.use('/api/*', csrfGuard(runtime.config.publicUrl, ['/api/v1/auth/saml/acs']));
+  // A call a widget asked a4a's page to make: within its app's grant, as the person through it (D48).
+  root.use('/api/*', appCallGuard(runtime));
   root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy, new RateLimiter(runtime.config.guestRateLimit, 60_000)));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
   // Provisioning (SCIM, D38): its own tokens and errors, under the API's limit.
@@ -175,6 +180,7 @@ export function createHttpApp(runtime: Runtime) {
 
   root.all('/mcp', (c) => handleMcp(c));
   mountOAuth(root, runtime);
+  mountAppFiles(root, runtime);
 
   root.all('/api/*', (c) => c.json(errorBody('not_found', `No endpoint ${c.req.method} ${c.req.path}`, 'See /api/docs'), 404));
 
@@ -191,6 +197,8 @@ export function createHttpApp(runtime: Runtime) {
     root.use('/assets/*', async (c, next) => {
       await next();
       c.header('cache-control', 'public, max-age=31536000, immutable');
+      // Ocean's fonts, for apps' widgets too (D48): a sandboxed frame has no origin, and fonts load with CORS.
+      if (c.req.path.endsWith('.woff2')) c.header('access-control-allow-origin', '*');
     });
     // The service worker and the manifest are asked for again each time (D47): a new build is
     // taken up on the next start, never a day later from a cache.

@@ -10,6 +10,7 @@ import { Said } from '../features/common/bits';
 import { createDashboard, reportKeys, saveDashboard, useDashboards, useDefaultDashboard } from '../features/reports/api';
 import { REPORTS } from '../features/reports/ReportView';
 import { WidgetBody, widgetTitle } from '../features/reports/Widgets';
+import { AppWidgets } from '../features/apps/AppWidgets';
 
 const newWidgetId = () => Math.random().toString(36).slice(2, 10);
 
@@ -481,6 +482,7 @@ export default function DashboardPage() {
           <p className="note">{d.canEdit ? 'Nothing on it yet. Choose Arrange to add a report, a search or a note.' : 'Nothing on it yet.'}</p>
         )}
         {editing && d.canEdit ? <AddWidget onAdd={(w) => save({ widgets: [...d.widgets, w] }, { widget: w.id, act: 'earlier' })} /> : null}
+        <AppWidgets at="dashboard" />
       </div>
     </>
   );

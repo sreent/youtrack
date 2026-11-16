@@ -21,6 +21,8 @@ import { WorkTypes } from '../features/projects/WorkTypes';
 import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
 import { ProjectChannels } from '../features/chat/Chat';
+import { AppWidgets } from '../features/apps/AppWidgets';
+import { ProjectApps } from '../features/apps/ProjectApps';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
@@ -344,6 +346,16 @@ export default function ProjectPage() {
         </div>
         <Baselines project={p} />
       </section>
+      {canEdit ? (
+        <section className="card" aria-labelledby="project-apps">
+          <div className="section-head">
+            <h2 id="project-apps">Apps</h2>
+            <span className="note">What apps add here; turn one off and it does nothing here</span>
+          </div>
+          <ProjectApps project={p.key} />
+        </section>
+      ) : null}
+      <AppWidgets at="project-settings" project={p.key} />
     </>
   );
 }

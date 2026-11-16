@@ -44,6 +44,8 @@ import { runScript } from './sandbox';
 import { changeOf, scriptInput, type ScriptChange } from './script-issue';
 import { applyPlanned, plannedChanges, scriptErrorText, type Planned } from './scripts';
 import { recipientsFor } from './tell';
+import { appAgentCtx } from '../apps/actor';
+import { settingsForRule } from '../services/apps';
 import { listWords, nextRunAfter } from './words';
 
 /** How many rules deep a chain may go: a rule's change sets off rules, whose changes set off rules… */
@@ -286,9 +288,12 @@ export class RuleEngine {
    * acted on this issue for this change, all of it is taken back.
    */
   async apply(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<Outcome> {
-    const bot = s.usersByLogin.get(WORKFLOW_BOT);
+    // An app's rule acts as the app's agent, within its grant (D48); any other, as the workflow agent.
+    const owner = rule.appId ? s.apps.get(rule.appId) : undefined;
+    const bot = owner ? s.users.get(owner.agentId) : s.usersByLogin.get(WORKFLOW_BOT);
     if (!bot) throw new Error('The workflow agent is missing: restart the server to create it');
-    const ctx: Ctx = { ...botCtx(this.app, bot, issue.projectId), automation: { rule: rule.id, name: rule.name, origin: chain.origin, depth: chain.depth + 1, by: chain.me } };
+    const base = owner ? appAgentCtx(this.app, s, owner, bot, issue.projectId) : botCtx(this.app, bot, issue.projectId);
+    const ctx: Ctx = { ...base, automation: { rule: rule.id, name: rule.name, origin: chain.origin, depth: chain.depth + 1, by: chain.me } };
     // A replayed event, or a loop come round: this rule already acted on this issue for this change.
     if (chain.origin !== null && (await this.actedFor(rule, issue, chain.origin))) return 'duplicate';
     const d = draftOf(rule);
@@ -298,8 +303,11 @@ export class RuleEngine {
     let planned: Planned[] = [];
     let logs: string[] = [];
     if (rule.script) {
-      const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null));
-      const out = await runScript(rule.script, input);
+      // An app's rule reads comments only if its app was granted them (D48), and never a limited one.
+      const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null), { unlimited: Boolean(owner) });
+      if (owner && !owner.granted.read.includes('comments')) input.issue.comments = [];
+      // And its app's settings, the project's over the app's.
+      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input);
       const logged = logWords(out.intents.logs);
       if (out.error) {
         await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`);

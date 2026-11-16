@@ -56,6 +56,11 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
       return { kind: 'agent', name: actor.login ?? 'automation', via: 'on its own' };
     case 'email':
       return { kind: 'person', name: person, via: 'by email' };
+    case 'app':
+      // An app's agent acting as itself (its rules), or a person through an app's widget or handler (D48).
+      return actor.isBot
+        ? { kind: 'agent', name: actor.name ?? actor.token ?? 'an app', via: 'an app, on its own' }
+        : { kind: 'person', name: person, via: `via the ${actor.token ?? 'an'} app` };
     case 'vcs':
       // A commit's author, known by a confirmed email or their login at the provider, or the integration itself.
       return actor.id

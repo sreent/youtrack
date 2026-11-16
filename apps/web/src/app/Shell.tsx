@@ -9,6 +9,7 @@ import { initials } from '../components/Who';
 import { useInboxLive, useUnreadCount } from '../features/notifications/api';
 import { forgetPushHere, keepPushInStep } from '../features/notifications/push';
 import { takeNewVersion, useAppBadge, useNewVersionReady, useOnline, useOpenFromNotifications } from './pwa';
+import { useAppExtensions } from '../features/apps/api';
 
 interface NavItem {
   to: string;
@@ -58,6 +59,23 @@ const NAV: { group: string; items: NavItem[] }[] = [
     ],
   },
 ];
+
+/** Apps' pages of their own (D48), under the menu's last group, when there are any. */
+function AppNav() {
+  const ext = useAppExtensions('main-menu');
+  if (!ext.data?.length) return null;
+  return (
+    <>
+      <div className="group">Apps</div>
+      {ext.data.map((e) => (
+        <NavLink key={`${e.app}/${e.name}`} to={`/apps/${e.app}/${e.name}`}>
+          <Icon name="list" />
+          <span>{e.title}</span>
+        </NavLink>
+      ))}
+    </>
+  );
+}
 
 /** Re-read what changed when the tracker says so (best effort, live). */
 function useLiveInvalidation() {
@@ -154,6 +172,7 @@ export function Shell({ me }: { me: Me }) {
               </Fragment>
             );
           })}
+          <AppNav />
         </nav>
         <div className="me">
           <NavLink to="/me" title="Your profile">

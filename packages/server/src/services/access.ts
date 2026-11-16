@@ -238,7 +238,7 @@ async function groupIdsOf(db: Db, userId: string): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' | 'guest'>): Promise<AccessView> {
+async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' | 'guest' | 'app'>): Promise<AccessView> {
   // A guest reads the projects open to guests, and nothing else (D37).
   if (actor.guest) {
     const open = await db
@@ -247,6 +247,18 @@ async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' 
       .where(and(eq(projects.guestAccess, true), eq(projects.visibility, 'open')));
     const grants = new Map<string, Grant>(open.map((p) => [p.id, { role: GUEST.id, roleName: GUEST.name, permissions: GUEST.permissions, via: 'guest', key: p.key }]));
     return new AccessView(false, actor.scopes, grants, false, actor.user.id, [], true);
+  }
+  // An app's agent (D48): what its grant gives it, in the projects it runs in, and nothing else.
+  if (actor.app?.agent) {
+    const permissions = appPermissions(actor.app.granted);
+    const limit = actor.projectIds ? new Set(actor.projectIds) : null;
+    const rows = await db.select({ id: projects.id, key: projects.key }).from(projects).where(inArray(projects.id, actor.app.projectIds.length ? actor.app.projectIds : ['']));
+    const grants = new Map<string, Grant>();
+    for (const p of rows) {
+      if (limit && !limit.has(p.id)) continue;
+      if (!actor.user.banned) grants.set(p.id, { role: 'app', roleName: 'App', permissions, via: 'app', key: p.key });
+    }
+    return new AccessView(false, actor.scopes, grants, false, actor.user.id, []);
   }
   const admin = actor.user.role === 'admin' || actor.scopes.includes('admin');
   const limit = actor.projectIds ? new Set(actor.projectIds) : null;
@@ -275,6 +287,24 @@ async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' 
     if (g) grants.set(r.id, g);
   }
   return new AccessView(admin, actor.scopes, grants, admin && !limit && !actor.user.banned, actor.user.id, groupIds);
+}
+
+/**
+ * What an app's grant (D48) allows in a project, as permissions: reading, and each kind of writing
+ * it was granted. Writing fields' values and articles needs more than a role an app holds gives; an
+ * app does those through a person's widget or handler, with that person's permissions.
+ */
+export function appPermissions(granted: { read: readonly string[]; write: readonly string[] }): ReadonlySet<Permission> {
+  const out = new Set<Permission>();
+  if (granted.read.length || granted.write.length) out.add('read');
+  if (granted.write.includes('issues')) {
+    out.add('create');
+    out.add('edit');
+  }
+  if (granted.write.includes('comments')) out.add('comment');
+  if (granted.write.includes('time')) out.add('time');
+  if (granted.read.includes('time')) out.add('costs');
+  return out;
 }
 
 const MAX_AGE_MS = 2_000;

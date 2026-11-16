@@ -14,7 +14,17 @@ import { getQuickJS, shouldInterruptAfterDeadline } from 'quickjs-emscripten';
 /** SCRIPT_LIMITS, from the main thread: one definition of them. */
 const L = workerData.limits;
 
-const empty = () => ({ applies: [], comments: [], refusal: null, logs: [] });
+const empty = () => ({ applies: [], comments: [], refusal: null, logs: [], response: undefined, stores: [] });
+
+/** A value as JSON text, or null when it isn't JSON or is longer than `max` characters. */
+function jsonOf(v, max) {
+  try {
+    const text = JSON.stringify(v);
+    return text !== undefined && text.length <= max ? text : null;
+  } catch {
+    return null;
+  }
+}
 
 function clip(text) {
   return text.length > L.text ? `${text.slice(0, L.text - 1)}…` : text;
@@ -112,6 +122,22 @@ function run(module, source, inputJson, limitMs) {
       const t = message ? vm.dump(message) : undefined;
       intents.refusal = clip(typeof t === 'string' && t.trim() ? t.trim() : 'A workflow script refuses this change');
     });
+    // An app's handler (D48) answers with respond(value), and keeps what it wants with store(key, value).
+    define('respond', (value) => {
+      const v = value === undefined ? null : vm.dump(value);
+      const text = jsonOf(v, L.response);
+      if (text === null) fail(`respond() takes JSON of ${L.response.toLocaleString('en')} characters at most`);
+      intents.response = JSON.parse(text);
+    });
+    define('store', (key, value) => {
+      const k = key ? vm.dump(key) : undefined;
+      if (typeof k !== 'string' || !k.trim() || k.length > 200) fail("store() takes a key of 200 characters at most, then its value: store('total', 42)");
+      if (intents.stores.length >= L.stores) fail(`A run stores ${L.stores} keys at most`);
+      const v = value === undefined ? null : vm.dump(value);
+      const text = jsonOf(v, L.stored);
+      if (text === null) fail(`A stored value is JSON of ${L.stored.toLocaleString('en')} characters at most`);
+      intents.stores.push({ key: k.trim(), value: JSON.parse(text) });
+    });
     define('log', (...args) => {
       if (intents.logs.length >= L.logs) return;
       intents.logs.push(clip(args.map((a) => shown(vm.dump(a))).join(' ')));
@@ -128,6 +154,7 @@ function run(module, source, inputJson, limitMs) {
         globalThis.issue = freeze(i.issue);
         globalThis.change = freeze(i.change);
         globalThis.project = freeze(i.project);
+        for (const k of ['request', 'settings', 'storage', 'app']) if (k in i) globalThis[k] = freeze(i[k]);
       })()`,
       'prelude.js',
     );

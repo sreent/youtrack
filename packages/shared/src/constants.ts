@@ -41,7 +41,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci', 'email'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci', 'email', 'app'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */

@@ -146,6 +146,20 @@ export interface Config {
   /** For tests: an import may read over plain http from this machine (IMPORT_ALLOW_HTTP_LOOPBACK). Never in production. */
   importAllowHttpLoopback: boolean;
   /**
+   * App catalogs (D48): JSON indexes at https addresses, comma-separated (APP_CATALOGS). An
+   * administrator installs from them, each package checked against the digest its catalog names.
+   */
+  appCatalogs: string[];
+  /**
+   * Ed25519 public keys an app's signature may be made with (APP_TRUSTED_KEYS, comma-separated,
+   * base64 of the 32-byte key or PEM). A catalog that signs its apps has each one checked against them.
+   */
+  appTrustedKeys: string[];
+  /** The largest app package, in bytes (APP_MAX_MB, default 5). */
+  appMaxBytes: number;
+  /** For tests: catalogs and packages may be read over plain http from this machine (APP_ALLOW_HTTP_LOOPBACK). */
+  appAllowHttpLoopback: boolean;
+  /**
    * The key secrets a4a reads back are encrypted with (SECRET_KEY): a TOTP secret (D38). The same on
    * every instance. Without it, one is made in DATA_DIR/secret.key the first time it's needed.
    */
@@ -593,6 +607,16 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
     importAllowHttpLoopback: truthy(env.IMPORT_ALLOW_HTTP_LOOPBACK, false),
+    appCatalogs: (env.APP_CATALOGS ?? '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean),
+    appTrustedKeys: (env.APP_TRUSTED_KEYS ?? '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean),
+    appMaxBytes: megabytes(env.APP_MAX_MB, 5),
+    appAllowHttpLoopback: truthy(env.APP_ALLOW_HTTP_LOOPBACK, false),
     secretKey: env.SECRET_KEY?.trim() || undefined,
     ldap,
     codeHosts: codeHostsFromEnv(env),

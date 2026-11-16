@@ -17,8 +17,11 @@
  */
 /* global BUILD, SHELL */
 const CACHE = `a4a-shell-${BUILD}`;
-/** Paths that are always the network's, never kept: the API, MCP, provisioning, sign-in flows. */
-const NEVER = /^\/(api|mcp|scim|oauth|\.well-known)(\/|$)/;
+/**
+ * Paths that are always the network's, never kept: the API, MCP, provisioning, sign-in flows, and
+ * apps' files and their kit (D48), which a widget's frame loads from signed addresses.
+ */
+const NEVER = /^\/(api|mcp|scim|oauth|\.well-known|app-files|app-kit)(\/|$)/;
 /** How long a page waits for the network before the kept shell answers. */
 const PATIENCE_MS = 4000;
 
@@ -47,7 +50,8 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || NEVER.test(url.pathname)) return;
-  if (request.mode === 'navigate') {
+  // Only a4a's own pages fall back to the shell: a frame within one (an app's widget) is its own.
+  if (request.mode === 'navigate' && request.destination === 'document') {
     event.respondWith(page(request));
     return;
   }

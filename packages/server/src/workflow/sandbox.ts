@@ -32,6 +32,11 @@ export const SCRIPT_LIMITS = {
   comments: 5,
   logs: 50,
   text: 2000,
+  /** An app handler's answer (D48), as JSON characters. */
+  response: 256 * 1024,
+  /** Keys an app handler stores in one run, and the most one value may take, as JSON characters. */
+  stores: 50,
+  stored: 64 * 1024,
 } as const;
 
 /** Worker threads in the pool: each runs one script at a time. */
@@ -52,6 +57,10 @@ export interface ScriptIntents {
   /** A guard's refusal, in its words; or an action's or rule's "don't". */
   refusal: string | null;
   logs: string[];
+  /** An app handler's answer (D48), from respond(). */
+  response?: unknown;
+  /** What an app handler keeps, from store(key, value); a null value forgets the key. */
+  stores?: { key: string; value: unknown }[];
 }
 
 export type ScriptErrorKind = 'syntax' | 'runtime' | 'time' | 'memory';
@@ -273,7 +282,7 @@ export async function checkScript(source: string): Promise<ScriptProblem[]> {
  */
 export async function runScript(
   source: string,
-  input: { issue: unknown; change: unknown; project: unknown },
+  input: { issue: unknown; change: unknown; project: unknown; request?: unknown; settings?: unknown; storage?: unknown; app?: unknown },
   opts: { timeMs?: number; guard?: boolean } = {},
 ): Promise<ScriptOutcome> {
   const limitMs = opts.timeMs ?? (opts.guard ? SCRIPT_LIMITS.guardTimeMs : SCRIPT_LIMITS.timeMs);

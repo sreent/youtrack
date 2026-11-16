@@ -1300,7 +1300,7 @@ Builds are listed on a project's builds page, under an issue's commits (the buil
 Not native apps: the web app is the product, and a phone can install it. What that takes is a manifest, a service worker, push, and pages made for a thumb.
 
 - **Installable.** `manifest.webmanifest` names a4a, its icons (drawn from its mark by `apps/web/scripts/make-icons.mjs`, at the sizes Android and iOS ask for, and a maskable one), Ocean's page colours in light and dark, `display: standalone`, shortcuts to New issue and the inbox, and a share target: a page or text shared from another app opens New issue with it filled in (a GET to `/issues/new`, so no service worker reads a form).
-- **What the service worker keeps** (`apps/web/sw/service-worker.js`, written by the build as `/sw.js` with the build's id and the files of its shell): the app shell alone, index.html and the build's own scripts, styles, fonts, icons and manifest. They are the same for everyone and hold nobody's data. The API (`/api`, `/mcp`, `/oauth`, `/scim`, `/.well-known`) is never kept, so nothing outlives a sign-out and nothing of one person's is shown to another on a shared device. A page is the network's when it answers within four seconds, the kept shell's otherwise; opened offline, a4a says so and waits for the network (React Query asks again when it's back).
+- **What the service worker keeps** (`apps/web/sw/service-worker.js`, written by the build as `/sw.js` with the build's id and the files of its shell): the app shell alone, index.html and the build's own scripts, styles, fonts, icons and manifest. They are the same for everyone and hold nobody's data. The API (`/api`, `/mcp`, `/oauth`, `/scim`, `/.well-known`) is never kept, nor apps' files and their kit (`/app-files`, `/app-kit`, D48), so nothing outlives a sign-out and nothing of one person's is shown to another on a shared device. A page of a4a's own is the network's when it answers within four seconds, the kept shell's otherwise (a frame within one, an app's widget, is always the network's); opened offline, a4a says so and waits for the network (React Query asks again when it's back).
 - **A new version** is fetched and kept beside the old one, and takes over on the next start; meanwhile a quiet notice above the page offers to reload into it. The worker and the manifest are served `no-cache`, and the worker registered with `updateViaCache: 'none'`.
 - **Push.** A person turns push on per device from their profile. The browser's push subscription (its push service's address, and the device's key and secret) is kept as `push_subscriptions`, with the session that sent it: signing out there, a new password or an administrator ending the sign-in ends it, as does a push service saying the device is gone (404, 410), or five refusals in a row. The notifier queues a push to each device in the same transaction as the notification (`push_outbox`), by the person's push level (`all`, `direct`, `none`, as email's, `all` taking what they subscribe to). A sender on every instance sends it five seconds later, so a burst on one issue goes as one push; a notification pushes again only when it comes to call on them more (a mention folding into what they watch). What it says is worked out when it's sent: nothing once read, once they can't see it (the project, or the issue limited away from them, read fresh rather than from access's ten-second memory), or once the device's sign-in has ended.
 - **Its cryptography is Node's own**: VAPID (RFC 8292) signs a short token for each push service with a key from `VAPID_*`, or made once and kept in the database, its private half sealed with `SECRET_KEY` as two-factor secrets are, so every instance signs alike; each message is encrypted to its device (RFC 8291, aes128gcm), checked in the tests against the RFC's worked example. The push service carries what it can't read.
@@ -1311,6 +1311,54 @@ Not native apps: the web app is the product, and a phone can install it. What th
 **What it costs.** The shell is about 1.8 MB, fetched once per version. A push is a few queries to render and one request per device, and a sender's poll every five seconds on each instance. iOS and iPadOS push only to a4a added to the Home Screen and opened from there (16.4 and later); the profile says so. A headless browser can't subscribe to a real push service, so the browser flows use a push service of their own and the worker's notifications are checked as asked for, not as drawn.
 
 **Revisit when:** people want to act from a notification (assign to me, a state) without opening a4a, which wants notification actions and a way to authenticate them from the worker; or to read and write offline, which wants a store on the device that's cleared at sign-out, and a way to reconcile what was written meanwhile; or a native app is wanted for what the web can't do there.
+
+### D48. Apps: extensions installed with consent, in a sandbox, within a grant
+
+Some teams need a4a to do one more thing their way: a panel that adds up time by person, a rule that reads a setting, a page of their own. An app is that thing, packaged: a zip whose `manifest.json` says what it adds and what it asks for. An administrator installs it from a file or from a catalog.
+
+- **What an app adds.**
+  - Widgets, at six places: an issue's side panel, below an issue's summary, a project's page, a page of its own in the menu, dashboards, an article's side. Each is an HTML file among its files.
+  - Handlers, at `/api/v1/apps/{app}/handlers/{name}`: scripts that run in D40's sandbox, with its limits. They answer with `respond(value)`, keep values with `store(key, value)`, and change the issue they're about with `apply()` and `comment()`.
+  - Rules: D40 scripted rules, on a change or on a schedule, never guards (refusing people's changes stays the project's own). They're installed with the app, named after it, and go with it. They can be turned off on the Rules page, but not edited there.
+  - Settings, for the app or for each project: text, number, yes or no, a choice, a secret.
+- **What it asks for, exactly.** It asks to read or write issues, comments, articles, fields and time. Each widget, handler and rule says what it uses, and the app asks for exactly what its parts use. Asking for what no part uses is refused, and so is a part using what the app doesn't ask for. So what an administrator reads is what runs.
+- **Consent, as OAuth's** (D28). Installing shows what it asks in words, what it adds and where, whether a trusted key signed it, and its digest. The administrator accepts exactly that and chooses where it runs: every project, or some. An update asks again only when it asks for more, and saying no keeps the version installed. Installing, updating and removing is a person's decision, made signed in: a token, an agent or MCP is refused.
+- **Where it runs.** An app is on or off. It runs in every project or in those chosen, less those whose managers turned it off. Its rules act only there. Its widgets show only there. Its handlers answer only about issues and projects there.
+- **As whom.**
+  - Its rules act as its agent (D34), `app-<name>`, made when it's installed. The access seam gives that agent what the grant does, in the projects it runs in: reading, and each kind of writing it was granted. Nothing else.
+    - It sees no issue or comment limited to some people (D37), and reads comments only if it was granted them.
+    - Its settings come with each run, the project's over the app's.
+    - It takes no tokens, and isn't listed among the agents.
+  - A person acts through it: what a widget asks for them, and a handler they call.
+    - It's their own access, narrowed to the projects the app runs in and to the scopes its grant allows. So an app never shows or does for a person what they couldn't themselves.
+    - History and the ledger say it came through the app (channel `app`, the app's title): "Anna Schmidt · via the Time by person app".
+- **Widgets, safely.**
+  - **The frame.** A widget's frame is sandboxed (`allow-scripts allow-forms`, no origin of its own). Its files are served under a policy that sandboxes them again, reaches nothing (`connect-src 'none'`) and may be framed only by a4a's pages. So opened on its own, a widget is still no part of a4a.
+  - **Its files.** They come from addresses a4a signs for twelve hours (an HMAC from SECRET_KEY's key, naming the app and its version). They need no cookie, and an old version's address stops working at an update.
+  - **What it can ask.** A widget talks to the page by postMessage, and the page hears only its own frame. A call goes to the API as the person, with `x-a4a-app` and `x-a4a-widget`. The server allows only what a widget may call (issues, comments, articles, fields, time, its own handlers and storage), each within the grant and what that widget said it uses.
+  - **What it can do to the page.** Its words show as text in a status line. Its height stays between 80 and 800 pixels. It opens a page of a4a's only when the person agrees. The page offers it Ocean's stylesheet (and its fonts, with a CORS header), so it can look like a4a.
+- **Packages, checked before anything is kept.**
+  - A zip of at most APP_MAX_MB (5 MB), 200 files, 2 MB a file and 20 MB unzipped. Sizes are checked as the zip states them and again as they come out.
+  - Files are named by plain relative paths, and only kinds a widget needs: HTML, scripts, styles, JSON, images, woff2 and text.
+  - Scripts must compile. Files are kept in the database, never on disk.
+  - `apps:pack` builds packages and a catalog from folders. Two examples are in `examples/apps`: Time by person (a widget and a handler) and Keyword tags (a rule and a project's setting).
+- **Catalogs.** JSON indexes at addresses in APP_CATALOGS, read as the importers read other trackers (https, public addresses, each redirect checked).
+  - Each app's package is named by its SHA-256, checked before anything in it is read.
+  - A signature is Ed25519, by a key in APP_TRUSTED_KEYS, over `name@version` and the digest. A catalog that says it signs has every app checked, and an unsigned one, or one signed by a key a4a doesn't trust, is refused.
+- **Storage and runs.**
+  - An app keeps JSON by key, its own or a project's: 1 MB each, 64 KB a value. Writing a project's needs someone who may change its issues; writing the app's own needs an administrator.
+  - Its handlers' runs are logged (the latest 200), beside its rules' runs.
+- **Removing it** says what goes, then takes its rules, files, settings, storage, run log and project choices. Its agent goes too, or, when history names it, stays banned so that history still says who.
+- **For agents** (MCP): `list_apps` says what's installed where they can see: what each adds, its handlers, and what it may do. They call handlers through the API. They can't install, update or remove apps.
+
+**What it costs.**
+- **Per run:** a handler call is a sandbox run (about a millisecond, D40) and a few queries. The run log is pruned as it's written.
+- **Per page:** an issue's page asks once for its widgets, and each widget's frame loads its files and Ocean's stylesheet.
+- **A widget's reach:** one that's sent something can send it on, by navigating its own frame. The grant limits what it can be sent, so grant reading only to apps you trust.
+- **What updates lose:** an update replaces its rules, and their run log with them. A file address lasts twelve hours, so a page left open longer needs reloading for its widgets.
+- **No events:** installing and removing an app records no event. They're about a4a, not a project, as a person's account changes are.
+
+**Revisit when:** apps should call out to services of their own (a handler's webhook, through D32's signed call), share code between parts, or ship guards; a catalog wants a marketplace's reviews and ratings; widgets need a4a's live events; or apps should be installed per project by its managers.
 
 ## Consistency and concurrency
 
@@ -1412,4 +1460,5 @@ Planned, with the seams already in place:
 - ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - SLAs per customer, with a calendar per organization; passwords or single sign-on for the requesters' portal; colleagues answering each other's requests (D45);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
-- acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47).
+- acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
+- apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48).

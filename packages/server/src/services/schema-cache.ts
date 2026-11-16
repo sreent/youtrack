@@ -2,7 +2,7 @@ import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { warmSandbox } from '../workflow/sandbox';
-import { fields, fieldValues, groups, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
+import { appProjects, apps, fields, fieldValues, groups, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -47,7 +47,35 @@ export interface SchemaSnapshot {
   machines: MachineRow[];
   /** Custom actions (D40), by position: the command language reads their names. */
   actions: ActionRow[];
+  /** Installed apps (D48), by id, and where each runs: a rule an app installed acts only there. */
+  apps: Map<string, AppRow>;
   loadedAt: number;
+}
+
+/** An installed app as the snapshot keeps it: enough to say where it runs, and as whom. */
+export interface AppRow {
+  id: string;
+  name: string;
+  title: string;
+  version: string;
+  agentId: string;
+  enabled: boolean;
+  allProjects: boolean;
+  granted: { read: string[]; write: string[] };
+  /** Projects an administrator chose it for. */
+  chosen: Set<string>;
+  /** Projects whose managers turned it off. */
+  off: Set<string>;
+}
+
+/** Whether an app runs and shows in a project: on, chosen there (or for every project), and not turned off there. */
+export function appEnabledIn(app: AppRow, projectId: string): boolean {
+  return app.enabled && (app.allProjects || app.chosen.has(projectId)) && !app.off.has(projectId);
+}
+
+/** The projects an app runs in. */
+export function appProjectIds(s: SchemaSnapshot, app: AppRow): string[] {
+  return [...s.projects.keys()].filter((id) => appEnabledIn(app, id));
 }
 
 const TTL_MS = 60_000;
@@ -140,6 +168,8 @@ export class SchemaCache {
     const groupRows = await db.select().from(groups).orderBy(asc(groups.name));
     const machineRows = await db.select().from(stateMachines).orderBy(asc(stateMachines.createdAt), asc(stateMachines.id));
     const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
+    const appRows = await db.select().from(apps).orderBy(asc(apps.name));
+    const appProjectRows = await db.select().from(appProjects);
     // Scripts run in the sandbox's worker threads (D40): start them now, so no run waits for one to load.
     if (ruleRows.some((r) => r.script) || actionRows.some((a) => a.script)) warmSandbox();
     const snap: SchemaSnapshot = {
@@ -161,8 +191,24 @@ export class SchemaCache {
       groupsByName: new Map(groupRows.map((g) => [g.name.toLowerCase(), g])),
       machines: machineRows,
       actions: actionRows,
+      apps: new Map(),
       loadedAt: Date.now(),
     };
+    for (const a of appRows) {
+      const granted = (a.granted ?? {}) as { read?: string[]; write?: string[] };
+      snap.apps.set(a.id, {
+        id: a.id,
+        name: a.name,
+        title: a.title,
+        version: a.version,
+        agentId: a.agentId,
+        enabled: a.enabled,
+        allProjects: a.allProjects,
+        granted: { read: granted.read ?? [], write: granted.write ?? [] },
+        chosen: new Set(appProjectRows.filter((r) => r.appId === a.id && r.chosen).map((r) => r.projectId)),
+        off: new Set(appProjectRows.filter((r) => r.appId === a.id && r.off).map((r) => r.projectId)),
+      });
+    }
     for (const f of fieldRows) {
       const row = f as FieldRow;
       snap.fields.set(f.id, row);
@@ -289,7 +335,15 @@ export function actionsFor(s: SchemaSnapshot, projectId: string): ActionRow[] {
 
 /** The rules that apply in a project: its own and the global ones, oldest first. */
 export function rulesFor(s: SchemaSnapshot, projectId: string): RuleRow[] {
-  return s.rules.filter((r) => r.projectId === projectId || r.projectId === null);
+  return s.rules.filter((r) => {
+    if (r.projectId !== projectId && r.projectId !== null) return false;
+    // An app's rule acts only where its app runs (D48).
+    if (r.appId) {
+      const app = s.apps.get(r.appId);
+      return Boolean(app && appEnabledIn(app, projectId));
+    }
+    return true;
+  });
 }
 
 export function stateField(s: SchemaSnapshot): FieldRow | undefined {

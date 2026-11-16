@@ -24,6 +24,16 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+/** Raw bytes: an app's files (D48). PGlite reads them back as a Uint8Array, node-postgres as a Buffer. */
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType() {
+    return 'bytea';
+  },
+  fromDriver(value) {
+    return Buffer.isBuffer(value) ? value : Buffer.from(value);
+  },
+});
+
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => ts('created_at').notNull().defaultNow();
 
@@ -673,6 +683,8 @@ export const rules = pgTable(
      * scheduled rule) or of what it requires (a guard). Only administrators write scripts.
      */
     script: text('script'),
+    /** The app that installed it (D48): it acts as that app's agent, where the app is enabled, and goes with it. */
+    appId: text('app_id').references((): AnyPgColumn => apps.id, { onDelete: 'cascade' }),
     enabled: boolean('enabled').notNull().default(true),
     nextRunAt: ts('next_run_at'),
     lastRunAt: ts('last_run_at'),
@@ -2513,3 +2525,129 @@ export const notifyKinds = pgTable('notify_kinds', {
   defaults: jsonb('defaults').$type<Record<string, { inbox: boolean; email: boolean }>>().notNull().default({}),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Apps (docs/architecture.md, D48)
+// ---------------------------------------------------------------------------
+
+/** An app an administrator installed: its manifest, what it was granted, and its agent. */
+export const apps = pgTable(
+  'apps',
+  {
+    id: text('id').primaryKey(),
+    /** The manifest's name: how the API, its widgets and its files know it. */
+    name: text('name').notNull(),
+    title: text('title').notNull(),
+    version: text('version').notNull(),
+    vendor: text('vendor'),
+    description: text('description').notNull().default(''),
+    manifest: jsonb('manifest').notNull(),
+    /** What the administrator accepted at install or update ({ read, write }): it may do this and no more. */
+    granted: jsonb('granted').notNull(),
+    sha256: text('sha256').notNull(),
+    /** { kind: 'upload' } or { kind: 'catalog', catalog, url }. */
+    source: jsonb('source').notNull(),
+    /** Its agent (D34): who its rules act as. */
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    enabled: boolean('enabled').notNull().default(true),
+    allProjects: boolean('all_projects').notNull().default(false),
+    installedById: text('installed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('apps_name').on(t.name)],
+);
+
+/** An app's files, as its package held them. */
+export const appFiles = pgTable(
+  'app_files',
+  {
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    contentType: text('content_type').notNull(),
+    content: bytea('content').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.appId, t.path] })],
+);
+
+/** Where an app was chosen to run, and where a project's managers turned it off. */
+export const appProjects = pgTable(
+  'app_projects',
+  {
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** An administrator chose it for this project (an app not enabled for every project). */
+    chosen: boolean('chosen').notNull().default(false),
+    /** The project's managers turned it off here. */
+    off: boolean('off').notNull().default(false),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.appId, t.projectId] })],
+);
+
+/** An app's settings: its own (no project), or a project's. A secret's value is sealed. */
+export const appSettings = pgTable(
+  'app_settings',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    values: jsonb('values').notNull().default({}),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('app_settings_app').on(t.appId).where(sql`${t.projectId} IS NULL`),
+    uniqueIndex('app_settings_project').on(t.appId, t.projectId).where(sql`${t.projectId} IS NOT NULL`),
+  ],
+);
+
+/** What an app keeps: a small store of JSON by key, its own or a project's. */
+export const appStorage = pgTable(
+  'app_storage',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    bytes: integer('bytes').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('app_storage_app_key').on(t.appId, t.key).where(sql`${t.projectId} IS NULL`),
+    uniqueIndex('app_storage_project_key').on(t.appId, t.projectId, t.key).where(sql`${t.projectId} IS NOT NULL`),
+  ],
+);
+
+/** What an app's handlers did: each call, how it ended and how long it took. */
+export const appRuns = pgTable(
+  'app_runs',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    appId: text('app_id')
+      .notNull()
+      .references(() => apps.id, { onDelete: 'cascade' }),
+    handler: text('handler').notNull(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    issueKey: text('issue_key'),
+    /** 'ok', 'failed' or 'refused'. */
+    outcome: text('outcome').notNull(),
+    message: text('message').notNull().default(''),
+    ms: integer('ms'),
+    createdAt: created(),
+  },
+  (t) => [index('app_runs_app').on(t.appId, t.id), index('app_runs_created').on(t.createdAt)],
+);

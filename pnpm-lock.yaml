@@ -27,8 +27,8 @@ importers:
         specifier: 7.23.0
         version: 7.23.0(@codemirror/language@6.13.1)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(typescript@5.9.3)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#966b220155861273afcb60cc169b5dafb4b99247
-        version: https://codeload.github.com/sreent/ocean/tar.gz/966b220155861273afcb60cc169b5dafb4b99247
+        specifier: github:sreent/ocean#6e36b53fd5e05c5d36793c74999168e20faef4db
+        version: https://codeload.github.com/sreent/ocean/tar.gz/6e36b53fd5e05c5d36793c74999168e20faef4db
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -137,8 +137,8 @@ importers:
         specifier: ^0.12.20
         version: 0.12.20(hono@4.13.18)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#966b220155861273afcb60cc169b5dafb4b99247
-        version: https://codeload.github.com/sreent/ocean/tar.gz/966b220155861273afcb60cc169b5dafb4b99247
+        specifier: github:sreent/ocean#6e36b53fd5e05c5d36793c74999168e20faef4db
+        version: https://codeload.github.com/sreent/ocean/tar.gz/6e36b53fd5e05c5d36793c74999168e20faef4db
       '@xmldom/xmldom':
         specifier: ^0.8.15
         version: 0.8.15
@@ -148,6 +148,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
       hono:
         specifier: ^4.13.18
         version: 4.13.18
@@ -1786,8 +1789,8 @@ packages:
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/966b220155861273afcb60cc169b5dafb4b99247':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/966b220155861273afcb60cc169b5dafb4b99247}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/6e36b53fd5e05c5d36793c74999168e20faef4db':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/6e36b53fd5e05c5d36793c74999168e20faef4db}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -2979,6 +2982,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.2:
+    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -7160,7 +7166,7 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/966b220155861273afcb60cc169b5dafb4b99247': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/6e36b53fd5e05c5d36793c74999168e20faef4db': {}
 
   '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2': {}
 
@@ -8295,6 +8301,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.2: {}
 
   fill-range@7.1.1:
     dependencies:

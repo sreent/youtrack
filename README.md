@@ -117,11 +117,15 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **LDAP**: the login form checks passwords against your directory too, over ldaps or StartTLS, makes accounts at the first sign-in, and fills groups from memberOf or a group search.
   - **Provisioning by SCIM 2.0**: Microsoft Entra ID (or another provider) adds people and groups, changes them, and bans those it deactivates, between sign-ins.
 - **Two-factor sign-in** for passwords: a code from an authenticator app after the password, set up from a QR code, with single-use recovery codes. An administrator can ask it of everyone who signs in with a password.
+- **Apps**: extensions an administrator installs from a package or a catalog, after reading what each asks for, for every project or some. A project's managers can turn one off in it.
+  - **What an app adds**: widgets on an issue's panel, below its summary, a project's page, an article, dashboards or a page of its own; handlers that run in the workflow sandbox; rules that act as the app's own agent; settings for the app and each project.
+  - **What it may do**: exactly what its parts use, as granted: read or write issues, comments, articles, fields and time. Its widgets run in sandboxed frames and do for each person only what that person may; history says what came through an app.
+  - **Catalogs**: name each package's SHA-256 and may sign it with Ed25519 by a key you trust. Two example apps, and `pnpm --filter @a4a/server apps:pack` to package your own, are in `examples/apps`.
 - **For integrations**:
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 47 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
+- **For agents**: an MCP server at `/mcp` with 48 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
 - **Agents of their own**: an administrator adds an agent (a bot account) and issues it tokens on the Agents page.
   - With one, an agent over MCP or the API acts as itself: its changes show under its name, for no one, and `me` is the agent.
   - Issues can be assigned to it, as to a person; `for: me #Unresolved` over its token is its work. a4a's own agents (triage, workflow, the help desk) take no work.
@@ -294,6 +298,10 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `TEAMS_SERVICE_HOSTS` | Bot Framework's | More hosts a Teams service URL may name, comma-separated, beside Bot Framework's own (`smba.trafficmanager.net` and the government clouds') |
 | `SLACK_API_URL` | `https://slack.com/api` | Slack's Web API. Slack itself is connected on the Chat page, with its app's token and signing secret |
 | `CHAT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets chat services be reached over plain http on this machine |
+| `APP_CATALOGS` | — | App catalogs to install from: https addresses of JSON indexes, comma-separated (D48) |
+| `APP_TRUSTED_KEYS` | — | Ed25519 public keys (PEM, or base64 of the 32 bytes), comma-separated, that apps from a signing catalog must be signed with |
+| `APP_MAX_MB` | `5` | The largest app package |
+| `APP_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets catalogs and packages be read over plain http from this machine |
 
 ## Builds from CI
 

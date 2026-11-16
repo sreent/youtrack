@@ -37,6 +37,10 @@ function agentOf(s: SchemaSnapshot, idOrLogin: string): UserRow {
   if (isOwnAgent(u)) {
     throw badRequest(`${u.login} is a4a's own agent`, 'It acts for a4a itself and takes no tokens. Add an agent of your own for a tool to act as.');
   }
+  // An app's agent acts for its app alone (D48), and takes no tokens.
+  if ([...s.apps.values()].some((a) => a.agentId === u.id)) {
+    throw badRequest(`${u.login} is an app's agent`, 'It acts for its app alone, and takes no tokens. Add an agent of your own for a tool to act as.');
+  }
   return u;
 }
 
@@ -44,7 +48,8 @@ function agentOf(s: SchemaSnapshot, idOrLogin: string): UserRow {
 export async function listAgents(ctx: Ctx): Promise<AgentAccount[]> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
-  const agents = [...s.users.values()].filter((u) => u.isBot && !isOwnAgent(u)).sort((a, b) => a.login.localeCompare(b.login));
+  const appAgents = new Set([...s.apps.values()].map((a) => a.agentId));
+  const agents = [...s.users.values()].filter((u) => u.isBot && !isOwnAgent(u) && !appAgents.has(u.id)).sort((a, b) => a.login.localeCompare(b.login));
   if (!agents.length) return [];
   const rows = await ctx.db
     .select()
