@@ -8,6 +8,7 @@ import './helpdesk/register';
 import './knowledge/register';
 import './notify/register';
 import './oauth/register';
+import './push/register';
 
 // What stops it starting (a port in use, a bucket that refuses it, a setting it can't read) says
 // so in a line; the stack too, in development.

@@ -44,6 +44,7 @@ import { guestRoutes, roleRoutes } from './routes/roles';
 import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
 import { chatRoutes } from './routes/chat';
+import { pushRoutes } from './routes/push';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -107,6 +108,7 @@ export function createHttpApp(runtime: Runtime) {
   agentRoutes(api);
   emailRoutes(api);
   chatRoutes(api);
+  pushRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -187,6 +189,14 @@ export function createHttpApp(runtime: Runtime) {
       await next();
       c.header('cache-control', 'public, max-age=31536000, immutable');
     });
+    // The service worker and the manifest are asked for again each time (D47): a new build is
+    // taken up on the next start, never a day later from a cache.
+    for (const file of ['/sw.js', '/manifest.webmanifest']) {
+      root.use(file, async (c, next) => {
+        await next();
+        c.header('cache-control', 'no-cache');
+      });
+    }
     root.use('*', serveStatic({ root: path.relative(process.cwd(), dist) || '.' }));
     root.get('*', (c) => c.html(index()));
   } else {

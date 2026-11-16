@@ -120,6 +120,11 @@ export default defineConfig({
       TEAMS_TOKEN_URL: `${TEAMS.url}/token`,
       CHAT_ALLOW_HTTP_LOOPBACK: 'true',
       SLACK_API_URL: '',
+      // Push notifications go to a push service the tests start on this machine (support/push.ts).
+      PUSH_ALLOW_HTTP_LOOPBACK: 'true',
+      PUSH_HOSTS: '',
+      VAPID_PUBLIC_KEY: '',
+      VAPID_PRIVATE_KEY: '',
     },
   },
 });

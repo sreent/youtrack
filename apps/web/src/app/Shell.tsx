@@ -7,6 +7,8 @@ import { keys, useProjects } from '../api/queries';
 import { Icon, type IconName } from '../components/Icon';
 import { initials } from '../components/Who';
 import { useInboxLive, useUnreadCount } from '../features/notifications/api';
+import { forgetPushHere, keepPushInStep } from '../features/notifications/push';
+import { takeNewVersion, useAppBadge, useNewVersionReady, useOnline, useOpenFromNotifications } from './pwa';
 
 interface NavItem {
   to: string;
@@ -110,12 +112,20 @@ export function Shell({ me }: { me: Me }) {
   useAppFrame();
   useLiveInvalidation();
   useInboxLive();
+  useOpenFromNotifications();
+  useAppBadge(useUnreadCount().data);
+  // Once per sign-in: this device's push, given to a4a again if it's theirs (a new sign-in's record).
+  useEffect(() => {
+    void keepPushInStep({ id: me.id }).catch(() => {});
+  }, [me.id]);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const isAdmin = me.auth.scopes.includes('admin');
   const projectList = useProjects();
   const managesSome = isAdmin || Boolean(projectList.data?.some((p) => p.access.manage));
   const signOut = async () => {
+    // This device stops hearing for them; signing out ends a4a's record of it too (D47).
+    await forgetPushHere().catch(() => {});
     await post('/auth/logout').catch(() => {});
     qc.clear();
     navigate('/login');
@@ -158,10 +168,36 @@ export function Shell({ me }: { me: Me }) {
         </div>
       </aside>
       <div className="page">
+        <AppNotices />
         <main>
           <Outlet />
         </main>
       </div>
     </>
+  );
+}
+
+/** What's true of a4a itself, above every page: offline, or a new version ready (D47). */
+function AppNotices() {
+  const online = useOnline();
+  const ready = useNewVersionReady();
+  if (online && !ready) return null;
+  return (
+    <div className="app-notices">
+      {!online ? (
+        <p className="app-notice offline" role="status">
+          <Icon name="sync" />
+          <span>You're offline. What's here may be out of date, and a4a catches up when you're back.</span>
+        </p>
+      ) : null}
+      {ready ? (
+        <p className="app-notice" role="status">
+          <span>A new version of a4a is ready.</span>
+          <button type="button" className="small" onClick={takeNewVersion}>
+            Reload
+          </button>
+        </p>
+      ) : null}
+    </div>
   );
 }

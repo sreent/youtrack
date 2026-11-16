@@ -18,6 +18,7 @@ import { activities, notificationEvents, notifications, notificationSettings, us
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { enqueueMail } from '../mail/outbox';
+import { enqueuePushes, kickPushSoon } from '../push/outbox';
 import { accessFor, eventSeen, keyOfReadableId, projectRolesOf } from '../services/access';
 import { watcherIds } from '../services/watchers';
 import { inboxChanged, mailConfigured } from './state';
@@ -46,16 +47,19 @@ export function emailSends(level: EmailLevel, kind: NotificationKind, subscripti
 
 export interface EmailPrefs {
   email: EmailLevel;
+  /** The same levels, for push to the person's devices (D47). */
+  push: EmailLevel;
   digest: boolean;
 }
 
-export const DEFAULT_PREFS: EmailPrefs = { email: 'direct', digest: false };
+export const DEFAULT_PREFS: EmailPrefs = { email: 'direct', push: 'direct', digest: false };
+
+const level = (v: string, fallback: EmailLevel): EmailLevel => ((EMAIL_LEVELS as readonly string[]).includes(v) ? (v as EmailLevel) : fallback);
 
 export async function emailPrefs(db: Db, userId: string): Promise<EmailPrefs> {
   const [row] = await db.select().from(notificationSettings).where(eq(notificationSettings.userId, userId));
   if (!row) return DEFAULT_PREFS;
-  const email = (EMAIL_LEVELS as readonly string[]).includes(row.email) ? (row.email as EmailLevel) : DEFAULT_PREFS.email;
-  return { email, digest: row.digest };
+  return { email: level(row.email, DEFAULT_PREFS.email), push: level(row.push, DEFAULT_PREFS.push), digest: row.digest };
 }
 
 /** Margin past the window before a notification's email goes, so events still settling in the outbox fold in. */
@@ -208,7 +212,8 @@ async function deliver(
 ): Promise<boolean> {
   const at = new Date(event.occurredAt);
   const window = app.config.notifyWindowMs;
-  return app.db.transaction(async (txRaw) => {
+  let pushed = false;
+  const delivered = await app.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const [done] = await tx
       .select({ id: notificationEvents.eventId })
@@ -269,11 +274,14 @@ async function deliver(
       });
     }
     await tx.insert(notificationEvents).values({ userId, eventId: event.id, notificationId, reason: kind });
+    const prefs = await emailPrefs(tx, userId);
+
+    // Its push to each of their devices, a moment from now, if their level sends its kind (D47).
+    if (await enqueuePushes(tx, app, { id: notificationId, userId, kind: notificationKind }, prefs.push)) pushed = true;
 
     // Its email, if this person wants this kind: sent once the window has passed, as one message.
     if (mailConfigured(app)) {
       const [user] = await tx.select({ email: users.email, isBot: users.isBot }).from(users).where(eq(users.id, userId));
-      const prefs = await emailPrefs(tx, userId);
       if (user?.email && !user.isBot && emailSends(prefs.email, notificationKind, subscription)) {
         await enqueueMail(tx, app, {
           kind: 'notification',
@@ -287,4 +295,7 @@ async function deliver(
     }
     return true;
   });
+  // Committed: the sender here goes once the push is due.
+  if (pushed) kickPushSoon(app);
+  return delivered;
 }

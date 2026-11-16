@@ -193,20 +193,25 @@ export async function getNotificationSettings(ctx: Ctx): Promise<NotificationSet
   return { ...prefs, address: ctx.actor.user.email, mailConfigured: mailConfigured(ctx.app), digestHour: ctx.app.config.digestHour, timeZone: zoneOf(ctx) };
 }
 
-export async function updateNotificationSettings(ctx: Ctx, input: { email?: EmailLevel; digest?: boolean }): Promise<NotificationSettings> {
+export async function updateNotificationSettings(ctx: Ctx, input: { email?: EmailLevel; push?: EmailLevel; digest?: boolean }): Promise<NotificationSettings> {
   requirePersonal(ctx);
   await saveSettings(ctx.db, ctx.actor.user.id, input);
   return getNotificationSettings(ctx);
 }
 
-async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel; digest?: boolean }): Promise<void> {
+async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel; push?: EmailLevel; digest?: boolean }): Promise<void> {
   const now = new Date();
   await db
     .insert(notificationSettings)
-    .values({ userId, email: input.email ?? DEFAULT_PREFS.email, digest: input.digest ?? DEFAULT_PREFS.digest, updatedAt: now })
+    .values({ userId, email: input.email ?? DEFAULT_PREFS.email, push: input.push ?? DEFAULT_PREFS.push, digest: input.digest ?? DEFAULT_PREFS.digest, updatedAt: now })
     .onConflictDoUpdate({
       target: notificationSettings.userId,
-      set: { ...(input.email !== undefined ? { email: input.email } : {}), ...(input.digest !== undefined ? { digest: input.digest } : {}), updatedAt: now },
+      set: {
+        ...(input.email !== undefined ? { email: input.email } : {}),
+        ...(input.push !== undefined ? { push: input.push } : {}),
+        ...(input.digest !== undefined ? { digest: input.digest } : {}),
+        updatedAt: now,
+      },
     });
 }
 

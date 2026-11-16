@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AI_PROVIDER_IDS, AI_PROVIDERS, isAIProviderId, providerKey, type AIProviderId } from './ai/providers';
+import { validPublicKey, vapidPairMatches } from './push/webpush';
 
 /** Single sign-on with an OpenID Connect provider, from OIDC_* in the environment. */
 export interface OidcConfig {
@@ -165,6 +166,8 @@ export interface Config {
   slackApiUrl: string;
   /** For tests: chat services may be reached over plain http on this machine (CHAT_ALLOW_HTTP_LOOPBACK). Never in production. */
   chatAllowHttpLoopback: boolean;
+  /** Push notifications to people's devices (D47). */
+  push: PushConfig;
 }
 
 /**
@@ -208,6 +211,26 @@ export function teamsFromEnv(env: NodeJS.ProcessEnv): TeamsConfig | null {
     serviceHosts: [...new Set([...TEAMS_SERVICE_HOSTS, ...extra])],
   };
 }
+
+/** Web Push (D47): the key a4a signs with, who it says it is, and the push services it sends to. */
+export interface PushConfig {
+  /** Whether a4a sends push notifications at all (PUSH, on unless "false"). */
+  enabled: boolean;
+  /** VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, both or neither; without them a pair is made once and kept, sealed, in the database. */
+  vapid: { publicKey: string; privateKey: string } | null;
+  /** Who a push service may contact about a4a's messages (VAPID_SUBJECT): PUBLIC_URL when it's https, otherwise mailto: MAIL_FROM's address. */
+  subject: string;
+  /**
+   * The push services' hosts a4a sends to (PUSH_HOSTS, comma-separated; "*.example.com" for any host under it).
+   * By default the browsers' own: Chrome's, Firefox's, Safari's and Edge's.
+   */
+  hosts: string[];
+  /** For tests: plain http to this machine. Never in production (PUSH_ALLOW_HTTP_LOOPBACK). */
+  allowHttpLoopback: boolean;
+}
+
+/** The push services browsers subscribe with: Chrome, Android, Samsung and Opera (FCM), Firefox, Safari and iOS, Edge (WNS). */
+export const DEFAULT_PUSH_HOSTS = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com', '*.notify.windows.com'];
 
 /** An LDAP directory people sign in with (D38): bind as a service account, find the person, bind as them. */
 export interface LdapConfig {
@@ -468,6 +491,32 @@ function hostnameOf(url: string | undefined): string {
   }
 }
 
+/** PUSH, VAPID_* and PUSH_HOSTS (D47). A key pair half given, or not a pair, stops the server, saying which. */
+export function pushFromEnv(env: NodeJS.ProcessEnv, publicUrl: string, mailFrom: string): PushConfig {
+  const publicKey = env.VAPID_PUBLIC_KEY?.trim();
+  const privateKey = env.VAPID_PRIVATE_KEY?.trim();
+  if (Boolean(publicKey) !== Boolean(privateKey)) {
+    throw new Error(`VAPID_${publicKey ? 'PRIVATE' : 'PUBLIC'}_KEY is missing: give both keys of the pair, or neither and a4a makes one`);
+  }
+  if (publicKey && privateKey && !(validPublicKey(publicKey) && vapidPairMatches({ publicKey, privateKey }))) {
+    throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are not one P-256 pair (base64url, as `npx web-push generate-vapid-keys` writes them)');
+  }
+  const address = /<([^>]+)>/.exec(mailFrom)?.[1] ?? mailFrom.trim();
+  const subject = env.VAPID_SUBJECT?.trim() || (publicUrl.startsWith('https://') ? publicUrl : `mailto:${address}`);
+  if (!/^(mailto:|https:\/\/)/.test(subject)) throw new Error(`VAPID_SUBJECT=${subject} must be a mailto: address or an https address, for push services to reach you`);
+  const hosts = (env.PUSH_HOSTS ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return {
+    enabled: truthy(env.PUSH, true),
+    vapid: publicKey && privateKey ? { publicKey, privateKey } : null,
+    subject,
+    hosts: hosts.length ? hosts : DEFAULT_PUSH_HOSTS,
+    allowHttpLoopback: truthy(env.PUSH_ALLOW_HTTP_LOOPBACK, false),
+  };
+}
+
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   loadDotEnv();
   const env = process.env;
@@ -546,6 +595,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     teams: teamsFromEnv(env),
     slackApiUrl: safeProviderUrl(env.SLACK_API_URL?.trim() || 'https://slack.com/api', 'SLACK_API_URL').replace(/\/+$/, ''),
     chatAllowHttpLoopback: truthy(env.CHAT_ALLOW_HTTP_LOOPBACK, false),
+    push: pushFromEnv(env, overrides.publicUrl ?? publicUrl, env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`),
     ...overrides,
   };
 }

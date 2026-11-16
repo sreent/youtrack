@@ -6,6 +6,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 ## What it does
 
+- **On a phone**: a4a installs from the browser (Android, iOS, desktop), opens offline and says so, and pushes what your inbox gets to the devices you turn it on for, encrypted to each, one notification per issue, with the unread count on its icon. Share a page into it to start an issue. Every page is made for a thumb: 44px to tap, clear of the notch, the keyboard never covering what you type.
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
   - Fields can also hold groups, builds (a list CI can add to twice without harm), owned values (each Subsystem has an owner, who takes an issue about it that nobody has) and moments with a time, typed in your own time zone.
@@ -270,6 +271,11 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything, and administrators confirm the emails people add, since no link can go |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
+| `PUSH` | `true` | Push notifications to the devices people turn them on for (D47). `false` turns them off |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | made once | The key pair push is signed with, base64url (as `npx web-push generate-vapid-keys` writes them). Without them a4a makes a pair the first time and keeps it in the database, its private half sealed with `SECRET_KEY`; changing it means people turn push on again |
+| `VAPID_SUBJECT` | `PUBLIC_URL` if https, else `mailto:` `MAIL_FROM` | Who push services may contact about a4a's pushes |
+| `PUSH_HOSTS` | the browsers' | The push services a4a sends to, comma-separated, `*.example.com` for any host under it. By default `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com` and `*.notify.windows.com` |
+| `PUSH_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets push go over plain http to this machine |
 | `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 | `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |

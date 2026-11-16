@@ -169,6 +169,13 @@
       "when": 1794853393310,
       "tag": "0023_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794854401721,
+      "tag": "0024_mobile",
+      "breakpoints": true
     }
   ]
 }

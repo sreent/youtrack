@@ -10,6 +10,7 @@ import { errorText, FormField, Said } from '../features/common/bits';
 import { DaysAway } from '../features/away/DaysAway';
 import { WorkWeek } from '../features/away/WorkWeek';
 import { EmailSettings } from '../features/notifications/EmailSettings';
+import { PushSettings } from '../features/notifications/PushSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
 import { CodeHostAccounts } from '../features/builds/Builds';
@@ -241,6 +242,15 @@ export default function ProfilePage() {
         <h2 id="notifications">Notifications</h2>
         <EmailSettings />
       </section>
+      {m.isBot ? null : (
+        <section className="card" aria-labelledby="push">
+          <div className="section-head">
+            <h2 id="push">Push notifications</h2>
+            <span className="note">On your phone or computer, from a4a installed or open in the browser</span>
+          </div>
+          <PushSettings me={m} />
+        </section>
+      )}
       <section className="card" aria-labelledby="away">
         <div className="section-head">
           <h2 id="away">Days away</h2>
