@@ -197,7 +197,7 @@ export default function PortalPage() {
   const [token] = useState(linkToken);
   const [redeemError, setRedeemError] = useState<unknown>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe>('/portal/me'), retry: false, enabled: !token });
+  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token });
   useEffect(() => {
     if (!token) return;
     history.replaceState(null, '', window.location.pathname);
@@ -223,7 +223,7 @@ export default function PortalPage() {
       </Lone>
     );
   }
-  if (me.isLoading || (token && !me.data && !me.error)) return <Loone />;
+  if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
   if (!me.data) {
     if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) return <Lone><ErrorNote error={me.error} /></Lone>;
     return <SignIn />;

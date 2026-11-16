@@ -172,10 +172,8 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
                   </label>
                 ))}
               </div>
-              <div className="cluster">
-                <FormField label="From">{(id) => <input id={id} type="time" value={from} onChange={(e) => setFrom(e.target.value)} />}</FormField>
-                <FormField label="To">{(id) => <input id={id} type="time" value={to} onChange={(e) => setTo(e.target.value)} />}</FormField>
-              </div>
+              <FormField label="From">{(id) => <input id={id} type="time" value={from} onChange={(e) => setFrom(e.target.value)} />}</FormField>
+              <FormField label="To">{(id) => <input id={id} type="time" value={to} onChange={(e) => setTo(e.target.value)} />}</FormField>
               <FormField label="Holidays" help="Days off, as YYYY-MM-DD, one a line.">
                 {(id, help) => <textarea id={id} rows={3} value={holidays} onChange={(e) => setHolidays(e.target.value)} aria-describedby={help} />}
               </FormField>
@@ -202,14 +200,14 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
       <section className="stack" aria-label="SLA policies">
         <h3>Policies</h3>
         {policies.data?.length ? (
-          <ol className="list">
+          <ol className="stack">
             {policies.data.map((x) => (
-              <li key={x.id} className="list-row">
+              <li key={x.id} className="stack tight">
                 <strong>{x.name}</strong>
-                <span className="note">
+                <p className="note">
                   {x.query ? `When ${x.query}` : 'Every request'}: {x.firstResponseMinutes ? `first response in ${formatPeriod(x.firstResponseMinutes)}` : 'no first-response target'},{' '}
                   {x.resolutionMinutes ? `resolved in ${formatPeriod(x.resolutionMinutes)}` : 'no resolution target'}; at risk {formatPeriod(x.warnMinutes || 0) || 'never'} before.
-                </span>
+                </p>
                 {canEdit ? (
                   <button type="button" className="link" onClick={() => remove.mutate(x.id)} aria-label={`Delete the policy ${x.name}`}>
                     Delete
@@ -234,11 +232,9 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
             <FormField label="Requests it covers" help="A search, such as Priority: Critical; empty for every request. The first policy a request matches covers it.">
               {(id, help) => <input id={id} value={p.query} onChange={(e) => setP({ ...p, query: e.target.value })} aria-describedby={help} />}
             </FormField>
-            <div className="cluster">
-              <FormField label="First response within">{(id) => <input id={id} placeholder="4h" value={p.first} onChange={(e) => setP({ ...p, first: e.target.value })} />}</FormField>
-              <FormField label="Resolved within">{(id) => <input id={id} placeholder="3d" value={p.resolution} onChange={(e) => setP({ ...p, resolution: e.target.value })} />}</FormField>
-              <FormField label="At risk before">{(id) => <input id={id} value={p.warn} onChange={(e) => setP({ ...p, warn: e.target.value })} />}</FormField>
-            </div>
+            <FormField label="First response within">{(id) => <input id={id} placeholder="4h" value={p.first} onChange={(e) => setP({ ...p, first: e.target.value })} />}</FormField>
+            <FormField label="Resolved within">{(id) => <input id={id} placeholder="3d" value={p.resolution} onChange={(e) => setP({ ...p, resolution: e.target.value })} />}</FormField>
+            <FormField label="At risk before">{(id) => <input id={id} value={p.warn} onChange={(e) => setP({ ...p, warn: e.target.value })} />}</FormField>
             <div className="cluster end">
               <button type="submit" disabled={add.isPending || !p.name.trim()}>
                 Add the policy
@@ -249,7 +245,7 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
         ) : null}
       </section>
 
-      {report.data ? (
+      {report.data?.weeks.some((w) => w.policies.length) ? (
         <section aria-label="Met and breached, per week">
           <h3>Met and breached, per week</h3>
           <div className="table-wrap">

@@ -86,7 +86,8 @@ afterAll(async () => {
 describe('the portal', () => {
   it('signs a requester in with a link that works once, and answers alike for any address', async () => {
     const b = browser('10.1.0.1');
-    expect((await b.req('GET', '/portal/me')).status).toBe(401);
+    expect((await b.req('GET', '/portal/me')).body).toBeNull();
+    expect((await b.req('GET', '/portal/requests')).status).toBe(401);
     expect((await b.req('POST', '/portal/sign-in', { email: 'new@example.org' })).body).toEqual({ sent: true });
     // From another site: refused.
     expect((await b.req('POST', '/portal/sign-in', { email: 'new@example.org' }, { origin: 'https://evil.example' })).status).toBe(403);
@@ -100,7 +101,7 @@ describe('the portal', () => {
     expect((await browser('10.1.0.2').req('POST', '/portal/sign-in/redeem', { token })).status).toBe(401);
     expect((await b.req('PATCH', '/portal/me', { name: 'Nia New' })).body.name).toBe('Nia New');
     expect((await b.req('POST', '/portal/sign-out')).status).toBe(204);
-    expect((await b.req('GET', '/portal/me')).status).toBe(401);
+    expect((await b.req('GET', '/portal/me')).body).toBeNull();
   });
 
   it('limits sign-in links per address and per email', async () => {

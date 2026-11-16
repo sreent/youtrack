@@ -209,10 +209,15 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     deleteCookie(c, PORTAL_COOKIE, { path: '/api/v1/portal' });
     return null;
   });
-  route(app, { method: 'get', path: '/portal/me', tags, summary: 'Who is signed in to the portal', auth: 'none', response: PortalMeSchema }, async ({ c }) => {
-    c.header('cache-control', 'no-store');
-    return portalMe(c.get('runtime'), await who(c));
-  });
+  route(
+    app,
+    { method: 'get', path: '/portal/me', tags, summary: 'Who is signed in to the portal', description: 'null when nobody is: the page then asks for an email.', auth: 'none', response: PortalMeSchema.nullable() },
+    async ({ c }) => {
+      c.header('cache-control', 'no-store');
+      const r = await who(c).catch(() => null);
+      return r ? portalMe(c.get('runtime'), r) : null;
+    },
+  );
   route(app, { method: 'patch', path: '/portal/me', tags, summary: 'Change the name the team sees', auth: 'none', body: PortalNameBody, response: PortalMeSchema }, async ({ c, body }) => {
     sameOrigin(c);
     return renameRequester(c.get('runtime'), await who(c), body.name);
