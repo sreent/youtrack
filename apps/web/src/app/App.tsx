@@ -31,6 +31,8 @@ const InboxPage = lazy(() => import('../pages/InboxPage'));
 const HelpPage = lazy(() => import('../pages/HelpPage'));
 const TrackPage = lazy(() => import('../pages/TrackPage'));
 const UnsubscribePage = lazy(() => import('../pages/UnsubscribePage'));
+// Before the frame: an app that asks to work in a4a as someone (OAuth for MCP); it signs them in itself.
+const OAuthConsentPage = lazy(() => import('../pages/OAuthConsentPage'));
 
 export function App() {
   return (
@@ -43,6 +45,7 @@ export function App() {
         <Route path="/help/:key" element={<HelpPage />} />
         <Route path="/request" element={<TrackPage />} />
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
+        <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
         <Route element={<RequireUser />}>
           <Route index element={<Navigate to="/issues" replace />} />
           <Route path="/inbox" element={<Page><InboxPage /></Page>} />

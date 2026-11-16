@@ -63,7 +63,7 @@ async function register(metadata: Record<string, unknown>) {
     headers: { 'content-type': 'application/json', 'x-forwarded-for': from() },
     body: JSON.stringify(metadata),
   });
-  return { status: res.status, body: await res.json() };
+  return { status: res.status, body: JSON.parse(await res.text()) };
 }
 
 /** What an MCP client keeps: as the SDK's OAuthClientProvider asks for it, in memory. */
@@ -460,7 +460,7 @@ describe('what the app may do', () => {
     const agent = await signedIn(sessions.anna, new Agent('Audience'));
     const res = await app.request('/api/v1/me', { headers: { authorization: `Bearer ${agent.saved!.access_token}` } });
     expect(res.status).toBe(401);
-    expect((await res.json()).error.message).toBe('This token is an app’s, for MCP: it works at /mcp only');
+    expect(JSON.parse(await res.text()).error.message).toBe('This token is an app’s, for MCP: it works at /mcp only');
   });
 });
 

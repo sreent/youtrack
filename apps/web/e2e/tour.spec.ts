@@ -53,6 +53,23 @@ const withIntegration = async (api: Api) => {
   return '/integrations';
 };
 
+/** An app of the tour's own, asking to work as the person (OAuth): registered, then its request. Nobody follows it back. */
+const anAppAsks = async (api: Api) => {
+  const callback = 'http://127.0.0.1:9/callback';
+  const res = await api.context.post('/oauth/register', { data: { client_name: 'Claude', redirect_uris: [callback] } });
+  const { client_id } = (await res.json()) as { client_id: string };
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id,
+    redirect_uri: callback,
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+    state: 'tour',
+    scope: 'read write',
+  });
+  return `/oauth/authorize?${params}`;
+};
+
 const board = (name: string) => async (api: Api) => {
   const found = (await api.boards()).find((b) => b.name === name);
   if (!found) throw new Error(`The demo data has no board "${name}"`);
@@ -85,6 +102,7 @@ const STOPS: Stop[] = [
   { name: 'fields', path: '/fields', ready: (p) => p.getByRole('heading', { name: 'Make a field' }) },
   { name: 'activity', path: '/activity', ready: (p) => p.getByRole('region', { name: 'The ledger' }) },
   { name: 'agents and tokens', path: '/agents', ready: (p) => p.getByRole('heading', { name: /^What they read/ }) },
+  { name: 'an app asking to work as you', path: anAppAsks, ready: (p) => p.getByRole('main', { name: '“Claude” asks to work in a4a as you' }) },
   { name: 'webhooks', path: '/webhooks', ready: (p) => p.getByRole('heading', { name: 'Where it sends' }) },
   { name: 'administration', path: '/admin', ready: (p) => p.getByRole('region', { name: 'Table of people' }) },
   { name: 'your profile', path: '/me', ready: (p) => p.getByRole('heading', { name: 'Password' }) },

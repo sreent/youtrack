@@ -152,7 +152,9 @@ remove tag needs-info duplicates BACK-7
 
 **Transport and auth**
 
-- **Endpoint:** `POST /mcp` on the same server, using Streamable HTTP (stateless) with `Authorization: Bearer a4a_…`. The tool calls act as the token's user.
+- **Endpoint:** `POST /mcp` on the same server, using Streamable HTTP (stateless) with `Authorization: Bearer …`. The tool calls act as the token's user.
+- **Signing in (OAuth 2.1, docs/architecture.md D28):** a client that signs in by itself needs only the address. Without a token, `/mcp` answers 401 with `WWW-Authenticate: Bearer realm="a4a", resource_metadata="<PUBLIC_URL>/.well-known/oauth-protected-resource/mcp", scope="read write"`, and the client goes from there (5.6). Its access token (`a4o_…`) works at `/mcp` alone.
+- **API tokens** (`a4a_…`) work too, for clients that don't sign in by themselves.
 - **stdio:** for clients that only speak stdio, the `a4a-mcp` bridge connects stdio to `/mcp` using `A4A_URL` + `A4A_TOKEN`.
 
 ### 5.1 Tools
@@ -248,7 +250,29 @@ claude mcp add --transport http a4a http://localhost:3000/mcp \
     "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
 ```
 
-The web UI has a **Connect an agent** page that creates a token and fills in these snippets for you.
+The web UI has a **Connect an agent** page that creates a token and fills in these snippets for you. A client that signs in by itself needs none of it: `claude mcp add --transport http a4a http://localhost:3000/mcp`, then `/mcp` in Claude Code to sign in; in Claude, a custom connector with your a4a's https address and `/mcp`, reachable from the internet.
+
+### 5.6 Signing in with OAuth
+
+a4a is the authorization server for its own `/mcp`, following MCP's authorization specification. Every address below is `PUBLIC_URL`'s. They answer only when `PUBLIC_URL` is https (or this computer) and `MCP_OAUTH` isn't `false`; otherwise the metadata is 404 and `/mcp` asks for a token as before. The protocol's endpoints answer any origin, without credentials; nothing else does.
+
+| Endpoint | What it is |
+|---|---|
+| `GET /.well-known/oauth-protected-resource/mcp` (and `/.well-known/oauth-protected-resource`) | RFC 9728: `resource` is `PUBLIC_URL/mcp`, its authorization server is `PUBLIC_URL`, its scopes `read` and `write` |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414: the endpoints below; `response_types` `code`; grants `authorization_code` and `refresh_token`; PKCE `S256`; client authentication `none`; `iss` in the answer (RFC 9207) |
+| `POST /oauth/register` | RFC 7591, JSON. Public clients only: `client_id`, never a secret. `redirect_uris` are https, or http to `127.0.0.1`, `[::1]` or `localhost`. 20 an hour per address |
+| `GET /oauth/authorize` | The consent page, in the browser: `response_type=code`, `client_id`, `redirect_uri`, `code_challenge` with `code_challenge_method=S256`, `state`, `scope`, `resource` |
+| `POST /oauth/token` | Form-encoded. `grant_type=authorization_code` with `code`, `code_verifier`, `client_id`, `redirect_uri`; or `grant_type=refresh_token` with `refresh_token`, `client_id` (and a narrower `scope`, if wanted). Optional `resource`. Answers `access_token`, `token_type`, `expires_in` (3600), `refresh_token` and `scope`, with `Cache-Control: no-store` |
+| `POST /oauth/revoke` | RFC 7009: `token`, `client_id`. A refresh token revokes everything issued since its code; an access token, itself. Always 200 |
+
+- **Scopes.** `read`, and `write`, which brings `read` with it. Words a4a doesn't know (`openid`, `offline_access`) are left out, not refused, and the token's `scope` says what was given. Never `admin`.
+- **The consent page** shows who asks (the name the app gave itself, said to be its own), where it sends the person back, what it may do, and where: every project, or the ones chosen. A person whose role only reads can't allow changes. Allowed once, an app asking for no more carries on without asking, for 90 days from its last use.
+- **Errors** are OAuth's: `{ "error", "error_description" }`.
+  - On the token endpoint: `invalid_request`, `invalid_client` (401), `invalid_grant`, `unauthorized_client`, `unsupported_grant_type`, `invalid_scope`, `invalid_target`.
+  - Sent back to the app: `access_denied`, `invalid_request`, `unsupported_response_type`, `invalid_target`, with its `state` and `iss`.
+  - An unknown app, or a redirect it didn't register, is shown on a4a's page and sent nowhere.
+- **Lifetimes.** A code lasts two minutes and works once. An access token lasts an hour. A refresh token lasts 30 days and is replaced at each use. A code or refresh token used twice revokes every token since its code.
+- **Behind the consent page** (REST, signed in, a4a's own page only): `GET /api/v1/oauth/authorize` checks a request, and `POST /api/v1/oauth/authorize` records the person's decision and says where the browser goes. `GET /api/v1/me/oauth-grants` lists the apps a person allowed; `DELETE /api/v1/me/oauth-grants/{id}` revokes one, and every token it holds, at once.
 
 ## 6. Events and webhooks
 
@@ -314,6 +338,10 @@ These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on D
   - Random, prefixed `a4a_`, and shown once; only a SHA-256 hash is stored.
   - Each has a name, scopes, an optional expiry and a last-used time, and can be revoked at any time.
   - A read-only token is the safest way to let an agent explore.
+- **Apps that sign in (OAuth).**
+  - The person chooses what each app may do and where, on a4a's own page, and revokes it under Agents and tokens.
+  - Its tokens are hashed, short-lived, work at `/mcp` alone, and never carry `admin`.
+  - The activity names the app.
 - **Prompt injection.** Issue text is untrusted, since anyone who can file an issue can write instructions into it.
   - The assistant's system prompt treats tool output as data.
   - Writes need approval in the in-app assistant.

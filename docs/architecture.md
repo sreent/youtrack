@@ -276,9 +276,9 @@ People can sign in with their organisation's identity provider: the authorizatio
 - **Each sign-in starts a new session**, and ends the one the browser had.
 
 - **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout and SCIM are not done: an account removed at the provider keeps its a4a sessions until they expire, or until an administrator bans it.
-- **Revisit when:** several providers are needed (the table already keys identities by provider), or remote MCP needs OAuth (below).
+- **Revisit when:** several providers are needed (the table already keys identities by provider).
 
-**OAuth for remote MCP (not done).** What it would take: a4a as an OAuth 2.1 authorization server for `/mcp`, as the MCP authorization specification asks. Protected-resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource`, and `WWW-Authenticate` with `resource_metadata` on a 401 from `/mcp`; authorization-server metadata (RFC 8414); dynamic client registration (RFC 7591), since MCP clients register themselves; the authorization code flow with PKCE, signing the person in with a password or this single sign-on, and a consent page that names the client and lets the person choose scopes and projects, which become exactly a token limited to projects (D15); short-lived access tokens bound to the `/mcp` resource (RFC 8707) with refresh tokens, revocable from Agents and tokens; and rate limits on registration. The bearer tokens of today stay, for clients that don't speak OAuth.
+**OAuth for remote MCP** is D28: a4a is the authorization server for `/mcp`, and signs the person in on the way with a password or this single sign-on.
 
 ### D17. Several instances on one Postgres behave as one
 
@@ -548,6 +548,77 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D28. Remote MCP signs in with OAuth 2.1, and a4a is its own authorization server
+
+An MCP client such as Claude or Claude Code needs only `PUBLIC_URL/mcp`. The first request has no token, so `/mcp` answers 401, and its `WWW-Authenticate` names the protected resource metadata. The client follows it, registers itself, and sends the person's browser to a4a, which asks them what the app may do. The app gets a code back at its own address and exchanges it for tokens that work at `/mcp` alone. This follows the MCP authorization specification (the 2025-06-18 revision), and with it RFCs 9728, 8414, 7591, 7636, 8707, 9207, 7009 and 9700. API tokens stay for clients that don't sign in by themselves, and the stdio bridge uses one.
+
+**The choice: a4a issues the tokens, not the identity provider of D16.**
+
+- A token has to say what a4a's tokens say: read, or read and write, and in which projects (D15). No provider knows those.
+- MCP clients register themselves, and few providers take registrations from anyone.
+- An instance may have no provider at all.
+- The person still signs in on the way, with a password or that single sign-on, and the consent page is a4a's own.
+
+**Discovery.**
+
+- The protected resource metadata (RFC 9728) is served at `/.well-known/oauth-protected-resource/mcp`, the address the 401 names, and at the root form, which clients try when given none.
+- The authorization server metadata (RFC 8414) is at `/.well-known/oauth-authorization-server`. The issuer is `PUBLIC_URL`.
+- Any other `/.well-known/` address answers 404 in JSON, never the web app's page in its place.
+
+**Registration (RFC 7591).**
+
+- It is open, as MCP clients expect, and for public clients only. An app gets an id and never a secret; whatever authentication it asks for, the answer says `none`.
+- Redirect URIs must be https, or plain http to this computer's loopback, where desktop clients listen. Fragments, credentials and other schemes are refused.
+- An app's name is cleaned to one line (no control or direction-changing characters). It is shown as the app's own word for itself, which a4a can't check.
+- a4a never fetches anything a registration names, such as a logo or a policy, so registering can't make the server reach anywhere.
+- Registering gives nothing until a person allows the app. It is limited to 20 an hour per address, with a backstop on registrations nobody uses. An app nobody allowed within a day is pruned.
+
+**Asking the person.**
+
+- The consent page is the web app's, at `/oauth/authorize`. It signs the person in first if needed, then asks the REST API whether the request holds.
+- Until the app and the address it wants to go back to are known to be its own, an error is shown on a4a's page and sent nowhere: an unregistered address could be anyone's (an open redirect). After that, errors go back to the app with its `state` and `iss` (RFC 9207).
+- PKCE with S256 is required.
+- A redirect must match the registered one exactly. A loopback one may come back on another port, since a desktop app listens on whichever port is free (RFC 8252).
+- The `resource` (RFC 8707) must name `/mcp`. The server's own address is taken to mean it too, as it holds nothing else an app could ask for. Every token is bound to `/mcp`.
+- The page is Ocean's ApprovalCard as the page's one card, striped `outside`, since what the app reads leaves a4a. It shows:
+  - who asks, by the app's own name, said to be its own;
+  - where it sends the person back, or that it's a program on this computer;
+  - what it may do: reading always, and changes if the app asks and the person's role allows;
+  - where: every project, or the ones chosen, exactly as a token limited to projects.
+- Only a person signed in on a4a's own page decides. A token can't, nor can a page elsewhere (the CSRF check).
+
+**Remembered.** What a person allowed an app is one live grant per person and app. While the app asks for nothing it didn't ask for when they decided, and it was used in the last 90 days, the consent page carries on without asking. Asking for more asks again.
+
+**Tokens.**
+
+- **Codes** last two minutes and work once: a code is claimed in one statement, on any instance. A code that comes back revokes what it gave (RFC 6749, 4.1.2).
+- **Access tokens** last an hour.
+- **Refresh tokens** last 30 days and rotate with each use. Every token since one code is a family, and a refresh token used twice revokes its whole family (RFC 9700): one of its two holders isn't the app.
+- All three are stored as SHA-256 hashes. Their prefixes (`a4c_`, `a4o_`, `a4r_`) set them apart from API tokens.
+- An access token works at `/mcp` and nowhere else; the REST API refuses it. That makes it audience-bound, and no token is ever passed on.
+
+**Acting.**
+
+- A token acts as its person, with what the grant allows as their role allows it now: a role narrowed since narrows the app at once.
+- It reaches only the projects chosen. It never has the admin scope: administration reaches every project, as for tokens limited to projects.
+- The activity records the change as the person's, on the `mcp` channel, under the app's name.
+- A person revokes an app under Agents and tokens, which ends its grant and every token at once. An app revokes its own tokens (RFC 7009). A banned person's apps stop.
+
+**CORS.** Only the protocol's own endpoints (the metadata, registration, the token endpoint and revocation) answer any origin, and without credentials, so an MCP client in a browser can use them. `/mcp` and the REST API stay same-origin.
+
+**Costs.**
+
+- Rotation is strict. A client that retries a refresh after losing the answer is signed out, and its next sign-in goes through the remembered grant without a question.
+- OAuth's limits are per instance, as the API's are (D17).
+- An app with a private-use redirect scheme (`cursor://…`) can't register: it uses a token.
+- OAuth needs an https `PUBLIC_URL` (or this computer, for development). Over plain http to another host it stays off, and `/mcp` asks for a token as before. `MCP_OAUTH=false` turns it off anyway.
+
+**Revisit when:**
+
+- MCP clients move to client ID metadata documents. a4a would then fetch a document the client names, with the care any outbound request takes.
+- An organisation wants its own provider to issue the tokens. a4a would then check that provider's tokens for audience `/mcp` and map their scopes.
+- A tool should ask for writing only when it needs it (step-up, with `insufficient_scope`).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -583,6 +654,12 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Sessions:** random 256-bit tokens, stored as SHA-256 hashes. The cookie is `HttpOnly; SameSite=Lax`, plus `Secure` behind HTTPS.
 - **CSRF:** cookie-authenticated unsafe requests must come from the server's own origin (Origin/Referer check). Bearer-token requests are not CSRF-able.
 - **API tokens:** `a4a_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
+- **Apps over OAuth (D28):**
+  - Codes, access tokens and refresh tokens are 256 random bits, stored as SHA-256 hashes.
+  - PKCE with S256 is required, and codes go only to a redirect the app registered.
+  - An access token works at `/mcp` alone, and lasts an hour.
+  - A code or refresh token used twice revokes everything issued since.
+  - Only a person signed in on a4a's own page allows an app, and never with the admin scope.
 - **Login:** failed sign-ins are counted in Postgres per IP (50) and per login (10) in 15-minute windows, shared by every instance and kept across restarts. Starting a single sign-on is throttled per IP too, on each instance. The address comes from `X-Forwarded-For` only through the `TRUST_PROXY` proxies in front; otherwise the header is ignored, since clients can send it.
 - **Single sign-on:** see D16.
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
@@ -605,7 +682,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **A live stream replays up to 1000 missed events** on reconnect; past that it sends `resync` and the client re-reads.
 - **An event whose transaction stays open for more than a minute** is passed over by live streams and consumers, with a warning; it stays in `GET /events`.
 - **Pagination.** Search results use offset pagination (sortable by any field); the event feed uses a cursor (`after`).
-- **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. The sign-in throttle is shared.
+- **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. OAuth's limits are per instance too: 20 app registrations an hour and 120 token requests a minute per address (D28). The sign-in throttle is shared.
 - **A token's last-used time** is written at most once a minute per instance.
 - **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
@@ -619,7 +696,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 Planned, with the seams already in place:
 
 - groups of people with a role in a project (D15);
-- OAuth 2.1 for remote MCP (what it takes is in D16);
+- client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
