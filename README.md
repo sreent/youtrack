@@ -300,7 +300,7 @@ env:
 
 Then `pnpm install --frozen-lockfile` and `pnpm test` as usual. Running the suite once without `TEST_DATABASE_URL` as well keeps PGlite covered.
 
-The S3 store's tests run against a fake S3 server they start themselves. `test/s3-live.test.ts` runs against a real one when `TEST_S3_ENDPOINT` names it, with `TEST_S3_BUCKET`, `TEST_S3_ACCESS_KEY_ID` and `TEST_S3_SECRET_ACCESS_KEY`; CI gives it MinIO. Without them it is skipped.
+The S3 store's tests run against a fake S3 server they start themselves. `test/s3-live.test.ts` runs against a real one when `TEST_S3_ENDPOINT` names it, with `TEST_S3_BUCKET`, `TEST_S3_ACCESS_KEY_ID` and `TEST_S3_SECRET_ACCESS_KEY`; CI gives it MinIO, built from its source at a pinned commit. Without them it is skipped.
 
 ```bash
 pnpm typecheck
