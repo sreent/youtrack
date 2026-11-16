@@ -114,6 +114,9 @@ remove tag needs-info duplicates BACK-7
 | Costs | `GET /projects/{key}/costs?baseline=` | Budget, planned and actual cost by task and by person; earned value (PV, EV, AC, CPI, SPI, EAC) against a baseline |
 | Baselines | `GET/POST /projects/{key}/baselines`, `GET/DELETE /baselines/{id}` | Snapshot the plan, then compare start, finish, effort and cost variance per task |
 | Plan settings | `PATCH /projects/{key}` (`plan`), `PATCH /users/{id}` (`hourlyRate`, `capacityHoursPerDay`) | Working days, hours per day, holidays, project start, budget and currency; per-person rate and capacity |
+| Reports | `GET /reports/burndown?board=&sprint=&by=`, `GET /reports/flow`, `GET /reports/created-resolved?interval=`, `GET /reports/cycle-time?start=`, `GET /reports/time?author=`, each also as `.csv` (`/reports/time.csv?rows=entries\|person\|issue\|project\|week`) | Worked out from the activity log and the time logged, for a project or a query, `from`/`to` or `days`, in `timeZone` (the server's by default). A sprint's burndown by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence; issues in each state day by day; created against resolved; cycle time with its percentiles; time by person, issue, project and week, against estimates |
+| Dashboards | `GET/POST /dashboards`, `GET /dashboards/default`, `GET/PATCH/DELETE /dashboards/{id}` | A person's widgets (a report with its parameters, a saved search's count or list, a note), private or shared; `expectedVersion` on a change, 409 if someone changed it since. Each viewer sees a shared one's widgets as they may |
+| Imports | `POST /imports?project=` (the CSV as the body, `text/csv`), `GET /imports`, `GET /imports/{id}`, `PUT /imports/{id}/mapping`, `POST /imports/{id}/check`, `POST /imports/{id}/run`, `GET /imports/{id}/rows?status=`, `POST /imports/{id}/undo`, `DELETE /imports/{id}` | Jira and YouTrack CSV exports, for a project's managers: columns found from their headers, values mapped (states, people, priorities, sprints), a dry run with the problems row by row, then a job with its progress. Each issue keeps its original dates and reporter, recorded as imported, with its comments and time; links and parents follow in a second pass. Rerunning updates what changed and never makes an issue twice (known by its key there); undo takes back the issues it made that nobody has worked on since |
 | Events | `GET /events?after=`, `GET /events/stream?after=` (SSE) | A durable change feed: poll it, or stream it live. A stream resumes from its last event id, on any instance, missing nothing |
 | Webhooks | `GET/POST /webhooks`, `PATCH/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/{id}/test` | Signed push notifications with retries and a delivery log |
 | AI | see [section 7](#7-ai-endpoints) | Triage, duplicates, natural language → query or command, summaries, chat |
@@ -128,6 +131,9 @@ remove tag needs-info duplicates BACK-7
 - **Commit hook.** A message like `BACK-12 #Fixed` becomes `POST /commands {issues:["BACK-12"], command:"State Fixed", comment:"Fixed in a1b2c3"}`.
 - **Weekly report.** `POST /search/count {query:"project: BACK #Unresolved", groupBy:"Priority"}`.
 - **Chat bot.** Read `GET /events/stream` and post "BACK-12 moved to In Progress by anna".
+- **Stand-up bot.** `GET /reports/burndown?board=Backend sprints` says how the sprint stands, in a sentence: "Behind: 26h left, where the ideal had 20h left as today began".
+- **Timesheets.** `GET /reports/time.csv?rows=entries&from=2026-11-01&to=2026-11-30` for the month's entries, as a spreadsheet opens them.
+- **Moving from Jira.** `POST /imports?project=WEB` with the export, then `PUT /imports/{id}/mapping` for what wasn't found, `POST /imports/{id}/check`, and `POST /imports/{id}/run`; follow it with `GET /imports/{id}`.
 
 ## 5. MCP server
 
@@ -162,6 +168,7 @@ remove tag needs-info duplicates BACK-7
 | `level_resources` | Propose (`dry_run`, default) or apply a levelled schedule that resolves over-allocation; `expect` applies only the proposal the person agreed to | write |
 | `create_baseline` | Snapshot the current plan under a name | write |
 | `list_project_members` | Who is in a project and their role, whether it is members only, and what you may do in it. Assign a members-only project's issues only to its people | read |
+| `get_report` | A report, worked out from history: `burndown` (is the sprint on track, and what changed its scope), `flow` (issues in each state, day by day), `created_resolved`, `cycle_time` (how long work takes, with percentiles) or `time` (logged, by person, issue, project and week, against estimates) | read |
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
@@ -226,6 +233,7 @@ An agent or integration can react to changes instead of polling.
 - `ai.triage.completed`
 - `baseline.created`
 - `project.member.added`, `project.member.changed`, `project.member.removed`, `project.visibility.changed`
+- `sprint.issue_added`, `sprint.issue_removed`: an issue joined or left a sprint (`data` names the sprint and its board), the history a burndown reads
 
 Every consumer sees only the events of projects it can see: `GET /events` and `GET /events/stream` filter by the caller's access, and leave out a link whose other end it can't see. Webhooks (made by administrators) get every event.
 
