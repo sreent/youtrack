@@ -175,6 +175,21 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
           </ul>
         ),
       };
+    case 'issue.moved':
+      // Moved to another project (D41): the id it had, the one it has, and what its fields became.
+      return {
+        ...base,
+        did: `moved it from ${String(data.from ?? 'another project')} to ${String(data.to ?? 'this project')}`,
+        body: (
+          <ul className="change-lines">
+            {e.changes.map((c) => (
+              <li key={c.field}>
+                <span className="change-field">{c.field}:</span> {c.from !== null ? <del>{c.from}</del> : null} {c.to !== null ? <ins>{c.to}</ins> : null}
+              </li>
+            ))}
+          </ul>
+        ),
+      };
     case 'link.created':
     case 'link.deleted': {
       const target = data.target as { id: string; summary: string } | undefined;

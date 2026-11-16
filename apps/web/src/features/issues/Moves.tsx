@@ -1,7 +1,9 @@
 /**
  * Moving, cloning, votes and reactions on an issue (D41).
  */
-import { REACTIONS, type IssueDetail, type MovePlan, type Project, type ReactionSummary, type Vote } from '@a4a/shared';
+import type { IssueDetail, MovePlan, Project, ReactionSummary, Vote } from '@a4a/shared';
+// The constants alone: the package's root brings zod, whose first parse tries eval, which the CSP refuses.
+import { REACTIONS } from '@a4a/shared/constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -46,7 +48,7 @@ export function VoteToggle({ issue, mine }: { issue: IssueDetail; mine: boolean 
         aria-pressed={issue.voted}
         disabled={busy || mine}
         onClick={() => void toggle()}
-        title={mine ? 'You reported it, so your vote is counted already.' : issue.voted ? 'You voted for it. Press to take the vote back.' : 'Vote for it: say you want it too.'}
+        title={mine ? 'You reported it, so you can’t vote for it: votes count the people who want it besides you.' : issue.voted ? 'You voted for it. Press to take the vote back.' : 'Vote for it: say you want it too.'}
       >
         <span aria-hidden="true">▲</span>
         <span>Vote</span>
@@ -91,7 +93,7 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
           title={r.people.map((p) => p.name).join(', ')}
           onClick={() => void toggle(r.emoji)}
         >
-          <span aria-hidden="true">{r.emoji}</span> {r.count}
+          {r.emoji} {r.count}
           <span className="hidden"> {r.count === 1 ? 'reaction' : 'reactions'}{r.mine ? ', yours among them' : ''}</span>
         </button>
       ))}
