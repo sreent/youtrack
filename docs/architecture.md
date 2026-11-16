@@ -623,6 +623,9 @@ Planned, with the seams already in place:
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
+- an S3-compatible store for files, so several instances need no shared volume (D18);
+- rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
+- matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
 - in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).

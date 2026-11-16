@@ -20,35 +20,35 @@
       "idx": 2,
       "version": "7",
       "when": 1794808438011,
-      "tag": "0002_smooth_wallflower",
+      "tag": "0002_login_throttle",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
       "when": 1794808857931,
-      "tag": "0003_gorgeous_terrax",
+      "tag": "0003_files_and_knowledge_base",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
       "when": 1794811325864,
-      "tag": "0004_nasty_fallen_one",
+      "tag": "0004_reports_dashboards_imports",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
       "when": 1794811896661,
-      "tag": "0005_flat_baron_zemo",
+      "tag": "0005_notifications_and_help_desk",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
       "when": 1794812408599,
-      "tag": "0006_tough_hex",
+      "tag": "0006_rules_and_version_control",
       "breakpoints": true
     }
   ]
