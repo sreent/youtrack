@@ -920,6 +920,43 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 
 **Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
 
+### D37. Access in depth: who sees an issue or a comment, roles as permissions, and guests
+
+Until now a project was the one unit of access: whoever could read it read all of it. Three things go further.
+
+- **An issue or a comment limited to some people and groups** ("Visible to").
+  - Its reporter and its assignee (a comment's author), the project's managers and administrators always see it, and so do the people and groups named. Nobody else does, guests included.
+  - The reporter keeps it because they wrote it, the assignee because they're doing it, and managers because they answer for the project. Seeing is reading, so a manager's read-only token sees it too.
+  - To anyone else it's missing, in the words used for one that doesn't exist, wherever issues and comments are read:
+    - lookups, search and its counts, project counts, the query language's words and `commenter:` and `has: comments`;
+    - links, whose other end is left out as a hidden project's is; and mentions, which keep the id as text and never show its summary;
+    - the event feed and the live stream (an event of a limited issue or comment, or a link to one, is left out, as SQL so pages and the cursor stay whole), and an issue that was limited when it was deleted;
+    - notifications, emails and digests, watchers and mentions (only who sees it is told, or made to watch), and a rule's message;
+    - reports, plans and sprint counts, which count only what the caller sees; possible duplicates, triage's words and the assistant, which works through the same services;
+    - files on a limited comment, and attachments by id.
+  - Webhooks carry none of it: their address is outside, where nobody's access is known. That includes a rule's call.
+  - Limiting is a change to the issue like any other: through `applyChanges`, with its version and its history ("Visible to"), and it takes the edit permission. Nobody limits an issue away from themselves. A comment is limited by its author or a manager. A public comment, which went to a help desk's requester, can't be.
+  - The check is in `services/access.ts`, twice: as SQL (`issueSeenSql`, `commentSeenSql`) and over a row (`seesIssueRow`, `seesCommentRow`). For whom to tell, it's `whoSeesIssue` and `whoSeesComment`.
+- **Roles as sets of permissions.**
+  - The permissions are read, comment, create, edit, delete, time, costs, boards and manage.
+  - Viewer, member and manager are three such sets, as they were. Administrators define more (`/roles`), and projects give them to people and groups as they give the built-in ones.
+  - Someone may do in a project what any of their roles there allows: their own and their groups'. A read-only account or token gets none of the permissions that change things, whatever its role.
+  - Every check asks for a permission, never for a role by name, so a custom role works everywhere at once. A role nobody has can be deleted; one in use can't.
+- **Guests.**
+  - An administrator can open an open project to anyone (`guestAccess`). A project for its members only can't be, and making it so closes it to guests.
+  - A request without credentials to one of the reading routes is then a guest's: the read permission in those projects and nowhere else, the read scope alone, so nothing writes.
+  - The routes are projects, issues and their comments, links, history and files, search, articles, and fields. People, the event stream, notifications, tokens and MCP are refused, as for anyone not signed in.
+  - Guests have their own rate limit per address (`GUEST_RATE_LIMIT`), apart from people who sign in. A help desk requester's name shows as "The requester".
+
+**What it costs.**
+- Search, counts and feeds carry one more condition for anyone who manages nothing in a project: an `OR` of the issue's lists, its reporter, and an `EXISTS` on its assignee.
+- Telling people of an event reads each recipient's access as they'd sign in.
+- An event's facts (its issue, comment and link's other end) are kept 10 seconds per event, so a limit changed just now can take that long to reach an open stream.
+- A plan holds what its reader sees, so someone who sees less sees a plan computed without what they can't see; its managers, who level it, see it all.
+- Permissions are checked in more places than roles were, so a custom role is only as narrow as the checks: costs gate logged time, the time report and the cost report, and not an issue's total time spent.
+
+**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1000,6 +1037,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time. One from an API reads up to 50,000 issues, each page of its answers 64 MB at most, and waits out a `Retry-After` of up to ten minutes at a time.
 - **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
+- **A limit on an issue or comment** reaches an open live stream within 10 seconds of being changed: each event's facts are kept that long (D37).
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 - **One shared help desk mailbox,** read once a minute by default; desks are told apart by the address mail was sent to, and a desk's replies need its mail server to deliver plus addresses (D30).
@@ -1012,4 +1050,5 @@ Planned, with the seams already in place:
 - client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
-- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36).
+- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
+- fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37).

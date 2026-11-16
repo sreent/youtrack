@@ -84,6 +84,7 @@ remove tag needs-info duplicates BACK-7
 
 - Session cookie for the web UI.
 - `Authorization: Bearer a4a_…` for API tokens.
+- Nothing, for a guest: where an administrator opened a project to anyone, a request without credentials to a reading route (projects, issues and their comments, links, history and files, search, articles, fields) reads those projects, and nothing else; `GET /guest` lists them (D37).
 
 **Conventions**
 
@@ -349,6 +350,15 @@ These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on D
 | `GET /ai/tools` | The tool catalogue agents get over MCP and in the assistant, each tagged `reads` or `changes` |
 | `POST /issues/{id}/summarize` | A short summary of a long issue thread |
 | `GET/POST /ai/conversations`, `POST /ai/conversations/{id}/messages` (SSE), `POST /ai/conversations/{id}/approve` (SSE) | The project chat assistant. It streams text and tool calls and uses the MCP tool layer. Writes pause for **Approve / Reject** by default. History is stored and resumable |
+
+## 7a. Who sees what (D37)
+
+- **Roles** are sets of permissions: read, comment, create, edit, delete, time, costs, boards, manage. `GET /roles` lists them, the built-in viewer, member and manager first; administrators make, change and delete their own (`POST /roles`, `PATCH`/`DELETE /roles/{id}`). Wherever a role is given (`/projects/{key}/members`, `/projects/{key}/groups`), `role` takes a role's id or name. A project's `access.permissions` says what the caller may do in it.
+- **Visible to.** `visibleTo: { users: [logins], groups: [names or ids] }` on `POST /issues` and `POST /issues/{id}/comments`, or later with `PUT /issues/{id}/visibility` and `PUT /comments/{id}/visibility` (`visibleTo: null` lifts it). An issue says `limited`, and its detail and its comments say `visibleTo`.
+  - Its reporter and assignee (a comment's author), the project's managers and administrators always see it.
+  - To anyone else it's missing, in the words of one that doesn't exist: in lookups, search, links, the event feed and stream, notifications, reports, plans and MCP. Webhooks don't carry it.
+  - `add_comment` takes `visibleTo` too.
+- **Guests**: see Authentication above. An administrator sets `guestAccess` on `PATCH /projects/{key}`, on an open project only.
 
 ## 8. Security model for agents
 
