@@ -4,7 +4,7 @@
  * settings do.
  */
 import type { Project, SavedSearch, Subscription, SubscriptionEvents } from '@a4a/shared';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said, Scroll } from '../common/bits';
@@ -162,6 +162,85 @@ function Target({ s }: { s: Subscription }) {
   );
 }
 
+/**
+ * One subscription's row. Its controls show what was chosen the moment it's chosen, and follow what
+ * the server keeps when that arrives: controlled by the server's copy alone, a box clicked would
+ * snap back until the save came back.
+ */
+function SubscriptionRow({
+  s,
+  name,
+  busy,
+  ending,
+  save,
+  unsubscribe,
+}: {
+  s: Subscription;
+  name: string;
+  busy: boolean;
+  ending: boolean;
+  save: (change: { events?: SubscriptionEvents; email?: boolean }, undo: () => void) => void;
+  unsubscribe: () => void;
+}) {
+  const [events, setEvents] = useState(s.events);
+  const [email, setEmail] = useState(s.email);
+  useEffect(() => setEvents(s.events), [s.events]);
+  useEffect(() => setEmail(s.email), [s.email]);
+  const choices = s.project
+    ? [
+        { value: 'new', name: 'New issues' },
+        { value: 'all', name: 'Every change' },
+      ]
+    : [
+        { value: 'new', name: 'Issues coming in' },
+        { value: 'all', name: 'Any change to one in it' },
+      ];
+  return (
+    <tr>
+      <th scope="row" className="row-head">
+        <Target s={s} />
+      </th>
+      <td>
+        <select
+          aria-label={`What ${name} tells you of`}
+          value={events}
+          disabled={busy}
+          onChange={(e) => {
+            const next = e.target.value as SubscriptionEvents;
+            const was = events;
+            setEvents(next);
+            save({ events: next }, () => setEvents(was));
+          }}
+        >
+          {choices.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <input
+          type="checkbox"
+          aria-label={`Email me about ${name}`}
+          checked={email}
+          disabled={busy}
+          onChange={(e) => {
+            const next = e.target.checked;
+            setEmail(next);
+            save({ email: next }, () => setEmail(!next));
+          }}
+        />
+      </td>
+      <td className="fit">
+        <button type="button" className="small" disabled={ending} onClick={unsubscribe}>
+          Unsubscribe<span className="hidden"> from {name}</span>
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 /** Your profile's list: each subscription, what it tells you of, whether by email, and a way out. */
 export function SubscriptionList() {
   const subs = useSubscriptions();
@@ -196,54 +275,27 @@ export function SubscriptionList() {
           <tbody>
             {subs.data.map((s) => {
               const name = s.project?.name ?? `“${s.search?.name ?? ''}”`;
-              const choices = s.project
-                ? [
-                    { value: 'new', name: 'New issues' },
-                    { value: 'all', name: 'Every change' },
-                  ]
-                : [
-                    { value: 'new', name: 'Issues coming in' },
-                    { value: 'all', name: 'Any change to one in it' },
-                  ];
               return (
-                <tr key={s.id}>
-                  <th scope="row" className="row-head">
-                    <Target s={s} />
-                  </th>
-                  <td>
-                    <select
-                      aria-label={`What ${name} tells you of`}
-                      value={s.events}
-                      disabled={update.isPending}
-                      onChange={(e) => update.mutate({ id: s.id, events: e.target.value as SubscriptionEvents }, { onSuccess: () => setSaid({ text: 'Saved.' }), onError: failed })}
-                    >
-                      {choices.map((c) => (
-                        <option key={c.value} value={c.value}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`Email me about ${name}`}
-                      checked={s.email}
-                      disabled={update.isPending}
-                      onChange={(e) => update.mutate({ id: s.id, email: e.target.checked }, { onSuccess: () => setSaid({ text: 'Saved.' }), onError: failed })}
-                    />
-                  </td>
-                  <td className="fit">
-                    <button
-                      type="button"
-                      className="small"
-                      disabled={end.isPending}
-                      onClick={() => end.mutate({ id: s.id, events: null }, { onSuccess: () => setSaid({ text: `Unsubscribed from ${name}.` }), onError: failed })}
-                    >
-                      Unsubscribe<span className="hidden"> from {name}</span>
-                    </button>
-                  </td>
-                </tr>
+                <SubscriptionRow
+                  key={s.id}
+                  s={s}
+                  name={name}
+                  busy={update.isPending}
+                  ending={end.isPending}
+                  save={(change, undo) =>
+                    update.mutate(
+                      { id: s.id, ...change },
+                      {
+                        onSuccess: () => setSaid({ text: 'Saved.' }),
+                        onError: (e) => {
+                          undo();
+                          failed(e);
+                        },
+                      },
+                    )
+                  }
+                  unsubscribe={() => end.mutate({ id: s.id, events: null }, { onSuccess: () => setSaid({ text: `Unsubscribed from ${name}.` }), onError: failed })}
+                />
               );
             })}
           </tbody>
