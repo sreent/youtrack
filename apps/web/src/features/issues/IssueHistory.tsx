@@ -1,8 +1,8 @@
-import type { Attachment, Comment, CommentVisibility, IssueDetail, TrackerEvent, User, UserRef } from '@a4a/shared';
+import type { Attachment, Comment, CommentVisibility, IssueDetail, TrackerEvent, UndoResult, User, UserRef } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { post } from '../../api/client';
+import { ApiError, post } from '../../api/client';
 import { attachmentKeys, formatBytes, refusal, uploadFile, useAttachmentLimits, useIssueAttachments } from '../attachments/api';
 import { CommentFiles } from '../attachments/AttachmentList';
 import { Icon } from '../../components/Icon';
@@ -14,6 +14,7 @@ import { ErrorNote, Loading, ErrorLine } from '../../components/States';
 import { Avatar, type WhoKind } from '../../components/Who';
 import { errorText } from './api';
 import { FormField } from '../../components/Form';
+import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { MentionField } from './MentionField';
 
@@ -31,6 +32,10 @@ interface Who {
 /** Who acted, for whom and through what, in Ocean's grammar. A requester, through the help desk, by the name they gave. */
 export function whoOf(actor: Actor, requester?: string | null): Who {
   const person = actor.name ?? actor.login ?? 'someone';
+  // An agent with a token of its own acts as itself, not for a person (D34).
+  if (actor.isBot && (actor.channel === 'mcp' || actor.channel === 'api')) {
+    return { kind: 'agent', name: actor.login ?? 'an agent', via: actor.channel === 'mcp' ? 'via MCP' : 'via the API' };
+  }
   switch (actor.channel) {
     case 'helpdesk':
       return { kind: 'person', name: requester ?? 'The requester', via: 'via the help desk' };
@@ -82,11 +87,25 @@ interface Entry {
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
   anchor?: string;
+  /** A change an agent made on its own: its event, and whether a person can undo it (D34). */
+  undo?: { event: number; state: NonNullable<TrackerEvent['undo']>['state']; note: string };
 }
 
-function eventEntry(e: TrackerEvent): Entry | null {
+/** "undid claude's change": whose change an undo put back, from the history it's in. */
+function undid(e: TrackerEvent, byId: Map<number, TrackerEvent>, what: string): string | undefined {
+  if (typeof e.data.undoes !== 'number') return undefined;
+  const original = byId.get(e.data.undoes);
+  return `undid ${original ? `${whoOf(original.actor).name}’s` : 'an agent’s'} ${what}`;
+}
+
+function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | null {
   const data = e.data as Record<string, unknown>;
-  const base = { key: `e${e.id}`, at: e.occurredAt, who: whoOf(e.actor, (data.requester as { name?: string } | undefined)?.name) };
+  const base = {
+    key: `e${e.id}`,
+    at: e.occurredAt,
+    who: whoOf(e.actor, (data.requester as { name?: string } | undefined)?.name),
+    ...(e.undo ? { undo: { event: e.id, ...e.undo } } : {}),
+  };
   switch (e.type) {
     case 'issue.created': {
       // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
@@ -105,7 +124,7 @@ function eventEntry(e: TrackerEvent): Entry | null {
       if (!e.changes.length) return null;
       return {
         ...base,
-        did: data.acceptedFrom === 'triage' ? 'accepted what triage worked out' : byRule(data),
+        did: undid(e, byId, 'change') ?? (data.acceptedFrom === 'triage' ? 'accepted what triage worked out' : byRule(data)),
         body: <ChangeLines changes={e.changes} />,
       };
     case 'commit.linked': {
@@ -159,6 +178,7 @@ function eventEntry(e: TrackerEvent): Entry | null {
       const phrase = String(data.phrase ?? 'links to');
       return {
         ...base,
+        did: undid(e, byId, 'link'),
         body: (
           <ul className="change-lines">
             <li>
@@ -225,6 +245,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     name: c.author?.name ?? null,
     channel: c.channel,
     token: null,
+    isBot: c.author?.isBot ?? false,
   };
   return {
     key: `c${c.id}`,
@@ -237,7 +258,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
   };
 }
 
-function Head({ who, at, did, badge }: { who: Who; at: string; did?: React.ReactNode; badge?: React.ReactNode }) {
+function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: React.ReactNode; badge?: React.ReactNode; action?: React.ReactNode }) {
   return (
     <p className="history-head">
       <strong className="who-name">{who.name}</strong>
@@ -248,6 +269,7 @@ function Head({ who, at, did, badge }: { who: Who; at: string; did?: React.React
         {when(at)}
       </time>
       {badge}
+      {action}
     </p>
   );
 }
@@ -275,19 +297,22 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
  * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then
  * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
  * Replying to a help desk's requester takes `canReply` (someone who may change the issue); `people`
- * are those a mention would reach.
+ * are those a mention would reach. Someone who may change the issue (`canUndo`) can undo what an
+ * agent changed on its own, while nobody has changed it since.
  */
 export function IssueHistory({
   issue,
   me,
   canComment = true,
   canReply = true,
+  canUndo = false,
   people,
 }: {
   issue: IssueDetail;
   me: UserRef | undefined;
   canComment?: boolean;
   canReply?: boolean;
+  canUndo?: boolean;
   people?: User[];
 }) {
   const qc = useQueryClient();
@@ -305,6 +330,8 @@ export function IssueHistory({
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notAttached, setNotAttached] = useState<string[]>([]);
+  const [undoing, setUndoing] = useState<number | null>(null);
+  const [undoSaid, setUndoSaid] = useState<{ event: number; text: string; bad?: boolean } | null>(null);
 
   if (activity.isLoading || comments.isLoading) return <Loading what="the history" />;
   if (activity.error) return <ErrorNote error={activity.error} />;
@@ -315,10 +342,32 @@ export function IssueHistory({
   for (const e of activity.data ?? []) if (e.type === 'comment.created' && typeof e.data.commentId === 'string') byEvent.set(e.data.commentId, e.actor);
   const byComment = new Map<string, Attachment[]>();
   for (const f of files.data ?? []) if (f.comment) byComment.set(f.comment, [...(byComment.get(f.comment) ?? []), f]);
+  const byId = new Map((activity.data ?? []).map((e) => [e.id, e]));
   const entries = [
-    ...(activity.data ?? []).map(eventEntry).filter((x): x is Entry => x !== null),
+    ...(activity.data ?? []).map((e) => eventEntry(e, byId)).filter((x): x is Entry => x !== null),
     ...(comments.data ?? []).map((c) => commentEntry(c, byEvent, byComment.get(c.id) ?? [])),
   ].sort((a, b) => a.at.localeCompare(b.at));
+
+  // Undo an agent's change: as you, through the write path; it says what changed since, if anything did.
+  const undo = async (entry: Entry) => {
+    if (!entry.undo) return;
+    const event = entry.undo.event;
+    setUndoing(event);
+    setUndoSaid(null);
+    try {
+      const done = await post<UndoResult>(`/events/${event}/undo`);
+      const what = done.changes.map((c) => (c.field === 'Links' ? 'the link' : c.field));
+      setUndoSaid({ event, text: `Undone: ${what.length ? what.join(', ') : 'its change'} as before.` });
+      await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
+    } catch (e) {
+      // What changed since, or who undid it already, in the server's words; anything else as usual.
+      const said = e instanceof ApiError && (e.code === 'changed_since' || e.code === 'already_undone') ? e.message : errorText(e);
+      setUndoSaid({ event, text: said, bad: true });
+      await qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'activity') });
+    } finally {
+      setUndoing(null);
+    }
+  };
 
   const used = (files.data ?? []).reduce((n, f) => n + f.size, 0);
   const pick = (list: File[]) => setPicked((current) => [...current, ...list.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))]);
@@ -372,7 +421,7 @@ export function IssueHistory({
       <h2 id="history-title">History and comments</h2>
       <ol className="history">
         {entries.map((e) => (
-          <li key={e.key} id={e.anchor}>
+          <li key={e.key} id={e.anchor} className={e.undo?.state === 'undone' ? 'undone' : undefined}>
             <Avatar kind={e.who.kind} name={e.who.name} small />
             <div className="history-body">
               <Head
@@ -384,10 +433,28 @@ export function IssueHistory({
                     <Badge grammar="outside">public: sent to {requester ?? 'the requester'}</Badge>
                   ) : e.public === 'theirs' ? (
                     <Badge grammar="outside">public: the requester wrote it</Badge>
+                  ) : e.undo?.state === 'undone' ? (
+                    <Badge tone="idle" title={e.undo.note}>
+                      undone
+                    </Badge>
+                  ) : null
+                }
+                action={
+                  canUndo && e.undo?.state === 'possible' ? (
+                    <button
+                      type="button"
+                      className="history-undo"
+                      aria-label={`Undo ${e.who.name}’s change`}
+                      disabled={undoing !== null}
+                      onClick={() => void undo(e)}
+                    >
+                      {undoing === e.undo.event ? 'Undoing…' : 'Undo'}
+                    </button>
                   ) : null
                 }
               />
               {e.body}
+              {undoSaid && e.undo?.event === undoSaid.event ? <Said text={undoSaid.text} tone={undoSaid.bad ? 'bad' : undefined} /> : null}
               {e.comment !== undefined ? (
                 <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>
                   <Markdown text={e.comment} />

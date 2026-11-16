@@ -11,6 +11,7 @@ import { CopyButton } from '../features/common/CopyButton';
 import { dateRead } from '../features/common/format';
 import { Hint } from '../features/common/Hint';
 import { useAITools, type AITool } from '../features/common/queries';
+import { AgentAccounts } from '../features/agents/AgentAccounts';
 
 type Created = ApiToken & { token: string };
 type Client = 'claude-code' | 'http' | 'desktop';
@@ -154,7 +155,7 @@ export default function AgentsPage() {
     <>
       <PageHead
         title="Agents and tokens"
-        about="Let an agent such as Claude Code work in a4a over MCP. It acts as you, with no more than its token allows, and every change it makes is kept in the activity under its name."
+        about="Let an agent such as Claude Code work in a4a over MCP. With your token it acts for you, with no more than the token allows; with a token an administrator issues to an agent of its own, it acts as itself. Every change it makes is kept in the activity under its name."
       />
       <div className="split">
         <div className="stack">
@@ -362,6 +363,8 @@ export default function AgentsPage() {
               </Scroll>
             ) : null}
           </section>
+
+          {isAdmin ? <AgentAccounts /> : null}
 
           <section className="card" aria-labelledby="what-agents-get">
             <div className="section-head">

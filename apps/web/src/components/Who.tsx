@@ -61,6 +61,10 @@ export function UserWho({ user, small, about }: { user: UserRef | null | undefin
  */
 export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data']): { kind: WhoKind; name: string; about: string } {
   const name = actor.name ?? actor.login ?? 'a4a';
+  // An agent with a token of its own acts as itself, not for a person (D34).
+  if (actor.isBot && (actor.channel === 'mcp' || actor.channel === 'api')) {
+    return { kind: 'agent', name: actor.login ?? 'an agent', about: actor.channel === 'mcp' ? 'over MCP, as itself' : 'through the API, as itself' };
+  }
   switch (actor.channel) {
     case 'helpdesk': {
       // Someone outside, through the help desk: a person, by the name they gave.

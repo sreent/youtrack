@@ -548,6 +548,31 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D34. Agents act as themselves; what they change on their own, a person undoes
+
+Until now an agent over MCP acted for a person, with that person's token: its changes read "claude-code for Anna Schmidt", and it could take no work of its own. Now an agent can be an account of its own.
+
+**Agents of their own.** An agent is a bot account an administrator adds. a4a's own agents (`triage`, `workflow`, `helpdesk`, in `OWN_AGENTS`) act for a4a itself: they take no tokens and no work, and their logins are a4a's to make.
+
+- **Tokens.** An administrator issues an agent its tokens (`POST /users/{agent}/tokens`), with scopes, an expiry and, if wanted, projects, as any token has. A token never does more than its agent's role allows, and a token limited to a project the agent can't see is refused with how to fix it, since it would reach nothing there. The agent never makes its own tokens: a token that leaked can't make itself another. Banning the agent stops all of them.
+- **As itself.** With such a token, the agent's changes are its own. The event's actor says so (`isBot`), the history reads "claude · via MCP" for no one, `me` in a query is the agent, and `get_current_user` says `agent: true`.
+- **Assignees.** An agent can be assigned issues, as a person can: by anyone who may change the issue, and in a members-only project once it is one of the project's people. `for: me #Unresolved` over its token is its work. a4a's own agents are refused as values of a person field, with what to choose instead. Agents don't watch issues, so they get no notifications: an agent finds its work by searching.
+
+**Undo.** A change an agent made on its own can be undone by a person who may change the issue, from the issue's history or `POST /events/{id}/undo`.
+
+- **An agent's change.** It is made by an agent's account (one of its own, or a4a's: triage applying, a rule), or by an agent for a person: over MCP, or the assistant. A person's change on the web or through the API isn't one, nor are a commit's command, a requester's words, or an import.
+- **What it keeps.** The write path keeps, in the change's own transaction, what undoing it puts back (`agent_changes`): each field's values before and after as stored, by field id; the summary; the description before, whole (its activity holds 2,000 characters of it), and a hash of what it became; the tags it added and took off; a link's two ends. Changes made before this was kept can't be undone.
+- **What it undoes.** Fields, the summary, the description, tags and links. A comment is not undone: it is something said, deleted as any comment is. Creating an issue is not undone either: that would be deleting it, which isn't an agent's to make easy.
+- **All or nothing, and never over someone.** Undo first checks that the issue still is as the agent left it: each field it changed holds what it set, the summary and description are its own, its tags are as it left them, its link is (or isn't) there. If anything differs, nothing is undone, and the answer (409 `changed_since`) says what changed since and who changed it: "State is In Progress now: Ben Okafor changed it since". What the agent didn't touch may have changed freely.
+- **As the person, once.** The undo goes through the write path as the person asking, with their access, so guards and the history apply as to any change; its events say which change they undo (`data.undoes`). It claims the change's row under the issue's lock, so it happens once (409 `already_undone`), from either issue's history for a link.
+- **Rules don't redo it.** Rules on a change skip an undo's events: they saw the issue that way already, and a rule acting again could redo at once what a person just undid.
+- **The history says where each stands.** Each agent's change in an issue's history carries `undo`: `possible`, `changed_since` (with what), or `undone` (by whom). The web app offers Undo on the first, to people who may change the issue.
+- **Agents can't undo.** Undoing is a person's decision, so an agent (its own account, or for a person over MCP, or the assistant) is refused, and there's no MCP tool for it.
+
+**Costs.** A row per change an agent makes, with the values it replaced; a rewritten description is kept whole. Undo refuses rather than merges: someone who changed the issue since has to be asked, not overwritten.
+
+**Revisit when:** an agent's comments should be withdrawable by people, or agents should be told of their work (a notification for an assigned agent, a webhook to wake it), or a change an agent made long ago should be undone across later ones (a merge, field by field).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -576,6 +601,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 | A rule acting on a replayed event, or a loop of rules | Once per (rule, issue, change that started the chain), claimed in the rule's own transaction; chains stop three rules deep |
 | A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
 | A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
+| Two people undo one agent's change, or someone changes the issue as it's undone | The undo locks the change's row, then the issue, and checks the issue is as the agent left it under those locks: the second undo gets 409 `already_undone`, and a change that got in first makes it refuse with what changed (D34) |
 
 ## Security
 
@@ -593,6 +619,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
 - **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email is confirmed, and only where they can change issues (D26). Links from a payload are shown only if they are http(s).
 - **Agents:**
+  - An agent's own tokens are issued by administrators, never by the agent; an agent can't undo, and a person's undo never overwrites a later change (D34).
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
   - There are no deletes over MCP.
@@ -626,6 +653,4 @@ Planned, with the seams already in place:
 - an S3-compatible store for files, so several instances need no shared volume (D18);
 - rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
 - matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
-- agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
-- undo for a change an agent made on its own (the assistant at Acts);
 - in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).

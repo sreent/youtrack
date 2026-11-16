@@ -327,7 +327,7 @@ export default function IssuePage() {
           <IssueLinks issue={data} canEdit={canWrite} />
           <IssueArticles issueId={data.id} />
           <IssueCode issue={data} />
-          <IssueHistory issue={data} me={me.data} canComment={canComment} canReply={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
+          <IssueHistory issue={data} me={me.data} canComment={canComment} canReply={canWrite} canUndo={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
           <WorkLog issue={data} me={me.data} canEdit={canWrite} />
         </div>
         <div className="stack">

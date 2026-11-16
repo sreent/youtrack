@@ -10,9 +10,10 @@
  * A new page joins the tour with one line in STOPS: its address, and what shows once it's drawn.
  * What the server can't show without AI (a conversation, suggestions waiting) is stood in for.
  */
+import type { TrackerEvent } from '@a4a/shared';
 import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
-import { unique, uniqueKey, type Api } from './support/api';
+import { Api, unique, uniqueKey } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
@@ -51,6 +52,27 @@ const withRules = async (api: Api) => {
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
   return '/integrations';
+};
+
+/** An agent of the tour's own, with a token issued to it (D34). */
+const withAgent = async (api: Api) => {
+  await api.createAgent(`tour-${unique()}`);
+  return '/agents';
+};
+
+/** In a project of the tour's own: one change an agent made on its own to undo, and one undone (D34). */
+const agentsChanges = async (api: Api) => {
+  const { token } = await api.createAgent(`tour-${unique()}`);
+  const key = uniqueKey('TA');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const issue = await api.createIssue({ project: key, summary: 'Flaky upload test', fields: { Type: 'Bug' } });
+  const agent = await Api.withToken(token);
+  await agent.patch(`/issues/${issue.id}`, { addTags: ['flaky'] });
+  await agent.updateIssue(issue.id, { fields: { Priority: 'Critical' } });
+  await agent.dispose();
+  const tagged = (await api.get<TrackerEvent[]>(`/issues/${issue.id}/activity`)).find((e) => e.type === 'issue.updated' && e.changes.some((c) => c.field === 'Tags'))!;
+  await api.post(`/events/${tagged.id}/undo`);
+  return `/issues/${issue.id}`;
 };
 
 const board = (name: string) => async (api: Api) => {
@@ -107,6 +129,8 @@ const STOPS: Stop[] = [
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
+  { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
+  { name: "an agent's change to undo", path: agentsChanges, ready: (p) => p.getByRole('button', { name: /^Undo tour-.+’s change$/ }) },
 ];
 
 const MODES = [

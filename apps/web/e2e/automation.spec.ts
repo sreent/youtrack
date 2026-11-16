@@ -125,6 +125,7 @@ test('a push from GitHub links its commit, and applies its command as its author
   await add.getByRole('button', { name: 'Add the integration' }).click();
 
   const shown = add.getByRole('status').filter({ hasText: 'Copy the secret now.' });
+  await expect(shown.getByRole('code')).toHaveCount(2);
   const [hookUrl, secret] = await shown.getByRole('code').allTextContents();
   expect(hookUrl).toMatch(/\/api\/v1\/vcs\/hooks\//);
   expect(secret).toBeTruthy();

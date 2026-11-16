@@ -61,7 +61,7 @@ export function kindOf(name: string, contentType?: string): string {
 
 /** Who added a file, in the actor's shape the rest of the app reads. */
 export function uploaderOf(a: Attachment): TrackerEvent['actor'] {
-  return { id: a.uploadedBy?.id ?? null, login: a.uploadedBy?.login ?? null, name: a.uploadedBy?.name ?? null, channel: a.channel, token: a.token };
+  return { id: a.uploadedBy?.id ?? null, login: a.uploadedBy?.login ?? null, name: a.uploadedBy?.name ?? null, channel: a.channel, token: a.token, isBot: a.uploadedBy?.isBot ?? false };
 }
 
 /**
