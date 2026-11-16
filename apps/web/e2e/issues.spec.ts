@@ -161,7 +161,7 @@ test('words become a query, and the page shows the query it read (AI stood in fo
   await words.press('Enter');
 
   await expect(page.getByText('Interpreted as:')).toBeVisible();
-  await expect(page.locator('main').getByText(`project: ${key} Priority: Critical`, { exact: true })).toBeVisible();
+  await expect(page.getByRole('main').getByText(`project: ${key} Priority: Critical`, { exact: true })).toBeVisible();
   await expect(page.getByRole('list', { name: '1 issues' }).getByRole('link', { name: stale.summary })).toBeVisible();
   expect(ai.asked).toEqual([{ text: 'the critical ones', project: key }]);
 });

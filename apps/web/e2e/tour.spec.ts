@@ -7,8 +7,10 @@
  * of its own (support/env.ts says why).
  *
  * A new page joins the tour with one line in STOPS: its address, and what shows once it's drawn.
+ * What the server can't show without AI (a conversation, suggestions waiting) is stood in for.
  */
 import type { Locator, Page } from '@playwright/test';
+import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import type { Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { TOUR_AUTH_FILE } from './support/env';
@@ -16,11 +18,16 @@ import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 
 interface Stop {
   name: string;
-  /** The address, or how to find it (a board's id). */
-  path: string | ((api: Api) => Promise<string>);
+  /** The address, or how to arrive at it: finding a board's id, or standing in for the AI. */
+  path: string | ((api: Api, page: Page) => Promise<string>);
   /** Something that shows only once the page has drawn what it's for. */
   ready: (page: Page) => Locator;
 }
+
+const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
+  await mockWaitingSuggestions(page, [triageSuggestion('BACK-3', BACK_3_TRIAGE)]);
+  return to;
+};
 
 const board = (name: string) => async (api: Api) => {
   const found = (await api.boards()).find((b) => b.name === name);
@@ -32,6 +39,7 @@ const STOPS: Stop[] = [
   { name: 'issues', path: '/issues', ready: (p) => p.getByRole('list', { name: /^\d+ issues$/ }) },
   { name: 'an issue with comments and work', path: '/issues/BACK-2', ready: (p) => p.getByRole('heading', { name: 'History and comments' }) },
   { name: 'an issue just reported', path: '/issues/BACK-3', ready: (p) => p.getByRole('heading', { name: 'History and comments' }) },
+  { name: "an issue with triage's values waiting", path: waitingOnBack3('/issues/BACK-3'), ready: (p) => p.getByText('Dashed values were worked out by an agent') },
   { name: 'a new issue', path: '/issues/new', ready: (p) => p.getByLabel('Summary') },
   { name: 'boards', path: '/boards', ready: (p) => p.getByRole('link', { name: 'Backend sprints' }) },
   { name: 'a sprint board', path: board('Backend sprints'), ready: (p) => p.getByRole('group', { name: "Sprint 14's columns" }) },
@@ -41,7 +49,13 @@ const STOPS: Stop[] = [
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
   { name: 'costs', path: '/plan/MIG/costs', ready: (p) => p.getByRole('heading', { name: 'Cost against plan' }) },
   { name: 'the assistant', path: '/assistant', ready: (p) => p.getByRole('navigation', { name: 'Your conversations' }) },
-  { name: 'suggestions', path: '/suggestions', ready: (p) => p.getByRole('heading', { name: /waits on you|Waiting on you/ }) },
+  {
+    name: 'a conversation waiting on you',
+    path: (_api, page) => mockStoredConversation(page, takeIssue({ id: 'BACK-6', summary: 'Document the v2 authentication flow' }, 'BACK').script),
+    ready: (p) => p.getByRole('region', { name: 'assistant asks to update an issue' }),
+  },
+  { name: 'suggestions', path: '/suggestions', ready: (p) => p.getByRole('heading', { name: 'Nothing waits on you' }) },
+  { name: 'suggestions waiting on you', path: waitingOnBack3('/suggestions'), ready: (p) => p.getByRole('region', { name: 'triage suggests changes to BACK-3' }) },
   { name: 'projects', path: '/projects', ready: (p) => p.getByRole('region', { name: 'Table of projects' }) },
   { name: 'a project', path: '/projects/MIG', ready: (p) => p.getByRole('heading', { name: 'Plan settings' }) },
   { name: 'fields', path: '/fields', ready: (p) => p.getByRole('heading', { name: 'Make a field' }) },
@@ -76,7 +90,7 @@ for (const mode of MODES) {
 
     for (const stop of STOPS) {
       test(stop.name, async ({ page, api }) => {
-        const path = typeof stop.path === 'string' ? stop.path : await stop.path(api);
+        const path = typeof stop.path === 'string' ? stop.path : await stop.path(api, page);
         await visit(page, path, stop.ready(page));
       });
     }
