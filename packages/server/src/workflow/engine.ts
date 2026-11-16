@@ -45,6 +45,7 @@ import { changeOf, scriptInput, type ScriptChange } from './script-issue';
 import { applyPlanned, plannedChanges, scriptErrorText, type Planned } from './scripts';
 import { recipientsFor } from './tell';
 import { appAgentCtx } from '../apps/actor';
+import { settingsForRule } from '../services/apps';
 import { listWords, nextRunAfter } from './words';
 
 /** How many rules deep a chain may go: a rule's change sets off rules, whose changes set off rules… */
@@ -305,7 +306,8 @@ export class RuleEngine {
       // An app's rule reads comments only if its app was granted them (D48), and never a limited one.
       const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null), { unlimited: Boolean(owner) });
       if (owner && !owner.granted.read.includes('comments')) input.issue.comments = [];
-      const out = await runScript(rule.script, input);
+      // And its app's settings, the project's over the app's.
+      const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input);
       const logged = logWords(out.intents.logs);
       if (out.error) {
         await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`);

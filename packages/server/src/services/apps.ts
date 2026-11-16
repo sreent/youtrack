@@ -631,6 +631,12 @@ async function settingsForRun(app: AppServices, row: AppDbRow, projectId: string
   return out;
 }
 
+/** An app's settings as its rules read them, in a project (D48). */
+export async function settingsForRule(app: AppServices, appId: string, projectId: string): Promise<Record<string, unknown>> {
+  const [row] = await app.db.select().from(apps).where(eq(apps.id, appId));
+  return row ? settingsForRun(app, row, projectId) : {};
+}
+
 // ---------------------------------------------------------------------------
 // Files, and the addresses widgets load from
 // ---------------------------------------------------------------------------
