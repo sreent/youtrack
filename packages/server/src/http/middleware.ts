@@ -89,7 +89,7 @@ export function csrfGuard(publicUrl: string): MiddlewareHandler<HttpEnv> {
  * Simple fixed-window counters, per instance, on purpose: a shared counter would add a
  * database write to every request to guard capacity that is per instance anyway. With
  * N instances behind a load balancer a client gets up to N times the limit (see
- * docs/architecture.md, D14). The login throttle, which guards accounts, is shared.
+ * docs/architecture.md, D17). The login throttle, which guards accounts, is shared.
  */
 export class RateLimiter {
   private windows = new Map<string, { start: number; count: number }>();

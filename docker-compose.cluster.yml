@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.cluster.yml up --build
 # then open http://localhost:3000. Any instance can serve any request: live events,
 # the reference-data cache, sign-in limits and the background worker behave as one
-# (docs/architecture.md, D14). Stop one (docker compose -f docker-compose.cluster.yml
+# (docs/architecture.md, D17). Stop one (docker compose -f docker-compose.cluster.yml
 # stop a4a-1) and the other carries on; open live streams reconnect and resume.
 
 x-a4a: &a4a
