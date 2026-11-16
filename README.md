@@ -33,6 +33,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **State machines**: a project's state field moves only by its named transitions, each with an optional condition and command. A change that skips one is refused, however it's made, and the issue page offers the moves as buttons.
   - **Custom actions**: named commands or scripts per project, shown as buttons on the issues they're offered for, and run by name as commands too.
 - **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
+- **Builds from CI** (D46): GitHub Actions' workflow runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
+- **People connect their own accounts** at GitHub, GitLab and Bitbucket from their profile, by signing in there, so their commits are theirs without an administrator.
+- **More importers**: GitHub Issues, Redmine, and Zendesk into a help desk (requesters, public replies and internal notes), beside YouTrack and Jira.
+- **VS Code**: an extension with your issues, an issue beside the code, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
   - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.
   - a4a knows a commit's author by any of their confirmed emails, or by their login at the provider (an administrator records it). People add emails on their profile and confirm each by a link a4a mails; an administrator can confirm one instead. When the email and the login name two people, it's nobody.
@@ -253,8 +257,45 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
 | `HELPDESK_MAIL_MAX_MB` | `25` | The largest message a help desk takes, attachments included |
 | `HELPDESK_CAPTCHA_MAX_NUMBER` | `100000` | How hard a help desk form's proof of work is: the most numbers a browser may have to try (half that on average, about a second) |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | empty | A GitHub OAuth app people connect their GitHub accounts through, from their profile (D46). Its callback: `PUBLIC_URL/api/v1/auth/code-hosts/github/callback`. `GITHUB_URL` for GitHub Enterprise Server |
+| `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` | empty | The same for GitLab (an application with the `read_user` scope; callback `…/code-hosts/gitlab/callback`). `GITLAB_URL` for a self-managed GitLab |
+| `BITBUCKET_CLIENT_ID`, `BITBUCKET_CLIENT_SECRET` | empty | The same for Bitbucket Cloud (an OAuth consumer with Account read; its callback URL `…/code-hosts/bitbucket/callback`) |
 | `IMPORT_ALLOW_HOSTS` | empty | Comma-separated host names an import may read from although they are inside the network, such as a YouTrack or Jira of your own. Every other host must be public; https always |
 | `IMPORT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets an import read over plain http from this machine |
+
+## Builds from CI
+
+An administrator adds a build source under **Integrations**, for a project. A build that passes goes in the project's build field ("Fixed in build", made for it if it has none), and the resolved issues its commits name are marked as fixed in it (D46).
+
+- **GitHub Actions**: choose a GitHub integration, its branch and its workflow, and tick **Workflow runs** among the webhook's events on GitHub. With an access token on the integration (one that may read the repository's contents), a4a asks GitHub which commits each run holds; without one, those it saw pushed.
+- **Any other CI**: the source shows a URL and a token once. Post each build, with the commits since the previous one, from a step at the end of the build. Keep the token in the CI's secrets as `A4A_BUILD_TOKEN`, and the URL as `A4A_BUILD_URL`.
+
+Jenkins (a `sh` step; `GIT_PREVIOUS_SUCCESSFUL_COMMIT` is the Git plugin's):
+
+```bash
+curl -fsS -X POST "$A4A_BUILD_URL" -H "Authorization: Bearer $A4A_BUILD_TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"build\": \"$BUILD_NUMBER\", \"url\": \"$BUILD_URL\", \"commits\": $(git log --format=%H "$GIT_PREVIOUS_SUCCESSFUL_COMMIT..$GIT_COMMIT" | jq -R . | jq -sc .)}"
+```
+
+GitLab CI (a job after the build; `CI_COMMIT_BEFORE_SHA` is the push's previous head):
+
+```bash
+curl -fsS -X POST "$A4A_BUILD_URL" -H "Authorization: Bearer $A4A_BUILD_TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"build\": \"$CI_PIPELINE_IID\", \"url\": \"$CI_PIPELINE_URL\", \"branch\": \"$CI_COMMIT_BRANCH\", \"commits\": $(git log --format=%H "$CI_COMMIT_BEFORE_SHA..$CI_COMMIT_SHA" | jq -R . | jq -sc .)}"
+```
+
+GitHub Actions, posting itself rather than through a workflow-run integration (`github.event.before` is the push's previous head; check out with `fetch-depth: 0`):
+
+```bash
+curl -fsS -X POST "$A4A_BUILD_URL" -H "Authorization: Bearer $A4A_BUILD_TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"build\": \"$GITHUB_RUN_NUMBER\", \"url\": \"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\", \"repository\": \"$GITHUB_REPOSITORY\", \"range\": {\"from\": \"${{ github.event.before }}\", \"to\": \"$GITHUB_SHA\"}}"
+```
+
+A build reported again is the same build: what it holds now is added. `"status": "failure"` records a failed one, which marks nothing. Find issues by build with `Fixed in build: 1.4.207`, or a range, `Fixed in build: 120 .. 130`.
+
+## VS Code
+
+`packages/vscode` is a4a's extension: your issues in a view, an issue opened beside the code and changed with a command, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent. Build it with `pnpm --filter a4a-vscode package`, and install `packages/vscode/dist/a4a.vsix` with **Extensions: Install from VSIX…**. Its README says how to sign in.
 
 ## Production
 
