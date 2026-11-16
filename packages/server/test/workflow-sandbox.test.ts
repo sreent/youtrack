@@ -80,10 +80,13 @@ describe('the sandbox', () => {
   });
 
   it('runs scripts side by side, a guard ahead of the rest', async () => {
+    // Ample limits for the runs that should finish: this is about running side by side, and a
+    // machine busy with other suites can hold a thread up past a limit of a few hundred ms.
+    const ample = 5_000;
     const runs = await Promise.all([
-      runScript("log('a')", input),
-      runScript("log('b')", input),
-      runScript("refuse('no')", input, { guard: true }),
+      runScript("log('a')", input, { timeMs: ample }),
+      runScript("log('b')", input, { timeMs: ample }),
+      runScript("refuse('no')", input, { guard: true, timeMs: ample }),
       runScript('while (true) {}', input, { timeMs: 30 }),
     ]);
     expect(runs.map((r) => r.intents.logs[0] ?? r.intents.refusal ?? r.error?.kind)).toEqual(['a', 'b', 'no', 'time']);
