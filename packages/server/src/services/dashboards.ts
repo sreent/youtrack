@@ -19,9 +19,14 @@ import { userRefDto } from './values';
 
 type Row = typeof dashboards.$inferSelect;
 
-function dto(ctx: Ctx, s: SchemaSnapshot, r: Row, seen: Seen | null = null): Dashboard {
+async function dto(ctx: Ctx, s: SchemaSnapshot, r: Row, seen: Seen | null = null): Promise<Dashboard> {
   const owner = s.users.get(r.ownerId);
   const mine = r.ownerId === ctx.actor.user.id;
+  const all = r.widgets as Widget[];
+  const widgets: Widget[] = [];
+  if (seen && !(mine || isAdmin(ctx))) {
+    for (const w of all) if (await widgetVisible(w, seen)) widgets.push(w);
+  } else widgets.push(...all);
   return {
     id: r.id,
     name: r.name,
@@ -30,25 +35,26 @@ function dto(ctx: Ctx, s: SchemaSnapshot, r: Row, seen: Seen | null = null): Das
     mine,
     canEdit: (mine || isAdmin(ctx)) && ctx.actor.scopes.includes('write'),
     version: r.version,
-    widgets: seen && !(mine || isAdmin(ctx)) ? (r.widgets as Widget[]).filter((w) => widgetVisible(w, seen)) : (r.widgets as Widget[]),
+    widgets,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   };
 }
 
-/** What the caller can see that widgets name: projects (by key and id) and boards. */
+/** What the caller can see of what widgets name: projects by key, boards by id and name, sprints, queries. */
 interface Seen {
   keys: Set<string>;
-  hiddenKeys: string[];
   boards: Map<string, boolean>;
+  sprint(id: string): Promise<boolean>;
+  query(text: string): Promise<boolean>;
+  savedSearch(id: string): Promise<boolean>;
 }
 
 async function seenBy(ctx: Ctx): Promise<Seen> {
   const view = await projectAccess(ctx);
   const s = await ctx.app.schema.get();
   const keys = new Set<string>();
-  const hiddenKeys: string[] = [];
-  for (const p of s.projects.values()) (view.canRead(p.id) ? keys.add(p.key.toUpperCase()) : hiddenKeys.push(p.key.toUpperCase()));
+  for (const p of s.projects.values()) if (view.canRead(p.id)) keys.add(p.key.toUpperCase());
   // A board is seen when any of its projects is, as on the board itself; by id and by name.
   const seenBoards = new Map<string, boolean>();
   for (const b of await ctx.db.select({ id: boards.id, name: boards.name, projectIds: boards.projectIds }).from(boards)) {
@@ -56,23 +62,46 @@ async function seenBy(ctx: Ctx): Promise<Seen> {
     seenBoards.set(b.id, visible);
     seenBoards.set(b.name.toLowerCase(), (seenBoards.get(b.name.toLowerCase()) ?? false) || visible);
   }
-  return { keys, hiddenKeys, boards: seenBoards };
+  // A query makes sense to the viewer when it names nothing they can't see: the saved searches' rule.
+  const queries = new Map<string, Promise<boolean>>();
+  const query = (text: string) => {
+    if (!text.trim()) return Promise.resolve(true);
+    if (!queries.has(text)) queries.set(text, prepareQuery(ctx, text).then((p) => !p.compiled.problems.length));
+    return queries.get(text)!;
+  };
+  return {
+    keys,
+    boards: seenBoards,
+    sprint: async (id) => {
+      const [sp] = await ctx.db.select({ boardId: sprints.boardId }).from(sprints).where(eq(sprints.id, id));
+      return Boolean(sp && seenBoards.get(sp.boardId));
+    },
+    query,
+    savedSearch: async (id) => {
+      const [ss] = await ctx.db.select().from(savedSearches).where(eq(savedSearches.id, id));
+      if (!ss || (ss.ownerId !== ctx.actor.user.id && !ss.shared)) return false;
+      return ss.ownerId === ctx.actor.user.id || query(ss.query);
+    },
+  };
 }
 
 /**
  * Whether a widget names only what the viewer can see. A shared dashboard's widgets are worked out
- * as each viewer may see; one naming a project or board they can't see (in its parameters, or a
- * project key in its query) is left out for them, so a hidden project is never named. A widget's
- * title and a note are its owner's words, as a comment is, and stay as written.
+ * as each viewer may see; one naming a project, board or sprint they can't see, or with a query
+ * (its own or its saved search's) naming a project or value they can't see, is left out for them,
+ * as a shared saved search is, so its words don't give that project away. A widget's title and a
+ * note are their owner's words, and stay as written.
  */
-function widgetVisible(w: Widget, seen: Seen): boolean {
-  const named = (query?: string) => !query || !seen.hiddenKeys.some((k) => new RegExp(`(^|[^A-Za-z0-9-])${k}([^A-Za-z0-9]|$)`, 'i').test(query));
+async function widgetVisible(w: Widget, seen: Seen): Promise<boolean> {
   if (w.kind === 'note') return true;
-  if (w.kind === 'search') return named(w.query);
+  if (w.kind === 'search') return w.savedSearch ? seen.savedSearch(w.savedSearch) : seen.query(w.query ?? '');
   const p = w.params;
-  if (p.report === 'burndown') return p.board ? (seen.boards.get(p.board) ?? seen.boards.get(p.board.toLowerCase()) ?? false) : true;
+  if (p.report === 'burndown') {
+    if (p.board) return Boolean(seen.boards.get(p.board) ?? seen.boards.get(p.board.toLowerCase()));
+    return p.sprint ? seen.sprint(p.sprint) : true;
+  }
   if (p.project && !seen.keys.has(p.project.toUpperCase())) return false;
-  return named(p.query);
+  return seen.query(p.query ?? '');
 }
 
 export async function listDashboards(ctx: Ctx): Promise<Dashboard[]> {
@@ -84,7 +113,9 @@ export async function listDashboards(ctx: Ctx): Promise<Dashboard[]> {
     .where(or(eq(dashboards.ownerId, ctx.actor.user.id), eq(dashboards.shared, true)))
     .orderBy(asc(dashboards.name));
   const seen = await seenBy(ctx);
-  return rows.map((r) => dto(ctx, s, r, seen)).sort((a, b) => Number(b.mine) - Number(a.mine));
+  const out: Dashboard[] = [];
+  for (const r of rows) out.push(await dto(ctx, s, r, seen));
+  return out.sort((a, b) => Number(b.mine) - Number(a.mine));
 }
 
 async function load(ctx: Ctx, id: string): Promise<Row> {
@@ -147,7 +178,7 @@ async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
   if (input.length > MAX_WIDGETS) throw badRequest(`A dashboard holds ${MAX_WIDGETS} widgets at most`);
   const widgets = input.map((w) => WidgetSchema.parse(w));
   const ids = new Set<string>();
-  const s = await ctx.app.schema.get();
+  let seen: Seen | undefined;
   for (const w of widgets) {
     if (ids.has(w.id)) throw badRequest(`Two widgets have the id "${w.id}"`, 'Give each widget an id of its own.');
     ids.add(w.id);
@@ -165,13 +196,10 @@ async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
       const p = w.params;
       if (p.report === 'burndown') {
         if (!p.board && !p.sprint) throw badRequest(`${where} needs a board (for its current sprint) or a sprint`);
-        const seen = await seenBy(ctx);
+        seen ??= await seenBy(ctx);
         if (p.board) {
           if (!(seen.boards.get(p.board) ?? seen.boards.get(p.board.toLowerCase()))) throw notFound(`Board ${p.board}`, 'GET /boards lists the boards you can see.');
-        } else if (p.sprint) {
-          const [sp] = await ctx.db.select({ id: sprints.id, boardId: sprints.boardId }).from(sprints).where(eq(sprints.id, p.sprint));
-          if (!sp || !seen.boards.get(sp.boardId)) throw notFound(`Sprint ${p.sprint}`);
-        }
+        } else if (p.sprint && !(await seen.sprint(p.sprint))) throw notFound(`Sprint ${p.sprint}`);
       } else {
         if (p.project) await requireProject(ctx, p.project, 'read');
         await checkQuery(p.query);
@@ -179,8 +207,9 @@ async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
     } else if (w.kind === 'search') {
       if (!w.savedSearch && !w.query?.trim()) throw badRequest(`${where} needs a saved search or a query`);
       if (w.savedSearch) {
-        const [ss] = await ctx.db.select().from(savedSearches).where(eq(savedSearches.id, w.savedSearch));
-        if (!ss || (ss.ownerId !== ctx.actor.user.id && !ss.shared)) throw notFound(`Saved search ${w.savedSearch}`, 'Use one of yours, or a shared one.');
+        // One you can't list (someone else's, or naming what you can't see) is as one that doesn't exist.
+        seen ??= await seenBy(ctx);
+        if (!(await seen.savedSearch(w.savedSearch))) throw notFound(`Saved search ${w.savedSearch}`, 'Use one of yours, or a shared one: GET /saved-searches lists them.');
       } else await checkQuery(w.query);
     }
   }

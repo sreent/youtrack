@@ -238,3 +238,40 @@ describe('imports over REST', () => {
     expect(list.body.map((i: { id: string }) => i.id)).toContain(id);
   });
 });
+
+describe('a members-only project, over REST, to someone outside it', () => {
+  // Mia is a member of the open projects, and not of MIG, which only its people see.
+  const same = (a: { body: unknown }, aWord: string, b: { body: unknown }, bWord: string) =>
+    expect(JSON.stringify(a.body).split(aWord).join('<X>')).toBe(JSON.stringify(b.body).split(bWord).join('<X>'));
+
+  it('is a project that does not exist, in every report and its CSV', async () => {
+    for (const path of ['/reports/flow', '/reports/created-resolved', '/reports/cycle-time', '/reports/time', '/reports/time.csv', '/reports/flow.csv']) {
+      const hidden = await call('GET', `${path}?project=MIG`, { auth: 'mia' });
+      const missing = await call('GET', `${path}?project=NOPE`, { auth: 'mia' });
+      expect(hidden.status).toBe(404);
+      same(hidden, 'MIG', missing, 'NOPE');
+    }
+    const all = await call('GET', '/reports/created-resolved?days=90', { auth: 'mia' });
+    expect(all.body.scope.projects.map((p: { key: string }) => p.key)).not.toContain('MIG');
+    expect((await call('GET', '/reports/created-resolved?days=90')).body.scope.projects.map((p: { key: string }) => p.key)).toContain('MIG');
+    const entries = await call('GET', '/reports/time.csv?rows=entries&from=2026-01-01', { auth: 'mia' });
+    expect(entries.status).toBe(200);
+    expect(entries.text).not.toContain('MIG-');
+    expect((await call('GET', '/reports/time.csv?rows=entries&from=2026-01-01')).text).toContain('MIG-');
+  });
+
+  it("can't be named by a widget or imported into, and importing into an open project is for its managers", async () => {
+    const widget = (project: string) => call('POST', '/dashboards', { auth: 'mia', body: { name: 'x', widgets: [{ id: 'a', kind: 'report', params: { report: 'flow', project } }] } });
+    const hidden = await widget('MIG');
+    expect(hidden.status).toBe(404);
+    same(hidden, 'MIG', await widget('NOPE'), 'NOPE');
+    const upload = (project: string) => call('POST', `/imports?project=${project}`, { auth: 'mia', raw: 'Summary\r\nOne\r\n' });
+    const into = await upload('MIG');
+    expect(into.status).toBe(404);
+    same(into, 'MIG', await upload('NOPE'), 'NOPE');
+    const open = await upload('BACK');
+    expect(open.status).toBe(403);
+    expect(open.body.error.message).toContain('managers of BACK');
+    expect((await call('GET', '/imports', { auth: 'mia' })).body).toEqual([]);
+  });
+});

@@ -30,7 +30,7 @@ import {
   type ImportUndo,
   type ImportValueMap,
 } from '@a4a/shared';
-import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities, boards, comments, externalIssues, importRows, imports, issues, sprints, workItems } from '../db/schema';
@@ -403,18 +403,19 @@ export async function listImports(ctx: Ctx, projectKey?: string): Promise<Import
   const s = await ctx.app.schema.get();
   const view = await projectAccess(ctx);
   const project = projectKey ? await requireProject(ctx, projectKey, 'read') : undefined;
+  // The imports of the projects the caller manages: the others' are their managers' working papers.
+  const managed = (project ? [project] : [...s.projects.values()]).filter((p) => view.canManage(p.id)).map((p) => p.id);
+  if (!managed.length) return [];
   const rows = await ctx.db
     .select()
     .from(imports)
-    .where(project ? eq(imports.projectId, project.id) : undefined)
+    .where(and(inArray(imports.projectId, managed), ne(imports.status, 'uploading')))
     .orderBy(sql`${imports.createdAt} desc`)
     .limit(100);
   const out: Import[] = [];
   for (const r of rows) {
     const p = s.projects.get(r.projectId);
-    // The imports of the projects the caller manages; the others are theirs to know of no more than the projects.
-    if (!p || r.status === 'uploading' || !view.canManage(p.id)) continue;
-    out.push({ ...(await dto(ctx, r, p)), values: [] });
+    if (p) out.push({ ...(await dto(ctx, r, p)), values: [] });
   }
   return out;
 }
