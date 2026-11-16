@@ -13,8 +13,11 @@ import {
   PortalRequestDetailSchema,
   PortalRequestSchema,
   PortalSignInBody,
+  NotifyKindsBody,
+  NotifyKindsSettingsSchema,
   SlaPolicyBody,
   SlaPolicyOrderBody,
+  SubscriptionKindsBody,
   SlaPolicySchema,
   SlaReportSchema,
 } from '@a4a/shared';
@@ -40,6 +43,7 @@ import {
   requestSignIn,
   signOut,
 } from '../../services/portal';
+import { myKinds, setMyKinds, setSubscriptionKinds } from '../../notify/kinds';
 import { createPolicy, deletePolicy, listPolicies, reorderPolicies, slaReport, updatePolicy } from '../../services/sla';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -103,6 +107,20 @@ export function helpdeskDepthRoutes(app: OpenAPIHono<HttpEnv>) {
       response: SlaReportSchema,
     },
     ({ ctx, params, query }) => slaReport(ctx, params.key, { from: query.from, to: query.to, timeZone: query.tz }),
+  );
+
+  // Subscriptions by kind (D45)
+  const me = ['Notifications'];
+  route(app, { method: 'get', path: '/me/notification-kinds', tags: me, summary: 'The kinds of change that tell me, and how', response: NotifyKindsSettingsSchema }, ({ ctx }) => myKinds(ctx));
+  route(
+    app,
+    { method: 'put', path: '/me/notification-kinds', tags: me, summary: 'Choose the kinds of change that tell me', description: 'Kinds left out keep their choice. Being mentioned or assigned always tells you.', body: NotifyKindsBody, response: NotifyKindsSettingsSchema },
+    ({ ctx, body }) => setMyKinds(ctx, body),
+  );
+  route(
+    app,
+    { method: 'put', path: '/subscriptions/{id}/kinds', tags: me, summary: "A subscription's own choice of kinds", description: 'null follows your defaults.', params: z.object({ id: z.string() }), body: SubscriptionKindsBody, response: NotifyKindsSettingsSchema },
+    ({ ctx, params, body }) => setSubscriptionKinds(ctx, params.id, body.kinds),
   );
 }
 

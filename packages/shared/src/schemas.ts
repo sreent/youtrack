@@ -3019,6 +3019,8 @@ export const NotifyKindsSettingsSchema = z
     watching: z.record(z.enum(NOTIFY_KINDS), kindChoice),
     defaults: z.record(z.enum(NOTIFY_KINDS), kindChoice),
     always: z.array(z.string()).describe('What always tells them, whatever they choose: being mentioned, being assigned'),
+    subscriptions: z.array(z.object({ id: z.string(), kinds: NotifyKindsSchema.nullable().describe("Its own choice; null follows the defaults") })),
   })
   .meta({ id: 'NotifyKindsSettings' });
+export const SubscriptionKindsBody = z.object({ kinds: NotifyKindsSchema.nullable() });
 export type NotifyKindsSettings = z.infer<typeof NotifyKindsSettingsSchema>;
