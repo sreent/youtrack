@@ -9,3 +9,6 @@ coverage/
 packages/server/test-results/
 apps/web/test-results/
 playwright-report/
+
+# Git worktrees that Claude Code makes for agents working in parallel
+.claude/worktrees/
