@@ -1,8 +1,8 @@
 /** The inbox, watching and email settings: queries, and the changes to them. */
-import type { HelpdeskRequest, IssueDetail, NotificationList, NotificationSettings, Watchers } from '@a4a/shared';
+import type { HelpdeskRequest, IssueDetail, NotificationList, NotificationSettings, Subscription, SubscriptionEvents, Watchers } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { api, get, patch, post, put, qs, subscribeInbox } from '../../api/client';
+import { api, del, get, patch, post, put, qs, subscribeInbox } from '../../api/client';
 
 export const inboxKeys = {
   all: ['notifications'] as const,
@@ -82,5 +82,49 @@ export function useSaveNotificationSettings() {
   return useMutation({
     mutationFn: (body: Partial<Pick<NotificationSettings, 'email' | 'digest'>>) => patch<NotificationSettings>('/me/notification-settings', body),
     onSuccess: (s) => qc.setQueryData(inboxKeys.settings, s),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions (D31): to a project, or to a saved search
+// ---------------------------------------------------------------------------
+
+export const subscriptionKeys = { all: ['subscriptions'] as const };
+
+export const useSubscriptions = () => useQuery({ queryKey: subscriptionKeys.all, queryFn: () => get<Subscription[]>('/subscriptions') });
+
+/**
+ * Subscribe to a target, change what it tells, or end it (`events: null`). One mutation for all
+ * three, as the controls that use it offer them in one place.
+ */
+export function useSubscribe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { project?: string; savedSearch?: string; events: SubscriptionEvents | null; email?: boolean; id?: string }) => {
+      if (input.events === null) {
+        if (input.id) await del(`/subscriptions/${input.id}`);
+        return null;
+      }
+      return post<Subscription>('/subscriptions', { project: input.project, savedSearch: input.savedSearch, events: input.events, email: input.email ?? true });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: subscriptionKeys.all }),
+  });
+}
+
+/** Change one: it reads as changed at once, and goes back if the server refuses. */
+export function useUpdateSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; events?: SubscriptionEvents; email?: boolean }) => patch<Subscription>(`/subscriptions/${id}`, body),
+    onMutate: async ({ id, ...body }) => {
+      await qc.cancelQueries({ queryKey: subscriptionKeys.all });
+      const before = qc.getQueryData<Subscription[]>(subscriptionKeys.all);
+      if (before) qc.setQueryData<Subscription[]>(subscriptionKeys.all, before.map((s) => (s.id === id ? { ...s, ...body } : s)));
+      return { before };
+    },
+    onError: (_e, _input, context) => {
+      if (context?.before) qc.setQueryData(subscriptionKeys.all, context.before);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: subscriptionKeys.all }),
   });
 }

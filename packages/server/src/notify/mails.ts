@@ -7,7 +7,9 @@ import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSec
 import { mailHost, type MailRow } from '../mail/outbox';
 import { accessFor, eventVisible } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
-import { emailPrefs, levelSends } from './notifier';
+import { aboutInline, aboutSubscriptions } from '../services/subscriptions';
+import { zoneOfUser } from '../services/time-zones';
+import { emailPrefs, emailSends, levelSends } from './notifier';
 import { actorName, BECAUSE, emailTime, eventDetail, eventVerb, notificationTitle } from './words';
 
 function links(app: AppServices) {
@@ -38,27 +40,33 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   if (!user?.email || user.banned || user.isBot) return null;
   const prefs = await emailPrefs(app.db, n.userId);
   const kind = n.kind as NotificationKind;
-  if (!levelSends(prefs.email, kind)) return null;
+  const s = await app.schema.get();
+  // A subscription that brought it may ask for email of its own (D31), as long as it's still theirs.
+  const subscription = n.subscriptionId ? (await aboutSubscriptions(app.db, s, [n.subscriptionId])).get(n.subscriptionId) : undefined;
+  const sub = subscription && subscription.userId === n.userId ? { id: n.subscriptionId!, ...subscription } : null;
+  if (!emailSends(prefs.email, kind, sub)) return null;
+  const byLevel = levelSends(prefs.email, kind);
   // What the person may see now, as they would signing in: the project, and each event in it.
   const view = await accessFor(app.db, user);
   if (!n.projectId || !view.canRead(n.projectId)) return null;
 
-  const s = await app.schema.get();
   const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventVisible(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const title = notificationTitle(kind, events, reasons);
   const subject = `${issue.id}: ${issue.summary}`;
   const l = links(app);
-  const stopKind: UnsubscribeKind = kind === 'watching' ? 'watching' : 'direct';
-  const token = await unsubscribeToken(app, stopKind, n.userId);
+  const zone = zoneOfUser(user);
+  // Its stop link stops what sent it: this kind of email, or this subscription's email.
+  const stopKind: UnsubscribeKind = !byLevel && sub ? 'subscription' : kind === 'watching' ? 'watching' : 'direct';
+  const token = await unsubscribeToken(app, stopKind, stopKind === 'subscription' ? sub!.id : n.userId);
   // A comment as it was written, with its lines, where the event keeps only an excerpt; one deleted since isn't quoted.
   const ids = events.map((e) => (e.type.startsWith('comment') ? (e.data as { commentId?: string }).commentId : undefined)).filter((id): id is string => Boolean(id));
   const written = new Map(
     ids.length ? (await app.db.select({ id: comments.id, text: comments.text, deletedAt: comments.deletedAt }).from(comments).where(inArray(comments.id, ids))).map((c) => [c.id, c]) : [],
   );
   const sections: MailSection[] = events.map((e) => {
-    const head = `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt)}`;
+    const head = `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt, zone)}`;
     if (e.type.startsWith('comment')) {
       const c = written.get(String((e.data as { commentId?: string }).commentId ?? ''));
       if (c?.deletedAt) return { head: `${head} (deleted since)` };
@@ -72,8 +80,16 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
     lead: `${title} on ${issue.id}: ${issue.summary}`,
     sections,
     action: n.issueId ? { label: `Open ${issue.id}`, url: l.issue(issue.id) } : { label: 'Open your inbox', url: l.inbox },
-    why: `You get this because ${BECAUSE[kind]}.`,
-    stop: { label: stopKind === 'watching' ? 'Stop emails about issues you watch' : 'Stop emails about issues', url: l.page(token) },
+    why: stopKind === 'subscription' ? `You get this because you subscribed to ${aboutInline(sub!.about)}.` : `You get this because ${BECAUSE[kind]}.`,
+    stop: {
+      label:
+        stopKind === 'subscription'
+          ? `Stop emails about ${aboutInline(sub!.about)}`
+          : stopKind === 'watching'
+            ? 'Stop emails about issues you watch'
+            : 'Stop emails about issues',
+      url: l.page(token),
+    },
     settings: { label: 'Choose what a4a emails you', url: l.settings },
   });
   return {
@@ -113,7 +129,7 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
     const issue = r.issue as IssueRef;
     const entry = byIssue.get(issue.id) ?? { issue, lines: [] };
     const e = events.get(r.id) ?? { events: [], reasons: new Map() };
-    entry.lines.push(`${notificationTitle(r.kind as NotificationKind, e.events, e.reasons)} · ${emailTime(r.lastEventAt.toISOString())}`);
+    entry.lines.push(`${notificationTitle(r.kind as NotificationKind, e.events, e.reasons)} · ${emailTime(r.lastEventAt.toISOString(), zoneOfUser(user))}`);
     byIssue.set(issue.id, entry);
   }
   const subject = `Your a4a digest: ${rows.length} unread ${rows.length === 1 ? 'notification' : 'notifications'}`;

@@ -120,17 +120,26 @@ export const DEFAULT_HOURS_PER_DAY = 8;
 export const DEFAULT_DAYS_PER_WEEK = 5;
 
 /**
- * Why a notification reached someone, weakest first: a change on an issue they watch, a new help desk
- * request in a project they lead, a mention, an assignment. A notification that folds several events
- * together takes the strongest of their reasons.
+ * Why a notification reached someone, weakest first: something they subscribed to (a project, or a
+ * saved search), a change on an issue they watch, a new help desk request in a project they lead, a
+ * mention, an assignment. A notification that folds several events together takes the strongest of
+ * their reasons.
  */
 /** Why a notification reached someone, weakest first: when several reasons fold into one, the strongest names it. */
-export const NOTIFICATION_KINDS = ['watching', 'rule', 'request', 'mentioned', 'assigned'] as const;
+export const NOTIFICATION_KINDS = ['subscribed', 'watching', 'rule', 'request', 'mentioned', 'assigned'] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /** What a4a emails someone: everything, mentions and assignments only (`direct`), or nothing. In-app is always on. */
 export const EMAIL_LEVELS = ['all', 'direct', 'none'] as const;
 export type EmailLevel = (typeof EMAIL_LEVELS)[number];
+
+/**
+ * What a subscription tells its person of. To a project: `new` issues, or `all` (new issues, changes,
+ * comments, links and files). To a saved search: an issue coming into it (`new`), or `all` changes to
+ * the issues in it, the one that takes an issue out included.
+ */
+export const SUBSCRIPTION_EVENTS = ['new', 'all'] as const;
+export type SubscriptionEvents = (typeof SUBSCRIPTION_EVENTS)[number];
 
 /** Why someone watches an issue: they chose to, or what they did or were given. */
 export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'] as const;

@@ -7,6 +7,8 @@ import { readableId } from '../services/issue-refs';
 import { visibleSchema } from '../services/access';
 import { applyChanges, findIssue, findVisibleIssue, type ChangeSpec, type FieldChangeSpec, type IssueRow, type LinkSpec } from '../services/issues';
 import { resolveFieldInput } from '../services/values';
+import { todayIn } from '../reports/tz';
+import { zoneOf } from '../services/time-zones';
 import { describeCommand, parseCommand, type CommandOp } from './parser';
 
 export interface CommandRequest {
@@ -94,6 +96,8 @@ export async function commandSpec(
 ): Promise<ChangeSpec> {
   const db = opts.db ?? ctx.db;
   const meId = opts.meId ?? ctx.actor.user.id;
+  // "Due date today" is today where whoever acts is (D31); for the workflow agent, the server's.
+  const today = todayIn(zoneOf(ctx));
   const s = await ctx.app.schema.get(opts.db);
   const project = s.projects.get(issue.projectId)!;
   const attached = new Set((s.projectFields.get(project.id) ?? []).map((pf) => pf.fieldId));
@@ -106,7 +110,7 @@ export async function commandSpec(
     switch (op.kind) {
       case 'field': {
         if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`);
-        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId));
+        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId, today));
         fields.push({ field: op.field, mode: op.mode, values });
         break;
       }

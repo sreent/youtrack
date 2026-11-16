@@ -13,6 +13,8 @@ import type { Db } from '../db/client';
 import { mailOutbox, notifications, notificationSettings, users } from '../db/schema';
 import { newId } from '../lib/ids';
 import { mailConfigured, mailTransport, notifyState } from '../notify/state';
+import { localDate, zonedTime } from '../reports/tz';
+import { zoneOfUser } from '../services/time-zones';
 import { renderMail } from './render';
 import { PermanentMailError } from './transport';
 
@@ -134,34 +136,26 @@ async function record(app: AppServices, row: MailRow, now: Date, e: unknown): Pr
   return giveUp ? 'failed' : 'retry';
 }
 
-/** The day, in the server's time zone: "2026-11-16". */
-function localDay(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 /**
- * Queue today's digest for everyone who wants one, once the digest hour has come (server time):
- * once per person per day. The lease holder does it (a chore), and the dedupe key keeps it once
- * should a new holder do it again.
+ * Queue today's digest for everyone who wants one, once the digest hour has come where they are (D31:
+ * their time zone, or the server's): once per person per day of theirs. The lease holder does it (a
+ * chore, every ten minutes), and the dedupe key keeps it once should a new holder do it again.
  */
 export async function scheduleDigests(app: AppServices, now: Date = new Date()): Promise<number> {
-  if (!mailConfigured(app) || now.getHours() < app.config.digestHour) return 0;
-  const day = localDay(now);
-  const startOfDigest = new Date(now);
-  startOfDigest.setHours(app.config.digestHour, 0, 0, 0);
-  const due = await app.db
-    .select({ userId: notificationSettings.userId, last: notificationSettings.lastDigestAt })
+  if (!mailConfigured(app)) return 0;
+  const wanting = await app.db
+    .select({ userId: notificationSettings.userId, last: notificationSettings.lastDigestAt, timeZone: users.timeZone })
     .from(notificationSettings)
     .innerJoin(users, eq(users.id, notificationSettings.userId))
-    .where(
-      and(
-        eq(notificationSettings.digest, true),
-        eq(users.banned, false),
-        or(isNull(notificationSettings.lastDigestAt), lt(notificationSettings.lastDigestAt, startOfDigest)),
-      ),
-    );
+    .where(and(eq(notificationSettings.digest, true), eq(users.banned, false)));
   let queued = 0;
-  for (const d of due) {
+  for (const d of wanting) {
+    const zone = zoneOfUser(d);
+    const day = localDate(now.getTime(), zone);
+    const [y, m, dd] = day.split('-').map(Number) as [number, number, number];
+    // Today's digest hour where they are; where clocks skip it, the moment after.
+    const due = zonedTime(y, m, dd, app.config.digestHour, 0, 0, zone);
+    if (now.getTime() < due || (d.last && d.last.getTime() >= due)) continue;
     const since = d.last ?? new Date(now.getTime() - 24 * 3_600_000);
     const ok = await enqueueMail(app.db, app, {
       kind: 'digest',

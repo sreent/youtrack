@@ -6,6 +6,7 @@ import { forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
 import { badRequest } from '../lib/errors';
+import { savedSearchChanged } from './subscriptions';
 import { userRefDto } from './values';
 
 type Row = typeof savedSearches.$inferSelect;
@@ -68,7 +69,7 @@ export async function updateSavedSearch(
   input: { name?: string; query?: string; shared?: boolean },
 ): Promise<SavedSearch> {
   requireScope(ctx, 'write');
-  await loadOwned(ctx, id);
+  const before = await loadOwned(ctx, id);
   if (input.query !== undefined) await validate(ctx, input.query);
   const [row] = await ctx.db
     .update(savedSearches)
@@ -79,6 +80,8 @@ export async function updateSavedSearch(
     })
     .where(eq(savedSearches.id, id))
     .returning();
+  // Its subscribers (D31) start over from what a new query finds; unshared, it keeps only its owner's.
+  await savedSearchChanged(ctx.app, ctx.db, row!, { query: row!.query !== before.query, unshared: before.shared && !row!.shared });
   return dto(ctx, row!);
 }
 

@@ -46,6 +46,8 @@ import {
   type SchemaSnapshot,
 } from './schema-cache';
 import { ensureTags, tagDto } from './tags';
+import { todayIn } from '../reports/tz';
+import { zoneOf } from './time-zones';
 import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
 import { enforceGuards, guardChecks, guardsHeld } from '../workflow/guards';
 import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
@@ -262,6 +264,8 @@ export function resolveFieldsInput(
   project: ProjectRow,
   input: FieldsInputT | undefined,
   meId: string,
+  /** "today" for dates typed as words, where whoever asks is (D31). */
+  today?: string,
 ): FieldChangeSpec[] {
   if (!input) return [];
   const attached = new Set((s.projectFields.get(project.id) ?? []).map((pf) => pf.fieldId));
@@ -272,7 +276,7 @@ export function resolveFieldsInput(
       const names = projectFieldList(s, project.id).map((f) => f.name);
       throw badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`);
     }
-    out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId) });
+    out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId, today) });
   }
   return out;
 }
@@ -749,7 +753,8 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
   const summary = input.summary.trim();
   if (!summary) throw badRequest('Summary cannot be empty');
 
-  const specs = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id);
+  const today = todayIn(zoneOf(ctx));
+  const specs = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, today);
   const pfs = s.projectFields.get(project.id) ?? [];
   const values = new Map<string, ResolvedValue[]>();
   for (const pf of pfs) {
@@ -758,7 +763,7 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
     const given = specs.find((sp) => sp.field.id === field.id);
     if (given) values.set(field.id, given.values);
     else if (pf.defaultValue !== null && pf.defaultValue !== undefined) {
-      values.set(field.id, resolveFieldInput(s, field, project.id, pf.defaultValue as string | string[], ctx.actor.user.id));
+      values.set(field.id, resolveFieldInput(s, field, project.id, pf.defaultValue as string | string[], ctx.actor.user.id, today));
     }
     if (pf.required && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
     if (field.type === 'user') {
@@ -909,7 +914,7 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
   const spec: ChangeSpec = {
     summary: input.summary,
     description: input.description,
-    fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id),
+    fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx))),
     addTags: input.addTags,
     removeTags: input.removeTags,
     expectedVersion: input.expectedVersion,

@@ -15,7 +15,7 @@ import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import { Api, unique, uniqueKey } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
-import { TOUR_AUTH_FILE } from './support/env';
+import { BASE_URL, TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 import { deskTakingMail, message, postMail } from './support/helpdesk';
 
@@ -102,6 +102,24 @@ const withRules = async (api: Api) => {
 };
 
 /** An integration of the tour's own: it only waits for deliveries. */
+/**
+ * The guide subscribes, in their own session, to a project of the tour's own and to a saved search
+ * in it: their profile lists them. Nothing happens in that project, so nothing is told.
+ */
+const withSubscriptions = async (api: Api, page: Page) => {
+  const key = uniqueKey('TS');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const theirs = async <T,>(path: string, data: unknown): Promise<T> => {
+    const res = await page.request.post(`/api/v1${path}`, { data, headers: { origin: BASE_URL } });
+    expect(res.ok(), `POST ${path}: ${res.status()}`).toBe(true);
+    return (await res.json()) as T;
+  };
+  await theirs('/subscriptions', { project: key, events: 'all', email: false });
+  const search = await theirs<{ id: string }>('/saved-searches', { name: `Critical in ${key}`, query: `project: ${key} Priority: Critical`, shared: false });
+  await theirs('/subscriptions', { savedSearch: search.id, events: 'new' });
+  return '/me';
+};
+
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
   return '/integrations';
@@ -218,6 +236,7 @@ const STOPS: Stop[] = [
   { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },
   { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
   { name: "an agent's change to undo", path: agentsChanges, ready: (p) => p.getByRole('button', { name: /^Undo tour-.+’s change$/ }) },
+  { name: 'your subscriptions', path: withSubscriptions, ready: (p) => p.getByRole('region', { name: 'Table of your subscriptions' }) },
 ];
 
 const MODES = [

@@ -15,7 +15,7 @@ import type {
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, helpdeskRequests, notificationEvents, notifications, notificationSettings } from '../db/schema';
+import { activities, helpdeskRequests, notificationEvents, notifications, notificationSettings, subscriptions } from '../db/schema';
 import { toEventDto } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
@@ -24,6 +24,8 @@ import { notificationTitle } from '../notify/words';
 import { eventVisible, projectAccess, visibleProjectIds } from './access';
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
+import { aboutInline, aboutSubscriptions } from './subscriptions';
+import { zoneOf } from './time-zones';
 import { requirePersonal } from './watchers';
 
 type NotificationRow = typeof notifications.$inferSelect;
@@ -64,7 +66,11 @@ async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> 
   const s = await ctx.app.schema.get();
   const view = await projectAccess(ctx);
   const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventVisible(view, s, e) });
+  // What a subscribed one came for (D31), while that subscription lasts.
+  const subscribed = rows.filter((r) => r.kind === 'subscribed' && r.subscriptionId);
+  const abouts = await aboutSubscriptions(ctx.db, s, subscribed.map((r) => r.subscriptionId!));
   return rows.map((r) => {
+    const sub = r.kind === 'subscribed' && r.subscriptionId ? abouts.get(r.subscriptionId) : undefined;
     const e = events.get(r.id) ?? { events: [], reasons: new Map() };
     const project = r.projectId ? s.projects.get(r.projectId) : undefined;
     return {
@@ -79,6 +85,7 @@ async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> 
       firstAt: r.firstEventAt.toISOString(),
       lastAt: r.lastEventAt.toISOString(),
       readAt: r.readAt?.toISOString() ?? null,
+      subscription: sub && sub.userId === r.userId ? { id: r.subscriptionId!, about: aboutInline(sub.about) } : null,
     };
   });
 }
@@ -180,7 +187,7 @@ export async function markNotifications(
 export async function getNotificationSettings(ctx: Ctx): Promise<NotificationSettings> {
   requirePersonalRead(ctx);
   const prefs = await emailPrefs(ctx.db, ctx.actor.user.id);
-  return { ...prefs, address: ctx.actor.user.email, mailConfigured: mailConfigured(ctx.app), digestHour: ctx.app.config.digestHour };
+  return { ...prefs, address: ctx.actor.user.email, mailConfigured: mailConfigured(ctx.app), digestHour: ctx.app.config.digestHour, timeZone: zoneOf(ctx) };
 }
 
 export async function updateNotificationSettings(ctx: Ctx, input: { email?: EmailLevel; digest?: boolean }): Promise<NotificationSettings> {
@@ -207,19 +214,27 @@ async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel;
 /**
  * What a link stops. Email levels nest (all, direct, none), so stopping the emails about issues you
  * watch leaves mentions and assignments, and stopping those stops email about issues altogether.
+ * A subscription's link stops that subscription's emails, and leaves it telling your inbox (D31).
  * A requester's link stops email about their one request.
  */
-export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request';
-const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request'];
+export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription';
+const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription'];
 
-const WORDS: Record<UnsubscribeKind, string> = {
+const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
   watching: 'Emails about changes and comments on issues you watch. Mentions and assignments still come by email.',
   direct: 'Emails about issues, mentions and assignments too. Your inbox in a4a keeps everything.',
   digest: 'The daily digest.',
   request: 'Emails about this request. Its page still shows every reply.',
 };
 
-/** For a person's kinds, `subject` is their user id; for a requester's, the request's issue id. */
+/** What a link stops, in words: a subscription's, by what it tells of. */
+async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<string> {
+  if (kind !== 'subscription') return WORDS[kind];
+  const about = (await aboutSubscriptions(app.db, await app.schema.get(), [subject])).get(subject);
+  return about ? `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.` : 'Emails from a subscription that has ended.';
+}
+
+/** For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the request's issue id. */
 export async function unsubscribeToken(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<string> {
   return `${kind}.${subject}.${await sign(app, 'unsubscribe', `${kind}.${subject}`)}`;
 }
@@ -234,10 +249,14 @@ async function readToken(app: AppServices, token: string): Promise<{ kind: Unsub
 
 export async function describeUnsubscribe(app: AppServices, token: string): Promise<Unsubscribe> {
   const { kind, subject } = await readToken(app, token);
-  return { kind, what: WORDS[kind], done: await isStopped(app.db, kind, subject) };
+  return { kind, what: await wordsFor(app, kind, subject), done: await isStopped(app.db, kind, subject) };
 }
 
 async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promise<boolean> {
+  if (kind === 'subscription') {
+    const [sub] = await db.select({ email: subscriptions.email }).from(subscriptions).where(eq(subscriptions.id, subject));
+    return !sub?.email;
+  }
   if (kind === 'request') {
     const [r] = await db.select({ muted: helpdeskRequests.emailMutedAt }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, subject));
     return Boolean(r?.muted);
@@ -251,7 +270,10 @@ async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promis
 /** Stop what the link stops. Doing it twice is the same as once. */
 export async function applyUnsubscribe(app: AppServices, token: string): Promise<Unsubscribe> {
   const { kind, subject } = await readToken(app, token);
-  if (kind === 'request') {
+  if (kind === 'subscription') {
+    // One that has ended sends nothing already: done all the same.
+    await app.db.update(subscriptions).set({ email: false, updatedAt: new Date() }).where(eq(subscriptions.id, subject));
+  } else if (kind === 'request') {
     await app.db
       .update(helpdeskRequests)
       .set({ emailMutedAt: new Date() })
@@ -264,7 +286,7 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
     else if (kind === 'watching' && prefs.email === 'all') await saveSettings(app.db, subject, { email: 'direct' });
     else if (kind === 'direct') await saveSettings(app.db, subject, { email: 'none' });
   }
-  return { kind, what: WORDS[kind], done: true };
+  return { kind, what: await wordsFor(app, kind, subject), done: true };
 }
 
 /** Notifications of a person, unread and not emailed, whose latest event falls in (since, until]: a digest's. */

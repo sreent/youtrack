@@ -1,6 +1,6 @@
 import type { Me } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { patch } from '../api/client';
 import { keys, useMe, useSetupStatus } from '../api/queries';
@@ -9,6 +9,7 @@ import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
 import { DaysAway } from '../features/away/DaysAway';
 import { EmailSettings } from '../features/notifications/EmailSettings';
+import { SubscriptionList } from '../features/notifications/Subscriptions';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -16,22 +17,42 @@ const ROLE_WORDS: Record<Me['role'], string> = {
   viewer: 'a viewer: you read',
 };
 
+/** Every time zone the browser knows, with the browser's own and the one already chosen among them. */
+function zoneNames(...also: (string | null)[]): string[] {
+  const known = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.('timeZone') ?? [];
+  return [...new Set([...known, ...also.filter((z): z is string => Boolean(z))])].sort();
+}
+
+function browserZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 function You({ me }: { me: Me }) {
   const qc = useQueryClient();
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email ?? '');
+  const [zone, setZone] = useState(me.timeZone ?? '');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   useEffect(() => {
     setName(me.name);
     setEmail(me.email ?? '');
-  }, [me.name, me.email]);
-  const dirty = name !== me.name || email !== (me.email ?? '');
+    setZone(me.timeZone ?? '');
+  }, [me.name, me.email, me.timeZone]);
+  const browser = useMemo(browserZone, []);
+  const zones = useMemo(() => zoneNames(browser, me.timeZone, me.serverTimeZone), [browser, me.timeZone, me.serverTimeZone]);
+  const dirty = name !== me.name || email !== (me.email ?? '') || zone !== (me.timeZone ?? '');
   const save = useMutation({
-    mutationFn: () => patch<Me>('/me', { name: name.trim(), email: email.trim() || null }),
+    mutationFn: () => patch<Me>('/me', { name: name.trim(), email: email.trim() || null, timeZone: zone || null }),
     onSuccess: (m) => {
       qc.setQueryData(keys.me, m);
       void qc.invalidateQueries({ queryKey: keys.users });
-      setSaid({ text: 'Saved. People see your new name from now on.' });
+      // Searches and email settings read dates where you are: ask again.
+      void qc.invalidateQueries({ queryKey: ['notifications', 'settings'] });
+      setSaid({ text: m.name !== me.name ? 'Saved. People see your new name from now on.' : 'Saved.' });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -49,6 +70,33 @@ function You({ me }: { me: Me }) {
         </FormField>
         <FormField label="Email" help="Optional.">
           {(id, help) => <input id={id} aria-describedby={help} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />}
+        </FormField>
+        <FormField
+          label="Time zone"
+          help={
+            <>
+              What “today” means in your searches, when your digest comes, and the times in your email.
+              {browser && browser !== (zone || me.serverTimeZone) ? (
+                <>
+                  {' '}
+                  <button type="button" className="link" onClick={() => setZone(browser)}>
+                    Use your browser’s, {browser.replaceAll('_', ' ')}
+                  </button>
+                </>
+              ) : null}
+            </>
+          }
+        >
+          {(id, help) => (
+            <select id={id} aria-describedby={help} value={zone} onChange={(e) => setZone(e.target.value)}>
+              <option value="">The server’s ({me.serverTimeZone.replaceAll('_', ' ')})</option>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z.replaceAll('_', ' ')}
+                </option>
+              ))}
+            </select>
+          )}
         </FormField>
       </div>
       <div className="cluster">
@@ -183,6 +231,14 @@ export default function ProfilePage() {
         </div>
         <p className="section-note">Everyone sees when you're away; why, only you, administrators and whoever enters it.</p>
         <DaysAway person={{ login: m.login, name: m.name }} you canEnter={m.auth.scopes.includes('write') && !m.isBot} />
+      </section>
+
+      <section className="card" aria-labelledby="subscriptions">
+        <div className="section-head">
+          <h2 id="subscriptions">What you subscribe to</h2>
+          <span className="note">Projects and saved searches you asked to hear of.</span>
+        </div>
+        <SubscriptionList />
       </section>
       <section className="card" aria-labelledby="password">
         <h2 id="password">{passwords ? 'Password' : 'Signing in'}</h2>

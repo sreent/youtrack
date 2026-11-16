@@ -9,6 +9,7 @@ import { colorFor, newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { findUser, type UserRow } from './schema-cache';
 import { signInsOf } from './sso';
+import { timeZoneOrRefuse } from './time-zones';
 
 export function userDto(u: UserRow): User {
   return {
@@ -110,6 +111,8 @@ export async function updateUser(
     banned?: boolean;
     hourlyRate?: number | null;
     capacityHoursPerDay?: number;
+    /** A canonical IANA name (services/time-zones.ts checks it), or null for the server's. */
+    timeZone?: string | null;
   },
 ): Promise<User> {
   const s = await ctx.app.schema.get();
@@ -139,6 +142,7 @@ export async function updateUser(
       ...(input.banned !== undefined ? { banned: input.banned } : {}),
       ...(input.hourlyRate !== undefined ? { hourlyRate: input.hourlyRate } : {}),
       ...(input.capacityHoursPerDay !== undefined ? { capacityHoursPerDay: input.capacityHoursPerDay } : {}),
+      ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
       updatedAt: new Date(),
     })
     .where(eq(users.id, target.id))
@@ -151,9 +155,11 @@ export async function updateUser(
 
 export async function updateMe(
   ctx: Ctx,
-  input: { name?: string; email?: string | null; password?: string; currentPassword?: string },
+  input: { name?: string; email?: string | null; password?: string; currentPassword?: string; timeZone?: string | null },
 ): Promise<User> {
   requireScope(ctx, 'write');
+  // A zone this server doesn't know is refused before anything changes; one it knows is kept by its canonical name.
+  const timeZone = input.timeZone === undefined || input.timeZone === null ? input.timeZone : timeZoneOrRefuse(input.timeZone);
   if (input.password && !ctx.app.config.passwordLogin) {
     throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`);
   }
@@ -161,7 +167,7 @@ export async function updateMe(
     const ok = await verifyPassword(input.currentPassword ?? '', ctx.actor.user.passwordHash);
     if (!ok && ctx.actor.user.passwordHash) throw forbidden('Current password is incorrect');
   }
-  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password });
+  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone });
 }
 
 export async function deleteUser(ctx: Ctx, idOrLogin: string): Promise<void> {

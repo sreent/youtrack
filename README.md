@@ -50,7 +50,9 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Notifications** of what concerns you:
   - You watch what you report, are assigned, comment on or are mentioned in (`@anna`), and what you choose to; `watcher: me` finds it.
   - An inbox under Work, by issue, its unread count live in the sidebar. Changes close together on one issue are one notification, and nobody hears of their own changes.
-  - Email if you want it: everything, mentions and assignments only, or never, and a daily digest. Each email stops its kind in one click.
+  - Subscriptions: to a project's new issues or every change in it (on its page), and to an issue coming into a saved search or any change to one in it (on the Issues page). Your inbox says which brought what, and your profile lists them.
+  - Email if you want it: everything, mentions and assignments only, or never, and a daily digest; each subscription says whether it emails too. Each email stops its kind in one click.
+  - Your time zone, on your profile: what "today" means in your searches and commands, when your digest comes, and the times in your email.
 - **A help desk** per project: a public form at `/help/<KEY>` for people who aren't users, a page of their own for each request, where they follow the public replies and answer them, and a first-response target (`sla: overdue`). Comments stay internal unless the team makes one public.
   - **By email:** a desk with an address takes requests by mail, and the requester can answer the team's emails. Mail arrives from your provider's webhook (SendGrid, Mailgun, Postmark, a Cloudflare Email Worker) or a shared IMAP mailbox. Quoted history and signatures are cut, files kept, and auto-replies, bounces and lists set aside.
   - **A proof of work** the form can ask for: the sender's browser works a moment on a signed challenge, with no puzzle and nothing from another site.
@@ -209,7 +211,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
-| `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
+| `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 | `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
 | `HELPDESK_MAIL_MAX_MB` | `25` | The largest message a help desk takes, attachments included |

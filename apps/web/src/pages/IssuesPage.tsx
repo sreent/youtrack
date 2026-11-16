@@ -7,6 +7,7 @@ import { keys, useAIStatus, useIssues, useSavedSearches } from '../api/queries';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
 import { CommandBar } from '../features/issues/CommandBar';
+import { SearchSubscription } from '../features/notifications/Subscriptions';
 import { IssueList } from '../features/issues/IssueList';
 import { QueryBar } from '../features/issues/QueryBar';
 
@@ -45,6 +46,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
           Save this search
         </button>
       ) : null}
+      {mine ? <SearchSubscription search={mine} /> : null}
       {mine && mine.owner && !mine.shared ? (
         <button
           type="button"

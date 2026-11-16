@@ -6,9 +6,13 @@ import { errorText, Said } from '../common/bits';
 import { useNotificationSettings, useSaveNotificationSettings } from './api';
 
 const LEVELS: { value: EmailLevel; name: string; about: string }[] = [
-  { value: 'all', name: 'Everything', about: 'Each notification, a few minutes after it starts, with what came close behind it in the same email.' },
+  {
+    value: 'all',
+    name: 'Everything',
+    about: 'Mentions and assignments, and changes on issues you watch: each a few minutes after it starts, with what came close behind it in the same email.',
+  },
   { value: 'direct', name: 'Mentions and assignments', about: "When you're mentioned or assigned an issue, and about new help desk requests in a project you lead." },
-  { value: 'none', name: 'Never', about: 'Nothing by email.' },
+  { value: 'none', name: 'Never', about: 'Nothing by email, what you subscribe to included.' },
 ];
 
 /** What a4a emails you. Your inbox in a4a always has everything; this is only what also comes by email. */
@@ -55,11 +59,13 @@ export function EmailSettings() {
         <input type="checkbox" checked={s.digest} disabled={save.isPending} onChange={(e) => change({ digest: e.target.checked })} />
         <span>
           A daily digest
-          <small className="field-help">Once a day, at {hour} server time: what's still unread and wasn't emailed already. Nothing to say, no email.</small>
+          <small className="field-help">
+            Once a day, at {hour} your time ({s.timeZone.replaceAll('_', ' ')}): what's still unread and wasn't emailed already. Nothing to say, no email.
+          </small>
         </span>
       </label>
       <p className="note">
-        Your <Link to="/inbox">inbox</Link> always has everything, whatever you choose here.
+        Your <Link to="/inbox">inbox</Link> always has everything, whatever you choose here. What you subscribe to says for itself whether it emails you, below.
       </p>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
