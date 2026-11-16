@@ -1,0 +1,107 @@
+{
+  "push": {
+    "changes": [
+      {
+        "forced": false,
+        "old": {
+          "name": "main",
+          "links": { "html": { "href": "https://bitbucket.org/acme/shop/branch/main" } },
+          "default_merge_strategy": "merge_commit",
+          "merge_strategies": ["merge_commit", "squash", "fast_forward"],
+          "type": "branch",
+          "target": {
+            "type": "commit",
+            "hash": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c",
+            "date": "2026-11-15T17:02:11+00:00",
+            "message": "Bump the version\n",
+            "author": { "raw": "Ben Okafor <ben@example.com>", "type": "author" },
+            "parents": []
+          }
+        },
+        "links": {
+          "commits": { "href": "https://api.bitbucket.org/2.0/repositories/acme/shop/commits?include=c2d3e4f5a60718293a4b5c6d7e8f901234567890&exclude=0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c" },
+          "diff": { "href": "https://api.bitbucket.org/2.0/repositories/acme/shop/diff/c2d3e4f5a60718293a4b5c6d7e8f901234567890..0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c" },
+          "html": { "href": "https://bitbucket.org/acme/shop/branches/compare/c2d3e4f5a60718293a4b5c6d7e8f901234567890..0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c" }
+        },
+        "created": false,
+        "commits": [
+          {
+            "rendered": {},
+            "hash": "c2d3e4f5a60718293a4b5c6d7e8f901234567890",
+            "links": {
+              "self": { "href": "https://api.bitbucket.org/2.0/repositories/acme/shop/commit/c2d3e4f5a60718293a4b5c6d7e8f901234567890" },
+              "html": { "href": "https://bitbucket.org/acme/shop/commits/c2d3e4f5a60718293a4b5c6d7e8f901234567890" }
+            },
+            "author": {
+              "raw": "Anna Schmidt <anna@example.com>",
+              "type": "author",
+              "user": {
+                "display_name": "Anna Schmidt",
+                "links": { "avatar": { "href": "https://secure.gravatar.com/avatar/anna.png" } },
+                "type": "user",
+                "uuid": "{0b1a2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d}",
+                "account_id": "557058:11111111-2222-3333-4444-555555555555",
+                "nickname": "anna"
+              }
+            },
+            "summary": { "raw": "Fix the SSO redirect loop on Safari\n\nBACK-1 #Fixed\n", "markup": "markdown", "html": "<p>Fix the SSO redirect loop on Safari</p>", "type": "rendered" },
+            "parents": [{ "hash": "b2c3d4e5f6a70819203a4b5c6d7e8f9012345678", "type": "commit" }],
+            "date": "2026-11-16T09:10:02+00:00",
+            "message": "Fix the SSO redirect loop on Safari\n\nBACK-1 #Fixed\n",
+            "type": "commit",
+            "properties": {}
+          },
+          {
+            "rendered": {},
+            "hash": "b2c3d4e5f6a70819203a4b5c6d7e8f9012345678",
+            "links": { "html": { "href": "https://bitbucket.org/acme/shop/commits/b2c3d4e5f6a70819203a4b5c6d7e8f9012345678" } },
+            "author": { "raw": "Jordi Mallach <jordi@softcatala.example>", "type": "author" },
+            "parents": [{ "hash": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c", "type": "commit" }],
+            "date": "2026-11-16T08:55:40+00:00",
+            "message": "Cache the export's query plan (BACK-2)\n",
+            "type": "commit",
+            "properties": {}
+          }
+        ],
+        "truncated": false,
+        "closed": false,
+        "new": {
+          "name": "main",
+          "links": { "html": { "href": "https://bitbucket.org/acme/shop/branch/main" } },
+          "default_merge_strategy": "merge_commit",
+          "merge_strategies": ["merge_commit", "squash", "fast_forward"],
+          "type": "branch",
+          "target": {
+            "type": "commit",
+            "hash": "c2d3e4f5a60718293a4b5c6d7e8f901234567890",
+            "date": "2026-11-16T09:10:02+00:00",
+            "message": "Fix the SSO redirect loop on Safari\n\nBACK-1 #Fixed\n",
+            "author": { "raw": "Anna Schmidt <anna@example.com>", "type": "author" },
+            "parents": [{ "hash": "b2c3d4e5f6a70819203a4b5c6d7e8f9012345678", "type": "commit" }]
+          }
+        }
+      }
+    ]
+  },
+  "actor": {
+    "display_name": "Anna Schmidt",
+    "links": { "avatar": { "href": "https://secure.gravatar.com/avatar/anna.png" } },
+    "type": "user",
+    "uuid": "{0b1a2c3d-4e5f-4a7b-8c9d-0e1f2a3b4c5d}",
+    "account_id": "557058:11111111-2222-3333-4444-555555555555",
+    "nickname": "anna"
+  },
+  "repository": {
+    "type": "repository",
+    "full_name": "acme/shop",
+    "links": { "html": { "href": "https://bitbucket.org/acme/shop" } },
+    "name": "shop",
+    "scm": "git",
+    "website": null,
+    "owner": { "display_name": "Acme", "type": "team", "uuid": "{9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a}", "username": "acme" },
+    "workspace": { "type": "workspace", "uuid": "{9f8e7d6c-5b4a-4392-8170-6f5e4d3c2b1a}", "name": "Acme", "slug": "acme" },
+    "is_private": true,
+    "project": { "type": "project", "key": "SHOP", "uuid": "{5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d}", "name": "Shop" },
+    "uuid": "{1c2b3a4d-5e6f-4789-8a9b-0c1d2e3f4a5b}"
+  }
+}

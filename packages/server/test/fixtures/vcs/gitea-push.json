@@ -1,0 +1,39 @@
+{
+  "ref": "refs/heads/main",
+  "before": "28e1879d029cb852e4844d9c718537df08844e03",
+  "after": "bffeb74224043ba2feb48d137756c8a9331c449a",
+  "compare_url": "https://git.acme.example/acme/infra/compare/28e1879d029cb852e4844d9c718537df08844e03...bffeb74224043ba2feb48d137756c8a9331c449a",
+  "commits": [
+    {
+      "id": "bffeb74224043ba2feb48d137756c8a9331c449a",
+      "message": "Rotate the export bucket's keys\n\nBACK-4 #In Progress\n",
+      "url": "https://git.acme.example/acme/infra/commit/bffeb74224043ba2feb48d137756c8a9331c449a",
+      "author": { "name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" },
+      "committer": { "name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" },
+      "verification": null,
+      "timestamp": "2026-11-16T11:00:00Z",
+      "added": [],
+      "removed": [],
+      "modified": ["terraform/export.tf"]
+    }
+  ],
+  "total_commits": 1,
+  "head_commit": {
+    "id": "bffeb74224043ba2feb48d137756c8a9331c449a",
+    "message": "Rotate the export bucket's keys\n\nBACK-4 #In Progress\n",
+    "url": "https://git.acme.example/acme/infra/commit/bffeb74224043ba2feb48d137756c8a9331c449a",
+    "author": { "name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" },
+    "timestamp": "2026-11-16T11:00:00Z"
+  },
+  "repository": {
+    "id": 9,
+    "owner": { "id": 1, "login": "acme", "full_name": "Acme", "email": "", "username": "acme" },
+    "name": "infra",
+    "full_name": "acme/infra",
+    "private": true,
+    "html_url": "https://git.acme.example/acme/infra",
+    "default_branch": "main"
+  },
+  "pusher": { "id": 4, "login": "bokafor", "full_name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" },
+  "sender": { "id": 4, "login": "bokafor", "full_name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" }
+}

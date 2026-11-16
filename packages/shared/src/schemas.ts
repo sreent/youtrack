@@ -1764,25 +1764,42 @@ export const VcsIntegrationSchema = z
     active: z.boolean(),
     webhookUrl: z.string().describe('Where the provider sends its deliveries'),
     secretPrefix: z.string().describe("The secret's first characters, to recognise it by"),
+    baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; null for the others"),
+    hasAccessToken: z.boolean().describe('Whether a4a has an access token to read the commits a delivery leaves out (Bitbucket only). The token is never shown'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
   .meta({ id: 'VcsIntegration' });
 export type VcsIntegration = z.infer<typeof VcsIntegrationSchema>;
 export const VcsIntegrationCreatedSchema = VcsIntegrationSchema.extend({
-  secret: z.string().describe('The webhook secret (GitHub) or secret token (GitLab). Shown only once'),
+  secret: z.string().describe("The webhook's secret (its secret token, in GitLab). Shown only once"),
 }).meta({ id: 'VcsIntegrationCreated' });
 export type VcsIntegrationCreated = z.infer<typeof VcsIntegrationCreatedSchema>;
+const VcsBaseUrl = z
+  .string()
+  .max(500)
+  .describe("Bitbucket Data Center: the instance's address (https), as people open it, e.g. https://bitbucket.acme.example");
+const VcsAccessToken = z
+  .string()
+  .min(1)
+  .max(1000)
+  .describe(
+    'Bitbucket: an access token that may read the repository. Data Center sends no commits with a push, and Bitbucket Cloud the latest five a branch got: with it, a4a reads them. Never shown again',
+  );
 export const VcsIntegrationBody = z.object({
   provider: z.enum(VCS_PROVIDERS),
   name: z.string().min(1).max(120).describe('What it is, e.g. the repository "acme/backend"'),
   projects: z.array(z.string()).max(50).default([]).describe('Project keys whose issue ids to look for; empty for every project'),
   active: z.boolean().default(true),
+  baseUrl: VcsBaseUrl.nullable().optional(),
+  accessToken: VcsAccessToken.nullable().optional(),
 });
 export const UpdateVcsIntegrationBody = z.object({
   name: z.string().min(1).max(120).optional(),
   projects: z.array(z.string()).max(50).optional(),
   active: z.boolean().optional(),
+  baseUrl: VcsBaseUrl.nullable().optional(),
+  accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it'),
 });
 
 export const VcsDeliverySchema = z
@@ -1808,7 +1825,7 @@ export type VcsTestResult = z.infer<typeof VcsTestResultSchema>;
 const VcsAuthorSchema = z.object({
   name: z.string().nullable(),
   login: z.string().nullable().describe('Their login with the provider'),
-  user: UserRefSchema.nullable().describe('The person in a4a, matched by their verified email'),
+  user: UserRefSchema.nullable().describe('The person in a4a: matched by a confirmed email, or by their login at the provider'),
 });
 const VcsSourceSchema = z.object({ id: z.string(), name: z.string(), provider: z.enum(VCS_PROVIDERS) }).nullable();
 
@@ -1852,3 +1869,59 @@ export const IssueVcsSchema = z
   .object({ commits: z.array(VcsCommitSchema), pullRequests: z.array(VcsPullRequestSchema) })
   .meta({ id: 'IssueVcs' });
 export type IssueVcs = z.infer<typeof IssueVcsSchema>;
+
+// ---------------------------------------------------------------------------
+// Version control: more emails, and logins at providers (D33)
+// ---------------------------------------------------------------------------
+
+export const UserEmailSchema = z
+  .object({
+    id: z.string().nullable().describe('Null for the primary email'),
+    email: z.string(),
+    primary: z.boolean(),
+    confirmed: z
+      .boolean()
+      .describe("Confirmed by a link a4a mailed to it, set by an administrator, or vouched for by single sign-on. Commits under a confirmed email are the person's"),
+    confirmedBy: UserRefSchema.nullable().describe('Who confirmed it: the person, by the link, or the administrator who set it. Null for the primary'),
+    linkSentAt: timestamp.nullable().describe('When a4a last sent a link to confirm it, while it waits'),
+    createdAt: timestamp.nullable(),
+  })
+  .meta({ id: 'UserEmail' });
+export type UserEmail = z.infer<typeof UserEmailSchema>;
+
+export const PersonEmailsSchema = z
+  .object({
+    emails: z.array(UserEmailSchema).describe('The primary first, then the others as they were added'),
+    canSendLinks: z.boolean().describe('Whether a4a can send email here: without it, an administrator confirms emails'),
+  })
+  .meta({ id: 'PersonEmails' });
+export type PersonEmails = z.infer<typeof PersonEmailsSchema>;
+
+export const AddEmailBody = z.object({ email: z.string().trim().email().max(254) });
+export const SendEmailLinkBody = z.object({ email: z.string().trim().email().max(254).describe('One of your emails that waits to be confirmed') });
+export const PrimaryEmailBody = z.object({ email: z.string().trim().email().max(254).describe('One of your confirmed emails') });
+export const ConfirmEmailBody = z.object({ token: z.string().min(16).max(200) });
+export const EmailLinkSchema = z
+  .object({ email: z.string().describe('The email the link confirms'), confirmed: z.boolean().describe('Whether it is confirmed now') })
+  .meta({ id: 'EmailLink' });
+export type EmailLink = z.infer<typeof EmailLinkSchema>;
+
+export const ProviderLoginSchema = z
+  .object({
+    id: z.string(),
+    provider: z.enum(VCS_PROVIDERS),
+    login: z.string().describe('As the administrator recorded it'),
+    addedBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+  })
+  .meta({ id: 'ProviderLogin' });
+export type ProviderLogin = z.infer<typeof ProviderLoginSchema>;
+export const ProviderLoginBody = z.object({
+  provider: z.enum(VCS_PROVIDERS),
+  login: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .describe("Their username at the provider. For Bitbucket Cloud, their account id or UUID: its nicknames aren't unique"),
+});

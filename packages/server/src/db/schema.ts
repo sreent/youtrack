@@ -663,17 +663,24 @@ export const ruleRuns = pgTable(
 
 export const vcsIntegrations = pgTable('vcs_integrations', {
   id: text('id').primaryKey(),
-  /** 'github' or 'gitlab'. */
+  /** 'github', 'gitlab', 'bitbucket' (Cloud), 'bitbucket-dc' (Data Center) or 'gitea' (and Forgejo). */
   provider: text('provider').notNull(),
   name: text('name').notNull(),
   /** The projects whose issue ids it looks for; empty: every project. */
   projectIds: text('project_ids').array().notNull(),
-  /** GitHub signs each delivery with the secret (HMAC-SHA256), so a4a must keep it to check the signature. */
+  /** All but GitLab sign each delivery with the secret (HMAC-SHA256), so a4a must keep it to check the signature. */
   signingKey: text('signing_key'),
   /** GitLab sends its token as it is, so a4a keeps only the token's SHA-256. */
   tokenHash: text('token_hash'),
   /** The secret's first characters, to recognise it by. */
   secretPrefix: text('secret_prefix').notNull(),
+  /** Bitbucket Data Center's address, where a4a reads the commits a push moved (D33). */
+  baseUrl: text('base_url'),
+  /**
+   * Bitbucket: an access token a4a sends to read the commits a delivery leaves out, so a4a keeps
+   * it as it is, as it keeps a signing key. It is never shown again (D33).
+   */
+  accessToken: text('access_token'),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -1139,7 +1146,7 @@ export const mailOutbox = pgTable(
   {
     id: text('id').primaryKey(),
     dedupeKey: text('dedupe_key').notNull().unique(),
-    /** 'notification', 'digest', 'request-received', 'request-reply' or 'request-state'. */
+    /** 'notification', 'digest', 'request-received', 'request-reply', 'request-state' or 'email-confirm'. */
     kind: text('kind').notNull(),
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     payload: jsonb('payload').notNull(),
@@ -1225,4 +1232,71 @@ export const helpThrottle = pgTable(
     hits: integer('hits').notNull(),
   },
   (t) => [index('help_throttle_ends').on(t.windowEnds)],
+);
+
+// ---------------------------------------------------------------------------
+// Version control: Bitbucket, more emails, provider logins (D33)
+// ---------------------------------------------------------------------------
+
+/**
+ * A person's emails beside their primary one (users.email). Each counts once it's confirmed: by a
+ * link a4a mailed to it, opened by the person signed in, or by an administrator who set it. Then
+ * commits under it are theirs, as under a verified primary email.
+ */
+export const userEmails = pgTable(
+  'user_emails',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    confirmedAt: ts('confirmed_at'),
+    /** The person, by the link, or the administrator who set it. */
+    confirmedById: text('confirmed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('user_emails_once').on(t.userId, sql`lower(${t.email})`), index('user_emails_address').on(sql`lower(${t.email})`)],
+);
+
+/**
+ * Links a4a mailed to confirm an email, kept as SHA-256 hashes. Each is minted as its mail is
+ * sent, works once, and expires; the person it was minted for must be signed in to use it.
+ */
+export const emailConfirmations = pgTable(
+  'email_confirmations',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The email it confirms: the person's primary one, or one of user_emails. */
+    email: text('email').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: created(),
+  },
+  (t) => [index('email_confirmations_user').on(t.userId), index('email_confirmations_expires').on(t.expiresAt)],
+);
+
+/**
+ * A person's login at a kind of version control provider, recorded by an administrator: a
+ * commit or pull request the provider says that account wrote is the person's. Kept as written,
+ * matched without regard to case.
+ */
+export const providerLogins = pgTable(
+  'provider_logins',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** One of VCS_PROVIDERS. */
+    provider: text('provider').notNull(),
+    login: text('login').notNull(),
+    /** The login as matched: lower case, and for Bitbucket Cloud a UUID without its braces. */
+    matchKey: text('match_key').notNull(),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('provider_logins_once').on(t.provider, t.matchKey), index('provider_logins_user').on(t.userId)],
 );

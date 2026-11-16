@@ -29,6 +29,7 @@ import { dashboardRoutes } from './routes/dashboards';
 import { importRoutes } from './routes/imports';
 import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
+import { emailRoutes } from './routes/emails';
 import { workflowRoutes } from './routes/workflow';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
@@ -78,6 +79,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
+  emailRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

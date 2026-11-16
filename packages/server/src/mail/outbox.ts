@@ -16,7 +16,7 @@ import { mailConfigured, mailTransport, notifyState } from '../notify/state';
 import { renderMail } from './render';
 import { PermanentMailError } from './transport';
 
-export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state';
+export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state' | 'email-confirm';
 export type MailRow = typeof mailOutbox.$inferSelect;
 
 const POLL_MS = 5_000;

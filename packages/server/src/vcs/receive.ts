@@ -1,18 +1,22 @@
 /**
- * Deliveries from GitHub and GitLab, at POST /api/v1/vcs/hooks/{integration}.
+ * Deliveries from GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo, at
+ * POST /api/v1/vcs/hooks/{integration}.
  *
- * 1. Who sent it: GitHub's X-Hub-Signature-256 (an HMAC-SHA256 of the raw body with the secret)
- *    or GitLab's X-Gitlab-Token, each compared in constant time. What fails is refused (401) and
- *    logged, at most so many times an hour from one address, so the log can't be flooded.
+ * 1. Who sent it: an HMAC-SHA256 of the raw body with the secret (GitHub's X-Hub-Signature-256,
+ *    Bitbucket's X-Hub-Signature, Gitea's and Forgejo's own headers), or GitLab's X-Gitlab-Token,
+ *    each compared in constant time. What fails is refused (401) and logged, at most so many
+ *    times an hour from one address, so the log can't be flooded.
  * 2. How often: deliveries per integration are rate-limited.
  * 3. Once: the provider's delivery id (X-GitHub-Delivery; GitLab's Idempotency-Key, else
- *    X-Gitlab-Event-UUID) is claimed before the work, so a delivery sent again is answered as a
- *    duplicate and does nothing. One that failed may be sent again and is handled again; linking
- *    is idempotent per commit and issue, so what it did the first time isn't done twice.
+ *    X-Gitlab-Event-UUID; Bitbucket's X-Request-UUID or X-Request-Id; X-Gitea-Delivery) is
+ *    claimed before the work, so a delivery sent again is answered as a duplicate and does
+ *    nothing. One that failed may be sent again and is handled again; linking is idempotent per
+ *    commit and issue, so what it did the first time isn't done twice.
  * 4. What it says: pushes link their commits, and run the commands they give; pull and merge
- *    requests are linked and kept current.
+ *    requests are linked and kept current. Commits a delivery leaves out are read from Bitbucket
+ *    with the integration's token (commits.ts).
  */
-import type { VcsDeliveryOutcome } from '@a4a/shared';
+import { VCS_PROVIDER_NAMES, type VcsDeliveryOutcome, type VcsProvider } from '@a4a/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { and, eq, lt, or } from 'drizzle-orm';
 import { ZodError } from 'zod';
@@ -23,7 +27,9 @@ import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { findIssue } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
-import { authorByEmail, linkCommit, syncPullRequest, type IntegrationRow } from './links';
+import { authorOf } from './authors';
+import { moreCommits } from './commits';
+import { linkCommit, syncPullRequest, type IntegrationRow } from './links';
 import { mentions } from './mentions';
 import { readDelivery, type Delivery } from './payloads';
 
@@ -61,31 +67,68 @@ function sameDigest(a: Buffer, b: Buffer): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+const providerOf = (integration: IntegrationRow): VcsProvider => integration.provider as VcsProvider;
+const first = (req: Incoming, ...names: string[]): string | undefined => names.map((n) => req.header(n)).find((v) => v !== undefined && v !== '');
+
+/** The header each provider signs with, and how it writes the HMAC: "sha256=<hex>", or the hex alone. */
+const SIGNED_BY: Record<Exclude<VcsProvider, 'gitlab'>, { headers: string[]; name: string }> = {
+  github: { headers: ['x-hub-signature-256'], name: 'X-Hub-Signature-256' },
+  bitbucket: { headers: ['x-hub-signature'], name: 'X-Hub-Signature' },
+  'bitbucket-dc': { headers: ['x-hub-signature'], name: 'X-Hub-Signature' },
+  gitea: { headers: ['x-hub-signature-256', 'x-forgejo-signature', 'x-gitea-signature'], name: 'X-Gitea-Signature' },
+};
+
 /** Whether the provider sent it, and if not, why, in words an administrator can act on. */
 function verify(integration: IntegrationRow, req: Incoming): string | null {
-  if (integration.provider === 'github') {
-    const given = req.header('x-hub-signature-256') ?? '';
-    if (!given) return 'No X-Hub-Signature-256: give the webhook in GitHub the secret a4a showed when it was added.';
-    if (!integration.signingKey || !/^sha256=[0-9a-f]{64}$/i.test(given)) return 'The signature is not an HMAC-SHA256.';
-    const expected = createHmac('sha256', integration.signingKey).update(req.body).digest();
-    return sameDigest(Buffer.from(given.slice(7), 'hex'), expected) ? null : 'The signature does not match: is the secret in GitHub the one a4a gave?';
+  const provider = providerOf(integration);
+  const at = VCS_PROVIDER_NAMES[provider];
+  if (provider === 'gitlab') {
+    const token = req.header('x-gitlab-token') ?? '';
+    if (!token) return 'No X-Gitlab-Token: give the webhook in GitLab the secret token a4a showed when it was added.';
+    if (!integration.tokenHash) return 'This integration has no token.';
+    const given = createHash('sha256').update(token).digest();
+    return sameDigest(given, Buffer.from(integration.tokenHash, 'hex')) ? null : 'The secret token does not match: is the one in GitLab the one a4a gave?';
   }
-  const token = req.header('x-gitlab-token') ?? '';
-  if (!token) return 'No X-Gitlab-Token: give the webhook in GitLab the secret token a4a showed when it was added.';
-  if (!integration.tokenHash) return 'This integration has no token.';
-  const given = createHash('sha256').update(token).digest();
-  return sameDigest(given, Buffer.from(integration.tokenHash, 'hex')) ? null : 'The secret token does not match: is the one in GitLab the one a4a gave?';
+  const signed = SIGNED_BY[provider];
+  const given = (first(req, ...signed.headers) ?? '').trim();
+  if (!given) return `No ${signed.name}: give the webhook in ${at} the secret a4a showed when it was added.`;
+  const hex = given.replace(/^sha256=/i, '');
+  if (!integration.signingKey || !/^[0-9a-f]{64}$/i.test(hex)) return 'The signature is not an HMAC-SHA256.';
+  const expected = createHmac('sha256', integration.signingKey).update(req.body).digest();
+  return sameDigest(Buffer.from(hex, 'hex'), expected) ? null : `The signature does not match: is the secret in ${at} the one a4a gave?`;
 }
 
 function eventOf(integration: IntegrationRow, req: Incoming): string {
-  const raw = integration.provider === 'github' ? req.header('x-github-event') : req.header('x-gitlab-event');
+  const raw = {
+    github: () => req.header('x-github-event'),
+    gitlab: () => req.header('x-gitlab-event'),
+    bitbucket: () => req.header('x-event-key'),
+    'bitbucket-dc': () => req.header('x-event-key'),
+    gitea: () => first(req, 'x-gitea-event', 'x-forgejo-event', 'x-gogs-event', 'x-github-event'),
+  }[providerOf(integration)]();
   return excerpt((raw ?? 'unknown').trim(), 60) || 'unknown';
 }
 
 function deliveryIdOf(integration: IntegrationRow, req: Incoming): string | null {
-  const raw = integration.provider === 'github' ? req.header('x-github-delivery') : (req.header('idempotency-key') ?? req.header('x-gitlab-event-uuid'));
-  const id = raw?.trim();
+  const raw = {
+    github: () => req.header('x-github-delivery'),
+    gitlab: () => req.header('idempotency-key') ?? req.header('x-gitlab-event-uuid'),
+    bitbucket: () => req.header('x-request-uuid'),
+    'bitbucket-dc': () => req.header('x-request-id'),
+    gitea: () => first(req, 'x-gitea-delivery', 'x-forgejo-delivery', 'x-github-delivery'),
+  }[providerOf(integration)]();
+  // Bitbucket Cloud writes its UUIDs in braces.
+  const id = raw?.trim().replace(/^\{(.*)\}$/, '$1');
   return id && /^[A-Za-z0-9._:-]{1,200}$/.test(id) ? id : null;
+}
+
+/**
+ * Bitbucket Data Center's Test connection sends a ping without a signature, even when the webhook
+ * has a secret. It asks nothing and carries nothing, so it's answered, and nothing is read or
+ * logged: the secret is checked on the first real delivery.
+ */
+function unsignedPing(integration: IntegrationRow, req: Incoming): boolean {
+  return providerOf(integration) === 'bitbucket-dc' && eventOf(integration, req) === 'diagnostics:ping' && !req.header('x-hub-signature');
 }
 
 /** The JSON a provider sent: as the body, or (GitHub's other content type) a form's "payload". */
@@ -169,40 +212,59 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
   const s = await app.schema.get();
   const keys = keysFor(s, integration);
   const keySet = new Set(keys.keys());
-  const provider = integration.provider === 'github' ? 'GitHub' : 'GitLab';
+  const providerId = providerOf(integration);
+  const provider = VCS_PROVIDER_NAMES[providerId];
   switch (delivery.kind) {
     case 'ping':
       return { outcome: 'processed', message: `${provider} can reach a4a, and the signature is right.`, linked: 0, applied: 0 };
     case 'other':
       return { outcome: 'ignored', message: `a4a reads pushes and pull requests; this was "${delivery.event}".`, linked: 0, applied: 0 };
     case 'push': {
-      if (delivery.deleted) return { outcome: 'ignored', message: 'A branch was deleted: nothing to link.', linked: 0, applied: 0 };
-      if (!delivery.branch) return { outcome: 'ignored', message: 'A tag: nothing to link.', linked: 0, applied: 0 };
+      const branches = delivery.refs.filter((r) => !r.deleted && r.branch);
+      if (!branches.length) {
+        if (delivery.refs.some((r) => r.deleted)) return { outcome: 'ignored', message: 'A branch was deleted: nothing to link.', linked: 0, applied: 0 };
+        if (delivery.refs.length) return { outcome: 'ignored', message: 'A tag: nothing to link.', linked: 0, applied: 0 };
+        return { outcome: 'processed', message: 'Nothing was pushed: no branch moved.', reply: replyWords(0, 0), linked: 0, applied: 0 };
+      }
       const said: string[] = [];
+      const problems: string[] = [];
+      const where: string[] = [];
       let linked = 0;
       let applied = 0;
-      const commits = delivery.commits.slice(0, MAX_COMMITS);
-      for (const commit of commits) {
-        const found = mentions(commit.message, keySet);
-        if (!found.length) continue;
-        const author = authorByEmail(s, commit.author.email);
-        for (const m of found) {
-          const issue = await findIssue(app.db, s, m.id);
-          if (!issue) {
-            said.push(`${m.id}: no such issue`);
-            continue;
+      let budget = MAX_COMMITS;
+      let offered = 0;
+      for (const ref of branches) {
+        if (budget <= 0) break;
+        offered += ref.more ? 0 : ref.commits.length;
+        // What the delivery left out (Bitbucket) is read from the provider, within what one push may read.
+        const { commits, problem } = await moreCommits(integration, delivery.repository, ref, budget);
+        if (problem) problems.push(problem);
+        budget -= commits.length;
+        where.push(`${count(commits.length, 'commit')} on ${ref.branch}`);
+        for (const commit of commits) {
+          const found = mentions(commit.message, keySet);
+          if (!found.length) continue;
+          const author = await authorOf(app.db, s, providerId, commit.author);
+          for (const m of found) {
+            const issue = await findIssue(app.db, s, m.id);
+            if (!issue) {
+              said.push(`${m.id}: no such issue`);
+              continue;
+            }
+            const r = await linkCommit(app, s, integration, { repository: delivery.repository, branch: ref.branch }, commit, issue, m.command, author);
+            if (r.linked) linked++;
+            if (r.applied) applied++;
+            said.push(r.said);
           }
-          const r = await linkCommit(app, s, integration, delivery, commit, issue, m.command, author);
-          if (r.linked) linked++;
-          if (r.applied) applied++;
-          said.push(r.said);
         }
       }
-      const more = delivery.commits.length > commits.length ? ` Read the first ${MAX_COMMITS} of ${delivery.commits.length} commits.` : '';
+      const read = MAX_COMMITS - budget;
+      const more = offered > read ? ` Read the first ${MAX_COMMITS} of ${offered} commits.` : '';
+      const notes = problems.length ? ` ${problems.join('. ')}.` : '';
       if (!said.length) {
-        return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}; none mentions an issue.${more}`, reply: replyWords(0, 0), linked, applied };
+        return { outcome: 'processed', message: `${where.join(', ')}; none mentions an issue.${more}${notes}`, reply: replyWords(0, 0), linked, applied };
       }
-      return { outcome: 'processed', message: `${count(commits.length, 'commit')} on ${delivery.branch}. ${said.join('; ')}.${more}`, reply: replyWords(linked, applied), linked, applied };
+      return { outcome: 'processed', message: `${where.join(', ')}. ${said.join('; ')}.${more}${notes}`, reply: replyWords(linked, applied), linked, applied };
     }
     case 'pull_request': {
       const found = mentions([delivery.title, delivery.branch ?? '', delivery.body].join('\n'), keySet, false);
@@ -211,7 +273,9 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
         const issue = await findIssue(app.db, s, m.id);
         if (issue) issues.push(issue);
       }
-      const r = await syncPullRequest(app, s, integration, delivery, issues);
+      // Who opened it, as the provider signed them in; known to a4a by their login there.
+      const author = found.length ? await authorOf(app.db, s, providerId, delivery.author) : null;
+      const r = await syncPullRequest(app, s, integration, delivery, issues, author?.user?.id ?? null);
       if (!r.said.length) {
         return {
           outcome: 'processed',
@@ -229,9 +293,15 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
 /** What a test showed: a4a sends itself a delivery as the provider would (see testIntegration). */
 function testWords(integration: IntegrationRow, done: Done): string {
   if (done.outcome !== 'processed') return `A test. ${done.message}`;
-  return integration.provider === 'github'
-    ? 'A test: a4a sent itself a ping as GitHub sends one, signed with the secret, and the signature checked out.'
-    : "A test: a4a read a push as GitLab sends one. It keeps only a hash of the secret token, so the token is the one part a test can't check; GitLab's own Test button checks it.";
+  const provider = providerOf(integration);
+  if (provider === 'gitlab') {
+    return "A test: a4a read a push as GitLab sends one. It keeps only a hash of the secret token, so the token is the one part a test can't check; GitLab's own Test button checks it.";
+  }
+  const what = provider === 'github' || provider === 'bitbucket-dc' ? 'a ping' : 'a push';
+  const signed = `A test: a4a sent itself ${what} as ${VCS_PROVIDER_NAMES[provider]} sends one, signed with the secret, and the signature checked out.`;
+  if (provider === 'bitbucket-dc' && !integration.accessToken) return `${signed} It has no access token, so it can't read the commits pushes move: give it one.`;
+  if (provider === 'bitbucket' && !integration.accessToken) return `${signed} Without an access token, a4a reads the latest five commits a push gives a branch, as Bitbucket sends them.`;
+  return signed;
 }
 
 /** Take one delivery for an integration: check it, claim it, handle it, and log how it went. */
@@ -241,6 +311,11 @@ export async function receive(app: AppServices, integrationId: string, req: Inco
   const event = eventOf(integration, req);
   const test = Boolean(opts.test);
 
+  if (!opts.trusted && unsignedPing(integration, req)) {
+    const wait = refusedFrom.hit(`${integration.id} ${req.ip}`);
+    if (wait) return { ...refuse(429, 'rate_limited', 'Too many unsigned pings', `Retry in ${wait}s`), retryAfter: wait };
+    return { status: 200, body: { ok: true, outcome: 'ignored', message: 'a4a can be reached. The ping isn’t signed, so the secret is checked on the first push.' } };
+  }
   const wrong = opts.trusted ? null : verify(integration, req);
   if (wrong) {
     const wait = refusedFrom.hit(`${integration.id} ${req.ip}`);
@@ -266,7 +341,7 @@ export async function receive(app: AppServices, integrationId: string, req: Inco
   let done: Done;
   let status = 200;
   try {
-    done = await handle(app, integration, readDelivery(integration.provider as 'github' | 'gitlab', event, bodyJson(req)));
+    done = await handle(app, integration, readDelivery(providerOf(integration), event, bodyJson(req)));
   } catch (e) {
     if (e instanceof SyntaxError || e instanceof ZodError) {
       status = 400;

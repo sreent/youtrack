@@ -101,8 +101,11 @@ export async function fakeSmtp(port = 2525): Promise<FakeSmtp> {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => resolve());
   });
+  // Port 0 takes any free one: what it took, for tests that run beside others.
+  const address = (server as unknown as { server: { address(): { port: number } | string | null } }).server.address();
+  const actual = address && typeof address === 'object' ? address.port : port;
   return {
-    url: `smtp://127.0.0.1:${port}`,
+    url: `smtp://127.0.0.1:${actual}`,
     messages,
     refuse: (code, times = 1) => {
       refusals = { code, left: times };

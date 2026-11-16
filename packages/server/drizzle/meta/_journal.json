@@ -50,6 +50,13 @@
       "when": 1794812408599,
       "tag": "0006_rules_and_version_control",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794834937079,
+      "tag": "0007_vcs_emails_and_logins",
+      "breakpoints": true
     }
   ]
 }

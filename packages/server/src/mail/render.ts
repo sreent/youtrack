@@ -2,6 +2,7 @@
 import type { AppServices } from '../context';
 import { renderRequestMail } from '../helpdesk/mails';
 import { renderDigestMail, renderNotificationMail } from '../notify/mails';
+import { renderEmailConfirmMail } from '../services/emails';
 import type { RenderedMail } from './compose';
 import type { MailRow } from './outbox';
 
@@ -15,6 +16,8 @@ export async function renderMail(app: AppServices, row: MailRow): Promise<Render
     case 'request-reply':
     case 'request-state':
       return renderRequestMail(app, row);
+    case 'email-confirm':
+      return renderEmailConfirmMail(app, row);
     default:
       return null;
   }
