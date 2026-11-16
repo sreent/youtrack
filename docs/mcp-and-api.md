@@ -110,7 +110,7 @@ remove tag needs-info duplicates BACK-7
 | Costs | `GET /projects/{key}/costs?baseline=` | Budget, planned and actual cost by task and by person; earned value (PV, EV, AC, CPI, SPI, EAC) against a baseline |
 | Baselines | `GET/POST /projects/{key}/baselines`, `GET/DELETE /baselines/{id}` | Snapshot the plan, then compare start, finish, effort and cost variance per task |
 | Plan settings | `PATCH /projects/{key}` (`plan`), `PATCH /users/{id}` (`hourlyRate`, `capacityHoursPerDay`) | Working days, hours per day, holidays, project start, budget and currency; per-person rate and capacity |
-| Events | `GET /events?after=`, `GET /events/stream` (SSE) | A durable change feed: poll it, or stream it live |
+| Events | `GET /events?after=`, `GET /events/stream?after=` (SSE) | A durable change feed: poll it, or stream it live. A stream resumes from its last event id, on any instance, missing nothing |
 | Webhooks | `GET/POST /webhooks`, `PATCH/DELETE /webhooks/{id}`, `GET /webhooks/{id}/deliveries`, `POST /webhooks/{id}/test` | Signed push notifications with retries and a delivery log |
 | AI | see [section 7](#7-ai-endpoints) | Triage, duplicates, natural language → query or command, summaries, chat |
 | Settings | `GET/PATCH /settings` | Instance name, default AI triage mode |
@@ -230,7 +230,10 @@ An agent or integration can react to changes instead of polling.
 **Delivery**
 
 - **Webhooks:** filtered by event type and project, signed with `X-A4A-Signature: sha256=<HMAC of body>`, retried up to 3 times with backoff, every attempt logged.
-- **`GET /events/stream`:** the same payloads over SSE.
+- **`GET /events/stream`:** the same payloads over SSE, in id order, from whichever instance serves it.
+  - Each frame's `id` is the event id. On reconnect, send it back as `Last-Event-ID` (browsers do this by themselves) or as `?after=`, and the stream first replays what you missed, then goes on live, without repeats.
+  - More than 1000 missed events get a `resync` event instead, whose `id` is where the stream goes on from: re-read what you show, or page through `GET /events?after=`.
+  - `project` and `types` filter the replay too.
 - **`GET /events?after=<id>`:** a durable feed to catch up after downtime.
 
 ## 7. AI endpoints

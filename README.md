@@ -27,9 +27,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - An assistant that works through the same tools as MCP and asks before it changes anything.
 - **For integrations**:
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
-  - signed webhooks with at-least-once delivery, and a durable event feed with live SSE;
+  - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
 - **For agents**: an MCP server at `/mcp` with 22 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
+- **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start
 
@@ -98,6 +99,10 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `PORT` | `3000` | API, MCP and (in production) the web UI |
 | `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check |
 | `DATABASE_URL` | empty | A Postgres URL. When empty, the embedded PGlite database in `DATA_DIR` is used, which is for one process only |
+| `DATABASE_POOL_SIZE` | `10` | Connections each instance keeps to Postgres; it holds one more for `LISTEN` |
+| `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
+| `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
+| `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
 | `DATA_DIR` | `./data` | Where the embedded database lives |
 | `ANTHROPIC_API_KEY` | empty | Turns on the AI features |
 | `AI_MODEL` | `claude-opus-5-5` | The Claude model used |
@@ -125,6 +130,23 @@ pnpm start
 
 `pnpm start` serves the built UI too. Put it behind HTTPS and set `PUBLIC_URL`; session cookies are then `Secure`.
 
+### Several instances
+
+On Postgres, run as many instances as you like behind a load balancer, with nothing sticky. [`docker-compose.cluster.yml`](docker-compose.cluster.yml) runs two behind Caddy ([`deploy/Caddyfile`](deploy/Caddyfile)):
+
+```bash
+docker compose -f docker-compose.cluster.yml up --build
+```
+
+What each instance needs:
+
+- the same `DATABASE_URL` and `PUBLIC_URL` (the address people open, at the proxy);
+- `TRUST_PROXY=1` behind one proxy, so sign-in limits count the client's address rather than the proxy's;
+- a `LISTEN` connection straight to Postgres (`DATABASE_LISTEN_URL` if `DATABASE_URL` goes through a pooler in transaction mode);
+- a proxy that doesn't buffer `text/event-stream`. Caddy doesn't, and nginx doesn't for a4a's streams, which send `X-Accel-Buffering: no`; their keep-alive every 25 seconds stays within nginx's default read timeout.
+
+`GET /api/v1/health` names the instance that answered and whether it runs the background work (`"worker": "active"` on one, `"standby"` on the rest). How the instances agree, and what is per instance on purpose, is in [docs/architecture.md](docs/architecture.md) (D14).
+
 ## Development
 
 ```bash
@@ -136,6 +158,22 @@ This runs the web app's design check (a4a's look is all Ocean's: its stylesheets
 ```bash
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm test
 ```
+
+The role needs `CREATEDB`. With Postgres, `test/cluster.test.ts` also runs: two instances against one database (live events across them, the cache, the shared sign-in throttle, the worker lease and its handover). Without `TEST_DATABASE_URL` it is skipped. In CI, give the job a Postgres 16 service, for example on GitHub Actions:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16
+    env:
+      POSTGRES_PASSWORD: postgres
+    ports: ['5432:5432']
+    options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+env:
+  TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+```
+
+Then `pnpm install --frozen-lockfile` and `pnpm test` as usual. Running the suite once without `TEST_DATABASE_URL` as well keeps PGlite covered.
 
 ```bash
 pnpm typecheck
