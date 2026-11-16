@@ -104,7 +104,10 @@ export function IssueList({ issues, label, chosen, onChosen, onCommand, current 
               onFocus={() => setFocus(i)}
               onKeyDown={(e) => onKeyDown(e, i, issue.id)}
             >
-              <input type="checkbox" className="issue-select" aria-label={`Choose ${issue.id}`} tabIndex={-1} checked={chosen.has(issue.id)} onChange={() => toggle(issue.id)} />
+              {/* Its label is the box's target: on a touch screen, 44px around it (D47). */}
+              <label className="issue-pick">
+                <input type="checkbox" className="issue-select" aria-label={`Choose ${issue.id}`} tabIndex={-1} checked={chosen.has(issue.id)} onChange={() => toggle(issue.id)} />
+              </label>
               <span className="issue-id">{issue.id}</span>
               <span className="issue-main">
                 <Link className="issue-summary" to={`/issues/${issue.id}`} tabIndex={-1}>

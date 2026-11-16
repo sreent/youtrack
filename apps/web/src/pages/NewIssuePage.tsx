@@ -141,6 +141,21 @@ function FieldInput({ field, value, onChange }: { field: ProjectField; value: st
   );
 }
 
+/**
+ * What another app shared into a4a (its share target, D47): a page's title, its words, its address.
+ * Android often puts the address in the words; either way it ends up once in the description.
+ */
+export function fromShare(params: URLSearchParams): { summary: string; description: string } {
+  const title = params.get('title')?.trim() ?? '';
+  const text = params.get('text')?.trim() ?? '';
+  const url = params.get('url')?.trim() ?? '';
+  const words = text && text !== title ? text : '';
+  const firstLine = words.split('\n').find((l) => l.trim())?.trim() ?? '';
+  const summary = (title || (firstLine && !/^https?:\/\//.test(firstLine) ? firstLine : '') || url).slice(0, 500);
+  const description = [words === summary ? '' : words, url && !words.includes(url) && url !== summary ? url : ''].filter(Boolean).join('\n\n');
+  return { summary, description };
+}
+
 export default function NewIssuePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -148,8 +163,9 @@ export default function NewIssuePage() {
   const projects = useProjects();
   const ai = useAIStatus();
   const [project, setProject] = useState(params.get('project') ?? '');
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
+  const shared = useMemo(() => fromShare(params), [params]);
+  const [summary, setSummary] = useState(shared.summary);
+  const [description, setDescription] = useState(shared.description);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);

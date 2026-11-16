@@ -110,6 +110,11 @@ export default defineConfig({
       // http: allowed for tests alone (support/youtrack.ts).
       IMPORT_ALLOW_HTTP_LOOPBACK: 'true',
       IMPORT_ALLOW_HOSTS: '',
+      // Push notifications go to a push service the tests start on this machine (support/push.ts).
+      PUSH_ALLOW_HTTP_LOOPBACK: 'true',
+      PUSH_HOSTS: '',
+      VAPID_PUBLIC_KEY: '',
+      VAPID_PRIVATE_KEY: '',
     },
   },
 });

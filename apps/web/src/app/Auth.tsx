@@ -38,9 +38,23 @@ export function RequireUser() {
     return <Navigate to={here === '/' || here === '/issues' ? '/login' : `/login?next=${encodeURIComponent(here)}`} replace />;
   }
   if (me.error || !me.data) {
+    // Opened offline (the kept shell, D47): it says so, and opens by itself once back online.
+    const offline = !navigator.onLine || (me.error instanceof TypeError && !(me.error instanceof ApiError));
     return (
       <Lone>
-        <ErrorNote error={me.error} />
+        {offline ? (
+          <>
+            <h1>You're offline</h1>
+            <p className="note">a4a opens as soon as this device is back online. Nothing you see in it is kept on the device, so it waits for the network.</p>
+            <div className="cluster">
+              <button type="button" onClick={() => void me.refetch()}>
+                Try again
+              </button>
+            </div>
+          </>
+        ) : (
+          <ErrorNote error={me.error} />
+        )}
       </Lone>
     );
   }

@@ -80,7 +80,7 @@ export function useWatch(issue: string) {
 export function useSaveNotificationSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<Pick<NotificationSettings, 'email' | 'digest'>>) => patch<NotificationSettings>('/me/notification-settings', body),
+    mutationFn: (body: Partial<Pick<NotificationSettings, 'email' | 'push' | 'digest'>>) => patch<NotificationSettings>('/me/notification-settings', body),
     onSuccess: (s) => qc.setQueryData(inboxKeys.settings, s),
   });
 }
