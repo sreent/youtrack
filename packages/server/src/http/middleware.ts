@@ -146,7 +146,9 @@ export function idempotency(runtime: Runtime): MiddlewareHandler<HttpEnv> {
     const ctx = c.get('ctx');
     if (c.req.method !== 'POST' || !key || !ctx) return next();
     if (key.length > 200) return c.json(errorBody('bad_request', 'Idempotency-Key is too long'), 400);
-    const raw = await c.req.raw.clone().text();
+    // An upload isn't read twice (it streams to storage): its key is matched on its length instead.
+    const multipart = (c.req.header('content-type') ?? '').toLowerCase().startsWith('multipart/');
+    const raw = multipart ? `multipart, ${c.req.header('content-length') ?? 'length unknown'}` : await c.req.raw.clone().text();
     const fingerprint = `${c.req.method} ${c.req.path} ${createHash('sha256').update(raw).digest('hex')}`;
     const db = runtime.db;
     // Forget keys after a day.
@@ -199,7 +201,8 @@ export function securityHeaders(): MiddlewareHandler<HttpEnv> {
     c.header('referrer-policy', 'same-origin');
     c.header('x-frame-options', 'DENY');
     const type = c.res.headers.get('content-type') ?? '';
-    if (type.includes('text/html') && !c.req.path.startsWith('/api/docs')) {
+    // A response with a policy of its own, such as an uploaded file's sandbox, keeps it.
+    if (type.includes('text/html') && !c.req.path.startsWith('/api/docs') && !c.res.headers.has('content-security-policy')) {
       c.header(
         'content-security-policy',
         "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
