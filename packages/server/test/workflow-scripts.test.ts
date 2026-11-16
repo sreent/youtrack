@@ -188,8 +188,12 @@ describe('scripted rules', () => {
     const still = await getIssue(w.adminCtx, issue.id);
     expect(value(still, 'Priority')).toBe('Major');
     expect(tagsOf(still)).toEqual([]);
-    // Only administrators run scripts by hand.
+    // Only administrators run scripts by hand, or preview one that isn't saved; anyone who reads
+    // the project previews one that is.
     await expect(testRule(w.as(w.anna), { ...draft, issue: issue.id })).rejects.toMatchObject({ status: 403 });
+    expect((await previewRule(w.as(w.anna), draft)).note).toMatch(/Only administrators run a script that isn't saved/);
+    await createRule(w.adminCtx, draft);
+    expect((await previewRule(w.as(w.anna), draft)).sample.find((x) => x.issue.id === issue.id)?.changes.map((c) => c.field)).toEqual(['Priority', 'Tags']);
     const failing = await testRule(w.adminCtx, { ...draft, script: 'nope(', issue: issue.id });
     expect(failing).toMatchObject({ ok: false, error: { kind: 'syntax' } });
   });

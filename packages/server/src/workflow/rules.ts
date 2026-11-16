@@ -900,8 +900,14 @@ async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, 
   const ok = problems.length === 0;
   const counted = `${plural(matching, 'issue matches', 'issues match')} its query now.`;
   if (problems.some((p) => p.part === 'script')) return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Fix its script to see what it would do.` };
-  const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
   const full = await ctx.app.schema.get();
+  // A script runs on the server: anyone who reads the project previews one an administrator saved;
+  // only an administrator runs one of their own (D40).
+  const saved = full.rules.some((r) => r.script === d.script && r.projectId === d.projectId);
+  if (!saved && !ctx.actor.scopes.includes('admin')) {
+    return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Only administrators run a script that isn't saved.` };
+  }
+  const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
   const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.id));
   const bot = full.usersByLogin.get(WORKFLOW_BOT);
   const sample: RulePreview['sample'] = [];
