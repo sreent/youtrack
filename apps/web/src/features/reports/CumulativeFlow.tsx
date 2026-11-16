@@ -8,7 +8,6 @@
 import type { Flow, FlowState } from '@a4a/shared';
 import { useId } from 'react';
 import { dayMonth } from '../plan/dates';
-import { plural } from '../plan/format';
 import { labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
 import { t, tr } from '../../i18n';
 
@@ -188,7 +187,7 @@ export function CumulativeFlowReport({ flow, compact }: { flow: Flow; compact?: 
         ) : null}
       </dl>
       <CumulativeFlowChart flow={flow} compact={compact} />
-      {flow.noState ? <p className="note">{tr('reports.cumulativeFlow.noStateAndArenT', { plural: plural(flow.noState, t('reports.cumulativeFlow.issueHas'), t('reports.cumulativeFlow.issuesHave')) })}</p> : null}
+      {flow.noState ? <p className="note">{tr('reports.cumulativeFlow.issuesWithNoState', { n: flow.noState })}</p> : null}
     </div>
   );
 }

@@ -8,7 +8,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { addDays, dayMonth, diffDays, localToday, span, spanWords, weekday, type WorkCalendar } from './dates';
-import { andList, days } from './format';
+import { andList } from './format';
 import { anchors, DAY, ganttRange, HEAD, linkHead, linkPath, restDays, ROW, rowTop, scale, type GanttTask, type Scale } from './gantt';
 import { t as tw_, tr } from '../../i18n';
 
@@ -31,8 +31,8 @@ function said(t: GanttTask, names: Map<string, string>, today: string): string {
   const parts: string[] = [];
   if (t.kind === 'milestone') parts.push(tw_('plan.gantt.aMilestone2'));
   if (t.critical) parts.push(tw_('plan.gantt.onTheCriticalPath'));
-  if (t.late) parts.push(tw_('plan.gantt.lateDue', { days: days(t.late.days), v: t.late.due < today ? tw_('plan.gantt.itWas') : "it's", when: dayMonth(t.late.due) }));
-  if (t.slackTo) parts.push(tw_('plan.gantt.ofSlack', { days: days(t.slackDays) }));
+  if (t.late) parts.push(tw_(t.late.due < today ? 'plan.gantt.daysLateWasDue' : 'plan.gantt.daysLateIsDue', { n: t.late.days, when: dayMonth(t.late.due) }));
+  if (t.slackTo) parts.push(tw_('plan.gantt.daysOfSlack', { n: t.slackDays }));
   if (t.after.length) parts.push(tw_('plan.gantt.after', { andList: andList(t.after.map((id) => names.get(id) ?? id)) }));
   if (t.baseline) parts.push(tw_('plan.gantt.plannedFor', { span: span(t.baseline.start, t.baseline.finish) }));
   if (t.whatIf) parts.push(tw_('plan.gantt.inTheWhatIf', { span: span(t.whatIf.start, t.whatIf.finish) }));
@@ -144,7 +144,7 @@ function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
     <>
       <line className="gantt-due" x1={s.end(t.late.due)} x2={s.end(t.late.due)} y1={top + 4} y2={top + 24} />
       <path className="gantt-late-mark" d={`M${end + 16} ${top + 10}l8 8M${end + 24} ${top + 10}l-8 8`} />
-      <text className="gantt-late" x={end + 29} y={top + 18}>{tr('plan.gantt.late', { days: days(t.late.days) })}</text>
+      <text className="gantt-late" x={end + 29} y={top + 18}>{tr('plan.gantt.daysLate', { n: t.late.days })}</text>
     </>
   ) : null;
   // Days its assignee is away while it's on: shaded behind the bar, half a day dashed (D43).

@@ -10,7 +10,6 @@ import { Link } from 'react-router';
 import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
 import { dayMonth, spanWords } from '../plan/dates';
-import { plural } from '../plan/format';
 import { hoursOf } from './chart';
 import { t as tx, tr, inSentence } from '../../i18n';
 
@@ -161,7 +160,7 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
               </table>
             </div>
           ) : null}
-          {compact && t.byIssue.length > issues.length ? <p className="note">{tr('reports.timeReport.and', { plural: plural(t.byIssue.length - issues.length, 'more issue') })}</p> : null}
+          {compact && t.byIssue.length > issues.length ? <p className="note">{tr('reports.timeReport.andMoreIssues', { n: t.byIssue.length - issues.length })}</p> : null}
         </>
       ) : null}
     </div>

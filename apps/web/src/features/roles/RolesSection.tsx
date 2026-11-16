@@ -150,7 +150,7 @@ export function RolesSection() {
       <div className="section-head">
         <h2 id="roles">{t('roles.rolesSection.roles')}</h2>
         <span className="note">
-          {list.length} {list.length === 1 ? 'role' : 'roles'}
+          {t('count.roles', { n: list.length })}
         </span>
       </div>
       <p className="note section-note">{t('roles.rolesSection.aRoleIsASet')}</p>

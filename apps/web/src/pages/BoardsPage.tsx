@@ -3,7 +3,6 @@ import { Link } from 'react-router';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoards } from '../features/board/api';
-import { plural } from '../features/plan/format';
 import { t, tr } from '../i18n';
 
 function projectsOf(b: Board): string {
@@ -34,7 +33,7 @@ export default function BoardsPage() {
                   </Link>
                   <span className="chip">{b.sprintsEnabled ? t('page.boards.sprints') : t('page.boards.kanban')}</span>
                 </div>
-                <p className="note">{tr('page.boards.by', { projectsOf: projectsOf(b), plural: plural(b.columns.length, 'column'), columnField: b.columnField, v: b.swimlaneField ? t('page.boards.inLanesBy', { swimlaneField: b.swimlaneField }) : '' })}</p>
+                <p className="note">{tr('page.boards.columnsBy', { projectsOf: projectsOf(b), n: b.columns.length, columnField: b.columnField, v: b.swimlaneField ? t('page.boards.inLanesBy', { swimlaneField: b.swimlaneField }) : '' })}</p>
               </li>
             ))}
           </ul>

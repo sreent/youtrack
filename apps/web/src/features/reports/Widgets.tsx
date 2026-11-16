@@ -4,6 +4,7 @@
  */
 import type { CountResult, IssueList, SavedSearch, Widget } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { get, post, qs } from '../../api/client';
 import { useSavedSearches } from '../../api/queries';
@@ -33,8 +34,7 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
     const c = list.data as CountResult | undefined;
     return (
       <p className="widget-count">
-        <strong>{c?.total ?? 0}</strong>
-        <Link to={href}>{c?.total === 1 ? 'issue' : 'issues'}</Link>
+        {tr('reports.widgets.issueCount', { n: c?.total ?? 0, t0: (x: ReactNode) => <strong>{x}</strong>, t1: (x: ReactNode) => <Link to={href}>{x}</Link> })}
       </p>
     );
   }

@@ -48,14 +48,14 @@ for (const scheme of ['light', 'dark'] as const) {
       const show = files.getByRole('button', { name: 'Show export.log' });
       await expect(show).toHaveAttribute('aria-expanded', 'false');
       await show.click();
-      const start = files.getByLabel('export.log, its first 64 KB');
+      const start = files.getByLabel('export.log, its first 64 kB');
       await expect(start).toContainText('09:00:00 INFO line 1 of the export');
       await expect(start).not.toContainText('line 2000 of the export');
-      await expect(files.getByText(/^The first 64 KB of \d+ KB\.$/)).toBeVisible();
+      await expect(files.getByText(/^The first 64 kB of \d+ kB\.$/)).toBeVisible();
       await expect(files.getByRole('button', { name: 'Hide export.log' })).toHaveAttribute('aria-expanded', 'true');
 
       await files.getByRole('button', { name: 'Show the end' }).click();
-      const end = files.getByLabel('export.log, its last 64 KB');
+      const end = files.getByLabel('export.log, its last 64 kB');
       await expect(end).toContainText('line 2000 of the export');
       await expect(end).not.toContainText('09:00:00 INFO line 1 of the export');
       await expect(files.getByRole('button', { name: 'Show the start' })).toBeVisible();

@@ -72,7 +72,7 @@ export function GroupsSection() {
       <div className="section-head">
         <h2 id="groups">{t('groups.groupsSection.groups')}</h2>
         <span className="note">
-          {list.length} {list.length === 1 ? 'group' : 'groups'}
+          {t('count.groups', { n: list.length })}
         </span>
       </div>
       <p className="note section-note">{t('groups.groupsSection.aProjectCanGiveA')}</p>

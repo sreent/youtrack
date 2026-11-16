@@ -25,7 +25,6 @@ import {
 import { FromApiForm, OriginSummary, SOURCE_NAME, TokenFields } from '../features/imports/FromApi';
 import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../features/imports/MappingTable';
 import { whenRead } from '../features/common/format';
-import { plural } from '../features/plan/format';
 import { t, tr } from '../i18n';
 
 const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: t('page.import.aCsvFile'), github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk' };
@@ -152,7 +151,7 @@ function Upload() {
                   <Link to={`/import/${i.id}`}>{i.fileName}</Link>
                   <span className="issue-id">{i.project.key}</span>
                 </span>
-                <p className="note">{tr('page.import.from2', { fromWords: fromWords(i), plural: plural(i.rows, i.origin ? 'issue' : 'row'), whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: i.status })}</p>
+                <p className="note">{tr(i.origin ? 'page.import.fromIssues' : 'page.import.fromRows', { fromWords: fromWords(i), n: i.rows, whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: i.status })}</p>
               </li>
             ))}
           </ul>
@@ -172,8 +171,8 @@ function Progress({ imp }: { imp: Import }) {
         ? t('page.import.readingTheIssuesFromOf', { from: from, done: done, total: total })
         : t('page.import.readingTheIssuesFromSo', { from: from, done: done })
       : phase === 'links'
-        ? t('page.import.linkingOf', { done: done, plural: plural(total, 'issue') })
-        : t('page.import.importingOf', { done: done, plural: plural(total, imp.origin ? 'issue' : 'row') });
+        ? t('page.import.linkingOfIssues', { done: done, n: total })
+        : t(imp.origin ? 'page.import.importingOfIssues' : 'page.import.importingOfRows', { done: done, n: total });
   return (
     <div className="import-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-valuetext={words} aria-label={t('page.import.howFarTheImportIs')}>
       <svg aria-hidden="true">
@@ -202,7 +201,7 @@ function Report({ imp }: { imp: Import }) {
         </div>
         <Tally counts={r} label={t('page.import.whatItDid')} />
         {r.linksMissing ? (
-          <p className="note">{tr('page.import.namedIssuesNeitherNorImported', { plural: plural(r.linksMissing, 'link'), v: imp.origin ? 'among those read' : t('page.import.inTheFile') })}</p>
+          <p className="note">{tr(imp.origin ? 'page.import.linksNamedIssuesNotRead' : 'page.import.linksNamedIssuesNotInFile', { n: r.linksMissing })}</p>
         ) : null}
         {created.data?.items.length ? (
           <p className="note">{tr('page.import.itMade', { map: created.data.items.slice(0, 12).map((row, i) => (
@@ -217,7 +216,7 @@ function Report({ imp }: { imp: Import }) {
       </section>
       {rows.length ? (
         <section className="card stack" aria-label={t('page.import.rowsWithProblems')}>
-          <h2>{tr('page.import.withProblems', { plural: plural(problems.data!.total, 'row') })}</h2>
+          <h2>{tr('page.import.countRowsWithProblems', { n: problems.data!.total })}</h2>
           <ProblemsTable problems={rows.flatMap((row) => row.problems)} caption={t('page.import.problemsRowByRow')} />
         </section>
       ) : null}
@@ -228,8 +227,8 @@ function Report({ imp }: { imp: Import }) {
         {undo && !undo.applied ? (
           <div className="stack">
             <p>
-              {undo.remove.length ? t('page.import.wouldGo', { plural: plural(undo.remove.length, 'issue') }) : t('page.import.nothingWouldGo')}{' '}
-              {undo.keep.length ? t('page.import.wouldStayBecauseSomeoneHas', { plural: plural(undo.keep.length, 'issue') }) : ''}
+              {undo.remove.length ? t('page.import.issuesWouldGo', { n: undo.remove.length }) : t('page.import.nothingWouldGo')}{' '}
+              {undo.keep.length ? t('page.import.issuesWouldStay', { n: undo.keep.length }) : ''}
             </p>
             {undo.keep.length ? (
               <ul>
@@ -245,15 +244,15 @@ function Report({ imp }: { imp: Import }) {
             ) : null}
             {undo.remove.length ? (
               <Confirm
-                label={t('page.import.undoTheImportOf', { plural: plural(undo.remove.length, 'issue') })}
-                title={t('page.import.deleteTheThisImportCreated', { plural: plural(undo.remove.length, 'issue') })}
+                label={t('page.import.undoTheImportOfIssues', { n: undo.remove.length })}
+                title={t('page.import.deleteTheIssuesThisImportCreated', { n: undo.remove.length })}
                 about={t('page.import.theirCommentsLinksAndLogged')}
                 confirm={t('page.import.deleteThem')}
                 onConfirm={async () => {
                   try {
                     const done = await undoImport(imp.id, false);
                     setUndo(done);
-                    setSaid({ text: t('page.import.takenAway', { plural: plural(done.remove.length, 'issue'), v: done.keep.length ? t('page.import.stayed', { length: done.keep.length }) : '' }) });
+                    setSaid({ text: t('page.import.issuesTakenAway', { n: done.remove.length, v: done.keep.length ? t('page.import.stayed', { length: done.keep.length }) : '' }) });
                     await qc.invalidateQueries({ queryKey: importKeys.all });
                     await qc.invalidateQueries({ queryKey: ['issues'] });
                   } catch (e) {
@@ -283,7 +282,7 @@ function CarryOn({ imp }: { imp: Import }) {
   return (
     <section className="card stack" aria-labelledby="carry-on">
       <h2 id="carry-on">{t('page.import.carryOnReading')}</h2>
-      <p className="note">{tr('page.import.readSoFarCarryingOn', { plural: plural(o.fetch.issues, 'issue'), v: o.fetch.total ? t('page.import.ofAbout', { total: o.fetch.total }) : '' })}</p>
+      <p className="note">{tr('page.import.issuesReadSoFar', { n: o.fetch.issues, v: o.fetch.total ? t('page.import.ofAbout', { total: o.fetch.total }) : '' })}</p>
       <form
         className="form"
         onSubmit={async (e) => {
@@ -376,7 +375,7 @@ function ImportSteps({ imp }: { imp: Import }) {
               {imp.origin ? (
                 <OriginSummary imp={imp} />
               ) : (
-                <p className="note">{tr('page.import.from3', { fileName: imp.fileName, v: SOURCES[imp.source], plural: plural(imp.rows, 'row'), plural2: plural(imp.columns.length, 'column') })}</p>
+                <p className="note">{tr('page.import.fileRowsColumns', { fileName: imp.fileName, v: SOURCES[imp.source], rows: imp.rows, columns: imp.columns.length })}</p>
               )}
             </div>
             {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what={t('page.import.theProjectSFields')} />}
@@ -404,7 +403,7 @@ function ImportSteps({ imp }: { imp: Import }) {
             <p className="note">{tr('page.import.datesWithoutATimeZone', { timeZone: imp.options.timeZone })}</p>
             {needsToken && !holding ? (
               <div className="stack">
-                <p className="note">{tr('page.import.itBringsFromDownloadedAs', { plural: plural(imp.origin!.fetch.files, 'file'), v: SOURCE_NAME[imp.origin!.kind] })}</p>
+                <p className="note">{tr('page.import.itBringsFiles', { n: imp.origin!.fetch.files, v: SOURCE_NAME[imp.origin!.kind] })}</p>
                 <TokenFields source={imp.origin!.kind} cloud={imp.origin!.kind === 'jira' ? imp.origin!.deployment === 'cloud' : false} credentials={credentials} onChange={setCredentials} />
               </div>
             ) : null}
@@ -442,7 +441,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                       setBusy(false);
                     }
                   }}
-                >{tr('page.import.import', { plural: plural(check.counts.created + check.counts.updated, 'issue') })}</button>
+                >{tr('page.import.importIssues', { n: check.counts.created + check.counts.updated })}</button>
               ) : null}
             </div>
             {check ? (
@@ -456,7 +455,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                   </ul>
                 ) : null}
                 <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} />
-                {check.counts.problems > check.problems.length ? <p className="note">{tr('page.import.theFirstOf', { length: check.problems.length, plural: plural(check.counts.problems, 'problem') })}</p> : null}
+                {check.counts.problems > check.problems.length ? <p className="note">{tr('page.import.theFirstProblems', { length: check.problems.length, n: check.counts.problems })}</p> : null}
               </div>
             ) : null}
           </section>

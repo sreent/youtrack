@@ -10,10 +10,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useProjects } from '../../api/queries';
 import { errorText, FormField, Said } from '../common/bits';
-import { plural } from '../plan/format';
 import { holdCredentials, importFromApi, importKeys } from './api';
 import { formatBytes } from '../attachments/api';
-import { t, tr } from '../../i18n';
+import { formatList, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Source = ApiImportSource;
@@ -201,11 +200,11 @@ export function OriginSummary({ imp }: { imp: Import }) {
   const f = o.fetch;
   const name = SOURCE_NAME[o.kind];
   const brought = [
-    o.bring.comments ? plural(f.comments, 'comment') : null,
-    o.bring.work ? plural(f.work, o.kind === 'youtrack' ? 'work item' : o.kind === 'redmine' ? 'time entry' : 'worklog', o.kind === 'redmine' ? 'time entries' : undefined) : null,
-    o.bring.files ? `${plural(f.files, 'file')}${f.files ? ` (${formatBytes(f.fileBytes)})` : ''}` : null,
-  ].filter(Boolean);
+    o.bring.comments ? t('count.comments', { n: f.comments }) : null,
+    o.bring.work ? t(o.kind === 'youtrack' ? 'count.workItems' : o.kind === 'redmine' ? 'count.timeEntries' : 'count.worklogs', { n: f.work }) : null,
+    o.bring.files ? `${t('count.files', { n: f.files })}${f.files ? ` (${formatBytes(f.fileBytes)})` : ''}` : null,
+  ].filter((x): x is string => Boolean(x));
   return (
-    <p className="note">{tr('imports.fromApi.fromAtTheIssuesMatching', { name: name, url: o.url, t0: (c: ReactNode) => <span className="mono">{c}</span>, code: <code>{o.query}</code>, v: o.account ? t('imports.fromApi.readAs', { account: o.account }) : '', plural: plural(f.issues, 'issue'), v2: brought.length ? t('imports.fromApi.with', { join: brought.join(', ') }) : '', v3: f.left.issues ? t('imports.fromApi.onlySomePeopleMaySee', { plural: plural(f.left.issues, 'issue'), v: f.left.issues === 1 ? 'is' : 'are' }) : '' })}</p>
+    <p className="note">{tr('imports.fromApi.fromIssuesMatching', { name: name, url: o.url, t0: (c: ReactNode) => <span className="mono">{c}</span>, code: <code>{o.query}</code>, v: o.account ? t('imports.fromApi.readAs', { account: o.account }) : '', n: f.issues, v2: brought.length ? t('imports.fromApi.with', { join: formatList(brought) }) : '', v3: f.left.issues ? t('imports.fromApi.issuesOnlySomeMaySee', { n: f.left.issues }) : '' })}</p>
   );
 }

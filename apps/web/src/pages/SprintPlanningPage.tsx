@@ -153,7 +153,7 @@ function SprintTargets({ board, dragging, onDrop }: { board: Board; dragging: st
         >
           <span className="item-name">{s.name}</span>
           <span className="item-about">
-            {s.issueCount} {s.issueCount === 1 ? 'issue' : 'issues'}
+            {t('count.issues', { n: s.issueCount })}
             {s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : ''}
           </span>
         </li>
@@ -371,7 +371,7 @@ export default function SprintPlanningPage() {
             <h2 id="backlog">{t('page.sprintPlanning.backlog')}</h2>
             {backlog.data ? (
               <span className="note">
-                {backlog.data.count} {backlog.data.count === 1 ? 'issue' : 'issues'}
+                {t('count.issues', { n: backlog.data.count })}
                 {backlog.data.points !== null ? t('page.sprintPlanning.pts2', { points: backlog.data.points }) : ''}
               </span>
             ) : null}

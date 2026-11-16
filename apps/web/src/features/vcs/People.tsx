@@ -158,7 +158,7 @@ export function YourEmails() {
       {!canSend ? <p className="note">{t('vcs.people.a4aCanTSendEmail')}</p> : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {logins.data?.length ? (
-        <p className="note">{tr('vcs.people.versionControlKnowsYouBy', { v: logins.data.length > 1 ? 's' : '', map: logins.data.map((l, i) => (
+        <p className="note">{tr('vcs.people.versionControlKnowsYouByLogins', { n: logins.data.length, map: logins.data.map((l, i) => (
             <span key={l.id}>
               {i ? ', ' : ''}
               {VCS_PROVIDER_NAMES[l.provider]} <span className="mono">{l.login}</span>

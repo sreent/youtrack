@@ -45,7 +45,7 @@ function GroupRow({ project, row, canEdit }: { project: Project; row: ProjectGro
       <th scope="row" className="row-head">
         <Link to={`/groups/${g.id}`}>{g.name}</Link>
         <span className="item-about">
-          {g.size} {g.size === 1 ? 'person' : 'people'}
+          {t('count.people', { n: g.size })}
           {g.providerName ? t('groups.projectGroups.fromTheIdentityProvider') : ''}
         </span>
       </th>

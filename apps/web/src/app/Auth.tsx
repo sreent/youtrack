@@ -9,7 +9,7 @@ import { Icon } from '../components/Icon';
 import { Shell } from './Shell';
 import { FormField } from '../components/Form';
 import { CodeField, Enrol, RecoveryCodeList } from '../features/identity/TwoFactor';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A page before the frame (Ocean's lone page): one card in the middle; `wide` for a conversation, as a help desk's. */
@@ -320,6 +320,6 @@ function GuestLink() {
   const projects = info.data?.projects ?? [];
   if (!projects.length) return null;
   return (
-    <p className="note">{tr('app.auth.openToAnyoneReadWithout', { join: projects.map((p) => p.name).join(', '), v: projects.length === 1 ? 'is' : 'are', t0: (c: ReactNode) => <Link to="/public">{c}</Link> })}</p>
+    <p className="note">{tr('app.auth.projectsOpenToAnyone', { join: formatList(projects.map((p) => p.name)), n: projects.length, t0: (c: ReactNode) => <Link to="/public">{c}</Link> })}</p>
   );
 }
