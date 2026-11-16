@@ -24,22 +24,24 @@
  * own project's names (match.ts, ruleWorld), as it was checked when it was made.
  */
 import type { Change, RuleSchedule, TrackerEvent } from '@a4a/shared';
-import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, lte, sql, type SQL } from 'drizzle-orm';
 import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
-import type { AppServices, AutomationCause, Ctx } from '../context';
+import type { AppServices, AutomationCause, Ctx, UserRow } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
-import { issues, ruleRuns, rules } from '../db/schema';
-import { publishActivities } from '../events/activity';
+import { issues, ruleRuns, rules, webhooks } from '../db/schema';
+import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
+import { callableUrl, webhookOrigin } from '../events/webhooks';
 import type { Chore, OutboxConsumer } from '../events/worker';
 import { AppError } from '../lib/errors';
-import { readableId } from '../services/issue-refs';
+import { issueRef, readableId, stateNames } from '../services/issue-refs';
 import { applyChanges, findIssue, type ChangeSpec, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
-import { condition, meets, ruleWorld } from './match';
-import { botCtx, draftOf, pruneRuleRuns, readingProblems } from './rules';
-import { nextRunAfter } from './words';
+import { condition, meets, relatedSql, ruleWorld, TARGETS_CAP, targetIssues } from './match';
+import { botCtx, draftOf, pruneRuleRuns, readingProblems, relatedCondition } from './rules';
+import { recipientsFor } from './tell';
+import { listWords, nextRunAfter } from './words';
 
 /** How many rules deep a chain may go: a rule's change sets off rules, whose changes set off rules… */
 export const MAX_DEPTH = 3;
@@ -99,6 +101,29 @@ function changeWords(changes: Change[]): string {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/**
+ * A rule's whole condition on the issue it acts for, as SQL on `issues`: its query, and its further
+ * condition on related issues, each over what the rule reads (match.ts).
+ */
+export function whenSql(s: SchemaSnapshot, rule: RuleRow, meId: string | null): SQL | null {
+  const query = condition(ruleWorld(s, rule.projectId), rule.query, { meId, projectId: rule.projectId }).where;
+  const d = draftOf(rule);
+  if (!d.related) return query;
+  const related = relatedSql(s, relatedCondition(s, d, d.related, meId));
+  return query ? sql`(${query} AND ${related})` : related;
+}
+
+async function refOf(db: Db, s: SchemaSnapshot, issue: IssueRow) {
+  const states = await stateNames(db, s, [issue.id]);
+  return issueRef(s, issue, states.get(issue.id) ?? null);
+}
+
+/** "Anna Schmidt", "Anna Schmidt and Ben Okafor", "Anna Schmidt, Ben Okafor and 3 others". */
+function people(users: UserRow[]): string {
+  const names = users.map((u) => u.name);
+  return names.length <= 3 ? listWords(names) : `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`;
+}
+
 /** Thrown inside a run's transaction when the run log says the rule already acted for this change. */
 class AlreadyActed extends Error {}
 
@@ -157,21 +182,35 @@ export class RuleEngine {
     const matched = await meets(
       this.app.db,
       issue.id,
-      readable.map((r) => condition(ruleWorld(s, r.projectId), r.query, { meId: chain.me, projectId: r.projectId }).where),
+      readable.map((r) => whenSql(s, r, chain.me)),
     );
     for (const [i, rule] of readable.entries()) {
       if (!matched[i]) continue;
       try {
         if (chain.depth >= MAX_DEPTH) {
-          await this.record(s, rule, issue, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`);
+          await this.tooDeep(s, rule, issue, chain);
           continue;
         }
-        await this.apply(s, rule, issue, chain);
+        await this.act(s, rule, issue, chain);
       } catch (e) {
         // One rule failing never stops the others, nor the outbox.
         this.log(`workflow rule ${rule.id} failed on event ${event.id}`, e);
         await this.record(s, rule, issue, chain, 'failed', errorText(e));
       }
+    }
+  }
+
+  /**
+   * A chain that went as deep as it may: the run log says so on each issue the rule would have acted
+   * on (the issue that set it off may have been acted on already in this chain, under the same key).
+   */
+  private async tooDeep(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<void> {
+    const d = draftOf(rule);
+    const targets = d.target
+      ? (await targetIssues(this.app.db, s, d.target.to, d.target.phrase ?? null, issue.id)).slice(0, TARGETS_CAP).filter((t) => !rule.projectId || t.projectId === rule.projectId)
+      : [issue];
+    for (const target of targets) {
+      await this.record(s, rule, target, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`);
     }
   }
 
@@ -188,38 +227,114 @@ export class RuleEngine {
   }
 
   // -------------------------------------------------------------------------
-  // Applying a rule to one issue
+  // Acting for one issue: on it, or on the issues related to it
   // -------------------------------------------------------------------------
 
-  /** Apply a rule's command to one issue, as the workflow agent, and write down what happened. */
+  /**
+   * Act for one issue that set the rule off (or matched, on a schedule): on the issue itself, or on
+   * each issue related to it as the rule says, once for each. A project's rule leaves alone the
+   * related issues of other projects, and says so in the run of the issue it acted for, without
+   * naming them.
+   */
+  async act(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<Outcome> {
+    const d = draftOf(rule);
+    if (!d.target) return this.apply(s, rule, issue, chain);
+    const found = await targetIssues(this.app.db, s, d.target.to, d.target.phrase ?? null, issue.id);
+    const capped = found.length > TARGETS_CAP;
+    const targets = found.slice(0, TARGETS_CAP);
+    const reach = targets.filter((t) => !rule.projectId || t.projectId === rule.projectId);
+    const outside = targets.length - reach.length;
+    let applied = 0;
+    let failed = 0;
+    for (const target of reach) {
+      const outcome = await this.apply(s, rule, target, chain);
+      if (outcome === 'applied') applied++;
+      else if (outcome === 'failed') failed++;
+    }
+    if (outside || capped) {
+      const said = [
+        outside ? `Left ${plural(outside, 'issue')} alone: ${outside === 1 ? 'it is' : 'they are'} in another project, and a rule acts only on its own project's issues` : '',
+        capped ? `Acted on the first ${TARGETS_CAP} only` : '',
+      ].filter(Boolean);
+      await this.record(s, rule, issue, chain, 'skipped', `${said.join('. ')}.`);
+    }
+    return failed ? 'failed' : applied ? 'applied' : 'unchanged';
+  }
+
+  /**
+   * Do what a rule does to one issue, as the workflow agent, all in one transaction with its run:
+   * apply its command, tell the people it tells (the notifier delivers the message, as for any
+   * event), and ask the webhook sender to call its webhook. If the run log says the rule already
+   * acted on this issue for this change, all of it is taken back.
+   */
   async apply(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<Outcome> {
     const bot = s.usersByLogin.get(WORKFLOW_BOT);
     if (!bot) throw new Error('The workflow agent is missing: restart the server to create it');
     const ctx: Ctx = { ...botCtx(this.app, bot, issue.projectId), automation: { rule: rule.id, name: rule.name, origin: chain.origin, depth: chain.depth + 1, by: chain.me } };
     // A replayed event, or a loop come round: this rule already acted on this issue for this change.
     if (chain.origin !== null && (await this.actedFor(rule, issue, chain.origin))) return 'duplicate';
+    const d = draftOf(rule);
 
-    let spec: ChangeSpec;
-    try {
-      const parsed = parseCommand(rule.command, s, [issue.projectId]);
-      if (parsed.problems.length) {
-        const key = s.projects.get(issue.projectId)?.key ?? 'this project';
-        throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+    let spec: ChangeSpec | null = null;
+    if (d.command || d.comment) {
+      try {
+        const parsed = parseCommand(rule.command, s, [issue.projectId]);
+        if (parsed.problems.length) {
+          const key = s.projects.get(issue.projectId)?.key ?? 'this project';
+          throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+        }
+        spec = await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined });
+      } catch (e) {
+        await this.record(s, rule, issue, chain, 'failed', errorText(e));
+        return 'failed';
       }
-      spec = await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined });
-    } catch (e) {
-      await this.record(s, rule, issue, chain, 'failed', errorText(e));
-      return 'failed';
     }
+    const call = d.callWebhookId ? await this.callable(d.callWebhookId) : null;
 
     try {
       const result = await this.app.db.transaction(async (txRaw) => {
         const tx = txRaw as unknown as Db;
         // applyChanges locks the issue's row first, as every write to an issue does.
         const fresh = (await findIssue(tx, s, issue.id)) ?? issue;
-        const res = await applyChanges(tx, ctx, fresh, spec);
+        const res = spec ? await applyChanges(tx, ctx, fresh, spec) : { changes: [] as Change[], activities: [] as ActivityRow[] };
+        const activities = [...res.activities];
+        const after = spec ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
+        const ref = (d.notify || call?.ok) && after ? await refOf(tx, s, after) : null;
+
+        // Whom it tells, as the issue is after its change: "its assignee" is whoever it just assigned.
+        let told: UserRow[] = [];
+        if (d.notify && ref) {
+          told = await recipientsFor(tx, s, d.notify, after, { exclude: chain.me });
+          if (told.length) {
+            activities.push(
+              await recordActivity(tx, ctx, {
+                type: 'rule.notified',
+                projectId: after.projectId,
+                issueId: after.id,
+                payload: { issue: ref, data: { message: d.notify.message, to: d.notify.to, people: told.map((u) => u.login) } },
+              }),
+            );
+          }
+        }
+        if (call?.ok && ref) {
+          activities.push(
+            await recordActivity(tx, ctx, {
+              type: 'rule.called',
+              projectId: after.projectId,
+              issueId: after.id,
+              payload: { issue: ref, changes: res.changes, data: { webhook: d.callWebhookId } },
+            }),
+          );
+        }
+
         const changed = res.changes.length > 0;
-        if (chain.origin !== null || changed) {
+        const acted = changed || told.length > 0 || Boolean(call?.ok);
+        if (chain.origin !== null || acted) {
+          const said = [
+            changed ? changeWords(res.changes) : '',
+            told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
+            call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
+          ].filter(Boolean);
           const claimed = await tx
             .insert(ruleRuns)
             .values({
@@ -230,24 +345,34 @@ export class RuleEngine {
               eventId: chain.eventId,
               originId: chain.origin,
               actorId: chain.actorId,
-              outcome: changed ? 'applied' : 'unchanged',
-              message: changed ? changeWords(res.changes) : 'Nothing to change: it was so already.',
+              outcome: acted ? 'applied' : 'unchanged',
+              message: said.length ? said.join('; ') : 'Nothing to change: it was so already.',
               changes: res.changes,
             })
             .onConflictDoNothing()
             .returning({ id: ruleRuns.id });
-          // The run log says it acted for this change first: take this change back.
+          // The run log says it acted for this change first: take all of this back.
           if (!claimed.length) throw new AlreadyActed();
         }
-        return res;
+        return { activities, acted };
       });
       await publishActivities(this.app, result.activities);
-      return result.changes.length ? 'applied' : 'unchanged';
+      return result.acted ? 'applied' : 'unchanged';
     } catch (e) {
       if (e instanceof AlreadyActed) return 'duplicate';
       await this.record(s, rule, issue, chain, 'failed', errorText(e));
       return 'failed';
     }
+  }
+
+  /** Whether the webhook a rule calls can be called now: there, on, and https (or this machine). */
+  private async callable(webhookId: string): Promise<{ ok: boolean; origin: string | null; why: string }> {
+    const [hook] = await this.app.db.select({ url: webhooks.url, active: webhooks.active }).from(webhooks).where(eq(webhooks.id, webhookId));
+    if (!hook) return { ok: false, origin: null, why: 'Its webhook is gone, so nothing was called' };
+    const origin = webhookOrigin(hook.url);
+    if (!callableUrl(hook.url)) return { ok: false, origin, why: "Its webhook's address isn't https, so it wasn't called" };
+    if (!hook.active) return { ok: false, origin, why: 'Its webhook is paused, so nothing was sent' };
+    return { ok: true, origin, why: '' };
   }
 
   private async actedFor(rule: RuleRow, issue: IssueRow, origin: string): Promise<boolean> {
@@ -312,7 +437,7 @@ export class RuleEngine {
   async runScheduled(rule: RuleRow, stillHolder: StillHolder = () => true): Promise<void> {
     const s = await this.app.schema.get();
     if (!(await this.reads(s, rule))) return;
-    const where = condition(ruleWorld(s, rule.projectId), rule.query, { meId: null, projectId: rule.projectId }).where ?? sql`TRUE`;
+    const where = whenSql(s, rule, null) ?? sql`TRUE`;
     let checked = 0;
     let changed = 0;
     let failed = 0;
@@ -332,7 +457,7 @@ export class RuleEngine {
           break;
         }
         checked++;
-        const outcome = await this.apply(s, rule, issue, { origin: null, depth: 0, me: null, eventId: null, actorId: null });
+        const outcome = await this.act(s, rule, issue, { origin: null, depth: 0, me: null, eventId: null, actorId: null });
         if (outcome === 'applied') changed++;
         else if (outcome === 'failed') failed++;
       }

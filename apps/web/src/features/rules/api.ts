@@ -26,7 +26,7 @@ export const previewRule = (draft: RuleInput) => post<RulePreview>('/rules/previ
 type CheckResult = { problems: QueryProblem[]; description: string; suggestions: SuggestItem[] };
 
 /** A part of a rule, checked as it's typed: its problems, its reading and what could come next. */
-export function ruleChecker(project: string | null, kind: RuleKind, part: 'query' | 'requires' | 'command'): Checker {
+export function ruleChecker(project: string | null, kind: RuleKind, part: 'query' | 'requires' | 'command' | 'related'): Checker {
   return async (text, caret) => {
     const r = await post<CheckResult>('/rules/check', { project, kind, part, text, caret });
     return { problems: r.problems, about: r.description, suggestions: r.suggestions };

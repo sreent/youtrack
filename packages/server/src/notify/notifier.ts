@@ -101,6 +101,12 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
     case 'issue.deleted':
       for (const l of facts.watchers ?? []) add(byLogin(l), 'watching');
       break;
+    case 'rule.notified': {
+      // A workflow rule's message: to the people it worked out when it acted (workflow/tell.ts).
+      const people = (event.data as { people?: unknown }).people;
+      if (Array.isArray(people)) for (const l of people) if (typeof l === 'string') add(byLogin(l), 'rule');
+      break;
+    }
     default:
       break;
   }
@@ -110,7 +116,18 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
 export function notifierConsumer(app: AppServices): OutboxConsumer {
   return {
     name: 'notifications',
-    types: ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'],
+    types: [
+      'issue.created',
+      'issue.updated',
+      'issue.deleted',
+      'comment.created',
+      'comment.updated',
+      'link.created',
+      'link.deleted',
+      'attachment.added',
+      'attachment.removed',
+      'rule.notified',
+    ],
     handle: (event) => notifyEvent(app, event),
   };
 }

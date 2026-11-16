@@ -1,7 +1,8 @@
-import type { ProjectField, QueryProblem, Rule, RuleInput, RuleKind, RulePreview, RuleProblem } from '@a4a/shared';
+import type { LinkType, ProjectField, QueryProblem, Rule, RuleInput, RuleKind, RulePreview, RuleProblem, RuleRelation, RuleTargetKind, RuleTell } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { ApiError, patch, post } from '../../api/client';
+import { useLinkTypes, useWebhooks } from '../../api/queries';
 import { IssueLink } from '../../components/Badges';
 import { ErrorLine } from '../../components/States';
 import { errorText, FormField } from '../common/bits';
@@ -22,6 +23,33 @@ const WHEN: { value: When; words: string; kind: RuleKind }[] = [
 ];
 const kindOf = (w: When): RuleKind => WHEN.find((x) => x.value === w)!.kind;
 
+/** A further condition, as the form's "and" says it: on which related issues, and all of them or any. */
+type And = '' | 'parent' | 'subtasks-all' | 'subtasks-any' | 'siblings-all' | 'siblings-any' | 'linked-all' | 'linked-any';
+const AND: { value: And; words: string }[] = [
+  { value: '', words: 'nothing more' },
+  { value: 'parent', words: 'its parent matches' },
+  { value: 'subtasks-all', words: 'all of its subtasks match' },
+  { value: 'subtasks-any', words: 'any of its subtasks matches' },
+  { value: 'siblings-all', words: "all of its parent's subtasks match" },
+  { value: 'siblings-any', words: "any of its parent's subtasks matches" },
+  { value: 'linked-all', words: 'all the issues it … match' },
+  { value: 'linked-any', words: 'any issue it … matches' },
+];
+
+const TO: { value: RuleTargetKind; words: string }[] = [
+  { value: 'issue', words: 'the issue itself' },
+  { value: 'parent', words: 'its parent' },
+  { value: 'subtasks', words: 'its subtasks' },
+  { value: 'linked', words: 'the issues it …' },
+];
+
+const TELL: { value: RuleTell; words: string }[] = [
+  { value: 'assignee', words: 'Its assignee' },
+  { value: 'reporter', words: 'Its reporter' },
+  { value: 'watchers', words: 'Its watchers' },
+  { value: 'managers', words: "The project's managers" },
+];
+
 export interface Draft {
   name: string;
   when: When;
@@ -32,9 +60,39 @@ export interface Draft {
   comment: string;
   requires: string;
   message: string;
+  and: And;
+  andPhrase: string;
+  andQuery: string;
+  to: RuleTargetKind;
+  toPhrase: string;
+  tell: RuleTell[];
+  /** Logins, as typed: "anna, ben". */
+  people: string;
+  saying: string;
+  /** The webhook it calls, by id. */
+  call: string;
 }
 
-export const EMPTY: Draft = { name: '', when: 'created', field: '', at: '09:00', query: '', command: '', comment: '', requires: '', message: '' };
+export const EMPTY: Draft = {
+  name: '',
+  when: 'created',
+  field: '',
+  at: '09:00',
+  query: '',
+  command: '',
+  comment: '',
+  requires: '',
+  message: '',
+  and: '',
+  andPhrase: '',
+  andQuery: '',
+  to: 'issue',
+  toPhrase: '',
+  tell: [],
+  people: '',
+  saying: '',
+  call: '',
+};
 
 /** The brief's examples, to start from. */
 export const EXAMPLES: { label: string; draft: Draft }[] = [
@@ -50,7 +108,45 @@ export const EXAMPLES: { label: string; draft: Draft }[] = [
     label: "Won't fix needs a comment",
     draft: { ...EMPTY, name: "Won't fix says why", when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: "Say in a comment why it won't be fixed." },
   },
+  {
+    label: 'Done subtasks fix their parent',
+    draft: {
+      ...EMPTY,
+      name: 'Done subtasks fix their parent',
+      when: 'updated',
+      field: 'State',
+      query: '#Resolved',
+      and: 'siblings-all',
+      andQuery: '#Resolved',
+      to: 'parent',
+      command: 'State Fixed',
+    },
+  },
+  {
+    label: 'Critical bugs are news',
+    draft: {
+      ...EMPTY,
+      name: 'Critical bugs are news',
+      when: 'created',
+      query: 'Priority: Critical',
+      tell: ['assignee', 'managers'],
+      saying: 'A critical bug came in: please look at it now.',
+    },
+  },
 ];
+
+const peopleOf = (text: string): string[] =>
+  text
+    .split(/[\s,]+/)
+    .map((p) => p.replace(/^@/, '').trim())
+    .filter(Boolean);
+
+function andOf(rule: Rule): And {
+  const r = rule.related;
+  if (!r) return '';
+  if (r.of === 'parent') return 'parent';
+  return `${r.of}-${r.match === 'any' ? 'any' : 'all'}` as And;
+}
 
 export function draftOf(rule: Rule): Draft {
   const when: When = rule.kind === 'guard' ? 'guard' : rule.kind === 'schedule' ? (rule.schedule?.every ?? 'day') : (rule.trigger ?? 'created');
@@ -64,11 +160,23 @@ export function draftOf(rule: Rule): Draft {
     comment: rule.comment ?? '',
     requires: rule.requires ?? '',
     message: rule.message ?? '',
+    and: andOf(rule),
+    andPhrase: rule.related?.phrase ?? '',
+    andQuery: rule.related?.query ?? '',
+    to: rule.target.to,
+    toPhrase: rule.target.phrase ?? '',
+    tell: rule.notify?.to ?? [],
+    people: (rule.notify?.people ?? []).join(', '),
+    saying: rule.notify?.message ?? '',
+    call: rule.call?.webhook ?? '',
   };
 }
 
 function toInput(project: string | null, d: Draft): RuleInput {
   const kind = kindOf(d.when);
+  const acts = kind !== 'guard';
+  const [of, match] = d.and === 'parent' ? (['parent', 'any'] as const) : d.and ? (d.and.split('-') as [RuleRelation, 'all' | 'any']) : [null, null];
+  const people = peopleOf(d.people);
   return {
     project,
     name: d.name.trim(),
@@ -81,6 +189,10 @@ function toInput(project: string | null, d: Draft): RuleInput {
     comment: kind === 'guard' ? null : d.comment.trim() || null,
     requires: kind === 'guard' ? d.requires : null,
     message: kind === 'guard' ? d.message.trim() || null : null,
+    related: acts && of ? { of, phrase: of === 'linked' ? d.andPhrase || null : null, match, query: d.andQuery } : null,
+    target: acts && d.to !== 'issue' ? { to: d.to, phrase: d.to === 'linked' ? d.toPhrase || null : null } : null,
+    notify: acts && (d.tell.length || people.length || d.saying.trim()) ? { to: d.tell, people, message: d.saying } : null,
+    call: acts && d.call ? { webhook: d.call } : null,
     enabled: true,
   };
 }
@@ -107,19 +219,63 @@ function Part({
   );
 }
 
+/** The links a rule can follow from an issue, as they read from it: "depends on", "is required for"… (not subtask links). */
+function phrasesOf(types: LinkType[] | undefined): string[] {
+  const out = new Set<string>();
+  for (const t of types ?? []) {
+    if (t.aggregation) continue;
+    out.add(t.outward);
+    if (t.directed) out.add(t.inward);
+  }
+  return [...out];
+}
+
+function PhraseSelect({ label, value, onChange, phrases }: { label: string; value: string; onChange: (v: string) => void; phrases: string[] }) {
+  return (
+    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">choose a link</option>
+      {phrases.map((p) => (
+        <option key={p} value={p}>
+          {p}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * What a rule would do to one issue, in the second column of the command bar's list: what it would
+ * change, whom it would tell, and what stops it. One cell, however many lines.
+ */
+export function SampleDetail({ sample, guard, commands }: { sample: RulePreview['sample'][number]; guard: boolean; commands: boolean }) {
+  return (
+    <div>
+      {guard ? null : sample.changes.length ? <ChangeLines changes={sample.changes} /> : commands ? <p className="note">Nothing to change: it is so already</p> : null}
+      {sample.told ? <p className="note">{sample.told.length ? `Tells ${sample.told.map((u) => u.name).join(', ')}` : 'Nobody to tell'}</p> : null}
+      {sample.errors.map((err) => (
+        <p key={err} className="note">
+          {err}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 function same(a: QueryProblem, b: QueryProblem) {
   return a.message === b.message && a.start === b.start && a.end === b.end;
 }
 
 /**
  * Ocean's rule form: the rule said as a sentence, a row for each of its words, each part checked as it's
- * typed, and what it would do now, from a dry run. It saves a new rule, or changes `rule`.
+ * typed, and what it would do now, from a dry run. It saves a new rule, or changes `rule`. Only an
+ * administrator (`canCall`) chooses a webhook for it to call.
  */
 export function RuleForm({
   project,
   fields,
   rule,
   initial,
+  canCall = false,
   onDone,
   onCancel,
 }: {
@@ -128,11 +284,15 @@ export function RuleForm({
   fields: ProjectField[];
   rule?: Rule;
   initial?: Draft;
+  canCall?: boolean;
   onDone: (rule: Rule) => void;
   onCancel?: () => void;
 }) {
   const id = useId();
   const qc = useQueryClient();
+  const links = useLinkTypes();
+  const hooks = useWebhooks(canCall);
+  const phrases = phrasesOf(links.data);
   const [d, setD] = useState<Draft>(() => (rule ? draftOf(rule) : (initial ?? EMPTY)));
   // A preview belongs to the rule as it was written when it was asked for.
   const [previewed, setPreviewed] = useState<{ key: string; preview: RulePreview } | null>(null);
@@ -146,18 +306,25 @@ export function RuleForm({
   const kind = kindOf(d.when);
 
   const checkers = useMemo(
-    () => ({ query: ruleChecker(project, kind, 'query'), requires: ruleChecker(project, kind, 'requires'), command: ruleChecker(project, kind, 'command') }) satisfies Record<string, Checker>,
+    () =>
+      ({
+        query: ruleChecker(project, kind, 'query'),
+        requires: ruleChecker(project, kind, 'requires'),
+        command: ruleChecker(project, kind, 'command'),
+        related: ruleChecker(project, kind, 'related'),
+      }) satisfies Record<string, Checker>,
     [project, kind],
   );
   const query = useLanguage(checkers.query, d.query, d.query.trim() !== '');
   const requires = useLanguage(checkers.requires, d.requires, kind === 'guard' && d.requires.trim() !== '');
   const command = useLanguage(checkers.command, d.command, kind !== 'guard' && d.command.trim() !== '');
-  const live = [...query.problems, ...requires.problems, ...command.problems];
+  const related = useLanguage(checkers.related, d.andQuery, kind !== 'guard' && d.and !== '' && d.andQuery.trim() !== '');
+  const live = [...query.problems, ...requires.problems, ...command.problems, ...related.problems];
 
   // What it would do now, once something is written: debounced, the latest answer wins. A preview
   // needs no name yet.
   const input = useMemo(() => toInput(project, d), [project, d]);
-  const touched = Boolean(d.query.trim() || d.command.trim() || d.requires.trim() || d.comment.trim());
+  const touched = Boolean(d.query.trim() || d.command.trim() || d.requires.trim() || d.comment.trim() || d.saying.trim() || d.call);
   const key = JSON.stringify(input);
   useEffect(() => {
     let current = true;
@@ -188,7 +355,7 @@ export function RuleForm({
     setRefused([]);
     try {
       const saved = rule
-        ? await patch<Rule>(`/rules/${rule.id}`, { ...input, project: undefined, kind: undefined, enabled: undefined, expectedVersion: rule.version })
+        ? await patch<Rule>(`/rules/${rule.id}`, { ...input, project: undefined, kind: undefined, enabled: undefined, ...(canCall ? {} : { call: undefined }), expectedVersion: rule.version })
         : await post<Rule>('/rules', input);
       await qc.invalidateQueries({ queryKey: ruleKeys.all });
       onDone(saved);
@@ -205,6 +372,7 @@ export function RuleForm({
   const whenOptions = rule ? WHEN.filter((w) => w.kind === rule.kind) : WHEN;
   const ifId = `${id}-if`;
   const thenId = `${id}-then`;
+  const tellId = `${id}-tell`;
 
   return (
     <form
@@ -277,6 +445,20 @@ export function RuleForm({
                   label={kind === 'schedule' ? 'If an issue matches this query' : 'If it matches this query'}
                   placeholder={kind === 'schedule' ? '#Unresolved Due date: Overdue' : 'Type: Bug Priority: Critical'}
                 />
+                <div className="cluster">
+                  <span>and</span>
+                  <select aria-label="And what its related issues match" value={d.and} onChange={(e) => set('and', e.target.value as And)}>
+                    {AND.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {a.words}
+                      </option>
+                    ))}
+                  </select>
+                  {d.and.startsWith('linked') ? <PhraseSelect label="Which link, as it reads from the issue" value={d.andPhrase} onChange={(v) => set('andPhrase', v)} phrases={phrases} /> : null}
+                </div>
+                {d.and ? (
+                  <Part lang={related} text={d.andQuery} onText={(t) => set('andQuery', t)} label="What its related issues must match" placeholder="#Resolved" />
+                ) : null}
               </>
             )}
           </div>
@@ -292,11 +474,60 @@ export function RuleForm({
               </FormField>
             ) : (
               <>
+                <div className="cluster">
+                  <span>acting on</span>
+                  <select aria-label="Which issues it acts on" value={d.to} onChange={(e) => set('to', e.target.value as RuleTargetKind)}>
+                    {TO.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.words}
+                      </option>
+                    ))}
+                  </select>
+                  {d.to === 'linked' ? <PhraseSelect label="Which link it follows to them" value={d.toPhrase} onChange={(v) => set('toPhrase', v)} phrases={phrases} /> : null}
+                </div>
                 <span>apply</span>
                 <Part lang={command} text={d.command} onText={(t) => set('command', t)} label="Then apply this command" placeholder="Assignee anna tag urgent" />
                 <FormField label="And a comment, if it should post one" help="It goes on each issue the rule changes, by the workflow agent.">
                   {(fid, help) => <textarea id={fid} aria-describedby={help} rows={2} value={d.comment} onChange={(e) => set('comment', e.target.value)} maxLength={5000} />}
                 </FormField>
+                <fieldset className="choice-group columns" aria-describedby={tellId}>
+                  <legend>And tell</legend>
+                  {TELL.map((t) => (
+                    <label key={t.value} className="choice">
+                      <input
+                        type="checkbox"
+                        checked={d.tell.includes(t.value)}
+                        onChange={(e) => set('tell', e.target.checked ? [...d.tell, t.value] : d.tell.filter((x) => x !== t.value))}
+                      />
+                      <span>{t.words}</span>
+                    </label>
+                  ))}
+                  <small className="field-help tw:col-span-full" id={tellId}>
+                    Of each issue it acts on. Whoever set it off is never told, and nobody who can&apos;t see the issue.
+                  </small>
+                </fieldset>
+                <FormField label="And these people, by login" help="e.g. anna, ben">
+                  {(fid, help) => <input id={fid} aria-describedby={help} value={d.people} onChange={(e) => set('people', e.target.value)} className="mono" />}
+                </FormField>
+                {d.tell.length || d.people.trim() ? (
+                  <FormField label="Telling them" help="In their inbox, and by email at the level each has chosen.">
+                    {(fid, help) => <textarea id={fid} aria-describedby={help} rows={2} value={d.saying} onChange={(e) => set('saying', e.target.value)} maxLength={2000} />}
+                  </FormField>
+                ) : null}
+                {canCall ? (
+                  <FormField label="And call a webhook" help="Signed with the webhook's secret, about each issue it acts on. Only https webhooks.">
+                    {(fid, help) => (
+                      <select id={fid} aria-describedby={help} value={d.call} onChange={(e) => set('call', e.target.value)}>
+                        <option value="">no webhook</option>
+                        {(hooks.data ?? []).map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.url}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </FormField>
+                ) : null}
               </>
             )}
           </div>
@@ -317,15 +548,18 @@ export function RuleForm({
           {preview.sample.length ? (
             <ul className="command-issues">
               {preview.sample.map((x) => (
-                <li key={x.issue.id}>
+                <li key={`${x.via?.id ?? ''}-${x.issue.id}`}>
                   <IssueLink id={x.issue.id} />
-                  <span className="command-summary">{x.issue.summary}</span>
-                  {kind === 'guard' ? null : x.changes.length ? <ChangeLines changes={x.changes} /> : <span className="note">Nothing to change: it is so already</span>}
-                  {x.errors.map((err) => (
-                    <span key={err} className="note">
-                      {err}
-                    </span>
-                  ))}
+                  <span className="command-summary">
+                    {x.issue.summary}
+                    {x.via ? (
+                      <>
+                        {' '}
+                        · for <IssueLink id={x.via.id} />
+                      </>
+                    ) : null}
+                  </span>
+                  <SampleDetail sample={x} guard={kind === 'guard'} commands={Boolean(d.command.trim())} />
                 </li>
               ))}
             </ul>

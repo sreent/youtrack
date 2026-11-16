@@ -17,7 +17,9 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - when an issue is created, changes or gets a comment, and then matches a query, a command changes it: *When an issue is created, if it matches `Type: Bug Priority: Critical`, then apply `Assignee anna tag urgent`*;
   - on a schedule, every issue that matches gets the command: *every day at 09:00, `#Unresolved Due date: Overdue` gets `tag overdue`*;
   - a guard refuses a change that would break it, and the change leaves nothing behind: *State Won't fix needs a comment*.
-  - Each is previewed before it's saved (its problems where they are, the issues it would touch now, and what it would change on a few), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep.
+  - Across issues: a rule can also ask something of its parent, its subtasks, its parent's subtasks or the issues linked to it, and act on them instead: *When an issue's State changes, if it matches `#Resolved` and all of its parent's subtasks match `#Resolved`, then apply `State Fixed` to its parent*.
+  - Beyond a change: a rule can tell people (its assignee, reporter, watchers, the project's managers, or people by name) in its own words, in their inbox and by email at their level, and an administrator's rule can call a webhook, signed with its secret.
+  - Each is previewed before it's saved (its problems where they are, the issues it would touch now, what it would change on a few, and whom it would tell), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep, and a rule acts on an issue once for each change that set it off.
   - A project's managers make its rules, and everyone who can see the project can read them. A rule acts only in its own project.
 - **Version control**: GitHub and GitLab send pushes and pull requests.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).

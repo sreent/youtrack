@@ -51,14 +51,25 @@ export function eventVerb(e: TrackerEvent): string {
       return `removed the file ${(data.attachment as { name?: string } | undefined)?.name ?? ''}`.trim();
     case 'issue.deleted':
       return 'deleted it';
+    case 'rule.notified':
+      return `passed on a message from the rule “${ruleName(e)}”`;
+    case 'rule.called':
+      return `called a webhook for the rule “${ruleName(e)}”`;
     default:
       return 'changed it';
   }
 }
 
+/** The workflow rule an event came from, by its name. */
+function ruleName(e: TrackerEvent): string {
+  const name = (e.data.automation as { name?: unknown } | undefined)?.name;
+  return typeof name === 'string' ? name : 'a workflow rule';
+}
+
 /** The lines under an event: its changes, or what was said. */
 export function eventDetail(e: TrackerEvent): string[] {
   const data = e.data as Record<string, unknown>;
+  if (e.type === 'rule.notified') return typeof data.message === 'string' && data.message.trim() ? [data.message] : [];
   if (e.type === 'issue.updated') return e.changes.map((c) => `${c.field}: ${c.from ?? 'none'} → ${c.to ?? 'none'}`);
   if (e.type === 'comment.created' || e.type === 'comment.updated') return String(data.text ?? '').trim() ? [String(data.text)] : [];
   if (e.type === 'issue.created' && typeof data.description === 'string' && data.description.trim()) return [data.description];
@@ -77,6 +88,8 @@ export function notificationTitle(kind: NotificationKind, events: TrackerEvent[]
       return `${who} mentioned you`;
     case 'request':
       return `${who} asked for help through the help desk`;
+    case 'rule':
+      return `The rule “${ruleName(lead)}” tells you`;
     default: {
       if (events.length === 1) return `${who} ${eventVerb(lead)}`;
       const people = [...new Set(events.map(actorName))];
@@ -96,6 +109,7 @@ export const BECAUSE: Record<NotificationKind, string> = {
   assigned: 'it was assigned to you',
   mentioned: 'you were mentioned',
   request: 'you lead the project its help desk is for',
+  rule: 'a workflow rule of its project tells you of it',
   watching: 'you watch the issue',
 };
 
