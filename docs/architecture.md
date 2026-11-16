@@ -238,7 +238,7 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 - Its times are the database's (`now()`), never an instance's, so instances whose clocks disagree can't both believe they hold it. Before, each side compared its own clock.
 - The holder renews it on every pass, and every 10 seconds while a consumer is busy. Before, a webhook with its retries (up to 35 seconds) outlived the 30-second lease, and a second instance started the same work.
 - The holder stops handing out events once its own deadline passes without a renewal, and a cursor moves only while the lease is still the holder's in the database. So a holder that stalled can't move its successor's cursor.
-- A holder that stops cleanly releases the lease at once. One that dies is replaced within the lease (30 seconds) plus one poll (2 seconds).
+- A holder that stops cleanly releases the lease, after at most 5 seconds for the event in hand, and the next instance takes it at its next poll. One that dies is replaced within the lease (30 seconds) plus one poll (2 seconds).
 - Periodic upkeep (expired sessions, sign-in windows that have passed) runs on the holder, so it runs once.
 
 **The sign-in throttle.** Failures count per IP (50 per 15 minutes) and per login (10), in a fixed window, with one upsert for both rows.
