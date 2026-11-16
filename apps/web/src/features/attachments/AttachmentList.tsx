@@ -9,6 +9,7 @@ import { Confirm } from '../common/Confirm';
 import { whenRead } from '../common/format';
 import { errorText } from '../issues/api';
 import { contentPath, formatBytes, kindOf, refusal, uploaderOf, uploadFile } from './api';
+import { Preview, previewable } from './Preview';
 
 interface Upload {
   key: string;
@@ -101,6 +102,14 @@ export function AttachmentList({
   const [over, setOver] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // Files shown in place: none until asked for, so a long list stays quiet.
+  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
+  const toggle = (id: string) =>
+    setShown((s) => {
+      const next = new Set(s);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
 
   const used = files.reduce((n, f) => n + f.size, 0);
   const update = (key: string, patch: Partial<Upload>) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, ...patch } : u)));
@@ -179,6 +188,9 @@ export function AttachmentList({
         <ul className="attachment-list">
           {files.map((f) => {
             const who = actorWho(uploaderOf(f));
+            const canShow = previewable(f);
+            const open = canShow && shown.has(f.id);
+            const previewId = `${titleId}-${f.id}`;
             return (
               <li key={f.id} className="attachment">
                 <Thumb file={f} />
@@ -193,19 +205,34 @@ export function AttachmentList({
                     </time>
                   </span>
                 </div>
-                {canDelete(f) ? (
+                {canShow || canDelete(f) ? (
                   <div className="attachment-actions">
-                    <Confirm
-                      small
-                      label="Delete"
-                      name={`Delete ${f.name}`}
-                      title={`Delete ${f.name}?`}
-                      about={`It goes from ${owner} for good, and nobody can bring it back.`}
-                      confirm="Delete it"
-                      onConfirm={() => void remove(f)}
-                    />
+                    {canShow ? (
+                      <button
+                        type="button"
+                        className="small"
+                        aria-expanded={open}
+                        aria-controls={open ? previewId : undefined}
+                        aria-label={`${open ? 'Hide' : 'Show'} ${f.name}`}
+                        onClick={() => toggle(f.id)}
+                      >
+                        {open ? 'Hide' : 'Show'}
+                      </button>
+                    ) : null}
+                    {canDelete(f) ? (
+                      <Confirm
+                        small
+                        label="Delete"
+                        name={`Delete ${f.name}`}
+                        title={`Delete ${f.name}?`}
+                        about={`It goes from ${owner} for good, and nobody can bring it back.`}
+                        confirm="Delete it"
+                        onConfirm={() => void remove(f)}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
+                {open ? <Preview file={f} id={previewId} /> : null}
               </li>
             );
           })}
@@ -261,7 +288,7 @@ export function AttachmentList({
                 )}
               </p>
               <p className="note" id={noteId}>
-                {max ? `Up to ${max} each. ` : ''}Images show here; everything else downloads.
+                {max ? `Up to ${max} each. ` : ''}Images, text, sound and video show here; everything else downloads.
               </p>
             </div>
           ) : (
