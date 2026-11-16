@@ -272,6 +272,29 @@ pnpm --filter @a4a/server files:to-s3
 
 Then stop the server and run it again: it copies only what came since. It checks each copy against the checksum taken at upload, says what it couldn't copy and why, and carries on where a run stopped. Start the server with `ATTACHMENT_STORAGE=s3` once it has copied everything. From a build, it's `node packages/server/dist/files-to-s3.js`; `--dry-run` counts what it would copy. Nothing on disk is deleted. With the embedded database, stop the server before either run: one process at a time may open it.
 
+### Single sign-on with Microsoft Entra ID
+
+Through OpenID Connect. In the Entra admin center, under App registrations, make a new registration:
+
+1. Supported account types: this organizational directory only (single tenant).
+2. Redirect URI: platform Web, `PUBLIC_URL/api/v1/auth/oidc/callback`.
+3. Under Certificates & secrets, a new client secret; copy its value.
+4. Under Token configuration, the optional claims `email` and `xms_edov` in the ID token. Entra sends no `email_verified`: `xms_edov` is how it says the email's domain is one your tenant verified, and without it a first sign-in can't find or make an account. Add a groups claim too, for groups.
+
+Then, on the server:
+
+```
+OIDC_ISSUER=https://login.microsoftonline.com/<tenant id>/v2.0
+OIDC_CLIENT_ID=<application (client) id>
+OIDC_CLIENT_SECRET=<the secret's value>
+OIDC_NAME=Microsoft
+OIDC_CREATE_USERS=true
+OIDC_ALLOWED_DOMAINS=<your domain>
+OIDC_GROUPS_CLAIM=groups
+```
+
+Entra's groups claim names each group by its object id, not its name: give each a4a group that follows the provider the Entra group's Object ID as its provider name. Or define app roles in the registration, assign groups to them, and set `OIDC_GROUPS_CLAIM=roles` to have names instead. Once sign-in works, `PASSWORD_LOGIN=false` leaves sign-in, and its multi-factor checks, to Entra.
+
 ## Development
 
 ```bash

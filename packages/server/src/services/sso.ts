@@ -185,8 +185,10 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     {
       subject: claims.sub,
       email,
-      // Only a provider's own "verified" counts; a string or a missing claim does not.
-      emailVerified: email !== null && claims.email_verified === true,
+      // Only a provider's own "verified" counts; a string or a missing claim does not. Microsoft
+      // Entra ID never sends email_verified: its word is the optional claim xms_edov, that the
+      // email's domain is one the tenant has verified (D16).
+      emailVerified: email !== null && (claims.email_verified === true || claims.xms_edov === true),
       login: claimText(claims, 'preferred_username') ?? (email ? email.slice(0, email.indexOf('@')) : null),
       name: claimText(claims, 'name') ?? ([claimText(claims, 'given_name'), claimText(claims, 'family_name')].filter(Boolean).join(' ') || email),
     },

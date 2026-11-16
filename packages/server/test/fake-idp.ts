@@ -12,6 +12,8 @@ export interface Person {
   sub: string;
   email?: string;
   email_verified?: unknown;
+  /** Microsoft Entra ID's word for an email, where it sends no email_verified. */
+  xms_edov?: unknown;
   name?: string;
   preferred_username?: string;
   /** The groups claim, under whatever name the test configures. */

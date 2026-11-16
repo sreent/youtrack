@@ -187,6 +187,24 @@ describe('signing in with the provider', () => {
     }
   });
 
+  it("takes Microsoft Entra ID's word for an email: xms_edov, where it sends no email_verified", async () => {
+    // Entra asks the app registration for two optional claims, email and xms_edov.
+    const entra = await signIn({ sub: 'p-entra', email: 'Ines@Corp.com', xms_edov: true, name: 'Ines Duarte' });
+    expect(entra.location).toBe('/issues');
+    expect(entra.session).not.toBe('');
+    // Only a real true: a string, false or nothing vouches for nothing.
+    for (const edov of [false, 'true', 1, undefined]) {
+      const res = await signIn({ sub: `p-edov-${String(edov)}`, email: 'jo@corp.com', xms_edov: edov });
+      expect(res).toMatchObject({ location: '/login?sso=unverified', session: '' });
+    }
+  });
+
+  it("lets a domain through on Entra's word, and keeps one it doesn't vouch for out", async () => {
+    runtime.config.oidc = oidc({ allowedDomains: ['corp.com'] });
+    expect((await signIn({ sub: 'p-entra-in', email: 'kai@corp.com', xms_edov: true })).location).toBe('/issues');
+    expect(await signIn({ sub: 'p-entra-unsure', email: 'lee@corp.com' })).toMatchObject({ location: '/login?sso=unverified', session: '' });
+  });
+
   it('refuses a domain that is not allowed', async () => {
     runtime.config.oidc = oidc({ allowedDomains: ['corp.com'] });
     const res = await signIn({ sub: 'p-out', email: 'tess@elsewhere.org', email_verified: true });
