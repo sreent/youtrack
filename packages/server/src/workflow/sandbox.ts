@@ -1,15 +1,23 @@
 /**
  * The sandbox scripted workflows run in (docs/architecture.md, D40): QuickJS, compiled to
- * WebAssembly, a new runtime for every run.
+ * WebAssembly, in a small pool of worker threads, a new runtime for every run.
  *
  * A script reaches nothing but what a4a hands it: no network, no files, no timers, no modules, no
  * host objects. It gets the issue (and what changed) as frozen data, and four functions that only
  * write down what it wants: apply(command[, issue]), comment(text), refuse(message), log(...). a4a
  * does what it asked once the script has finished, through the command executor, so a script's
- * changes go the way every change goes (D4). It can't wait on anything, so a run is a pure function
- * of what it was given: bounded in time (the interrupt handler) and memory (QuickJS's allocator).
+ * changes go the way every change goes (D4).
+ *
+ * Its limits are hard. Each run goes to a worker thread (./sandbox-worker.mjs), which loaded
+ * QuickJS once when it started; the main thread awaits the answer with a timer, and at the run's
+ * limit (and HARD_GRACE_MS for the handover to the thread) terminates the worker, starts another in its place, and the run fails saying why. So a
+ * script that never yields (a built-in that allocates megabytes at once can run for seconds before
+ * QuickJS looks at its own interrupt) holds nothing past its limit: a guard's transaction, a
+ * request, the event loop. Memory is QuickJS's allocator's limit, inside the worker.
  */
-import { getQuickJS, shouldInterruptAfterDeadline, type QuickJSContext, type QuickJSHandle, type QuickJSWASMModule } from 'quickjs-emscripten';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
 
 export const SCRIPT_LIMITS = {
   /** Longest a script may be, in characters. */
@@ -25,6 +33,17 @@ export const SCRIPT_LIMITS = {
   logs: 50,
   text: 2000,
 } as const;
+
+/** Worker threads in the pool: each runs one script at a time. */
+export const SANDBOX_WORKERS = 2;
+/** Reading a script (compiling it, running nothing) gets this long. */
+const CHECK_MS = 2000;
+/**
+ * How long past its limit a run's worker is ended. QuickJS stops ordinary code at the limit itself,
+ * counted from when the worker starts the run; this covers only the handover to the worker thread,
+ * which a loaded machine can delay, so a run that kept to its limit is never ended for it.
+ */
+export const HARD_GRACE_MS = 50;
 
 export interface ScriptIntents {
   /** Commands to apply, in the command language: to the issue (`to` null) or to one related to it. */
@@ -59,49 +78,165 @@ export interface ScriptProblem {
   line: number | null;
 }
 
-let quickjs: Promise<QuickJSWASMModule> | null = null;
-/** QuickJS's WebAssembly module, loaded once per process. */
-export function sandboxModule(): Promise<QuickJSWASMModule> {
-  return (quickjs ??= getQuickJS());
-}
-
 const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [] });
 
-function clip(text: string): string {
-  return text.length > SCRIPT_LIMITS.text ? `${text.slice(0, SCRIPT_LIMITS.text - 1)}…` : text;
+const tooLong = (limitMs: number): ScriptError => ({
+  kind: 'time',
+  message: `It ran past ${limitMs} ms and was stopped: a loop that doesn't end, or too much work for one issue`,
+  line: null,
+});
+
+// ---------------------------------------------------------------------------
+// The pool
+// ---------------------------------------------------------------------------
+
+interface Job {
+  id: number;
+  kind: 'run' | 'check';
+  source: string;
+  input?: string;
+  timeMs: number;
+  /** A guard's run, which waits inside a transaction: it goes ahead of other runs. */
+  first: boolean;
+  done: (reply: { ok: true; result: unknown } | { ok: false; error: string; timedOut?: boolean }) => void;
 }
 
-/** One line of a log: strings as they are, everything else as JSON. */
-function shown(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (v === undefined) return 'undefined';
-  try {
-    return JSON.stringify(v) ?? String(v);
-  } catch {
-    return String(v);
+interface Slot {
+  worker: Worker;
+  ready: boolean;
+  job: Job | null;
+  timer: NodeJS.Timeout | null;
+  /** Set when we end it, so its exit is expected. */
+  ending: boolean;
+}
+
+function workerUrl(): URL {
+  // From the source (tests, development) it sits beside this file; bundled, tsup writes it beside dist/index.js.
+  for (const name of ['./sandbox-worker.mjs', './sandbox-worker.js']) {
+    const url = new URL(name, import.meta.url);
+    if (existsSync(fileURLToPath(url))) return url;
+  }
+  throw new Error('The workflow sandbox worker is missing: rebuild the server');
+}
+
+class SandboxPool {
+  private slots: Slot[] = [];
+  private queue: Job[] = [];
+  private nextId = 1;
+  /** Workers ended at a run's limit, or lost: replaced each time. */
+  replaced = 0;
+  started = 0;
+
+  constructor(private size: number) {}
+
+  /** Start the workers now, so the first run doesn't wait for one to load QuickJS. */
+  warm(): void {
+    while (this.slots.length < this.size) this.spawn();
+  }
+
+  submit(job: Omit<Job, 'id' | 'done'>): Promise<Parameters<Job['done']>[0]> {
+    return new Promise((done) => {
+      const full: Job = { ...job, id: this.nextId++, done };
+      // A guard's run goes after the guards already waiting, ahead of everything else.
+      const at = full.first ? this.queue.findIndex((j) => !j.first) : -1;
+      if (at < 0) this.queue.push(full);
+      else this.queue.splice(at, 0, full);
+      this.warm();
+      this.pump();
+    });
+  }
+
+  stats() {
+    return { workers: this.slots.length, ready: this.slots.filter((s) => s.ready).length, busy: this.slots.filter((s) => s.job).length, started: this.started, replaced: this.replaced };
+  }
+
+  private spawn(): Slot {
+    const worker = new Worker(workerUrl(), { workerData: { limits: SCRIPT_LIMITS } });
+    // A worker keeps the process alive while it starts or runs a script, never while it waits for one.
+    const slot: Slot = { worker, ready: false, job: null, timer: null, ending: false };
+    this.slots.push(slot);
+    this.started++;
+    worker.on('message', (m: { ready?: true; id?: number; ok?: boolean; result?: unknown; error?: string }) => {
+      if (m.ready) {
+        slot.ready = true;
+        worker.unref();
+        this.pump();
+        return;
+      }
+      const job = slot.job;
+      if (!job || m.id !== job.id) return;
+      this.release(slot);
+      job.done(m.ok ? { ok: true, result: m.result } : { ok: false, error: m.error ?? 'The sandbox failed' });
+      this.pump();
+    });
+    const lost = (why: string) => {
+      if (slot.ending) return;
+      this.end(slot, { ok: false, error: `The sandbox stopped: ${why}` });
+    };
+    worker.on('error', (e) => lost(e.message));
+    worker.on('exit', (code) => lost(`its thread exited (${code})`));
+    return slot;
+  }
+
+  /** Give the next waiting job to each ready, idle worker, with its timer. */
+  private pump(): void {
+    for (const slot of this.slots) {
+      if (!this.queue.length) return;
+      if (!slot.ready || slot.job) continue;
+      const job = this.queue.shift()!;
+      slot.job = job;
+      slot.worker.ref();
+      // QuickJS's own interrupt stops ordinary code at the limit, so such a run says what it logged
+      // and its worker carries on; the timer ends anything that doesn't stop (HARD_GRACE_MS later).
+      slot.timer = setTimeout(() => this.end(slot, { ok: false, error: 'time', timedOut: true }), job.timeMs + HARD_GRACE_MS);
+      slot.worker.postMessage({ id: job.id, kind: job.kind, source: job.source, input: job.input, timeMs: job.timeMs });
+    }
+  }
+
+  private release(slot: Slot): void {
+    if (slot.timer) clearTimeout(slot.timer);
+    slot.timer = null;
+    slot.job = null;
+    slot.worker.unref();
+  }
+
+  /** End a worker (at a run's limit, or lost), answer its run, and start another in its place. */
+  private end(slot: Slot, reply: Parameters<Job['done']>[0]): void {
+    const job = slot.job;
+    const started = slot.ready;
+    this.release(slot);
+    slot.ending = true;
+    slot.ready = false;
+    this.slots = this.slots.filter((s) => s !== slot);
+    void slot.worker.terminate().catch(() => {});
+    this.replaced++;
+    job?.done(reply);
+    if (!started) {
+      // It died starting (QuickJS missing, say): answer what waits, and start again only when asked,
+      // rather than in a loop.
+      if (!this.slots.some((s) => s.ready)) for (const waiting of this.queue.splice(0)) waiting.done(reply);
+      return;
+    }
+    this.warm();
+    this.pump();
   }
 }
 
-function lineOf(dumped: { lineNumber?: unknown; stack?: unknown }): number | null {
-  if (typeof dumped.lineNumber === 'number') return dumped.lineNumber;
-  const m = /script\.js:(\d+)/.exec(typeof dumped.stack === 'string' ? dumped.stack : '');
-  return m ? Number(m[1]) : null;
+const pool = new SandboxPool(SANDBOX_WORKERS);
+
+/** Start the sandbox's workers ahead of the first run (the schema snapshot does, when there are scripts). */
+export function warmSandbox(): void {
+  pool.warm();
 }
 
-function errorOf(vm: QuickJSContext, handle: QuickJSHandle, limitMs: number): ScriptError {
-  const d = vm.dump(handle) as { name?: string; message?: string; stack?: string; lineNumber?: number } | string;
-  const e = typeof d === 'object' && d ? d : { name: 'Error', message: String(d) };
-  const message = e.message ?? String(e);
-  const line = lineOf(e);
-  if (e.name === 'InternalError' && /interrupted/.test(message)) {
-    return { kind: 'time', message: `It ran past ${limitMs} ms and was stopped: a loop that doesn't end, or too much work for one issue`, line: null };
-  }
-  if (e.name === 'InternalError' && /out of memory/.test(message)) {
-    return { kind: 'memory', message: `It used more than ${SCRIPT_LIMITS.memoryBytes / 1024 / 1024} MB and was stopped`, line };
-  }
-  if (e.name === 'SyntaxError') return { kind: 'syntax', message: `${message}${line ? ` (line ${line})` : ''}`, line };
-  return { kind: 'runtime', message: `${e.name ?? 'Error'}: ${message}${line ? ` (line ${line})` : ''}`, line };
+/** How the pool stands: for tests, and for saying what a run costs. */
+export function sandboxStats() {
+  return pool.stats();
 }
+
+// ---------------------------------------------------------------------------
+// What callers use
+// ---------------------------------------------------------------------------
 
 /** The script's line `line` (from 1) as a range of its text, for underlining. */
 function lineRange(source: string, line: number | null): { start: number; end: number } {
@@ -116,112 +251,35 @@ function lineRange(source: string, line: number | null): { start: number; end: n
   return { start, end: end < 0 ? source.length : end };
 }
 
-function newVm(module: QuickJSWASMModule) {
-  const runtime = module.newRuntime();
-  runtime.setMemoryLimit(SCRIPT_LIMITS.memoryBytes);
-  runtime.setMaxStackSize(SCRIPT_LIMITS.stackBytes);
-  const vm = runtime.newContext();
-  return { runtime, vm };
-}
-
 /** What stops a script from compiling, at the line it's on; empty when it compiles. Nothing in it runs. */
 export async function checkScript(source: string): Promise<ScriptProblem[]> {
   if (!source.trim()) return [{ message: 'Write what it does, in JavaScript', start: 0, end: 0, line: null, hint: "e.g. if (!issue.fields.Assignee) apply('for me')" }];
   if (source.length > SCRIPT_LIMITS.source) {
     return [{ message: `A script can be ${SCRIPT_LIMITS.source.toLocaleString('en')} characters at most`, start: SCRIPT_LIMITS.source, end: source.length, line: null }];
   }
-  const { runtime, vm } = newVm(await sandboxModule());
-  try {
-    const res = vm.evalCode(source, 'script.js', { compileOnly: true });
-    if (!res.error) {
-      res.value.dispose();
-      return [];
-    }
-    const e = errorOf(vm, res.error, SCRIPT_LIMITS.timeMs);
-    res.error.dispose();
-    return [{ message: e.message, ...lineRange(source, e.line), line: e.line }];
-  } finally {
-    vm.dispose();
-    runtime.dispose();
+  const reply = await pool.submit({ kind: 'check', source, timeMs: CHECK_MS, first: false });
+  if (!reply.ok) {
+    return [{ message: reply.timedOut ? `It took more than ${CHECK_MS / 1000} s to read` : reply.error, start: 0, end: source.length, line: null }];
   }
+  const e = reply.result as ScriptError | null;
+  return e ? [{ message: e.message, ...lineRange(source, e.line), line: e.line }] : [];
 }
 
 /**
- * Run a script on `input` (its globals: issue, change, project), within `timeMs`. It never throws for
- * what the script does: what went wrong is in `error`, and what it asked before that is in
- * `intents`, which the caller ignores when there is an error.
+ * Run a script on `input` (its globals: issue, change, project), within `timeMs` (a guard's, with
+ * `guard`, which also puts it ahead of other runs). It never throws for what the script does: what
+ * went wrong is in `error`, and what it asked before that is in `intents`, which the caller ignores
+ * when there is an error.
  */
-export async function runScript(source: string, input: { issue: unknown; change: unknown; project: unknown }, opts: { timeMs?: number } = {}): Promise<ScriptOutcome> {
-  const limitMs = opts.timeMs ?? SCRIPT_LIMITS.timeMs;
-  const intents = empty();
+export async function runScript(
+  source: string,
+  input: { issue: unknown; change: unknown; project: unknown },
+  opts: { timeMs?: number; guard?: boolean } = {},
+): Promise<ScriptOutcome> {
+  const limitMs = opts.timeMs ?? (opts.guard ? SCRIPT_LIMITS.guardTimeMs : SCRIPT_LIMITS.timeMs);
   const started = Date.now();
-  const { runtime, vm } = newVm(await sandboxModule());
-  const fail = (message: string): never => {
-    throw new Error(message);
-  };
-  try {
-    const define = (name: string, fn: (...args: QuickJSHandle[]) => void) => {
-      const h = vm.newFunction(name, (...args) => {
-        fn(...args);
-        return vm.undefined;
-      });
-      vm.setProp(vm.global, name, h);
-      h.dispose();
-    };
-    define('apply', (command, to) => {
-      const text = command ? vm.dump(command) : undefined;
-      if (typeof text !== 'string' || !text.trim()) fail("apply() takes a command, in the command language: apply('State Fixed')");
-      const target = to === undefined ? undefined : vm.dump(to);
-      if (target !== undefined && target !== null && typeof target !== 'string') fail("apply()'s second part is an issue's id, e.g. issue.parent.id");
-      if (intents.applies.length >= SCRIPT_LIMITS.applies) fail(`A run applies ${SCRIPT_LIMITS.applies} commands at most`);
-      intents.applies.push({ command: clip((text as string).trim()), to: typeof target === 'string' && target.trim() ? target.trim().toUpperCase() : null });
-    });
-    define('comment', (text) => {
-      const t = text ? vm.dump(text) : undefined;
-      if (typeof t !== 'string' || !t.trim()) fail('comment() takes the words to post');
-      if (intents.comments.length >= SCRIPT_LIMITS.comments) fail(`A run posts ${SCRIPT_LIMITS.comments} comments at most`);
-      intents.comments.push(clip((t as string).trim()));
-    });
-    define('refuse', (message) => {
-      const t = message ? vm.dump(message) : undefined;
-      intents.refusal = clip(typeof t === 'string' && t.trim() ? t.trim() : 'A workflow script refuses this change');
-    });
-    define('log', (...args) => {
-      if (intents.logs.length >= SCRIPT_LIMITS.logs) return;
-      intents.logs.push(clip(args.map((a) => shown(vm.dump(a))).join(' ')));
-    });
-    // The input, as frozen data: parsed inside the sandbox from text, so no host object crosses over.
-    const json = vm.newString(JSON.stringify(input));
-    vm.setProp(vm.global, '__input', json);
-    json.dispose();
-    const prelude = vm.evalCode(
-      `(() => {
-        const i = JSON.parse(globalThis.__input);
-        delete globalThis.__input;
-        const freeze = (o) => { if (o && typeof o === 'object') { for (const k of Object.keys(o)) freeze(o[k]); Object.freeze(o); } return o; };
-        globalThis.issue = freeze(i.issue);
-        globalThis.change = freeze(i.change);
-        globalThis.project = freeze(i.project);
-      })()`,
-      'prelude.js',
-    );
-    if (prelude.error) {
-      const e = errorOf(vm, prelude.error, limitMs);
-      prelude.error.dispose();
-      return { intents: empty(), error: e, ms: Date.now() - started };
-    }
-    prelude.value.dispose();
-    runtime.setInterruptHandler(shouldInterruptAfterDeadline(Date.now() + limitMs));
-    const res = vm.evalCode(source, 'script.js');
-    if (res.error) {
-      const e = errorOf(vm, res.error, limitMs);
-      res.error.dispose();
-      return { intents, error: e, ms: Date.now() - started };
-    }
-    res.value.dispose();
-    return { intents, error: null, ms: Date.now() - started };
-  } finally {
-    vm.dispose();
-    runtime.dispose();
-  }
+  const reply = await pool.submit({ kind: 'run', source, input: JSON.stringify(input), timeMs: limitMs, first: Boolean(opts.guard) });
+  if (reply.ok) return reply.result as ScriptOutcome;
+  if (reply.timedOut) return { intents: empty(), error: tooLong(limitMs), ms: Date.now() - started };
+  return { intents: empty(), error: { kind: 'runtime', message: reply.error, line: null }, ms: Date.now() - started };
 }

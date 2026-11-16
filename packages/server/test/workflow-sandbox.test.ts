@@ -1,6 +1,6 @@
 /** The sandbox scripted workflows run in (D40): what a script reaches, what it asks, and how it's stopped. */
 import { describe, expect, it } from 'vitest';
-import { checkScript, runScript, SCRIPT_LIMITS } from '../src/workflow/sandbox';
+import { checkScript, runScript, SANDBOX_WORKERS, sandboxStats, SCRIPT_LIMITS } from '../src/workflow/sandbox';
 
 const input = {
   issue: { id: 'BACK-1', summary: 'Checkout fails', fields: { State: 'Open', Priority: 'Critical' }, tags: ['urgent'], parent: null, subtasks: [] },
@@ -39,10 +39,54 @@ describe('the sandbox', () => {
     const loop = await runScript('while (true) {}', input, { timeMs: 40 });
     expect(loop.error).toMatchObject({ kind: 'time' });
     expect(loop.ms).toBeLessThan(1000);
-    // Many small allocations reach the limit in well under a second. (One built-in that allocates
-    // megabytes at once runs to its end before the limits are looked at: D40, "What it costs".)
+    // Many small allocations reach the memory limit in well under a second.
     const hog = await runScript('const xs = []; for (let i = 0; ; i++) xs.push({ i, s: "a" + i });', input, { timeMs: 10_000 });
     expect(hog.error).toMatchObject({ kind: 'memory' });
+  });
+
+  it('stops a script that allocates megabytes at once at its limit, in a worker thread, and carries on', async () => {
+    // A built-in that allocates megabytes runs for seconds before QuickJS looks at its interrupt:
+    // the main thread ends its worker at the limit, and meanwhile goes on with everything else.
+    let ticks = 0;
+    const tick = setInterval(() => ticks++, 10);
+    const started = Date.now();
+    const strings = await runScript('const xs = []; for (let i = 0; ; i++) xs.push("x".repeat(1000000) + i);', input);
+    const took = Date.now() - started;
+    clearInterval(tick);
+    // Ended at its limit; or, if QuickJS ran out of memory first, sooner.
+    expect(['time', 'memory']).toContain(strings.error?.kind);
+    expect(took).toBeLessThan(SCRIPT_LIMITS.timeMs + 200);
+    expect(ticks).toBeGreaterThan(5);
+    // A guard's limit, 60 ms, holds the same way.
+    const guardStarted = Date.now();
+    const arrays = await runScript('const xs = []; for (;;) xs.push(new Array(100000).fill(1));', input, { guard: true });
+    expect(['time', 'memory']).toContain(arrays.error?.kind);
+    expect(Date.now() - guardStarted).toBeLessThan(SCRIPT_LIMITS.guardTimeMs + 200);
+    // The pool replaced what it ended, and the next run is as any other.
+    expect((await runScript("log('still here')", input)).intents.logs).toEqual(['still here']);
+    expect(sandboxStats()).toMatchObject({ workers: SANDBOX_WORKERS });
+  });
+
+  it('ends a worker at the limit and starts another in its place', async () => {
+    const before = sandboxStats();
+    // Megabyte strings, kept: the time QuickJS takes near its memory limit is spent where it looks at no interrupt.
+    const runs = await Promise.all(
+      Array.from({ length: 3 }, () => runScript('const xs = []; for (let i = 0; ; i++) xs.push("x".repeat(1000000) + i);', input, { timeMs: 100 })),
+    );
+    const ended = runs.filter((r) => r.error?.kind === 'time').length;
+    expect(ended + runs.filter((r) => r.error?.kind === 'memory').length).toBe(3);
+    expect(sandboxStats().replaced - before.replaced).toBeGreaterThanOrEqual(ended > 0 ? 1 : 0);
+    expect((await runScript("log('fresh')", input)).intents.logs).toEqual(['fresh']);
+  });
+
+  it('runs scripts side by side, a guard ahead of the rest', async () => {
+    const runs = await Promise.all([
+      runScript("log('a')", input),
+      runScript("log('b')", input),
+      runScript("refuse('no')", input, { guard: true }),
+      runScript('while (true) {}', input, { timeMs: 30 }),
+    ]);
+    expect(runs.map((r) => r.intents.logs[0] ?? r.intents.refusal ?? r.error?.kind)).toEqual(['a', 'b', 'no', 'time']);
   });
 
   it('says where a script went wrong, and what a function was given wrongly', async () => {

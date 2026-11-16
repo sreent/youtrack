@@ -1,6 +1,7 @@
 import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
+import { warmSandbox } from '../workflow/sandbox';
 import { fields, fieldValues, groups, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
@@ -139,6 +140,8 @@ export class SchemaCache {
     const groupRows = await db.select().from(groups).orderBy(asc(groups.name));
     const machineRows = await db.select().from(stateMachines).orderBy(asc(stateMachines.createdAt), asc(stateMachines.id));
     const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
+    // Scripts run in the sandbox's worker threads (D40): start them now, so no run waits for one to load.
+    if (ruleRows.some((r) => r.script) || actionRows.some((a) => a.script)) warmSandbox();
     const snap: SchemaSnapshot = {
       fields: new Map(),
       fieldsByName: new Map(),

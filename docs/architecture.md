@@ -925,9 +925,9 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 D25's rules say what they do in the query and command languages. Some workflows need more than a sentence: a computed value, a loop over subtasks, a decision on what changed. Three things now cover them: a rule can be a script, a state field can have a state machine, and a project can have named actions.
 
 - **Scripts run in a sandbox.**
-  - QuickJS, compiled to WebAssembly (`quickjs-emscripten`), with a new runtime for every run (`workflow/sandbox.ts`).
+  - QuickJS, compiled to WebAssembly (`quickjs-emscripten`), in a pool of worker threads, with a new runtime for every run (`workflow/sandbox.ts`, `workflow/sandbox-worker.mjs`).
   - A script reaches nothing but what a4a hands it: no network, files, timers, modules or host objects. `fetch`, `setTimeout`, `require` and `process` don't exist in it.
-  - Each run has a time limit (250 ms; a guard's, 60 ms, since it runs inside the write path) and a memory limit (16 MB). A run past either is stopped and says so.
+  - Each run has a time limit (250 ms; a guard's, 60 ms, since it runs inside the write path) and a memory limit (16 MB). A run past either is stopped and says so. The time limit is hard: see "What it costs".
   - It's given three globals, as frozen data parsed inside the sandbox from text, so no host object crosses:
     - `issue`: its fields by name (people by login, numbers as numbers, a period in minutes, a date as YYYY-MM-DD), tags, links in its project with how each reads, its parent and subtasks, and its latest 20 comments;
     - `change`: who made the change and what changed, field by field, or the new comment, or that it's a scheduled turn, or an action;
@@ -976,10 +976,11 @@ D25's rules say what they do in the query and command languages. Some workflows 
 - A run builds a fresh QuickJS runtime (about a millisecond) and reads the issue with a handful of queries.
 - A project with no scripted guards pays nothing on the write path: the guards come from the schema snapshot in memory, and a filter finds none.
 - A change to a governed field checks its machine's transitions and one condition, in the transaction.
-- The module is loaded once per process.
-- The time limit is looked at between a script's steps, and a built-in runs to its end. One that allocates megabytes at once (a string of a million characters, an array of a hundred thousand elements), over and over until it reaches the memory limit, can take seconds before it's stopped (measured: 4 to 15 s, whatever the limit). Ordinary code, loops included, stops at its limit (a loop of small allocations, within 15 ms of 60 ms). Only administrators write scripts, and a script that does this is stopped, refuses nothing and is written in its run log; running each script in a worker thread that's killed at its limit would make the limit hard.
+- Scripts run in a pool of two worker threads (`SANDBOX_WORKERS`). Each loads QuickJS once, in 165 to 250 ms, as the server starts with scripts or the first is saved, and makes a new runtime for each run; start-up is never paid per run.
+- A run costs 0.8 to 0.9 ms at the median and 1.5 to 1.9 ms on average (measured on an issue with 20 comments and 5 links), where it cost 0.6 ms and 1.1 ms in the main thread: the difference is handing the issue to the thread and back. The main thread never runs a script, so ten at once hold up nothing else, and a guard's run goes ahead of the others waiting. Each worker holds a thread and QuickJS's memory, 16 MB a run at most.
+- The time limit is hard. QuickJS stops ordinary code at its limit, counted from when the worker starts the run, and the run says what it logged. A worker that hasn't answered 50 ms after the limit (`HARD_GRACE_MS`, for the handover to the thread, which a loaded machine can delay) is terminated and another started in its place, and the run fails, saying it ran past its limit. That ends what QuickJS can't: a built-in that allocates megabytes at once runs for seconds before it looks at its interrupt (measured: 4 to 15 s in the main thread), and is now ended within 300 ms, or 110 ms in a guard.
 
-**Revisit when:** scripts come from less trusted hands than administrators', which wants each run in a worker thread killed at its limit; scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
+**Revisit when:** scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
 
 ### D41. Issues move, clone, take votes and reactions, and fields gain kinds and conditions
 
