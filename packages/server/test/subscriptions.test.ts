@@ -233,6 +233,24 @@ describe('subscriptions to a saved search', () => {
   });
 });
 
+describe("what you can't see", () => {
+  it("hides a shared search that names a project you can't see, in the words for one that doesn't exist", async () => {
+    await createProject(w.adminCtx, { key: 'MRG', name: 'Merger', template: 'software', visibility: 'members' });
+    await addMember(w.adminCtx, 'MRG', { user: 'ben', role: 'member' });
+    const search = await createSavedSearch(as(w.ben), { name: 'Merger work', query: 'project: MRG #Unresolved', shared: true });
+    // Not "Unknown project MRG": that would name it.
+    await expect(subscribe(as(w.anna), { savedSearch: search.id })).rejects.toMatchObject({ status: 404, message: 'Saved search not found' });
+    const tool = toolByName('subscribe')!;
+    const anna: Ctx = { ...as(w.anna), actor: { ...as(w.anna).actor, channel: 'mcp' } };
+    await expect(tool.run(anna, { saved_search: 'Merger work', events: 'new', email: true })).rejects.toMatchObject({ status: 404, message: 'Saved search “Merger work” not found' });
+    await expect(tool.run(anna, { saved_search: 'No such search', events: 'new', email: true })).rejects.toMatchObject({ status: 404, message: 'Saved search “No such search” not found' });
+    // Its project's people follow it.
+    const bens = await subscribe(as(w.ben), { savedSearch: search.id });
+    expect(bens.search?.name).toBe('Merger work');
+    await unsubscribe(as(w.ben), bens.id);
+  });
+});
+
 describe('subscriptions by email', () => {
   it('emails as the subscription asks, names it, and its link stops its email alone', async () => {
     const sub = await subscribe(as(w.anna), { project: 'WEB', events: 'new', email: true });

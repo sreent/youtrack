@@ -68,8 +68,20 @@ function followable(search: SearchRow, userId: string): boolean {
 }
 
 /**
+ * Whether whoever asks may see a saved search at all: their own, or a shared one that reads for them.
+ * One that names a project or a value they can't see is hidden, as GET /saved-searches hides it, so
+ * its words don't give that project away; to them it answers as one that doesn't exist.
+ */
+async function seen(ctx: Ctx, search: SearchRow): Promise<boolean> {
+  if (search.ownerId === ctx.actor.user.id) return true;
+  if (!search.shared) return false;
+  return (await prepareQuery(ctx, search.query)).compiled.problems.length === 0;
+}
+
+/**
  * A person's subscriptions as they may see them now: one to a project they no longer see is left out
- * (it tells them nothing either), and so is one to a search no longer shared with them.
+ * (it tells them nothing either), and so is one to a search no longer shared with them, or one that
+ * names what they can't see.
  */
 async function visible(ctx: Ctx, rows: { sub: Row; search: SearchRow | null }[]): Promise<Subscription[]> {
   const view = await projectAccess(ctx);
@@ -80,7 +92,7 @@ async function visible(ctx: Ctx, rows: { sub: Row; search: SearchRow | null }[])
       const p = s.projects.get(sub.projectId);
       if (!p || !view.canRead(p.id)) continue;
       out.push(dto(sub, { key: p.key, name: p.name }, null));
-    } else if (search && followable(search, sub.userId)) {
+    } else if (search && followable(search, sub.userId) && (await seen(ctx, search))) {
       out.push(dto(sub, null, search));
     }
   }
@@ -158,12 +170,13 @@ export async function subscribe(
   }
   const id = input.savedSearch!;
   const [search] = await ctx.db.select().from(savedSearches).where(eq(savedSearches.id, id));
-  // Someone else's search that isn't shared is not found, as one that doesn't exist.
-  if (!search || !followable(search, userId)) throw notFound('Saved search', 'List the ones you can follow with GET /saved-searches.');
-  // A search that names what you can't see, or doesn't read, can't say what comes into it.
-  const prepared = await prepareQuery(personCtx(ctx.app, ctx.actor.user), search.query);
+  const missing = () => notFound('Saved search', 'List the ones you can follow with GET /saved-searches.');
+  // Someone else's search that isn't shared, or names what you can't see, is not found, as one that doesn't exist.
+  if (!search || !followable(search, userId) || !(await seen(ctx, search))) throw missing();
+  // Your own search that no longer reads (a value renamed since) can't say what comes into it: fix it first.
+  const prepared = await prepareQuery(ctx, search.query);
   if (prepared.compiled.problems.length) {
-    throw badRequest(`“${search.name}” doesn't read for you`, `${prepared.compiled.problems.map((p) => p.message).join('; ')}. Its owner can change it.`);
+    throw badRequest(`“${search.name}” doesn't read`, `${prepared.compiled.problems.map((p) => p.message).join('; ')}. Change it on the Issues page first.`);
   }
   const subId = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -200,9 +213,13 @@ export async function subscribe(
 export async function findFollowableSearch(ctx: Ctx, idOrName: string): Promise<SearchRow> {
   const userId = ctx.actor.user.id;
   const [byId] = await ctx.db.select().from(savedSearches).where(eq(savedSearches.id, idOrName));
-  if (byId && followable(byId, userId)) return byId;
+  if (byId && followable(byId, userId) && (await seen(ctx, byId))) return byId;
   const wanted = idOrName.trim().toLowerCase();
-  const named = (await ctx.db.select().from(savedSearches).where(sql`lower(${savedSearches.name}) = ${wanted}`)).filter((r) => followable(r, userId));
+  const named: SearchRow[] = [];
+  // Only those you may see: one hidden from you doesn't even make a name ambiguous.
+  for (const r of await ctx.db.select().from(savedSearches).where(sql`lower(${savedSearches.name}) = ${wanted}`)) {
+    if (followable(r, userId) && (await seen(ctx, r))) named.push(r);
+  }
   // Your own first, as the issues page lists them.
   const mine = named.filter((r) => r.ownerId === userId);
   const pick = mine.length ? mine : named;
