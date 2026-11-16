@@ -24,8 +24,15 @@ import {
   workItems,
 } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
-import { assertCanReadProject, assertCanWriteProject } from './access';
-import { badRequest, conflict, notFound } from '../lib/errors';
+import {
+  assertCanCommentProject,
+  assertCanReadProject,
+  assertCanWriteProject,
+  canReadProject,
+  projectAccess,
+  projectRolesOf,
+} from './access';
+import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { issueRef, issueRefsById, parseReadableId, readableId, stateNames, type IssueRow } from './issue-refs';
@@ -70,13 +77,22 @@ export async function findIssue(db: Db, s: SchemaSnapshot, idOrReadable: string)
   return row;
 }
 
+/**
+ * An issue the caller may read. One they can't see answers exactly as one that doesn't exist.
+ * Inside a transaction, pass it as `db`.
+ */
 export async function resolveIssue(ctx: Ctx, idOrReadable: string, db: Db = ctx.db): Promise<IssueRow> {
+  requireScope(ctx, 'read');
+  const row = await findVisibleIssue(ctx, idOrReadable, db);
+  if (!row) throw notFound(`Issue ${idOrReadable}`, 'Use a readable id such as BACK-12.');
+  return row;
+}
+
+/** The issue if it exists and the caller may read it; otherwise undefined, whichever it is. */
+export async function findVisibleIssue(ctx: Ctx, idOrReadable: string, db: Db = ctx.db): Promise<IssueRow | undefined> {
   const s = await ctx.app.schema.get(db);
   const row = await findIssue(db, s, idOrReadable);
-  if (!row) throw notFound(`Issue ${idOrReadable}`, 'Use a readable id such as BACK-12.');
-  await assertCanReadProject(ctx, row.projectId).catch(() => {
-    throw notFound(`Issue ${idOrReadable}`);
-  });
+  if (!row || !(await canReadProject(ctx, row.projectId, db))) return undefined;
   return row;
 }
 
@@ -162,14 +178,18 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
   });
 }
 
+/** An issue's links, leaving out those whose other end the caller can't see. */
 export async function issueLinksOf(ctx: Ctx, issueId: string): Promise<IssueLink[]> {
   const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
   const rows = await ctx.db
     .select()
     .from(issueLinks)
     .where(or(eq(issueLinks.sourceId, issueId), eq(issueLinks.targetId, issueId)));
   const otherIds = rows.map((r) => (r.sourceId === issueId ? r.targetId : r.sourceId));
-  const refs = await issueRefsById(ctx.db, s, otherIds);
+  const others = otherIds.length ? await ctx.db.select({ id: issues.id, projectId: issues.projectId }).from(issues).where(inArray(issues.id, otherIds)) : [];
+  const seen = new Set(others.filter((o) => view.canRead(o.projectId)).map((o) => o.id));
+  const refs = await issueRefsById(ctx.db, s, otherIds.filter((id) => seen.has(id)));
   const out: IssueLink[] = [];
   for (const r of rows) {
     const type = s.linkTypes.find((t) => t.id === r.typeId);
@@ -336,8 +356,11 @@ export async function applyChanges(
     : await tx.select().from(issues).where(eq(issues.id, stale.id)).for('update');
   const issue = lockedRows[0];
   if (!issue) throw notFound(`Issue ${readableId(s, stale)}`);
-  if (opts.dryRun) await assertCanReadProject(ctx, issue.projectId);
-  else await assertCanWriteProject(ctx, issue.projectId);
+  // A comment alone needs only a role in the project (a viewer comments); anything else changes
+  // the issue. A dry run changes nothing, so reading is enough to preview.
+  if (opts.dryRun) await assertCanReadProject(ctx, issue.projectId, tx);
+  else if (isCommentOnly(spec)) await assertCanCommentProject(ctx, issue.projectId, tx);
+  else await assertCanWriteProject(ctx, issue.projectId, tx);
   const project = s.projects.get(issue.projectId)!;
   if (spec.expectedVersion !== undefined && spec.expectedVersion !== issue.version) {
     throw conflict(
@@ -357,6 +380,10 @@ export async function applyChanges(
     if (sameValues(before, after)) continue;
     const pf = pfs.find((p) => p.fieldId === fs.field.id);
     if (pf?.required && after.length === 0) throw badRequest(`${fs.field.name} is required in ${project.key}`);
+    if (fs.field.type === 'user') {
+      const added = after.map((v) => v.userId).filter((id): id is string => Boolean(id) && !before.some((b) => b.userId === id));
+      await assertPeopleSeeProject(tx, s, project, fs.field, added);
+    }
     fieldUpdates.push({ field: fs.field, values: after });
     changes.push({ field: fs.field.name, from: presentValues(s, fs.field, before), to: presentValues(s, fs.field, after) });
   }
@@ -393,6 +420,17 @@ export async function applyChanges(
   const linkOps: { spec: LinkSpec; endpoints: { sourceId: string; targetId: string }; existingId: string | null }[] = [];
   for (const l of spec.links ?? []) {
     if (l.target.id === issue.id) throw badRequest('An issue cannot be linked to itself');
+    // A link shows on both issues and changes both histories, so it needs both: never reveal
+    // an issue the caller can't see, and never change one they may only read.
+    if (!(await canReadProject(ctx, l.target.projectId, tx))) throw notFound(`Issue ${readableId(s, l.target)}`);
+    if (!opts.dryRun) {
+      await assertCanWriteProject(ctx, l.target.projectId, tx).catch((e: unknown) => {
+        if (e instanceof AppError && e.status === 403) {
+          throw forbidden(`${e.message}, and a link changes ${readableId(s, l.target)} too`, e.hint);
+        }
+        throw e;
+      });
+    }
     const endpoints = linkEndpoints(l.phrase, issue, l.target);
     const existing = await tx
       .select({ id: issueLinks.id })
@@ -539,6 +577,34 @@ export async function applyChanges(
   return { changes, activities, issue: updated! };
 }
 
+function isCommentOnly(spec: ChangeSpec): boolean {
+  return (
+    Boolean(spec.comment?.trim()) &&
+    spec.summary === undefined &&
+    spec.description === undefined &&
+    !spec.fields?.length &&
+    !spec.addTags?.length &&
+    !spec.removeTags?.length &&
+    !spec.links?.length
+  );
+}
+
+/**
+ * In a project only its people see, someone set in a user field (an assignee) must be one of
+ * them: otherwise they'd be told about, or own, an issue they can't open.
+ */
+async function assertPeopleSeeProject(db: Db, s: SchemaSnapshot, project: ProjectRow, field: FieldRow, userIds: string[]): Promise<void> {
+  if (!userIds.length || project.visibility !== 'members') return;
+  const roles = await projectRolesOf(db, project.id, userIds);
+  const outside = userIds.filter((id) => !roles.has(id));
+  if (!outside.length) return;
+  const names = outside.map((id) => s.users.get(id)?.name ?? id).join(', ');
+  throw badRequest(
+    `${names} can't see ${project.key}, so can't be its ${field.name}`,
+    `Only ${project.key}'s people see it. Add ${outside.length === 1 ? 'them' : 'each of them'} to the project first, or choose someone who is in it.`,
+  );
+}
+
 async function computeResolvedAt(
   tx: Db,
   s: SchemaSnapshot,
@@ -559,8 +625,13 @@ async function computeResolvedAt(
 export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<IssueDetail> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
   const project = projectByKey(s, input.project);
-  if (!project) throw notFound(`Project ${input.project}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`);
+  if (!project || !view.canRead(project.id)) {
+    // Only the projects the caller can file in: a hidden project's key is never named.
+    const open = [...s.projects.values()].filter((p) => view.canWrite(p.id) && !p.archived).map((p) => p.key);
+    throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.');
+  }
   await assertCanWriteProject(ctx, project.id);
   if (project.archived) throw badRequest(`Project ${project.key} is archived`);
   const summary = input.summary.trim();
@@ -578,6 +649,9 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
       values.set(field.id, resolveFieldInput(s, field, project.id, pf.defaultValue as string | string[], ctx.actor.user.id));
     }
     if (pf.required && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
+    if (field.type === 'user') {
+      await assertPeopleSeeProject(ctx.db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
+    }
   }
   const resolved = [...values.entries()].some(([fid, vals]) => {
     const f = s.fields.get(fid);
@@ -690,6 +764,7 @@ export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void>
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, idOrReadable);
+  await assertCanWriteProject(ctx, issue.projectId);
   const states = await stateNames(ctx.db, s, [issue.id]);
   const ref: IssueRef = issueRef(s, issue, states.get(issue.id) ?? null);
   const activity = await ctx.db.transaction(async (txRaw) => {

@@ -46,7 +46,7 @@ async function waitFor<T>(fn: () => Promise<T | undefined | null | false>, ms = 
 beforeAll(async () => {
   w = await createWorld();
   engine = new RuleEngine(w.app, () => {});
-  worker = new OutboxWorker(w.app, [engine.consumer()], () => {});
+  worker = new OutboxWorker(w.app, [engine.consumer()], {}, [], () => {});
   await worker.drain(); // the consumer's cursor starts here
   // Ben manages WEB; Anna is a member of both, and manages neither.
   await updateProject(w.adminCtx, 'WEB', { lead: 'ben' });
@@ -242,17 +242,16 @@ describe('scheduled rules', () => {
     const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Hourly' });
     const rule = await createRule(w.adminCtx, { project: 'BACK', name: 'Hourly tag', kind: 'schedule', schedule: { every: 'hour' }, query: 'summary: Hourly', command: 'tag swept' });
     await w.app.db.update(rules).set({ nextRunAt: new Date(Date.now() - 1000) }).where(eq(rules.id, rule.id));
-    // `worker` holds the lease (it drained last); another instance's worker stands by.
-    const standby = new OutboxWorker(w.app, [new RuleEngine(w.app, () => {}).consumer()], () => {});
+    // `worker` holds the lease (it drained last); another instance's worker, with the rule chores, stands by.
+    await worker.drain();
+    const standby = new OutboxWorker(w.app, [], { holder: 'standby' }, new RuleEngine(w.app, () => {}).chores(), () => {});
     await standby.drain();
     expect(tagsOf(await getIssue(w.adminCtx, issue.id))).toEqual([]);
-    const fresh = new OutboxWorker(w.app, [new RuleEngine(w.app, () => {}).consumer()], () => {});
     await worker.stop(); // gives up the lease
-    await fresh.drain();
+    await standby.drain();
     expect(tagsOf(await getIssue(w.adminCtx, issue.id))).toEqual(['swept']);
-    await fresh.stop();
     await standby.stop();
-    worker = new OutboxWorker(w.app, [engine.consumer()], () => {});
+    worker = new OutboxWorker(w.app, [engine.consumer()], {}, [], () => {});
     await worker.drain();
   });
 

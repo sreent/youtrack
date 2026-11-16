@@ -5,8 +5,9 @@
  * - Rules on a change run from the outbox, as a consumer: after an issue is created, changes or
  *   gets a comment, each rule set off by it acts if the issue, as it is when the rule runs (after
  *   the change, and any made since), matches the rule's query.
- * - Scheduled rules run from the same worker's periodic step, so only the instance that holds the
- *   worker's lease runs them. A turn is claimed by moving the rule's next run on before running it.
+ * - Scheduled rules run as one of the worker's chores, which only the instance holding the worker's
+ *   lease runs. A turn is claimed by moving the rule's next run on before running it, so a turn runs
+ *   once even if the lease changes hands.
  *
  * Loops. Every change a rule makes records its cause (context.ts, AutomationCause): the rule, the
  * change that started the chain, and how deep in the chain it is. A rule's change can set off other
@@ -27,7 +28,7 @@ import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules } from '../db/schema';
 import { publishActivities } from '../events/activity';
-import type { OutboxConsumer } from '../events/worker';
+import type { Chore, OutboxConsumer } from '../events/worker';
 import { AppError } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { applyChanges, findIssue, type ChangeSpec, type IssueRow } from '../services/issues';
@@ -57,10 +58,8 @@ interface Chain {
   actorId: string | null;
 }
 
-export interface Lease {
-  /** Keep the worker's lease through long work; false once another instance holds it. */
-  renew(): Promise<boolean>;
-}
+/** Whether this instance still holds the worker's lease (the worker renews it while a chore runs). */
+export type StillHolder = () => boolean;
 
 function causeOf(event: TrackerEvent): AutomationCause | null {
   const a = event.data.automation as Partial<AutomationCause> | undefined;
@@ -100,8 +99,6 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 class AlreadyActed extends Error {}
 
 export class RuleEngine {
-  private nextCheck = 0;
-  private nextPrune = 0;
   private brokenNoted = new Map<string, number>();
 
   constructor(
@@ -114,17 +111,15 @@ export class RuleEngine {
       name: 'workflow-rules',
       types: ['issue.created', 'issue.updated', 'comment.created'],
       handle: (event) => this.onEvent(event),
-      periodic: async (lease) => {
-        const now = Date.now();
-        if (now < this.nextCheck) return;
-        this.nextCheck = now + CHECK_EVERY_MS;
-        await this.runDue(lease);
-        if (now >= this.nextPrune) {
-          this.nextPrune = now + PRUNE_EVERY_MS;
-          await pruneRuleRuns(this.app.db);
-        }
-      },
     };
+  }
+
+  /** The worker's chores for rules: scheduled turns, and forgetting old runs. Only the lease holder runs them. */
+  chores(stillHolder: StillHolder = () => true): Chore[] {
+    return [
+      { name: 'workflow-schedule', everyMs: CHECK_EVERY_MS, run: async () => void (await this.runDue(stillHolder)) },
+      { name: 'workflow-run-log', everyMs: PRUNE_EVERY_MS, run: () => pruneRuleRuns(this.app.db) },
+    ];
   }
 
   // -------------------------------------------------------------------------
@@ -284,7 +279,7 @@ export class RuleEngine {
   // -------------------------------------------------------------------------
 
   /** Run every scheduled rule whose turn has come. The worker calls this only while it holds its lease. */
-  async runDue(lease?: Lease, now = new Date()): Promise<number> {
+  async runDue(stillHolder: StillHolder = () => true, now = new Date()): Promise<number> {
     const due = await this.app.db
       .select()
       .from(rules)
@@ -293,7 +288,7 @@ export class RuleEngine {
       .limit(20);
     let ran = 0;
     for (const rule of due) {
-      if (lease && !(await lease.renew())) return ran;
+      if (!stillHolder()) return ran;
       const schedule = rule.schedule as RuleSchedule | null;
       if (!schedule || !rule.nextRunAt) continue;
       // Take the turn before running it: moving the next run on can succeed only once.
@@ -303,14 +298,14 @@ export class RuleEngine {
         .where(and(eq(rules.id, rule.id), eq(rules.nextRunAt, rule.nextRunAt)))
         .returning({ id: rules.id });
       if (!claimed) continue;
-      await this.runScheduled(rule, lease);
+      await this.runScheduled(rule, stillHolder);
       ran++;
     }
     return ran;
   }
 
-  /** Every issue that matches the rule's query gets its command, in pages, keeping the lease between them. */
-  async runScheduled(rule: RuleRow, lease?: Lease): Promise<void> {
+  /** Every issue that matches the rule's query gets its command, in pages; it stops if the lease goes elsewhere. */
+  async runScheduled(rule: RuleRow, stillHolder: StillHolder = () => true): Promise<void> {
     const s = await this.app.schema.get();
     if (!(await this.reads(s, rule))) return;
     const where = condition(s, rule.query, { meId: null, projectId: rule.projectId }).where ?? sql`TRUE`;
@@ -321,7 +316,7 @@ export class RuleEngine {
     let capped = false;
     let lost = false;
     for (;;) {
-      if (lease && !(await lease.renew())) {
+      if (!stillHolder()) {
         lost = true;
         break;
       }
@@ -355,4 +350,9 @@ export class RuleEngine {
 /** The rule engine as the outbox worker's consumer (registered in server.ts). */
 export function rulesConsumer(app: AppServices): OutboxConsumer {
   return new RuleEngine(app).consumer();
+}
+
+/** The rule engine's chores (registered in server.ts), for the worker that holds the lease. */
+export function ruleChores(app: AppServices & { worker?: { active: boolean } | null }): Chore[] {
+  return new RuleEngine(app).chores(() => app.worker?.active ?? true);
 }

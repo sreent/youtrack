@@ -38,7 +38,7 @@ export function authorByEmail(s: SchemaSnapshot, email: string | null): Author {
   if (!email?.trim()) return { user: null, why: 'the commit names no email for its author', detail: 'the commit names no email for its author' };
   const lower = email.trim().toLowerCase();
   const people = [...s.users.values()].filter((u) => !u.isBot && !u.banned && u.email?.trim().toLowerCase() === lower);
-  const verified = people.filter((u) => u.emailVerifiedAt);
+  const verified = people.filter((u) => u.emailVerified);
   if (verified.length === 1) return { user: verified[0]! };
   if (verified.length > 1) {
     return { user: null, why: 'more than one person in a4a has its author’s email', detail: `more than one person in a4a has the email ${email}` };
@@ -60,7 +60,7 @@ function vcsCtx(app: AppServices, integration: IntegrationRow, person: UserRow |
     login: 'system',
     name: 'a4a',
     email: null,
-    emailVerifiedAt: null,
+    emailVerified: false,
     passwordHash: null,
     role: 'viewer',
     isBot: true,

@@ -12,8 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1794805492052,
-      "tag": "0001_narrow_vulture",
+      "when": 1794805719093,
+      "tag": "0001_access_and_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794808438011,
+      "tag": "0002_smooth_wallflower",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794809085111,
+      "tag": "0003_high_captain_stacy",
       "breakpoints": true
     }
   ]

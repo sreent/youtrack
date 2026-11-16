@@ -101,7 +101,7 @@ export function vcsRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, params }) => {
       const body = new Uint8Array(await c.req.arrayBuffer());
-      const answer = await receive(c.get('runtime'), params.id, { header: (n) => c.req.header(n), body, ip: clientIp(c) });
+      const answer = await receive(c.get('runtime'), params.id, { header: (n) => c.req.header(n), body, ip: clientIp(c, c.get('runtime').config.trustProxy) });
       if (answer.retryAfter) c.header('retry-after', String(answer.retryAfter));
       return c.json(answer.body, answer.status as 200);
     },

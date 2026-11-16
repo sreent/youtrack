@@ -4,7 +4,8 @@ import type { Db } from '../db/client';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { AppError, badRequest } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
-import { applyChanges, findIssue, type ChangeSpec, type FieldChangeSpec, type IssueRow, type LinkSpec } from '../services/issues';
+import { visibleSchema } from '../services/access';
+import { applyChanges, findIssue, findVisibleIssue, type ChangeSpec, type FieldChangeSpec, type IssueRow, type LinkSpec } from '../services/issues';
 import { resolveFieldInput } from '../services/values';
 import { describeCommand, parseCommand, type CommandOp } from './parser';
 
@@ -29,7 +30,8 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   const rows: IssueRow[] = [];
   const missing: string[] = [];
   for (const id of req.issues) {
-    const row = await findIssue(ctx.db, s, id);
+    // An issue the caller can't see is unknown, exactly as one that doesn't exist.
+    const row = await findVisibleIssue(ctx, id);
     if (row) rows.push(row);
     else missing.push(id);
   }
@@ -113,7 +115,8 @@ export async function commandSpec(
         break;
       case 'link':
         for (const t of op.targets) {
-          const target = await findIssue(db, s, t);
+          // A target the actor can't see is unknown, exactly as one that doesn't exist.
+          const target = await findVisibleIssue(ctx, t, db);
           if (!target) throw badRequest(`Unknown issue ${t}`);
           links.push({ phrase: op.phrase, target, remove: op.mode === 'remove' });
         }
@@ -124,11 +127,12 @@ export async function commandSpec(
     }
   }
   if (comment?.trim()) comments.push(comment.trim());
-  return { fields, links, addTags, removeTags, comment: comments.join('\n\n') || undefined };
+  // The same words given both ways (in the command and as its comment) are one comment.
+  return { fields, links, addTags, removeTags, comment: [...new Set(comments)].join('\n\n') || undefined };
 }
 
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {
-  return ctx.app.schema.get().then((s) => {
+  return visibleSchema(ctx).then((s) => {
     const parsed = parseCommand(command, s, projectIds);
     return { problems: parsed.problems, description: describeCommand(parsed.ops) };
   });

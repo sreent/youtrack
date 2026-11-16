@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, lt, sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -85,7 +85,12 @@ export function csrfGuard(publicUrl: string): MiddlewareHandler<HttpEnv> {
   };
 }
 
-/** Simple fixed-window counters, per instance. */
+/**
+ * Simple fixed-window counters, per instance, on purpose: a shared counter would add a
+ * database write to every request to guard capacity that is per instance anyway. With
+ * N instances behind a load balancer a client gets up to N times the limit (see
+ * docs/architecture.md, D17). The login throttle, which guards accounts, is shared.
+ */
 export class RateLimiter {
   private windows = new Map<string, { start: number; count: number }>();
   constructor(
@@ -115,10 +120,10 @@ export class RateLimiter {
   }
 }
 
-export function rateLimit(limiter: RateLimiter): MiddlewareHandler<HttpEnv> {
+export function rateLimit(limiter: RateLimiter, trustedProxies = 0): MiddlewareHandler<HttpEnv> {
   return async (c, next) => {
     const ctx = c.get('ctx');
-    const key = ctx ? (ctx.actor.tokenId ?? ctx.actor.user.id) : `ip:${clientIp(c)}`;
+    const key = ctx ? (ctx.actor.tokenId ?? ctx.actor.user.id) : `ip:${clientIp(c, trustedProxies)}`;
     const wait = limiter.hit(key);
     if (wait) {
       c.header('retry-after', String(wait));
@@ -128,17 +133,31 @@ export function rateLimit(limiter: RateLimiter): MiddlewareHandler<HttpEnv> {
   };
 }
 
-export function clientIp(c: Context): string {
-  const fwd = c.req.header('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0]!.trim();
+/**
+ * The client's address. Each trusted proxy appends the address it received the request
+ * from to X-Forwarded-For, so with `trustedProxies` of them the client is the entry the
+ * outermost one added; anything to its left came from the client and proves nothing.
+ * Without trusted proxies the header is ignored.
+ */
+export function clientIp(c: Context, trustedProxies = 0): string {
   const incoming = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming;
-  return incoming?.socket?.remoteAddress ?? 'unknown';
+  const peer = incoming?.socket?.remoteAddress ?? 'unknown';
+  if (trustedProxies <= 0) return peer;
+  const chain = (c.req.header('x-forwarded-for') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!chain.length) return peer;
+  return chain[Math.max(0, chain.length - trustedProxies)]!.slice(0, 64);
 }
+
+/** A claimed key whose request hasn't finished after this long is taken to be abandoned. */
+const ABANDONED_CLAIM_MS = 5 * 60_000;
 
 /**
  * Idempotency-Key for POSTs. The key is claimed before the work runs, so two
- * concurrent retries can't both create; a finished request's response is
- * replayed; reusing a key with a different body is an error.
+ * concurrent retries can't both create, on any instance; a finished request's
+ * response is replayed; reusing a key with a different body is an error.
  */
 export function idempotency(runtime: Runtime): MiddlewareHandler<HttpEnv> {
   return async (c, next) => {
@@ -166,10 +185,28 @@ export function idempotency(runtime: Runtime): MiddlewareHandler<HttpEnv> {
         return c.json(errorBody('idempotency_mismatch', 'This Idempotency-Key was used for a different request'), 422);
       }
       if (existing.statusCode === 0) {
-        return c.json(errorBody('conflict', 'A request with this Idempotency-Key is still in progress'), 409);
+        // A claim that never finished: the instance holding it died mid-request (a crash,
+        // or a deploy). After a while the key may be claimed again, or it would answer
+        // 409 for a day. Times are the database's, so instances' clocks don't matter.
+        const retaken = await db
+          .update(idempotencyKeys)
+          .set({ createdAt: sql`now()` })
+          .where(
+            and(
+              eq(idempotencyKeys.userId, ctx.actor.user.id),
+              eq(idempotencyKeys.key, key),
+              eq(idempotencyKeys.statusCode, 0),
+              sql`${idempotencyKeys.createdAt} < now() - ${ABANDONED_CLAIM_MS}::integer * interval '1 millisecond'`,
+            ),
+          )
+          .returning({ key: idempotencyKeys.key });
+        if (!retaken.length) {
+          return c.json(errorBody('conflict', 'A request with this Idempotency-Key is still in progress', 'Retry once it has finished.'), 409);
+        }
+      } else {
+        c.header('idempotent-replayed', 'true');
+        return c.json(existing.responseBody as object, existing.statusCode as ContentfulStatusCode);
       }
-      c.header('idempotent-replayed', 'true');
-      return c.json(existing.responseBody as object, existing.statusCode as ContentfulStatusCode);
     }
     await next();
     const res = c.res;

@@ -45,6 +45,8 @@ async function vcsOf(id: string): Promise<IssueVcs> {
 
 beforeAll(async () => {
   w = await createWorld();
+  // As behind one proxy, so each delivery's address is the X-Forwarded-For it sends.
+  w.app.config.trustProxy = 1;
   http = createHttpApp(w.app);
   // Emails an administrator sets are verified; one a person sets for themselves isn't, until one confirms it.
   await updateUser(w.adminCtx, 'anna', { email: 'anna@example.com' });

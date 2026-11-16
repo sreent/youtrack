@@ -21,6 +21,7 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { createConversation, decide, deleteConversation, getConversation, listConversations, sendMessage, type Emit } from '../../ai/chat/agent';
 import { aiService, requireAI } from '../../ai/client';
+import { AI_PROVIDERS } from '../../ai/providers';
 import { similarWithJudgement, summarizeIssue, wordsToCommand, wordsToQuery } from '../../ai/nl';
 import { applySuggestion, dismissSuggestion, listPendingSuggestions, listSuggestions, triageIssue } from '../../ai/triage';
 import { requireScope, type Ctx } from '../../context';
@@ -65,8 +66,13 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['AI'];
   route(app, { method: 'get', path: '/ai/status', tags, summary: 'Whether AI features are on, and which model they use', response: AIStatusSchema }, async ({ c }) => {
     const runtime = c.get('runtime');
-    const on = Boolean(aiService(runtime));
-    return { enabled: on, model: runtime.config.aiModel, reason: on ? null : 'ANTHROPIC_API_KEY is not set on the server' };
+    const ai = aiService(runtime);
+    return {
+      enabled: Boolean(ai),
+      provider: AI_PROVIDERS[runtime.config.aiProvider].label,
+      model: runtime.config.aiModel,
+      reason: ai ? null : (runtime.config.aiOffReason ?? 'The AI is turned off on this server'),
+    };
   });
   route(
     app,
@@ -90,7 +96,7 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'post',
       path: '/ai/similar',
       tags,
-      summary: 'Issues similar to a draft (lexical; with judge, Claude labels each)',
+      summary: 'Issues similar to a draft (lexical; with judge, the AI labels each)',
       description: 'Works without AI: candidates come from full-text and trigram similarity. With `judge: true` and AI enabled, each is labelled duplicate, related or different with a reason.',
       body: SimilarBody,
       response: SimilarResultSchema,

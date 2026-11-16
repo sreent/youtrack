@@ -2,8 +2,8 @@ import type { SimilarIssue } from '@a4a/shared';
 import { sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { prefixTsQuery } from '../search/compiler';
-import { visibleProjectIds } from '../services/access';
-import { findIssue } from '../services/issues';
+import { projectAccess } from '../services/access';
+import { findVisibleIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
 import { projectByKey } from '../services/schema-cache';
 
@@ -13,6 +13,8 @@ export interface SimilarQuery {
   project?: string;
   excludeIssue?: string;
   limit?: number;
+  /** Look only in these projects (and, as always, only in those the caller can see). */
+  projectIds?: string[];
 }
 
 /**
@@ -28,13 +30,18 @@ export async function findSimilar(ctx: Ctx, q: SimilarQuery): Promise<SimilarIss
   // OR the words so partial overlaps rank; ts_rank weights the summary (A) higher.
   const words = prefixTsQuery(text)?.split(' & ') ?? [];
   const tsq = words.length ? words.slice(0, 24).join(' | ') : null;
-  const project = q.project ? projectByKey(s, q.project) : undefined;
-  const exclude = q.excludeIssue ? await findIssue(ctx.db, s, q.excludeIssue) : undefined;
-  const visible = await visibleProjectIds(ctx);
+  const view = await projectAccess(ctx);
+  // A project the caller can't see is no filter at all, exactly as an unknown one: either way
+  // only the projects they can see are searched.
+  const named = q.project ? projectByKey(s, q.project) : undefined;
+  const project = named && view.canRead(named.id) ? named : undefined;
+  const exclude = q.excludeIssue ? await findVisibleIssue(ctx, q.excludeIssue) : undefined;
+  let scope = view.visibleIds();
+  if (q.projectIds) scope = (scope ?? q.projectIds).filter((id) => q.projectIds!.includes(id));
   const conds = [sql`TRUE`];
   if (project) conds.push(sql`i.project_id = ${project.id}`);
   if (exclude) conds.push(sql`i.id <> ${exclude.id}`);
-  if (visible) conds.push(visible.length ? sql`i.project_id IN (${sql.join(visible.map((v) => sql`${v}`), sql`, `)})` : sql`FALSE`);
+  if (scope) conds.push(scope.length ? sql`i.project_id IN (${sql.join(scope.map((v) => sql`${v}`), sql`, `)})` : sql`FALSE`);
   const rank = tsq ? sql`ts_rank(i.search_vector, to_tsquery('english', ${tsq}))` : sql`0`;
   const res = await ctx.db.execute(sql`
     SELECT i.id, i.project_id,

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import type Anthropic from '@anthropic-ai/sdk';
-import { z } from 'zod';
 import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../../search/reference';
 import { TOOLS } from '../../tools/registry';
+import { toolInputSchema } from '../client';
 
 /** The agent's name, as Ocean names agents: its id, in lower case. */
 export const ASSISTANT_NAME = 'assistant';
@@ -27,17 +27,11 @@ ${QUERY_LANGUAGE_GUIDE}
 
 ${COMMAND_GUIDE}`;
 
-function jsonSchemaFor(schema: z.ZodType): Anthropic.Beta.BetaTool.InputSchema {
-  const json = z.toJSONSchema(schema, { io: 'input' }) as Record<string, unknown>;
-  delete json.$schema;
-  return json as Anthropic.Beta.BetaTool.InputSchema;
-}
-
-/** Tool definitions for Claude, in a fixed order (the cached prefix depends on it). */
+/** Tool definitions for the model, in a fixed order (the cached prefix depends on it). */
 export const ANTHROPIC_TOOLS: Anthropic.Beta.BetaTool[] = TOOLS.map((t) => ({
   name: t.name,
   description: t.description,
-  input_schema: jsonSchemaFor(t.input),
+  input_schema: toolInputSchema(t.input),
   // Streamed requests stream tool input as it is generated; inputs are validated
   // against the zod schema before any tool runs.
   eager_input_streaming: true,
@@ -49,3 +43,12 @@ export const AGENT_VERSION = createHash('sha256')
   .update(JSON.stringify(ANTHROPIC_TOOLS))
   .digest('hex')
   .slice(0, 16);
+
+/**
+ * What a conversation's stored history is bound to: the prompt and tools, and the provider
+ * and model that wrote its thinking blocks. Those blocks are only valid for the model that
+ * made them, so when this changes they are dropped once (see history() in agent.ts).
+ */
+export function historyVersion(ai: { provider: { id: string }; model: string } | null): string {
+  return ai ? `${AGENT_VERSION}:${ai.provider.id}:${ai.model}` : AGENT_VERSION;
+}

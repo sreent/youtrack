@@ -5,7 +5,7 @@ import { issues } from '../db/schema';
 import { badRequest } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
-import { visibleProjectIds } from '../services/access';
+import { projectAccess, scopeSchema } from '../services/access';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { explainParsed } from './explain';
 import { withFixes } from './lexer';
@@ -18,8 +18,15 @@ export interface PreparedQuery {
   explanation: string;
 }
 
+/**
+ * Parse and compile a query as the caller sees the tracker: a project they can't see, and its
+ * own values, are unknown words to them, exactly as ones that don't exist; and only issues in
+ * projects they can see ever match.
+ */
 export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string }): Promise<PreparedQuery> {
-  const s = await ctx.app.schema.get();
+  const view = await projectAccess(ctx);
+  const visible = view.visibleIds();
+  const s = scopeSchema(await ctx.app.schema.get(), visible);
   const vocab = buildVocabulary(s);
   const parsed = parseQuery(query, vocab);
   const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id });
@@ -27,7 +34,6 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
     const scope = sql`${issues.projectId} = ${extra.projectId}`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
   }
-  const visible = await visibleProjectIds(ctx);
   if (visible !== null) {
     const scope = visible.length
       ? sql`${issues.projectId} IN (${sql.join(visible.map((id) => sql`${id}`), sql`, `)})`

@@ -1,6 +1,6 @@
 /**
  * Workflow rules for agents: what rules there are, and what one would do. Agents can't make or
- * change rules (docs/architecture.md, D14): a rule acts later, on its own and on every issue that
+ * change rules (docs/architecture.md, D18): a rule acts later, on its own and on every issue that
  * matches it, so it is a person's to make.
  */
 import { RULE_EVERY, RULE_KINDS, RULE_TRIGGERS, type RuleInput, type RuleProblem } from '@a4a/shared';

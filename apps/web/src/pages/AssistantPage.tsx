@@ -125,8 +125,8 @@ export default function AssistantPage() {
         <section className="card stack tight">
           <h2>The assistant is off on this server</h2>
           <p className="note">
-            To turn it on, set <code>ANTHROPIC_API_KEY</code> in the server's environment and restart it. Until then you can read your past conversations, and
-            delete them.
+            {status.data.reason ? `${status.data.reason}. ` : ''}Whoever runs the server can turn it on there, and restart it. Until then you can read your past
+            conversations, and delete them.
           </p>
         </section>
       ) : null}
@@ -185,6 +185,7 @@ export default function AssistantPage() {
             key={id ?? 'new'}
             forName={me.data?.name ?? 'you'}
             model={status.data?.model ?? ''}
+            provider={status.data?.provider ?? ''}
             detail={id ? detail.data : undefined}
             loading={Boolean(id) && detail.isLoading}
             live={live}

@@ -98,20 +98,51 @@ export async function postStream<E>(path: string, body: unknown, onEvent: (event
   }
 }
 
-/** Live tracker events (best effort; the UI re-reads on reconnect). */
+/**
+ * Live tracker events. A reconnect, to whichever server instance, resumes after the
+ * last event seen, so nothing is missed; when too much was, `resync` arrives instead.
+ */
 export function subscribeEvents(onEvent: (event: { type: string; issue: { id: string } | null; project: string | null }) => void): () => void {
   let source: EventSource | null = null;
   let closed = false;
   let retry = 1000;
+  let lastId = '';
   const open = () => {
     if (closed) return;
-    source = new EventSource(`${BASE}/events/stream`, { withCredentials: true });
+    source = new EventSource(`${BASE}/events/stream${lastId ? `?after=${encodeURIComponent(lastId)}` : ''}`, { withCredentials: true });
     source.onmessage = () => {};
     source.addEventListener('ready', () => {
       retry = 1000;
     });
-    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'commit.linked', 'pull_request.linked', 'pull_request.updated'];
-    for (const t of types) source.addEventListener(t, (e) => onEvent(JSON.parse((e as MessageEvent).data)));
+    const seen = (e: Event) => {
+      lastId = (e as MessageEvent).lastEventId || lastId;
+    };
+    source.addEventListener('resync', (e) => {
+      seen(e);
+      onEvent({ type: 'resync', issue: null, project: null });
+    });
+    const types = [
+      'issue.created',
+      'issue.updated',
+      'issue.deleted',
+      'comment.created',
+      'comment.updated',
+      'comment.deleted',
+      'link.created',
+      'link.deleted',
+      'work.logged',
+      'work.deleted',
+      'ai.triage.completed',
+      'baseline.created',
+      'commit.linked',
+      'pull_request.linked',
+      'pull_request.updated',
+    ];
+    for (const t of types)
+      source.addEventListener(t, (e) => {
+        seen(e);
+        onEvent(JSON.parse((e as MessageEvent).data));
+      });
     source.onerror = () => {
       source?.close();
       setTimeout(open, (retry = Math.min(retry * 2, 30_000)));
