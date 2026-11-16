@@ -45,7 +45,7 @@ test('issues are read from YouTrack, mapped, checked and imported with their com
   // Read, and mapped as the columns of an export would be.
   const columns = page.getByRole('region', { name: 'Its columns' });
   await expect(columns).toBeVisible();
-  await expect(columns).toContainText(`From YouTrack at ${yt.url}, the issues matching project: OLD, read as Jane Remote: 2 issues, with 1 comment, 1 work item, 1 file (18 bytes).`);
+  await expect(columns).toContainText(`From YouTrack at ${yt.url}, the issues matching project: OLD, read as Jane Remote: 2 issues, with 1 comment, 1 work item and 1 file (18 bytes).`);
   await expect(columns.getByRole('row').filter({ hasText: 'Issue Id' })).toContainText('OLD-1');
   await expectAccessible(page);
 
