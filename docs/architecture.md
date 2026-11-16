@@ -546,7 +546,49 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Costs.** One email per person, so commits under a provider's no-reply address run no commands. A push reads its first 500 commits.
 
-**Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
+**Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits). D33 does the first two, and fetches what Bitbucket's deliveries leave out.
+
+### D33. Version control, wider: Bitbucket, Gitea and Forgejo; emails people confirm; logins administrators record
+
+D26 took GitHub and GitLab, and knew a commit's author by one verified email. Bitbucket (Cloud and Data Center), Gitea and Forgejo now send to the same `/api/v1/vcs/hooks/{integration}`. A person is known by any email they confirm, or by their login at the provider.
+
+- **Who sent it.** Each provider's own check, on the raw bytes, in constant time:
+  - Bitbucket Cloud and Data Center sign with `X-Hub-Signature`: `sha256=` and the HMAC-SHA256 of the body.
+  - Gitea and Forgejo sign with `X-Gitea-Signature` or `X-Forgejo-Signature`, the hex alone, and also send GitHub's `X-Hub-Signature-256`; any of them is checked. Gitea sends the header empty when its webhook has no secret, and that's refused like no header.
+  - Each secret is an HMAC key, so a4a keeps it, as it keeps GitHub's.
+- **Once.** Their delivery ids are claimed as D26's are: Bitbucket Cloud's `X-Request-UUID` (its braces dropped), Data Center's `X-Request-Id`, and Gitea's `X-Gitea-Delivery` (Forgejo's `X-Forgejo-Delivery`).
+- **Data Center's Test connection** pings without a signature even when the webhook has a secret. An unsigned `diagnostics:ping` is answered, and nothing is read or logged; anything else unsigned is refused. a4a's own test signs its ping.
+- **What a push carries.** A push is read branch by branch, since Bitbucket sends several in one.
+  - Data Center's pushes name the commits a branch moved between, not what they say. Cloud's carry the latest five commits a branch got, and say when they cut more.
+  - With an access token, a4a reads the rest from their REST APIs, a page at a time, up to the 500 one push reads: Cloud's `/2.0/repositories/{repository}/commits?include=…&exclude=…`, Data Center's `/rest/api/1.0/projects/{key}/repos/{slug}/commits?since=…&until=…`. A new branch is read from where it left the main branch.
+  - Without a token, Cloud's five are read, and Data Center's pushes link nothing. The delivery's log says why, as it says when a token is refused or the address doesn't answer; the commits that came are linked all the same.
+- **Where a4a goes.** Data Center's address is the one an administrator gives: https, kept without a trailing slash (plain http only to this machine, and only in tests).
+  - Redirects aren't followed, and a page's link to the next must stay on that address, so no answer can send a4a elsewhere.
+  - Like a webhook's URL, it may be an internal address: only administrators set it.
+  - The token is kept as it's given, as signing keys are, since a4a must send it. It's never shown again.
+- **More emails.** A person's emails are their primary one (`users.email`) and others (`user_emails`). One counts once it's confirmed:
+  - **By a link a4a mails to it.** Its token is minted as the mail is sent (D23) and kept as a SHA-256, so none waits in the outbox. It works once, for 24 hours, and only for the person who added the email, signed in. A stranger who adds your address can't use the link even if you open it, and the mail says whose account asked. The page it opens says what it confirms and asks first, since scanners open links.
+  - **By an administrator,** who vouches for it: they add it confirmed, or confirm a primary as before.
+  - **One person's.** A confirmed email names one person: an administrator can't confirm one someone else has, and a second person's link can't once the first has confirmed it.
+  - A person's first email is their primary one. A confirmed one can become the primary; the old primary stays, as another.
+  - Links go at most five an hour per person, and one a minute per email. Without SMTP none go, and an administrator confirms.
+  - Changing your emails changes whose commits are yours, so it's done signed in: an API token reads them, and changes none.
+- **Logins.** An administrator records a person's login at a provider (`provider_logins`), one person's at a time, matched without regard to case.
+- **What each provider vouches for:**
+  - A commit's email is whatever its committer typed: it counts when its person confirmed it.
+  - GitHub, Gitea and Bitbucket name the account they matched a commit's email to, by their own confirmed emails. So a login vouches that the email is that account's: it's worth what a confirmed email is in a4a, and reaches emails a4a doesn't know, such as a provider's no-reply address. GitLab names no account for a commit, only a name and an email.
+  - A pull request's author is the account that opened it, signed in at the provider. GitLab's merge requests name who acted, which is the author when one is opened.
+  - Bitbucket Cloud's nicknames aren't unique, so there a login is the account id or the UUID, never the nickname.
+- **Who wrote it.** The one person whose confirmed email the commit names, or whose login the provider vouches for. If the email names one person and the login another, or either names two, it's nobody: the command isn't applied, and the issue says why without naming anyone. The delivery's log, which only administrators read, names them.
+- **Pull requests** take their author in a4a by login, and the issue shows them. Linking stays the integration's doing, since who opened a pull request isn't who merged it.
+
+**Costs.**
+- A login is matched as the provider sends it. A person who renames their account there needs the new one recorded, and the old one forgotten: someone else could take a freed name.
+- A login names an account at a kind of provider, so two instances of one (two GitLabs) that give one login to two people can't be told apart.
+- The pusher, whom the provider signed in, isn't the commit's author, and a4a doesn't ask that they be the same: pushing others' commits, or merging them, would stop working.
+- Access tokens and signing keys are in the database as given.
+
+**Revisit when:** people should connect their own account at a provider (OAuth with it) rather than an administrator recording logins; or commands should need a signed commit, read from the provider's API.
 
 ## Consistency and concurrency
 
@@ -591,7 +633,8 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
-- **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email is confirmed, and only where they can change issues (D26). Links from a payload are shown only if they are http(s).
+- **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as their author in a4a, known by a confirmed email or a login an administrator recorded (D33), and only where they can change issues (D26). Bitbucket is read only on the address an administrator gave, following no redirects. Links from a payload are shown only if they are http(s).
+- **Confirming an email:** by a link whose token is kept as a hash, works once, for a day, and only for the person who added the email, signed in; at most five go an hour (D33). An API token can't change emails.
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
@@ -625,7 +668,7 @@ Planned, with the seams already in place:
 - per-project subscriptions, and per-person time zones for the digest;
 - an S3-compatible store for files, so several instances need no shared volume (D18);
 - rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
-- matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
+- people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
 - in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).

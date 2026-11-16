@@ -19,10 +19,12 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a guard refuses a change that would break it, and the change leaves nothing behind: *State Won't fix needs a comment*.
   - Each is previewed before it's saved (its problems where they are, the issues it would touch now, and what it would change on a few), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep.
   - A project's managers make its rules, and everyone who can see the project can read them. A rule acts only in its own project.
-- **Version control**: GitHub and GitLab send pushes and pull requests.
+- **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
-  - `BACK-12 #Fixed` in a commit message applies the command as its author, when their email is confirmed (by an administrator, or by single sign-on) and they can change the project's issues; otherwise the commit is linked and the issue says why.
-  - Deliveries are checked (GitHub's signature, GitLab's token), handled once, rate-limited and logged.
+  - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.
+  - a4a knows a commit's author by any of their confirmed emails, or by their login at the provider (an administrator records it). People add emails on their profile and confirm each by a link a4a mails; an administrator can confirm one instead. When the email and the login name two people, it's nobody.
+  - Deliveries are checked (each provider's signature, GitLab's token), handled once, rate-limited and logged.
+  - Bitbucket Data Center's pushes don't say what their commits say, and Bitbucket Cloud's carry the latest five a branch got: given an access token, a4a reads the rest from Bitbucket.
 - **Agile boards** with sprints, WIP limits and swimlanes.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
@@ -164,7 +166,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
 | `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
 | `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`. Back it up with the database |
-| `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
+| `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything, and administrators confirm the emails people add, since no link can go |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
 | `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
