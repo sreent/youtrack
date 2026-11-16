@@ -224,7 +224,10 @@ describe('SLA policies on a desk', () => {
   });
 
   it('counts met and breached per week, by policy', async () => {
-    const report = await slaReport(w.adminCtx, 'BACK', { timeZone: 'UTC' });
+    // Through tomorrow: the breach a tick brought above is at its target, an hour after the request,
+    // and a request made in the day's last hour is breached past midnight.
+    const tomorrow = new Date(Date.now() + 24 * H).toISOString().slice(0, 10);
+    const report = await slaReport(w.adminCtx, 'BACK', { timeZone: 'UTC', to: tomorrow });
     const all = report.weeks.flatMap((wk) => wk.policies);
     const critical = all.filter((p) => p.policy === 'Critical');
     expect(critical.reduce((n, p) => n + p.firstResponse.breached, 0)).toBeGreaterThanOrEqual(1);
