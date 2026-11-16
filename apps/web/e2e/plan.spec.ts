@@ -162,18 +162,23 @@ test('levelling refuses a proposal the plan has moved on from (409), and shows t
   expect(fieldValue(await api.issue(plan.review.id), 'Start date')).toBe(now.starts[plan.review.id]);
 });
 
-// A known bug in the planner, kept here until it's fixed (then make it a `test`). With no start
-// date of its own, a plan starts at its earliest task's Start date. Levelling writes the review's
-// Start date (day 4), so the plan then starts on day 4: the runbook, which has no Start date,
-// moves there too, Anna is booked twice again, and the plan ends days later than the proposal
-// said. Through the API: level such a plan, then GET its schedule. With a start date set, as the
-// tests above have, it stays levelled.
-test.fixme('levelling a plan with no start date of its own leaves it levelled', async ({ page, api }) => {
+// With no start date of its own, a plan begins at its earliest task's Start date. Levelling
+// writes the review's Start date (day 4), which would become that earliest date and take the
+// runbook with it; so applying also sets the plan's start where it began, and the plan applied
+// is the plan proposed.
+test('levelling a plan with no start date of its own leaves it levelled', async ({ page, api }) => {
   const plan = await cutoverPlan(api, { startsToday: false });
   const proposed = await plan.proposal();
+  expect(proposed.keepsStart).toBe(today());
+  const before = await plan.schedule();
   await page.goto(`/plan/${plan.key}/resources`);
+  await expect(page.getByText(/has no start date of its own/)).toBeVisible();
   await page.getByRole('button', { name: 'Level 1 task' }).click();
   await expect(page.getByText('Levelled 1 task')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Nobody is booked over their day' })).toBeVisible();
-  expect((await plan.schedule()).finish).toBe(proposed.finishAfter);
+  const after = await plan.schedule();
+  expect(after.finish).toBe(proposed.finishAfter);
+  // The runbook, which levelling didn't move, stays where it was.
+  const runbookStart = (s: Schedule) => s.tasks.find((t) => t.issue.id === plan.runbook.id)?.start;
+  expect(runbookStart(after)).toBe(runbookStart(before));
 });

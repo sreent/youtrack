@@ -205,13 +205,14 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     try {
       const done = await applyLevelling(projectKey, m, result.starts);
       const first = moved[0];
+      const kept = done.keepsStart ? ` Its start is set to ${dayMonth(done.keepsStart)}, so the rest stays put.` : '';
       setNotice({
         kind: 'levelled',
         text: `Levelled ${plural(moved.length, 'task')}`,
         detail:
-          moved.length === 1 && first
+          (moved.length === 1 && first
             ? `${first.issue} now starts ${dayMonth(first.toStart)}. Its history says levelling moved it. The plan ends ${dayMonth(done.finishAfter)}.`
-            : `Their start dates changed, and each one's history says levelling moved it. The plan ends ${dayMonth(done.finishAfter)}.`,
+            : `Their start dates changed, and each one's history says levelling moved it. The plan ends ${dayMonth(done.finishAfter)}.`) + kept,
       });
       await invalidate();
       await propose(m);
@@ -331,6 +332,12 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
             <span className="change-field">The plan ends:</span> <del>{dayMonth(r.finishBefore)}</del> → <ins>{dayMonth(r.finishAfter)}</ins>
           </li>
         </ul>
+      ) : null}
+      {r && moved.length && r.keepsStart ? (
+        <p className="note">
+          The plan has no start date of its own, so it begins with its earliest task. Levelling also sets its start to {dayMonth(r.keepsStart)}, where it begins now, so
+          nothing else moves.
+        </p>
       ) : null}
       {nowLate.length ? (
         <div className="badges">

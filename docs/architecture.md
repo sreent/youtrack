@@ -171,6 +171,7 @@ Levelling is a priority-based serial heuristic, the same family MS Project uses.
 Levelling is proposed before it is applied, and applying writes exactly what was proposed:
 
 - Only the starts of tasks moved *for resources* are written. A task that moved because its predecessors did follows them by itself. Pinning its start would turn a task with a due date and no estimate into a start-to-due window, so the plan after applying would differ from the proposal.
+- A plan with no start date of its own begins at its earliest task's Start date. Written, the levelled starts could become that date and take every undated task with them. When they would, applying also sets the plan's start where it began, in the same transaction, and the proposal says so beforehand (`keepsStart`).
 - Applying is one transaction: the whole proposal or none of it.
 - The caller sends back the proposal's `starts` as `expect`. If levelling would now write anything else, because the plan changed between seeing and applying, nothing is written and the answer is 409 with the new proposal. The web app, the API and the MCP tool all work this way.
 

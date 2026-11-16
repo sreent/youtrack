@@ -174,7 +174,7 @@ export function levelResources(
   mode: LevelingMode,
   overrides: readonly PlanOverride[] = [],
 ): LevelingProposal {
-  const { schedule, calendar: cal, graph, tasks } = buildPlan(input, overrides);
+  const { schedule, calendar: cal, graph, tasks, anchor, anchorWith } = buildPlan(input, overrides);
   const resources = resourceMap(input.resources);
   const today = schedule.today;
   const leaves = graph.leaves.map((id) => tasks.get(id)!);
@@ -242,6 +242,9 @@ export function levelResources(
       delayDays: workingDaysBetween(cal, t.start, datesAfter(t).start),
       movedBy: delayedForResources.has(t.id) ? ('resources' as const) : ('dependencies' as const),
     }));
+  // Writing a Start date on a task that only follows its predecessors would pin it there
+  // (and turn a task with a due date but no estimate into a start-to-due window).
+  const levelledStarts = Object.fromEntries(changes.filter((c) => c.movedBy === 'resources').map((c) => [c.id, c.toStart]));
   return {
     mode,
     finishBefore: schedule.finish,
@@ -250,9 +253,10 @@ export function levelResources(
     overallocatedDaysAfter: overallocatedDays(cal, today, leaves, resources, datesAfter),
     changes,
     unresolved: order.filter((t) => unresolved.has(t.id)).map((t) => t.id),
-    // Writing a Start date on a task that only follows its predecessors would pin it there
-    // (and turn a task with a due date but no estimate into a start-to-due window).
-    levelledStarts: Object.fromEntries(changes.filter((c) => c.movedBy === 'resources').map((c) => [c.id, c.toStart])),
+    levelledStarts,
+    // The plan applied must be the plan proposed: if the written starts would move where it
+    // begins, it keeps beginning where it did.
+    keepStart: anchorWith(levelledStarts) !== anchor ? anchor : null,
   };
 }
 

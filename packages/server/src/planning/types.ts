@@ -260,6 +260,12 @@ export interface LevelingProposal {
    * Passed as `start` overrides, they reproduce the levelled schedule.
    */
   levelledStarts: Record<string, string>;
+  /**
+   * For a plan with no start date of its own, which begins at its earliest Start date: written,
+   * the levelled starts would become that earliest date, and everything else would move to it.
+   * Then this is where the plan began, to keep as its start date; otherwise null.
+   */
+  keepStart: string | null;
 }
 
 // ---------------------------------------------------------------------------

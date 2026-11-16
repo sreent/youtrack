@@ -981,6 +981,11 @@ export const LevelingResultSchema = z
       .record(z.string(), isoDate)
       .describe('What applying writes: the new Start date of each task moved for resources. The others follow from their dependencies.'),
     unresolved: z.array(z.string()).describe('Tasks that could not be levelled within the chosen mode'),
+    keepsStart: isoDate
+      .nullable()
+      .describe(
+        "When the plan has no start date of its own, it begins at its earliest task's; the levelled starts would become that and move everything else. Then this is where it began, which applying sets as its start date, so the plan stays as proposed",
+      ),
   })
   .meta({ id: 'LevelingResult' });
 export type LevelingResult = z.infer<typeof LevelingResultSchema>;
