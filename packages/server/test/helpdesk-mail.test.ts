@@ -303,6 +303,36 @@ describe('mail into a desk', () => {
     }
   });
 
+  it('threads only by Message-IDs of ours that were random: an old, guessable one counts for nothing', async () => {
+    // As a4a named help desk mail before it was threaded: guessable, and not marked replyable.
+    const guessable = '<request-event-1@desk.test>';
+    await w.app.db.insert(mailOutbox).values({
+      id: `old-${freshId()}`,
+      dedupeKey: `old:${freshId()}`,
+      kind: 'request-reply',
+      payload: { issueId: requestUid },
+      messageId: guessable,
+      status: 'sent',
+      toAddress: 'jane@example.com',
+    });
+    const raw = simple({ from: 'jane@example.com', subject: 'Re: Password reset email never arrives', body: 'Is this still open?', inReplyTo: guessable });
+    expect(await receiveMail(w.app, raw, { via: 'webhook', desk: back })).toMatchObject({ outcome: 'request' });
+  });
+
+  it('gives read mail to the first desk it names', async () => {
+    await setDeskAddress(w.adminCtx, 'WEB', 'web@desk.test');
+    await newMailSecret(w.adminCtx, 'WEB');
+    try {
+      const raw = simple({ from: 'ola@example.com', to: 'web@desk.test', subject: 'The menu overlaps the logo', body: 'On phones.', headers: [`Cc: ${DESK}`] });
+      // WEB's desk is closed, so it's refused there; what matters is where it went.
+      expect(await receiveMail(w.app, raw, { via: 'imap' })).toMatchObject({ outcome: 'refused', reason: 'the help desk is closed to new requests' });
+      const [row] = await w.app.db.select().from(helpdeskInbound).where(eq(helpdeskInbound.subject, 'The menu overlaps the logo'));
+      expect(row!.projectId).toBe(projectByKey(await w.app.schema.get(), 'WEB')!.id);
+    } finally {
+      await setDeskAddress(w.adminCtx, 'WEB', null);
+    }
+  });
+
   it('takes five new requests an hour from one sender', async () => {
     const outcomes: string[] = [];
     for (let i = 1; i <= 6; i++) outcomes.push((await receiveMail(w.app, simple({ from: 'busy@example.com', subject: `Question ${i}`, body: 'Hi.' }), { via: 'webhook', desk: back })).outcome);
