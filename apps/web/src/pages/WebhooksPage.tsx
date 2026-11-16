@@ -21,7 +21,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'issue.moved': t('page.webhooks.anIssueMovesToAnother'),
   'sla.warning': t('page.webhooks.aHelpDeskRequestS'),
   'sla.breached': t('page.webhooks.aHelpDeskRequestGoes'),
-  'comment.created': 'someone comments',
+  'comment.created': t('page.webhooks.someoneComments'),
   'comment.updated': t('page.webhooks.aCommentIsEdited'),
   'comment.deleted': t('page.webhooks.aCommentIsDeleted'),
   'link.created': t('page.webhooks.issuesAreLinked'),
@@ -29,7 +29,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'work.logged': t('page.webhooks.workIsLogged'),
   'work.deleted': t('page.webhooks.loggedWorkIsRemoved'),
   'work.updated': t('page.webhooks.loggedWorkIsCorrected'),
-  'ai.triage.completed': 'triage suggests changes',
+  'ai.triage.completed': t('page.webhooks.triageSuggestsChanges'),
   'baseline.created': t('page.webhooks.aBaselineIsSaved'),
   'project.member.added': t('page.webhooks.someoneIsGivenARole'),
   'project.member.changed': t('page.webhooks.someoneSRoleInA'),
@@ -306,7 +306,7 @@ export default function WebhooksPage() {
       />
       <section className="card" aria-labelledby="hooks">
         <h2 id="hooks">{t('page.webhooks.whereItSends')}</h2>
-        {hooks.isLoading ? <Loading what="webhooks" /> : null}
+        {hooks.isLoading ? <Loading what={t('loading.webhooks')} /> : null}
         {hooks.error ? <ErrorNote error={hooks.error} /> : null}
         {hooks.data && !hooks.data.length ? <p className="note">{t('page.webhooks.nowhereYetAddAWebhook')}</p> : null}
         {hooks.data?.length ? (

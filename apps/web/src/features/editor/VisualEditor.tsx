@@ -672,7 +672,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
         </ul>
       ) : null}
       <span className="hidden" role="status">
-        {open ? t('editor.visualEditor.toMentionUpAndDown', { length: offered.length, v: offered.length === 1 ? 'person' : 'people' }) : ''}
+        {open ? t('editor.visualEditor.countToMention', { n: offered.length }) : ''}
       </span>
     </div>
   );

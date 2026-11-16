@@ -151,7 +151,7 @@ function Upload() {
                   <Link to={`/import/${i.id}`}>{i.fileName}</Link>
                   <span className="issue-id">{i.project.key}</span>
                 </span>
-                <p className="note">{tr(i.origin ? 'page.import.fromIssues' : 'page.import.fromRows', { fromWords: fromWords(i), n: i.rows, whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: i.status })}</p>
+                <p className="note">{tr(i.origin ? 'page.import.fromIssues' : 'page.import.fromRows', { fromWords: fromWords(i), n: i.rows, whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: IMPORT_STATUS_WORDS[i.status] ?? i.status })}</p>
               </li>
             ))}
           </ul>
@@ -464,6 +464,17 @@ function ImportSteps({ imp }: { imp: Import }) {
     </>
   );
 }
+
+/** What an import is doing, in words (D49): its status is a code. */
+const IMPORT_STATUS_WORDS: Record<string, string> = {
+  fetching: t('page.import.statusFetching'),
+  ready: t('page.import.statusReady'),
+  running: t('page.import.statusRunning'),
+  stopped: t('page.import.statusStopped'),
+  done: t('page.import.statusDone'),
+  failed: t('page.import.statusFailed'),
+  undone: t('page.import.statusUndone'),
+};
 
 export default function ImportPage() {
   const { id } = useParams();

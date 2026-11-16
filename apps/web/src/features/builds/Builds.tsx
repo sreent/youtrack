@@ -224,7 +224,7 @@ export function BuildSources({ integrations }: { integrations: VcsIntegration[] 
       <section className="card" aria-labelledby="build-sources">
         <h2 id="build-sources">{t('builds.builds.builds')}</h2>
         <p className="note section-note">{t('builds.builds.aBuildThatPassesGoes')}</p>
-        {sources.isLoading ? <Loading what="build sources" /> : null}
+        {sources.isLoading ? <Loading what={t('loading.buildSources')} /> : null}
         {sources.error ? <ErrorNote error={sources.error} /> : null}
         {sources.data && !sources.data.length ? <p className="note">{t('builds.builds.noBuildsComeInYet')}</p> : null}
         {sources.data?.length ? (

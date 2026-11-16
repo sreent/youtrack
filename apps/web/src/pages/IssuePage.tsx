@@ -400,7 +400,7 @@ export default function IssuePage() {
           {projectFields.data && assignable ? (
             <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} canEdit={canWrite} />
           ) : (
-            <Loading what="fields" />
+            <Loading what={t('loading.fields')} />
           )}
           <RequestCard issue={data} />
           <VisibleToCard issue={data} canEdit={canWrite} />

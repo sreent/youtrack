@@ -197,7 +197,7 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
             {policies.data.map((x) => (
               <li key={x.id} className="stack tight">
                 <strong>{x.name}</strong>
-                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? t('helpdesk.sla.firstResponseIn', { formatPeriod: formatPeriod(x.firstResponseMinutes) }) : 'no first-response target', v3: x.resolutionMinutes ? t('helpdesk.sla.resolvedIn', { formatPeriod: formatPeriod(x.resolutionMinutes) }) : t('helpdesk.sla.noResolutionTarget'), v4: formatPeriod(x.warnMinutes || 0) || 'never' })}</p>
+                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? t('helpdesk.sla.firstResponseIn', { formatPeriod: formatPeriod(x.firstResponseMinutes) }) : t('helpdesk.sla.noFirstResponseTarget'), v3: x.resolutionMinutes ? t('helpdesk.sla.resolvedIn', { formatPeriod: formatPeriod(x.resolutionMinutes) }) : t('helpdesk.sla.noResolutionTarget'), v4: formatPeriod(x.warnMinutes || 0) || 'never' })}</p>
                 {canEdit ? (
                   <button type="button" className="link" onClick={() => remove.mutate(x.id)} aria-label={t('helpdesk.sla.deleteThePolicy', { name: x.name })}>{t('helpdesk.sla.delete')}</button>
                 ) : null}

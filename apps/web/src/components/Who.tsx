@@ -79,13 +79,13 @@ export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data
     case 'api':
       return { kind: 'service', name: actor.token ?? t('ui.who.aScript'), about: t('ui.who.throughTheApiAs', { name: name }) };
     case 'automation':
-      return { kind: 'agent', name: actor.login ?? 'automation', about: t('ui.who.onItsOwn') };
+      return { kind: 'agent', name: actor.login ?? t('ui.who.automation'), about: t('ui.who.onItsOwn') };
     case 'vcs':
       // A commit's author a4a knows, through the integration; or the integration itself.
-      return actor.id ? { kind: 'person', name, about: t('ui.who.from', { v: actor.token ?? 'version control' }) } : { kind: 'service', name: actor.token ?? 'version control', about: t('ui.who.fromVersionControl') };
+      return actor.id ? { kind: 'person', name, about: actor.token ? t('ui.who.from', { v: actor.token }) : t('ui.who.fromVersionControl') } : { kind: 'service', name: actor.token ?? t('ui.who.versionControl'), about: t('ui.who.fromVersionControl') };
     case 'chat':
       // A person, from Teams or Slack, as themselves (D42).
-      return { kind: 'person', name, about: t('ui.who.from', { v: actor.token ?? 'chat' }) };
+      return { kind: 'person', name, about: actor.token ? t('ui.who.from', { v: actor.token }) : t('ui.who.fromChat') };
     case 'ci':
       // A build CI reported, through its build source (D46).
       return { kind: 'service', name: actor.token ?? 'CI', about: t('ui.who.fromABuild') };

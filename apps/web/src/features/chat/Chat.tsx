@@ -209,7 +209,7 @@ function AddChannel({ project }: { project: Project }) {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (channels.isLoading) return <Loading what="channels" />;
+  if (channels.isLoading) return <Loading what={t('loading.channels')} />;
   if (!channels.data?.length) {
     return <p className="note">{t('chat.chat.a4aCanPostToNo')}</p>;
   }

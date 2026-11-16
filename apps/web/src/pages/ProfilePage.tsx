@@ -299,7 +299,7 @@ export default function ProfilePage() {
       </section>
       <section className="card" aria-labelledby="password">
         <h2 id="password">{passwords ? t('page.profile.password') : t('page.profile.signingIn')}</h2>
-        {passwords ? <Password me={m} /> : <p className="note">{tr('page.profile.youSignInWithPasswords', { v: sso?.name ?? 'single sign-on' })}</p>}
+        {passwords ? <Password me={m} /> : <p className="note">{tr('page.profile.youSignInWithPasswords', { v: sso?.name ?? t('page.profile.singleSignOn') })}</p>}
         {passwords && sso ? <p className="note">{tr('page.profile.youCanAlsoSignIn', { name: sso.name, name2: sso.name })}</p> : null}
       </section>
       {signsInWithPassword ? (

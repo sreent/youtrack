@@ -22,9 +22,9 @@ type Part = 'day' | 'morning' | 'afternoon';
 
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** "you're" or "Anna Schmidt is", "your" or "Anna Schmidt's": a sentence names the person. */
+/** Whom a sentence is about: you, or them by name; each language says which its own way (D49). */
 function whose(person: Person, you: boolean) {
-  return { is: you ? 'you’re' : t('away.daysAway.is', { name: person.name }), own: you ? 'your' : `${person.name}’s` };
+  return { who: you ? 'you' : 'other', name: person.name };
 }
 
 function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Person; you: boolean; editing: Absence | null; onDone: (text: string) => void; onCancel?: () => void }) {
@@ -61,7 +61,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       const saved = editing
         ? await change.mutateAsync({ id: editing.id, from, to: to || from, half, ...why, expectedVersion: editing.version })
         : await add.mutateAsync({ user: you ? undefined : person.login, from, to: to || from, half, kind, note: note.trim() || undefined });
-      onDone(t('away.daysAway.awayPlansSkipForWork', { v: editing ? t('away.daysAway.changed') : t('away.daysAway.added'), is: w.is, whenWords: whenWords(saved), v2: oneDay ? 'it' : 'those days', own: w.own }));
+      onDone(t('away.daysAway.savedAway', { v: editing ? t('away.daysAway.changed') : t('away.daysAway.added'), ...w, whenWords: whenWords(saved), span: oneDay ? 'day' : 'days' }));
     } catch (err) {
       setError(errorText(err));
     }
@@ -157,14 +157,14 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
     setSaid(null);
   }, [person.login]);
 
-  if (list.isLoading) return <Loading what={t('away.daysAway.daysAway', { own: w.own })} />;
+  if (list.isLoading) return <Loading what={t('away.daysAway.whoseDaysAway', w)} />;
   if (list.error) return <ErrorNote error={list.error} />;
   const rows = list.data ?? [];
 
   return (
     <div className="stack">
       {rows.length ? (
-        <Scroll label={t('away.daysAway.daysAway2', { capital: capital(w.own) })}>
+        <Scroll label={t('away.daysAway.whoseDaysAwayTitle', w)}>
           <table className="figures middle">
             <thead>
               <tr>
@@ -202,7 +202,7 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
                             remove.mutate(a.id, {
                               onSuccess: () => {
                                 if (editing?.id === a.id) setEditing(null);
-                                setSaid({ text: t('away.daysAway.removedNoLongerAway', { is: w.is, whenWords: whenWords(a) }) });
+                                setSaid({ text: t('away.daysAway.removedWhoNoLongerAway', { ...w, whenWords: whenWords(a) }) });
                               },
                               onError: (e) => setSaid({ text: errorText(e), bad: true }),
                             })

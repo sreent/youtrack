@@ -54,8 +54,8 @@ function byLine(e: TrackerEvent): string {
     automation: t('activity.ledgerEntry.onItsOwn'),
     system: t('activity.ledgerEntry.a4aSOwn'),
     helpdesk: t('activity.ledgerEntry.throughTheHelpDeskFor', { v: str((e.data.requester as { name?: string } | undefined)?.name) || t('activity.ledgerEntry.aRequester') }),
-    vcs: t('activity.ledgerEntry.from', { v: e.actor.token ?? 'version control' }),
-    chat: t('activity.ledgerEntry.fromAs', { v: e.actor.token ?? 'chat', name: name }),
+    vcs: e.actor.token ? t('activity.ledgerEntry.from', { v: e.actor.token }) : t('activity.ledgerEntry.fromVersionControl'),
+    chat: e.actor.token ? t('activity.ledgerEntry.fromAs', { v: e.actor.token, name: name }) : t('activity.ledgerEntry.fromChatAs', { name: name }),
     ci: t('activity.ledgerEntry.fromABuildOf', { v: e.actor.token ?? 'CI' }),
     // An app's agent on its own (its rules), or a person through an app's widget or handler (D48).
     app: e.actor.isBot ? t('activity.ledgerEntry.asTheAppOnIts', { v: e.actor.token ?? 'an' }) : t('activity.ledgerEntry.throughTheAppFor', { v: e.actor.token ?? 'an', name: name }),
@@ -77,7 +77,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
   switch (e.type) {
     case 'issue.created':
       if (e.data.imported) return { text: <>{tr('activity.ledgerEntry.imported', { issue: issue })}</>, badge: ['changes', t('activity.ledgerEntry.importsAnIssue')] };
-      return { text: <>{tr('activity.ledgerEntry.created', { issue: issue })}</>, badge: ['changes', 'new issue'] };
+      return { text: <>{tr('activity.ledgerEntry.created', { issue: issue })}</>, badge: ['changes', tx('activity.ledgerEntry.badgeNewIssue')] };
     case 'sprint.issue_added':
       return { text: <>{tr('activity.ledgerEntry.putIn', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
     case 'sprint.issue_removed':
@@ -105,7 +105,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'comment.created':
       return {
         text: <>{tr('activity.ledgerEntry.commentedOn', { issue: issue })}</>,
-        badge: ['changes', 'comments'],
+        badge: ['changes', tx('activity.ledgerEntry.badgeComments')],
         more: str(e.data.text) ? <q className="ledger-quote">{excerpt(str(e.data.text), 220)}</q> : null,
       };
     case 'comment.updated':
@@ -126,15 +126,15 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           : { text: <>{tr('activity.ledgerEntry.unlinkedUndoingAnAgent', { linked: linked })}</>, badge: ['changes', tx('activity.ledgerEntry.undoesAChange')] };
       }
       return e.type === 'link.created'
-        ? { text: <>{tr('activity.ledgerEntry.linked', { linked: linked })}</>, badge: ['changes', 'links'] }
-        : { text: <>{tr('activity.ledgerEntry.unlinked', { linked: linked })}</>, badge: ['changes', 'unlinks'] };
+        ? { text: <>{tr('activity.ledgerEntry.linked', { linked: linked })}</>, badge: ['changes', tx('activity.ledgerEntry.badgeLinks')] }
+        : { text: <>{tr('activity.ledgerEntry.unlinked', { linked: linked })}</>, badge: ['changes', tx('activity.ledgerEntry.badgeUnlinks')] };
     }
     case 'work.logged':
       return {
         text: (
           <>{tr('activity.ledgerEntry.loggedOn', { str: str(e.data.duration), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
-        badge: ['changes', 'logs work'],
+        badge: ['changes', tx('activity.ledgerEntry.badgeLogsWork')],
         more:
           str(e.data.description) || str(e.data.date) ? (
             <span className="ledger-note">
@@ -143,11 +143,11 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           ) : null,
       };
     case 'work.deleted':
-      return { text: <>{tr('activity.ledgerEntry.removedLoggedWorkFrom', { issue: issue })}</>, badge: ['changes', 'removes work'] };
+      return { text: <>{tr('activity.ledgerEntry.removedLoggedWorkFrom', { issue: issue })}</>, badge: ['changes', tx('activity.ledgerEntry.badgeRemovesWork')] };
     case 'ai.triage.completed':
       return {
         text: <>{tr('activity.ledgerEntry.suggestedChangesTo', { issue: issue })}</>,
-        badge: ['writes', 'suggests'],
+        badge: ['writes', tx('activity.ledgerEntry.badgeSuggests')],
         more: (
           <span className="ledger-note">
             {str(e.data.summary)} <Link to={e.project ? `/suggestions?project=${e.project}` : '/suggestions'}>{t('activity.ledgerEntry.decideOnIt')}</Link>
@@ -186,7 +186,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         more: (
           <span className="ledger-note">
             {str(e.data.title)}
-            {command ? (e.data.applied ? ` · #${command}: ${str(e.data.note) || 'applied'}` : t('activity.ledgerEntry.notApplied', { command: command, replace: str(e.data.note).replace(/^Not applied:\s*/i, '') })) : ''}
+            {command ? (e.data.applied ? (str(e.data.note) ? t('activity.ledgerEntry.commandNote', { command: command, note: str(e.data.note) }) : t('activity.ledgerEntry.commandApplied', { command: command })) : t('activity.ledgerEntry.notApplied', { command: command, replace: str(e.data.note).replace(/^Not applied:\s*/i, '') })) : ''}
           </span>
         ),
       };
@@ -195,7 +195,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'pull_request.updated':
       return {
         text: (
-          <>{tr('activity.ledgerEntry.to', { v: e.type === 'pull_request.linked' ? 'linked pull request' : 'saw pull request', str: str(e.data.number), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
+          <>{tr(e.type === 'pull_request.linked' ? 'activity.ledgerEntry.linkedPullRequestTo' : 'activity.ledgerEntry.sawPullRequestFor', { str: str(e.data.number), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
         badge: ['outside', e.type === 'pull_request.linked' ? t('activity.ledgerEntry.linksAPullRequest') : t('activity.ledgerEntry.pullRequest', { str: str(e.data.state) })],
         more: <span className="ledger-note">{str(e.data.title)}</span>,
@@ -245,12 +245,12 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         text: (
           <>{tr('activity.ledgerEntry.toldOf', { v: people.map((p) => `@${p}`).join(', ') || t('activity.ledgerEntry.nobody'), issue: issue })}</>
         ),
-        badge: ['own', 'tells people'],
+        badge: ['own', tx('activity.ledgerEntry.badgeTellsPeople')],
         more: <span className="ledger-note">“{str(e.data.message)}”</span>,
       };
     }
     case 'rule.called':
-      return { text: <>{tr('activity.ledgerEntry.calledAWebhookAbout', { issue: issue })}</>, badge: ['outside', 'calls out'] };
+      return { text: <>{tr('activity.ledgerEntry.calledAWebhookAbout', { issue: issue })}</>, badge: ['outside', tx('activity.ledgerEntry.badgeCallsOut')] };
     default:
       return {
         text: (

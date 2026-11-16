@@ -84,7 +84,7 @@ function Similar({ summary, description, project, judge }: { summary: string; de
               </Link>
               <span className="badges">
                 {s.issue.state ? <Badge tone={tones.get(s.issue.state) ?? null}>{s.issue.state}</Badge> : null}
-                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? t('page.newIssue.likelyTheSame') : 'related'}</Badge> : null}
+                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? t('page.newIssue.likelyTheSame') : t('page.newIssue.related')}</Badge> : null}
               </span>
               {s.reason ? <p className="note">{s.reason}</p> : null}
             </li>
@@ -193,7 +193,7 @@ export default function NewIssuePage() {
     }
   };
 
-  if (projects.isLoading) return <Loading what="projects" />;
+  if (projects.isLoading) return <Loading what={t('loading.projects')} />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const triageOn = ai.data?.enabled;
 

@@ -304,7 +304,7 @@ function InstalledApp({ app }: { app: App }) {
             title={t('apps.appsSection.remove', { title: app.title })}
             about={
               r
-                ? t('apps.appsSection.itsAndGoWithSettings', { rules: r.rules, v: r.rules === 1 ? 'rule' : 'rules', widgets: r.widgets, v2: r.widgets === 1 ? 'widget' : 'widgets', handlers: r.handlers, v3: r.handlers === 1 ? 'handler' : 'handlers', settings: r.settings, stored: r.stored, v4: r.stored === 1 ? 'value' : 'values', runs: r.runs, agent: r.agent })
+                ? t('apps.appsSection.itsPartsGoWithSettings', { rules: r.rules, widgets: r.widgets, handlers: r.handlers, settings: r.settings, stored: r.stored, runs: r.runs, agent: r.agent })
                 : t('apps.appsSection.itsRulesWidgetsHandlersSettings')
             }
             confirm={t('apps.appsSection.removeIt')}
@@ -435,7 +435,7 @@ export function AppsSection() {
       </div>
       <p className="note section-note">{t('apps.appsSection.anAppAddsWidgetsTo')}</p>
       <div className="stack">
-        {apps.isLoading ? <Loading what="apps" /> : null}
+        {apps.isLoading ? <Loading what={t('loading.apps')} /> : null}
         {apps.error ? <ErrorNote error={apps.error} /> : null}
         {apps.data?.length ? (
           <ul className="plain stack" aria-label={t('apps.appsSection.installedApps')}>

@@ -146,7 +146,7 @@ function Home() {
     return (
       <>
         {head}
-        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what="projects" />}
+        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what={t('loading.projects')} />}
       </>
     );
   }
@@ -256,7 +256,7 @@ function ArticleFiles({ a, canWrite }: { a: ArticleDetail; canWrite: boolean }) 
   const qc = useQueryClient();
   const files = useArticleAttachments(a.id);
   const limits = useAttachmentLimits();
-  if (files.isLoading) return <Loading what="files" />;
+  if (files.isLoading) return <Loading what={t('loading.files')} />;
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList

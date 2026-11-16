@@ -212,10 +212,10 @@ function LaneHead({ lane, id, count }: { lane: Lane; id: string; count: number }
 // ---------------------------------------------------------------------------
 
 function laneWords(lane: Lane, kind: LaneKind, field: string, id: string, joined: boolean): string {
-  const it = joined ? 'it' : id;
-  const its = joined ? 'its' : `${id}'s`;
-  if (kind === 'user') return lane.value ? t('board.board.giveTo', { it: it, label: lane.label }) : t('board.board.leaveWithNobodyAssigned', { it: it });
-  return lane.value ? t('board.board.setTo', { its: its, field: field, value: lane.value }) : t('board.board.clear', { its: its, field: field });
+  // The card by "it" where the sentence already named it, by its id where not: a code, so each language words it.
+  const named = { joined: joined ? 'yes' : 'no', id };
+  if (kind === 'user') return lane.value ? t('board.board.giveItTo', { ...named, label: lane.label }) : t('board.board.leaveItWithNobody', named);
+  return lane.value ? t('board.board.setItsFieldTo', { ...named, field: field, value: lane.value }) : t('board.board.clearItsField', { ...named, field: field });
 }
 
 function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts: number[], card: Placed, to: Target): string {

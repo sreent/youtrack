@@ -292,7 +292,7 @@ export function SetupPage() {
         <FormField label={t('app.auth.yourName')}>{(id) => <input id={id} value={form.name} onChange={set('name')} required autoFocus />}</FormField>
         <FormField label={t('app.auth.login')}>{(id) => <input id={id} value={form.login} onChange={set('login')} required pattern="[a-zA-Z0-9._\-]+" />}</FormField>
         {status.data?.signIn.password === false ? (
-          <FormField label={t('app.auth.emailYouLlSignIn', { v: status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? 'single sign-on' })}>
+          <FormField label={t('app.auth.emailYouLlSignIn', { v: status.data.signIn.sso?.name ?? status.data.signIn.saml?.name ?? t('app.auth.singleSignOn') })}>
             {(id) => <input id={id} type="email" value={form.email} onChange={set('email')} required autoComplete="email" />}
           </FormField>
         ) : (

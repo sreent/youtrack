@@ -275,7 +275,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
       const outcome = r.overallocatedDaysAfter === 0 ? t('plan.resources.soNobodyIsBookedOver') : t('plan.resources.soFewerDaysAreOver', { overallocatedDaysAfter: r.overallocatedDaysAfter, overallocatedDaysBefore: r.overallocatedDaysBefore });
       const finish =
         mode === 'within_slack' || !finishMoves ? t('plan.resources.thePlanStillEndsOn', { dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.thePlanWouldEndOn', { dayMonth: dayMonth(r.finishAfter), dayMonth2: dayMonth(r.finishBefore) });
-      about = t('plan.resources.nothingMovesUntilYouLevel', { outcome: outcome, finish: finish, v: moved.length === 1 ? 'it' : 'them' });
+      about = t('plan.resources.nothingMovesUntilYouLevelThem', { outcome: outcome, finish: finish, n: moved.length });
     }
   }
 
@@ -352,7 +352,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
         </div>
       ) : null}
       {r && moved.length && unresolved.length ? (
-        <p className="note">{tr('plan.resources.canTBeLevelledSo', { named: named(unresolved), v: mode === 'within_slack' ? 'within slack' : t('plan.resources.atAll'), v2: unresolved.length === 1 ? t('plan.resources.itStays') : 'they stay', v3: unresolved.length === 1 ? t('plan.resources.itIs') : t('plan.resources.theyAre') })}</p>
+        <p className="note">{tr(mode === 'within_slack' ? 'plan.resources.cantBeLevelledWithinSlack' : 'plan.resources.cantBeLevelledAtAll', { named: named(unresolved), n: unresolved.length })}</p>
       ) : null}
       {r && moved.length ? (
         <div className="levelling-actions">
@@ -361,8 +361,8 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           </button>
           <p className="note">
             {mode === 'within_slack'
-              ? t('plan.resources.withinSlackAndHistorySays', { v: moved.length === 1 ? t('plan.resources.itMoves') : t('plan.resources.eachMoves'), v2: moved.length === 1 ? 'its' : 'its', v3: moved.length === 1 ? 'its' : t('plan.resources.eachOneS') })
-              : t('plan.resources.andTheHistorySaysLevelling', { v: moved.length === 1 ? t('plan.resources.itsStartDateChanges') : t('plan.resources.theirStartDatesChange'), v2: moved.length === 1 ? 'it' : 'them', v3: moved.length === 1 ? 'it' : 'them' })}
+              ? t('plan.resources.movesWithinSlackHistorySays', { n: moved.length })
+              : t('plan.resources.startDatesChangeHistorySays', { n: moved.length })}
           </p>
         </div>
       ) : null}

@@ -230,7 +230,7 @@ function PersonPanel({ person }: { person: User }) {
   return (
     <div className="stack">
       <h3>{tr('vcs.people.emailsOf', { name: person.name })}</h3>
-      {emails.isLoading ? <Loading what="their emails" /> : null}
+      {emails.isLoading ? <Loading what={t('vcs.people.theirEmails')} /> : null}
       {emails.error ? <ErrorNote error={emails.error} /> : null}
       {emails.data && !emails.data.emails.length ? <p className="note">{t('vcs.people.noEmailYet')}</p> : null}
       {emails.data?.emails.length ? (
@@ -294,7 +294,7 @@ function PersonPanel({ person }: { person: User }) {
       </form>
 
       <h3>{tr('vcs.people.loginsOf', { name: person.name })}</h3>
-      {logins.isLoading ? <Loading what="their logins" /> : null}
+      {logins.isLoading ? <Loading what={t('vcs.people.theirLogins')} /> : null}
       {logins.error ? <ErrorNote error={logins.error} /> : null}
       {logins.data && !logins.data.length ? <p className="note">{t('vcs.people.noneRecorded')}</p> : null}
       {logins.data?.length ? (
