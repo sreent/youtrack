@@ -35,7 +35,7 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>Issues created and issues resolved, by {r.interval}; the figures are in the table</title>
+        <title id={titleId}>{`Issues created and issues resolved, by ${r.interval}; the figures are in the table`}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />

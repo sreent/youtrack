@@ -63,9 +63,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>
-          Issues in each state at the end of each day, {flow.days.length ? `${dayMonth(flow.days[0]!.date)} to ${dayMonth(flow.days.at(-1)!.date)}` : ''}; the figures are in the table
-        </title>
+        <title id={titleId}>{`Issues in each state at the end of each day${flow.days.length ? `, ${dayMonth(flow.days[0]!.date)} to ${dayMonth(flow.days.at(-1)!.date)}` : ''}; the figures are in the table`}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
