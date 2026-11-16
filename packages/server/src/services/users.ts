@@ -119,7 +119,7 @@ export async function updateUser(
     throw badRequest('You cannot remove your own admin role');
   }
   if (input.password && self && !ctx.app.config.passwordLogin) {
-    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? 'single sign-on'}.`);
+    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`);
   }
   // An email counts for single sign-on when an administrator sets it; one people set for
   // themselves doesn't, until an administrator confirms it by saving it.
@@ -151,7 +151,7 @@ export async function updateMe(
 ): Promise<User> {
   requireScope(ctx, 'write');
   if (input.password && !ctx.app.config.passwordLogin) {
-    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? 'single sign-on'}.`);
+    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`);
   }
   if (input.password) {
     const ok = await verifyPassword(input.currentPassword ?? '', ctx.actor.user.passwordHash);

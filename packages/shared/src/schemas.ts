@@ -154,6 +154,11 @@ export const SetupStatusSchema = z
       sso: z
         .object({ name: z.string().describe('The identity provider, by the name people see'), url: z.string().describe('Where the browser goes to start signing in') })
         .nullable(),
+      saml: z
+        .object({ name: z.string().describe('The SAML identity provider, by the name people see'), url: z.string().describe('Where the browser goes to start signing in') })
+        .nullable()
+        .optional()
+        .describe('Signing in with SAML 2.0, beside (or instead of) OpenID Connect'),
     }),
     mcpOAuth: z.boolean().describe('Whether MCP clients may sign in with OAuth, instead of carrying a token (D28)'),
   })
@@ -271,7 +276,10 @@ export type ProjectRef = z.infer<typeof ProjectRefSchema>;
 export const ProjectAccessSchema = z
   .object({
     role: z.enum(PROJECT_ROLES).describe('Their role in it, as it works out: a manager for administrators and the lead'),
-    via: z.enum(['admin', 'lead', 'member', 'open']).describe('Where the role comes from: being an administrator, leading it, being one of its people, or its being open'),
+    via: z
+      .enum(['admin', 'lead', 'member', 'group', 'open'])
+      .describe('Where the role comes from: being an administrator, leading it, being one of its people, being in a group it gives the role, or its being open'),
+    group: z.string().nullable().optional().describe('With `via: group`, the group the role comes from (the first by name, when several give it)'),
     read: z.boolean(),
     comment: z.boolean(),
     write: z.boolean().describe('Change its issues'),
@@ -2076,3 +2084,79 @@ export const PreferencesSchema = z
   .meta({ id: 'Preferences' });
 export type Preferences = z.infer<typeof PreferencesSchema>;
 export const UpdatePreferencesBody = z.object({ loadWindow: LoadWindowSchema.nullable().optional() });
+
+// Groups (package 1: docs/architecture.md, D27)
+// ---------------------------------------------------------------------------
+
+export const GroupRefSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    providerName: z
+      .string()
+      .nullable()
+      .describe('Its name at the identity provider, when it comes from there: who is in it is then set at each sign-in, never by hand'),
+    size: z.number().int().describe('How many people are in it'),
+  })
+  .meta({ id: 'GroupRef' });
+export type GroupRef = z.infer<typeof GroupRefSchema>;
+
+export const GroupSchema = GroupRefSchema.extend({
+  description: z.string(),
+  createdAt: timestamp,
+  projects: z.number().int().describe('How many projects give it a role (of those the caller can see)'),
+}).meta({ id: 'Group' });
+export type Group = z.infer<typeof GroupSchema>;
+
+export const GroupMemberSchema = z
+  .object({
+    user: UserRefSchema,
+    addedAt: timestamp,
+    addedBy: UserRefSchema.nullable().describe('Null when the identity provider put them there'),
+  })
+  .meta({ id: 'GroupMember' });
+export type GroupMember = z.infer<typeof GroupMemberSchema>;
+
+export const GroupDetailSchema = GroupSchema.extend({
+  members: z.array(GroupMemberSchema),
+  roles: z
+    .array(z.object({ project: ProjectRefSchema, role: z.enum(PROJECT_ROLES) }))
+    .describe('Its role in each project, of those the caller can see'),
+}).meta({ id: 'GroupDetail' });
+export type GroupDetail = z.infer<typeof GroupDetailSchema>;
+
+export const CreateGroupBody = z.object({
+  name: z.string().trim().min(1).max(80),
+  description: z.string().max(500).default(''),
+  providerName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .nullable()
+    .optional()
+    .describe("Its name at the identity provider (the groups claim's or attribute's value), to take who is in it from there"),
+});
+export const UpdateGroupBody = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  description: z.string().max(500).optional(),
+  providerName: z.string().trim().min(1).max(200).nullable().optional(),
+});
+export const AddGroupMemberBody = z.object({ user: z.string().min(1).describe('Login of the person') });
+
+/** A group with a role in a project. */
+export const ProjectGroupSchema = z
+  .object({
+    group: GroupRefSchema,
+    role: z.enum(PROJECT_ROLES),
+    people: z.array(UserRefSchema).describe("Who is in it: as anyone who sees a project sees who is in it, so a members-only project's issues go only to them"),
+    addedAt: timestamp,
+    addedBy: UserRefSchema.nullable(),
+  })
+  .meta({ id: 'ProjectGroup' });
+export type ProjectGroup = z.infer<typeof ProjectGroupSchema>;
+export const AddProjectGroupBody = z.object({
+  group: z.string().min(1).describe("The group's id or name"),
+  role: z.enum(PROJECT_ROLES).default('member'),
+});
+export const UpdateProjectGroupBody = z.object({ role: z.enum(PROJECT_ROLES) });

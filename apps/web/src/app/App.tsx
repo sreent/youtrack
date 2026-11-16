@@ -21,6 +21,7 @@ const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
 const RulesPage = lazy(() => import('../pages/RulesPage'));
 const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
+const GroupPage = lazy(() => import('../pages/GroupPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 const ArticlesPage = lazy(() => import('../pages/ArticlesPage'));
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
@@ -75,6 +76,7 @@ export function App() {
           <Route path="/rules/:project" element={<Page><RulesPage /></Page>} />
           <Route path="/integrations" element={<Page><IntegrationsPage /></Page>} />
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
+          <Route path="/groups/:id" element={<Page><GroupPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />
           <Route path="/dashboard" element={<Page><DashboardPage /></Page>} />
           <Route path="/dashboard/:id" element={<Page><DashboardPage /></Page>} />

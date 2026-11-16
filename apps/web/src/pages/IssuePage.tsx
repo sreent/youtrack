@@ -24,6 +24,7 @@ import { FormField } from '../components/Form';
 import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
 import { WatchersCard, WatchToggle } from '../features/issues/Watching';
 import { useRequestInfo } from '../features/notifications/api';
+import { useProjectGroups } from '../features/groups/api';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -193,13 +194,14 @@ export default function IssuePage() {
   const project = useProject(issue.data?.project.key);
   const membersOnly = project.data?.visibility === 'members';
   const members = useMembers(membersOnly ? project.data?.key : undefined);
-  // In a members-only project, only its people (and administrators) can be given its issues.
+  const groups = useProjectGroups(membersOnly ? (project.data?.key ?? '') : '', membersOnly);
+  // In a members-only project, only its people, the people in its groups (D27) and administrators can be given its issues.
   const assignable = useMemo(() => {
-    if (!users.data || (membersOnly && !members.data)) return undefined;
+    if (!users.data || (membersOnly && (!members.data || !groups.data))) return undefined;
     if (!membersOnly) return users.data;
-    const logins = new Set((members.data ?? []).map((m) => m.user.login));
+    const logins = new Set([...(members.data ?? []).map((m) => m.user.login), ...(groups.data ?? []).flatMap((g) => g.people.map((p) => p.login))]);
     return users.data.filter((u) => u.role === 'admin' || logins.has(u.login));
-  }, [users.data, members.data, membersOnly]);
+  }, [users.data, members.data, groups.data, membersOnly]);
   const suggestions = useSuggestions(id, Boolean(issue.data));
   const request = useRequestInfo(issue.data);
   const [commanding, setCommanding] = useState(false);

@@ -73,6 +73,9 @@ export const EVENT_TYPES = [
   'pull_request.updated',
   'rule.notified',
   'rule.called',
+  'project.group.added',
+  'project.group.changed',
+  'project.group.removed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

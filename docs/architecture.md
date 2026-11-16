@@ -240,7 +240,7 @@ Every project is **open** (everyone works in it) or **members only** (only its p
 | member | also change its issues: fields, links, work, sprints, levelling |
 | manager | also change its settings, fields, people, visibility, boards and baselines |
 
-- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the role the project gives them; otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out.
+- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the highest of the role the project gives them and the roles it gives groups they're in (D27); otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out.
 - **Scopes still cap it.** Reading needs `read`; commenting, changing issues and managing need `write`. A read-only account or token never writes, whatever its role in a project.
 - **Commenting counts as a write** for scopes (it changes the record, notifies, fires webhooks), but a viewer's role is enough for it. A manager may change or delete anyone's comment in their project.
 - **A link needs write access to both ends**, because it shows on both issues and changes both histories. Its other end must be visible to be named at all.
@@ -260,8 +260,8 @@ Every project is **open** (everyone works in it) or **members only** (only its p
 - `projectRolesOf(db, projectId, userIds)` answers who can see a project, for whoever decides whom to tell or assign.
 
 - **Costs:** one small query per request; every list that names other issues (links, events, suggestions, boards) filters as it reads.
-- **Not done:** groups (a project's people are individuals); tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers everything (only administrators make them).
-- **Revisit when:** teams want groups. A `project_group_roles` table joins the same query, and the rest stays as it is.
+- **Not done:** tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers everything (only administrators make them).
+- **Groups** came as this section planned (D27): a `project_group_roles` table joins the same query, and the rest stayed as it was.
 
 ### D16. Single sign-on with OpenID Connect, through openid-client
 
@@ -548,6 +548,32 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D27. Groups, and SAML sign-in beside OpenID Connect
+
+**Groups.** A group is some people. A project gives a group a role (viewer, member, manager) as it gives one to a person, and everyone in the group has at least that role there. Someone's role is the highest of their own and their groups' (their own, when they're the same), after administrator and lead and before an open project's member. So an open project can keep a group to reading, as it keeps a person.
+
+- **The seam held** (D15). `projectAccess` still works out every project's role in one query: a lateral join picks the best role a group of theirs has there, and that group's name, for "as one of …". `projectRolesOf`, which decides whom to tell and who may be assigned, reads groups' roles beside people's. Nothing else reads the tables. Every change calls `accessChanged`, so someone taken out of a group loses what it gave them at once on this instance, and within two seconds on others (D17).
+- **Who changes what.** Administrators make groups and say who is in them; a project's managers give groups roles in it, as they give people roles. Anyone signed in sees groups and who is in them, as they see people; a group's roles are listed and counted only in projects the reader can see.
+- **History.** A group's role in a project is in the project's history (`project.group.added`, `.changed`, `.removed`; deleting a group writes a removal in each project it had a role in). Who is in a group isn't, as changes to people's accounts aren't.
+- **Agents.** `list_project_members` lists the groups with a role, and who is in each, so an agent assigns a members-only project's issues only to people who see it.
+
+**Groups from the identity provider.** A group with a name at the provider (`providerName`) takes its people from there. At each sign-in, the OIDC claim `OIDC_GROUPS_CLAIM` names, or the SAML attribute `SAML_GROUPS_ATTRIBUTE` names, lists the groups the person is in; a4a puts them in exactly the provider groups of those names (case aside), and takes them out of the others.
+
+- Groups kept by hand are never touched, whatever they're called. Names a4a has no group for are ignored, so a provider can't make groups, and a list of hundreds costs nothing.
+- A provider that leaves the claim out says the person is in none.
+- Who is in a provider's group can't be changed by hand. A group kept by hand that starts coming from the provider, or one given another name there, is emptied, and fills as people sign in; one that stops keeps its people, by hand from then on.
+
+**SAML 2.0, started by a4a.** An AuthnRequest goes by the HTTP-Redirect binding, and the response is posted to `/api/v1/auth/saml/acs`. The provider comes from its metadata (`SAML_IDP_METADATA_URL`, https, fetched at most hourly), or is set out by hand: its entity id, its sign-in URL, and its certificates (several, during a key rollover).
+
+- **The choice: @node-saml/node-saml (v5), not xml-crypto and code of our own**, for the reason D16 chose openid-client. XML signatures are where SAML implementations fail: a signed assertion wrapped around or beside an attacker's, a comment that cuts a NameID short, a second assertion. node-saml's v5 is hardened against exactly these. It verifies the signature over the assertion, or over the whole response, against the configured certificates; it returns only the assertion the signature covers, and refuses a response with more than one; and it checks the issuer, the audience and the time window, with a minute's skew. The tests sign responses with a key and certificate made for the test, and try each of those attacks.
+- **Shared by every instance.** The library's cache is in Postgres (`saml_cache`): each request's id from the start until its response comes back, taken in one statement, and each assertion's id until it would expire. So any instance takes the response, and none is accepted twice, whether or not it answers a request.
+- **What a4a adds.** The assertion must be for this endpoint: a bearer confirmation whose Recipient is the assertion consumer URL, and no other Destination on the response (node-saml v5 only warns). The response must come back to the browser that started, by a cookie, as with OIDC's state, checked against a hash kept beside the request's id. The provider posts from its own site, so over https the cookie is `SameSite=None; Secure`. The assertion consumer takes posts from another site by design, so the CSRF check passes it by; what it is sent is checked as above.
+- **Sign-in started at the provider** answers no request and matches no browser, so a response stolen from one person could be posted for another (login CSRF). It is refused unless `SAML_ALLOW_IDP_INITIATED`; when allowed, each assertion still works once.
+- **Who someone is**, as with OIDC: one function serves both. Identities are kept under `saml:` and the provider's entity id, with the NameID, and a first sign-in race is made safe the same way. SAML has no `email_verified`, so an asserted email counts as verified only with `SAML_TRUST_EMAIL`. Without it, an email links no existing account, and gives no second account an address one already has (the sign-in page says so: `unlinked`); a new account's email stays unconfirmed, and its NameID links it from then on. Allowed domains need it.
+
+- **Costs:** encrypted assertions aren't read, a4a's AuthnRequests aren't signed, and there's no single logout, so an account removed at the provider keeps its a4a sessions until they end or an administrator bans it, as with OIDC. One SAML provider at most, beside one OIDC provider. Groups follow the provider at sign-in only: someone it takes out of a group keeps that group in a4a until they next sign in.
+- **Revisit when:** a provider must encrypt assertions or wants signed requests (node-saml does both, given a key of a4a's); membership must follow the provider between sign-ins (SCIM); or people sign in with LDAP.
+
 ### D28. Remote MCP signs in with OAuth 2.1, and a4a is its own authorization server
 
 An MCP client such as Claude or Claude Code needs only `PUBLIC_URL/mcp`. The first request has no token, so `/mcp` answers 401, and its `WWW-Authenticate` names the protected resource metadata. The client follows it, registers itself, and sends the person's browser to a4a, which asks them what the app may do. The app gets a code back at its own address and exchanges it for tokens that work at `/mcp` alone. This follows the MCP authorization specification (the 2025-06-18 revision), and with it RFCs 9728, 8414, 7591, 7636, 8707, 9207, 7009 and 9700. API tokens stay for clients that don't sign in by themselves, and the stdio bridge uses one.
@@ -737,7 +763,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
   - A code or refresh token used twice revokes everything issued since.
   - Only a person signed in on a4a's own page allows an app, and never with the admin scope.
 - **Login:** failed sign-ins are counted in Postgres per IP (50) and per login (10) in 15-minute windows, shared by every instance and kept across restarts. Starting a single sign-on is throttled per IP too, on each instance. The address comes from `X-Forwarded-For` only through the `TRUST_PROXY` proxies in front; otherwise the header is ignored, since clients can send it.
-- **Single sign-on:** see D16.
+- **Single sign-on:** see D16, and D27 for SAML.
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
@@ -772,7 +798,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 
 Planned, with the seams already in place:
 
-- groups of people with a role in a project (D15);
+- LDAP sign-in, and SCIM, so people and groups follow the identity provider between sign-ins (D27);
 - client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
 - the help desk by email (replies by mail), and a captcha for its form;

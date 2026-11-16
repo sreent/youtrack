@@ -211,6 +211,15 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       if (e.type === 'project.member.removed') return { text: <>took {who} out of {project}</>, badge: ['changes', 'takes a role away'] };
       return { text: <>made {who} a {str(e.data.to)} of {project}, not a {str(e.data.from)}</>, badge: ['changes', 'changes a role'] };
     }
+    case 'project.group.added':
+    case 'project.group.changed':
+    case 'project.group.removed': {
+      const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : 'a project';
+      const group = <>the group {str(e.data.name)}</>;
+      if (e.type === 'project.group.added') return { text: <>made {group} a {str(e.data.role)} of {project}</>, badge: ['changes', 'gives a role'] };
+      if (e.type === 'project.group.removed') return { text: <>took {group} out of {project}</>, badge: ['changes', 'takes a role away'] };
+      return { text: <>made {group} a {str(e.data.to)} of {project}, not a {str(e.data.from)}</>, badge: ['changes', 'changes a role'] };
+    }
     case 'project.visibility.changed':
       return {
         text: (

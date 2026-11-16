@@ -41,6 +41,9 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'pull_request.updated': 'a pull request is merged or closed',
   'rule.notified': 'a workflow rule tells people',
   'rule.called': 'a workflow rule calls it',
+  'project.group.added': 'a group is given a role in a project',
+  'project.group.changed': 'a group’s role in a project changes',
+  'project.group.removed': 'a group is taken out of a project',
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */

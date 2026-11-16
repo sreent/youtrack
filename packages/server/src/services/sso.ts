@@ -25,6 +25,7 @@ import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { startSession } from './auth';
+import { providerGroupNames, syncProviderGroups } from './groups';
 import type { UserRow } from './schema-cache';
 import { insertUser } from './users';
 
@@ -33,7 +34,7 @@ export const SSO_STATE_TTL_MS = 10 * 60_000;
 export const SSO_STATE_COOKIE = 'a4a_sso';
 
 /** Why a sign-in didn't work, as a code the sign-in page turns into words. */
-export type SsoFailure = 'cancelled' | 'expired' | 'failed' | 'unverified' | 'domain' | 'no_account' | 'unconfirmed' | 'ambiguous' | 'refused';
+export type SsoFailure = 'cancelled' | 'expired' | 'failed' | 'unverified' | 'domain' | 'no_account' | 'unconfirmed' | 'ambiguous' | 'refused' | 'unlinked';
 
 export class SsoError extends AppError {
   constructor(
@@ -175,21 +176,69 @@ function claimText(claims: oidc.IDToken, name: string): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-/** Find the person the provider vouches for, link them the first time, or give them an account. */
-async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken, retry = true): Promise<UserRow> {
+/** The person an OpenID Connect provider vouches for; and, when configured, the provider's groups they're in. */
+async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken): Promise<UserRow> {
   const email = claimText(claims, 'email')?.toLowerCase() ?? null;
-  // Only a provider's own "verified" counts; a string or a missing claim does not.
-  const verified = email !== null && claims.email_verified === true;
-  if (cfg.allowedDomains.length) {
-    if (!verified) throw new SsoError('unverified', `${cfg.name} hasn't verified your email, so a4a can't tell whether you may sign in`);
-    const domain = email!.slice(email!.lastIndexOf('@') + 1);
-    if (!cfg.allowedDomains.includes(domain)) throw new SsoError('domain', `Accounts at ${domain} can't sign in here`);
+  const user = await personFromProvider(
+    app,
+    { key: cfg.issuer, name: cfg.name, allowedDomains: cfg.allowedDomains, createUsers: cfg.createUsers, createWithUnverifiedEmail: false },
+    {
+      subject: claims.sub,
+      email,
+      // Only a provider's own "verified" counts; a string or a missing claim does not.
+      emailVerified: email !== null && claims.email_verified === true,
+      login: claimText(claims, 'preferred_username') ?? (email ? email.slice(0, email.indexOf('@')) : null),
+      name: claimText(claims, 'name') ?? ([claimText(claims, 'given_name'), claimText(claims, 'family_name')].filter(Boolean).join(' ') || email),
+    },
+  );
+  if (cfg.groupsClaim) await syncProviderGroups(app, user.id, providerGroupNames(claims[cfg.groupsClaim]));
+  return user;
+}
+
+/** What an identity provider says about who signed in, whichever protocol it speaks. */
+export interface Vouched {
+  /** Who they are at the provider: OIDC's `sub`, SAML's NameID. */
+  subject: string;
+  /** Lower-cased. */
+  email: string | null;
+  /** The provider vouches for the email: OIDC's `email_verified`, or SAML when SAML_TRUST_EMAIL is on. */
+  emailVerified: boolean;
+  /** A login to try for a new account. */
+  login: string | null;
+  name: string | null;
+}
+
+/** How a4a treats the people one provider vouches for. */
+export interface ProviderPolicy {
+  /** What its identities are kept under: the OIDC issuer, or "saml:" and the provider's entity id. */
+  key: string;
+  name: string;
+  allowedDomains: string[];
+  createUsers: boolean;
+  /**
+   * Whether someone new gets an account when the provider doesn't vouch for their email (it stays
+   * unconfirmed). OIDC: no. SAML, which has no email_verified: yes, since its NameID links them.
+   */
+  createWithUnverifiedEmail: boolean;
+}
+
+/**
+ * Find the person a provider vouches for, link them the first time, or give them an account (D16,
+ * D27): by the provider's subject; the first time, by an email the provider vouches for, and only
+ * to an account whose own email an administrator set or a provider verified.
+ */
+export async function personFromProvider(app: AppServices, p: ProviderPolicy, who: Vouched, retry = true): Promise<UserRow> {
+  const { email, emailVerified: verified } = who;
+  if (p.allowedDomains.length) {
+    if (!verified || !email) throw new SsoError('unverified', `${p.name} hasn't verified your email, so a4a can't tell whether you may sign in`);
+    const domain = email.slice(email.lastIndexOf('@') + 1);
+    if (!p.allowedDomains.includes(domain)) throw new SsoError('domain', `Accounts at ${domain} can't sign in here`);
   }
 
   const [link] = await app.db
     .select()
     .from(userIdentities)
-    .where(and(eq(userIdentities.provider, cfg.issuer), eq(userIdentities.subject, claims.sub)));
+    .where(and(eq(userIdentities.provider, p.key), eq(userIdentities.subject, who.subject)));
   if (link) {
     const [user] = await app.db.select().from(users).where(eq(users.id, link.userId));
     if (!user || user.banned || user.isBot) throw new SsoError('refused', 'This account can’t sign in');
@@ -197,11 +246,11 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     return user;
   }
 
-  if (!verified) throw new SsoError('unverified', `${cfg.name} hasn't verified your email, so a4a can't find your account by it`);
-  const matches = await app.db.select().from(users).where(sql`lower(${users.email}) = ${email}`);
+  if (!verified && !p.createWithUnverifiedEmail) throw new SsoError('unverified', `${p.name} hasn't verified your email, so a4a can't find your account by it`);
+  const matches = email ? await app.db.select().from(users).where(sql`lower(${users.email}) = ${email}`) : [];
   try {
-    if (matches.length > 1) throw new SsoError('ambiguous', 'More than one account has your email');
-    if (matches.length === 1) {
+    if (verified && matches.length > 1) throw new SsoError('ambiguous', 'More than one account has your email');
+    if (verified && matches.length === 1) {
       const user = matches[0]!;
       if (user.banned || user.isBot) throw new SsoError('refused', 'This account can’t sign in');
       // An email someone typed for themselves proves nothing: link only one an administrator
@@ -212,32 +261,36 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
       const [other] = await app.db
         .select({ id: userIdentities.id })
         .from(userIdentities)
-        .where(and(eq(userIdentities.userId, user.id), eq(userIdentities.provider, cfg.issuer)));
-      if (other) throw new SsoError('refused', `The account with your email signs in with another ${cfg.name} account`);
-      await app.db.insert(userIdentities).values({ id: newId(), provider: cfg.issuer, subject: claims.sub, userId: user.id, email, lastSignInAt: new Date() });
+        .where(and(eq(userIdentities.userId, user.id), eq(userIdentities.provider, p.key)));
+      if (other) throw new SsoError('refused', `The account with your email signs in with another ${p.name} account`);
+      await app.db.insert(userIdentities).values({ id: newId(), provider: p.key, subject: who.subject, userId: user.id, email, lastSignInAt: new Date() });
       return user;
     }
-    if (!cfg.createUsers) throw new SsoError('no_account', `There's no a4a account for ${email}`);
+    // An email the provider doesn't vouch for links nothing, and gives nobody a second account with it.
+    if (!verified && matches.length) {
+      throw new SsoError('unlinked', `${p.name} doesn't vouch for your email, and an a4a account already has it`);
+    }
+    if (!p.createUsers) throw new SsoError('no_account', `There's no a4a account for ${email ?? 'you'}`);
     const created = await app.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
       // One person's first sign-ins at once (two tabs, a double click) take turns here: the
       // first makes the account, and the next finds it linked.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:sso:${cfg.issuer}|${claims.sub}`}))`);
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:sso:${p.key}|${who.subject}`}))`);
       const [linked] = await tx
         .select({ user: users })
         .from(userIdentities)
         .innerJoin(users, eq(users.id, userIdentities.userId))
-        .where(and(eq(userIdentities.provider, cfg.issuer), eq(userIdentities.subject, claims.sub)));
+        .where(and(eq(userIdentities.provider, p.key), eq(userIdentities.subject, who.subject)));
       if (linked) {
         if (linked.user.banned || linked.user.isBot) throw new SsoError('refused', 'This account can’t sign in');
         return linked.user;
       }
-      const login = await freeLogin(tx, claimText(claims, 'preferred_username') ?? email!.slice(0, email!.indexOf('@')));
-      const name = claimText(claims, 'name') ?? ([claimText(claims, 'given_name'), claimText(claims, 'family_name')].filter(Boolean).join(' ') || email!);
+      const login = await freeLogin(tx, who.login ?? (email ? email.slice(0, email.indexOf('@')) : 'user'));
+      const name = who.name ?? email ?? login;
       const user = await insertUser(tx, { login, name: name.slice(0, 100), email, role: 'member' });
-      await tx.update(users).set({ emailVerified: true }).where(eq(users.id, user.id));
-      await tx.insert(userIdentities).values({ id: newId(), provider: cfg.issuer, subject: claims.sub, userId: user.id, email, lastSignInAt: new Date() });
-      return { ...user, emailVerified: true };
+      if (verified) await tx.update(users).set({ emailVerified: true }).where(eq(users.id, user.id));
+      await tx.insert(userIdentities).values({ id: newId(), provider: p.key, subject: who.subject, userId: user.id, email, lastSignInAt: new Date() });
+      return { ...user, emailVerified: verified };
     });
     app.schema.invalidate();
     accessChanged(app);
@@ -246,7 +299,7 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     // Two first sign-ins at once: the other one linked or made the account, or took the
     // login this one chose (someone else, at the same moment). Look again, once.
     const pgCode = (e as { code?: string; cause?: { code?: string } })?.code ?? (e as { cause?: { code?: string } })?.cause?.code;
-    if (retry && (pgCode === '23505' || pgCode === 'login_taken')) return personFor(app, cfg, claims, false);
+    if (retry && (pgCode === '23505' || pgCode === 'login_taken')) return personFromProvider(app, p, who, false);
     throw e;
   }
 }
@@ -267,13 +320,16 @@ async function freeLogin(db: Db, wanted: string): Promise<string> {
 export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Promise<Map<string, SignIn>> {
   const out = new Map<string, SignIn>();
   const links = people.length ? await db.select().from(userIdentities).where(inArray(userIdentities.userId, people.map((u) => u.id))) : [];
-  const providerName = (issuer: string) => (app.config.oidc?.issuer === issuer ? app.config.oidc.name : (() => {
+  const providerName = (issuer: string) => {
+    if (app.config.oidc?.issuer === issuer) return app.config.oidc.name;
+    // SAML identities are kept under "saml:" and the provider's entity id.
+    if (issuer.startsWith('saml:')) return app.config.saml?.name ?? 'SAML';
     try {
       return new URL(issuer).hostname;
     } catch {
       return issuer;
     }
-  })());
+  };
   for (const u of people) {
     out.set(u.id, {
       password: Boolean(u.passwordHash),

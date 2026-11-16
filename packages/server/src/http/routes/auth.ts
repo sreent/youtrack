@@ -48,10 +48,15 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
   route(app, { method: 'get', path: '/auth/setup', tags, summary: 'Whether the first administrator still has to be created', auth: 'none', response: SetupStatusSchema }, async ({ c }) => {
     const runtime = c.get('runtime');
     const sso = runtime.config.oidc;
+    const saml = runtime.config.saml;
     return {
       needsSetup: await needsSetup(runtime.db),
       instanceName: ((await getSetting(runtime.db, 'instanceName')) as string | undefined) ?? APP_NAME,
-      signIn: { password: runtime.config.passwordLogin, sso: sso ? { name: sso.name, url: '/api/v1/auth/oidc/start' } : null },
+      signIn: {
+        password: runtime.config.passwordLogin,
+        sso: sso ? { name: sso.name, url: '/api/v1/auth/oidc/start' } : null,
+        saml: saml ? { name: saml.name, url: '/api/v1/auth/saml/start' } : null,
+      },
       mcpOAuth: oauthOn(runtime.config),
     };
   });
@@ -73,7 +78,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       const admin = await runtime.database.exclusive(async () => {
         if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator');
         if (!runtime.config.passwordLogin && !body.email) {
-          throw badRequest('Give your email', `Passwords are off here: from now on you sign in with ${runtime.config.oidc?.name ?? 'single sign-on'}, which finds you by it.`);
+          throw badRequest('Give your email', `Passwords are off here: from now on you sign in with ${runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'single sign-on'}, which finds you by it.`);
         }
         // The first administrator vouches for their own email: single sign-on may find them by it.
         const created = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, emailVerified: true, password: body.password, role: 'admin' });
@@ -93,7 +98,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
   route(app, { method: 'post', path: '/auth/login', tags, summary: 'Sign in with login and password (sets a session cookie)', auth: 'none', body: LoginBody, response: MeSchema, status: 200 }, async ({ c, body }) => {
     const runtime = c.get('runtime');
     if (!runtime.config.passwordLogin) {
-      throw new AppError(403, 'password_login_off', 'Signing in with a password is turned off here', `Sign in with ${runtime.config.oidc?.name ?? 'single sign-on'}.`);
+      throw new AppError(403, 'password_login_off', 'Signing in with a password is turned off here', `Sign in with ${runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'single sign-on'}.`);
     }
     // Counted in Postgres before the password is checked, so the limit holds across
     // instances, restarts and parallel guesses; a wrong password leaves its count.

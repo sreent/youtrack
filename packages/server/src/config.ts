@@ -18,6 +18,36 @@ export interface OidcConfig {
   createUsers: boolean;
   /** Where the provider sends people back: PUBLIC_URL's /api/v1/auth/oidc/callback, registered with the provider as is. */
   redirectUri: string;
+  /** The ID token claim that names the groups someone is in (OIDC_GROUPS_CLAIM), for groups from the provider (D27). */
+  groupsClaim?: string | null;
+}
+
+/** Single sign-on with a SAML 2.0 identity provider, from SAML_* in the environment (D27). */
+export interface SamlConfig {
+  /** What the sign-in page calls it: "Sign in with <name>". */
+  name: string;
+  /** Where the provider's metadata is (https; plain http only on this machine). Or the three below, by hand. */
+  idpMetadataUrl: string | null;
+  idpEntityId: string | null;
+  /** Where AuthnRequests go, by the HTTP-Redirect binding. */
+  idpSsoUrl: string | null;
+  /** The provider's signing certificates (PEM or base64), more than one while it rolls a key over. */
+  idpCerts: string[];
+  /** a4a's own entity id, and where the provider posts responses (PUBLIC_URL's /api/v1/auth/saml/acs). */
+  spEntityId: string;
+  acsUrl: string;
+  /** The NameID format to ask for; null asks for none and takes the provider's choice. */
+  nameIdFormat: string | null;
+  /** Attributes to read; null for email and name tries the usual names. */
+  emailAttribute: string | null;
+  nameAttribute: string | null;
+  groupsAttribute: string | null;
+  /** Whether the email the provider asserts counts as verified (SAML has no email_verified): off unless set. */
+  trustEmail: boolean;
+  allowedDomains: string[];
+  createUsers: boolean;
+  /** Sign-in started at the provider, with no request of a4a's to answer: refused unless set. */
+  allowIdpInitiated: boolean;
 }
 
 export interface Config {
@@ -40,7 +70,8 @@ export interface Config {
   sessionTtlDays: number;
   isDev: boolean;
   oidc: OidcConfig | null;
-  /** Whether people may sign in with a password. It can be off only when single sign-on is on. */
+  saml: SamlConfig | null;
+  /** Whether people may sign in with a password. It can be off only when single sign-on (OIDC or SAML) is on. */
   passwordLogin: boolean;
   /**
    * How many proxies in front of the server append to X-Forwarded-For (a load
@@ -113,6 +144,75 @@ export function oidcFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): OidcConf
       .filter(Boolean),
     createUsers: truthy(env.OIDC_CREATE_USERS, false),
     redirectUri: new URL(`${publicUrl}/api/v1/auth/oidc/callback`).href,
+    groupsClaim: env.OIDC_GROUPS_CLAIM?.trim() || null,
+  };
+}
+
+/** https, or plain http only on this machine (development and tests). */
+function safeProviderUrl(raw: string, variable: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`${variable} is not a URL: ${raw}`);
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error(`${variable} must be https (plain http is allowed only for a provider on this machine, for development).`);
+  }
+  return url.href;
+}
+
+/** Certificates as given: PEM blocks, or base64 bodies separated by commas. */
+export function certificatesFrom(raw: string | undefined): string[] {
+  const v = (raw ?? '').trim();
+  if (!v) return [];
+  if (v.includes('-----BEGIN CERTIFICATE-----')) return v.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+  return v
+    .split(',')
+    .map((c) => c.replace(/\s+/g, ''))
+    .filter(Boolean);
+}
+
+/** SAML_* from the environment; a half-made configuration stops the server with what's missing. */
+export function samlFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): SamlConfig | null {
+  const metadataUrl = env.SAML_IDP_METADATA_URL?.trim();
+  const ssoUrl = env.SAML_IDP_SSO_URL?.trim();
+  if (!metadataUrl && !ssoUrl) return null;
+  const idpCerts = certificatesFrom(env.SAML_IDP_CERT);
+  const idpEntityId = env.SAML_IDP_ENTITY_ID?.trim() || null;
+  if (!metadataUrl && (!idpCerts.length || !idpEntityId)) {
+    throw new Error('SAML needs SAML_IDP_METADATA_URL, or all of SAML_IDP_SSO_URL, SAML_IDP_ENTITY_ID and SAML_IDP_CERT.');
+  }
+  const idpMetadataUrl = metadataUrl ? safeProviderUrl(metadataUrl, 'SAML_IDP_METADATA_URL') : null;
+  const idpSsoUrl = ssoUrl ? safeProviderUrl(ssoUrl, 'SAML_IDP_SSO_URL') : null;
+  const allowedDomains = (env.SAML_ALLOWED_DOMAINS ?? '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
+  const trustEmail = truthy(env.SAML_TRUST_EMAIL, false);
+  // A domain is only worth checking on an email the provider vouches for.
+  if (allowedDomains.length && !trustEmail) throw new Error('SAML_ALLOWED_DOMAINS needs SAML_TRUST_EMAIL=true: a domain is only worth checking on an email the provider vouches for.');
+  const createUsers = truthy(env.SAML_CREATE_USERS, false);
+  if (!trustEmail && !createUsers) {
+    console.warn('SAML: neither SAML_TRUST_EMAIL nor SAML_CREATE_USERS is on, so nobody can sign in with SAML for the first time.');
+  }
+  return {
+    name: env.SAML_NAME?.trim() || new URL(idpMetadataUrl ?? idpSsoUrl!).hostname,
+    idpMetadataUrl,
+    idpEntityId,
+    idpSsoUrl,
+    idpCerts,
+    spEntityId: env.SAML_SP_ENTITY_ID?.trim() || `${publicUrl}/api/v1/auth/saml/metadata`,
+    acsUrl: new URL(`${publicUrl}/api/v1/auth/saml/acs`).href,
+    nameIdFormat: env.SAML_NAMEID_FORMAT?.trim() || null,
+    emailAttribute: env.SAML_EMAIL_ATTRIBUTE?.trim() || null,
+    nameAttribute: env.SAML_NAME_ATTRIBUTE?.trim() || null,
+    groupsAttribute: env.SAML_GROUPS_ATTRIBUTE?.trim() || null,
+    trustEmail,
+    allowedDomains,
+    createUsers,
+    allowIdpInitiated: truthy(env.SAML_ALLOW_IDP_INITIATED, false),
   };
 }
 
@@ -161,9 +261,12 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   const ai = aiSettings(env);
   const publicUrl = (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, '');
   const oidc = oidcFromEnv(env, overrides.publicUrl ?? publicUrl);
+  const saml = samlFromEnv(env, overrides.publicUrl ?? publicUrl);
   // Turning passwords off without single sign-on would let nobody in: then it stays on.
-  const passwordLogin = !oidc || truthy(env.PASSWORD_LOGIN, true);
-  if (oidc === null && !truthy(env.PASSWORD_LOGIN, true)) console.warn('PASSWORD_LOGIN=false is ignored: single sign-on is not configured (OIDC_ISSUER), so nobody could sign in.');
+  const passwordLogin = !(oidc || saml) || truthy(env.PASSWORD_LOGIN, true);
+  if (oidc === null && saml === null && !truthy(env.PASSWORD_LOGIN, true)) {
+    console.warn('PASSWORD_LOGIN=false is ignored: single sign-on is not configured (OIDC_ISSUER or SAML_IDP_*), so nobody could sign in.');
+  }
   if (env.ATTACHMENT_STORAGE && env.ATTACHMENT_STORAGE !== 'local') {
     throw new Error(`ATTACHMENT_STORAGE=${env.ATTACHMENT_STORAGE} isn't available: files are stored on local disk ("local") so far`);
   }
@@ -187,6 +290,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     sessionTtlDays: Number(env.SESSION_TTL_DAYS ?? 30),
     isDev: env.NODE_ENV !== 'production',
     oidc,
+    saml,
     passwordLogin,
     trustProxy: intEnv(env.TRUST_PROXY, 0),
     apiRateLimit: intEnv(env.API_RATE_LIMIT, 1200, 1),

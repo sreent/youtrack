@@ -9,6 +9,7 @@ import { Avatar } from '../components/Who';
 import { ago } from '../components/Badges';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
+import { GroupsSection } from '../features/groups/GroupsSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 
 const ROLE_WORDS: Record<Role, string> = {
@@ -407,6 +408,7 @@ export default function AdminPage() {
         </p>
         <AddPerson />
       </section>
+      <GroupsSection />
       <section className="card" aria-labelledby="instance">
         <h2 id="instance">This instance</h2>
         {settings.isLoading ? <Loading what="settings" /> : null}
