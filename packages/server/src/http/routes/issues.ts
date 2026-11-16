@@ -3,6 +3,7 @@ import {
   CommandBody,
   CommandResultSchema,
   CommentBody,
+  CloneIssueBody,
   CommentSchema,
   CountBody,
   CountResultSchema,
@@ -13,13 +14,18 @@ import {
   IssueListQuery,
   IssueListSchema,
   LinkBody,
+  MoveIssueBody,
+  MovePlanSchema,
   NewCommentBody,
   ParseQueryResultSchema,
   SavedSearchBody,
   SavedSearchSchema,
   QueryProblemSchema,
+  ReactBody,
+  ReactionSummarySchema,
   SuggestItemSchema,
   UpdateIssueBody,
+  VoteSchema,
   WorkItemBody,
   WorkItemSchema,
   patchBody,
@@ -28,6 +34,8 @@ import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
 import { suggestCommand } from '../../commands/parser';
 import { countIssues, parseQueryForApi, searchIssues } from '../../search/service';
+import { cloneIssue, moveIssue } from '../../services/move';
+import { reactToComment, reactToIssue, setVote } from '../../services/votes';
 import { suggest } from '../../search/suggest';
 import { issueActivity } from '../../services/activity';
 import { addComment, deleteComment, listComments, updateComment } from '../../services/comments';
@@ -101,6 +109,50 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     await deleteComment(ctx, params.id);
     return null;
   });
+
+  // Moving, cloning, votes and reactions (D41)
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/move',
+      tags: ['Issues'],
+      summary: 'Move an issue to another project',
+      description:
+        "It takes the project's next number, and its old id keeps finding it. Values carry over by name; what doesn't is a problem, and nothing moves until each has a value in `fields` (or null). `dryRun` says what would happen. A move with problems left is refused with the plan in the error's details.",
+      params: Id,
+      body: MoveIssueBody,
+      response: MovePlanSchema,
+      status: 200,
+    },
+    ({ ctx, params, body }) => moveIssue(ctx, params.id, body),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/clone',
+      tags: ['Issues'],
+      summary: 'Clone an issue',
+      description: 'Its summary, description, values and tags, in its project or another, linked back ("clones") and under the same parent. Comments, files, work, votes and other links stay with the original.',
+      params: Id,
+      body: CloneIssueBody,
+      response: IssueDetailSchema,
+    },
+    ({ ctx, params, body }) => cloneIssue(ctx, params.id, body),
+  );
+  route(app, { method: 'post', path: '/issues/{id}/vote', tags: ['Issues'], summary: 'Vote for an issue', params: Id, response: VoteSchema, status: 200 }, ({ ctx, params }) => setVote(ctx, params.id, true));
+  route(app, { method: 'delete', path: '/issues/{id}/vote', tags: ['Issues'], summary: 'Take your vote back', params: Id, response: VoteSchema, status: 200 }, ({ ctx, params }) => setVote(ctx, params.id, false));
+  route(
+    app,
+    { method: 'post', path: '/issues/{id}/reactions', tags: ['Issues'], summary: "React to an issue's description, or take the reaction back", params: Id, body: ReactBody, response: z.array(ReactionSummarySchema), status: 200 },
+    ({ ctx, params, body }) => reactToIssue(ctx, params.id, body.emoji),
+  );
+  route(
+    app,
+    { method: 'post', path: '/comments/{id}/reactions', tags: ['Comments'], summary: 'React to a comment, or take the reaction back', params: z.object({ id: z.string() }), body: ReactBody, response: z.array(ReactionSummarySchema), status: 200 },
+    ({ ctx, params, body }) => reactToComment(ctx, params.id, body.emoji),
+  );
 
   // Links
   route(app, { method: 'get', path: '/issues/{id}/links', tags: ['Links'], summary: "An issue's links", params: Id, response: z.array(IssueLinkSchema) }, ({ ctx, params }) => listLinks(ctx, params.id));

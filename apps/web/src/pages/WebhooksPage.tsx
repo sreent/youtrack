@@ -16,6 +16,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'issue.created': 'an issue is created',
   'issue.updated': 'an issue changes',
   'issue.deleted': 'an issue is deleted',
+  'issue.moved': 'an issue moves to another project',
   'comment.created': 'someone comments',
   'comment.updated': 'a comment is edited',
   'comment.deleted': 'a comment is deleted',

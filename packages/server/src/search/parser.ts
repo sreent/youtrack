@@ -232,7 +232,7 @@ class Parser {
   private parseValueItem(def: TermDef | undefined): ValueNode | null {
     const t = this.peek();
     if (!t) return null;
-    const isDate = def?.valueType === 'date';
+    const isDate = def?.valueType === 'date' || def?.valueType === 'datetime';
     let negated = false;
     let start = t.start;
     if (t.kind === 'minus') {

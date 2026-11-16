@@ -138,6 +138,8 @@ export async function createGroup(ctx: Ctx, input: { name: string; description?:
   } catch (e) {
     takenError(e, input);
   }
+  // A group field names groups from the schema snapshot (D41).
+  ctx.app.schema.invalidate();
   return getGroup(ctx, id);
 }
 
@@ -167,6 +169,7 @@ export async function updateGroup(ctx: Ctx, ref: string, input: { name?: string;
     takenError(e, { name: input.name ?? g.name, providerName });
   }
   if (toProvider) accessChanged(ctx.app);
+  if (input.name !== undefined) ctx.app.schema.invalidate();
   return getGroup(ctx, g.id);
 }
 
@@ -187,6 +190,7 @@ export async function deleteGroup(ctx: Ctx, ref: string): Promise<void> {
     return out;
   });
   accessChanged(ctx.app);
+  ctx.app.schema.invalidate();
   await publishActivities(ctx.app, written);
 }
 

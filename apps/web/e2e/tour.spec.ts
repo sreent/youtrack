@@ -59,6 +59,15 @@ const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
  * A plan of its own whose one person is away a whole day and the afternoon of the next, in the
  * grid's days: three days' work from today, which waits for them.
  */
+/** An issue that moved from BACK to WEB, with reactions to it: its page, by the id it had (D41). */
+const moved = async (api: Api) => {
+  const issue = await api.createIssue({ project: 'BACK', summary: 'Sign-in page shows the old logo', description: 'Since the rebrand, the sign-in page still shows the old logo.' });
+  await api.post(`/issues/${issue.id}/reactions`, { emoji: '👍' });
+  await api.post(`/issues/${issue.id}/reactions`, { emoji: '👀' });
+  await api.post(`/issues/${issue.id}/move`, { project: 'WEB', fields: { Subsystem: null } });
+  return `/issues/${issue.id}`;
+};
+
 const withDaysAway = async (api: Api) => {
   const key = uniqueKey('TA');
   await api.createProject({ key, name: `Tour ${key}`, template: 'waterfall' });
@@ -203,6 +212,7 @@ const STOPS: Stop[] = [
   { name: 'issues', path: '/issues', ready: (p) => p.getByRole('list', { name: /^\d+ issues$/ }) },
   { name: 'an issue with comments and work', path: '/issues/BACK-2', ready: (p) => p.getByRole('heading', { name: 'History and comments' }) },
   { name: 'an issue just reported', path: '/issues/BACK-3', ready: (p) => p.getByRole('heading', { name: 'History and comments' }) },
+  { name: 'an issue that moved, with reactions', path: moved, ready: (p) => p.getByText(/^was BACK-\d+$/) },
   { name: "an issue with triage's values waiting", path: waitingOnBack3('/issues/BACK-3'), ready: (p) => p.getByText('Dashed values were worked out by an agent') },
   { name: 'a new issue', path: '/issues/new', ready: (p) => p.getByLabel('Summary') },
   { name: 'boards', path: '/boards', ready: (p) => p.getByRole('link', { name: 'Backend sprints' }) },

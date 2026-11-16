@@ -1,4 +1,4 @@
-import type { Comment, CommentVisibility } from '@a4a/shared';
+import type { Comment, CommentVisibility, ReactionSummary } from '@a4a/shared';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -10,6 +10,7 @@ import { assertCanCommentProject, assertCanWriteProject, projectAccess } from '.
 import { issueRefsById, readableId } from './issue-refs';
 import { applyChanges, findVisibleIssue, resolveIssue } from './issues';
 import { userRefDto } from './values';
+import { reactionsOf } from './votes';
 import { addWatchers, mentionsAdded, whoSees } from './watchers';
 
 type CommentRow = typeof comments.$inferSelect;
@@ -21,8 +22,15 @@ async function requesterNames(db: Db, rows: CommentRow[]): Promise<Map<string, s
   return new Map(found.map((r) => [r.id, r.name]));
 }
 
-export async function commentDto(ctx: Ctx, row: CommentRow, issueReadable?: string, names?: Map<string, string>): Promise<Comment> {
+export async function commentDto(
+  ctx: Ctx,
+  row: CommentRow,
+  issueReadable?: string,
+  names?: Map<string, string>,
+  reactions?: Map<string, ReactionSummary[]>,
+): Promise<Comment> {
   const s = await ctx.app.schema.get();
+  const reacted = reactions ?? (await reactionsOf(ctx.db, s, row.issueId, ctx.actor.user.id));
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
   const requesterName = row.requesterId ? ((names ?? (await requesterNames(ctx.db, [row]))).get(row.requesterId) ?? 'The requester') : null;
   return {
@@ -35,6 +43,7 @@ export async function commentDto(ctx: Ctx, row: CommentRow, issueReadable?: stri
     updatedAt: row.updatedAt.toISOString(),
     visibility: row.visibility as CommentVisibility,
     requester: requesterName !== null ? { name: requesterName } : null,
+    reactions: reacted.get(`comment:${row.id}`) ?? [],
   };
 }
 
@@ -49,7 +58,8 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
     .orderBy(asc(comments.createdAt));
   const rid = readableId(s, issue);
   const names = await requesterNames(ctx.db, rows);
-  return Promise.all(rows.map((r) => commentDto(ctx, r, rid, names)));
+  const reacted = await reactionsOf(ctx.db, s, issue.id, ctx.actor.user.id);
+  return Promise.all(rows.map((r) => commentDto(ctx, r, rid, names, reacted)));
 }
 
 /**

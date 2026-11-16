@@ -51,6 +51,8 @@ export function eventVerb(e: TrackerEvent): string {
       return `removed the file ${(data.attachment as { name?: string } | undefined)?.name ?? ''}`.trim();
     case 'issue.deleted':
       return 'deleted it';
+    case 'issue.moved':
+      return `moved it from ${String(data.from ?? 'another project')} to ${String(data.to ?? 'another project')}`;
     case 'rule.notified':
       return `passed on a message from the rule “${ruleName(e)}”`;
     case 'rule.called':

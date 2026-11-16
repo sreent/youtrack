@@ -22,21 +22,7 @@
  * hold: comments, work items and files, each by its id there, so running again adds only what's
  * new. Its files are downloaded as it runs, with the token given for the run.
  */
-import {
-  formatPeriod,
-  type Import,
-  type ImportCheck,
-  type ImportColumn,
-  type ImportCounts,
-  type ImportCredentials,
-  type ImportOptions,
-  type ImportOrigin,
-  type ImportProblem,
-  type ImportRow,
-  type ImportSource,
-  type ImportUndo,
-  type ImportValueMap,
-} from '@a4a/shared';
+import { formatPeriod, type Import, type ImportCheck, type ImportColumn, type ImportCounts, type ImportCredentials, type ImportOptions, type ImportOrigin, type ImportProblem, type ImportRow, type ImportSource, type ImportUndo, type ImportValueMap, isOptionType } from '@a4a/shared';
 import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -173,7 +159,7 @@ function valueKind(c: Context, target: string): { kind: 'option' | 'user' | 'spr
   const f = fieldOf(c, target);
   if (!f) return null;
   if (f.type === 'user') return { kind: 'user', multi: f.multi, label: f.name };
-  if (f.type === 'enum' || f.type === 'state' || f.type === 'version') return { kind: 'option', multi: f.multi, label: f.name };
+  if (isOptionType(f.type)) return { kind: 'option', multi: f.multi, label: f.name };
   return null;
 }
 
@@ -690,6 +676,10 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
         const t = parseDate(r.value, tz);
         if (t === null) problem('warning', r.column, `"${r.value}" isn't a date, so ${f.name} is left out`);
         else out.push(localDate(t, tz));
+      } else if (f.type === 'datetime') {
+        const t = parseDate(r.value, tz);
+        if (t === null) problem('warning', r.column, `"${r.value}" isn't a date and time, so ${f.name} is left out`);
+        else out.push(new Date(t).toISOString());
       } else out.push(r.value);
     }
     if (!out.length) continue;

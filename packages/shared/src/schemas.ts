@@ -16,6 +16,7 @@ import {
   PROJECT_ROLES,
   PROJECT_VISIBILITIES,
   PULL_REQUEST_STATES,
+  REACTIONS,
   ROLES,
   RULE_EVERY,
   RULE_KINDS,
@@ -370,6 +371,7 @@ export const FieldValueSchema = z
     isResolved: z.boolean(),
     archived: z.boolean(),
     projectId: z.string().nullable().describe('null = shared by every project using the field'),
+    owner: UserRefSchema.nullable().describe("An owned field's value: who owns it, and is assigned an issue given it while it has nobody (D41)"),
   })
   .meta({ id: 'FieldValue' });
 export type FieldValue = z.infer<typeof FieldValueSchema>;
@@ -396,6 +398,10 @@ export const ProjectFieldSchema = z
     ordinal: z.number().int(),
     defaultValue: z.unknown().nullable(),
     values: z.array(FieldValueSchema).describe('Allowed values in this project (option fields)'),
+    condition: z
+      .string()
+      .nullable()
+      .describe('A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always'),
   })
   .meta({ id: 'ProjectField' });
 export type ProjectField = z.infer<typeof ProjectFieldSchema>;
@@ -412,6 +418,7 @@ export const CreateFieldBody = z.object({
         tone: ToneSchema.optional(),
         isResolved: z.boolean().optional(),
         description: z.string().optional(),
+        owner: z.string().optional().describe("An owned field's value: its owner's login"),
       }),
     )
     .default([]),
@@ -419,6 +426,10 @@ export const CreateFieldBody = z.object({
 export const UpdateFieldBody = z.object({
   name: z.string().min(1).max(60).optional(),
   description: z.string().max(1000).optional(),
+  type: z
+    .enum(['enum', 'owned'])
+    .optional()
+    .describe('An enum field becomes an owned one, or back: its values and the issues keep theirs (D41)'),
 });
 export const FieldValueBody = z.object({
   name: z.string().min(1).max(80),
@@ -428,11 +439,18 @@ export const FieldValueBody = z.object({
   ordinal: z.number().int().optional(),
   archived: z.boolean().optional(),
   project: z.string().nullable().optional().describe('Project key to scope the value to one project'),
+  owner: z.string().nullable().optional().describe("An owned field's value: its owner's login, or null for nobody"),
 });
 export const AttachFieldBody = z.object({
   required: z.boolean().default(false),
   ordinal: z.number().int().optional(),
   defaultValue: z.unknown().nullable().optional(),
+  condition: z
+    .string()
+    .max(2000)
+    .nullable()
+    .optional()
+    .describe('A query: the field shows, and is required if it is, only while the issue matches it, e.g. "State: Fixed". Null: always'),
 });
 
 // ---------------------------------------------------------------------------
@@ -446,6 +464,7 @@ export const OptionValueSchema = z
     tone: ToneSchema,
     isResolved: z.boolean(),
     ordinal: z.number().int(),
+    owner: UserRefSchema.nullable().optional().describe("An owned field's value: who owns it"),
   })
   .meta({ id: 'OptionValue' });
 export type OptionValue = z.infer<typeof OptionValueSchema>;
@@ -455,15 +474,21 @@ export const PeriodValueSchema = z
   .meta({ id: 'PeriodValue' });
 export type PeriodValue = z.infer<typeof PeriodValueSchema>;
 
+/** A group as a field's value (D41). */
+export const GroupValueSchema = z.object({ id: z.string(), name: z.string() }).meta({ id: 'GroupValue' });
+export type GroupValue = z.infer<typeof GroupValueSchema>;
+
 export const IssueFieldValueSchema = z.union([
   z.null(),
   OptionValueSchema,
   UserRefSchema,
+  GroupValueSchema,
   PeriodValueSchema,
-  z.string(),
+  z.string().describe('Text; a date as YYYY-MM-DD; a date and time as an ISO 8601 instant'),
   z.number(),
   z.array(OptionValueSchema),
   z.array(UserRefSchema),
+  z.array(GroupValueSchema),
 ]);
 export type IssueFieldValue = z.infer<typeof IssueFieldValueSchema>;
 
@@ -474,6 +499,10 @@ export const IssueFieldSchema = z
     type: z.enum(FIELD_TYPES),
     multi: z.boolean(),
     value: IssueFieldValueSchema,
+    applies: z
+      .boolean()
+      .optional()
+      .describe("Whether a conditional field's condition holds for the issue now (D41); absent for a field with none"),
   })
   .meta({ id: 'IssueField' });
 export type IssueField = z.infer<typeof IssueFieldSchema>;
@@ -506,6 +535,7 @@ export const IssueSchema = z
     fields: z.array(IssueFieldSchema),
     tags: z.array(TagSchema),
     commentCount: z.number().int(),
+    votes: z.number().int().describe('How many people voted for it (D41)'),
   })
   .meta({ id: 'Issue' });
 export type Issue = z.infer<typeof IssueSchema>;
@@ -522,6 +552,17 @@ export const IssueLinkSchema = z
   .meta({ id: 'IssueLink' });
 export type IssueLink = z.infer<typeof IssueLinkSchema>;
 
+/** One reaction on a comment or a description, and who gave it (D41). */
+export const ReactionSummarySchema = z
+  .object({
+    emoji: z.enum(REACTIONS),
+    count: z.number().int(),
+    mine: z.boolean().describe('Whether the caller gave it'),
+    people: z.array(UserRefSchema).describe('Who gave it, the first ten'),
+  })
+  .meta({ id: 'ReactionSummary' });
+export type ReactionSummary = z.infer<typeof ReactionSummarySchema>;
+
 export const IssueDetailSchema = IssueSchema.extend({
   description: z.string(),
   updatedBy: UserRefSchema.nullable(),
@@ -530,6 +571,9 @@ export const IssueDetailSchema = IssueSchema.extend({
   subtasks: z.array(IssueRefSchema),
   spentMinutes: z.number().int(),
   pendingSuggestions: z.number().int(),
+  voted: z.boolean().describe('Whether the caller voted for it'),
+  reactions: z.array(ReactionSummarySchema).describe('Reactions to its description'),
+  formerIds: z.array(z.string()).describe('Ids it had before it moved: each still finds it (D41)'),
 }).meta({ id: 'IssueDetail' });
 export type IssueDetail = z.infer<typeof IssueDetailSchema>;
 
@@ -593,6 +637,7 @@ export const CommentSchema = z
       .object({ name: z.string() })
       .nullable()
       .describe('Set when the requester of a help desk request wrote it, on their tracking page'),
+    reactions: z.array(ReactionSummarySchema),
   })
   .meta({ id: 'Comment' });
 export type Comment = z.infer<typeof CommentSchema>;
@@ -2421,3 +2466,50 @@ export const ProviderLoginBody = z.object({
     .max(200)
     .describe("Their username at the provider. For Bitbucket Cloud, their account id or UUID: its nicknames aren't unique"),
 });
+
+// ---------------------------------------------------------------------------
+// Issues and fields (package 5: docs/architecture.md, D41)
+// ---------------------------------------------------------------------------
+
+export const MoveIssueBody = z.object({
+  project: z.string().min(1).describe('The key of the project it moves to'),
+  fields: FieldsInput.optional().describe("Values for fields whose value doesn't carry over by name, or null to leave one empty"),
+  dryRun: z.boolean().default(false).describe('Say what would happen, and change nothing'),
+  expectedVersion: z.number().int().optional(),
+});
+export type MoveIssueInput = z.input<typeof MoveIssueBody>;
+
+export const MoveProblemSchema = z
+  .object({
+    field: z.string().nullable().describe('The field it is about; null for the issue as a whole'),
+    message: z.string(),
+    hint: z.string().optional(),
+    choices: z.array(z.string()).optional().describe('Values the field takes in the project it moves to'),
+  })
+  .meta({ id: 'MoveProblem' });
+export type MoveProblem = z.infer<typeof MoveProblemSchema>;
+
+export const MovePlanSchema = z
+  .object({
+    from: z.string().describe('Its id now'),
+    to: z.string().describe('Its id once moved'),
+    project: z.object({ key: z.string(), name: z.string() }),
+    problems: z.array(MoveProblemSchema).describe("What doesn't carry over: each needs a value in `fields` (or null), and nothing moves until none is left"),
+    carried: z.array(z.object({ field: z.string(), from: z.string().nullable(), to: z.string().nullable() })).describe('What each field will hold there'),
+    dropped: z.array(z.string()).describe("Fields the project it moves to doesn't have: their values are left behind"),
+    leftSprints: z.array(z.string()).describe('Sprints it leaves, on boards that show none of that project'),
+    moved: z.boolean().describe('Whether it moved (false for a dry run, or while problems remain)'),
+  })
+  .meta({ id: 'MovePlan' });
+export type MovePlan = z.infer<typeof MovePlanSchema>;
+
+export const CloneIssueBody = z.object({
+  project: z.string().optional().describe('Where the copy goes; its own project if left out'),
+  summary: z.string().min(1).max(500).optional().describe("The copy's summary; the original's if left out"),
+});
+export type CloneIssueInput = z.input<typeof CloneIssueBody>;
+
+export const VoteSchema = z.object({ votes: z.number().int(), voted: z.boolean() }).meta({ id: 'Vote' });
+export type Vote = z.infer<typeof VoteSchema>;
+
+export const ReactBody = z.object({ emoji: z.enum(REACTIONS) });

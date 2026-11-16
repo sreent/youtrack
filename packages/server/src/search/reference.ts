@@ -17,7 +17,8 @@ A query is a list of terms; terms side by side must all match ("and").
 - \`reporter: ben\` (also \`by:\`) · \`updated by: anna\` · \`commenter: chloe\` · \`watcher: me\` (issues you watch; also \`watched by:\`)
 - \`created: 2026-01-01 .. 2026-01-31\` · \`updated: today\` · \`resolved date: {this week}\`
 - \`tag: regression\` · \`sprint: Sprint 14\` · \`spent time: 1d .. *\`
-- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`, \`watchers\`, \`request\` (came in through a help desk)
+- \`votes: 5 .. *\` (how many voted for it) · \`voter: me\` (issues you voted for; also \`voted by:\`) · \`sort by: votes desc\`
+- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`, \`watchers\`, \`votes\`, \`request\` (came in through a help desk)
 - Help desk: \`requester: jane@example.com\` (or a name) · \`sla: overdue\` (no first response, past the target), \`sla: due\` (none yet, within it), \`sla: met\`, \`sla: missed\`
 - Links: \`depends on: BACK-3\`, \`is required for: BACK-3\`, \`subtask of: BACK-1\`, \`parent for: BACK-5\`, \`duplicates: BACK-7\`, \`relates to: WEB-2\`, \`links: BACK-3\` (any link)
 

@@ -1,7 +1,7 @@
 import type { FieldType } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { fields, fieldValues, linkTypes, projectFields, projects, rules, tags, users } from '../db/schema';
+import { fields, fieldValues, groups, linkTypes, projectFields, projects, rules, tags, users } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -11,6 +11,7 @@ export type TagRow = typeof tags.$inferSelect;
 export type LinkTypeRow = typeof linkTypes.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
 export type RuleRow = typeof rules.$inferSelect;
+export type GroupRow = typeof groups.$inferSelect;
 
 export interface LinkPhrase {
   phrase: string; // lower-case
@@ -36,6 +37,9 @@ export interface SchemaSnapshot {
   usersByLogin: Map<string, UserRow>;
   /** Workflow rules, oldest first, so the write path finds a project's guards without a query. */
   rules: RuleRow[];
+  /** Groups, for a group field's values (D41). */
+  groups: Map<string, GroupRow>;
+  groupsByName: Map<string, GroupRow>;
   loadedAt: number;
 }
 
@@ -126,6 +130,7 @@ export class SchemaCache {
     const linkRows = await db.select().from(linkTypes).orderBy(asc(linkTypes.ordinal));
     const userRows = await db.select().from(users).orderBy(asc(users.login));
     const ruleRows = await db.select().from(rules).orderBy(asc(rules.createdAt), asc(rules.id));
+    const groupRows = await db.select().from(groups).orderBy(asc(groups.name));
     const snap: SchemaSnapshot = {
       fields: new Map(),
       fieldsByName: new Map(),
@@ -141,6 +146,8 @@ export class SchemaCache {
       users: new Map(),
       usersByLogin: new Map(),
       rules: ruleRows,
+      groups: new Map(groupRows.map((g) => [g.id, g])),
+      groupsByName: new Map(groupRows.map((g) => [g.name.toLowerCase(), g])),
       loadedAt: Date.now(),
     };
     for (const f of fieldRows) {

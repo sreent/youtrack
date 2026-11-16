@@ -8,6 +8,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
+  - Fields can also hold groups, builds (a list CI can add to twice without harm), owned values (each Subsystem has an owner, who takes an issue about it that nobody has) and moments with a time, typed in your own time zone.
+  - A field can show, and be required, only while its issue matches a search: *Fixed in build*, while `State: Fixed`. Marking it Fixed asks for the build.
+- **Moving and cloning.** An issue moves to another project and takes its next number; its old id still finds it everywhere (addresses, the API, MCP, Markdown, commit messages). What doesn't carry over by name is asked for before anything moves. A clone copies its words, values and tags, linked back.
+- **Votes and reactions.** Vote for what you want (`sort by: votes desc`, `voter: me`), and react to a description or a comment with one of eight emoji.
 - **The query language**, as in YouTrack: `project: BACK #Unresolved for: me Priority: Critical, Major sort by: updated desc`.
   - Autocomplete as you type.
   - Problems are underlined where they are, with the fix one click away: *Unknown value "Fixd" for State · Did you mean Fixed?* The API gives agents the same fix as data.
@@ -78,7 +82,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 39 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
+- **For agents**: an MCP server at `/mcp` with 42 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
 - **Agents of their own**: an administrator adds an agent (a bot account) and issues it tokens on the Agents page.
   - With one, an agent over MCP or the API acts as itself: its changes show under its name, for no one, and `me` is the agent.
   - Issues can be assigned to it, as to a person; `for: me #Unresolved` over its token is its work. a4a's own agents (triage, workflow, the help desk) take no work.

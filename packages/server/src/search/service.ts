@@ -1,3 +1,4 @@
+import { isOptionType } from '@a4a/shared';
 import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
@@ -121,10 +122,16 @@ export async function countIssues(ctx: Ctx, query: string, groupBy?: string): Pr
   } else {
     const field = fieldByName(s, groupBy);
     if (!field) throw badRequest(`Cannot group by "${groupBy}"`, 'Use a custom field name, project, tag, reporter or resolved.');
-    if (field.type === 'enum' || field.type === 'state' || field.type === 'version') {
+    if (isOptionType(field.type)) {
       grouped = sql`SELECT fv.name AS value, count(DISTINCT issues.id)::int AS count, min(fv.ordinal) AS ord FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN field_values fv ON fv.id = ifv.value_id WHERE ${where} GROUP BY fv.name ORDER BY ord NULLS LAST`;
     } else if (field.type === 'user') {
       grouped = sql`SELECT u.login AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN users u ON u.id = ifv.user_id WHERE ${where} GROUP BY u.login ORDER BY count DESC`;
+    } else if (field.type === 'group') {
+      grouped = sql`SELECT g.name AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN groups g ON g.id = ifv.group_id WHERE ${where} GROUP BY g.name ORDER BY count DESC`;
+    } else if (field.type === 'datetime') {
+      // By the day, where the asker is.
+      const day = sql`to_char(ifv.time_value AT TIME ZONE ${zoneOf(ctx)}, 'YYYY-MM-DD')`;
+      grouped = sql`SELECT ${day} AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} WHERE ${where} GROUP BY 1 ORDER BY 1 NULLS LAST`;
     } else if (field.type === 'date') {
       grouped = sql`SELECT ifv.date_value::text AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} WHERE ${where} GROUP BY ifv.date_value ORDER BY ifv.date_value NULLS LAST`;
     } else {

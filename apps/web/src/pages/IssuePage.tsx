@@ -1,7 +1,7 @@
 import type { IssueDetail, IssueField, Suggestion } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useMemo, useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
 import { ApiError, post } from '../api/client';
 import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
 import { StateBadge } from '../components/Badges';
@@ -23,6 +23,7 @@ import { IssueCode } from '../features/vcs/IssueCode';
 import { FormField } from '../components/Form';
 import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
 import { WatchersCard, WatchToggle } from '../features/issues/Watching';
+import { CloneButton, MoveIssue, ReactionBar, VoteToggle } from '../features/issues/Moves';
 import { useRequestInfo } from '../features/notifications/api';
 import { useProjectGroups } from '../features/groups/api';
 
@@ -39,7 +40,7 @@ function presented(f: IssueField | undefined): string | null {
 
 const open = (s: Suggestion) => s.status === 'pending' || s.status === 'partially_applied';
 
-function Description({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
+function Description({ issue, canEdit, canReact }: { issue: IssueDetail; canEdit: boolean; canReact: boolean }) {
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.description);
@@ -80,6 +81,7 @@ function Description({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean 
   return (
     <section className="card stack" aria-label="Description">
       {issue.description.trim() ? <Markdown text={issue.description} /> : <p className="note">No description yet.</p>}
+      <ReactionBar reactions={issue.reactions} path={`/issues/${issue.id}/reactions`} issue={issue.id} canReact={canReact} />
       {canEdit ? (
         <div className="cluster">
           <button
@@ -205,6 +207,14 @@ export default function IssuePage() {
   const suggestions = useSuggestions(id, Boolean(issue.data));
   const request = useRequestInfo(issue.data);
   const [commanding, setCommanding] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const navigate = useNavigate();
+  // An id it had before it moved finds it; the address then says the id it has now (D41).
+  const asked = id.toUpperCase();
+  const movedFrom = issue.data && issue.data.id !== asked && issue.data.formerIds.includes(asked) ? asked : null;
+  useEffect(() => {
+    if (movedFrom && issue.data) navigate(`/issues/${issue.data.id}${window.location.hash}`, { replace: true, state: { movedFrom } });
+  }, [movedFrom, issue.data, navigate]);
   const [triaging, setTriaging] = useState<string | null>(null);
 
   // Each field's value as triage last worked it out, while it differs from the issue's own.
@@ -272,6 +282,7 @@ export default function IssuePage() {
         badges={
           <>
             <span className="issue-id">{data.id}</span>
+            {data.formerIds.length ? <span className="note">was {data.formerIds.join(', ')}</span> : null}
             <StateBadge fields={data.fields} />
             {request.data ? <SlaBadge sla={request.data.firstResponse} since={request.data.createdAt} /> : null}
           </>
@@ -296,6 +307,13 @@ export default function IssuePage() {
         actions={
           <>
             <WatchToggle issue={data.id} />
+            <VoteToggle issue={data} mine={Boolean(me.data && data.reporter?.id === me.data.id)} />
+            {canWrite ? <CloneButton issue={data} /> : null}
+            {canWrite ? (
+              <button type="button" aria-expanded={moving} onClick={() => setMoving(!moving)}>
+                Move
+              </button>
+            ) : null}
             {ai.data?.enabled ? (
               <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title="Ask triage to work out its fields and look for duplicates">
                 <Icon name="agent" />
@@ -312,6 +330,7 @@ export default function IssuePage() {
         }
       />
       {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
+      {moving ? <MoveIssue issue={data} onClose={() => setMoving(false)} /> : null}
       {project.data && !project.data.access.write ? (
         <p className="note">
           {project.data.access.comment
@@ -321,7 +340,7 @@ export default function IssuePage() {
       ) : null}
       <div className="split">
         <div className="stack">
-          <Description issue={data} canEdit={canWrite} />
+          <Description issue={data} canEdit={canWrite} canReact={canComment} />
           <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
           {/* Deciding on what triage suggests is a change to the issue: its members decide. */}

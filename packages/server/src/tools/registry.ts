@@ -36,6 +36,7 @@ import { reportTools } from './reports';
 import { notificationTools } from './notifications';
 import { requestOf } from '../services/helpdesk';
 import { workflowTools } from './workflow';
+import { issueMoveTools } from './issue-moves';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -207,6 +208,8 @@ const getIssueTool = defineTool({
         project: i.project.key,
         fields: fieldsMap(i.fields),
         tags: i.tags.map((t) => t.name),
+        votes: i.votes,
+        ...(i.formerIds.length ? { former_ids: i.formerIds } : {}),
         reporter: i.reporter?.login ?? null,
         created: i.createdAt,
         updated: i.updatedAt,
@@ -437,7 +440,7 @@ const updateIssueTool = defineTool({
       applyChanges(tx as unknown as Db, ctx, issue, {
         summary: input.summary,
         description: input.description,
-        fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx))),
+        fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx)), zoneOf(ctx)),
         addTags: input.add_tags,
         removeTags: input.remove_tags,
       }, { dryRun: true }),
@@ -596,6 +599,7 @@ export const TOOLS: ToolDef[] = [
   ...reportTools,
   ...notificationTools,
   ...workflowTools,
+  ...issueMoveTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

@@ -29,7 +29,7 @@ export interface Subscribed {
 }
 
 /** What tells someone of "every change": what tells an issue's watchers. A comment's files go with the comment. */
-const EVERY_CHANGE = new Set<string>(['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed']);
+const EVERY_CHANGE = new Set<string>(['issue.created', 'issue.updated', 'issue.moved', 'issue.deleted', 'comment.created', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed']);
 
 function isChange(event: TrackerEvent): boolean {
   if (!EVERY_CHANGE.has(event.type)) return false;

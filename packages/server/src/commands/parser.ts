@@ -1,4 +1,4 @@
-import { isOwnAgent, type QueryProblem, type SuggestItem } from '@a4a/shared';
+import { isOwnAgent, type QueryProblem, type SuggestItem, isOptionType } from '@a4a/shared';
 import { fixValue, lex, type Token } from '../search/lexer';
 import { didYouMean, editDistance } from '../lib/text';
 import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
@@ -53,7 +53,7 @@ class CommandParser {
     this.linkPhrases = phrases(s.linkPhrases.map((p) => [p.phrase, p]));
     const valueEntries: [string, { field: FieldRow; value: string }][] = [];
     for (const f of this.fieldsInScope) {
-      if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+      if (!isOptionType(f.type)) continue;
       const names = new Set<string>();
       for (const pid of projectIds) for (const v of allowedValues(s, f.id, pid)) names.add(v.name);
       for (const n of names) valueEntries.push([n, { field: f, value: n }]);
@@ -341,7 +341,9 @@ class CommandParser {
     switch (field.type) {
       case 'enum':
       case 'state':
-      case 'version': {
+      case 'version':
+      case 'build':
+      case 'owned': {
         const candidates = this.valuePhrases.filter((v) => v.item.field.id === field.id);
         const hit = this.matchPhrase(candidates)[0];
         if (hit) {
@@ -381,6 +383,46 @@ class CommandParser {
           return null;
         }
         return parts.join(' ');
+      }
+      case 'group': {
+        // A group's name may run over several words ("Backend team"): the longest that names one.
+        let best = 0;
+        let typed = '';
+        for (let k = 1; k <= 4; k++) {
+          const words = this.tokens.slice(this.pos, this.pos + k);
+          if (words.length < k || words.some((w) => w.kind !== 'word')) break;
+          typed = words.map((w) => w.value).join(' ');
+          if (this.s.groupsByName.has(typed.toLowerCase())) best = k;
+        }
+        const k = Math.max(best, 1);
+        const value = this.tokens
+          .slice(this.pos, this.pos + k)
+          .map((w) => w.value)
+          .join(' ');
+        this.pos += k;
+        return value;
+      }
+      case 'datetime': {
+        // "2026-11-20T15:00", "+2h", "now": the words that touch; then a time after a day ("tomorrow 09:30").
+        const glued = (): string => {
+          let out = this.tokens[this.pos]!.value;
+          let end = this.tokens[this.pos]!.end;
+          this.pos++;
+          while (this.peek() && this.peek()!.start === end && (this.peek()!.kind === 'word' || this.peek()!.kind === 'colon')) {
+            out += this.peek()!.value;
+            end = this.peek()!.end;
+            this.pos++;
+          }
+          return out;
+        };
+        const first = glued();
+        const next = this.peek();
+        const after = this.tokens[this.pos + 1];
+        const isDay = /^(\d{4}-\d{2}-\d{2}|today|tomorrow|yesterday)$/i.test(first);
+        if (isDay && next?.kind === 'word' && /^\d{1,2}$/.test(next.value) && after?.kind === 'colon' && after.start === next.end) {
+          return `${first} ${glued()}`;
+        }
+        return first;
       }
       default: {
         // date, numbers, strings: one word (strings may be multi-word until the next clause)
@@ -467,7 +509,7 @@ export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, 
   const anything = (): [string, SuggestItem['kind'], string?][] => [
     ...fields.map((f): [string, SuggestItem['kind'], string] => [f.name, 'field', f.type]),
     ...fields
-      .filter((f) => f.type === 'enum' || f.type === 'state' || f.type === 'version')
+      .filter((f) => isOptionType(f.type))
       .flatMap((f) => valuesOf(f.id).map((n): [string, SuggestItem['kind'], string] => [n, 'value', f.name])),
     ...s.linkPhrases.map((p): [string, SuggestItem['kind'], string] => [p.display, 'keyword', 'Link to another issue']),
     ...['tag', 'untag', 'for me', 'remove', 'add', 'comment'].map((k): [string, SuggestItem['kind']] => [k, 'keyword']),

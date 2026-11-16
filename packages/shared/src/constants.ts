@@ -53,11 +53,20 @@ export const FIELD_TYPES = [
   'float',
   'date',
   'period',
+  // Issues and fields (D41): a group as the value; builds, which CI adds; values with owners; a moment.
+  'group',
+  'build',
+  'owned',
+  'datetime',
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
 /** Field types whose values come from a list of options (field_values). */
-export const OPTION_FIELD_TYPES: readonly FieldType[] = ['enum', 'state', 'version'];
+export const OPTION_FIELD_TYPES: readonly FieldType[] = ['enum', 'state', 'version', 'build', 'owned'];
+/** Whether a field's values come from its list of options (field_values). */
+export function isOptionType(type: FieldType): boolean {
+  return OPTION_FIELD_TYPES.includes(type);
+}
 
 export const TRIAGE_MODES = ['off', 'suggest', 'auto'] as const;
 export type TriageMode = (typeof TRIAGE_MODES)[number];
@@ -94,8 +103,13 @@ export const EVENT_TYPES = [
   'project.group.added',
   'project.group.changed',
   'project.group.removed',
+  'issue.moved',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
+
+/** The reactions a comment or a description takes (D41): a small, fixed set, so they read alike everywhere. */
+export const REACTIONS = ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'] as const;
+export type Reaction = (typeof REACTIONS)[number];
 
 export const LEVELING_MODES = ['within_slack', 'allow_delay'] as const;
 export type LevelingMode = (typeof LEVELING_MODES)[number];

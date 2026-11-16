@@ -17,6 +17,10 @@ export const TYPE_WORDS: Record<FieldType, string> = {
   float: 'a number',
   date: 'a date',
   period: 'a duration, such as 2d 4h',
+  group: 'a group of people',
+  build: 'a build, from a list CI adds to',
+  owned: 'a choice from a list, each with an owner',
+  datetime: 'a date and a time',
 };
 
 const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];
