@@ -21,10 +21,12 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Beyond a change: a rule can tell people (its assignee, reporter, watchers, the project's managers, or people by name) in its own words, in their inbox and by email at their level, and an administrator's rule can call a webhook, signed with its secret.
   - Each is previewed before it's saved (its problems where they are, the issues it would touch now, what it would change on a few, and whom it would tell), acts as the workflow agent, and keeps a log of what it did. Rules that set off rules stop three steps deep, and a rule acts on an issue once for each change that set it off.
   - A project's managers make its rules, and everyone who can see the project can read them. A rule acts only in its own project.
-- **Version control**: GitHub and GitLab send pushes and pull requests.
+- **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
-  - `BACK-12 #Fixed` in a commit message applies the command as its author, when their email is confirmed (by an administrator, or by single sign-on) and they can change the project's issues; otherwise the commit is linked and the issue says why.
-  - Deliveries are checked (GitHub's signature, GitLab's token), handled once, rate-limited and logged.
+  - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.
+  - a4a knows a commit's author by any of their confirmed emails, or by their login at the provider (an administrator records it). People add emails on their profile and confirm each by a link a4a mails; an administrator can confirm one instead. When the email and the login name two people, it's nobody.
+  - Deliveries are checked (each provider's signature, GitLab's token), handled once, rate-limited and logged.
+  - Bitbucket Data Center's pushes don't say what their commits say, and Bitbucket Cloud's carry the latest five a branch got: given an access token, a4a reads the rest from Bitbucket.
 - **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
@@ -208,7 +210,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `S3_PREFIX` | empty | Before every key, so a bucket can hold more than a4a's files, e.g. `a4a/` |
 | `S3_FORCE_PATH_STYLE` | `true` with an endpoint | The bucket in the path (`http://host/bucket/key`), as most stores other than AWS want |
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | empty | The bucket's keys (`S3_SESSION_TOKEN` with temporary ones). Without them, the AWS chain gives them: its environment, a profile, or the machine's role |
-| `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
+| `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything, and administrators confirm the emails people add, since no link can go |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
 | `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |

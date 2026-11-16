@@ -99,6 +99,13 @@
       "when": 1794839510340,
       "tag": "0013_subscriptions_and_time_zones",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794839713214,
+      "tag": "0014_vcs_emails_and_logins",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,7 @@ const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const GroupPage = lazy(() => import('../pages/GroupPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const ConfirmEmailPage = lazy(() => import('../pages/ConfirmEmailPage'));
 const ArticlesPage = lazy(() => import('../pages/ArticlesPage'));
 const DashboardPage = lazy(() => import('../pages/DashboardPage'));
 const ReportsPage = lazy(() => import('../pages/ReportsPage'));
@@ -78,6 +79,7 @@ export function App() {
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
           <Route path="/groups/:id" element={<Page><GroupPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />
+          <Route path="/emails/confirm" element={<Page><ConfirmEmailPage /></Page>} />
           <Route path="/dashboard" element={<Page><DashboardPage /></Page>} />
           <Route path="/dashboard/:id" element={<Page><DashboardPage /></Page>} />
           <Route path="/reports" element={<Page><ReportsPage /></Page>} />

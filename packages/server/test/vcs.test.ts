@@ -137,7 +137,7 @@ describe('GitHub', () => {
 
     const [delivery] = await listVcsDeliveries(w.adminCtx, github.id);
     expect(delivery).toMatchObject({ event: 'push', outcome: 'processed', statusCode: 200, linked: 4, applied: 1 });
-    expect(delivery!.message).toContain('nobody in a4a has the verified email jordi@softcatala.example');
+    expect(delivery!.message).toContain('nobody in a4a has the confirmed email jordi@softcatala.example');
   });
 
   it('refuses a delivery whose signature is wrong or missing, and logs it', async () => {
@@ -251,9 +251,9 @@ describe('GitLab', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ outcome: 'processed', linked: 2, applied: 1 });
     expect(value(await getIssue(w.adminCtx, 'WEB-1'), 'State')).toBe('Fixed');
-    // Ben set his email himself: until an administrator confirms it, his commits link only.
+    // Ben set his email himself: until he confirms it by the link, or an administrator does, his commits link only.
     expect(value(await getIssue(w.adminCtx, 'WEB-2'), 'State')).toBe('Open');
-    expect((await vcsOf('WEB-2')).commits[0]).toMatchObject({ command: 'In Review', applied: false, note: 'Not applied: Ben Okafor’s email isn’t verified yet' });
+    expect((await vcsOf('WEB-2')).commits[0]).toMatchObject({ command: 'In Review', applied: false, note: 'Not applied: Ben Okafor’s email isn’t confirmed yet' });
   });
 
   it('keeps a merge request current, opened to merged', async () => {

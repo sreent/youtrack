@@ -122,6 +122,8 @@ const withSubscriptions = async (api: Api, page: Page) => {
 
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
+  // One of Bitbucket Data Center's, with its address and no token yet: it says what it lacks.
+  await api.post('/vcs/integrations', { provider: 'bitbucket-dc', name: `PROJ/${unique()}`, projects: [], baseUrl: 'https://bitbucket.acme.example' });
   return '/integrations';
 };
 

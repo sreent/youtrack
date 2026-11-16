@@ -1,0 +1,34 @@
+{
+  "eventKey": "repo:refs_changed",
+  "date": "2026-11-16T09:12:44+0100",
+  "actor": {
+    "name": "anna",
+    "emailAddress": "anna@example.com",
+    "active": true,
+    "displayName": "Anna Schmidt",
+    "id": 2,
+    "slug": "anna",
+    "type": "NORMAL"
+  },
+  "repository": {
+    "slug": "backend",
+    "id": 84,
+    "name": "backend",
+    "hierarchyId": "af05451fea46cc9e2b0f",
+    "scmId": "git",
+    "state": "AVAILABLE",
+    "statusMessage": "Available",
+    "forkable": true,
+    "project": { "key": "PROJ", "id": 21, "name": "Project", "public": false, "type": "NORMAL" },
+    "public": false
+  },
+  "changes": [
+    {
+      "ref": { "id": "refs/heads/master", "displayId": "master", "type": "BRANCH" },
+      "refId": "refs/heads/master",
+      "fromHash": "ecddabb624f6f5ba43816f5926e580a5f680a932",
+      "toHash": "178864a7d521b6f5e720b386b2c2b0ef8563e0dc",
+      "type": "UPDATE"
+    }
+  ]
+}

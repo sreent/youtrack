@@ -50,7 +50,7 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
     case 'automation':
       return { kind: 'agent', name: actor.login ?? 'automation', via: 'on its own' };
     case 'vcs':
-      // A commit's author, known by their verified email, or the integration itself.
+      // A commit's author, known by a confirmed email or their login at the provider, or the integration itself.
       return actor.id
         ? { kind: 'person', name: person, via: `from ${actor.token ?? 'version control'}` }
         : { kind: 'service', name: actor.token ?? 'version control', via: 'from version control' };

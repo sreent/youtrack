@@ -30,6 +30,7 @@ import { dashboardRoutes } from './routes/dashboards';
 import { importRoutes } from './routes/imports';
 import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
+import { emailRoutes } from './routes/emails';
 import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
 import { absenceRoutes } from './routes/absences';
@@ -90,6 +91,7 @@ export function createHttpApp(runtime: Runtime) {
   groupRoutes(api);
   samlRoutes(api);
   agentRoutes(api);
+  emailRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

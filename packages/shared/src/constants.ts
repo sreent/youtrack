@@ -189,12 +189,24 @@ export type RuleTargetKind = (typeof RULE_TARGETS)[number];
 export const RULE_TELL = ['assignee', 'reporter', 'watchers', 'managers'] as const;
 export type RuleTell = (typeof RULE_TELL)[number];
 
-/** Version control a4a takes pushes and pull requests from. */
-export const VCS_PROVIDERS = ['github', 'gitlab'] as const;
+/**
+ * Version control a4a takes pushes and pull requests from. `bitbucket` is Bitbucket Cloud;
+ * `bitbucket-dc`, Bitbucket Data Center (and Server); `gitea`, Gitea and Forgejo, which send the
+ * same deliveries.
+ */
+export const VCS_PROVIDERS = ['github', 'gitlab', 'bitbucket', 'bitbucket-dc', 'gitea'] as const;
 export type VcsProvider = (typeof VCS_PROVIDERS)[number];
+/** Each provider by name, as people know it. */
+export const VCS_PROVIDER_NAMES: Record<VcsProvider, string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  bitbucket: 'Bitbucket Cloud',
+  'bitbucket-dc': 'Bitbucket Data Center',
+  gitea: 'Gitea or Forgejo',
+};
 export const PULL_REQUEST_STATES = ['open', 'merged', 'closed'] as const;
 export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
-/** How a delivery from GitHub or GitLab went. */
+/** How a delivery from version control went. */
 export const VCS_DELIVERY_OUTCOMES = ['received', 'processed', 'ignored', 'refused', 'duplicate', 'failed'] as const;
 export type VcsDeliveryOutcome = (typeof VCS_DELIVERY_OUTCOMES)[number];
 export const MAX_PAGE_SIZE = 200;

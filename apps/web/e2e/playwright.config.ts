@@ -99,6 +99,8 @@ export default defineConfig({
       ANTHROPIC_API_KEY: '',
       ANTHROPIC_AUTH_TOKEN: '',
       OIDC_ISSUER: '',
+      // Nor a developer's mail server: a4a sends no email here, so emails wait for an administrator.
+      SMTP_URL: '',
       PASSWORD_LOGIN: 'true',
       // As production has them: the pages are held to the default request limit, so one that
       // asks too much shows up as a 429 in its console.

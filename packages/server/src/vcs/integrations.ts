@@ -1,12 +1,14 @@
 /**
- * GitHub and GitLab integrations, as administrators manage them: added (with a webhook URL and a
+ * Version control integrations, as administrators manage them: added (with a webhook URL and a
  * secret shown once), changed, paused, given a new secret, tested, and their recent deliveries.
  *
- * GitHub signs each delivery with the secret (HMAC-SHA256), so a4a must keep the secret itself to
- * check the signature, as it keeps its own webhooks' secrets to sign with. GitLab sends the token
- * as it is, so a4a keeps only the token's SHA-256. Neither is ever returned after it is shown.
+ * GitHub, Bitbucket, Gitea and Forgejo sign each delivery with the secret (HMAC-SHA256), so a4a
+ * must keep the secret itself to check the signature, as it keeps its own webhooks' secrets to
+ * sign with. GitLab sends the token as it is, so a4a keeps only the token's SHA-256. Neither is
+ * ever returned after it is shown. Nor is a Bitbucket access token, which a4a sends to read
+ * commits (D33).
  */
-import type { VcsDelivery, VcsIntegration, VcsIntegrationCreated, VcsProvider, VcsTestResult } from '@a4a/shared';
+import { VCS_PROVIDER_NAMES, type VcsDelivery, type VcsIntegration, type VcsIntegrationCreated, type VcsProvider, type VcsTestResult } from '@a4a/shared';
 import { createHmac } from 'node:crypto';
 import { desc, eq } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
@@ -15,6 +17,7 @@ import { randomToken, sha256 } from '../lib/crypto';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { projectByKey, type SchemaSnapshot } from '../services/schema-cache';
+import { checkBaseUrl } from './commits';
 import type { IntegrationRow } from './links';
 import { receive } from './receive';
 
@@ -31,6 +34,8 @@ function dto(app: AppServices, s: SchemaSnapshot, row: IntegrationRow): VcsInteg
     active: row.active,
     webhookUrl: webhookUrl(app, row.id),
     secretPrefix: row.secretPrefix,
+    baseUrl: row.baseUrl,
+    hasAccessToken: Boolean(row.accessToken),
     createdAt: row.createdAt.toISOString(),
     lastDeliveryAt: row.lastDeliveryAt?.toISOString() ?? null,
   };
@@ -46,13 +51,37 @@ function projectIds(s: SchemaSnapshot, keys: string[]): string[] {
   return out;
 }
 
-/** A new secret, and what a4a keeps of it: the key itself for GitHub, a hash for GitLab. */
+/** A new secret, and what a4a keeps of it: the key itself where the provider signs with it, a hash for GitLab. */
 function secretFor(provider: VcsProvider): { secret: string; kept: Pick<IntegrationRow, 'signingKey' | 'tokenHash' | 'secretPrefix'> } {
   const secret = randomToken('', 32);
-  return {
-    secret,
-    kept: { signingKey: provider === 'github' ? secret : null, tokenHash: provider === 'gitlab' ? sha256(secret) : null, secretPrefix: secret.slice(0, 6) },
-  };
+  const gitlab = provider === 'gitlab';
+  return { secret, kept: { signingKey: gitlab ? null : secret, tokenHash: gitlab ? sha256(secret) : null, secretPrefix: secret.slice(0, 6) } };
+}
+
+/**
+ * Bitbucket's address and access token, as an integration keeps them. Data Center must have an
+ * address; Bitbucket Cloud may name another for its API (a proxy). The others take neither.
+ */
+function bitbucketFields(
+  provider: VcsProvider,
+  input: { baseUrl?: string | null; accessToken?: string | null },
+  now: Pick<IntegrationRow, 'baseUrl' | 'accessToken'> | null,
+): Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> {
+  const bitbucket = provider === 'bitbucket' || provider === 'bitbucket-dc';
+  if (!bitbucket) {
+    if (input.baseUrl || input.accessToken) {
+      throw badRequest(`${VCS_PROVIDER_NAMES[provider]} integrations take no address or access token`, 'Its deliveries carry what a4a reads.');
+    }
+    return {};
+  }
+  const out: Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> = {};
+  if (input.baseUrl !== undefined) out.baseUrl = input.baseUrl === null || !input.baseUrl.trim() ? null : checkBaseUrl(input.baseUrl);
+  if (input.accessToken !== undefined) out.accessToken = input.accessToken?.trim() || null;
+  const baseUrl = out.baseUrl !== undefined ? out.baseUrl : (now?.baseUrl ?? null);
+  if (provider === 'bitbucket-dc' && !baseUrl) {
+    throw badRequest('Give Bitbucket Data Center’s address', 'The address people open it at, e.g. https://bitbucket.acme.example: a4a reads the commits a push moved there.');
+  }
+  return out;
 }
 
 async function load(ctx: Ctx, id: string): Promise<IntegrationRow> {
@@ -68,11 +97,15 @@ export async function listIntegrations(ctx: Ctx): Promise<VcsIntegration[]> {
   return rows.map((r) => dto(ctx.app, s, r));
 }
 
-export async function createIntegration(ctx: Ctx, input: { provider: VcsProvider; name: string; projects?: string[]; active?: boolean }): Promise<VcsIntegrationCreated> {
+export async function createIntegration(
+  ctx: Ctx,
+  input: { provider: VcsProvider; name: string; projects?: string[]; active?: boolean; baseUrl?: string | null; accessToken?: string | null },
+): Promise<VcsIntegrationCreated> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const name = input.name.trim();
   if (!name) throw badRequest('Give it a name, such as its repository', 'e.g. acme/backend');
+  const bitbucket = bitbucketFields(input.provider, input, null);
   const { secret, kept } = secretFor(input.provider);
   const [row] = await ctx.db
     .insert(vcsIntegrations)
@@ -82,6 +115,7 @@ export async function createIntegration(ctx: Ctx, input: { provider: VcsProvider
       name,
       projectIds: projectIds(s, input.projects ?? []),
       ...kept,
+      ...bitbucket,
       active: input.active ?? true,
       createdById: ctx.actor.user.id,
     })
@@ -89,17 +123,23 @@ export async function createIntegration(ctx: Ctx, input: { provider: VcsProvider
   return { ...dto(ctx.app, s, row!), secret };
 }
 
-export async function updateIntegration(ctx: Ctx, id: string, input: { name?: string; projects?: string[]; active?: boolean }): Promise<VcsIntegration> {
+export async function updateIntegration(
+  ctx: Ctx,
+  id: string,
+  input: { name?: string; projects?: string[]; active?: boolean; baseUrl?: string | null; accessToken?: string | null },
+): Promise<VcsIntegration> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const row = await load(ctx, id);
   if (input.name !== undefined && !input.name.trim()) throw badRequest('Give it a name, such as its repository');
+  const bitbucket = bitbucketFields(row.provider as VcsProvider, input, row);
   const [updated] = await ctx.db
     .update(vcsIntegrations)
     .set({
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.projects !== undefined ? { projectIds: projectIds(s, input.projects) } : {}),
       ...(input.active !== undefined ? { active: input.active } : {}),
+      ...bitbucket,
     })
     .where(eq(vcsIntegrations.id, row.id))
     .returning();
@@ -145,27 +185,46 @@ export async function listVcsDeliveries(ctx: Ctx, id: string, limit = 50): Promi
   }));
 }
 
+/** What a4a sends itself to test an integration, as each provider would send it. */
+function testDelivery(row: IntegrationRow): { body: unknown; headers: Record<string, string> } {
+  switch (row.provider as VcsProvider) {
+    case 'github':
+      return { body: { zen: 'Speak like a human.', hook_id: 0, hook: { type: 'Repository', events: ['push', 'pull_request'] } }, headers: { 'x-github-event': 'ping' } };
+    case 'gitlab':
+      return {
+        body: { object_kind: 'push', event_name: 'push', ref: 'refs/heads/main', after: 'a'.repeat(40), project: { path_with_namespace: row.name }, commits: [], total_commits_count: 0 },
+        headers: { 'x-gitlab-event': 'Push Hook' },
+      };
+    case 'bitbucket':
+      return { body: { repository: { full_name: row.name }, push: { changes: [] } }, headers: { 'x-event-key': 'repo:push' } };
+    case 'bitbucket-dc':
+      return { body: { test: true }, headers: { 'x-event-key': 'diagnostics:ping' } };
+    case 'gitea':
+      return { body: { ref: 'refs/heads/main', after: 'a'.repeat(40), repository: { full_name: row.name }, commits: [] }, headers: { 'x-gitea-event': 'push' } };
+  }
+}
+
 /**
- * a4a sends itself a delivery as the provider would and handles it as any other: for GitHub a
- * ping, signed with the secret, so the signature is checked too; for GitLab a push with no
- * commits. a4a keeps only a hash of GitLab's token, so it can't send one, and that check is the
- * one part a GitLab test leaves out.
+ * a4a sends itself a delivery as the provider would and handles it as any other, signed with the
+ * secret where the provider signs, so the signature is checked too. a4a keeps only a hash of
+ * GitLab's token, so it can't send one, and that check is the one part a GitLab test leaves out.
  */
 export async function testIntegration(ctx: Ctx, id: string): Promise<VcsTestResult> {
   requireScope(ctx, 'admin');
   const row = await load(ctx, id);
-  const github = row.provider === 'github';
-  const body = new TextEncoder().encode(
-    JSON.stringify(
-      github
-        ? { zen: 'Speak like a human.', hook_id: 0, hook: { type: 'Repository', events: ['push', 'pull_request'] } }
-        : { object_kind: 'push', event_name: 'push', ref: 'refs/heads/main', after: 'a'.repeat(40), project: { path_with_namespace: row.name }, commits: [], total_commits_count: 0 },
-    ),
-  );
-  const headers: Record<string, string> = github
-    ? { 'content-type': 'application/json', 'x-github-event': 'ping', 'x-hub-signature-256': `sha256=${createHmac('sha256', row.signingKey ?? '').update(body).digest('hex')}` }
-    : { 'content-type': 'application/json', 'x-gitlab-event': 'Push Hook' };
-  const answer = await receive(ctx.app, row.id, { header: (n) => headers[n.toLowerCase()], body, ip: 'a4a' }, { test: true, trusted: !github });
+  const signs = row.provider !== 'gitlab';
+  const made = testDelivery(row);
+  const body = new TextEncoder().encode(JSON.stringify(made.body));
+  const hmac = createHmac('sha256', row.signingKey ?? '').update(body).digest('hex');
+  const signature: Record<string, string> = !signs
+    ? {}
+    : row.provider === 'github'
+      ? { 'x-hub-signature-256': `sha256=${hmac}` }
+      : row.provider === 'gitea'
+        ? { 'x-gitea-signature': hmac }
+        : { 'x-hub-signature': `sha256=${hmac}` };
+  const headers: Record<string, string> = { 'content-type': 'application/json', ...made.headers, ...signature };
+  const answer = await receive(ctx.app, row.id, { header: (n) => headers[n.toLowerCase()], body, ip: 'a4a' }, { test: true, trusted: !signs });
   const outcome = (answer.body.outcome as VcsTestResult['outcome'] | undefined) ?? 'failed';
   const error = answer.body.error as { message?: string } | undefined;
   return { delivered: answer.status < 300, outcome, message: answer.said ?? String(answer.body.message ?? error?.message ?? '') };

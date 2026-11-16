@@ -3,10 +3,11 @@
  *
  * Each issue a commit mentions is linked in a transaction of its own, which takes the issue's row
  * lock first, as every write to an issue does (so two deliveries linking to one issue serialise
- * instead of deadlocking). A command runs inside it, in a savepoint, as the person whose verified
- * email wrote the commit: if it fails, the link stays and says why.
+ * instead of deadlocking). A command runs inside it, in a savepoint, as the commit's author in
+ * a4a, known by a confirmed email or a login at the provider (authors.ts): if it fails, the link
+ * stays and says why.
  */
-import type { Change, IssueVcs, PullRequestState } from '@a4a/shared';
+import type { Change, IssueVcs, PullRequestState, VcsProvider } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { systemCtx } from '../app-services';
 import { commandSpec } from '../commands/executor';
@@ -23,6 +24,7 @@ import { issueRef, readableId, stateNames, type IssueRow } from '../services/iss
 import { applyChanges, findIssue, resolveIssue } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { userRefDto } from '../services/values';
+import type { Author } from './authors';
 import { splitMessage } from './mentions';
 import type { Commit, Person } from './payloads';
 
@@ -30,28 +32,6 @@ export type IntegrationRow = typeof vcsIntegrations.$inferSelect;
 type LinkRow = typeof vcsLinks.$inferSelect;
 
 const BODY_MAX = 4000;
-
-/** Who wrote a commit, in a4a: the one person whose verified email it is, or why there's nobody. */
-export type Author = { user: UserRow } | { user: null; why: string; detail: string };
-
-export function authorByEmail(s: SchemaSnapshot, email: string | null): Author {
-  if (!email?.trim()) return { user: null, why: 'the commit names no email for its author', detail: 'the commit names no email for its author' };
-  const lower = email.trim().toLowerCase();
-  const people = [...s.users.values()].filter((u) => !u.isBot && !u.banned && u.email?.trim().toLowerCase() === lower);
-  const verified = people.filter((u) => u.emailVerified);
-  if (verified.length === 1) return { user: verified[0]! };
-  if (verified.length > 1) {
-    return { user: null, why: 'more than one person in a4a has its author’s email', detail: `more than one person in a4a has the email ${email}` };
-  }
-  if (people.length) {
-    return {
-      user: null,
-      why: `${people[0]!.name}’s email isn’t verified yet`,
-      detail: `${people[0]!.name}’s email ${email} isn’t verified: an administrator can verify it under Administration`,
-    };
-  }
-  return { user: null, why: 'a4a doesn’t know who wrote it', detail: `nobody in a4a has the verified email ${email}` };
-}
 
 /**
  * Changes made from version control: as the commit's author when a4a knows them (with their own
@@ -126,7 +106,7 @@ export async function linkCommit(
   if (already) return { linked: false, applied: false, said: `${id}: ${short} was linked already` };
 
   const ctx = vcsCtx(app, integration, author.user);
-  // Whether the command may run: as its author, known by their verified email, who can change the project's issues.
+  // Whether the command may run: as its author, known by a confirmed email or a login, who can change the project's issues.
   let ops: ReturnType<typeof parseCommand>['ops'] | null = null;
   let note: string | null = null;
   let said = '';
@@ -252,7 +232,8 @@ export interface PullRequestFacts {
 /**
  * Keep a pull request's links current: those it has take its state, title and branches as they
  * are now (a change of state is recorded on each issue), and issues it mentions for the first time
- * are linked.
+ * are linked, with its author in a4a when a4a knows them (D33). Who opened it isn't who changes
+ * its state, so linking stays the integration's doing, not the author's.
  */
 export async function syncPullRequest(
   app: AppServices,
@@ -260,6 +241,7 @@ export async function syncPullRequest(
   integration: IntegrationRow,
   pr: PullRequestFacts,
   mentioned: IssueRow[],
+  authorId: string | null = null,
 ): Promise<{ linked: number; changed: number; said: string[] }> {
   const ref = String(pr.number);
   const ctx = vcsCtx(app, integration, null);
@@ -339,6 +321,7 @@ export async function syncPullRequest(
           ...facts,
           authorName: pr.author.name,
           authorLogin: pr.author.login,
+          authorId,
         })
         .onConflictDoNothing()
         .returning({ id: vcsLinks.id });
@@ -381,7 +364,7 @@ export async function issueVcs(ctx: Ctx, idOrReadable: string): Promise<IssueVcs
   for (const { link, source } of rows) {
     const user = link.authorId ? s.users.get(link.authorId) : undefined;
     const author = { name: link.authorName, login: link.authorLogin, user: user ? userRefDto(user) : null };
-    const integration = source?.id ? { id: source.id, name: source.name!, provider: source.provider as 'github' | 'gitlab' } : null;
+    const integration = source?.id ? { id: source.id, name: source.name!, provider: source.provider as VcsProvider } : null;
     const at = (link.happenedAt ?? link.createdAt).toISOString();
     if (link.kind === 'commit') {
       out.commits.push({

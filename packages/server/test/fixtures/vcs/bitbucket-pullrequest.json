@@ -1,0 +1,57 @@
+{
+  "repository": {
+    "type": "repository",
+    "full_name": "acme/shop",
+    "links": { "html": { "href": "https://bitbucket.org/acme/shop" } },
+    "name": "shop",
+    "uuid": "{1c2b3a4d-5e6f-4789-8a9b-0c1d2e3f4a5b}"
+  },
+  "actor": {
+    "display_name": "Ben Okafor",
+    "type": "user",
+    "uuid": "{7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3928}",
+    "account_id": "557058:66666666-7777-8888-9999-000000000000",
+    "nickname": "ben"
+  },
+  "pullrequest": {
+    "comment_count": 0,
+    "task_count": 0,
+    "type": "pullrequest",
+    "id": 7,
+    "title": "Rate limits for exports",
+    "description": "Throttles exports per account. Fixes BACK-5.",
+    "rendered": {},
+    "state": "OPEN",
+    "merge_commit": null,
+    "close_source_branch": true,
+    "closed_by": null,
+    "author": {
+      "display_name": "Ben Okafor",
+      "links": { "avatar": { "href": "https://secure.gravatar.com/avatar/ben.png" } },
+      "type": "user",
+      "uuid": "{7e6d5c4b-3a29-4180-9f8e-7d6c5b4a3928}",
+      "account_id": "557058:66666666-7777-8888-9999-000000000000",
+      "nickname": "ben"
+    },
+    "reason": "",
+    "created_on": "2026-11-16T10:00:00.000000+00:00",
+    "updated_on": "2026-11-16T10:00:01.000000+00:00",
+    "destination": {
+      "branch": { "name": "main" },
+      "commit": { "type": "commit", "hash": "c2d3e4f5a607" },
+      "repository": { "type": "repository", "full_name": "acme/shop", "name": "shop" }
+    },
+    "source": {
+      "branch": { "name": "feature/export-limits" },
+      "commit": { "type": "commit", "hash": "d3e4f5a60718" },
+      "repository": { "type": "repository", "full_name": "acme/shop", "name": "shop" }
+    },
+    "reviewers": [],
+    "participants": [],
+    "links": {
+      "self": { "href": "https://api.bitbucket.org/2.0/repositories/acme/shop/pullrequests/7" },
+      "html": { "href": "https://bitbucket.org/acme/shop/pull-requests/7" }
+    },
+    "summary": { "raw": "Throttles exports per account. Fixes BACK-5.", "markup": "markdown", "html": "<p>Throttles exports per account. Fixes BACK-5.</p>", "type": "rendered" }
+  }
+}
