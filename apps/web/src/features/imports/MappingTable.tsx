@@ -32,14 +32,20 @@ export function targetWords(target: string): string {
   return target;
 }
 
+/** Where an import's issues come from, in words: the file, or the tracker its API is. */
+export const whereFrom = (imp: Import) => (imp.origin ? (imp.origin.kind === 'youtrack' ? 'YouTrack' : 'Jira') : 'the file');
+
 export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp: Import; fields: ProjectField[]; phrases: string[]; onTarget: (index: number, target: string) => void; disabled?: boolean }) {
+  const from = whereFrom(imp);
   return (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label="The file's columns">
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={imp.origin ? `What came from ${from}` : "The file's columns"}>
       <table className="figures mapping">
-        <caption className="hidden">Each column of the file, and what it becomes in {imp.project.key}</caption>
+        <caption className="hidden">
+          Each {imp.origin ? 'field' : 'column'} of {from}, and what it becomes in {imp.project.key}
+        </caption>
         <thead>
           <tr>
-            <th scope="col">Column in the file</th>
+            <th scope="col">{imp.origin ? `In ${from}` : 'Column in the file'}</th>
             <th scope="col">Becomes in {imp.project.key}</th>
             <th scope="col">How</th>
           </tr>
@@ -83,14 +89,16 @@ export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp
   );
 }
 
-export function ValuesTable({ map, onValue, disabled }: { map: ImportValueMap; onValue: (value: string, to: string | null) => void; disabled?: boolean }) {
+export function ValuesTable({ map, onValue, disabled, from = 'the file' }: { map: ImportValueMap; onValue: (value: string, to: string | null) => void; disabled?: boolean; from?: string }) {
   return (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={`${map.label}: its values`}>
       <table className="figures mapping">
-        <caption className="hidden">Each {map.label} in the file, and what it becomes</caption>
+        <caption className="hidden">
+          Each {map.label} in {from}, and what it becomes
+        </caption>
         <thead>
           <tr>
-            <th scope="col">In the file</th>
+            <th scope="col">In {from}</th>
             <th scope="col">Becomes</th>
             <th scope="col">How</th>
           </tr>
@@ -153,7 +161,15 @@ export function ProblemsTable({ problems, caption }: { problems: ImportProblem[]
   );
 }
 
-export function Tally({ counts, label, planned }: { counts: { created: number; updated: number; unchanged: number; skipped: number; failed: number; comments: number; links: number; linksMissing: number }; label: string; planned?: boolean }) {
+export function Tally({
+  counts,
+  label,
+  planned,
+}: {
+  counts: { created: number; updated: number; unchanged: number; skipped: number; failed: number; comments: number; work?: number; files?: number; links: number; linksMissing: number };
+  label: string;
+  planned?: boolean;
+}) {
   const items: [string, number][] = [
     [planned ? 'To create' : 'Created', counts.created],
     [planned ? 'To update' : 'Updated', counts.updated],
@@ -161,6 +177,9 @@ export function Tally({ counts, label, planned }: { counts: { created: number; u
     ['Skipped', counts.skipped],
     [planned ? 'Would fail' : 'Not imported', counts.failed],
     ['Comments', counts.comments],
+    // An import from an API brings these one by one; a file's spent time comes as one total.
+    ...(counts.work !== undefined ? ([['Work items', counts.work]] as [string, number][]) : []),
+    ...(counts.files !== undefined ? ([['Files', counts.files]] as [string, number][]) : []),
     ['Links and parents', counts.links],
   ];
   return (

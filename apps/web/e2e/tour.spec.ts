@@ -10,12 +10,14 @@
  * A new page joins the tour with one line in STOPS: its address, and what shows once it's drawn.
  * What the server can't show without AI (a conversation, suggestions waiting) is stood in for.
  */
+import type { Import } from '@a4a/shared';
 import type { Locator, Page } from '@playwright/test';
 import { BACK_3_TRIAGE, mockStoredConversation, mockWaitingSuggestions, takeIssue, triageSuggestion } from './support/ai';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
+import { startYouTrack, YT_TOKEN } from './support/youtrack';
 
 interface Stop {
   name: string;
@@ -51,6 +53,20 @@ const withRules = async (api: Api) => {
 const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
   return '/integrations';
+};
+
+/** Issues read from a YouTrack the tour starts, into a project of its own, ready to map. */
+const fromYouTrack = async (api: Api) => {
+  const yt = await startYouTrack();
+  try {
+    const key = uniqueKey('TY');
+    await api.createProject({ key, name: `Tour ${key}` });
+    const imp = await api.post<Import>('/imports/from-api', { project: key, source: 'youtrack', url: yt.url, query: 'project: OLD', credentials: { token: YT_TOKEN } });
+    await expect.poll(async () => (await api.get<Import>(`/imports/${imp.id}`)).status, { timeout: 20_000 }).toBe('ready');
+    return `/import/${imp.id}`;
+  } finally {
+    await yt.close();
+  }
 };
 
 const board = (name: string) => async (api: Api) => {
@@ -105,6 +121,7 @@ const STOPS: Stop[] = [
   { name: 'cycle time', path: '/reports/cycle-time', ready: (p) => p.getByRole('group', { name: 'Issues by how long they took' }) },
   { name: 'your dashboard', path: '/dashboard', ready: (p) => p.getByRole('heading', { name: 'How long work takes, the last 90 days' }) },
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
+  { name: 'an import from YouTrack', path: fromYouTrack, ready: (p) => p.getByRole('heading', { name: 'Its columns' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
 ];
