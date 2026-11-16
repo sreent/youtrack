@@ -513,7 +513,7 @@ export function IssueHistory({
         >
           {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
           {limit && !(requester && canReply && visibility === 'public') ? (
-            <LimitPicker value={limit} onChange={setLimit} always={`You, ${issue.project.key}'s managers and administrators see it too.`} idPrefix="comment-limit" />
+            <LimitPicker value={limit} onChange={setLimit} always={`You, ${issue.project.key}'s managers and administrators see it too.`} />
           ) : null}
           {requester && !canReply ? (
             <p className="field-help" id="visibility-help">

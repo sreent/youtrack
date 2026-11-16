@@ -103,8 +103,10 @@ test('an administrator opens a project to guests, who read it signed out', async
   await api.createIssue({ project: key, summary: 'Pricing for the enterprise plan', visibleTo: { users: [], groups: [] } });
   await page.goto(`/projects/${key}`);
   const guests = page.getByRole('checkbox', { name: /^Open to guests/ });
-  await guests.check();
+  // It changes once the server has it: the box follows the project as saved.
+  await guests.click();
   await expect(page.getByRole('status').filter({ hasText: `Anyone may read ${key} now, signed in or not.` })).toBeVisible();
+  await expect(guests).toBeChecked();
 
   const outside = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const guest = await outside.newPage();

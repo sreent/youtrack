@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { put } from '../../api/client';
 import { keys, useUsers } from '../../api/queries';
 import { UserWho } from '../../components/Who';
+import { FormField } from '../../components/Form';
 import { errorText, Said } from '../common/bits';
 import { useGroups } from '../groups/api';
 
@@ -25,37 +26,42 @@ export const limitOf = (v: VisibleToDto | null): Limit | null => (v ? { users: v
  * Whom to limit an issue or a comment to (D37): people and groups, chosen from lists. `always`
  * says who sees it whatever is chosen.
  */
-export function LimitPicker({ value, onChange, always, idPrefix }: { value: Limit; onChange: (v: Limit) => void; always: string; idPrefix: string }) {
+export function LimitPicker({ value, onChange, always }: { value: Limit; onChange: (v: Limit) => void; always?: string }) {
   const users = useUsers();
   const groups = useGroups();
   const people = (users.data ?? []).filter((u) => !u.banned && !u.isBot);
   const chosen = (e: React.ChangeEvent<HTMLSelectElement>) => [...e.target.selectedOptions].map((o) => o.value);
+  const size = (n: number) => Math.min(6, Math.max(3, n));
   return (
     <fieldset className="stack tight">
       <legend>Who else sees it</legend>
       <div className="form-fields">
-        <div className="field">
-          <label htmlFor={`${idPrefix}-people`}>People</label>
-          <select id={`${idPrefix}-people`} multiple size={Math.min(6, Math.max(3, people.length))} value={value.users} onChange={(e) => onChange({ ...value, users: chosen(e) })}>
-            {people.map((u) => (
-              <option key={u.id} value={u.login}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor={`${idPrefix}-groups`}>Groups</label>
-          <select id={`${idPrefix}-groups`} multiple size={Math.min(6, Math.max(3, groups.data?.length ?? 0))} value={value.groups} onChange={(e) => onChange({ ...value, groups: chosen(e) })}>
-            {(groups.data ?? []).map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormField label="People">
+          {(id) => (
+            <select id={id} multiple size={size(people.length)} value={value.users} onChange={(e) => onChange({ ...value, users: chosen(e) })}>
+              {people.map((u) => (
+                <option key={u.id} value={u.login}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+        {groups.data?.length ? (
+          <FormField label="Groups">
+            {(id) => (
+              <select id={id} multiple size={size(groups.data.length)} value={value.groups} onChange={(e) => onChange({ ...value, groups: chosen(e) })}>
+                {groups.data.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
+        ) : null}
       </div>
-      <p className="field-help">{always}</p>
+      {always ? <p className="field-help">{always}</p> : null}
     </fieldset>
   );
 }
@@ -106,7 +112,7 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
             save.mutate(editing);
           }}
         >
-          <LimitPicker value={editing} onChange={setEditing} always={always} idPrefix="issue-limit" />
+          <LimitPicker value={editing} onChange={setEditing} />
           <div className="cluster">
             <button type="submit" className="primary" disabled={save.isPending}>
               {save.isPending ? 'Saving…' : 'Limit it to them'}
