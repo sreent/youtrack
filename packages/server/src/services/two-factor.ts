@@ -132,7 +132,13 @@ export async function confirmEnrolment(app: AppServices, userId: string, code: s
   if (!secret) throw new AppError(500, 'secret_unreadable', 'The secret being set up can’t be read', 'Start setting it up again.');
   const step = checkCode(secret, code, Date.now(), null);
   if (step === null) throw wrongCode();
-  await app.db.update(userTotp).set({ confirmedAt: new Date(), lastStep: step }).where(eq(userTotp.userId, userId));
+  // Once: of two confirmations at once, one turns it on and gets the recovery codes.
+  const [on] = await app.db
+    .update(userTotp)
+    .set({ confirmedAt: new Date(), lastStep: step })
+    .where(and(eq(userTotp.userId, userId), isNull(userTotp.confirmedAt), eq(userTotp.secret, row.secret)))
+    .returning({ userId: userTotp.userId });
+  if (!on) throw conflict('Two-factor sign-in was just turned on, or set up again elsewhere', 'Look at your profile: it says which.');
   return freshRecoveryCodes(app.db, userId);
 }
 

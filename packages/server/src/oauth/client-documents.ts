@@ -40,11 +40,19 @@ const refused = (why: string) => new OAuthError('invalid_client', why);
 /** The address, checked as the draft asks, before anything is sent. */
 function documentUrl(policy: RemotePolicy, clientId: string): URL {
   if (clientId.length > 500) throw refused('A client_id address may be 500 characters at most');
+  let parsed: URL;
+  try {
+    parsed = new URL(clientId);
+  } catch {
+    throw refused(`${clip(clientId)} isn’t an address`);
+  }
+  if (parsed.protocol !== 'https:' && !(policy.allowHttpLoopback && parsed.protocol === 'http:')) throw refused('A client_id address must be https');
   let url: URL;
   try {
     url = checkAddress(policy, clientId, 'https://app.example/oauth/client.json');
   } catch (e) {
-    throw refused(e instanceof RemoteError ? `${e.message}. ${e.hint ?? ''}`.trim() : `${clip(clientId)} isn’t an address a4a reads`);
+    // Its words only: its hints are about importing.
+    throw refused(e instanceof RemoteError ? e.message : `${clip(clientId)} isn’t an address a4a reads`);
   }
   if (clientId.includes('#')) throw refused('A client_id address can’t have a fragment (#…)');
   if (url.pathname === '/' || url.pathname === '') throw refused('A client_id address needs a path, such as https://app.example/oauth/client.json');
