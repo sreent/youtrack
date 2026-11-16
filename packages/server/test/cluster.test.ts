@@ -446,7 +446,7 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
           res.writeHead(204).end();
         });
       });
-      await new Promise<void>((r) => hookServer!.listen(3512, '127.0.0.1', () => r()));
+      await new Promise<void>((r) => hookServer!.listen(0, '127.0.0.1', () => r()));
       const port = (hookServer.address() as AddressInfo).port;
       const hook = await createWebhook(ctxA, { url: `http://127.0.0.1:${port}/hook`, events: ['issue.created'] });
       const issues = [];
