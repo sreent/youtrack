@@ -21,7 +21,7 @@ import { applyChanges, findIssue, type ChangeSpec } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
 import { noteBroken, noteRefusal, refusedByScript } from './guards';
 import { condition, meets, ruleWorld } from './match';
-import { runScript, SCRIPT_LIMITS, type ScriptIntents, type ScriptOutcome } from './sandbox';
+import { runScript, type ScriptIntents, type ScriptOutcome } from './sandbox';
 import { reachable, scriptInput, type ScriptChange, type ScriptIssue } from './script-issue';
 
 export interface Planned {
@@ -121,7 +121,7 @@ export async function enforceScriptGuards(tx: Db, ctx: Ctx, s: SchemaSnapshot, i
       if (when.where && !(await meets(tx, issue.id, [when.where]))[0]) continue;
     }
     input ??= await scriptInput(tx, s, issue, change);
-    const out = await runScript(rule.script!, input, { timeMs: SCRIPT_LIMITS.guardTimeMs });
+    const out = await runScript(rule.script!, input, { guard: true });
     if (out.error) {
       noteBroken(ctx, rule, out.error.message, `${scriptErrorText(out)}. It refuses nothing until it is fixed.`);
       continue;
