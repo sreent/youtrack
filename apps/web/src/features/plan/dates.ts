@@ -20,6 +20,13 @@ export function addDays(d: string, n: number): string {
   return iso(utc(d) + n * DAY);
 }
 
+/** The same day `n` months on, or that month's last when it's shorter: 31 Jan and a month is 28 Feb. */
+export function addMonths(d: string, n: number): string {
+  const first = new Date(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1 + n, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return iso(first.getTime() + (Math.min(Number(d.slice(8, 10)), last) - 1) * DAY);
+}
+
 /** Calendar days from a to b (b − a). */
 export function diffDays(a: string, b: string): number {
   return Math.round((utc(b) - utc(a)) / DAY);

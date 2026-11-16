@@ -25,10 +25,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
   - `BACK-12 #Fixed` in a commit message applies the command as its author, when their email is confirmed (by an administrator, or by single sign-on) and they can change the project's issues; otherwise the commit is linked and the issue says why.
   - Deliveries are checked (GitHub's signature, GitLab's token), handled once, rate-limited and logged.
-- **Agile boards** with sprints, WIP limits and swimlanes.
+- **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
+  - people's days away, whole or half days: their work waits for them, levelling finds room on the days they're there, and the load grid shows them (over the days each person chooses), never why;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
 - **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
@@ -302,7 +303,7 @@ What it covers, in `apps/web/e2e`:
 - **An issue**: a field changed from the keyboard, links, comments, logged time, triage's values accepted one at a time, the summary, and a save refused (409) when someone changed the issue first.
 - **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
 - **Boards**: dragging (saved with `expectedVersion`), moving from the keyboard, and a move refused.
-- **Plans**: the what-if, baselines, levelling, and levelling refused (409).
+- **Plans**: the what-if, baselines, levelling, and levelling refused (409); days away entered by a manager and followed by the grid and the schedule, a person's own on their profile, and the grid's days remembered.
 - **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.

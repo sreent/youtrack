@@ -40,6 +40,7 @@ import {
   type ScheduleResult,
 } from '../planning';
 import { searchIssueRows } from '../search/service';
+import { absencesForPlan } from './absences';
 import { canReadProject, projectAccess, requireProject, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
@@ -178,8 +179,11 @@ export async function loadPlan(
   }
 
   const plan = projectSettings(project).plan;
+  const today = opts.today ?? todayISO();
+  // Each person's days away, so their work lands on the days they're there (D36).
+  const away = await absencesForPlan(ctx.db, resources.map((r) => r.id), today);
   return {
-    input: { today: opts.today ?? todayISO(), calendar: plan, tasks, resources, workItems: items, baseline },
+    input: { today, calendar: plan, tasks, resources, workItems: items, baseline, absences: away },
     project,
     s,
     refs,
@@ -277,7 +281,12 @@ function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[]
 
 export async function whatIfSchedule(ctx: Ctx, key: string, body: { query?: string; baseline?: string; overrides: OverrideInput[] }): Promise<WhatIfResult> {
   const l = await loadPlan(ctx, key, { query: body.query, baselineId: body.baseline });
-  const res = whatIf(l.input, toOverrides(l, ctx, body.overrides));
+  const planned = new Set(l.input.resources.map((r) => r.id));
+  const overrides = toOverrides(l, ctx, body.overrides);
+  // Someone a what-if gives work to is planned around their own days away too.
+  const added = l.input.resources.map((r) => r.id).filter((id) => !planned.has(id));
+  if (added.length) l.input.absences = [...(l.input.absences ?? []), ...(await absencesForPlan(ctx.db, added, l.input.today))];
+  const res = whatIf(l.input, overrides);
   return { before: res.before, after: scheduleDto(l, res.after), finishDeltaDays: res.finishDeltaDays, impacted: res.impacted.map((i) => ({ issue: i.id, summary: i.summary, startDeltaDays: i.startDeltaDays, finishDeltaDays: i.finishDeltaDays })) };
 }
 

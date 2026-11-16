@@ -1339,3 +1339,43 @@ export const oauthTokens = pgTable(
   },
   (t) => [index('oauth_tokens_family').on(t.familyId), index('oauth_tokens_grant').on(t.grantId), index('oauth_tokens_expires').on(t.expiresAt)],
 );
+
+// Days away, and the load grid's window: package 10 (docs/architecture.md, D36)
+// ---------------------------------------------------------------------------
+
+/**
+ * A person's days away: whole days from `startDate` to `endDate`, or, with `half`, the morning or
+ * the afternoon of the one day they name. Plans skip them for that person's work. Who entered one
+ * is kept on it: days away aren't events, since the feed would tell everyone who can read it.
+ */
+export const absences = pgTable(
+  'absences',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    startDate: date('start_date', { mode: 'string' }).notNull(),
+    endDate: date('end_date', { mode: 'string' }).notNull(),
+    /** 'morning' | 'afternoon', on a one-day absence; null for whole days. */
+    half: text('half'),
+    /** 'holiday' | 'sick' | 'training' | 'other': seen only by the person, administrators and whoever entered it. */
+    kind: text('kind').notNull(),
+    note: text('note').notNull().default(''),
+    version: integer('version').notNull().default(1),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('absences_user_dates').on(t.userId, t.startDate, t.endDate)],
+);
+
+/** What each person chose to see, kept for them across devices: the load grid's window, for now. */
+export const userPreferences = pgTable('user_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  preferences: jsonb('preferences').notNull().default({}),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});

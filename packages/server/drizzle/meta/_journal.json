@@ -64,6 +64,13 @@
       "when": 1794838447878,
       "tag": "0008_rules_across_issues",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794838663033,
+      "tag": "0009_absences",
+      "breakpoints": true
     }
   ]
 }

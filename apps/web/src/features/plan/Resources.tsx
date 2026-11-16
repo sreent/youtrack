@@ -3,17 +3,25 @@
  * days, then levelling, proposed before anything moves. Applying sends the starts the person
  * was shown; if the plan changed meanwhile the server refuses (409), and the new proposal is
  * shown for them to decide again. Nothing is ever re-applied on its own.
+ *
+ * The grid's days are each person's choice, kept for them (D36); a day someone is away says so,
+ * and half a day away is dashed, with what's left of the day.
  */
 import type { LevelingMode, LevelingResult, Project, ResourceLoad, Schedule } from '@a4a/shared';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { useMe } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { ErrorNote, Loading } from '../../components/States';
 import { Who } from '../../components/Who';
+import { usePreferences, useSetLoadWindow } from '../away/api';
+import { DaysAway } from '../away/DaysAway';
+import { FormField } from '../common/bits';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
 import { dayMonth, mondayOf, span, spanWords, weekdayName, workCalendar, type WorkCalendar } from './dates';
 import { andList, days, hours, plural, shift } from './format';
+import { WindowChoice, windowRange } from './LoadWindow';
 
 type Day = ResourceLoad['resources'][number]['days'][number];
 
@@ -28,16 +36,31 @@ function tasksTitle(day: Day): string | undefined {
   return day.tasks.length ? day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`).join(', ') : undefined;
 }
 
+const AWAY_WORDS = { morning: 'away in the morning', afternoon: 'away in the afternoon' } as const;
+
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   const ws = weekStart ? ' week-start' : '';
-  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>away</td>;
+  // A day someone is away says so; a day of no hours that isn't one is "off". Neither says why.
+  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>{day.away === 'day' ? 'away' : 'off'}</td>;
+  const half = day.away === 'morning' || day.away === 'afternoon' ? day.away : null;
+  const part = half ? ' part' : '';
+  const said = half ? `, ${AWAY_WORDS[half]}` : '';
   if (day.hours > day.capacity + 0.01) {
     return (
-      <td className={`load-cell over${ws}`} title={tasksTitle(day)}>
+      <td className={`load-cell over${part}${ws}`} title={tasksTitle(day)}>
         <Icon name="clock" />
         {hours(day.hours)}
         <span>of {hours(day.capacity)}</span>
-        <span className="hidden">, over</span>
+        <span className="hidden">, over{said}</span>
+      </td>
+    );
+  }
+  if (half) {
+    return (
+      <td className={`load-cell${part}${ws}`} data-load={loadLevel(day.hours, day.capacity)} title={tasksTitle(day)}>
+        {hours(day.hours)}
+        <span>of {hours(day.capacity)}</span>
+        <span className="hidden">{said}</span>
       </td>
     );
   }
@@ -48,7 +71,7 @@ function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   );
 }
 
-function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.ReactNode }) {
+function LoadGrid({ load, choice, children }: { load: ResourceLoad; choice?: React.ReactNode; children?: React.ReactNode }) {
   const titleId = useId();
   const aboutId = useId();
   const dates = load.resources[0]?.days.map((d) => d.date) ?? [];
@@ -56,11 +79,14 @@ function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.Rea
   const last = dates[dates.length - 1];
   const when = first && last ? spanWords(first, last) : '';
   const starts = dates.map((d, i) => i > 0 && mondayOf(d) !== mondayOf(dates[i - 1]!));
+  const away = load.resources.some((r) => r.days.some((d) => d.away));
   return (
     <section className="load load-box" aria-labelledby={titleId}>
       <h2 id={titleId}>Who's booked, and how much</h2>
+      {choice}
       <p className="note" id={aboutId}>
         Hours booked against each person's capacity, {when}. Weekends are the gap between the weeks.
+        {away ? ' A day someone is away says so, and half a day away is dashed, with what’s left of the day: their work waits for them.' : null}
       </p>
       <div className="load-scroll" tabIndex={0} role="group" aria-label={`Hours booked, ${when}`}>
         <table className="load-grid" aria-labelledby={titleId} aria-describedby={aboutId}>
@@ -111,6 +137,18 @@ function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.Rea
           <span className="load-cell over" />
           over it, with the hours
         </li>
+        {away ? (
+          <>
+            <li>
+              <span className="load-cell off" />
+              away
+            </li>
+            <li>
+              <span className="load-cell part" data-load="0" />
+              half a day away
+            </li>
+          </>
+        ) : null}
       </ul>
       {load.unassignedHours > 0 ? (
         <p className="note">{hours(load.unassignedHours)} of work in these days has nobody assigned, so it isn't in the grid.</p>
@@ -369,32 +407,120 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
   );
 }
 
+/**
+ * Days away for the plan's people, in the browser's own dialog: your own, and, as the project's
+ * manager, anyone's in the grid. Their work moves as soon as they're saved.
+ */
+function DaysAwayDialog({ people, meLogin, open, onClose }: { people: { login: string; name: string }[]; meLogin: string; open: boolean; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [login, setLogin] = useState(people.find((p) => p.login === meLogin)?.login ?? people[0]?.login ?? '');
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    else if (!open && d.open) d.close();
+  }, [open]);
+  const person = people.find((p) => p.login === login) ?? people[0];
+  return (
+    <dialog ref={ref} className="dialog wide" aria-labelledby={titleId} onClose={onClose}>
+      <h2 id={titleId}>Days away</h2>
+      <p>Plans skip a person’s days away: their work waits for them, and levelling looks for room on the days they’re there.</p>
+      {open && person ? (
+        <div className="stack">
+          {people.length > 1 ? (
+            <FormField label="Whose">
+              {(id) => (
+                <select id={id} value={person.login} onChange={(e) => setLogin(e.target.value)}>
+                  {people.map((p) => (
+                    <option key={p.login} value={p.login}>
+                      {p.login === meLogin ? `${p.name} (you)` : p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+          ) : null}
+          <DaysAway person={person} you={person.login === meLogin} canEnter />
+        </div>
+      ) : null}
+      <div className="dialog-actions">
+        <button type="button" onClick={onClose}>
+          Done
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
 export function Resources({ project }: { project: Project }) {
   const key = project.key;
-  const load = useResourceLoad(key);
+  const me = useMe();
+  const prefs = usePreferences();
+  const setWindow = useSetLoadWindow();
+  const chosen = prefs.data?.loadWindow ?? null;
+  const range = useMemo(() => windowRange(chosen), [chosen]);
+  // The person's window first, so the grid isn't read twice: once for the plan's days, once for theirs.
+  const load = useResourceLoad(key, range, !prefs.isLoading);
   const schedule = useSchedule(key, null);
   const cal = useMemo(() => workCalendar(schedule.data?.calendar ?? project.settings.plan), [schedule.data?.calendar, project.settings.plan]);
-  if (load.isLoading) return <Loading what="who's booked" />;
+  const [awayOpen, setAwayOpen] = useState(false);
+  if (prefs.isLoading || load.isLoading) return <Loading what="who's booked" />;
   if (load.error || !load.data) return <ErrorNote error={load.error} />;
   const l = load.data;
-  if (!l.resources.length || !l.resources[0]?.days.length) {
+  const choice = <WindowChoice chosen={chosen} busy={setWindow.isPending} onChoose={(w) => setWindow.mutate(w)} />;
+
+  // Whose days away this page may enter: your own, or, as its manager, everyone's in the grid.
+  const meLogin = me.data?.login ?? '';
+  const writes = Boolean(me.data?.auth.scopes.includes('write'));
+  const people = l.resources.filter((r) => !r.user.isBot).map((r) => ({ login: r.user.login, name: r.user.name }));
+  const enterable = !writes ? [] : project.access?.manage ? people : people.filter((p) => p.login === meLogin);
+  const awayButton = enterable.length ? (
+    <button type="button" onClick={() => setAwayOpen(true)}>
+      Days away
+    </button>
+  ) : null;
+  // Outside Ocean's layout rows, whose children lose their margins: the dialog centres itself by its own.
+  const awayDialog = enterable.length ? <DaysAwayDialog people={enterable} meLogin={meLogin} open={awayOpen} onClose={() => setAwayOpen(false)} /> : null;
+
+  if (!l.resources.length) {
     return (
       <section className="card">
         <h2>Nobody is booked yet</h2>
         <p className="note">
-          {l.resources.length
-            ? `${project.name} has no work left to place from today on.`
-            : `Nobody is assigned to ${project.name}'s tasks, so there's no load to show.`}{' '}
-          Load comes from each task's estimate, spread over its working days, against its assignee's hours a day.
+          Nobody is assigned to {project.name}'s tasks, so there's no load to show. Load comes from each task's estimate, spread over its working days, against its assignee's hours a
+          day.
+        </p>
+      </section>
+    );
+  }
+  if (!l.resources[0]?.days.length) {
+    return (
+      <section className="card stack">
+        <h2>No working days to show</h2>
+        {choice}
+        <p className="note">
+          {range.from ? 'These days have no working days in them: choose others above.' : `${project.name} has no work left to place from today on.`} Load comes from each task's
+          estimate, spread over its working days, against its assignee's hours a day.
         </p>
       </section>
     );
   }
   return (
     <div>
-      <LoadGrid load={l}>
+      <LoadGrid
+        load={l}
+        choice={
+          <div className="cluster">
+            {choice}
+            <span className="grow" />
+            {awayButton}
+          </div>
+        }
+      >
         <Levelling projectKey={key} load={l} schedule={schedule.data} cal={cal} />
       </LoadGrid>
+      {awayDialog}
     </div>
   );
 }

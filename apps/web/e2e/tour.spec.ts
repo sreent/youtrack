@@ -31,6 +31,26 @@ const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
 };
 
 /** A project of the tour's own, with a rule of each kind. It has no issues, so they never act. */
+/**
+ * A plan of its own whose one person is away a whole day and the afternoon of the next, in the
+ * grid's days: three days' work from today, which waits for them.
+ */
+const withDaysAway = async (api: Api) => {
+  const key = uniqueKey('TA');
+  await api.createProject({ key, name: `Tour ${key}`, template: 'waterfall' });
+  const login = `ines.${unique()}`;
+  await api.createUser({ login, name: 'Inès Aubert', password: 'tour-away-pass-1', role: 'member' });
+  const today = new Date().toLocaleDateString('en-CA');
+  const weekdays: string[] = [];
+  for (let d = Date.parse(`${today}T00:00:00Z`) + 86_400_000; weekdays.length < 2; d += 86_400_000) {
+    if (![0, 6].includes(new Date(d).getUTCDay())) weekdays.push(new Date(d).toISOString().slice(0, 10));
+  }
+  await api.createIssue({ project: key, summary: 'Patch the core switches', fields: { Type: 'Task', Assignee: login, Estimation: '3d', 'Start date': today } });
+  await api.post('/absences', { user: login, from: weekdays[0], kind: 'holiday' });
+  await api.post('/absences', { user: login, from: weekdays[1], half: 'afternoon', kind: 'training' });
+  return `/plan/${key}/resources`;
+};
+
 const withRules = async (api: Api) => {
   const key = uniqueKey('TR');
   await api.createProject({ key, name: `Tour ${key}` });
@@ -100,6 +120,7 @@ const STOPS: Stop[] = [
   { name: 'plans', path: '/plan', ready: (p) => p.getByRole('link', { name: 'Data center migration' }) },
   { name: 'a timeline', path: '/plan/MIG', ready: (p) => p.getByRole('group', { name: /^Data center migration, / }) },
   { name: 'who is booked', path: '/plan/MIG/resources', ready: (p) => p.getByRole('table', { name: "Who's booked, and how much" }) },
+  { name: 'who is booked, and who is away', path: withDaysAway, ready: (p) => p.getByRole('cell', { name: 'away', exact: true }) },
   { name: 'costs', path: '/plan/MIG/costs', ready: (p) => p.getByRole('heading', { name: 'Cost against plan' }) },
   { name: 'the assistant', path: '/assistant', ready: (p) => p.getByRole('navigation', { name: 'Your conversations' }) },
   {

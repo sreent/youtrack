@@ -31,6 +31,7 @@ import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
 import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
+import { absenceRoutes } from './routes/absences';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -80,6 +81,7 @@ export function createHttpApp(runtime: Runtime) {
   workflowRoutes(api);
   vcsRoutes(api);
   oauthRoutes(api);
+  absenceRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

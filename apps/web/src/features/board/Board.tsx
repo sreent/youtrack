@@ -403,7 +403,14 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
         onDragEnd={onDragEnd}
         onDragCancel={endDrag}
       >
-        <div className={dragging ? 'board-scroll dragging' : 'board-scroll'} tabIndex={0} role="group" aria-label={`${title}'s columns`} aria-describedby={hintId}>
+        {/* With lanes, the board runs long: it scrolls in its own frame, and its column heads stay in view (Ocean's .held). */}
+        <div
+          className={['board-scroll', lanes.length ? 'held' : '', dragging ? 'dragging' : ''].filter(Boolean).join(' ')}
+          tabIndex={0}
+          role="group"
+          aria-label={`${title}'s columns`}
+          aria-describedby={hintId}
+        >
           <div className="board-grid">
             <div className="board-cols">
               {view.columns.map((c, i) => (
