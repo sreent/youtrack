@@ -20,10 +20,12 @@ import { projectFieldDtos } from '../services/fields';
 import { applyChanges, createIssue, getIssue, resolveFieldsInput, resolveIssue, updateIssue } from '../services/issues';
 import { linkIssues, listLinkTypes } from '../services/links';
 import { getProject, listProjects } from '../services/projects';
+import { projectAccess } from '../services/access';
 import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
+import { accessTools } from './access';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
 import { defineTool, type ToolDef } from './types';
@@ -78,8 +80,11 @@ const getCurrentUser = defineTool({
   kind: 'reads',
   async run(ctx) {
     const u = ctx.actor.user;
+    // A token limited to projects says which, by the keys the agent can use.
+    const view = await projectAccess(ctx);
+    const projects = ctx.actor.projectIds ? ctx.actor.projectIds.filter((id) => view.canRead(id)).map((id) => view.keyOf(id)) : null;
     return {
-      data: { login: u.login, name: u.name, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName },
+      data: { login: u.login, name: u.name, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName, onlyProjects: projects ?? undefined },
       summary: `Acting as ${u.name}`,
     };
   },
@@ -519,6 +524,7 @@ export const TOOLS: ToolDef[] = [
   unlinkIssuesTool,
   logWorkTool,
   ...planningTools,
+  ...accessTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

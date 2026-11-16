@@ -4,8 +4,9 @@ import { effectiveScopes, requireScope, type Actor, type Ctx } from '../context'
 import type { Db } from '../db/client';
 import { apiTokens, sessions, users } from '../db/schema';
 import { randomToken, sha256, verifyPassword } from '../lib/crypto';
-import { notFound, unauthorized } from '../lib/errors';
+import { badRequest, forbidden, notFound, unauthorized } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { projectAccess, requireProject } from './access';
 import type { UserRow } from './schema-cache';
 
 export const SESSION_COOKIE = 'a4a_session';
@@ -21,10 +22,15 @@ export async function login(
   const [user] = await db.select().from(users).where(sql`lower(${users.login}) = ${loginName.trim().toLowerCase()}`);
   const ok = user && !user.banned && !user.isBot && (await verifyPassword(password, user.passwordHash));
   if (!ok) throw unauthorized('Wrong login or password');
+  return { ...(await startSession(db, user.id, ttlDays, userAgent)), user };
+}
+
+/** A new session, with a token never used before (sign-in never carries an old session over). */
+export async function startSession(db: Db, userId: string, ttlDays: number, userAgent?: string): Promise<{ token: string; expiresAt: Date }> {
   const token = randomToken('tls_', 32);
   const expiresAt = new Date(Date.now() + ttlDays * 86_400_000);
-  await db.insert(sessions).values({ id: sha256(token), userId: user.id, expiresAt, userAgent: userAgent?.slice(0, 300) });
-  return { token, user, expiresAt };
+  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, userAgent: userAgent?.slice(0, 300) });
+  return { token, expiresAt };
 }
 
 export async function logout(db: Db, token: string): Promise<void> {
@@ -59,38 +65,78 @@ export async function actorFromToken(db: Db, bearer: string, channel: 'api' | 'm
     .where(and(eq(apiTokens.tokenHash, sha256(bearer)), isNull(apiTokens.revokedAt)));
   if (!row || row.user.banned) return null;
   if (row.token.expiresAt && row.token.expiresAt < new Date()) return null;
+  const projectIds = row.token.projectIds ?? null;
   const now = Date.now();
   if ((lastUsedWrites.get(row.token.id) ?? 0) < now - 60_000) {
     lastUsedWrites.set(row.token.id, now);
     void db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.token.id)).catch(() => {});
   }
+  // A token limited to projects never administers: administration reaches every project.
+  const scopes = effectiveScopes(row.user.role, row.token.scopes).filter((sc) => !(projectIds && sc === 'admin'));
   return {
     user: row.user,
-    scopes: effectiveScopes(row.user.role, row.token.scopes),
+    scopes,
     channel,
     tokenId: row.token.id,
     tokenName: row.token.name,
     authMethod: 'token',
+    projectIds,
   };
 }
 
-function tokenDto(t: typeof apiTokens.$inferSelect): ApiToken {
+/** A token as its owner sees it: its projects by key, leaving out any they can no longer see. */
+function tokenDto(t: typeof apiTokens.$inferSelect, keyOf: (projectId: string) => string | undefined): ApiToken {
   return {
     id: t.id,
     name: t.name,
     prefix: t.prefix,
     scopes: t.scopes as Scope[],
+    projects: t.projectIds ? t.projectIds.map(keyOf).filter((k): k is string => Boolean(k)) : null,
     createdAt: t.createdAt.toISOString(),
     lastUsedAt: t.lastUsedAt?.toISOString() ?? null,
     expiresAt: t.expiresAt?.toISOString() ?? null,
   };
 }
 
+async function keysFor(ctx: Ctx): Promise<(projectId: string) => string | undefined> {
+  const view = await projectAccess(ctx);
+  return (id) => (view.canRead(id) ? view.keyOf(id) : undefined);
+}
+
+/**
+ * The project ids a new or changed token may be limited to. Each must be a project the caller can
+ * see (one they can't is "not found", as one that doesn't exist). A token limited to projects can
+ * only give a token those projects or fewer, so a limit is never lifted by making a new token.
+ */
+async function tokenProjects(ctx: Ctx, keys: string[] | null | undefined, scopes: Scope[]): Promise<string[] | null> {
+  const inherited = ctx.actor.projectIds ?? null;
+  if (keys === undefined || keys === null) {
+    if (inherited) return [...inherited];
+    return null;
+  }
+  if (scopes.includes('admin')) {
+    throw badRequest('A token limited to projects can’t have the admin scope', 'Administration reaches every project: leave out the admin scope, or the projects.');
+  }
+  const ids: string[] = [];
+  for (const key of keys) ids.push((await requireProject(ctx, key)).id);
+  return [...new Set(ids)];
+}
+
+/** A token's scopes never exceed what creates it: a token can make only a token that may do as much as it, or less. */
+function tokenScopes(ctx: Ctx, scopes: Scope[]): Scope[] {
+  const unique = [...new Set(scopes)];
+  if (ctx.actor.authMethod === 'token') {
+    const more = unique.filter((sc) => !ctx.actor.scopes.includes(sc));
+    if (more.length) throw forbidden(`This token can’t make a token with the ${more.join(', ')} scope`, 'Create it while signed in, or from a token that has it.');
+  }
+  return unique;
+}
+
 export async function issueTokenFor(
   db: Db,
   userId: string,
-  input: { name: string; scopes: Scope[]; expiresInDays?: number | null },
-): Promise<ApiToken & { token: string }> {
+  input: { name: string; scopes: Scope[]; expiresInDays?: number | null; projectIds?: string[] | null },
+): Promise<typeof apiTokens.$inferSelect & { token: string }> {
   const token = randomToken(TOKEN_PREFIX, 32);
   const [row] = await db
     .insert(apiTokens)
@@ -101,20 +147,24 @@ export async function issueTokenFor(
       tokenHash: sha256(token),
       prefix: token.slice(0, 10),
       scopes: [...new Set(input.scopes)],
+      projectIds: input.projectIds ?? null,
       expiresAt: input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86_400_000) : null,
     })
     .returning();
-  return { ...tokenDto(row!), token };
+  return { ...row!, token };
 }
 
 export async function createToken(
   ctx: Ctx,
-  input: { name: string; scopes: Scope[]; expiresInDays?: number | null },
+  input: { name: string; scopes: Scope[]; expiresInDays?: number | null; projects?: string[] | null },
 ): Promise<ApiToken & { token: string }> {
-  // A token can be created with any scopes; they are always capped by the user's role.
+  // Scopes are always capped by the person's role, and by the token that asks, if a token asks.
   requireScope(ctx, 'read');
   if (ctx.actor.authMethod === 'token') requireScope(ctx, 'write');
-  return issueTokenFor(ctx.db, ctx.actor.user.id, input);
+  const scopes = tokenScopes(ctx, input.scopes);
+  const projectIds = await tokenProjects(ctx, input.projects, scopes);
+  const { token, ...row } = await issueTokenFor(ctx.db, ctx.actor.user.id, { ...input, scopes, projectIds });
+  return { ...tokenDto(row, await keysFor(ctx)), token };
 }
 
 export async function listTokens(ctx: Ctx): Promise<ApiToken[]> {
@@ -123,7 +173,26 @@ export async function listTokens(ctx: Ctx): Promise<ApiToken[]> {
     .select()
     .from(apiTokens)
     .where(and(eq(apiTokens.userId, ctx.actor.user.id), isNull(apiTokens.revokedAt)));
-  return rows.map(tokenDto);
+  const keyOf = await keysFor(ctx);
+  return rows.map((r) => tokenDto(r, keyOf));
+}
+
+/** Rename a token, or change which projects it reaches (null: every project you can see). */
+export async function updateToken(ctx: Ctx, id: string, input: { name?: string; projects?: string[] | null }): Promise<ApiToken> {
+  requireScope(ctx, 'read');
+  if (ctx.actor.authMethod === 'token') requireScope(ctx, 'write');
+  const [current] = await ctx.db
+    .select()
+    .from(apiTokens)
+    .where(and(eq(apiTokens.id, id), eq(apiTokens.userId, ctx.actor.user.id), isNull(apiTokens.revokedAt)));
+  if (!current) throw notFound('Token');
+  const projectIds = input.projects === undefined ? current.projectIds : await tokenProjects(ctx, input.projects, current.scopes as Scope[]);
+  const [row] = await ctx.db
+    .update(apiTokens)
+    .set({ ...(input.name !== undefined ? { name: input.name } : {}), projectIds })
+    .where(eq(apiTokens.id, id))
+    .returning();
+  return tokenDto(row!, await keysFor(ctx));
 }
 
 export async function revokeToken(ctx: Ctx, id: string): Promise<void> {

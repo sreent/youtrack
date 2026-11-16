@@ -1,7 +1,7 @@
 import type { Suggestion, TriageMode, TriagePayload } from '@a4a/shared';
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { systemCtx, type Runtime } from '../app-services';
+import { adminCtx, type Runtime } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { TRIAGE_BOT } from '../db/defaults';
@@ -11,9 +11,10 @@ import type { OutboxConsumer } from '../events/worker';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
+import { assertCanWriteProject, canReadIssueId, projectAccess, projectRolesOf, redactHiddenIds, requireProject, type AccessView } from '../services/access';
 import { getIssue, resolveIssue, updateIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
-import { projectSettings } from '../services/projects';
+import { projectSettings, projectVisibility } from '../services/projects';
 import { allowedValues, type FieldRow } from '../services/schema-cache';
 import { userRefDto } from '../services/values';
 import { presentField } from '../tools/registry';
@@ -25,16 +26,28 @@ const Confidence = z.enum(['low', 'medium', 'high']);
 
 type SuggestionRow = typeof aiSuggestions.$inferSelect;
 
-async function dto(ctx: Ctx, row: SuggestionRow): Promise<Suggestion> {
+/**
+ * A suggestion as the caller may see it: possible duplicates they can't see are left out, and
+ * their ids taken out of what triage wrote. Visibility can change after triage ran.
+ */
+async function dto(ctx: Ctx, row: SuggestionRow, view?: AccessView): Promise<Suggestion> {
   const s = await ctx.app.schema.get();
+  const v = view ?? (await projectAccess(ctx));
   const by = row.resolvedById ? s.users.get(row.resolvedById) : undefined;
   const ref = (await issueRefsById(ctx.db, s, [row.issueId])).get(row.issueId);
+  const raw = row.payload as TriagePayload;
+  const payload: TriagePayload = {
+    ...raw,
+    fields: raw.fields.map((f) => ({ ...f, reason: redactHiddenIds(f.reason, v, s) })),
+    duplicates: raw.duplicates.filter((d) => canReadIssueId(v, s, d.issue)).map((d) => ({ ...d, reason: redactHiddenIds(d.reason, v, s) })),
+    summary: redactHiddenIds(raw.summary, v, s),
+  };
   return {
     id: row.id,
     issueId: ref?.id ?? row.issueId,
     kind: 'triage',
     status: row.status as Suggestion['status'],
-    payload: row.payload as TriagePayload,
+    payload,
     model: row.model,
     createdAt: row.createdAt.toISOString(),
     resolvedAt: row.resolvedAt?.toISOString() ?? null,
@@ -78,7 +91,12 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
   const project = s.projects.get(row.projectId)!;
   const fields = triageFields({ s }, project.id);
   const assigneeField = fields.find((f) => f.type === 'user');
-  const people = [...s.users.values()].filter((u) => !u.banned && !u.isBot);
+  let people = [...s.users.values()].filter((u) => !u.banned && !u.isBot);
+  // In a project only its people see, only they may be suggested as its assignee.
+  if (projectVisibility(project) === 'members') {
+    const roles = await projectRolesOf(ctx.db, project.id, people.map((u) => u.id));
+    people = people.filter((u) => roles.has(u.id));
+  }
 
   const fieldShape: Record<string, z.ZodType> = {};
   for (const f of fields) {
@@ -90,7 +108,14 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
       reason: z.string().describe('Why, in one short sentence'),
     });
   }
-  const candidates = (await findSimilar(ctx, { summary: issue.summary, description: issue.description, excludeIssue: issue.id, limit: 5 })).filter((c) => c.score >= 0.2);
+  // Possible duplicates come only from projects everyone who reads this issue can see (its own
+  // project, and open ones), so neither Claude nor the stored suggestion carries anything that
+  // the issue's readers couldn't open.
+  const view = await projectAccess(ctx);
+  const audience = [...s.projects.values()].filter((p) => (p.id === project.id || projectVisibility(p) === 'open') && view.canRead(p.id)).map((p) => p.id);
+  const candidates = (await findSimilar(ctx, { summary: issue.summary, description: issue.description, excludeIssue: issue.id, limit: 5, projectIds: audience })).filter(
+    (c) => c.score >= 0.2,
+  );
   const tags = [...s.tags.values()].map((t) => t.name);
   const shape: Record<string, z.ZodType> = {
     fields: z.object(fieldShape),
@@ -157,20 +182,22 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
 }
 
 /** Everything agents propose that waits on a person (the Decide page), newest first. */
+/** Everything agents propose that waits on a person (the Decide page), newest first: in the projects the caller can see. */
 export async function listPendingSuggestions(ctx: Ctx, opts: { project?: string; limit?: number } = {}): Promise<Suggestion[]> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const project = opts.project ? s.projectsByKey.get(opts.project.toUpperCase()) : undefined;
-  if (opts.project && !project) throw notFound(`Project ${opts.project}`);
+  const project = opts.project ? await requireProject(ctx, opts.project) : undefined;
+  const view = await projectAccess(ctx);
+  const visible = view.visibleIds();
+  const scope = visible === null ? sql`` : visible.length ? sql`AND i.project_id IN (${sql.join(visible.map((id) => sql`${id}`), sql`, `)})` : sql`AND FALSE`;
   const res = await ctx.db.execute(sql`
     SELECT s.id FROM ai_suggestions s JOIN issues i ON i.id = s.issue_id
-    WHERE s.status IN ('pending', 'partially_applied') ${project ? sql`AND i.project_id = ${project.id}` : sql``}
+    WHERE s.status IN ('pending', 'partially_applied') ${project ? sql`AND i.project_id = ${project.id}` : sql``} ${scope}
     ORDER BY s.created_at DESC LIMIT ${Math.min(opts.limit ?? 100, 200)}`);
   const ids = (res as unknown as { rows: { id: string }[] }).rows.map((r) => r.id);
   if (!ids.length) return [];
   const rows = await ctx.db.select().from(aiSuggestions).where(sql`${aiSuggestions.id} IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
   const byId = new Map(rows.map((r) => [r.id, r]));
-  return Promise.all(ids.map((id) => dto(ctx, byId.get(id)!)));
+  return Promise.all(ids.map((id) => dto(ctx, byId.get(id)!, view)));
 }
 
 export async function listSuggestions(ctx: Ctx, issueId: string): Promise<Suggestion[]> {
@@ -183,9 +210,14 @@ export async function listSuggestions(ctx: Ctx, issueId: string): Promise<Sugges
 /** A suggestion someone can still decide on: pending, or partly accepted with more to decide. */
 async function loadOpen(ctx: Ctx, id: string): Promise<SuggestionRow> {
   const [row] = await ctx.db.select().from(aiSuggestions).where(eq(aiSuggestions.id, id));
+  // A suggestion on an issue the caller can't see is not found, as one that doesn't exist.
   if (!row) throw notFound('Suggestion');
+  const issue = await resolveIssue(ctx, row.issueId).catch(() => {
+    throw notFound('Suggestion');
+  });
+  // Deciding on a suggestion is work on the issue: its project's members decide.
+  await assertCanWriteProject(ctx, issue.projectId);
   if (row.status !== 'pending' && row.status !== 'partially_applied') throw badRequest(`This suggestion was already ${row.status}`);
-  await resolveIssue(ctx, row.issueId); // access check
   return row;
 }
 
@@ -270,7 +302,11 @@ export function triageConsumer(runtime: Runtime): OutboxConsumer | null {
       }
       const [bot] = await runtime.db.select().from(users).where(eq(users.login, TRIAGE_BOT));
       if (!bot) return;
-      const ctx = systemCtx(runtime, bot, 'automation');
+      // The triage agent works on every project, whoever may see it, but on one issue at a time:
+      // it reaches only that issue's project and the open ones (where its duplicates may be).
+      const open = [...s.projects.values()].filter((p) => projectVisibility(p) === 'open').map((p) => p.id);
+      const ctx = adminCtx(runtime, bot, 'automation');
+      ctx.actor.projectIds = [...new Set([project.id, ...open])];
       let suggestion: Suggestion;
       try {
         suggestion = await triageIssue(ctx, event.issue.id);

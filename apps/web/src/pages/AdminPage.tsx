@@ -3,9 +3,10 @@ import { ROLES } from '@a4a/shared/constants';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { patch, post } from '../api/client';
-import { keys, useMe, useSettings, useUsers } from '../api/queries';
+import { keys, useMe, useSettings, useSetupStatus, useUsers } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
+import { ago } from '../components/Badges';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
@@ -23,7 +24,21 @@ function num(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
+type SignInWays = { sso: { name: string } | null; passwords: boolean };
+
+/** How someone signs in, in words: "Password", "Corp ID", "Password and Corp ID". */
+function signsInWith(user: User, ways: SignInWays): { words: string; about: string | null } {
+  if (user.isBot) return { words: 'Tokens only', about: null };
+  const providers = [...new Set((user.signIn?.identities ?? []).map((i) => i.provider))];
+  const now = [...(user.signIn?.password && ways.passwords ? ['Password'] : []), ...providers];
+  const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
+  if (now.length) return { words: now.join(' and '), about: last ? `last ${ago(last)}` : null };
+  if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: 'Not yet', about: `${ways.sso.name} finds them by email` };
+  if (ways.sso && user.email) return { words: 'Not yet', about: 'once their email is confirmed' };
+  return { words: 'Can’t yet', about: ways.sso ? 'Give them a password, or an email' : 'Give them a password' };
+}
+
+function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: SignInWays }) {
   const qc = useQueryClient();
   const initial = {
     name: user.name,
@@ -57,6 +72,17 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   const label = (what: string) => `${what} of ${user.name}`;
+  const how = signsInWith(user, ways);
+  // An email people set for themselves isn't one single sign-on may find them by, until an administrator confirms it.
+  const unconfirmed = Boolean(user.email) && user.signIn !== undefined && !user.signIn.emailConfirmed && form.email.trim() === (user.email ?? '');
+  const confirm = useMutation({
+    mutationFn: () => patch<User>(`/users/${user.id}`, { email: user.email }),
+    onSuccess: () => {
+      setSaid({ text: `${user.name}'s email is confirmed.` });
+      void qc.invalidateQueries({ queryKey: keys.users });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
   return (
     <tr className={form.banned ? 'dimmed' : undefined}>
       <th scope="row" className="row-head">
@@ -93,6 +119,20 @@ function PersonRow({ user, isMe }: { user: User; isMe: boolean }) {
           placeholder="None"
           className="tw:w-48"
         />
+        {unconfirmed ? (
+          <span className="item-about">
+            They set it themselves, so single sign-on won’t find them by it.{' '}
+            <button type="button" className="link" onClick={() => confirm.mutate()} disabled={confirm.isPending}>
+              Confirm it
+            </button>
+          </span>
+        ) : null}
+      </td>
+      <td>
+        <span className="tw:block tw:min-w-36">
+          {how.words}
+          {how.about ? <span className="item-about">{how.about}</span> : null}
+        </span>
       </td>
       <td>
         <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label('Role')} disabled={isMe}>
@@ -312,6 +352,8 @@ export default function AdminPage() {
   const users = useUsers();
   const settings = useSettings();
   const me = useMe();
+  const status = useSetupStatus();
+  const ways: SignInWays = { sso: status.data?.signIn.sso ?? null, passwords: status.data?.signIn.password ?? true };
   const people = users.data ?? [];
   const banned = people.filter((u) => u.banned).length;
   const bots = people.filter((u) => u.isBot).length;
@@ -341,6 +383,7 @@ export default function AdminPage() {
                 <tr>
                   <th scope="col">Person</th>
                   <th scope="col">Email</th>
+                  <th scope="col">Signs in with</th>
                   <th scope="col">Role</th>
                   <th scope="col">Rate per hour</th>
                   <th scope="col">Hours a day</th>
@@ -352,7 +395,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {people.map((u) => (
-                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} />
+                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} ways={ways} />
                 ))}
               </tbody>
             </table>

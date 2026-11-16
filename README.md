@@ -25,11 +25,18 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Search and commands in plain words.
   - Issue summaries.
   - An assistant that works through the same tools as MCP and asks before it changes anything.
+- **Projects with their own people**:
+  - a project is open to everyone, or seen only by its members and administrators;
+  - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
+  - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;
+  - tokens can be limited to some projects.
+- **Single sign-on** with your identity provider (OpenID Connect), with password sign-in optional.
+  - Accounts are linked by a verified email, can be made on first sign-in, and can be kept to your email domains.
 - **For integrations**:
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 22 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
+- **For agents**: an MCP server at `/mcp` with 23 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
 
 ## Quick start
 
@@ -112,6 +119,14 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `AI_MODEL` | `claude-opus-5-5`, `deepseek-v4-pro` or `qwen3.8-max` | The model used |
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
+| `ADMIN_EMAIL` | empty | Their email, so single sign-on can find them by it |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID` | empty | Turn on single sign-on with an OpenID Connect provider: its issuer (https) and a4a's client id there. Register `PUBLIC_URL/api/v1/auth/oidc/callback` as the redirect URI, exactly |
+| `OIDC_CLIENT_SECRET` | empty | The client's secret (empty for a public client) |
+| `OIDC_NAME` | the issuer's host | What the sign-in page calls it: "Sign in with …" |
+| `OIDC_SCOPES` | `openid email profile` | Scopes asked for |
+| `OIDC_ALLOWED_DOMAINS` | empty | Comma-separated email domains allowed in; empty allows any the provider verifies |
+| `OIDC_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
+| `PASSWORD_LOGIN` | `true` | `false` turns password sign-in off, while single sign-on is on |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
 
 ## Production
