@@ -59,6 +59,21 @@ test('speaks German where the browser asks for it, dates and all', async ({ page
   await shoot(page, info, 'profile');
 });
 
+test('says roles and counts in German, where English code said them before', async ({ page, api }, info) => {
+  const key = uniqueKey('RL');
+  await api.createProject({ key, name: `Rollen ${key}` });
+  await page.goto(`/projects/${key}`);
+  const access = page.getByRole('region', { name: 'Personen und Zugang' });
+  // The built-in roles in German, said bare as German says a role, with what each may do.
+  await expect(access.getByText(/^Rollen: .*Betrachter darf seine Vorgänge lesen/)).toBeVisible();
+  await expect(access.getByText(/a viewer|a member|report issues/)).toHaveCount(0);
+  await shoot(page, info, 'people-and-access');
+
+  // People counted by a message's own plural: "12 Personen", not "12 people".
+  await page.goto('/admin');
+  await expect(page.getByText(/^\d+ Personen/).first()).toBeVisible();
+});
+
 test('says a problem in German, on the sign-in page too', async ({ browser }, info) => {
   const context = await browser.newContext({ locale: 'de-DE', storageState: { cookies: [], origins: [] } });
   const page = await context.newPage();
