@@ -6,6 +6,7 @@ import { badRequest } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
 import { projectAccess, scopeSchema } from '../services/access';
+import { zoneOf } from '../services/time-zones';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { explainParsed } from './explain';
 import { withFixes } from './lexer';
@@ -29,7 +30,9 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
   const s = scopeSchema(await ctx.app.schema.get(), visible);
   const vocab = buildVocabulary(s);
   const parsed = parseQuery(query, vocab);
-  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id });
+  // Dates are read where the asker is (D31): "today" is their today.
+  const zone = zoneOf(ctx);
+  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone });
   if (extra?.projectId) {
     const scope = sql`${issues.projectId} = ${extra.projectId}`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
@@ -40,7 +43,9 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
       : sql`FALSE`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
   }
-  return { parsed, compiled, explanation: explainParsed(parsed) };
+  // A search whose dates depend on where you are says where it read them.
+  const explained = explainParsed(parsed);
+  return { parsed, compiled, explanation: compiled.readsDates ? `${explained} (dates in ${zone})` : explained };
 }
 
 function formatProblems(problems: QueryProblem[]): string {

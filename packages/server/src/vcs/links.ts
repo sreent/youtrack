@@ -72,6 +72,7 @@ function vcsCtx(app: AppServices, integration: IntegrationRow, person: UserRow |
     banned: false,
     hourlyRate: null,
     capacityHoursPerDay: 0,
+    timeZone: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   } satisfies UserRow;

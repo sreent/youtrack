@@ -22,6 +22,7 @@ import {
   RULE_TRIGGERS,
   SCOPES,
   SLA_STATES,
+  SUBSCRIPTION_EVENTS,
   TRIAGE_MODES,
   WATCH_REASONS,
   VCS_DELIVERY_OUTCOMES,
@@ -124,6 +125,11 @@ export const UserSchema = UserRefSchema.extend({
 export type User = z.infer<typeof UserSchema>;
 
 export const MeSchema = UserSchema.extend({
+  timeZone: z
+    .string()
+    .nullable()
+    .describe('Your time zone (an IANA name): what "today" means in your searches, when your digest comes, and the times in your email. Null: the server\'s'),
+  serverTimeZone: z.string().describe("The server's time zone, which yours falls back to"),
   auth: z.object({
     method: z.enum(['session', 'token']),
     scopes: z.array(z.enum(SCOPES)),
@@ -158,6 +164,7 @@ export type SetupStatus = z.infer<typeof SetupStatusSchema>;
 export const UpdateMeBody = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().nullable().optional(),
+  timeZone: z.string().min(1).max(64).nullable().optional().describe("An IANA time zone, such as Europe/Berlin; null for the server's"),
   password: z.string().min(8).optional(),
   currentPassword: z.string().optional(),
 });
@@ -1482,7 +1489,9 @@ export type Watchers = z.infer<typeof WatchersSchema>;
 export const NotificationSchema = z
   .object({
     id: z.string(),
-    kind: z.enum(NOTIFICATION_KINDS).describe('The strongest reason among its events: assigned, mentioned, request (a new help desk request), watching'),
+    kind: z
+      .enum(NOTIFICATION_KINDS)
+      .describe('The strongest reason among its events: assigned, mentioned, request (a new help desk request), watching, subscribed (a project or a saved search you subscribed to)'),
     title: z.string().describe('What happened, in words: "Anna Schmidt mentioned you"'),
     issue: IssueRefSchema.describe('The issue as it was at its latest event'),
     project: z.string().nullable(),
@@ -1492,6 +1501,10 @@ export const NotificationSchema = z
     firstAt: timestamp,
     lastAt: timestamp,
     readAt: timestamp.nullable(),
+    subscription: z
+      .object({ id: z.string(), about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"') })
+      .nullable()
+      .describe('When it came because you subscribed (kind "subscribed"): to what. Null otherwise, or once that subscription has ended'),
   })
   .meta({ id: 'Notification' });
 export type Notification = z.infer<typeof NotificationSchema>;
@@ -1537,7 +1550,8 @@ export const NotificationSettingsSchema = z
     digest: z.boolean().describe("A daily email of what's still unread and wasn't emailed"),
     address: z.string().nullable().describe('Where emails go: your email, from your profile'),
     mailConfigured: z.boolean().describe('Whether this server sends email at all (SMTP_URL)'),
-    digestHour: z.number().int().describe("The hour the digest goes out, in the server's time zone (DIGEST_HOUR)"),
+    digestHour: z.number().int().describe('The hour the digest goes out, in your time zone (DIGEST_HOUR)'),
+    timeZone: z.string().describe("The time zone the digest and the times in your email follow: yours, or the server's"),
   })
   .meta({ id: 'NotificationSettings' });
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
@@ -1549,7 +1563,9 @@ export const NotificationSettingsBody = z.object({
 export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) });
 export const UnsubscribeSchema = z
   .object({
-    kind: z.enum(['watching', 'direct', 'digest', 'request']).describe("What the link is for: a person's kind of email, or a help desk request's emails to its requester"),
+    kind: z
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
+      .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
     what: z.string().describe('What the link stops, in words'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
@@ -1852,3 +1868,36 @@ export const IssueVcsSchema = z
   .object({ commits: z.array(VcsCommitSchema), pullRequests: z.array(VcsPullRequestSchema) })
   .meta({ id: 'IssueVcs' });
 export type IssueVcs = z.infer<typeof IssueVcsSchema>;
+
+// ---------------------------------------------------------------------------
+// Subscriptions (D31)
+// ---------------------------------------------------------------------------
+
+export const SubscriptionSchema = z
+  .object({
+    id: z.string(),
+    target: z.enum(['project', 'search']).describe('What it is to: a project, or a saved search'),
+    project: z.object({ key: z.string(), name: z.string() }).nullable().describe("A project subscription's project"),
+    search: z.object({ id: z.string(), name: z.string(), query: z.string() }).nullable().describe("A saved-search subscription's search"),
+    events: z
+      .enum(SUBSCRIPTION_EVENTS)
+      .describe('To a project: its new issues (new), or every change in it (all). To a saved search: an issue coming into it (new), or any change to one in it (all)'),
+    email: z.boolean().describe('Whether it emails you too, as well as your inbox. Your email setting "Never" stops it'),
+    about: z.string().describe('What it tells you of, in words: "New issues in Backend", "Issues coming into “Critical bugs”"'),
+    createdAt: timestamp,
+  })
+  .meta({ id: 'Subscription' });
+export type Subscription = z.infer<typeof SubscriptionSchema>;
+
+export const SubscribeBody = z.object({
+  project: z.string().optional().describe('A project, by its key: to its new issues, or every change in it'),
+  savedSearch: z.string().optional().describe('A saved search, by its id: to issues coming into it, or any change to one in it'),
+  events: z.enum(SUBSCRIPTION_EVENTS).default('new'),
+  email: z.boolean().default(true).describe('Email too, as your email setting allows'),
+});
+export type SubscribeInput = z.input<typeof SubscribeBody>;
+
+export const UpdateSubscriptionBody = z.object({
+  events: z.enum(SUBSCRIPTION_EVENTS).optional(),
+  email: z.boolean().optional(),
+});

@@ -18,6 +18,8 @@ import { boardView, listBoards } from '../services/boards';
 import { addComment, listComments } from '../services/comments';
 import { projectFieldDtos } from '../services/fields';
 import { applyChanges, createIssue, getIssue, resolveFieldsInput, resolveIssue, updateIssue } from '../services/issues';
+import { todayIn } from '../reports/tz';
+import { zoneOf } from '../services/time-zones';
 import { linkIssues, listLinkTypes } from '../services/links';
 import { getProject, listProjects } from '../services/projects';
 import { projectAccess } from '../services/access';
@@ -426,7 +428,7 @@ const updateIssueTool = defineTool({
       applyChanges(tx as unknown as Db, ctx, issue, {
         summary: input.summary,
         description: input.description,
-        fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id),
+        fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx))),
         addTags: input.add_tags,
         removeTags: input.remove_tags,
       }, { dryRun: true }),

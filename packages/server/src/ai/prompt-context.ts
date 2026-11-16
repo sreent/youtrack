@@ -1,6 +1,7 @@
 import type { Ctx } from '../context';
-import { todayISO } from '../lib/dates';
+import { todayIn } from '../reports/tz';
 import { visibleSchema } from '../services/access';
+import { zoneOf } from '../services/time-zones';
 import { allowedValues, type SchemaSnapshot } from '../services/schema-cache';
 
 /**
@@ -11,7 +12,9 @@ export async function schemaSummary(ctx: Ctx, opts: { projectId?: string; maxUse
   const s = await visibleSchema(ctx);
   const projects = opts.projectId ? [s.projects.get(opts.projectId)!].filter(Boolean) : [...s.projects.values()].filter((p) => !p.archived);
   const lines: string[] = [];
-  lines.push(`Today: ${todayISO()}. You act for ${ctx.actor.user.name} (login "${ctx.actor.user.login}"; "me" in queries).`);
+  // Today where the person is (D31), which is what "today" in their queries means too.
+  const zone = zoneOf(ctx);
+  lines.push(`Today: ${todayIn(zone)} (${zone}). You act for ${ctx.actor.user.name} (login "${ctx.actor.user.login}"; "me" in queries).`);
   lines.push(`Projects: ${projects.map((p) => `${p.key} (${p.name})`).join(', ')}`);
   lines.push('Fields:');
   for (const line of fieldLines(s, projects.map((p) => p.id))) lines.push(`- ${line}`);

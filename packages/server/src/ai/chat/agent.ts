@@ -12,7 +12,8 @@ import type { ChatMessage, ChatPart, ChatStreamEvent, Conversation, Conversation
 import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { requireScope, withChannel, type Ctx } from '../../context';
 import { aiConversations, aiMessages } from '../../db/schema';
-import { todayISO } from '../../lib/dates';
+import { todayIn } from '../../reports/tz';
+import { zoneOf } from '../../services/time-zones';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors';
 import { newId } from '../../lib/ids';
 import { excerpt } from '../../lib/text';
@@ -101,7 +102,7 @@ export async function createConversation(ctx: Ctx, input: { title?: string; proj
   // Frozen for the conversation's life so the prompt prefix stays cacheable.
   const frozen: FrozenContext = {
     intro: [
-      `The conversation started on ${todayISO()}.`,
+      `The conversation started on ${todayIn(zoneOf(ctx))}.`,
       project ? `The person opened it from project ${project.key} (${project.name}); assume that project unless they say otherwise.` : '',
       `They may: ${ctx.actor.scopes.join(', ')}.`,
       '',

@@ -11,11 +11,14 @@ import {
   UpdateTokenBody,
   type Me,
 } from '@a4a/shared';
+import { eq } from 'drizzle-orm';
 import { deleteCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { adminCtx } from '../../app-services';
 import { effectiveScopes, type Ctx } from '../../context';
+import { users } from '../../db/schema';
 import { seedDemo } from '../../db/seed';
+import { serverTimeZone } from '../../reports/tz';
 import { AppError, badRequest } from '../../lib/errors';
 import { projectAccess } from '../../services/access';
 import { createToken, listTokens, login, logout, needsSetup, revokeToken, SESSION_COOKIE, updateToken } from '../../services/auth';
@@ -32,6 +35,8 @@ export async function meDto(ctx: Ctx): Promise<Me> {
   const view = await projectAccess(ctx);
   return {
     ...userDto(ctx.actor.user),
+    timeZone: ctx.actor.user.timeZone ?? null,
+    serverTimeZone: serverTimeZone(),
     auth: {
       method: ctx.actor.authMethod === 'token' ? 'token' : 'session',
       scopes: ctx.actor.scopes,
@@ -119,9 +124,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'get', path: '/me', tags, summary: 'Who you are, and what this session or token may do', response: MeSchema }, async ({ ctx }) => meDto(ctx));
 
-  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email or password', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
+  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email, password or time zone', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
     const user = await updateMe(ctx, body);
-    return { ...(await meDto(ctx)), ...user };
+    // Answer with you as saved: the row the request began with is from before the change.
+    const [row] = await ctx.db.select().from(users).where(eq(users.id, ctx.actor.user.id));
+    return { ...(await meDto(row ? { ...ctx, actor: { ...ctx.actor, user: row } } : ctx)), ...user };
   });
 
   route(app, { method: 'get', path: '/me/tokens', tags: ['API tokens'], summary: 'Your API tokens', response: z.array(ApiTokenSchema) }, async ({ ctx }) => listTokens(ctx));

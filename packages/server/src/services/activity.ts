@@ -5,9 +5,11 @@ import { activities } from '../db/schema';
 import { toEventDto } from '../events/activity';
 import { parseDateExpression } from '../lib/dates';
 import { badRequest } from '../lib/errors';
+import { startOfDay, todayIn } from '../reports/tz';
 import { eventsVisibleSql, projectAccess } from './access';
 import { resolveIssue } from './issues';
 import { projectByKey } from './schema-cache';
+import { zoneOf } from './time-zones';
 
 /** An issue's history, leaving out links to issues the caller can't see. */
 export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Promise<TrackerEvent[]> {
@@ -47,8 +49,10 @@ export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<Track
   if (seen) conds.push(seen);
   if (opts.after !== undefined) conds.push(gt(activities.id, opts.after));
   if (opts.since) {
-    const range = parseDateExpression(opts.since);
-    const ts = range?.from ? new Date(`${range.from}T00:00:00`) : new Date(opts.since);
+    // "-7d" or a date: from its start where the asker is (D31).
+    const zone = zoneOf(ctx);
+    const range = parseDateExpression(opts.since, todayIn(zone));
+    const ts = range?.from ? new Date(startOfDay(range.from, zone)) : new Date(opts.since);
     if (Number.isNaN(ts.getTime())) throw badRequest(`Invalid "since": ${opts.since}`, 'Use a date, a timestamp, or e.g. -7d');
     conds.push(gte(activities.createdAt, ts));
   }

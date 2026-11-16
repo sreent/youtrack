@@ -1,7 +1,8 @@
 import { parsePeriod, type QueryProblem } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { issues } from '../db/schema';
-import { parseDateExpression, todayISO, type DateRange } from '../lib/dates';
+import { isISODate, parseDateExpression, type DateRange } from '../lib/dates';
+import { serverTimeZone, startOfDay, todayIn } from '../reports/tz';
 import { didYouMean } from '../lib/text';
 import { parseReadableId } from '../services/issue-refs';
 import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -14,14 +15,21 @@ export interface CompileContext {
   s: SchemaSnapshot;
   meId: string;
   today?: string;
-  /** The moment "sla: overdue" is judged at (tests). */
+  /** The moment "sla: overdue" is judged at, and "today" when it isn't given (tests). */
   now?: Date;
+  /**
+   * The time zone dates are read in (D31): what "today" is, and where a day begins and ends for
+   * created, updated and resolved. The asker's own, or the server's when there is none.
+   */
+  timeZone?: string;
 }
 
 export interface CompiledQuery {
   where: SQL | null;
   orderBy: SQL[];
   problems: QueryProblem[];
+  /** Whether its dates depend on the time zone it was read in (D31). */
+  readsDates?: boolean;
 }
 
 const TRUE = sql`TRUE`;
@@ -57,19 +65,24 @@ export function prefixTsQuery(text: string): string | null {
   return words.map((w) => `${w}:*`).join(' & ');
 }
 
-function localMidnight(iso: string): Date {
-  return new Date(`${iso}T00:00:00`);
-}
-
 class Compiler {
   problems: QueryProblem[] = [];
+  /** Whether a date in it depends on where the asker is: "today" and its kind, or a moment's day. */
+  readsDates = false;
   private today: string;
+  private zone: string;
 
   constructor(
     private cc: CompileContext,
     private input = '',
   ) {
-    this.today = cc.today ?? todayISO();
+    this.zone = cc.timeZone ?? serverTimeZone();
+    this.today = cc.today ?? todayIn(this.zone, (cc.now ?? new Date()).getTime());
+  }
+
+  /** The instant a calendar day begins where the asker is: its local midnight, across clock changes too. */
+  private midnight(iso: string): Date {
+    return new Date(startOfDay(iso, this.zone));
   }
 
   /** `guess` is a value that would fix it; the problem then carries the text to put in the span's place. */
@@ -299,6 +312,9 @@ class Compiler {
   }
 
   private dateRange(v: ValueNode, what: string): DateRange | null {
+    // "today", "{this week}", "-7d" and "overdue" are read where the asker is.
+    const words = v.kind === 'single' ? [v.raw] : [v.from, v.to];
+    if (words.some((w) => w && !isISODate(w.trim()))) this.readsDates = true;
     if (v.kind === 'single') {
       const r = parseDateExpression(v.raw, this.today);
       if (!r) this.problem(`"${v.raw}" is not a date for ${what}`, v.span, 'Use YYYY-MM-DD, today, {this week}, -7d or a range "a .. b".');
@@ -379,10 +395,12 @@ class Compiler {
       case 'dateAttr': {
         const range = this.dateRange(v, def.name);
         if (!range) return FALSE;
+        // A moment's day is where the asker is, even for a date written out.
+        this.readsDates = true;
         const col = t.column === 'created' ? issues.createdAt : t.column === 'updated' ? issues.updatedAt : issues.resolvedAt;
         const conds: SQL[] = [sql`${col} IS NOT NULL`];
-        if (range.from) conds.push(sql`${col} >= ${localMidnight(range.from)}`);
-        if (range.to) conds.push(sql`${col} < ${localMidnight(range.to)}`);
+        if (range.from) conds.push(sql`${col} >= ${this.midnight(range.from)}`);
+        if (range.to) conds.push(sql`${col} < ${this.midnight(range.to)}`);
         return andAll(conds);
       }
       case 'tag': {
@@ -575,5 +593,5 @@ export function compileQuery(parsed: ParsedQuery, cc: CompileContext): CompiledQ
   const orderBy = c.orderBy(parsed.sort);
   // Report problems left to right, whichever stage found them.
   const problems = [...parsed.problems, ...c.problems].sort((a, b) => a.start - b.start || a.end - b.end);
-  return { where, orderBy, problems };
+  return { where, orderBy, problems, readsDates: c.readsDates };
 }

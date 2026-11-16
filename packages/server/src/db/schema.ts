@@ -50,6 +50,8 @@ export const users = pgTable(
     banned: boolean('banned').notNull().default(false),
     hourlyRate: doublePrecision('hourly_rate'),
     capacityHoursPerDay: doublePrecision('capacity_hours_per_day').notNull().default(8),
+    /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
+    timeZone: text('time_zone'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -1091,6 +1093,8 @@ export const notifications = pgTable(
     sealedAt: ts('sealed_at'),
     /** When its email went out, so the digest leaves it out. */
     emailedAt: ts('emailed_at'),
+    /** The subscription that brought it, when one did (kind "subscribed"): what the inbox says it came for. */
+    subscriptionId: text('subscription_id').references((): AnyPgColumn => subscriptions.id, { onDelete: 'set null' }),
   },
   (t) => [index('notifications_user_last').on(t.userId, t.lastEventAt), index('notifications_user_issue').on(t.userId, t.issueId)],
 );
@@ -1225,4 +1229,55 @@ export const helpThrottle = pgTable(
     hits: integer('hits').notNull(),
   },
   (t) => [index('help_throttle_ends').on(t.windowEnds)],
+);
+
+// ---------------------------------------------------------------------------
+// Subscriptions (D31): a person's subscriptions to a project or to a saved search
+// ---------------------------------------------------------------------------
+
+/**
+ * A person's subscription to a project (its new issues, or every change in it), or to a saved search
+ * (an issue coming into it, or any change to one in it). Exactly one of the two is set.
+ */
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    savedSearchId: text('saved_search_id').references(() => savedSearches.id, { onDelete: 'cascade' }),
+    /** SUBSCRIPTION_EVENTS: 'new' or 'all'. */
+    events: text('events').notNull(),
+    /** Whether it emails too, as the person's email level allows. */
+    email: boolean('email').notNull().default(true),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('subscriptions_user_project').on(t.userId, t.projectId),
+    uniqueIndex('subscriptions_user_search').on(t.userId, t.savedSearchId),
+    index('subscriptions_project').on(t.projectId),
+    index('subscriptions_search').on(t.savedSearchId),
+    check('subscriptions_one_target', sql`(${t.projectId} IS NULL) <> (${t.savedSearchId} IS NULL)`),
+  ],
+);
+
+/**
+ * The issues a saved-search subscription knows to be in its search, as its person sees it, so that
+ * an issue coming into the search can be told from one already in it. Kept by the notifier, an
+ * issue's own events at a time.
+ */
+export const subscriptionIssues = pgTable(
+  'subscription_issues',
+  {
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => subscriptions.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.subscriptionId, t.issueId] }), index('subscription_issues_issue').on(t.issueId)],
 );

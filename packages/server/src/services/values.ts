@@ -40,6 +40,8 @@ export function resolveFieldInput(
   projectId: string,
   raw: string | number | null | string[],
   meId: string,
+  /** What "today" is for a date ("today", "tomorrow", "+3d"): where whoever asks is (D31). The server's when not given. */
+  today?: string,
 ): ResolvedValue[] {
   if (raw === null) return [];
   const items = Array.isArray(raw) ? raw : [raw];
@@ -49,7 +51,7 @@ export function resolveFieldInput(
   const out: ResolvedValue[] = [];
   for (const item of items) {
     if (typeof item === 'string' && isEmptyWord(item)) continue;
-    out.push(resolveOne(s, field, projectId, item, meId));
+    out.push(resolveOne(s, field, projectId, item, meId, today));
   }
   return out;
 }
@@ -60,6 +62,7 @@ function resolveOne(
   projectId: string,
   item: string | number,
   meId: string,
+  today?: string,
 ): ResolvedValue {
   const text = String(item).trim();
   switch (field.type) {
@@ -100,7 +103,7 @@ function resolveOne(
       return { numberValue: n };
     }
     case 'date': {
-      const d = parseDateInput(text);
+      const d = today ? parseDateInput(text, today) : parseDateInput(text);
       if (!d) throw badRequest(`${field.name} expects a date (YYYY-MM-DD, today, tomorrow, +3d), got "${text}"`);
       return { dateValue: d };
     }

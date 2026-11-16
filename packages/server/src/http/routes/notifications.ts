@@ -7,8 +7,11 @@ import {
   NotificationSchema,
   NotificationSettingsBody,
   NotificationSettingsSchema,
+  SubscribeBody,
+  SubscriptionSchema,
   UnsubscribeQuery,
   UnsubscribeSchema,
+  UpdateSubscriptionBody,
   WatchersSchema,
 } from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
@@ -24,6 +27,7 @@ import {
   unreadCount,
   updateNotificationSettings,
 } from '../../services/notifications';
+import { getSubscription, listSubscriptions, subscribe, unsubscribe, updateSubscription } from '../../services/subscriptions';
 import { listWatchers, unwatchIssue, watchIssue } from '../../services/watchers';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -172,11 +176,50 @@ export function notificationRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/me/notification-settings',
       tags,
       summary: 'Choose what a4a emails you',
-      description: '`email`: `all` (every notification), `direct` (mentions, assignments, new help desk requests) or `none`; `digest`: a daily email of what is still unread. Notifications in a4a are always on.',
+      description:
+        '`email`: `all` (what calls on you, and changes on issues you watch), `direct` (mentions, assignments, new help desk requests) or `none` (nothing, subscriptions included); each subscription says for itself whether it emails. `digest`: a daily email of what is still unread, at DIGEST_HOUR in your time zone. Notifications in a4a are always on.',
       body: NotificationSettingsBody,
       response: NotificationSettingsSchema,
     },
     ({ ctx, body }) => updateNotificationSettings(ctx, body),
+  );
+
+  // Subscriptions (D31): a person's own, as watching is.
+  const subs = ['Subscriptions'];
+  const SubId = z.object({ id: z.string() });
+  route(app, { method: 'get', path: '/subscriptions', tags: subs, summary: 'Your subscriptions, to projects and saved searches', response: z.array(SubscriptionSchema) }, ({ ctx }) =>
+    listSubscriptions(ctx),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/subscriptions',
+      tags: subs,
+      summary: 'Subscribe to a project or a saved search',
+      description:
+        'To a `project` (its key): `events` `new` tells you of its new issues, `all` of every change in it too. To a `savedSearch` (its id, yours or a shared one): `new` tells you when an issue comes into it, `all` of any change to an issue in it, the one that takes it out included. What the search finds already isn\'t news. You\'re told in your inbox, and by email when `email` is true and your email setting isn\'t "none". Subscribing to the same thing again changes that subscription.',
+      body: SubscribeBody,
+      response: SubscriptionSchema,
+      status: 200,
+    },
+    ({ ctx, body }) => subscribe(ctx, body),
+  );
+  route(app, { method: 'get', path: '/subscriptions/{id}', tags: subs, summary: 'One of your subscriptions', params: SubId, response: SubscriptionSchema }, ({ ctx, params }) =>
+    getSubscription(ctx, params.id),
+  );
+  route(
+    app,
+    { method: 'patch', path: '/subscriptions/{id}', tags: subs, summary: 'Change what a subscription tells you, or whether it emails', params: SubId, body: UpdateSubscriptionBody, response: SubscriptionSchema },
+    ({ ctx, params, body }) => updateSubscription(ctx, params.id, body),
+  );
+  route(
+    app,
+    { method: 'delete', path: '/subscriptions/{id}', tags: subs, summary: 'Unsubscribe', description: 'What it brought stays in your inbox.', params: SubId, status: 204 },
+    async ({ ctx, params }) => {
+      await unsubscribe(ctx, params.id);
+      return null;
+    },
   );
 
   // One-click unsubscribe (RFC 8058). No sign-in: the signed token is the authority, and it only stops email.

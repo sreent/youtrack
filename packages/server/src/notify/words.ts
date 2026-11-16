@@ -51,6 +51,17 @@ export function eventVerb(e: TrackerEvent): string {
       return `removed the file ${(data.attachment as { name?: string } | undefined)?.name ?? ''}`.trim();
     case 'issue.deleted':
       return 'deleted it';
+    // These reach only those whose saved search an issue came into (D31).
+    case 'comment.deleted':
+      return 'deleted a comment';
+    case 'work.logged':
+      return 'logged time on it';
+    case 'work.deleted':
+      return 'removed time logged on it';
+    case 'sprint.issue_added':
+      return 'added it to a sprint';
+    case 'sprint.issue_removed':
+      return 'took it out of a sprint';
     default:
       return 'changed it';
   }
@@ -97,9 +108,21 @@ export const BECAUSE: Record<NotificationKind, string> = {
   mentioned: 'you were mentioned',
   request: 'you lead the project its help desk is for',
   watching: 'you watch the issue',
+  subscribed: 'you subscribed to it',
 };
 
-/** A moment as people read it, with the zone, since an email's reader may be anywhere: "Mon 16 Nov, 10:02 UTC". */
-export function emailTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+/**
+ * A moment as its reader reads it: in their time zone (D31), named, since they may be travelling:
+ * "Mon 16 Nov, 10:02 CET". Without a zone, the server's.
+ */
+export function emailTime(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+    ...(timeZone ? { timeZone } : {}),
+  });
 }

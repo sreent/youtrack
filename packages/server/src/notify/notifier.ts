@@ -21,6 +21,7 @@ import { enqueueMail } from '../mail/outbox';
 import { keyOfReadableId, projectRolesOf } from '../services/access';
 import { watcherIds } from '../services/watchers';
 import { inboxChanged, mailConfigured } from './state';
+import { projectSubscribed, SEARCH_EVENT_TYPES, searchSubscribed } from './subscribed';
 
 const RANK: Record<NotificationKind, number> = Object.fromEntries(NOTIFICATION_KINDS.map((k, i) => [k, i])) as Record<NotificationKind, number>;
 
@@ -28,11 +29,19 @@ export function strongerKind(a: NotificationKind, b: NotificationKind): Notifica
   return RANK[b] > RANK[a] ? b : a;
 }
 
-/** Whether an email level sends this kind: direct sends what calls on the person, all sends everything. */
+/**
+ * Whether an email level sends this kind: direct sends what calls on the person, all adds issues they
+ * watch. What they subscribed to says for itself whether it emails (D31), and "none" stops that too.
+ */
 export function levelSends(level: EmailLevel, kind: NotificationKind): boolean {
-  if (level === 'all') return true;
-  if (level === 'direct') return kind !== 'watching';
-  return false;
+  if (level === 'none' || kind === 'subscribed') return false;
+  if (kind === 'watching') return level === 'all';
+  return true;
+}
+
+/** Whether a notification is emailed: as the level sends its kind, or as the subscription that brought it asks. */
+export function emailSends(level: EmailLevel, kind: NotificationKind, subscription: { email: boolean } | null | undefined): boolean {
+  return levelSends(level, kind) || (level !== 'none' && Boolean(subscription?.email));
 }
 
 export interface EmailPrefs {
@@ -107,17 +116,22 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
   return out;
 }
 
+const WATCHED_TYPES = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'];
+const SEARCH_TYPES = new Set<string>(SEARCH_EVENT_TYPES);
+
 export function notifierConsumer(app: AppServices): OutboxConsumer {
   return {
     name: 'notifications',
-    types: ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'],
+    // What tells people, and what moves an issue in or out of a saved search someone subscribed to.
+    types: [...new Set([...WATCHED_TYPES, ...SEARCH_EVENT_TYPES])] as TrackerEvent['type'][],
     handle: (event) => notifyEvent(app, event),
   };
 }
 
 export async function notifyEvent(app: AppServices, event: TrackerEvent): Promise<void> {
   // An import brings history, not news: what it writes is in each issue's history, and tells nobody.
-  if ((event.data as { imported?: unknown } | undefined)?.imported) return;
+  const imported = Boolean((event.data as { imported?: unknown } | undefined)?.imported);
+  if (imported && !SEARCH_TYPES.has(event.type)) return;
   // The activity row has what the event's public shape leaves out: the issue's and project's ids.
   const [row] = await app.db
     .select({ issueId: activities.issueId, projectId: activities.projectId, actorId: activities.actorId })
@@ -126,7 +140,20 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
   if (!row || !event.issue) return;
   // An event about an issue belongs to its project; without one, nobody but an administrator could see it.
   if (!row.projectId) return;
+  // Saved searches' subscriptions keep up with every change to an issue, an import's too, so what an
+  // import brought in isn't told later as if it had just come into a search.
+  const fromSearches = row.issueId && SEARCH_TYPES.has(event.type) ? await searchSubscribed(app, event, row.issueId, row.projectId) : [];
+  if (imported) return;
   const recipients = await recipientsOf(app, event, row.issueId, row.projectId);
+  // Subscribers (D31): the weakest reason. A search's subscription is named before a project's, as
+  // the more particular, and a person is emailed if any of theirs asks for it.
+  const subscribed = new Map<string, { id: string; email: boolean }>();
+  for (const r of [...fromSearches, ...(await projectSubscribed(app, event, row.projectId))]) {
+    const had = recipients.get(r.userId);
+    recipients.set(r.userId, had ? strongerKind(had, 'subscribed') : 'subscribed');
+    const known = subscribed.get(r.userId);
+    subscribed.set(r.userId, known ? { id: known.id, email: known.email || r.email } : { id: r.subscriptionId, email: r.email });
+  }
   if (row.actorId) recipients.delete(row.actorId); // never whoever acted
   if (!recipients.size) return;
   const s = await app.schema.get();
@@ -145,7 +172,7 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
     if (!user || user.banned) continue;
     if (!seeing.every((roles) => roles.has(userId))) continue;
     try {
-      if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId)) told.push(userId);
+      if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId, subscribed.get(userId) ?? null)) told.push(userId);
     } catch (e) {
       // Another instance delivered it at the same moment (its lease ran out mid-batch): it's done.
       const code = (e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code;
@@ -166,6 +193,8 @@ async function deliver(
   kind: NotificationKind,
   issueId: string | null,
   projectId: string | null,
+  /** The subscription that brought it, when one did: named in the inbox, and it may ask for email. */
+  subscription: { id: string; email: boolean } | null = null,
 ): Promise<boolean> {
   const at = new Date(event.occurredAt);
   const window = app.config.notifyWindowMs;
@@ -209,6 +238,7 @@ async function deliver(
           issue,
           eventCount: sql`${notifications.eventCount} + 1`,
           lastEventAt: sql`greatest(${notifications.lastEventAt}, ${at})`,
+          ...(subscription ? { subscriptionId: sql`coalesce(${notifications.subscriptionId}, ${subscription.id})` } : {}),
         })
         .where(eq(notifications.id, open.id));
     } else {
@@ -225,6 +255,7 @@ async function deliver(
         eventCount: 1,
         firstEventAt: at,
         lastEventAt: at,
+        subscriptionId: subscription?.id ?? null,
       });
     }
     await tx.insert(notificationEvents).values({ userId, eventId: event.id, notificationId, reason: kind });
@@ -233,7 +264,7 @@ async function deliver(
     if (mailConfigured(app)) {
       const [user] = await tx.select({ email: users.email, isBot: users.isBot }).from(users).where(eq(users.id, userId));
       const prefs = await emailPrefs(tx, userId);
-      if (user?.email && !user.isBot && levelSends(prefs.email, notificationKind)) {
+      if (user?.email && !user.isBot && emailSends(prefs.email, notificationKind, subscription)) {
         await enqueueMail(tx, app, {
           kind: 'notification',
           dedupeKey: `notification:${notificationId}`,

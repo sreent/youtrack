@@ -4,13 +4,15 @@ import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { issues, workItems } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
-import { isISODate, todayISO } from '../lib/dates';
+import { isISODate } from '../lib/dates';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { todayIn } from '../reports/tz';
 import { assertCanWriteProject, projectAccess } from './access';
 import { issueRefsById, readableId } from './issue-refs';
 import { findVisibleIssue, resolveIssue } from './issues';
 import { findUser } from './schema-cache';
+import { zoneOf } from './time-zones';
 import { userRefDto } from './values';
 
 type WorkItemRow = typeof workItems.$inferSelect;
@@ -50,7 +52,8 @@ export async function logWork(
   await assertCanWriteProject(ctx, issue.projectId);
   const minutes = parsePeriod(input.duration);
   if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${input.duration}"`, 'Use "1h 30m", "2d" or minutes.');
-  const date = input.date ?? todayISO();
+  // Work logged without a date is on the day it is where its person is (D31).
+  const date = input.date ?? todayIn(zoneOf(ctx));
   if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD');
   let author = ctx.actor.user;
   if (input.author) {
