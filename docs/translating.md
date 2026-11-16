@@ -107,3 +107,88 @@ French, Spanish and Japanese come next, each a catalog:
 5. Write its voice and its terms here, then run the checks above. A copy of `e2e/german.spec.ts` with the language's words checks it in a browser.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
+
+## Japanese
+
+`ja.json`, as Japanese teams read a tracker:
+
+- **The polite form (です・ます) in sentences**: 「保存しました。」, 「先に保存してください。」. Buttons and labels are short nouns or verb phrases, never sentences: 「保存」, 「変更を保存」, 「フィールドを削除」.
+- **No honorific after a name**: a name takes its particle directly (「Adaが割り当てました」), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as 「{name}様」, as Japanese customer mail does.
+- **Full-width punctuation**: 、。：（）, and 「」 for quotes. The ellipsis is one character (…), as in English. No space between Japanese and a Latin word or a value: 「BACK-12を開く」.
+- **Plurals**: Japanese has none, so each plural keeps `other` alone, with a counter word: `{n, plural, other {#件の課題}}`. 件 counts issues and things, 人 people, 個 fields, values, files and tokens, 回 times.
+- **Pieces a page joins**:
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the polite past, with no subject: 「{issue}を変更しました」, 「報告しました」. A badge is a noun: 「課題の削除」.
+  - A webhook's events are joined into 「{join}とき」 with 「、または」, so each is a clause in the plain past: 「課題が作成された」.
+  - A rule's sentence keeps English's order (when, if, then), so Japanese labels its parts 「トリガー：」, 「条件：」 and 「アクション：」, as Japanese automation tools do.
+- **English the code passes in a value**:
+  - Where a page passes an English word that has no place in Japanese ('its', 'is'/'are', 'rule'/'rules'), the placeholder sits in a select whose only branch is an empty `other`, `{v, select, other {}}`, and says nothing.
+  - Where the word is one of a few ('above'/'below', 'earlier'/'later', 'add'/'apply'), a select picks the Japanese word for it.
+- **Dates and numbers** come from Intl: 「2026年11月16日」, 「1,234.5」, 「3分前」.
+- **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
+
+| English | Japanese |
+|---|---|
+| issue | 課題 |
+| summary (an issue's title) | 件名 |
+| description | 説明 |
+| project | プロジェクト |
+| board | ボード |
+| sprint | スプリント |
+| backlog | バックログ |
+| help desk | ヘルプデスク |
+| request (help desk) | リクエスト |
+| requester | 依頼者 |
+| reporter | 報告者 |
+| assignee | 担当者 |
+| agent | エージェント |
+| workflow | ワークフロー |
+| rule | ルール |
+| state machine | ステートマシン |
+| transition | 遷移 |
+| state | 状態 |
+| knowledge base | ナレッジベース |
+| article | 記事 |
+| inbox | 受信トレイ |
+| notification | 通知 |
+| digest | ダイジェスト |
+| subscription, subscribe | 購読, 購読する |
+| watch, watcher | ウォッチ, ウォッチャー |
+| timesheet | タイムシート |
+| work logged, log time | 作業記録, 作業時間を記録 |
+| estimate | 見積もり |
+| days away | 不在日 |
+| levelling | 平準化 |
+| slack (in a plan) | 余裕 |
+| baseline | ベースライン |
+| earned value | アーンドバリュー（EV） |
+| triage | トリアージ |
+| suggestion | 提案 |
+| token, revoke | トークン, 無効化 |
+| two-factor sign-in | 2段階認証 |
+| sign in, sign out | ログイン, ログアウト |
+| login (a person's handle) | ログインID |
+| identity provider | IDプロバイダー |
+| single sign-on | シングルサインオン |
+| webhook, delivery | Webhook, 配信 |
+| secret | シークレット |
+| commit, pull request, branch | コミット, プルリクエスト, ブランチ |
+| field, value | フィールド, 値 |
+| link (between issues) | リンク |
+| resolve, resolved | 解決, 解決済み |
+| dashboard, widget | ダッシュボード, ウィジェット |
+| report | レポート |
+| person, people | ユーザー |
+| role, permission | ロール, 権限 |
+| member, viewer, manager, administrator | メンバー, 閲覧者, マネージャー, 管理者 |
+
+**Why 課題 for issue**: it's what Jira's and Backlog's Japanese say, so Japanese teams already read trackers in it. チケット (Redmine's) reads as a support ticket, and イシュー, GitHub's loanword, is stiff in a sentence.
+
+**Checking Japanese**: the checks above, and `e2e/japanese.spec.ts`. It signs a person of its own in, through the sign-in page of a Japanese browser, and opens the issues, an issue, the inbox and the profile. It also shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`.
+
+A reader of Japanese can then:
+
+- read those shots;
+- set a profile's language to 日本語 and walk the pages;
+- read the pieces of one prefix together, since a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.
+
+The shots in this repository's container use its only CJK font, WenQuanYi Zen Hei, a Chinese font, which sets kana in full-width cells. They look looser than on a machine with a Japanese font, so judge spacing with Noto Sans JP or Hiragino.
