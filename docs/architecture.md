@@ -548,6 +548,43 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D36. Days away: each person's work on their own days, and why is theirs
+
+A person's days away are whole days, or the morning or the afternoon of one. The person enters them, or a manager of a project they work in, or an administrator. Plans then do each person's work on their own days.
+
+- **The engine.**
+  - Each person works on the plan's calendar with their whole days away taken out, and gives half their hours on a half day.
+  - Someone never away works on the plan's calendar itself, the same object, so a plan where nobody is away comes out exactly as it did.
+  - A task starts on a day its assignee is there. It takes as many of their days as its hours need, each giving its share, and its slack is counted on their days.
+  - A start-to-due window that falls while they're away is planned for when they're back, with a warning.
+  - Milestones, and work nobody is assigned, keep the plan's calendar. Plans' holidays are as they were.
+- **Levelling** looks for room on the assignee's own days, at each day's capacity, half of it on a half day. It calls a move levelling only when it moves work for resources, not when work just waits for its person.
+- **What it looks at:** days away from a year before today to five years after. Beyond that everyone is there, so someone away for good can't run the engine out of days.
+- **The load** gives each day's capacity (none on a day away, half on a half day) and whether someone is away (`away`: day, morning, afternoon). It never says why. The grid says "away", and dashes half a day with what's left of it.
+- **Costs.** A day away books no hours, so it costs nothing, and a task that waits for its person costs what its estimate does. Earned value follows the baseline as saved: a day away added later doesn't rewrite the plan of record.
+- **Who sees what.**
+  - Anyone who may read sees when someone is away, as a team's calendar shows it; plans show it anyway.
+  - Why (holiday, sick, training, something else, and a note) only the person, administrators and whoever entered it see: sickness is the person's own.
+  - Days away aren't events. The feed (webhooks, the live stream, MCP's event tools) reaches everyone who can read it, so who entered each, and when, is kept on the absence instead.
+- **Who enters them:** the person; an administrator; or a manager of a project the person can work in, as they would signing in. In an open project, that's anyone who may change its issues.
+- **What's refused**, each saying how to put it right:
+  - dates out of order;
+  - more than a year (enter it a year at a time);
+  - half of several days;
+  - days that overlap the person's others, checked under a per-person advisory lock so two entered at once can't both pass;
+  - an agent's: agents are never away.
+
+  A change checks the version read.
+- **The load grid's window** is each person's choice: two weeks, a month or a quarter from today, the plan's end, or two dates. It's kept for them in `user_preferences`, the same on every plan and every device. Choosing it needs only reading, as notification settings do, so a viewer chooses what they see too.
+- **A board with lanes** scrolls in a frame of its own, at most the window's height, so its column heads stay in view (Ocean's `.held`). It already scrolled sideways in its frame, so its heads could only stay in view within it.
+
+**What it costs.**
+- A task's length depends on where it lands when its assignee has days away, so a what-if or a levelling move counts it again.
+- The backward pass reuses the forward pass's length. That's off only when a half day falls between the earliest and the latest a task could start.
+- A plan's people's days away are read with the plan: one query.
+
+**Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -611,6 +648,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
+- **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
 
@@ -628,4 +666,4 @@ Planned, with the seams already in place:
 - matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
-- in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).
+- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36).
