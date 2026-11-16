@@ -147,6 +147,12 @@ export interface Config {
   /** Sign-in with a password checked against an LDAP directory, from LDAP_* in the environment (D38). */
   ldap: LdapConfig | null;
   /**
+   * The OAuth apps people connect their own code-host accounts through (D46): GITHUB_CLIENT_ID and
+   * _SECRET (GITHUB_URL for GitHub Enterprise Server), GITLAB_* (GITLAB_URL for a self-managed one),
+   * BITBUCKET_* (an OAuth consumer of Bitbucket Cloud). A provider without one isn't offered.
+   */
+  codeHosts: CodeHostApps;
+  /**
    * Whether an MCP client may be known by a client ID metadata document: an https client_id whose
    * metadata a4a reads (MCP_OAUTH_CLIENT_DOCUMENTS, on unless "false"; D38).
    */
@@ -486,10 +492,44 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     importAllowHttpLoopback: truthy(env.IMPORT_ALLOW_HTTP_LOOPBACK, false),
     secretKey: env.SECRET_KEY?.trim() || undefined,
     ldap,
+    codeHosts: codeHostsFromEnv(env),
     oauthClientDocuments: truthy(env.MCP_OAUTH_CLIENT_DOCUMENTS, true),
     oauthClientDocumentsAllowHttpLoopback: truthy(env.OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK, false),
     ...overrides,
   };
+}
+
+export interface CodeHostApp {
+  clientId: string;
+  clientSecret: string;
+  /** Where people sign in: https://github.com, https://gitlab.com, https://bitbucket.org. */
+  webUrl: string;
+  /** Its API: https://api.github.com, https://gitlab.com/api/v4, https://api.bitbucket.org. */
+  apiUrl: string;
+}
+export type CodeHostApps = Partial<Record<'github' | 'gitlab' | 'bitbucket', CodeHostApp>>;
+
+function codeHostsFromEnv(env: NodeJS.ProcessEnv): CodeHostApps {
+  const out: CodeHostApps = {};
+  const app = (prefix: string) => {
+    const clientId = env[`${prefix}_CLIENT_ID`]?.trim();
+    const clientSecret = env[`${prefix}_CLIENT_SECRET`]?.trim();
+    return clientId && clientSecret ? { clientId, clientSecret } : null;
+  };
+  const trim = (u: string) => u.trim().replace(/\/+$/, '');
+  const gh = app('GITHUB');
+  if (gh) {
+    const webUrl = trim(env.GITHUB_URL || 'https://github.com');
+    out.github = { ...gh, webUrl, apiUrl: /^https:\/\/github\.com$/i.test(webUrl) ? 'https://api.github.com' : `${webUrl}/api/v3` };
+  }
+  const gl = app('GITLAB');
+  if (gl) {
+    const webUrl = trim(env.GITLAB_URL || 'https://gitlab.com');
+    out.gitlab = { ...gl, webUrl, apiUrl: `${webUrl}/api/v4` };
+  }
+  const bb = app('BITBUCKET');
+  if (bb) out.bitbucket = { ...bb, webUrl: 'https://bitbucket.org', apiUrl: 'https://api.bitbucket.org' };
+  return out;
 }
 
 /** The AI's provider, address and model, and why it's off if it is. A mistake here turns the AI off, never the tracker. */
