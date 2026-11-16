@@ -53,7 +53,9 @@ test.describe('signed in with a password', () => {
     const recovery = (await codes.first().textContent())!;
     expect(recovery).toMatch(/^[A-Z2-7]{5}-[A-Z2-7]{5}$/);
 
-    // The password alone no longer signs in: a code from the app comes after it.
+    // The password alone no longer signs in: a code from the app comes after it. Signed out with no
+    // a4a page open, so nothing the page asks for meanwhile is answered 401.
+    await page.goto('about:blank');
     await page.context().clearCookies();
     await password(page, nadia.login);
     await expect(page.getByRole('heading', { name: 'Two-factor sign-in' })).toBeVisible();
@@ -66,6 +68,7 @@ test.describe('signed in with a password', () => {
     await expect(page).toHaveURL(/\/issues$/);
 
     // A lost phone: a recovery code, once.
+    await page.goto('about:blank');
     await page.context().clearCookies();
     await password(page, nadia.login);
     await page.getByLabel('Code', { exact: true }).fill(recovery);
