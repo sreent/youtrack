@@ -58,6 +58,14 @@ export function t(key: string, values?: MessageValues): string {
   return translator.t(key, values);
 }
 
+/** A list of things a page draws, joined as the page's language joins a list: "A, B and C", "A、B、C". */
+export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conjunction'): ReactNode {
+  if (items.length <= 1) return items[0] ?? null;
+  const marks = items.map((_, i) => `\u0001${i}\u0001`);
+  const parts = new Intl.ListFormat(intlLocale(), { style: 'long', type }).formatToParts(marks);
+  return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, p.type === 'element' ? items[Number(p.value.slice(1, -1))] : p.value)));
+}
+
 /** A message whose tags or values are elements: what a page draws. */
 export function tr(key: string, values?: MessageValues): ReactNode {
   const parts = translator.parts<ReactNode>(key, values);

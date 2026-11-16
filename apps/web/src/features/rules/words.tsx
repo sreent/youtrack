@@ -1,6 +1,6 @@
 import type { Rule, RuleNotify, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
 import type React from 'react';
-import { t as tx, tr } from '../../i18n';
+import { formatList, listNodes, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** As the server says them (workflow/words.ts): a rule's parts in words. */
@@ -13,24 +13,19 @@ export function triggerWords(trigger: RuleTrigger | null, field: string | null):
 export function scheduleWords(schedule: RuleSchedule | null): string {
   if (!schedule) return tx('rules.words.onASchedule');
   if (schedule.every === 'hour') return tx('rules.words.everyHour');
-  return tx('rules.words.everyAt', { v: schedule.every === 'weekday' ? 'weekday' : 'day', v2: schedule.at ?? '09:00' });
+  return tx('rules.words.everyDayAt', { every: schedule.every === 'weekday' ? 'weekday' : 'day', at: schedule.at ?? '09:00' });
 }
 
-/** " to its parent", " to its subtasks", " to the issues it depends on"; nothing for the issue itself. */
-export function targetWords(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): string {
-  switch (t?.to ?? 'issue') {
-    case 'parent':
-      return tx('rules.words.toItsParent');
-    case 'subtasks':
-      return tx('rules.words.toItsSubtasks');
-    case 'linked':
-      return tx('rules.words.toTheIssuesIt', { v: t?.phrase?.trim() || tx('rules.words.isLinkedTo') });
-    default:
-      return '';
-  }
+/**
+ * The issues an action reaches, as a code its message words (D49): its parent, its subtasks, the issues
+ * it's linked to (by the link's phrase), or none for the issue itself.
+ */
+function targetOf(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): { target: string; phrase: string } {
+  const to = t?.to ?? 'issue';
+  return { target: to === 'parent' || to === 'subtasks' || to === 'linked' ? to : 'none', phrase: t?.phrase?.trim() || tx('rules.words.isLinkedTo') };
 }
 
-const TELL = { assignee: 'assignee', reporter: 'reporter', watchers: 'watchers' } as const;
+const TELL = { assignee: tx('rules.words.whoAssignee'), reporter: tx('rules.words.whoReporter'), watchers: tx('rules.words.whoWatchers') } as const;
 
 /** Someone of each issue a rule acts on: "its assignee", "its parent's watchers", "the reporter of each issue it depends on". */
 function ofTarget(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined, who: keyof typeof TELL): string {
@@ -48,8 +43,7 @@ function ofTarget(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined, who: 
 }
 
 export function listWords(words: string[]): string {
-  if (words.length <= 1) return words[0] ?? '';
-  return tx('rules.words.and2', { join: words.slice(0, -1).join(', '), v: words[words.length - 1] });
+  return formatList(words);
 }
 
 /** Whom a rule tells: "its assignee and @anna". */
@@ -58,18 +52,19 @@ export function recipientWords(n: Pick<RuleNotify, 'to' | 'people'>, t: Pick<Rul
   return listWords([...mine, ...n.people.map((p) => `@${p}`)]) || tx('rules.words.nobody');
 }
 
-/** "all of its subtasks match", before the query. */
-export function relatedLead(r: Pick<RuleRelated, 'of' | 'phrase' | 'match'>): string {
+/** "all of its subtasks match #Unresolved": who matches, and the query, in the order the language says them. */
+export function relatedMatch(r: Pick<RuleRelated, 'of' | 'phrase' | 'match'>, query: ReactNode): ReactNode {
   const all = r.match !== 'any';
+  const v = r.phrase?.trim() || tx('rules.words.isLinkedTo');
   switch (r.of) {
     case 'parent':
-      return tx('rules.words.itsParentMatches');
+      return tr('rules.words.itsParentMatchesQuery', { query });
     case 'subtasks':
-      return all ? tx('rules.words.allOfItsSubtasksMatch') : tx('rules.words.anyOfItsSubtasksMatches');
+      return tr(all ? 'rules.words.allItsSubtasksMatchQuery' : 'rules.words.anyItsSubtasksMatchesQuery', { query });
     case 'siblings':
-      return all ? tx('rules.words.allOfItsParentS') : tx('rules.words.anyOfItsParentS');
+      return tr(all ? 'rules.words.allItsSiblingsMatchQuery' : 'rules.words.anyItsSiblingsMatchesQuery', { query });
     case 'linked':
-      return all ? tx('rules.words.allTheIssuesItMatch', { v: r.phrase?.trim() || tx('rules.words.isLinkedTo') }) : tx('rules.words.anyIssueItMatches', { v: r.phrase?.trim() || tx('rules.words.isLinkedTo') });
+      return tr(all ? 'rules.words.allLinkedMatchQuery' : 'rules.words.anyLinkedMatchesQuery', { v, query });
   }
 }
 
@@ -84,59 +79,44 @@ function actions(rule: Parts): React.ReactNode[] {
   // A scripted rule (D40) runs its script where a command would be.
   if (rule.script?.trim()) out.push(tx('rules.words.runItsScript'));
   const comment = rule.comment?.trim();
-  const onWhat = targetWords(rule.target);
+  const on = targetOf(rule.target);
   if (!rule.script?.trim() && (rule.command || comment)) {
+    const code = rule.command ? <code>{rule.command}</code> : null;
     out.push(
       <>
-        {rule.command ? (
-          <>{tr('rules.words.apply', { code: <code>{rule.command}</code> })}</>
-        ) : null}
-        {rule.command && comment ? ' and ' : null}
-        {comment ? <>{tr('rules.words.comment', { short: short(comment, 80) })}</> : null}
-        {rule.command ? onWhat : onWhat.replace(/^ to /, ' on ')}
+        {rule.command && comment
+          ? tr('rules.words.applyAndCommentTo', { code: code, short: short(comment, 80), ...on })
+          : rule.command
+            ? tr('rules.words.applyTo', { code: code, ...on })
+            : tr('rules.words.commentOn', { short: short(comment ?? '', 80), ...on })}
       </>,
     );
   }
   if (rule.notify) out.push(<>{tr('rules.words.tell', { recipientWords: recipientWords(rule.notify, rule.target), short: short(rule.notify.message, 120) })}</>);
   if (rule.call) {
-    out.push(
-      <>{tr('rules.words.call', { v: rule.call.origin ?? tx('rules.words.aWebhook'), t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: !rule.command && !comment ? onWhat.replace(/^ to /, ' about ') : '' })}</>,
-    );
+    // About the issues it reaches when nothing else names them.
+    const about = !rule.command && !comment ? on : { target: 'none', phrase: '' };
+    out.push(<>{tr('rules.words.callAbout', { v: rule.call.origin ?? tx('rules.words.aWebhook'), t0: (c: ReactNode) => <span className="mono">{c}</span>, ...about })}</>);
   }
   return out;
 }
 
-function Then({ rule }: { rule: Parts }) {
+/** What a rule does, as its language lists things; "do nothing" when nothing. */
+function thenWords(rule: Parts): ReactNode {
   const parts = actions(rule);
-  return (
-    <>
-      <span className="rule-word">{tx('rules.words.then')}</span>{' '}
-      {parts.length
-        ? parts.map((p, i) => (
-            <span key={i}>
-              {i === 0 ? null : i === parts.length - 1 ? ' and ' : ', '}
-              {p}
-            </span>
-          ))
-        : tx('rules.words.doNothing')}
-    </>
-  );
+  return parts.length ? listNodes(parts) : tx('rules.words.doNothing');
 }
 
 /** No full stop after a quoted message that ends one already, as the server says it. */
-function stop(rule: Parts): string {
-  if (rule.call || !rule.notify) return '.';
-  return /[.!?…]$/.test(short(rule.notify.message.trim(), 120)) ? '' : '.';
+function stops(rule: Parts): boolean {
+  if (rule.call || !rule.notify) return true;
+  return !/[.!?…]$/.test(short(rule.notify.message.trim(), 120));
 }
 
 function Related({ rule }: { rule: Parts }) {
   const r = rule.related;
   if (!r?.query.trim()) return null;
-  return (
-    <>
-      {relatedLead(r)} <code>{r.query}</code>
-    </>
-  );
+  return <>{relatedMatch(r, <code>{r.query}</code>)}</>;
 }
 
 /** Ocean's Rule sentence: When … if … then …, its three words in --text, the query and command as written. */
@@ -153,34 +133,16 @@ export function Sentence({ rule }: { rule: Parts }) {
       <p className="rule-sentence">{tr('rules.words.whenAChangeWouldMake', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, code2: <code>{rule.requires}</code>, t2: (c: ReactNode) => <span className="rule-word">{c}</span>, v: rule.message ? <>: “{rule.message}”</> : '.' })}</p>
     );
   }
-  if (rule.kind === 'schedule') {
-    return (
-      <p className="rule-sentence">
-        <span className="rule-word">{scheduleWords(rule.schedule)}</span>,{' '}
-        {query ? (
-          <>{tr('rules.words.ifAnIssueMatches', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, v: related ? <>{tr('rules.words.and', { related: related })}</> : null })}</>
-        ) : related ? (
-          <>{tr('rules.words.forEveryIssueWhere', { related: related })}</>
-        ) : (
-          tx('rules.words.forEveryIssue')
-        )}
-        , <Then rule={rule} />
-        {stop(rule)}
-      </p>
-    );
-  }
-  return (
-    <p className="rule-sentence">
-      <span className="rule-word">{tx('rules.words.when')}</span> {triggerWords(rule.trigger, rule.field)}
-      {query ? (
-        <>{tr('rules.words.ifItMatches', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, v: related ? <>{tr('rules.words.and', { related: related })}</> : null })}</>
-      ) : related ? (
-        <>
-          , <span className="rule-word">{tx('rules.words.if')}</span> {related}
-        </>
-      ) : null}
-      , <Then rule={rule} />
-      {stop(rule)}
-    </p>
-  );
+  // One sentence a language can order as it says it (D49). Which condition it has is a code its message
+  // words: a query, a related issues' one, both, or none.
+  const values = {
+    t0: (c: ReactNode) => <span className="rule-word">{c}</span>,
+    cond: query && related ? 'both' : query ? 'query' : related ? 'related' : 'none',
+    query: query ? <code>{query}</code> : '',
+    related: related ?? '',
+    actions: thenWords(rule),
+    stop: stops(rule) ? 'yes' : 'no',
+  };
+  if (rule.kind === 'schedule') return <p className="rule-sentence">{tr('rules.words.scheduleSentence', { ...values, schedule: scheduleWords(rule.schedule) })}</p>;
+  return <p className="rule-sentence">{tr('rules.words.whenSentence', { ...values, trigger: triggerWords(rule.trigger, rule.field) })}</p>;
 }
