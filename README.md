@@ -19,6 +19,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
+- **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
+- **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
 - **Notifications** of what concerns you:
   - You watch what you report, are assigned, comment on or are mentioned in (`@anna`), and what you choose to; `watcher: me` finds it.
   - An inbox under Work, by issue, its unread count live in the sidebar. Changes close together on one issue are one notification, and nobody hears of their own changes.
@@ -41,7 +43,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 28 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. `list_notifications` shows an agent what's waiting for its person.
+- **For agents**: an MCP server at `/mcp` with 34 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start
@@ -121,7 +123,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
 | `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
 | `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
-| `DATA_DIR` | `./data` | Where the embedded database lives |
+| `DATA_DIR` | `./data` | Where the embedded database and attached files live |
 | `AI_PROVIDER` | `anthropic` | Who serves the model: `anthropic`, `deepseek`, `qwen`, or `compatible` for another service that speaks Anthropic's Messages API. Issue text the AI reads goes to them |
 | `ANTHROPIC_API_KEY` | empty | Anthropic's key. A provider's key turns the AI features on |
 | `DEEPSEEK_API_KEY`, `QWEN_API_KEY` (or `DASHSCOPE_API_KEY`), `AI_API_KEY` | empty | The key for DeepSeek, Qwen or a `compatible` service |
@@ -138,6 +140,9 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `OIDC_CREATE_USERS` | `false` | Give someone an account the first time they sign in |
 | `PASSWORD_LOGIN` | `true` | `false` turns password sign-in off, while single sign-on is on |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
+| `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
+| `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
+| `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`. Back it up with the database |
 | `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
@@ -235,3 +240,49 @@ pnpm db:generate
 ```
 
 They run on start.
+
+## End-to-end tests
+
+Playwright drives Chromium through the web app as people use it, against the production build: the real server serves the built UI under its real CSP, on a fresh embedded database with the demo projects, started for the run and removed after it. AI is off on that server; where a flow needs it, the browser's requests to the AI endpoints are answered by the test (the server's own AI is tested by its vitest suite).
+
+Once, for the browser:
+
+```bash
+pnpm --filter @a4a/web exec playwright install --with-deps chromium
+```
+
+Then, which builds first:
+
+```bash
+pnpm test:e2e
+```
+
+- `pnpm --filter @a4a/web test:e2e` runs them without building again.
+- Arguments go to Playwright: `pnpm test:e2e issue.spec.ts`, `pnpm test:e2e -g "levelling"`, `pnpm test:e2e --headed`.
+- The server listens on a free port; set `E2E_PORT` to choose it, and `E2E_HOOK_PORT` for the webhook receiver the tests start.
+
+What it covers, in `apps/web/e2e`:
+
+- **The tour**: every page, light, dark and at 390px, with no console errors, no CSP violations, no sideways scroll, and nothing axe finds against WCAG 2.2 AA. It includes what only the AI fills (a conversation waiting on its approvals, triage's suggestions), stood in for.
+- **Issues**: a query's problem and its fix, suggestions from the keyboard, rows chosen from the keyboard and a command previewed then applied, saved searches, a query read from words.
+- **An issue**: a field changed from the keyboard, links, comments, logged time, triage's values accepted one at a time, the summary, and a save refused (409) when someone changed the issue first.
+- **Reporting**: similar issues while typing, and a retry that doesn't duplicate (`Idempotency-Key`).
+- **Boards**: dragging (saved with `expectedVersion`), moving from the keyboard, and a move refused.
+- **Plans**: the what-if, baselines, levelling, and levelling refused (409).
+- **Management**: tokens (one limited to projects too) and the MCP setup, webhooks (a test delivery, checked against its signature, and pausing), fields, projects, people and passwords.
+- **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
+- **The assistant**: a streamed answer, its approval cards, the decisions and the result.
+
+To see what a test did, record a trace and open it:
+
+```bash
+pnpm test:e2e issue.spec.ts --trace on
+```
+
+```bash
+pnpm --filter @a4a/web exec playwright show-trace test-results/<the test>/trace.zip
+```
+
+In CI (`CI` set), a failed test is retried twice, its first retry is traced, and the HTML report is written to `apps/web/playwright-report`.
+
+A new page joins the tour with one line in `tour.spec.ts`. A new flow is a spec that takes `test` from `e2e/support/fixtures.ts`, so its page's clock is fixed and its console is watched; makes a project of its own (`uniqueKey`), so it runs beside the others; and finds things by their roles and labels.

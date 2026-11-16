@@ -17,6 +17,8 @@ import { isOption, isPeriod, isUser } from '../features/issues/fields';
 import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
+import { IssueFiles } from '../features/attachments/IssueFiles';
+import { IssueArticles } from '../features/articles/IssueArticles';
 import { FormField } from '../components/Form';
 import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
 import { WatchersCard, WatchToggle } from '../features/issues/Watching';
@@ -122,11 +124,13 @@ function Summary({ issue }: { issue: IssueDetail }) {
   );
 }
 
-function Title({ issue }: { issue: IssueDetail }) {
+/** The summary, changed in place by someone who may change the issue; for anyone else, its words. */
+function Title({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.summary);
   const [error, setError] = useState<string | null>(null);
+  if (!canEdit) return <>{issue.summary}</>;
   if (!editing)
     return (
       <span
@@ -240,6 +244,7 @@ export default function IssuePage() {
   const data = issue.data!;
   // What the project lets you do; until it's known, the page offers everything and the server decides.
   const canWrite = project.data?.access.write ?? true;
+  const canComment = project.data?.access.comment ?? true;
 
   const triage = async () => {
     setTriaging('asking');
@@ -260,7 +265,7 @@ export default function IssuePage() {
             <Link to="/issues">Issues</Link> / <Link to={`/issues?q=${encodeURIComponent(`project: ${data.project.key}`)}`}>{data.project.name}</Link>
           </>
         }
-        title={<Title issue={data} />}
+        title={<Title issue={data} canEdit={canWrite} />}
         badges={
           <>
             <span className="issue-id">{data.id}</span>
@@ -314,17 +319,18 @@ export default function IssuePage() {
       <div className="split">
         <div className="stack">
           <Description issue={data} canEdit={canWrite} />
+          <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
-          {openSuggestions.map((s) => (
-            <SuggestionCard key={s.id} suggestion={s} compact />
-          ))}
+          {/* Deciding on what triage suggests is a change to the issue: its members decide. */}
+          {canWrite ? openSuggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} compact />) : null}
           <IssueLinks issue={data} canEdit={canWrite} />
-          <IssueHistory issue={data} me={me.data} canReply={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
-          <WorkLog issue={data} me={me.data} />
+          <IssueArticles issueId={data.id} />
+          <IssueHistory issue={data} me={me.data} canComment={canComment} canReply={canWrite} people={membersOnly ? (assignable ?? []) : undefined} />
+          <WorkLog issue={data} me={me.data} canEdit={canWrite} />
         </div>
         <div className="stack">
           {projectFields.data && assignable ? (
-            <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} />
+            <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} canEdit={canWrite} />
           ) : (
             <Loading what="fields" />
           )}

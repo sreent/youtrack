@@ -43,8 +43,12 @@ export function priorityLevel(p: OptionValue): number {
   return Math.max(1, Math.min(5, 5 - p.ordinal));
 }
 
-/** Priority as five rising steps beside its word: a shape, never a colour (Ocean's PriorityMeter). */
-export function PriorityMeter({ fields, value }: { fields?: IssueField[]; value?: OptionValue | null }) {
+/**
+ * Priority as five rising steps beside its word: a shape, never a colour (Ocean's PriorityMeter).
+ * Inside a control, the meter is named "Priority" whatever it shows, so the control is named by
+ * its word instead (`wordId`).
+ */
+export function PriorityMeter({ fields, value, wordId }: { fields?: IssueField[]; value?: OptionValue | null; wordId?: string }) {
   const p = value ?? (fields ? optionOf(fields, 'Priority') : null);
   if (!p) return null;
   const level = priorityLevel(p);
@@ -57,7 +61,9 @@ export function PriorityMeter({ fields, value }: { fields?: IssueField[]; value?
         <i />
         <i />
       </span>
-      <span className="priority-word">{p.name}</span>
+      <span className="priority-word" id={wordId}>
+        {p.name}
+      </span>
     </span>
   );
 }

@@ -3,6 +3,7 @@ import { AI_PROVIDERS } from './ai/providers';
 import { needsSetup } from './services/auth';
 import { startServer } from './server';
 import './ai/register';
+import './knowledge/register';
 import './notify/register';
 
 const started = await startServer();

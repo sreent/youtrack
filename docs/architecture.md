@@ -84,7 +84,7 @@ Delivery is **at least once**. Webhook receivers dedupe on the event `id` in the
 - **Costs:** a webhook can arrive twice when the lease changes hands mid-event: the old holder's last event, handled again by the new one from the saved cursor.
 - **Revisit when:** one instance can't keep up with the consumers. Then split them by consumer, each with its own lease.
 
-The notifier and the help desk's mail are consumers too (D18, D20), registered like triage (`notify/register.ts`).
+The notifier and the help desk's mail are consumers too (D21, D23), registered like triage (`notify/register.ts`).
 
 ### D6. The query and command languages compile to parameterised SQL
 
@@ -331,9 +331,87 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 - **Costs:** each instance holds its pool plus one `LISTEN` connection, and reads the log once per write anywhere (one indexed read). A rolled-back id holds live events for about a tenth of a second, and an event waits for a slower, concurrent commit before it: ordered delivery is what makes resuming exact.
 - **Revisit when:** writes reach hundreds a second, where every instance reading every write adds up; fan out from one reader then. Or when one number must limit every request: use the proxy's limiter or a shared store.
 
-### D18. Notifications come from the outbox, once per person per event, a burst at a time
+### D18. Files stream to a small store, and come back as downloads
 
-People watch what they report, are assigned, comment on or are mentioned in (`@login`), and what they choose to. Watching starts in the transaction that made the change (`applyChanges`, `createIssue`, `updateComment`), not in a consumer, so unwatching right after commenting holds. Unwatching lasts until the person takes part again, as GitHub's does. Agents never watch: they're told only when assigned or mentioned.
+Files sit on issues, on comments (the author's own) and on knowledge base articles.
+
+**Uploading.** An upload is `multipart/form-data`, read as a stream (busboy) and never held whole in memory:
+
+1. Who may put a file there is settled before a byte of it is read.
+2. A record of the storage key is written (`attachment_blobs`, "uploading") before the first byte, so a crash mid-upload leaves something to sweep.
+3. The file streams through a transform that counts it, hashes it (SHA-256) and keeps its first 8 KB, and on to storage. Past the limit it stops at once and reading the request stops with it: the limit is the smaller of `ATTACHMENT_MAX_MB` (20) and the room left in the owner's cap (`ATTACHMENTS_PER_ISSUE_MB`, 100, for an issue with its comments, or an article).
+4. The type is read from those first bytes (magic numbers, then text and what kind: HTML, SVG, XML), never from the name or the request. The name is made safe: no folders, no control or direction-changing characters, nothing file systems reserve, 200 characters at most. Storage never uses it.
+5. One transaction locks the owner's row, checks the cap again (two uploads at once can't both squeeze in), writes the row, marks the blob "stored", touches the issue's `updatedAt` (not its `version`: a file doesn't conflict with an edit to a field) and records `attachment.added`.
+
+If anything fails after the bytes are stored, they're removed; what a crash leaves, the sweeper removes.
+
+**The store** is three calls, `write(key, stream)`, `read(key, range?)` and `remove(key)`, behind `BlobStorage`. Local disk (`DATA_DIR/attachments`) writes to a part file, syncs it, and renames it into place, so a key never holds half a file. Keys are random and sharded by their first two characters.
+
+An S3-compatible store (S3, MinIO, R2) would be one class:
+
+- `write` with `@aws-sdk/lib-storage`'s `Upload`, which streams a body of unknown length as a multipart upload, so memory stays at a few parts; a bucket lifecycle rule aborts multipart uploads left incomplete.
+- `read` with `GetObject` and its `Range`; `remove` with `DeleteObject`.
+- Config: `ATTACHMENT_STORAGE=s3`, a bucket, an endpoint and a region, credentials from the usual AWS chain.
+
+Downloads would keep coming through a4a, so the access check and the headers stay ours; presigned URLs, with `response-content-disposition` and `response-content-type` set by a4a, are the step after, for large files. The sweeper needs nothing new.
+
+**Serving.** `GET /attachments/{id}/content` reads the project through `services/access.ts`; a hidden one looks like a missing file.
+
+- PNG, JPEG, GIF and WebP come `inline`, so they show in place. Everything else, SVG and HTML included, is an `attachment`, whatever its name says: an HTML page named `cat.png` downloads as `cat.png`, typed `text/html`.
+- Every file comes with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. The page middleware no longer puts the app's own policy over a response that brings one, so an HTML file keeps its sandbox.
+- `Cache-Control: private, max-age=86400`, with the SHA-256 as the ETag (`If-None-Match` gets 304): a file's bytes never change under its id, but who may see them can, so only the browser keeps them.
+
+**Cleaning up.** Rows go with their issue, comment, article or project, by cascade or by the sweeper, but bytes don't. The sweeper removes blobs nothing points at: "stored" ones whose row is gone, and "uploading" ones older than six hours. It also removes a deleted comment's files, and part files a crash left. It runs as an outbox consumer after the events that can leave files behind (`attachment.removed`, `issue.deleted`, `comment.deleted`, `article.deleted`), and once when the server starts. It's safe to run anywhere and more than once at a time.
+
+**Retries.** An upload sent again with the same `Idempotency-Key` is replayed. Its body isn't read twice, so the key is matched on the request's length rather than a hash of the body.
+
+- **Costs:** a project's deletion leaves its files until the next sweep. Thumbnails are the images themselves, scaled by the browser.
+- **Revisit when:** files are large or many. Make server-side thumbnails then, and serve through presigned URLs.
+
+### D19. The knowledge base: articles per project, ids no issue can have, whole versions, mentions from the outbox
+
+**Per project, no global space.** An article belongs to a project, and the project's access is the article's: when per-project permissions land in `services/access.ts`, the knowledge base follows with no change. A global space would need a second policy of its own (who reads it, who writes it) and a second kind of id. A team that wants documents beyond one project makes a project for them, which costs nothing.
+
+**Ids.** `BACK-A-3`, as YouTrack writes them: numbered per project from a counter row, gap-free and never reused, so a link to an article never comes to mean another.
+
+An article's id can't be read as an issue's, and the reverse:
+
+- Issue ids have no third part, and a project key is at least two characters, so the `A-3` inside `BACK-A-3` is no issue.
+- One reading of ids in text, `findRefs` in `@a4a/shared`, serves the web app's links and the server's mentions, so what links is what counts. It leaves out ids in code and in addresses.
+- The query and command languages' issue-id parsing refuses `BACK-A-3`; as free text it's a search.
+
+**The tree.** Each article has a parent (or none) and a dense position among its siblings. Changes to a project's tree (creating, moving, deleting) take that project's counter row as a lock, and moving under a descendant is refused by walking up from the new parent. Two moves at once can't make a cycle between them. An article with articles under it can't be deleted: they're moved first.
+
+**Versions.** Every save that changes the title or body writes the whole text as a new version, with who, when, the channel and the token. Diffs are worked out when read (Myers' algorithm, line by line), so a version is never wrong because a diff was. `expectedVersion` gives 409 instead of overwriting a newer save; bringing an old version back saves it as a new one.
+
+**Search.** As for issues: a generated `tsvector` (title weighted A, body B) with prefix matching, and trigram word similarity on titles for near misses, with `ts_headline` snippets whose matches are marked.
+
+**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), since readable ids are permanent; a mention of an article written before the article exists counts once it does.
+
+- An article's mentions are written in the transaction that saves it.
+- An issue's description and its comments are read by an outbox consumer, from the events their write path already records. So `applyChanges` needs to know nothing of the knowledge base.
+- The consumer reads the text as it is when it runs, so running twice, or late, lands in the same place.
+- A deleted comment's mentions stop counting at once, at read time, before the consumer removes them.
+
+- **Costs:** an issue's new mention of an article shows on the article a few seconds later, after the outbox settles. Issue text from before the knowledge base existed isn't indexed until it's next edited. Versions keep whole texts, which is more space than diffs.
+- **Revisit when:** articles are long and edited often. Store diffs between occasional whole versions then.
+
+### D20. End-to-end tests run the production build, with the AI stood in for in the browser
+
+`apps/web/e2e` drives Chromium against what ships: the built server serving the built UI, under its real CSP, on a fresh embedded database with the demo data. A dev server would hide what only the build does (the CSP over every page, the bundled assets, the server serving them).
+
+- **Isolation by data, not by server.** One server per run; each spec file makes its own projects, boards and people, with keys no other file or retry has, so files run in parallel. Specs that only read (the tour) hold the live feed, so other specs' writes can't redraw a page mid-check.
+- **Two administrators**, one taking the tour and one for the flows, because the server allows each person 1200 API requests a minute, and the two together came to about 900 on four workers. The limit (`API_RATE_LIMIT`) is held at its default rather than raised, so a page that starts asking too much shows up as a 429 in its console.
+- **People of their own** for what a role changes: a spec makes the person, gives them their role, and signs in as them, so the administrators' sessions are never the ones signed out or kept out.
+- **What happens meanwhile** is made real: a spec changes an issue or a plan through the API between a page reading and saving, with the page's live feed held, to get the 409s people would get.
+- **AI is answered in the browser** (`page.route`), typed by the contract, because the server has no key in CI and the model's answers aren't the UI's to test. The server's AI is tested in vitest with a fake client.
+- **Every page is watched**: a console error or a CSP violation fails the test, unless the test names the one it provokes. The page's clock is fixed at the run's start.
+- **Costs:** it needs `pnpm build` first (the script does it), and it can't catch what only the real model does.
+- **Revisit when:** a run takes more than a few minutes. Shard it across CI machines (`--shard`), each with a server of its own.
+
+### D21. Notifications come from the outbox, once per person per event, a burst at a time
+
+People watch what they report, are assigned, comment on or are mentioned in (`@login`), and what they choose to. Watching starts in the transaction that made the change (`applyChanges`, `createIssue`, `updateComment`), not in a consumer, so unwatching right after commenting holds. Unwatching lasts until the person takes part again, as GitHub's does. Agents never watch: they're told only when assigned or mentioned. Watchers hear of changes, comments, links and files on the issue (a comment's own files go with the comment), and of its deletion.
 
 The change's activity says what notifications need, as logins, worked out against the issue before the change: `data.assigned` (new assignees), `data.mentions` (people newly mentioned, not those mentioned already), and on deletion `data.watchers`, whose rows go with the issue. Text from a help desk's requester mentions nobody.
 
@@ -341,7 +419,7 @@ The notifier is an outbox consumer (`notify/notifier.ts`). For each event it fin
 
 1. **Once.** `notification_events (user_id, event_id)` is the key. An event the outbox hands over twice, or two instances deliver at once, reaches a person once.
 2. **A burst is one.** An unread notification about the same issue, begun within `NOTIFY_WINDOW_SECONDS` of this event (by the events' own times, so a replay folds the same way) and not yet sealed by its email, takes the event under `FOR UPDATE`; otherwise a new one starts. A read one never takes more: what came after you read it is new.
-3. **Its email** is queued in the same transaction if the person wants this kind (D19), due when the window has passed.
+3. **Its email** is queued in the same transaction if the person wants this kind (D22), due when the window has passed.
 
 What a notification shows is its events, read from the activity log, so there's one account of what happened. The inbox lists only projects the reader can still read. Marking read takes `until` (the latest event the reader saw), so what arrived since stays unread.
 
@@ -359,7 +437,7 @@ The unread count is live on every instance: a change tells this process's open s
 - **Costs:** a row per person per event in `notification_events`; read notifications are kept 180 days.
 - **Revisit when:** a team wants per-project or per-kind subscriptions. Today it's per issue, plus the email level.
 
-### D19. Mail is an outbox too: rendered when sent, at least once
+### D22. Mail is an outbox too: rendered when sent, at least once
 
 Mail is a row in `mail_outbox` first, written in the transaction that calls for it, with a `dedupe_key` that makes queueing idempotent: one mail per notification, per person per digest day, per help desk event. Without `SMTP_URL` nothing is queued and nothing is sent; no request ever waits on SMTP.
 
@@ -373,7 +451,7 @@ Mail is a row in `mail_outbox` first, written in the transaction that calls for 
 - **Costs:** a mail can go twice after a crash; sent mail is kept 30 days.
 - **Revisit when:** volume needs a provider's API (SES, Postmark). That is another transport behind the same outbox.
 
-### D20. A help desk for people who aren't users
+### D23. A help desk for people who aren't users
 
 A project can open a help desk: a public form at `/help/<KEY>` that files an issue, and a page per request (`/request#<token>`) where the requester follows the public conversation and answers it.
 
@@ -394,6 +472,9 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 | Two people edit one issue | Changes serialise on the issue row. With `expectedVersion`, the second gets 409 and the current version. The web app always sends it and re-reads the issue on 409 |
 | Levelling while the plan changes | `expect` (the proposal's starts) makes applying conditional: 409 instead of a different plan than the one agreed |
 | Issue numbers | `UPDATE projects SET next_number = next_number + 1 … RETURNING` inside the creating transaction: gap-free per project, safe under concurrency |
+| Article numbers and the tree | The project's row in `article_counters`, upserted in the transaction: gap-free numbers, and one change to a project's tree at a time, so no two moves make a cycle |
+| Two uploads to a full issue | The issue's (or article's) row is locked while the cap is checked again with the file's real size: one of them gets 413 |
+| Files whose rows are gone | A blob record is written before the first byte; the sweeper removes stored bytes nothing points at, and uploads older than six hours that never finished |
 | A history entry without its change, or the reverse | Impossible: same transaction |
 | Webhooks and triage | At least once, in id order, from the outbox, by the one instance that holds the lease. The lease runs on the database's clock and is renewed while a consumer is busy; a cursor moves only while its lease holds |
 | Notifications | At least once in, once out: `notification_events` keys each person's events, so a redelivered event reaches nobody twice. Folding into an unread notification and its email sealing it are serialised on the notification's row |
@@ -417,9 +498,10 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 - **Single sign-on:** see D16.
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
+- **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
-- **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D20); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
+- **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D23); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
@@ -435,9 +517,10 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 - **Pagination.** Search results use offset pagination (sortable by any field); the event feed uses a cursor (`after`).
 - **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. The sign-in throttle is shared.
 - **A token's last-used time** is written at most once a minute per instance.
-- **An assistant conversation whose instance dies mid-answer** stays "running", so it can't take another message; a new conversation can. Fixing it belongs to the assistant (a claim that expires, as idempotency keys now have).
+- **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
+- **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
 
 ## Not yet
 
@@ -445,8 +528,6 @@ Planned, with the seams already in place:
 
 - groups of people with a role in a project (D15);
 - OAuth 2.1 for remote MCP (what it takes is in D16);
-- attachments;
-- a knowledge base;
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
 - a VCS integration (`BACK-12 #Fixed` in commits);

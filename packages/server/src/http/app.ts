@@ -13,6 +13,8 @@ import { SESSION_COOKIE } from '../services/auth';
 import type { HttpEnv } from './env';
 import { authenticate, csrfGuard, errorBody, idempotency, rateLimit, RateLimiter, securityHeaders, toErrorResponse } from './middleware';
 import { aiRoutes } from './routes/ai';
+import { articleRoutes } from './routes/articles';
+import { attachmentRoutes } from './routes/attachments';
 import { authRoutes } from './routes/auth';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
@@ -62,6 +64,8 @@ export function createHttpApp(runtime: Runtime) {
   aiRoutes(api);
   accessRoutes(api);
   ssoRoutes(api);
+  attachmentRoutes(api);
+  articleRoutes(api);
   notificationRoutes(api);
   helpdeskRoutes(api);
 

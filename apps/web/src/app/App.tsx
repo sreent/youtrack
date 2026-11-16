@@ -20,6 +20,7 @@ const AgentsPage = lazy(() => import('../pages/AgentsPage'));
 const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
+const ArticlesPage = lazy(() => import('../pages/ArticlesPage'));
 const InboxPage = lazy(() => import('../pages/InboxPage'));
 // Public: a help desk's form and a request's page, and where an email's unsubscribe link leads.
 const HelpPage = lazy(() => import('../pages/HelpPage'));
@@ -48,6 +49,11 @@ export function App() {
           <Route path="/plan" element={<Page><PlanPage /></Page>} />
           <Route path="/plan/:project" element={<Page><PlanPage /></Page>} />
           <Route path="/plan/:project/:view" element={<Page><PlanPage /></Page>} />
+          <Route path="/articles" element={<Page><ArticlesPage view="home" /></Page>} />
+          <Route path="/articles/new" element={<Page><ArticlesPage view="new" /></Page>} />
+          <Route path="/articles/:id" element={<Page><ArticlesPage view="article" /></Page>} />
+          <Route path="/articles/:id/edit" element={<Page><ArticlesPage view="edit" /></Page>} />
+          <Route path="/articles/:id/history" element={<Page><ArticlesPage view="history" /></Page>} />
           <Route path="/assistant" element={<Page><AssistantPage /></Page>} />
           <Route path="/assistant/:id" element={<Page><AssistantPage /></Page>} />
           <Route path="/suggestions" element={<Page><SuggestionsPage /></Page>} />

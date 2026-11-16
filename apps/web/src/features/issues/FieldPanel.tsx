@@ -19,14 +19,19 @@ interface Choice {
   text: string;
   view: React.ReactNode;
   kind?: string;
+  /** Its name, when its view doesn't say it in words (a PriorityMeter is named "Priority"). */
+  label?: string;
 }
 
 const EMPTY: Record<string, string> = { Assignee: 'Unassigned', 'Due date': 'No due date', 'Start date': 'No start date', 'Fix versions': 'None yet' };
 const emptyWords = (name: string) => EMPTY[name] ?? 'Not set';
 
-function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }) {
+/** A field whose values show as a PriorityMeter, which names itself "Priority" whatever it shows. */
+const isMeter = (field: ProjectField) => field.name === 'Priority';
+
+function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }, wordId?: string) {
   if (field.type === 'state') return <Badge tone={v.tone}>{v.name}</Badge>;
-  if (field.name === 'Priority') return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} />;
+  if (isMeter(field)) return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} wordId={wordId} />;
   return <>{v.name}</>;
 }
 
@@ -35,11 +40,16 @@ function formatDate(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. */
+/**
+ * The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. It is
+ * named by its label and itself ("State, In Progress"), or by its label and `valueNameId`, the
+ * element whose words say the value, when the view's own name doesn't (a PriorityMeter's).
+ */
 function ChoiceValue({
   labelId,
   name,
   view,
+  valueNameId,
   choices,
   chosen,
   multi,
@@ -49,6 +59,7 @@ function ChoiceValue({
   labelId: string;
   name: string;
   view: React.ReactNode;
+  valueNameId?: string;
   choices: Choice[];
   chosen: Set<string>;
   multi: boolean;
@@ -112,7 +123,7 @@ function ChoiceValue({
         type="button"
         className={proposedId ? 'fields-value proposed' : 'fields-value'}
         id={`${id}-value`}
-        aria-labelledby={`${labelId} ${id}-value`}
+        aria-labelledby={`${labelId} ${valueNameId ?? `${id}-value`}`}
         aria-describedby={proposedId}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -141,6 +152,7 @@ function ChoiceValue({
               key={c.key}
               id={`${listId}-${i}`}
               role="option"
+              aria-label={c.label}
               aria-selected={chosen.has(c.key)}
               className={i === active ? 'active' : undefined}
               onMouseDown={(e) => e.preventDefault()}
@@ -175,6 +187,7 @@ function TextValue({
   proposedId?: string;
   onSave: (v: string) => Promise<void>;
 }) {
+  const ownId = useId();
   const [text, setText] = useState(initial);
   const [editingDate, setEditingDate] = useState(false);
   useEffect(() => setText(initial), [initial]);
@@ -189,9 +202,10 @@ function TextValue({
   const cls = ['fields-value', mono ? 'mono' : '', proposedId ? 'proposed' : ''].filter(Boolean).join(' ');
 
   // A date reads as words at rest ("No due date", "12 Nov 2026") and becomes a date field to change it.
+  // At rest it's a button, so, like a choice, it's named by its label and the words it shows.
   if (type === 'date' && !editingDate) {
     return (
-      <button type="button" className={cls} aria-labelledby={labelId} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
+      <button type="button" className={cls} id={ownId} aria-labelledby={`${labelId} ${ownId}`} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
         {initial ? formatDate(initial) : <span className="empty">{placeholder}</span>}
       </button>
     );
@@ -236,11 +250,20 @@ interface Props {
   fields: ProjectField[];
   users: User[];
   proposals: Map<string, Proposal>;
+  /** False for someone who may only read the issue's project. */
+  canEdit?: boolean;
 }
 
-/** Ocean's FieldPanel: an issue's fields beside it, each value a control. */
-export function FieldPanel({ issue, fields, users, proposals }: Props) {
+const NO_PROPOSALS = new Map<string, Proposal>();
+
+/**
+ * Ocean's FieldPanel: an issue's fields beside it, each value a control. Without `canEdit` (someone
+ * who may only read the project), each value is its words alone, and nothing waits to be accepted.
+ */
+export function FieldPanel({ issue, fields, users, proposals: offered, canEdit = true }: Props) {
   const id = useId();
+  // Accepting a value is a change to the issue, so only someone who may change it is asked.
+  const proposals = canEdit ? offered : NO_PROPOSALS;
   const update = useUpdateIssue(issue);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -292,33 +315,36 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             const chosen = new Set(chosenValues.map((v) => v.name));
             const values = pf.values.filter((v) => !v.archived || chosen.has(v.name));
             const shown = proposal ? values.find((v) => v.name === proposal.value) : null;
+            // A meter's word, not the meter, says which value it is.
+            const wordId = isMeter(pf) && !pf.multi && (shown || chosenValues.length) ? `${labelId}-word` : undefined;
             const view = shown ? (
-              optionView(pf, shown)
+              optionView(pf, shown, wordId)
             ) : chosenValues.length ? (
               pf.multi ? (
                 <span className="mono">{chosenValues.map((v) => v.name).join(', ')}</span>
               ) : (
-                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone })
+                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone }, wordId)
               )
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
             );
-            control = (
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
                 view={view}
+                valueNameId={wordId}
                 multi={pf.multi}
                 chosen={chosen}
                 proposedId={proposedId}
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
-                  ...values.map((v) => ({
-                    key: v.name,
-                    text: v.name,
-                    view: optionView(pf, v),
-                    kind: chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined,
-                  })),
+                  ...values.map((v) => {
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined;
+                    return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
+                  }),
                 ]}
                 onPick={(keys) => void set(pf.name, pf.multi ? keys : keys[0] || null).catch(() => {})}
               />
@@ -327,11 +353,18 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             const u = f && isUser(f.value) ? f.value : null;
             const proposedUser = proposal ? people.find((p) => p.login === proposal.value || p.name === proposal.value) : null;
             const shownUser = proposedUser ?? u;
-            control = (
+            const view = shownUser ? (
+              <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small />
+            ) : (
+              <span className="empty">{emptyWords(pf.name)}</span>
+            );
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
-                view={shownUser ? <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small /> : <span className="empty">{emptyWords(pf.name)}</span>}
+                view={view}
                 multi={false}
                 chosen={new Set(u ? [u.login] : [''])}
                 proposedId={proposedId}
@@ -349,11 +382,16 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             );
           } else {
             const initial = pf.type === 'date' ? (typeof f?.value === 'string' ? f.value.slice(0, 10) : '') : currentText(f);
-            control = (
+            const mono = pf.type === 'period' || pf.type === 'integer' || pf.type === 'float';
+            control = !canEdit ? (
+              <span className={mono ? 'fields-value mono' : 'fields-value'}>
+                {initial ? (pf.type === 'date' ? formatDate(initial) : initial) : <span className="empty">{emptyWords(pf.name)}</span>}
+              </span>
+            ) : (
               <TextValue
                 labelId={labelId}
                 initial={proposal ? proposal.value : initial}
-                mono={pf.type === 'period' || pf.type === 'integer' || pf.type === 'float'}
+                mono={mono}
                 type={pf.type === 'date' ? 'date' : 'text'}
                 placeholder={emptyWords(pf.name)}
                 proposedId={proposedId}

@@ -1,24 +1,25 @@
-// By its own path, so the zod contract stays out of the browser's bundle.
+// By their own paths, so the zod contract stays out of the browser's bundle (the page's CSP reports zod's eval check).
 import { MENTION, mentionLogin } from '@a4a/shared/mentions';
+import { findRefs } from '@a4a/shared/refs';
 import { useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import { Link } from 'react-router';
 import remarkGfm from 'remark-gfm';
 import { useUsers } from '../api/queries';
 
-const ISSUE_ID = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
-
-/** Turn bare issue ids into links (outside code), so agents and people can write "BACK-12". */
-function linkIds(text: string): string {
-  return text.replace(ISSUE_ID, (m) => `[${m}](/issues/${m})`);
-}
-
+/**
+ * Turn bare issue ids (BACK-12) and article ids (BACK-A-3) into links, outside code, so agents
+ * and people can write either. The reading is the server's own (@a4a/shared findRefs), so what
+ * links here is what counts as a mention there.
+ */
 function withLinkedIds(markdown: string): string {
-  // Leave fenced and inline code alone.
-  return markdown
-    .split(/(```[\s\S]*?```|`[^`\n]*`)/)
-    .map((part, i) => (i % 2 === 1 ? part : linkIds(part)))
-    .join('');
+  let out = '';
+  let at = 0;
+  for (const ref of findRefs(markdown)) {
+    out += markdown.slice(at, ref.start) + `[${ref.id}](/${ref.kind === 'article' ? 'articles' : 'issues'}/${ref.id})`;
+    at = ref.end;
+  }
+  return out + markdown.slice(at);
 }
 
 /** A Markdown node, as far as mentions need one. */
@@ -76,35 +77,43 @@ function remarkMentions(find: (login: string) => Person | undefined) {
   };
 }
 
+const ID_LINK = /^\/(issues|articles)\/[A-Z]/;
+const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const;
+
 /**
- * Markdown without raw HTML (react-markdown escapes it), with internal links routed, issue ids
- * linked and people's mentions shown by name. On a public page (`outside`), neither: what leads into
- * the tracker means nothing to someone who can't sign in.
+ * Markdown without raw HTML (react-markdown escapes it), with internal links routed, issue and article
+ * ids linked and people's mentions shown by name. On a public page (`outside`), neither: what leads
+ * into the tracker means nothing to someone who can't sign in. `headingsFrom` starts its headings
+ * lower, so a page keeps its own first-level heading: an article's "# Setup" is an h2.
  */
-export function Markdown({ text, className, outside }: { text: string; className?: string; outside?: boolean }) {
+export function Markdown({ text, className, outside, headingsFrom = 1 }: { text: string; className?: string; outside?: boolean; headingsFrom?: 1 | 2 }) {
   const users = useUsers({ enabled: !outside });
   const plugins = useMemo(() => {
     const byLogin = new Map<string, Person>();
     for (const u of users.data ?? []) byLogin.set(u.login.toLowerCase(), { login: u.login, name: u.isBot ? u.login : u.name });
     return outside || !byLogin.size ? [remarkGfm] : [remarkGfm, remarkMentions((l) => byLogin.get(l.toLowerCase()))];
   }, [users.data, outside]);
+  const components: Components = {
+    a: ({ href, children, className: cls, title }) =>
+      href?.startsWith('/') && !outside ? (
+        <Link to={href} title={title} className={cls === 'mention' ? 'mention' : ID_LINK.test(href) ? 'issue-id' : undefined}>
+          {children}
+        </Link>
+      ) : (
+        <a href={href} target="_blank" rel="noreferrer noopener">
+          {children}
+        </a>
+      ),
+  };
+  if (headingsFrom > 1) {
+    HEADINGS.forEach((tag, i) => {
+      const As = HEADINGS[Math.min(i + headingsFrom - 1, 5)]!;
+      components[tag] = ({ children }) => <As>{children}</As>;
+    });
+  }
   return (
     <div className={className ? `prose ${className}` : 'prose'}>
-      <ReactMarkdown
-        remarkPlugins={plugins}
-        components={{
-          a: ({ href, children, className: cls, title }) =>
-            href?.startsWith('/') && !outside ? (
-              <Link to={href} title={title} className={cls === 'mention' ? 'mention' : /^\/issues\/[A-Z]/.test(href) ? 'issue-id' : undefined}>
-                {children}
-              </Link>
-            ) : (
-              <a href={href} target="_blank" rel="noreferrer noopener">
-                {children}
-              </a>
-            ),
-        }}
-      >
+      <ReactMarkdown remarkPlugins={plugins} components={components}>
         {outside ? text : withLinkedIds(text)}
       </ReactMarkdown>
     </div>

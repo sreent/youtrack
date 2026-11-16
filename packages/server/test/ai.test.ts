@@ -7,7 +7,7 @@ import { wordsToQuery } from '../src/ai/nl';
 import { applySuggestion, triageConsumer, triageIssue } from '../src/ai/triage';
 import { issueActivity } from '../src/services/activity';
 import { systemCtx } from '../src/app-services';
-import { aiMessages, users } from '../src/db/schema';
+import { aiConversations, aiMessages, users } from '../src/db/schema';
 import { createIssue, getIssue } from '../src/services/issues';
 import { updateProject } from '../src/services/projects';
 import { searchIssues } from '../src/search/service';
@@ -244,5 +244,42 @@ describe('assistant', () => {
       { type: 'text', text: 'rest' },
     ] as never);
     expect(out.map((b) => b.type)).toEqual(['text', 'fallback', 'text']);
+  });
+});
+
+describe('a turn\'s claim on its conversation', () => {
+  it('lets a conversation go on when its turn was cut off, but not while one is answering', async () => {
+    const ctx = w.as(w.anna);
+    const conv = await createConversation(ctx, {});
+    // Answering now: a second message waits.
+    await w.app.db.update(aiConversations).set({ status: 'running', updatedAt: new Date() }).where(eq(aiConversations.id, conv.id));
+    expect((await getConversation(ctx, conv.id)).status).toBe('running');
+    await expect(sendMessage(ctx, conv.id, { text: 'Anything?' }, () => {})).rejects.toMatchObject({ status: 409 });
+    // Its server stopped three minutes ago, mid-answer: the conversation is free again.
+    await w.app.db
+      .update(aiConversations)
+      .set({ updatedAt: new Date(Date.now() - 3 * 60_000) })
+      .where(eq(aiConversations.id, conv.id));
+    expect((await getConversation(ctx, conv.id)).status).toBe('idle');
+    script.turns.push({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Here again.' }] });
+    const events: ChatStreamEvent[] = [];
+    await sendMessage(ctx, conv.id, { text: 'Anything?' }, (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: 'done', status: 'idle' });
+  });
+
+  it('runs approved changes once when two decisions arrive at once', async () => {
+    const ctx = w.as(w.anna);
+    const conv = await createConversation(ctx, {});
+    script.turns.push({ stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'tu_once', name: 'add_comment', input: { issue: issueId, text: 'Said once.' } }] });
+    await sendMessage(ctx, conv.id, { text: 'Say it once' }, () => {});
+    script.turns.push({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'Done.' }] });
+    const results = await Promise.allSettled([
+      decide(ctx, conv.id, [{ toolUseId: 'tu_once', approve: true }], () => {}),
+      decide(ctx, conv.id, [{ toolUseId: 'tu_once', approve: true }], () => {}),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.find((r) => r.status === 'rejected')).toMatchObject({ reason: { status: 400 } });
+    const said = (await issueActivity(ctx, issueId)).filter((e) => e.type === 'comment.created' && JSON.stringify(e).includes('Said once.'));
+    expect(said).toHaveLength(1);
   });
 });

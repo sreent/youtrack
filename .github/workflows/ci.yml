@@ -65,6 +65,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @a4a/server test
 
+  e2e:
+    name: Browser tests, Chromium, against the production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          # @axe-core/playwright needs 22.12 or later.
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # From where Playwright is pinned, so the browser matches it.
+      - run: pnpm --filter @a4a/web exec playwright install --with-deps chromium
+      # Builds first. With CI set, Playwright retries twice and runs up to four workers.
+      - run: pnpm test:e2e --trace off
+      - name: Keep the report and the failures' screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
+
   live-ai:
     name: AI against ${{ matrix.provider }}, live
     # Real models cost a little, so on main and on request only; pull requests can't read secrets anyway.

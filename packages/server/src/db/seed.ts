@@ -19,6 +19,8 @@ import { createBaseline } from '../services/planning';
 import { fieldByName } from '../services/schema-cache';
 import { insertUser } from '../services/users';
 import { logWork } from '../services/workitems';
+import { createArticle, updateArticle } from '../services/articles';
+import { reindexComment } from '../services/mentions';
 import { activities, issues, projects } from './schema';
 
 type Seeded = Record<string, string>;
@@ -181,6 +183,8 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
     ],
     swimlaneField: 'Priority',
   });
+  await seedKnowledgeBase(app, as, people, ids);
+
   for (const [name, query] of [
     ['My open issues', 'for: me #Unresolved sort by: Priority, updated desc'],
     ['Critical bugs', 'Type: Bug Priority: Show-stopper, Critical #Unresolved'],
@@ -195,6 +199,67 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   for (const login of ['anna', 'ben', 'diego']) await addMember(ctx, 'MIG', { user: login, role: 'member' });
   await updateProject(ctx, 'MIG', { visibility: 'members' });
   await addMember(ctx, 'WEB', { user: 'diego', role: 'viewer' });
+}
+
+/**
+ * A knowledge base for BACK and MIG: runbooks in a tree, conventions saved twice (so there's a
+ * history), and mentions both ways between articles and issues.
+ */
+async function seedKnowledgeBase(app: AppServices, as: (u: UserRow) => ReturnType<typeof systemCtx>, people: Record<string, UserRow>, ids: Seeded) {
+  const anna = as(people.anna!);
+  const runbooks = await createArticle(anna, {
+    project: 'BACK',
+    title: 'Runbooks',
+    body: 'How we run the backend in production. Start here when something is on fire, and write down what you learn.',
+  });
+  await createArticle(anna, {
+    project: 'BACK',
+    title: 'Database failover',
+    parent: runbooks.id,
+    body: [
+      'When the primary fails, promote the replica before anything else: the pooler queues requests for 30 seconds, and the app retries after that.',
+      '',
+      '# Promote the replica',
+      '',
+      '1. Check it has caught up: `SELECT pg_last_wal_replay_lsn();`',
+      '2. Promote it with `pg_ctl promote`.',
+      '3. Repoint the pooler, then the app.',
+      '',
+      '> Never promote a replica that is more than a minute behind without asking the database lead.',
+      '',
+      '# Afterwards',
+      '',
+      `The activity feed is slow on large projects (${ids.slow}), so the first minutes after a failover look worse than they are.`,
+    ].join('\n'),
+  });
+  await createArticle(as(people.ben!), {
+    project: 'BACK',
+    title: 'Deploying the API',
+    parent: runbooks.id,
+    body: 'Deploys go out from main, one region at a time.\n\n1. Merge to main; CI builds the image.\n2. Run `make deploy REGION=eu` and watch the error rate for five minutes.\n3. Then the other regions.\n\nRoll back with `make rollback REGION=eu`.',
+  });
+  const conventions = await createArticle(anna, {
+    project: 'BACK',
+    title: 'API conventions',
+    body: `Every error is \`{"error": {"code", "message", "hint"}}\`: the hint says how to fix the request.\n\nRate limits (${ids.rate}) answer 429 with Retry-After.`,
+  });
+  await updateArticle(as(people.ben!), conventions.id, {
+    body: `${conventions.body}\n\nPagination uses cursors. A malformed cursor is a 400 that says so, never a 500 (${ids.pagination}).`,
+  });
+  const sso = await createArticle(anna, {
+    project: 'BACK',
+    title: 'Single sign-on',
+    body: `We sign people in with Okta over OIDC. The session cookie is set on the callback, so it must be \`SameSite=None; Secure\`: Safari drops it otherwise (${ids.sso}).`,
+  });
+  await createArticle(as(people.chloe!), {
+    project: 'MIG',
+    title: 'Cutover plan',
+    body: `The night of the cutover (${ids.cutover}), in order: freeze writes, replicate the last changes, switch DNS, then watch for an hour before anyone goes home.\n\nAfter that, the Leeds data center is decommissioned (${ids.decom}).`,
+  });
+  // An issue's comment that points at an article. The outbox worker indexes comments as they
+  // come; it starts after the seed, so this one is indexed here.
+  const comment = await addComment(anna, ids.sso!, `What the fix changes and how to test it is written up in ${sso.id}.`);
+  await reindexComment(app, comment.id);
 }
 
 /** Move an issue's creation (and its creation event) into the past, for a lifelike history. */

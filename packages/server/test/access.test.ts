@@ -116,8 +116,8 @@ describe('a members-only project, from outside', () => {
     const [n] = secretId.split('-').slice(1);
     expect(await failure(getIssue(ben, secretId), secretId)).toEqual(await failure(getIssue(ben, `BACK-9${n}9`), `BACK-9${n}9`));
     expect((await failure(getIssue(ben, secretUid))).status).toBe(404);
-    for (const p of [listComments(ben, secretId), listWorkItems(ben, secretId), listLinks(ben, secretId), issueActivity(ben, secretId), listSuggestions(ben, secretId)]) {
-      expect((await failure(p)).status).toBe(404);
+    for (const attempt of [() => listComments(ben, secretId), () => listWorkItems(ben, secretId), () => listLinks(ben, secretId), () => issueActivity(ben, secretId), () => listSuggestions(ben, secretId)]) {
+      expect((await failure(attempt())).status).toBe(404);
     }
     expect(await failure(updateComment(ben, commentId, 'x'))).toEqual(await failure(updateComment(ben, 'no-such-comment', 'x')));
     expect(await failure(deleteComment(ben, commentId))).toEqual(await failure(deleteComment(ben, 'no-such-comment')));
@@ -338,17 +338,20 @@ describe('roles in a project', () => {
   it('lets a viewer read and comment, and nothing more', async () => {
     expect((await getIssue(vic, secretId)).id).toBe(secretId);
     expect((await addComment(vic, secretId, 'A question from legal')).text).toBe('A question from legal');
-    for (const p of [
-      updateIssue(vic, secretId, { summary: 'Changed' }),
-      logWork(vic, secretId, { duration: '1h' }),
-      linkIssues(vic, secretId, 'relates to', backId),
-      deleteIssue(vic, secretId),
-      createIssue(vic, { project: 'SECRET', summary: 'New' }),
-      runCommand(vic, { issues: [secretId], command: 'State Fixed' }).then((r) => {
-        if (r.results[0]!.errors.length) throw new AppError(403, 'forbidden', r.results[0]!.errors[0]!);
-      }),
+    // Each call starts only when it's awaited: started together, the later refusals would go
+    // unhandled while the first is awaited.
+    for (const attempt of [
+      () => updateIssue(vic, secretId, { summary: 'Changed' }),
+      () => logWork(vic, secretId, { duration: '1h' }),
+      () => linkIssues(vic, secretId, 'relates to', backId),
+      () => deleteIssue(vic, secretId),
+      () => createIssue(vic, { project: 'SECRET', summary: 'New' }),
+      () =>
+        runCommand(vic, { issues: [secretId], command: 'State Fixed' }).then((r) => {
+          if (r.results[0]!.errors.length) throw new AppError(403, 'forbidden', r.results[0]!.errors[0]!);
+        }),
     ]) {
-      const f = await failure(p);
+      const f = await failure(attempt());
       expect(f.status).toBe(403);
       expect(f.message).toMatch(/SECRET/);
     }
@@ -369,13 +372,13 @@ describe('roles in a project', () => {
 
   it('lets a member change issues but not the project', async () => {
     expect((await updateIssue(anna, secretId, { description: 'Updated' })).description).toBe('Updated');
-    for (const p of [
-      updateProject(anna, 'SECRET', { name: 'Renamed' }),
-      addMember(anna, 'SECRET', { user: 'ben', role: 'viewer' }),
-      createBaseline(anna, 'SECRET', { name: 'Mine' }),
-      createBoard(anna, { name: 'Mine', projects: ['SECRET'] }),
+    for (const attempt of [
+      () => updateProject(anna, 'SECRET', { name: 'Renamed' }),
+      () => addMember(anna, 'SECRET', { user: 'ben', role: 'viewer' }),
+      () => createBaseline(anna, 'SECRET', { name: 'Mine' }),
+      () => createBoard(anna, { name: 'Mine', projects: ['SECRET'] }),
     ]) {
-      expect((await failure(p)).status).toBe(403);
+      expect((await failure(attempt())).status).toBe(403);
     }
     expect((await getProject(anna, 'SECRET')).access).toMatchObject({ role: 'member', write: true, manage: false });
   });

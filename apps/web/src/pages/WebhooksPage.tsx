@@ -29,6 +29,11 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'project.member.changed': 'someone’s role in a project changes',
   'project.member.removed': 'someone is taken out of a project',
   'project.visibility.changed': 'who sees a project changes',
+  'attachment.added': 'a file is attached',
+  'attachment.removed': 'a file is removed',
+  'article.created': 'an article is written',
+  'article.updated': 'an article changes or moves',
+  'article.deleted': 'an article is deleted',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

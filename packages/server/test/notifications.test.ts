@@ -10,7 +10,8 @@ import { createHttpApp } from '../src/http/app';
 import { MailWorker, scheduleDigests } from '../src/mail/outbox';
 import type { MailTransport, OutgoingMail } from '../src/mail/transport';
 import { notifierConsumer, notifyEvent } from '../src/notify/notifier';
-import { setMailTransportForTests } from '../src/notify/state';
+import { endInboxStreams, setMailTransportForTests } from '../src/notify/state';
+import type { Signal } from '../src/events/signals';
 import { searchIssues } from '../src/search/service';
 import { issueTokenFor } from '../src/services/auth';
 import { addComment, updateComment } from '../src/services/comments';
@@ -20,6 +21,10 @@ import { listWatchers, unwatchIssue, watchIssue } from '../src/services/watchers
 import { TRIAGE_BOT } from '../src/db/defaults';
 import { toolByName } from '../src/tools/registry';
 import { createWorld, type TestWorld } from './helpers';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { LocalDiskStorage, setAttachmentStorage } from '../src/attachments/storage';
 import { fakeSmtp, type FakeSmtp } from './smtp';
 
 let w: TestWorld;
@@ -250,6 +255,28 @@ describe('notifications', () => {
     expect(anna).toHaveLength(1);
     expect(anna[0]).toMatchObject({ issueDeleted: true, title: 'Ada Admin deleted it' });
     expect((await inbox(w.ben)).filter((n) => n.issue.id === issue.id)[0]?.issueDeleted).toBe(true);
+  });
+
+  it("tells an issue's watchers of a file added to it, and leaves a comment's own files to the comment", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'a4a-notify-files-'));
+    setAttachmentStorage(w.app, new LocalDiskStorage(dir));
+    try {
+      const issue = await createIssue(as(w.ben), { project: 'WEB', summary: 'Upload fails on Safari' });
+      await watchIssue(as(w.anna), issue.id);
+      await run();
+      const attach = toolByName('attach_file')!;
+      await attach.run(as(w.ben), attach.input.parse({ to: issue.id, name: 'safari.log', text: 'TypeError: Load failed' }) as never);
+      await run();
+      const [n] = (await inbox(w.anna)).filter((x) => x.issue.id === issue.id);
+      expect(n?.title).toBe('Ben Okafor attached safari.log');
+      const comment = await addComment(as(w.ben), issue.id, 'The log from a second try');
+      await attach.run(as(w.ben), attach.input.parse({ to: issue.id, comment: comment.id, name: 'again.log', text: 'TypeError: Load failed' }) as never);
+      await run();
+      const events = (await inbox(w.anna)).filter((x) => x.issue.id === issue.id).flatMap((x) => x.events.map((e) => e.type));
+      expect(events).toEqual(['attachment.added', 'comment.created']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('keeps each inbox its own', async () => {
@@ -537,6 +564,39 @@ describe('the channels', () => {
     const second = await next();
     expect(second.unread).toBe(first.unread + 1);
     await reader.cancel();
+  });
+
+  it('SSE: counts again when another instance changed the inbox, and ends when the server stops', async () => {
+    const res = await http.request('/api/v1/notifications/stream', { headers: { authorization: `Bearer ${token}` } });
+    const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+    let buf = '';
+    const next = async () => {
+      for (;;) {
+        const m = /event: unread\ndata: (.+)\n\n/.exec(buf);
+        if (m) {
+          buf = buf.slice(m.index + m[0].length);
+          return JSON.parse(m[1]!) as { unread: number };
+        }
+        const { value, done } = await reader.read();
+        if (done) return null;
+        buf += value;
+      }
+    };
+    const first = (await next())!;
+    // Another instance delivered one: its row is here, and its NOTIFY arrives as a signal.
+    const [row] = await w.app.db.select().from(notifications).where(eq(notifications.userId, w.ben.id)).limit(1);
+    await w.app.db.update(notifications).set({ readAt: null }).where(eq(notifications.id, row!.id));
+    const before = first.unread + (row!.readAt ? 1 : 0);
+    const fanout = (w.app.signals as unknown as { fanout: { dispatch(s: Signal): void } }).fanout;
+    fanout.dispatch({ kind: 'inbox', origin: 'another-instance', users: [w.ben.id] });
+    expect((await next())!.unread).toBe(before);
+    // After LISTEN reconnects, everyone's stream counts again; an unchanged count says nothing.
+    await w.app.db.update(notifications).set({ readAt: new Date() }).where(eq(notifications.id, row!.id));
+    fanout.dispatch({ kind: 'resync' });
+    expect((await next())!.unread).toBe(before - 1);
+    // Shutting down ends the stream, so the server can close; the client reconnects elsewhere.
+    endInboxStreams(w.app);
+    expect(await next()).toBeNull();
   });
 
   it('MCP: watch_issue, unwatch_issue, list_notifications and mark_notifications_read', async () => {

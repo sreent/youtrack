@@ -220,6 +220,18 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     if (!cfg.createUsers) throw new SsoError('no_account', `There's no a4a account for ${email}`);
     const created = await app.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
+      // One person's first sign-ins at once (two tabs, a double click) take turns here: the
+      // first makes the account, and the next finds it linked.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:sso:${cfg.issuer}|${claims.sub}`}))`);
+      const [linked] = await tx
+        .select({ user: users })
+        .from(userIdentities)
+        .innerJoin(users, eq(users.id, userIdentities.userId))
+        .where(and(eq(userIdentities.provider, cfg.issuer), eq(userIdentities.subject, claims.sub)));
+      if (linked) {
+        if (linked.user.banned || linked.user.isBot) throw new SsoError('refused', 'This account can’t sign in');
+        return linked.user;
+      }
       const login = await freeLogin(tx, claimText(claims, 'preferred_username') ?? email!.slice(0, email!.indexOf('@')));
       const name = claimText(claims, 'name') ?? ([claimText(claims, 'given_name'), claimText(claims, 'family_name')].filter(Boolean).join(' ') || email!);
       const user = await insertUser(tx, { login, name: name.slice(0, 100), email, role: 'member' });
@@ -231,9 +243,10 @@ async function personFor(app: AppServices, cfg: OidcConfig, claims: oidc.IDToken
     accessChanged(app);
     return created;
   } catch (e) {
-    // Two first sign-ins at once: the other one linked or made the account. Use theirs.
+    // Two first sign-ins at once: the other one linked or made the account, or took the
+    // login this one chose (someone else, at the same moment). Look again, once.
     const pgCode = (e as { code?: string; cause?: { code?: string } })?.code ?? (e as { cause?: { code?: string } })?.cause?.code;
-    if (retry && pgCode === '23505') return personFor(app, cfg, claims, false);
+    if (retry && (pgCode === '23505' || pgCode === 'login_taken')) return personFor(app, cfg, claims, false);
     throw e;
   }
 }

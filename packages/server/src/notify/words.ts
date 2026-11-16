@@ -45,6 +45,10 @@ export function eventVerb(e: TrackerEvent): string {
       return `linked it: ${String(data.phrase ?? 'relates to')} ${(data.target as { id?: string } | undefined)?.id ?? ''}`.trim();
     case 'link.deleted':
       return `unlinked it from ${(data.target as { id?: string } | undefined)?.id ?? 'an issue'}`;
+    case 'attachment.added':
+      return `attached ${(data.attachment as { name?: string } | undefined)?.name ?? 'a file'}`;
+    case 'attachment.removed':
+      return `removed the file ${(data.attachment as { name?: string } | undefined)?.name ?? ''}`.trim();
     case 'issue.deleted':
       return 'deleted it';
     default:

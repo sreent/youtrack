@@ -9,7 +9,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatMessage, ChatPart, ChatStreamEvent, Conversation, ConversationDetail } from '@a4a/shared';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
 import { requireScope, withChannel, type Ctx } from '../../context';
 import { aiConversations, aiMessages } from '../../db/schema';
 import { todayISO } from '../../lib/dates';
@@ -29,6 +29,12 @@ type MessageRow = typeof aiMessages.$inferSelect;
 export type Emit = (event: ChatStreamEvent) => void;
 
 const MAX_STEPS = 24;
+/**
+ * A turn keeps its claim on the conversation fresh while it runs. One not refreshed for this
+ * long was cut off (its server stopped mid-answer), so the conversation takes messages again.
+ */
+const RUN_CLAIM_MS = 2 * 60_000;
+const HEARTBEAT_MS = 30_000;
 const MAX_RESULT_CHARS = 30_000;
 const PAGE_PREFIX = '<page_context>';
 
@@ -60,7 +66,7 @@ function conversationDto(s: Awaited<ReturnType<Ctx['app']['schema']['get']>>, ro
     id: row.id,
     title: row.title,
     project: row.projectId ? (s.projects.get(row.projectId)?.key ?? null) : null,
-    status: row.status as Conversation['status'],
+    status: (row.status === 'running' && !answering(row) ? 'idle' : row.status) as Conversation['status'],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -232,6 +238,28 @@ async function append(ctx: Ctx, conversationId: string, role: 'user' | 'assistan
   return row!.id;
 }
 
+/** Whether a turn is answering now: running, with its claim still fresh. */
+function answering(row: Pick<ConversationRow, 'status' | 'updatedAt'>): boolean {
+  return row.status === 'running' && Date.now() - row.updatedAt.getTime() < RUN_CLAIM_MS;
+}
+
+/**
+ * Take the conversation for a turn in one statement, so two requests at once can't both have
+ * it: from idle (or a turn cut off), or from waiting on the person's decisions.
+ */
+async function claim(ctx: Ctx, id: string, from: 'idle' | 'awaiting_approval', pending: Pending | null): Promise<boolean> {
+  const takes =
+    from === 'idle'
+      ? or(eq(aiConversations.status, 'idle'), and(eq(aiConversations.status, 'running'), sql`${aiConversations.updatedAt} < now() - make_interval(secs => ${RUN_CLAIM_MS / 1000})`))
+      : eq(aiConversations.status, 'awaiting_approval');
+  const rows = await ctx.db
+    .update(aiConversations)
+    .set({ status: 'running', pending: pending as never, updatedAt: new Date() })
+    .where(and(eq(aiConversations.id, id), takes))
+    .returning({ id: aiConversations.id });
+  return rows.length > 0;
+}
+
 async function setStatus(ctx: Ctx, id: string, status: Conversation['status'], pending: Pending | null) {
   await ctx.db.update(aiConversations).set({ status, pending: pending as never, updatedAt: new Date() }).where(eq(aiConversations.id, id));
 }
@@ -368,6 +396,15 @@ async function loop(ctx: Ctx, conv: ConversationRow, emit: Emit, approvalMode: '
 }
 
 async function guarded(ctx: Ctx, conv: ConversationRow, emit: Emit, run: () => Promise<void>) {
+  // The turn's claim stays fresh while it runs, model calls and tools alike.
+  const beat = setInterval(() => {
+    ctx.db
+      .update(aiConversations)
+      .set({ updatedAt: new Date() })
+      .where(and(eq(aiConversations.id, conv.id), eq(aiConversations.status, 'running')))
+      .catch(() => {});
+  }, HEARTBEAT_MS);
+  beat.unref?.();
   try {
     await run();
   } catch (e) {
@@ -376,6 +413,8 @@ async function guarded(ctx: Ctx, conv: ConversationRow, emit: Emit, run: () => P
     const [latest] = await ctx.db.select().from(aiConversations).where(eq(aiConversations.id, conv.id));
     if (latest?.status === 'running') await setStatus(ctx, conv.id, 'idle', null);
     emit({ type: 'done', status: 'idle' });
+  } finally {
+    clearInterval(beat);
   }
 }
 
@@ -388,8 +427,8 @@ export async function sendMessage(
   requireScope(ctx, 'read');
   requireAI(ctx.app);
   const conv = await loadOwn(ctx, conversationId);
-  if (conv.status === 'running') throw conflict('The assistant is still answering in this conversation');
   if (conv.status === 'awaiting_approval') throw conflict('Approve or decline the pending changes first');
+  if (answering(conv)) throw conflict('The assistant is still answering in this conversation');
   const blocks: Block[] = [];
   const page = [
     input.context?.issue ? `The person is looking at issue ${input.context.issue}.` : '',
@@ -398,7 +437,7 @@ export async function sendMessage(
   ].filter(Boolean);
   if (page.length) blocks.push({ type: 'text', text: `${PAGE_PREFIX}${page.join(' ')}</page_context>` });
   blocks.push({ type: 'text', text: input.text });
-  await setStatus(ctx, conv.id, 'running', null);
+  if (!(await claim(ctx, conv.id, 'idle', null))) throw conflict('The assistant is still answering in this conversation');
   await append(ctx, conv.id, 'user', blocks);
   if (conv.title === 'New conversation') {
     await ctx.db.update(aiConversations).set({ title: excerpt(input.text, 70) }).where(eq(aiConversations.id, conv.id));
@@ -415,7 +454,8 @@ export async function decide(ctx: Ctx, conversationId: string, decisions: { tool
   const byId = new Map(decisions.map((d) => [d.toolUseId, d.approve]));
   const missing = pending.awaiting.filter((a) => !byId.has(a.toolUseId));
   if (missing.length) throw badRequest(`Decide on every pending change (${missing.length} left)`);
-  await setStatus(ctx, conv.id, 'running', pending);
+  // Two decisions sent at once must not both run the changes.
+  if (!(await claim(ctx, conv.id, 'awaiting_approval', pending))) throw badRequest('Nothing in this conversation is waiting for approval');
   const declined: string[] = [];
   await guarded(ctx, conv, emit, async () => {
     for (const a of pending.awaiting) {

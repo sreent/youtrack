@@ -111,6 +111,8 @@ remove tag needs-info duplicates BACK-7
 | Links | `GET/POST /issues/{id}/links`, `DELETE /links/{id}`, `GET /link-types` | Relates, depends on / is required for, duplicates, subtask of / parent for |
 | Tags | `GET/POST /tags`, `PATCH/DELETE /tags/{id}`, plus `addTags` / `removeTags` on issues | Colored tags |
 | Time tracking | `GET/POST /issues/{id}/work-items`, `DELETE /work-items/{id}` | Log work (`1h 30m`); spent time is rolled up on the issue |
+| Attachments | `GET/POST /issues/{id}/attachments`, `POST /comments/{id}/attachments`, `GET/POST /articles/{id}/attachments`, `GET/DELETE /attachments/{id}`, `GET /attachments/{id}/content`, `GET /attachments/{id}/text`, `GET /attachments/limits` | Files on issues, comments (the author's own) and articles. Upload as `multipart/form-data` with the file in a part named `file` (`curl -F file=@build.log`), streamed, one per request: up to `ATTACHMENT_MAX_MB` (20) each and `ATTACHMENTS_PER_ISSUE_MB` (100) for an issue with its comments, or an article; 413 otherwise. The type is read from the bytes, never from the name or the request; the name is made safe; the SHA-256 is kept and is the ETag. `content` serves PNG, JPEG, GIF and WebP `inline` and everything else as an `attachment`, with `nosniff` and `Content-Security-Policy: sandbox`; `?download=1` downloads images too. `text` reads a text file in slices of up to 128 KB, from an offset or its end (`tail=true`). Who added a file may delete it, and so may anyone who may change its project |
+| Knowledge base | `GET/POST /articles`, `GET/PATCH/DELETE /articles/{id}`, `GET /projects/{key}/articles`, `GET /articles/{id}/versions[/{version}]`, `POST /articles/{id}/versions/{version}/restore`, `GET /issues/{id}/articles` | Articles per project, by readable id (`BACK-A-3`), in a tree: `parent` and `position` place them, and a move under one of its own descendants is refused. Markdown, saved as a new version each time (with `expectedVersion` for 409 on a newer save); a version comes with its diff against the one before, and an old one can be brought back as a new one. `GET /articles?query=` searches titles and bodies (full text, prefixes, near misses on titles), with snippets. Ids written in articles, descriptions and comments are mentions: an article lists the issues and articles that mention it, and `GET /issues/{id}/articles` the articles that mention an issue. An article with articles under it can't be deleted |
 | Activity | `GET /issues/{id}/activity` | Full change history with actor and channel |
 | Search helpers | `POST /search/parse`, `GET /search/suggest`, `POST /search/count` | Validate and explain a query, autocomplete, and counts grouped by any field (dashboards, reports) |
 | Commands | `POST /commands`, `POST /commands/parse` | Apply or preview a command on up to 50 issues |
@@ -152,7 +154,7 @@ remove tag needs-info duplicates BACK-7
 | `list_projects` | Projects with key, name, description, open-issue counts | read |
 | `get_project` | A project's fields and allowed values (states marked resolved/unresolved), link types, tags, people | read |
 | `search_issues` | Run a query. Returns total + compact rows (id, summary, state, priority, type, assignee, updated). Invalid queries return the error position and a suggestion | read |
-| `get_issue` | One issue in full: fields, description, links (subtasks, blockers, duplicates), recent comments, spent time, pending AI triage suggestions | read |
+| `get_issue` | One issue in full: fields, description, links (subtasks, blockers, duplicates), recent comments, spent time, pending AI triage suggestions, its files, and the articles that mention it | read |
 | `count_issues` | Count issues matching a query, optionally grouped by a field ("open bugs by priority") | read |
 | `get_activity` | Recent changes: who changed what and when, filtered by issue, project, query or time ("what happened since yesterday?") | read |
 | `find_similar_issues` | Rank existing issues by similarity to some text. Use before filing an issue to avoid duplicates | read |
@@ -170,6 +172,12 @@ remove tag needs-info duplicates BACK-7
 | `level_resources` | Propose (`dry_run`, default) or apply a levelled schedule that resolves over-allocation; `expect` applies only the proposal the person agreed to | write |
 | `create_baseline` | Snapshot the current plan under a name | write |
 | `list_project_members` | Who is in a project and their role, whether it is members only, and what you may do in it. Assign a members-only project's issues only to its people | read |
+| `read_attachment` | Read a text file on an issue, comment or article (a log, a stack trace), up to 128 KB at a time, from an offset or from its end; images and other binary files are refused with where to download them | read |
+| `attach_file` | Attach a small file (256 KB at most, given as `text` or `base64`) to an issue, the agent's own comment, or an article. It goes through the same checks as any upload, and is recorded with the token's name | write |
+| `search_articles` | Find knowledge base articles by words in titles and bodies, in one project or all, with snippets; without words, the latest changed | read |
+| `get_article` | An article in full, in Markdown: where it sits, what's under it, its version, what mentions it, and its files; or an earlier version | read |
+| `create_article` | Write an article, at the top of a project's tree or under another; the preview says where and shows its start | write |
+| `update_article` | Change an article's title or body (a new version) or move it; `expected_version` refuses to overwrite a newer save. The preview shows the lines it adds and removes | write (idempotent) |
 | `list_notifications` | What's waiting for the token's person, grouped by issue: assigned, mentioned, help desk requests, changes and comments on what they watch, each with its changes and words. Unread only by default | read |
 | `mark_notifications_read` | Mark the person's notifications read: by id, one issue's, or all | write (idempotent) |
 | `watch_issue` / `unwatch_issue` | Watch an issue for the person, or stop until they take part again | write (idempotent) |
@@ -177,9 +185,11 @@ remove tag needs-info duplicates BACK-7
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
-Deliberately **not** exposed over MCP in v1: deleting issues, user and permission admin (changing a project's people included), webhooks, settings, a help desk's settings, and email preferences (they're the person's own, in the web app).
+Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, a help desk's settings, and email preferences (they're the person's own, in the web app).
 
 `get_issue` says when an issue is a help desk request (who asked, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
+
+**Why agents may attach files, and only small ones.** Agents produce things worth keeping beside an issue: a log excerpt, a failing test's output, a patch, a script that reproduces a bug. So `attach_file` exists, through the same service as every upload: the type is read from the bytes, the per-issue cap applies, the file is served as a download, and its activity names the token. But a file over MCP is base64 or text inside a tool call, so every byte passes through the model's context: 256 KB is about what an agent can sensibly write out. A larger file goes to `POST /issues/{id}/attachments` with the same token.
 
 ### 5.2 Resources (read-only context a client can attach)
 
@@ -189,6 +199,7 @@ Deliberately **not** exposed over MCP in v1: deleting issues, user and permissio
 | `a4a://guide/commands` | The command syntax reference |
 | `a4a://projects/{key}` | A project's schema: fields, values, link types |
 | `a4a://issues/{id}` | An issue rendered as Markdown (lists the 50 most recently updated) |
+| `a4a://articles/{id}` | A knowledge base article as Markdown (lists the 50 most recently changed) |
 
 ### 5.3 Prompts (reusable workflows; appear as slash commands in Claude Code)
 
@@ -242,6 +253,8 @@ What notifications need is in `data`, as logins: `assigned` (new assignees) and 
 - `ai.triage.completed`
 - `baseline.created`
 - `project.member.added`, `project.member.changed`, `project.member.removed`, `project.visibility.changed`
+- `attachment.added`, `attachment.removed` (with the file's name, size, type, checksum and link; on an issue, its comment's id when it's a comment's)
+- `article.created`, `article.updated` (with what changed: title, content, parent, position), `article.deleted`
 
 Every consumer sees only the events of projects it can see: `GET /events` and `GET /events/stream` filter by the caller's access, and leave out a link whose other end it can't see. Webhooks (made by administrators) get every event.
 

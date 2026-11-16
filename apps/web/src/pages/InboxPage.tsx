@@ -49,6 +49,7 @@ function NotificationEntry({ n }: { n: Notification }) {
   const changes = netChanges(n.events);
   const said = n.events.filter((e) => e.type === 'comment.created' && typeof e.data.text === 'string' && e.data.text.trim()).slice(-2);
   const links = n.events.filter((e) => e.type === 'link.created' || e.type === 'link.deleted');
+  const files = n.events.filter((e) => e.type === 'attachment.added' || e.type === 'attachment.removed');
   const unread = n.readAt === null;
   return (
     <li className={unread ? 'unread' : 'read'}>
@@ -65,6 +66,11 @@ function NotificationEntry({ n }: { n: Notification }) {
         {links.map((e) => (
           <p key={e.id} className="note">
             {e.type === 'link.created' ? 'Linked' : 'Unlinked'}: {String(e.data.phrase ?? '')} {(e.data.target as { id?: string } | undefined)?.id ?? ''}
+          </p>
+        ))}
+        {files.map((e) => (
+          <p key={e.id} className="note">
+            {e.type === 'attachment.added' ? 'Attached' : 'Removed'}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? 'a file')}
           </p>
         ))}
         {said.map((e) => (

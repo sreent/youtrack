@@ -2,7 +2,7 @@
  * Turns committed events into notifications, one per person per burst of activity on an issue.
  *
  * - Who: the new assignee, people newly mentioned, a project's lead for a new help desk request,
- *   and the issue's watchers for changes, comments, links and deletion. Never whoever acted, and
+ *   and the issue's watchers for changes, comments, links, files and deletion. Never whoever acted, and
  *   never someone who can't read the project as they would signing in (access.ts decides, as for
  *   everything else), nor, for a link, the issue at its other end.
  * - Volume: events on one issue within the window (NOTIFY_WINDOW_SECONDS) fold into one unread
@@ -93,6 +93,11 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
     case 'link.deleted':
       await watchers();
       break;
+    case 'attachment.added':
+    case 'attachment.removed':
+      // A comment's files go with the comment, whose own event told its watchers.
+      if (!(event.data as { commentId?: unknown }).commentId) await watchers();
+      break;
     case 'issue.deleted':
       for (const l of facts.watchers ?? []) add(byLogin(l), 'watching');
       break;
@@ -105,7 +110,7 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
 export function notifierConsumer(app: AppServices): OutboxConsumer {
   return {
     name: 'notifications',
-    types: ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted'],
+    types: ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'],
     handle: (event) => notifyEvent(app, event),
   };
 }

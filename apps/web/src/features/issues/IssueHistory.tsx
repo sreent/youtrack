@@ -1,8 +1,11 @@
-import type { Comment, CommentVisibility, IssueDetail, TrackerEvent, User, UserRef } from '@a4a/shared';
+import type { Attachment, Comment, CommentVisibility, IssueDetail, TrackerEvent, User, UserRef } from '@a4a/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { post } from '../../api/client';
+import { attachmentKeys, formatBytes, refusal, uploadFile, useAttachmentLimits, useIssueAttachments } from '../attachments/api';
+import { CommentFiles } from '../attachments/AttachmentList';
+import { Icon } from '../../components/Icon';
 import { keys, useActivity, useComments } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { ChangeLines } from '../../components/Changes';
@@ -65,6 +68,9 @@ interface Entry {
   comment?: string;
   /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
   public?: 'reply' | 'theirs';
+  /** A comment's own files, under its words; and its id, for links to it. */
+  files?: Attachment[];
+  anchor?: string;
 }
 
 function eventEntry(e: TrackerEvent): Entry | null {
@@ -115,6 +121,24 @@ function eventEntry(e: TrackerEvent): Entry | null {
       };
     case 'work.deleted':
       return { ...base, did: 'removed some logged work' };
+    case 'attachment.added':
+    case 'attachment.removed': {
+      // A comment's files show under its words; only the issue's own are said here.
+      if (typeof data.commentId === 'string') return null;
+      const file = data.attachment as { id: string; name: string; size: number } | undefined;
+      if (!file) return null;
+      return {
+        ...base,
+        body: (
+          <ul className="change-lines">
+            <li>
+              <span className="change-field">{e.type === 'attachment.added' ? 'Attached:' : 'Removed:'}</span>{' '}
+              {e.type === 'attachment.added' ? <ins>{file.name}</ins> : <del>{file.name}</del>} <span className="same">{formatBytes(file.size)}</span>
+            </li>
+          </ul>
+        ),
+      };
+    }
     case 'ai.triage.completed': {
       const n = Number(data.fields ?? 0);
       const dups = Number(data.duplicates ?? 0);
@@ -127,7 +151,7 @@ function eventEntry(e: TrackerEvent): Entry | null {
   }
 }
 
-function commentEntry(c: Comment, byEvent: Map<string, Actor>): Entry {
+function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment[]): Entry {
   const actor: Actor = byEvent.get(c.id) ?? {
     id: c.author?.id ?? null,
     login: c.author?.login ?? null,
@@ -141,6 +165,8 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>): Entry {
     who: whoOf(actor, c.requester?.name),
     comment: c.text,
     public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+    files,
+    anchor: `comment-${c.id}`,
   };
 }
 
@@ -179,20 +205,39 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
 }
 
 /**
- * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then a
- * comment of your own. Replying to a help desk's requester takes `canReply` (someone who may change
- * the issue); `people` are those a mention would reach.
+ * Ocean's IssueHistory: what happened to an issue, in order, with its comments in their place; then
+ * a comment of your own, when you may comment (a viewer may; an account that only reads may not).
+ * Replying to a help desk's requester takes `canReply` (someone who may change the issue); `people`
+ * are those a mention would reach.
  */
-export function IssueHistory({ issue, me, canReply = true, people }: { issue: IssueDetail; me: UserRef | undefined; canReply?: boolean; people?: User[] }) {
+export function IssueHistory({
+  issue,
+  me,
+  canComment = true,
+  canReply = true,
+  people,
+}: {
+  issue: IssueDetail;
+  me: UserRef | undefined;
+  canComment?: boolean;
+  canReply?: boolean;
+  people?: User[];
+}) {
   const qc = useQueryClient();
   const activity = useActivity(issue.id);
   const comments = useComments(issue.id);
+  const files = useIssueAttachments(issue.id);
+  const limits = useAttachmentLimits();
   const request = useRequestInfo(issue);
   const requester = request.data?.requester.name ?? null;
+  const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
   const [visibility, setVisibility] = useState<CommentVisibility>('internal');
+  const [picked, setPicked] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notAttached, setNotAttached] = useState<string[]>([]);
 
   if (activity.isLoading || comments.isLoading) return <Loading what="the history" />;
   if (activity.error) return <ErrorNote error={activity.error} />;
@@ -201,25 +246,55 @@ export function IssueHistory({ issue, me, canReply = true, people }: { issue: Is
   // A comment's own event knows the agent or token that wrote it.
   const byEvent = new Map<string, Actor>();
   for (const e of activity.data ?? []) if (e.type === 'comment.created' && typeof e.data.commentId === 'string') byEvent.set(e.data.commentId, e.actor);
+  const byComment = new Map<string, Attachment[]>();
+  for (const f of files.data ?? []) if (f.comment) byComment.set(f.comment, [...(byComment.get(f.comment) ?? []), f]);
   const entries = [
     ...(activity.data ?? []).map(eventEntry).filter((x): x is Entry => x !== null),
-    ...(comments.data ?? []).map((c) => commentEntry(c, byEvent)),
+    ...(comments.data ?? []).map((c) => commentEntry(c, byEvent, byComment.get(c.id) ?? [])),
   ].sort((a, b) => a.at.localeCompare(b.at));
 
+  const used = (files.data ?? []).reduce((n, f) => n + f.size, 0);
+  const pick = (list: File[]) => setPicked((current) => [...current, ...list.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))]);
+
   const send = async () => {
-    setBusy(true);
     setError(null);
+    setNotAttached([]);
+    // Refuse what can't go before the comment is posted, so it isn't posted without its files.
+    let ahead = used;
+    for (const f of picked) {
+      const no = refusal(f, limits.data, ahead);
+      if (no) {
+        setError(no);
+        return;
+      }
+      ahead += f.size;
+    }
+    setBusy(true);
+    setProgress(null);
     try {
-      await post(`/issues/${issue.id}/comments`, { text, ...(requester && canReply ? { visibility } : {}) });
+      const comment = await post<Comment>(`/issues/${issue.id}/comments`, { text, ...(requester && canReply ? { visibility } : {}) });
       setText('');
       setVisibility('internal');
+      const failed: string[] = [];
+      for (const f of picked) {
+        try {
+          await uploadFile(`/comments/${comment.id}/attachments`, f, (sent, total) => setProgress(`Attaching ${f.name}: ${Math.round((sent / (total || 1)) * 100)}%`));
+        } catch (e) {
+          failed.push(`${f.name} wasn't attached: ${errorText(e)}`);
+        }
+      }
+      setNotAttached(failed);
+      setProgress(picked.length && !failed.length ? `Commented, with ${picked.length === 1 ? 'its file' : `its ${picked.length} files`}.` : 'Commented.');
+      setPicked([]);
       await Promise.all([
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') }),
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'activity') }),
+        qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) }),
         qc.invalidateQueries({ queryKey: ['issues', 'list'] }),
       ]);
     } catch (e) {
       setError(errorText(e));
+      setProgress(null);
     } finally {
       setBusy(false);
     }
@@ -230,7 +305,7 @@ export function IssueHistory({ issue, me, canReply = true, people }: { issue: Is
       <h2 id="history-title">History and comments</h2>
       <ol className="history">
         {entries.map((e) => (
-          <li key={e.key}>
+          <li key={e.key} id={e.anchor}>
             <Avatar kind={e.who.kind} name={e.who.name} small />
             <div className="history-body">
               <Head
@@ -247,48 +322,91 @@ export function IssueHistory({ issue, me, canReply = true, people }: { issue: Is
               />
               {e.body}
               {e.comment !== undefined ? (
-                <div className={e.public ? 'history-comment public' : 'history-comment'}>
+                <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>
                   <Markdown text={e.comment} />
+                  {e.files?.length ? <CommentFiles files={e.files} /> : null}
                 </div>
               ) : null}
             </div>
           </li>
         ))}
       </ol>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (text.trim()) void send();
-        }}
-      >
-        {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
-        {requester && !canReply ? (
-          <p className="field-help" id="visibility-help">
-            Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
+      {canComment ? (
+        <form
+          className="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) void send();
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer.types.includes('Files')) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            if (!e.dataTransfer.files.length) return;
+            e.preventDefault();
+            pick([...e.dataTransfer.files]);
+          }}
+        >
+          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+          {requester && !canReply ? (
+            <p className="field-help" id="visibility-help">
+              Only the team sees your comments here. Replying to {requester} is for the project&rsquo;s members.
+            </p>
+          ) : null}
+          <FormField label={`${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
+            {(id) => (
+              <MentionField
+                id={id}
+                value={text}
+                onChange={setText}
+                describedBy={requester ? 'visibility-help' : undefined}
+                people={people}
+                placeholder="Markdown works here. Mention someone with @ and their login, and an issue or an article by its id, like BACK-12 or BACK-A-3."
+              />
+            )}
+          </FormField>
+          {picked.length ? (
+            <ul className="chips" aria-label="Files to attach">
+              {picked.map((f) => (
+                <li key={`${f.name}-${f.size}`} className="chip removable">
+                  <span>
+                    {f.name} · {formatBytes(f.size)}
+                  </span>
+                  <button type="button" className="chip-remove" aria-label={`Leave out ${f.name}`} onClick={() => setPicked((list) => list.filter((x) => x !== f))}>
+                    <Icon name="cross" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {error ? <ErrorLine>{error}</ErrorLine> : null}
+          {notAttached.map((m) => (
+            <ErrorLine key={m}>{m}</ErrorLine>
+          ))}
+          <p role="status" className="outcome">
+            {busy ? (progress ?? 'Commenting…') : (progress ?? '')}
           </p>
-        ) : null}
-        <FormField label={`${requester && canReply && visibility === 'public' ? `A reply to ${requester}` : 'A comment'}${me ? `, as ${me.name}` : ''}`}>
-          {(id) => (
-            <MentionField
-              id={id}
-              value={text}
-              onChange={setText}
-              describedBy={requester ? 'visibility-help' : undefined}
-              people={people}
-              placeholder="Markdown works here. Mention someone with @ and their login, and an issue by its id, like BACK-12."
+          <div className="cluster spread">
+            <button type="button" onClick={() => picker.current?.click()} disabled={busy}>
+              <Icon name="attach" />
+              Attach files
+            </button>
+            <input
+              ref={picker}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                pick([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
             />
-          )}
-        </FormField>
-        {error ? (
-          <ErrorLine>{error}</ErrorLine>
-        ) : null}
-        <div className="cluster end">
-          <button type="submit" className="primary" disabled={!text.trim() || busy}>
-            {busy ? 'Sending…' : requester ? (canReply && visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
-          </button>
-        </div>
-      </form>
+            <button type="submit" className="primary" disabled={!text.trim() || busy}>
+              {busy ? 'Sending…' : requester ? (canReply && visibility === 'public' ? `Send to ${requester}` : 'Add the internal note') : 'Comment'}
+            </button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }
