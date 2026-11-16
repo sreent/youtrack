@@ -80,7 +80,8 @@ const REL_RE = /^([+-])?(\d+)\s*(d|w|m|y)$/i;
 /**
  * Parse a date expression used in queries and field inputs:
  * 2026-01-31, today, yesterday, tomorrow, "this week", "last month", -7d, +2w,
- * {minus 7d}, {plus 1w}. Returns a range (single dates span one day).
+ * {minus 7d}, {plus 1w}, and overdue (any day before today). Returns a range
+ * (single dates span one day).
  */
 export function parseDateExpression(raw: string, today = todayISO()): DateRange | null {
   let text = raw.trim().toLowerCase().replace(/^\{|\}$/g, '').replace(/\s+/g, ' ');
@@ -88,6 +89,8 @@ export function parseDateExpression(raw: string, today = todayISO()): DateRange 
   if (isISODate(text)) return { from: text, to: addDays(text, 1) };
   const day = (d: string): DateRange => ({ from: d, to: addDays(d, 1) });
   switch (text) {
+    case 'overdue':
+      return { from: null, to: today };
     case 'today':
       return day(today);
     case 'yesterday':

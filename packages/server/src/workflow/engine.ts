@@ -148,26 +148,29 @@ export class RuleEngine {
       eventId: event.id,
       actorId: cause ? cause.by : event.actor.id,
     };
-    for (const rule of fired) {
+    const readable: RuleRow[] = [];
+    for (const rule of fired) if (await this.reads(s, rule)) readable.push(rule);
+    // Every rule the change sets off sees the issue as the change left it, all in one read: one rule's
+    // change is a change of its own, which sets off rules in turn, one step deeper.
+    const matched = await meets(
+      this.app.db,
+      issue.id,
+      readable.map((r) => condition(s, r.query, { meId: chain.me, projectId: r.projectId }).where),
+    );
+    for (const [i, rule] of readable.entries()) {
+      if (!matched[i]) continue;
       try {
-        await this.onChange(s, rule, issue, chain);
+        if (chain.depth >= MAX_DEPTH) {
+          await this.record(s, rule, issue, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`);
+          continue;
+        }
+        await this.apply(s, rule, issue, chain);
       } catch (e) {
         // One rule failing never stops the others, nor the outbox.
         this.log(`workflow rule ${rule.id} failed on event ${event.id}`, e);
         await this.record(s, rule, issue, chain, 'failed', errorText(e));
       }
     }
-  }
-
-  private async onChange(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow, chain: Chain): Promise<Outcome | null> {
-    if (!(await this.reads(s, rule))) return 'failed';
-    const [matches] = await meets(this.app.db, issue.id, [condition(s, rule.query, { meId: chain.me, projectId: rule.projectId }).where]);
-    if (!matches) return null;
-    if (chain.depth >= MAX_DEPTH) {
-      await this.record(s, rule, issue, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`);
-      return 'skipped';
-    }
-    return this.apply(s, rule, issue, chain);
   }
 
   /** Whether a rule still reads; one that doesn't does nothing, and says so once an hour. */
