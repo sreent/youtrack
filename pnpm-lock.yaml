@@ -145,6 +145,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.16)(@opentelemetry/api@1.10.0)(@types/pg@8.23.1)(pg@8.23.1)
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
       hono:
         specifier: ^4.13.18
         version: 4.13.18
@@ -2588,6 +2591,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.2:
+    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
   finalhandler@2.1.1:
     resolution: {integrity: sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA==}
@@ -6930,6 +6936,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.2: {}
 
   finalhandler@2.1.1:
     dependencies:

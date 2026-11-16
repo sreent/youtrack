@@ -148,6 +148,13 @@
       "when": 1794849436684,
       "tag": "0020_editor",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794853093622,
+      "tag": "0021_apps",
+      "breakpoints": true
     }
   ]
 }

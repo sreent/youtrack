@@ -96,7 +96,7 @@ export function changeOf(kind: ScriptChange['kind'], by: UserRow | undefined | n
 }
 
 /** The issue as a script reads it, from `db` (inside a transaction, the transaction). */
-export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow): Promise<ScriptIssue> {
+export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow, opts: { unlimited?: boolean } = {}): Promise<ScriptIssue> {
   const project = s.projects.get(issue.projectId);
   const valueRows = await db.select().from(issueFieldValues).where(eq(issueFieldValues.issueId, issue.id));
   const fields: ScriptIssue['fields'] = {};
@@ -148,7 +148,7 @@ export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow): P
   const commentRows = await db
     .select({ authorId: comments.authorId, text: comments.text, createdAt: comments.createdAt })
     .from(comments)
-    .where(and(eq(comments.issueId, issue.id), isNull(comments.deletedAt)))
+    .where(and(eq(comments.issueId, issue.id), isNull(comments.deletedAt), ...(opts.unlimited ? [eq(comments.limited, false)] : [])))
     .orderBy(desc(comments.createdAt))
     .limit(SCRIPT_COMMENTS);
 
@@ -170,9 +170,10 @@ export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow): P
   };
 }
 
-export async function scriptInput(db: Db, s: SchemaSnapshot, issue: IssueRow, change: ScriptChange): Promise<ScriptInput> {
+/** `unlimited`: leave out comments limited to some people (D37), for an app's script (D48). */
+export async function scriptInput(db: Db, s: SchemaSnapshot, issue: IssueRow, change: ScriptChange, opts: { unlimited?: boolean } = {}): Promise<ScriptInput> {
   const project = s.projects.get(issue.projectId);
-  return { issue: await scriptIssue(db, s, issue), change, project: { key: project?.key ?? '?', name: project?.name ?? '?' } };
+  return { issue: await scriptIssue(db, s, issue, opts), change, project: { key: project?.key ?? '?', name: project?.name ?? '?' } };
 }
 
 /**

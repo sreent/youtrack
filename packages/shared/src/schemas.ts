@@ -299,8 +299,8 @@ export const ProjectAccessSchema = z
     role: z.string().describe("Their role in it, as it works out: a built-in role's id (viewer, member, manager) or a custom role's; a manager for administrators and the lead"),
     roleName: z.string().describe("The role's name, to show"),
     via: z
-      .enum(['admin', 'lead', 'member', 'group', 'open', 'guest'])
-      .describe('Where the role comes from: being an administrator, leading it, being one of its people, being in a group it gives the role, its being open, or its being readable without signing in'),
+      .enum(['admin', 'lead', 'member', 'group', 'open', 'guest', 'app'])
+      .describe('Where the role comes from: being an administrator, leading it, being one of its people, being in a group it gives the role, its being open, its being readable without signing in, or an app that runs there granting it (D48)'),
     group: z.string().nullable().optional().describe('With `via: group`, the group the role comes from (the first by name, when several give it)'),
     permissions: z.array(z.enum(PERMISSIONS)).describe('What they may do in it (D37), as far as their account or token allows'),
     read: z.boolean(),
@@ -2819,3 +2819,271 @@ export const UpdateCommentBody = CommentBody.extend({
   expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
 });
 export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;
+
+// ---------------------------------------------------------------------------
+// Apps (docs/architecture.md, D48)
+// ---------------------------------------------------------------------------
+
+/** What an app may read or write: each a part of a4a. */
+export const APP_RESOURCES = ['issues', 'comments', 'articles', 'fields', 'time'] as const;
+export type AppResource = (typeof APP_RESOURCES)[number];
+
+/** Where a widget can be drawn. */
+export const APP_EXTENSION_POINTS = ['issue-panel', 'issue-below-summary', 'project-settings', 'main-menu', 'dashboard', 'article-panel'] as const;
+export type AppExtensionPoint = (typeof APP_EXTENSION_POINTS)[number];
+
+export const APP_SETTING_TYPES = ['text', 'number', 'boolean', 'choice', 'secret'] as const;
+export type AppSettingType = (typeof APP_SETTING_TYPES)[number];
+
+/** What a permission lets an app do, in the words its consent shows. */
+export const APP_PERMISSION_WORDS: Record<'read' | 'write', Record<AppResource, string>> = {
+  read: {
+    issues: 'Read issues: their summaries, descriptions, fields, tags and links',
+    comments: 'Read comments',
+    articles: 'Read articles',
+    fields: "Read projects' fields and their values",
+    time: 'Read logged time',
+  },
+  write: {
+    issues: 'Create and change issues',
+    comments: 'Write comments',
+    articles: 'Write and change articles',
+    fields: "Add values to projects' fields",
+    time: 'Log time',
+  },
+};
+
+export const AppPermissionsSchema = z
+  .object({
+    read: z.array(z.enum(APP_RESOURCES)).default([]).describe('What it reads'),
+    write: z.array(z.enum(APP_RESOURCES)).default([]).describe('What it writes'),
+  })
+  .meta({ id: 'AppPermissions' });
+export type AppPermissions = z.infer<typeof AppPermissionsSchema>;
+
+export const AppSettingDefSchema = z
+  .object({
+    name: z.string(),
+    title: z.string(),
+    type: z.enum(APP_SETTING_TYPES),
+    scope: z.enum(['app', 'project']).describe('app: one value for the whole a4a; project: a value per project'),
+    description: z.string().nullable(),
+    required: z.boolean(),
+    default: z.union([z.string(), z.number(), z.boolean()]).nullable(),
+    choices: z.array(z.string()).nullable(),
+  })
+  .meta({ id: 'AppSettingDef' });
+export type AppSettingDef = z.infer<typeof AppSettingDefSchema>;
+
+export const AppPartSchema = z.object({ name: z.string(), title: z.string(), uses: AppPermissionsSchema });
+export type AppPart = z.infer<typeof AppPartSchema>;
+
+export const AppWidgetSchema = AppPartSchema.extend({
+  at: z.enum(APP_EXTENSION_POINTS),
+  height: z.number().int().describe('Its starting height in pixels; the widget may ask for another, which a4a keeps between 80 and 800'),
+}).meta({ id: 'AppWidget' });
+export type AppWidget = z.infer<typeof AppWidgetSchema>;
+
+export const AppRuleRefSchema = z.object({ id: z.string(), name: z.string(), enabled: z.boolean(), lastRunAt: timestamp.nullable() });
+
+/** An installed app, as an administrator sees it. */
+export const AppSchema = z
+  .object({
+    name: z.string().describe('Its name, from its manifest: how the API and its widgets know it'),
+    title: z.string(),
+    version: z.string(),
+    vendor: z.string().nullable(),
+    description: z.string(),
+    iconUrl: z.string().nullable(),
+    enabled: z.boolean().describe('Off: none of it runs or shows, anywhere'),
+    allProjects: z.boolean().describe('Enabled for every project; otherwise for the projects listed'),
+    projects: z
+      .array(
+        z.object({
+          key: z.string(),
+          name: z.string(),
+          enabled: z.boolean().describe('Whether it runs and shows there now'),
+          off: z.boolean().describe('Its managers turned it off there'),
+        }),
+      )
+      .describe('The projects it was chosen for, and those whose managers turned it off'),
+    granted: AppPermissionsSchema.describe('What it may do, as the administrator who installed or last updated it accepted'),
+    words: z.array(z.string()).describe('What it may do, in words'),
+    widgets: z.array(AppWidgetSchema),
+    handlers: z.array(AppPartSchema),
+    rules: z.array(AppRuleRefSchema),
+    settings: z.array(AppSettingDefSchema),
+    source: z.object({ kind: z.enum(['upload', 'catalog']), catalog: z.string().nullable() }),
+    sha256: z.string(),
+    agent: UserRefSchema.describe('Its agent: who its rules act as'),
+    installedBy: UserRefSchema.nullable(),
+    installedAt: timestamp,
+    updatedAt: timestamp,
+  })
+  .meta({ id: 'App' });
+export type App = z.infer<typeof AppSchema>;
+
+/** What a package is and asks for, read before anything is installed. */
+export const AppPackagePreviewSchema = z
+  .object({
+    name: z.string(),
+    title: z.string(),
+    version: z.string(),
+    vendor: z.string().nullable(),
+    description: z.string(),
+    sha256: z.string(),
+    bytes: z.number().int(),
+    files: z.number().int(),
+    asks: AppPermissionsSchema,
+    words: z.array(z.string()).describe('What it asks for, in words: what the administrator accepts'),
+    widgets: z.array(AppWidgetSchema),
+    handlers: z.array(AppPartSchema),
+    rules: z.array(AppPartSchema.extend({ kind: z.string() })),
+    settings: z.array(AppSettingDefSchema),
+    signedBy: z.string().nullable().describe("The trusted key that signed it, by its fingerprint; null when it isn't signed"),
+    installed: z.object({ version: z.string(), granted: AppPermissionsSchema }).nullable().describe('The version installed now, and what it was granted'),
+    more: AppPermissionsSchema.nullable().describe('What it asks beyond what the installed version was granted: an update asks again only for these'),
+  })
+  .meta({ id: 'AppPackagePreview' });
+export type AppPackagePreview = z.infer<typeof AppPackagePreviewSchema>;
+
+const appProjectChoice = {
+  allProjects: z.boolean().optional().describe('Enable it for every project'),
+  projects: z.array(z.string()).optional().describe('Or for these projects, by key'),
+};
+
+export const AppPackageBody = z.object({
+  package: z.string().min(1).max(12_000_000).describe('The package, a zip, in base64'),
+});
+export const InstallAppBody = AppPackageBody.extend({
+  accept: AppPermissionsSchema.describe('What the administrator accepts: exactly what it asks for'),
+  ...appProjectChoice,
+});
+export type InstallAppInput = z.input<typeof InstallAppBody>;
+export const UpdateAppPackageBody = AppPackageBody.extend({
+  accept: AppPermissionsSchema.optional().describe('Needed only when it asks for more than it was granted: all that it asks for then'),
+});
+
+export const CatalogAppSchema = z
+  .object({
+    catalog: z.string().describe('The catalog it is listed in, by its address'),
+    catalogName: z.string(),
+    name: z.string(),
+    title: z.string(),
+    version: z.string(),
+    vendor: z.string().nullable(),
+    description: z.string(),
+    sha256: z.string(),
+    signed: z.boolean(),
+    installed: z.string().nullable().describe('The version installed here, if any'),
+    update: z.boolean().describe('A newer version than the one installed'),
+  })
+  .meta({ id: 'CatalogApp' });
+export type CatalogApp = z.infer<typeof CatalogAppSchema>;
+export const CatalogListSchema = z.object({
+  apps: z.array(CatalogAppSchema),
+  problems: z.array(z.object({ catalog: z.string(), message: z.string() })).describe("Catalogs that couldn't be read, and why"),
+});
+export type CatalogList = z.infer<typeof CatalogListSchema>;
+export const CatalogPickBody = z.object({
+  catalog: z.string().describe('The catalog, by its address'),
+  name: z.string(),
+  version: z.string().optional().describe('Its newest, when left out'),
+});
+export const CatalogInstallBody = CatalogPickBody.extend({ accept: AppPermissionsSchema.optional(), ...appProjectChoice });
+export const UpdateAppBody = z.object({ enabled: z.boolean().optional(), ...appProjectChoice });
+
+export const ProjectAppSchema = z
+  .object({
+    name: z.string(),
+    title: z.string(),
+    version: z.string(),
+    description: z.string(),
+    enabled: z.boolean().describe('It runs and shows in this project'),
+    off: z.boolean().describe("The project's managers turned it off here"),
+    words: z.array(z.string()),
+    settings: z.array(AppSettingDefSchema).describe('Its settings that take a value per project'),
+  })
+  .meta({ id: 'ProjectApp' });
+export type ProjectApp = z.infer<typeof ProjectAppSchema>;
+
+export const AppSettingsSchema = z
+  .object({
+    project: z.string().nullable(),
+    values: z.record(z.string(), z.unknown()).describe("A secret's value is never sent back: it reads as { set: true } or { set: false }"),
+  })
+  .meta({ id: 'AppSettings' });
+export type AppSettings = z.infer<typeof AppSettingsSchema>;
+export const SetAppSettingsBody = z.object({
+  project: z.string().nullable().optional().describe("A project's values, by key; left out, the app's own"),
+  values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).describe('null clears one'),
+});
+
+export const AppExtensionSchema = z
+  .object({
+    app: z.string(),
+    appTitle: z.string(),
+    name: z.string(),
+    title: z.string(),
+    at: z.enum(APP_EXTENSION_POINTS),
+    url: z.string().describe("Where its frame loads from: an address a4a signed for a while, under the app's files"),
+    height: z.number().int(),
+    uses: AppPermissionsSchema.describe('What this widget may ask a4a for, within what the app was granted'),
+  })
+  .meta({ id: 'AppExtension' });
+export type AppExtension = z.infer<typeof AppExtensionSchema>;
+
+export const AppRunSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(['handler', 'rule']),
+    name: z.string(),
+    outcome: z.string(),
+    message: z.string(),
+    ms: z.number().int().nullable(),
+    issue: z.string().nullable(),
+    by: UserRefSchema.nullable(),
+    at: timestamp,
+  })
+  .meta({ id: 'AppRun' });
+export type AppRun = z.infer<typeof AppRunSchema>;
+
+export const AppRemovalSchema = z
+  .object({
+    name: z.string(),
+    title: z.string(),
+    rules: z.number().int(),
+    widgets: z.number().int(),
+    handlers: z.number().int(),
+    settings: z.number().int().describe('Values set, app-wide and per project'),
+    stored: z.number().int().describe('Keys it stored'),
+    runs: z.number().int().describe('Runs in its log'),
+    agent: z.string().describe("Its agent's login: its account goes too, or is banned if history names it"),
+  })
+  .meta({ id: 'AppRemoval' });
+export type AppRemoval = z.infer<typeof AppRemovalSchema>;
+
+export const AppHandlerBody = z.object({
+  issue: z.string().optional().describe('The issue it is about, by id'),
+  project: z.string().optional().describe('The project it is about, by key, when no issue is'),
+  body: z.unknown().optional().describe('Whatever the handler takes, as JSON'),
+});
+export const AppHandlerResultSchema = z
+  .object({
+    response: z.unknown().describe('What the handler answered, with respond()'),
+    applied: z.number().int(),
+    commented: z.number().int(),
+  })
+  .meta({ id: 'AppHandlerResult' });
+export type AppHandlerResult = z.infer<typeof AppHandlerResultSchema>;
+
+export const AppStorageSchema = z
+  .object({
+    project: z.string().nullable(),
+    values: z.record(z.string(), z.unknown()),
+    bytes: z.number().int(),
+    limitBytes: z.number().int(),
+  })
+  .meta({ id: 'AppStorage' });
+export type AppStorage = z.infer<typeof AppStorageSchema>;
+export const AppStorageBody = z.object({ value: z.unknown().describe('Any JSON; null removes the key') });

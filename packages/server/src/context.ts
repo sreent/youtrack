@@ -24,6 +24,21 @@ export interface Actor {
   projectIds?: string[] | null;
   /** A guest, not signed in, reading the projects open to guests (D37). */
   guest?: boolean;
+  /** An app acting (D48): its agent, as itself, or a person through one of its widgets or handlers. */
+  app?: AppActor;
+}
+
+/** The app an actor acts for or through (D48). */
+export interface AppActor {
+  id: string;
+  name: string;
+  title: string;
+  /** What the app was granted: what it reads and writes. */
+  granted: { read: string[]; write: string[] };
+  /** Its agent acting as itself (its rules). Otherwise a person acts through it, within the grant. */
+  agent: boolean;
+  /** The projects it runs in. */
+  projectIds: string[];
 }
 
 /** Long-lived services shared by every request. */

@@ -41,7 +41,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'app'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /**

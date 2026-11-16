@@ -40,6 +40,8 @@ import { groupRoutes } from './routes/groups';
 import { guestRoutes, roleRoutes } from './routes/roles';
 import { samlRoutes } from './routes/saml';
 import { agentRoutes } from './routes/agents';
+import { appRoutes, mountAppFiles } from './routes/apps';
+import { appCallGuard } from './app-calls';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -99,6 +101,7 @@ export function createHttpApp(runtime: Runtime) {
   samlRoutes(api);
   agentRoutes(api);
   emailRoutes(api);
+  appRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -134,6 +137,8 @@ export function createHttpApp(runtime: Runtime) {
   root.use('*', authenticate(runtime));
   // The SAML assertion consumer takes the provider's post: signed, answering a request of this browser's (D27).
   root.use('/api/*', csrfGuard(runtime.config.publicUrl, ['/api/v1/auth/saml/acs']));
+  // A call a widget asked a4a's page to make: within its app's grant, as the person through it (D48).
+  root.use('/api/*', appCallGuard(runtime));
   root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy, new RateLimiter(runtime.config.guestRateLimit, 60_000)));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
   // Provisioning (SCIM, D38): its own tokens and errors, under the API's limit.
@@ -162,6 +167,7 @@ export function createHttpApp(runtime: Runtime) {
 
   root.all('/mcp', (c) => handleMcp(c));
   mountOAuth(root, runtime);
+  mountAppFiles(root, runtime);
 
   root.all('/api/*', (c) => c.json(errorBody('not_found', `No endpoint ${c.req.method} ${c.req.path}`, 'See /api/docs'), 404));
 

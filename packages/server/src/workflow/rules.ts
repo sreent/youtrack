@@ -616,9 +616,17 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
 
 export type RuleChange = Partial<Omit<RuleInput, 'project' | 'kind'>> & { expectedVersion?: number };
 
+/** A rule an app installed changes and goes with its app (D48): only turning it off and on is anyone else's. */
+function assertNotAppRule(row: RuleRow, input?: RuleChange): void {
+  if (!row.appId) return;
+  if (input && Object.keys(input).every((k) => k === 'enabled' || k === 'expectedVersion')) return;
+  throw badRequest(`“${row.name}” came with an app: it changes with the app`, 'Update or remove the app under Administration → Apps; you can turn the rule off here.');
+}
+
 export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promise<Rule> {
   requireScope(ctx, 'write');
   const row = await loadRule(ctx, id);
+  assertNotAppRule(row, input);
   await assertCanManage(ctx, row.projectId);
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
     throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.', { currentVersion: row.version });
@@ -696,6 +704,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
 export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const row = await loadRule(ctx, id);
+  assertNotAppRule(row);
   await assertCanManage(ctx, row.projectId);
   if (row.callWebhookId) assertCanCall(ctx);
   if (row.script) assertCanScript(ctx, 'a scripted rule');

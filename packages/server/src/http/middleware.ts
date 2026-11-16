@@ -261,7 +261,8 @@ export function securityHeaders(): MiddlewareHandler<HttpEnv> {
     await next();
     c.header('x-content-type-options', 'nosniff');
     c.header('referrer-policy', 'same-origin');
-    c.header('x-frame-options', 'DENY');
+    // An app's widget files are framed by a4a's own pages (D48): they say so themselves.
+    if (!c.res.headers.has('x-frame-options')) c.header('x-frame-options', 'DENY');
     const type = c.res.headers.get('content-type') ?? '';
     // A response with a policy of its own, such as an uploaded file's sandbox, keeps it.
     if (type.includes('text/html') && !c.req.path.startsWith('/api/docs') && !c.res.headers.has('content-security-policy')) {
