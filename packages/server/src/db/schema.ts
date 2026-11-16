@@ -106,8 +106,18 @@ export const userIdentities = pgTable(
     email: text('email'),
     createdAt: created(),
     lastSignInAt: ts('last_sign_in_at'),
+    /**
+     * Microsoft Entra ID's object id and tenant for the person (the ID token's `oid` and `tid`), kept
+     * from each sign-in: Teams names people by them, so Teams knows them without linking (D42).
+     */
+    objectId: text('object_id'),
+    tenantId: text('tenant_id'),
   },
-  (t) => [uniqueIndex('user_identities_subject').on(t.provider, t.subject), index('user_identities_user').on(t.userId)],
+  (t) => [
+    uniqueIndex('user_identities_subject').on(t.provider, t.subject),
+    index('user_identities_user').on(t.userId),
+    index('user_identities_object').on(t.tenantId, t.objectId),
+  ],
 );
 
 /**
@@ -1983,3 +1993,148 @@ export const scimGroups = pgTable('scim_groups', {
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Chat: Microsoft Teams and Slack (D42)
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a4a's bot is: a Teams team it was added to, or the Slack workspace an administrator
+ * connected. Slack's bot token and signing secret are sealed (lib/secret-box.ts).
+ */
+export const chatWorkspaces = pgTable(
+  'chat_workspaces',
+  {
+    id: text('id').primaryKey(),
+    /** One of CHAT_PLATFORMS. */
+    platform: text('platform').notNull(),
+    /** The team's id in Teams, or the workspace's in Slack (T…). */
+    externalId: text('external_id').notNull(),
+    /** Teams: the Entra tenant the team is in. */
+    tenantId: text('tenant_id'),
+    name: text('name').notNull(),
+    /** Teams: where its activities go, a Bot Framework service URL (checked against the allowed hosts). */
+    serviceUrl: text('service_url'),
+    botToken: text('bot_token'),
+    signingSecret: text('signing_secret'),
+    /** Slack: the bot's own user id, so its own joining a channel is known. */
+    botUserId: text('bot_user_id'),
+    connectedById: text('connected_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    removedAt: ts('removed_at'),
+    removedReason: text('removed_reason'),
+  },
+  (t) => [uniqueIndex('chat_workspaces_external').on(t.platform, t.externalId)],
+);
+
+/** A channel a4a can post to: a Teams channel's conversation, or a Slack channel. */
+export const chatChannels = pgTable(
+  'chat_channels',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => chatWorkspaces.id, { onDelete: 'cascade' }),
+    /** Teams: the channel's conversation id (19:…@thread.tacv2). Slack: the channel's id (C…). */
+    externalId: text('external_id').notNull(),
+    name: text('name').notNull(),
+    createdAt: created(),
+    /** When a4a found it can't post there any more (deleted, archived, the bot taken out), and why. */
+    goneAt: ts('gone_at'),
+    goneReason: text('gone_reason'),
+  },
+  (t) => [uniqueIndex('chat_channels_external').on(t.workspaceId, t.externalId)],
+);
+
+/**
+ * A channel told of a project's issues, or a saved search's, by the person who subscribed it, who
+ * vouches for the channel's people. Ended, not deleted, when the channel goes or the app is removed,
+ * so the page can say so.
+ */
+export const chatSubscriptions = pgTable(
+  'chat_subscriptions',
+  {
+    id: text('id').primaryKey(),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => chatChannels.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    savedSearchId: text('saved_search_id').references(() => savedSearches.id, { onDelete: 'cascade' }),
+    /** CHAT_CHANGE_KINDS it hears of. */
+    kinds: text('kinds').array().notNull(),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    endedAt: ts('ended_at'),
+    endedReason: text('ended_reason'),
+  },
+  (t) => [index('chat_subscriptions_channel').on(t.channelId), index('chat_subscriptions_project').on(t.projectId)],
+);
+
+/** A chat account linked to an a4a account, which it acts as. Teams' Entra people need none (user_identities.object_id). */
+export const chatAccounts = pgTable(
+  'chat_accounts',
+  {
+    id: text('id').primaryKey(),
+    platform: text('platform').notNull(),
+    /** Teams: the tenant. Slack: the workspace (T…). */
+    workspaceExternalId: text('workspace_external_id').notNull(),
+    workspaceName: text('workspace_name').notNull(),
+    /** Teams: the person's object id (aadObjectId). Slack: their user id (U…). */
+    externalUserId: text('external_user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    linkedAt: ts('linked_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('chat_accounts_external').on(t.platform, t.workspaceExternalId, t.externalUserId), index('chat_accounts_user').on(t.userId)],
+);
+
+/** A sign-in link the bot sent someone in a personal chat: kept as a hash, used once, soon gone. */
+export const chatLinkTokens = pgTable(
+  'chat_link_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    platform: text('platform').notNull(),
+    workspaceExternalId: text('workspace_external_id').notNull(),
+    workspaceName: text('workspace_name').notNull(),
+    externalUserId: text('external_user_id').notNull(),
+    name: text('name').notNull(),
+    /** Where to say it's done: Teams' personal conversation; Slack needs only the person's id. */
+    reply: jsonb('reply').$type<{ serviceUrl?: string; conversationId?: string }>(),
+    createdAt: created(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+  },
+  (t) => [index('chat_link_tokens_expires').on(t.expiresAt)],
+);
+
+/**
+ * What a4a posts to channels: a row first, written by the outbox's consumer, sent after, at least once,
+ * as mail is (mail_outbox). One per channel per event, whichever subscriptions matched it.
+ */
+export const chatOutbox = pgTable(
+  'chat_outbox',
+  {
+    id: text('id').primaryKey(),
+    dedupeKey: text('dedupe_key').notNull().unique(),
+    channelId: text('channel_id')
+      .notNull()
+      .references(() => chatChannels.id, { onDelete: 'cascade' }),
+    subscriptionId: text('subscription_id').references(() => chatSubscriptions.id, { onDelete: 'set null' }),
+    eventId: bigint('event_id', { mode: 'number' }),
+    /** The event, as the outbox handed it over: rendered when it's sent, from the issue as it is then. */
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    /** pending, sent, skipped (not for the channel any more), failed. */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    sendAfter: ts('send_after').notNull().defaultNow(),
+    lockedUntil: ts('locked_until'),
+    lastError: text('last_error'),
+    sentAt: ts('sent_at'),
+    /** The post's id there: Teams' activity id, Slack's message ts. */
+    messageRef: text('message_ref'),
+    createdAt: created(),
+  },
+  (t) => [index('chat_outbox_due').on(t.status, t.sendAfter)],
+);

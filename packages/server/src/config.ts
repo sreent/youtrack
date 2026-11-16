@@ -153,6 +153,54 @@ export interface Config {
   oauthClientDocuments: boolean;
   /** For tests: a client ID metadata document may be read over plain http from this machine. Never in production. */
   oauthClientDocumentsAllowHttpLoopback: boolean;
+  /** A Microsoft Teams bot, from TEAMS_* in the environment (D42); null without one. */
+  teams: TeamsConfig | null;
+  /** Slack's Web API (SLACK_API_URL, for tests): https://slack.com/api. */
+  slackApiUrl: string;
+  /** For tests: chat services may be reached over plain http on this machine (CHAT_ALLOW_HTTP_LOOPBACK). Never in production. */
+  chatAllowHttpLoopback: boolean;
+}
+
+/**
+ * A Teams bot registered with Azure Bot Service (D42): its Entra app's id and secret, and the one
+ * tenant it serves. Bot Framework signs what Teams sends; the bot calls Teams with a token from Entra.
+ */
+export interface TeamsConfig {
+  appId: string;
+  appPassword: string;
+  tenantId: string;
+  /** Bot Framework's OpenID metadata, whose keys sign what Teams sends (TEAMS_OPENID_METADATA_URL, for tests). */
+  openIdMetadataUrl: string;
+  /** Where the bot gets its token to call Teams: the tenant's token endpoint at Entra (TEAMS_TOKEN_URL, for tests). */
+  tokenUrl: string;
+  /** The hosts a service URL may name: Bot Framework's (TEAMS_SERVICE_HOSTS, comma-separated, to add one). */
+  serviceHosts: string[];
+}
+
+/** Bot Framework's hosts for Teams: the public cloud's, and the government clouds'. */
+export const TEAMS_SERVICE_HOSTS = ['smba.trafficmanager.net', 'smba.infra.gcc.teams.microsoft.com', 'smba.infra.gov.teams.microsoft.us', 'smba.infra.dod.teams.microsoft.us'];
+
+/** TEAMS_* from the environment: all three of the app's id, its secret and its tenant, or none. */
+export function teamsFromEnv(env: NodeJS.ProcessEnv): TeamsConfig | null {
+  const appId = env.TEAMS_APP_ID?.trim();
+  const appPassword = env.TEAMS_APP_PASSWORD?.trim();
+  const tenantId = env.TEAMS_TENANT_ID?.trim();
+  if (!appId && !appPassword && !tenantId) return null;
+  if (!appId || !appPassword || !tenantId) {
+    throw new Error('A Teams bot needs TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID (its Entra app, the secret, and the tenant): set all three, or none.');
+  }
+  const extra = (env.TEAMS_SERVICE_HOSTS ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return {
+    appId,
+    appPassword,
+    tenantId,
+    openIdMetadataUrl: safeProviderUrl(env.TEAMS_OPENID_METADATA_URL?.trim() || 'https://login.botframework.com/v1/.well-known/openidconfiguration', 'TEAMS_OPENID_METADATA_URL'),
+    tokenUrl: safeProviderUrl(env.TEAMS_TOKEN_URL?.trim() || `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`, 'TEAMS_TOKEN_URL'),
+    serviceHosts: [...new Set([...TEAMS_SERVICE_HOSTS, ...extra])],
+  };
 }
 
 /** An LDAP directory people sign in with (D38): bind as a service account, find the person, bind as them. */
@@ -488,6 +536,9 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     ldap,
     oauthClientDocuments: truthy(env.MCP_OAUTH_CLIENT_DOCUMENTS, true),
     oauthClientDocumentsAllowHttpLoopback: truthy(env.OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK, false),
+    teams: teamsFromEnv(env),
+    slackApiUrl: safeProviderUrl(env.SLACK_API_URL?.trim() || 'https://slack.com/api', 'SLACK_API_URL').replace(/\/+$/, ''),
+    chatAllowHttpLoopback: truthy(env.CHAT_ALLOW_HTTP_LOOPBACK, false),
     ...overrides,
   };
 }

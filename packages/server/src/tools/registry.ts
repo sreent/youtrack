@@ -34,6 +34,7 @@ import { formatBytes, listIssueAttachments } from '../services/attachments';
 import { articlesMentioningIssue } from '../services/articles';
 import { reportTools } from './reports';
 import { notificationTools } from './notifications';
+import { chatTools } from './chat';
 import { requestOf } from '../services/helpdesk';
 import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
@@ -604,6 +605,7 @@ export const TOOLS: ToolDef[] = [
   ...notificationTools,
   ...workflowTools,
   ...issueMoveTools,
+  ...chatTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

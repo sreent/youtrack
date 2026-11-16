@@ -45,6 +45,11 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
       c.set('ctx', null);
       return next();
     }
+    // Teams' activities come with Bot Framework's token, which the endpoint checks itself (D42).
+    if (c.req.path === '/api/v1/chat/teams/messages') {
+      c.set('ctx', null);
+      return next();
+    }
     const header = c.req.header('authorization');
     const isMcp = c.req.path === '/mcp' || c.req.path.startsWith('/mcp/');
     if (header?.toLowerCase().startsWith('bearer ')) {
