@@ -184,6 +184,8 @@ export function createHttpApp(runtime: Runtime) {
     root.use('/assets/*', async (c, next) => {
       await next();
       c.header('cache-control', 'public, max-age=31536000, immutable');
+      // Ocean's fonts, for apps' widgets too (D48): a sandboxed frame has no origin, and fonts load with CORS.
+      if (c.req.path.endsWith('.woff2')) c.header('access-control-allow-origin', '*');
     });
     root.use('*', serveStatic({ root: path.relative(process.cwd(), dist) || '.' }));
     root.get('*', (c) => c.html(index()));

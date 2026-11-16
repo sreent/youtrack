@@ -268,7 +268,8 @@ export function securityHeaders(): MiddlewareHandler<HttpEnv> {
     if (type.includes('text/html') && !c.req.path.startsWith('/api/docs') && !c.res.headers.has('content-security-policy')) {
       c.header(
         'content-security-policy',
-        "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        // frame-src: an app's widgets (D48), from a4a's own signed addresses, each sandboxed.
+        "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
       );
     }
   };
