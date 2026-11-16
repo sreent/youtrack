@@ -229,7 +229,9 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
       const stream = await openStream(b.request, token);
       await stream.waitFor((f) => f.event === 'ready');
       const tx = new pg.Client({ connectionString: db!.url });
+      const unrelated = new pg.Client({ connectionString: db!.url });
       await tx.connect();
+      await unrelated.connect();
       const insert = `insert into activities (type, channel, payload) values ('issue.updated', 'system', '{"data":{"note":"held"}}') returning id`;
       try {
         await tx.query('begin');
@@ -242,6 +244,9 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
         expect(got.map((e) => e.id)).toEqual([heldId, heldId + 1]);
         expect(got[1]!.issue?.id).toBe(later.id);
 
+        // Work elsewhere in the database, left open, must not hold the gap: only writers of the log count.
+        await unrelated.query('begin');
+        await unrelated.query(`insert into settings (key, value) values ('unrelated-open-writer', '1'::jsonb)`);
         await tx.query('begin');
         const lostId = Number((await tx.query<{ id: string }>(insert)).rows[0]!.id);
         const next = await createIssue(ctxA, { project: 'BACK', summary: 'Committed after an id that rolls back' });
@@ -253,6 +258,8 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
         expect(Date.now() - rolledBack).toBeLessThan(1_000);
         expect(stream.events().map((e) => e.id)).toEqual([heldId, heldId + 1, lostId + 1]);
       } finally {
+        await unrelated.query('rollback').catch(() => {});
+        await unrelated.end();
         await tx.end();
         await stream.close();
       }

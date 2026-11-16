@@ -283,23 +283,11 @@ export class PgSignals implements Signals {
     this.reconnectTimer.unref?.();
   }
 
-  /** Prove the connection still hears: our own NOTIFY must come back. */
+  /** Prove the connection still hears: our own NOTIFY must come back in time. */
   private async ping(): Promise<void> {
     const client = this.client;
-    if (!client || this.stopped) return;
+    if (!client || this.stopped || this.pending) return;
     const timeout = this.opts.pingTimeoutMs ?? 10_000;
-    if (this.pending) {
-      if (Date.now() - this.pending.sentAt > timeout) {
-        this.pending = null;
-        this.lost(
-          client,
-          new Error(
-            `its own notification did not come back within ${timeout} ms; a pooler in transaction mode drops LISTEN, so point DATABASE_LISTEN_URL straight at Postgres`,
-          ),
-        );
-      }
-      return;
-    }
     const token = String(++this.pingSeq);
     this.pending = { token, sentAt: Date.now() };
     try {
@@ -307,7 +295,19 @@ export class PgSignals implements Signals {
     } catch {
       // The pool can't reach the database either; the listener's own error will follow.
       this.pending = null;
+      return;
     }
+    const check = setTimeout(() => {
+      if (this.pending?.token !== token || this.client !== client) return;
+      this.pending = null;
+      this.lost(
+        client,
+        new Error(
+          `its own notification did not come back within ${timeout} ms; a pooler in transaction mode drops LISTEN, so point DATABASE_LISTEN_URL straight at Postgres`,
+        ),
+      );
+    }, timeout);
+    check.unref?.();
   }
 
   private received(channel: string, payload: string) {

@@ -4,7 +4,7 @@ import { activities } from '../db/schema';
 import type { ActivityRow } from './activity';
 
 export interface OrderedLogOptions {
-  /** How long after a gap is seen before the running transactions are listed (see `settle`). */
+  /** How long after a gap is seen before the log's writers are listed (see `settle`); none is needed. */
   settleMs?: number;
   /** A gap held longer than this is passed with a warning, so a transaction left open can't stall the log. */
   maxWaitMs?: number;
@@ -26,9 +26,9 @@ export interface LogRead {
  * rolls back never appears. A reader that moved past 41 when it saw 42 would never
  * hand 41 out, and a client resuming "after 42" would miss it. So a read stops at a
  * missing id, and the id is passed only once it can no longer appear: every
- * transaction still running a moment after the gap was seen has ended
- * (pg_stat_activity lists them). A rolled-back id is passed within about `settleMs`;
- * a late commit is waited for, up to `maxWaitMs`.
+ * transaction that was writing to the log when the gap was seen has ended (Postgres's
+ * lock table says which). A rolled-back id is passed at the next read; a late commit
+ * is waited for, up to `maxWaitMs`.
  */
 export class OrderedLog {
   /** Every id up to this one is either visible or will never be. */
@@ -50,7 +50,7 @@ export class OrderedLog {
   }
 
   private get settleMs(): number {
-    return this.opts.settleMs ?? 250;
+    return this.opts.settleMs ?? 0;
   }
 
   /** Up to `limit` rows after `after`, in order, stopping at a gap that may still fill. */
@@ -73,19 +73,18 @@ export class OrderedLog {
 
   /**
    * Every id up to a probe's horizon was taken before the probe (a higher id was
-   * already visible). A transaction that took one and still runs `settleMs` later has
-   * written by then (an id is taken in the INSERT that writes the row), so it is in
-   * the list of running transactions. When none of those is running any more, a
-   * missing id up to the horizon is final.
+   * already visible), so whoever took one and still runs is writing to the log now.
+   * When none of the writers seen after the probe is running any more, a missing id up
+   * to the horizon is final.
    */
   private async settle(started: number): Promise<void> {
-    const running = await this.running();
-    if (this.waitFor && ![...this.waitFor.xids].some((x) => running.has(x))) {
+    const writing = await this.writers();
+    if (this.waitFor && ![...this.waitFor.xids].some((x) => writing.has(x))) {
       this.settled = Math.max(this.settled, this.waitFor.horizon);
       this.waitFor = null;
     }
     if (!this.waitFor && this.probe && started - this.probe.at >= this.settleMs) {
-      if (running.size) this.waitFor = { horizon: this.probe.horizon, xids: running };
+      if (writing.size) this.waitFor = { horizon: this.probe.horizon, xids: writing };
       else this.settled = Math.max(this.settled, this.probe.horizon);
       this.probe = null;
     }
@@ -93,16 +92,21 @@ export class OrderedLog {
   }
 
   /**
-   * Ids of the transactions running now in this database (only a transaction that
-   * wrote has one). Not pg_current_snapshot(): its list leaves out a running
-   * transaction whose id is newer than every finished one, which is exactly the one
-   * that took a missing id last. Nor is it limited to this database.
+   * The transactions writing to the activity log now. An INSERT holds a row-exclusive
+   * lock on the table from before it takes its id (the lock comes with parsing, the id
+   * with executing) until its transaction ends, so these are exactly the transactions
+   * that may still hold a missing id; unrelated work, here or in other databases,
+   * doesn't count. Not pg_current_snapshot(): its list of running transactions leaves
+   * out one whose id is newer than every finished one, which is just the one that took
+   * a missing id last.
    */
-  private async running(): Promise<Set<string>> {
-    const res = await this.db.execute(
-      sql`select backend_xid::text as xid from pg_stat_activity where datname = current_database() and backend_xid is not null`,
-    );
-    return new Set((res as unknown as { rows: { xid: string }[] }).rows.map((r) => r.xid));
+  private async writers(): Promise<Set<string>> {
+    const res = await this.db.execute(sql`
+      select distinct l.virtualtransaction as tx from pg_locks l
+      where l.locktype = 'relation' and l.granted and l.mode not in ('AccessShareLock', 'RowShareLock')
+        and l.database = (select oid from pg_database where datname = current_database())
+        and l.relation = to_regclass('activities')`);
+    return new Set((res as unknown as { rows: { tx: string }[] }).rows.map((r) => r.tx));
   }
 
   /** Whether the gap from..to has been held too long and is passed now. */
