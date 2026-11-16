@@ -5,7 +5,7 @@
  * A day's figure is how things stood at its end: after every event before the next day began.
  * Today's is how they stand now; days to come have none.
  */
-import { estimateBefore, existsBefore, inSprintBefore, standingBefore, type Timeline } from './history';
+import { aliveBefore, changedInside, estimateBefore, existsBefore, firstInside, inSprintBefore, standingBefore, type Timeline } from './history';
 import type { DayBounds } from './tz';
 
 // ---------------------------------------------------------------------------
@@ -109,13 +109,14 @@ export function createdResolved(timelines: Iterable<Timeline>, buckets: Bucket[]
   const rows = buckets.map((b) => ({ from: b.from, to: b.to, created: 0, resolved: 0, reopened: 0, open: 0 }));
   const list = [...timelines];
   for (const t of list) {
-    const c = bucketOf(buckets, t.start);
+    // Moved in, an issue arrives: it wasn't created here, nor resolved by arriving resolved (D41).
+    const c = t.bornInside ? bucketOf(buckets, t.start) : -1;
     if (c >= 0) rows[c]!.created++;
     let wasResolved = false;
     for (const s of t.standings) {
       if (t.end !== null && s.at > t.end) break;
       if (s.resolved !== wasResolved) {
-        const b = bucketOf(buckets, s.at);
+        const b = changedInside(t, s.at) ? bucketOf(buckets, s.at) : -1;
         if (b >= 0) rows[b]![s.resolved ? 'resolved' : 'reopened']++;
         wasResolved = s.resolved;
       }
@@ -156,7 +157,8 @@ export function cycleTimes(timelines: Iterable<Timeline>, from: number, to: numb
   const items: CycleItem[] = [];
   const notStarted: CycleResult['notStarted'] = [];
   for (const t of timelines) {
-    if (!existsBefore(t, to)) continue;
+    // Resolved here and moved away since, it still counts here; resolved elsewhere, it doesn't.
+    if (!aliveBefore(t, to)) continue;
     const end = standingBefore(t, to);
     if (!end?.resolved) continue;
     // Its last resolution: the latest move from open to resolved (or its creation, resolved).
@@ -171,18 +173,25 @@ export function cycleTimes(timelines: Iterable<Timeline>, from: number, to: numb
       }
       was = s.resolved;
     }
-    if (resolvedAt === null || resolvedAt < from) continue;
-    const begun = t.standings.find((s) => s.at <= resolvedAt! && s.state !== null && starts.has(s.state.toLowerCase()));
-    if (!begun) {
+    if (resolvedAt === null || resolvedAt < from || !changedInside(t, resolvedAt)) continue;
+    // The clock starts the first time it was in a start state in the report's projects (D41).
+    let started: number | null = null;
+    for (let i = 0; i < t.standings.length && started === null; i++) {
+      const s = t.standings[i]!;
+      if (s.at > resolvedAt) break;
+      if (s.state === null || !starts.has(s.state.toLowerCase())) continue;
+      started = firstInside(t, s.at, Math.max(t.standings[i + 1]?.at ?? resolvedAt, s.at + 1));
+    }
+    if (started === null) {
       notStarted.push({ rid: t.rid, summary: t.summary, resolved: resolvedAt });
       continue;
     }
     items.push({
       rid: t.rid,
       summary: t.summary,
-      started: begun.at,
+      started,
       resolved: resolvedAt,
-      days: Math.round(((resolvedAt - begun.at) / 86_400_000) * 100) / 100,
+      days: Math.round(((resolvedAt - started) / 86_400_000) * 100) / 100,
       reopened: resolutions > 1,
     });
   }

@@ -24,7 +24,7 @@ import { addDays, addMonths, diffDays, isISODate, startOfMonth, startOfWeek } fr
 import { badRequest, notFound } from '../lib/errors';
 import { addWorkingDays, listWorkingDays, normalizeCalendar } from '../planning/calendar';
 import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, percentile, type Bucket, type StateInfo } from '../reports/engine';
-import { buildTimelines, type HistoryEvent, type Timeline } from '../reports/history';
+import { buildTimelines, insideDuring, leftSprint, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
 import { projectAccess, requireProject, visibleProjectIds } from './access';
@@ -41,7 +41,7 @@ const SHAPING = ['issue.created', 'issue.updated', 'issue.deleted'] as const;
 // Scope: which issues, which projects
 // ---------------------------------------------------------------------------
 
-interface Scope {
+export interface Scope {
   projects: ProjectRow[];
   query: string | null;
   /** Activities of the issues in scope: by project (deleted issues too), or the issues a query matches now. */
@@ -49,9 +49,18 @@ interface Scope {
   /** The issues in scope now, for logged work. */
   issueWhere: SQL;
   includesDeleted: boolean;
+  /** Whether a project, by key, is one of the report's: where a moved issue counts (D41). */
+  inScope: (projectKey: string) => boolean;
+  /** The project asked for, if one was. */
+  project: ProjectRow | null;
 }
 
-function inList(column: SQL | typeof activities.projectId, values: string[]): SQL {
+const keySet = (projects: ProjectRow[]) => {
+  const keys = new Set(projects.map((p) => p.key.toUpperCase()));
+  return (key: string) => keys.has(key.toUpperCase());
+};
+
+export function inList(column: SQL | typeof activities.projectId, values: string[]): SQL {
   if (!values.length) return sql`FALSE`;
   return sql`${column} IN (${sql.join(
     values.map((v) => sql`${v}`),
@@ -59,11 +68,15 @@ function inList(column: SQL | typeof activities.projectId, values: string[]): SQ
   )})`;
 }
 
-async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: string; query?: string }): Promise<Scope> {
+export async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: string; query?: string }): Promise<Scope> {
   requireScope(ctx, 'read');
   const query = input.query?.trim() || null;
   // A project the caller can't see answers exactly as one that doesn't exist.
   const project = input.project?.trim() ? await requireProject(ctx, input.project, 'read') : undefined;
+  const visibleProjects = async () => {
+    const visible = await visibleProjectIds(ctx);
+    return [...s.projects.values()].filter((p) => visible === null || visible.includes(p.id));
+  };
   if (query) {
     const { compiled } = await compileOrThrow(ctx, query, { projectId: project?.id });
     const where = compiled.where ?? sql`TRUE`;
@@ -74,19 +87,29 @@ async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: stri
       const rows = await ctx.db.selectDistinct({ id: issues.projectId }).from(issues).where(where);
       projects = rows.map((r) => s.projects.get(r.id)).filter((p): p is ProjectRow => Boolean(p));
     }
-    return { projects, query, activityWhere: sql`${activities.issueId} IN ${ids}`, issueWhere: sql`${issues.id} IN ${ids}`, includesDeleted: false };
+    // A matched issue counts on the days it was in a project the caller sees (the one asked for, if any).
+    const inScope = keySet(project ? [project] : await visibleProjects());
+    return { projects, query, activityWhere: sql`${activities.issueId} IN ${ids}`, issueWhere: sql`${issues.id} IN ${ids}`, includesDeleted: false, inScope, project: project ?? null };
   }
-  const projects: ProjectRow[] = [];
-  if (project) projects.push(project);
-  else {
-    const visible = await visibleProjectIds(ctx);
-    for (const p of s.projects.values()) if (visible === null || visible.includes(p.id)) projects.push(p);
-  }
+  const projects: ProjectRow[] = project ? [project] : await visibleProjects();
   const ids = projects.map((p) => p.id);
-  return { projects, query: null, activityWhere: inList(activities.projectId, ids), issueWhere: inList(sql`${issues.projectId}`, ids), includesDeleted: true };
+  // An issue moved away (D41) leaves: its move is filed under the project it went to, so read that too.
+  const movedAway = sql`(${activities.type} = 'issue.moved' AND ${inList(
+    sql`${activities.payload}->'data'->>'fromProject'`,
+    projects.map((p) => p.key),
+  )})`;
+  return {
+    projects,
+    query: null,
+    activityWhere: sql`(${inList(activities.projectId, ids)} OR ${movedAway})`,
+    issueWhere: inList(sql`${issues.projectId}`, ids),
+    includesDeleted: true,
+    inScope: keySet(projects),
+    project: project ?? null,
+  };
 }
 
-const refOf = (p: ProjectRow): ProjectRef => ({ id: p.id, key: p.key, name: p.name });
+export const refOf = (p: ProjectRow): ProjectRef => ({ id: p.id, key: p.key, name: p.name });
 
 // ---------------------------------------------------------------------------
 // Loading history
@@ -116,15 +139,21 @@ function ms(v: unknown): number | null {
  * Events that shape issues (created, changed, deleted) matching `where`, oldest first. Only the
  * parts of each payload a report reads leave the database; estimates only when asked for.
  */
-async function loadEvents(ctx: Ctx, s: SchemaSnapshot, where: SQL, opts: { sprintEvents?: boolean; estimates?: boolean } = {}): Promise<HistoryEvent[]> {
+export async function loadEvents(
+  ctx: Ctx,
+  s: SchemaSnapshot,
+  where: SQL,
+  opts: { sprintEvents?: boolean; estimates?: boolean; /** Follow this field's value, by name (D44). */ field?: string } = {},
+): Promise<HistoryEvent[]> {
   const names = estimateNames(s);
   const est = names[0]!;
   const nameList = sql.join(
     names.map((n) => sql`${n}`),
     sql`, `,
   );
-  const types = opts.sprintEvents ? [...SHAPING, 'sprint.issue_added', 'sprint.issue_removed'] : [...SHAPING];
+  const types = opts.sprintEvents ? [...SHAPING, 'issue.moved', 'sprint.issue_added', 'sprint.issue_removed'] : [...SHAPING, 'issue.moved'];
   const p = activities.payload;
+  const field = opts.field;
   const rows = await ctx.db
     .select({
       id: activities.id,
@@ -142,6 +171,11 @@ async function loadEvents(ctx: Ctx, s: SchemaSnapshot, where: SQL, opts: { sprin
       importedCreated: sql<string | null>`CASE WHEN ${activities.type} = 'issue.created' THEN ${p}->'data'->'imported'->>'createdAt' END`,
       importedResolved: sql<string | null>`CASE WHEN ${activities.type} = 'issue.created' THEN ${p}->'data'->'imported'->>'resolvedAt' END`,
       sprintId: opts.sprintEvents ? sql<string | null>`${p}->'data'->>'sprintId'` : sql<null>`NULL`,
+      // A move (D41): both ids and projects, the sprints it left, and when the issue was created.
+      move: sql<MoveData | string | null>`CASE WHEN ${activities.type} = 'issue.moved' THEN jsonb_build_object('from', ${p}->'data'->'from', 'to', ${p}->'data'->'to', 'fromProject', ${p}->'data'->'fromProject', 'toProject', ${p}->'data'->'toProject', 'leftSprints', ${p}->'data'->'leftSprints', 'created', (SELECT i.created_at FROM issues i WHERE i.id = ${activities.issueId})) END`,
+      value: field
+        ? sql<{ to: string | null } | string | null>`CASE WHEN ${activities.type} = 'issue.created' THEN jsonb_build_object('to', ${p}->'data'->'fields'->${field}) WHEN jsonb_typeof(${p}->'changes') = 'array' THEN (SELECT jsonb_build_object('to', c->'to') FROM jsonb_array_elements(${p}->'changes') c WHERE c->>'field' = ${field} LIMIT 1) END`
+        : sql<null>`NULL`,
     })
     .from(activities)
     .where(and(inArray(activities.type, types), where))
@@ -167,13 +201,33 @@ async function loadEvents(ctx: Ctx, s: SchemaSnapshot, where: SQL, opts: { sprin
       e.estimate = { minutes: minutesOf(change.to) };
     }
     if (r.sprintId) e.sprintId = r.sprintId;
+    if (r.move) {
+      const m = (typeof r.move === 'string' ? JSON.parse(r.move) : r.move) as MoveData;
+      if (m.from && m.to && m.fromProject && m.toProject) {
+        e.move = { from: m.from, to: m.to, fromProject: m.fromProject, toProject: m.toProject, created: ms(m.created) };
+        if (Array.isArray(m.leftSprints)) e.move.leftSprints = m.leftSprints.filter((x): x is string => typeof x === 'string');
+      }
+    }
+    if (r.value) {
+      const v = (typeof r.value === 'string' ? JSON.parse(r.value) : r.value) as { to: unknown };
+      e.value = { to: typeof v.to === 'string' && v.to !== '' ? v.to : null };
+    }
     out.push(e);
   }
   return out;
 }
 
+interface MoveData {
+  from?: string;
+  to?: string;
+  fromProject?: string;
+  toProject?: string;
+  leftSprints?: unknown;
+  created?: string | null;
+}
+
 /** The state an imported issue was in before its resolution: the project's default, or its first open state. */
-function openStates(s: SchemaSnapshot): (rid: string) => string | null {
+export function openStates(s: SchemaSnapshot): (rid: string) => string | null {
   const sf = stateField(s);
   const cache = new Map<string, string | null>();
   return (rid) => {
@@ -192,7 +246,7 @@ function openStates(s: SchemaSnapshot): (rid: string) => string | null {
 }
 
 /** The state field's values in these projects, in workflow order: open ones first, then resolved. */
-function knownStates(s: SchemaSnapshot, projects: ProjectRow[]): StateInfo[] {
+export function knownStates(s: SchemaSnapshot, projects: ProjectRow[]): StateInfo[] {
   const sf = stateField(s);
   if (!sf) return [];
   const seen = new Map<string, StateInfo & { ordinal: number }>();
@@ -211,7 +265,7 @@ function knownStates(s: SchemaSnapshot, projects: ProjectRow[]): StateInfo[] {
 // Windows
 // ---------------------------------------------------------------------------
 
-interface Window {
+export interface Window {
   tz: string;
   today: string;
   now: number;
@@ -219,7 +273,7 @@ interface Window {
   to: string;
 }
 
-function windowOf(input: { from?: string; to?: string; timeZone?: string }, defaultDays: number, maxDays: number, now = Date.now()): Window {
+export function windowOf(input: { from?: string; to?: string; timeZone?: string }, defaultDays: number, maxDays: number, now = Date.now()): Window {
   const tz = timeZoneOrThrow(input.timeZone);
   const today = todayIn(tz, now);
   for (const [name, v] of [['from', input.from], ['to', input.to]] as const) {
@@ -233,7 +287,7 @@ function windowOf(input: { from?: string; to?: string; timeZone?: string }, defa
   return { tz, today, now, from, to };
 }
 
-function scopeDto(scope: Scope, w: Window, issueCount: number): ReportScope {
+export function scopeDto(scope: Scope, w: Window, issueCount: number): ReportScope {
   return {
     projects: scope.projects.map(refOf),
     query: scope.query,
@@ -246,9 +300,9 @@ function scopeDto(scope: Scope, w: Window, issueCount: number): ReportScope {
   };
 }
 
-/** Issues that existed at some time in [start, end). */
-function within(timelines: Iterable<Timeline>, start: number, end: number): Timeline[] {
-  return [...timelines].filter((t) => t.start < end && (t.end === null || t.end >= start));
+/** Issues that existed at some time in [start, end), in the report's projects. */
+export function within(timelines: Iterable<Timeline>, start: number, end: number): Timeline[] {
+  return [...timelines].filter((t) => t.start < end && (t.end === null || t.end >= start) && insideDuring(t, start, end));
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +322,7 @@ export async function flowReport(ctx: Ctx, input: WindowInput, now = Date.now())
   const scope = await resolveScope(ctx, s, input);
   const w = windowOf(input, 30, 366, now);
   const bounds = dayBounds(w.from, w.to, w.tz);
-  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s));
+  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s), { inScope: scope.inScope });
   const counted = within(timelines.values(), bounds.starts[0]!, Math.min(bounds.ends[bounds.ends.length - 1]!, now + 1));
   const res = cumulativeFlow(counted, bounds, now, knownStates(s, scope.projects));
   return { scope: scopeDto(scope, w, counted.length), states: res.states, days: res.days, noState: res.noState };
@@ -293,7 +347,7 @@ export async function createdResolvedReport(ctx: Ctx, input: WindowInput & { int
     buckets.push({ from: d, to: last, start: startOfDay(d, w.tz), end: startOfDay(addDays(last, 1), w.tz) });
     d = next;
   }
-  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s));
+  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s), { inScope: scope.inScope });
   const counted = within(timelines.values(), buckets[0]!.start, Math.min(buckets[buckets.length - 1]!.end, now + 1));
   const rows = createdResolved(counted, buckets, now);
   const totals = rows.reduce((t, r) => ({ created: t.created + r.created, resolved: t.resolved + r.resolved, reopened: t.reopened + r.reopened }), {
@@ -324,7 +378,7 @@ export async function cycleTimeReport(ctx: Ctx, input: WindowInput & { start?: s
   }
   const from = startOfDay(w.from, w.tz);
   const to = Math.min(startOfDay(addDays(w.to, 1), w.tz), now + 1);
-  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s));
+  const timelines = buildTimelines(await loadEvents(ctx, s, scope.activityWhere), openStates(s), { inScope: scope.inScope });
   const res = cycleTimes(timelines.values(), from, to, startStates);
   const values = res.items.map((i) => i.days).sort((a, b) => a - b);
   const hist = histogram(values);
@@ -466,6 +520,9 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
     ? await loadEvents(ctx, s, conds.length === 1 ? conds[0]! : sql`(${sql.join(conds, sql` OR `)})`, { sprintEvents: true, estimates: true })
     : [];
   const timelines = buildTimelines(events, openStates(s));
+  // A move that left this sprint (D41) names it, not its id: file it under the sprint's.
+  const leftThis = leftSprint(sprint.name);
+  for (const t of timelines.values()) for (const e of t.sprints) if (e.sprintId === leftThis) e.sprintId = sprint.id;
 
   const start = startOfDay(sprint.startDate, tz);
   const end = startOfDay(addDays(sprint.endDate, 1), tz);
@@ -480,7 +537,7 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
     const rid = ridOf(c);
     if (!timelines.has(rid)) {
       // No history at all (it predates the log): it existed, as it is now, from its creation.
-      timelines.set(rid, { rid, summary: '', start: c.createdAt.getTime(), end: null, standings: [{ at: c.createdAt.getTime(), state: null, resolved: false }], estimates: [], sprints: [] });
+      timelines.set(rid, { rid, summary: '', start: c.createdAt.getTime(), end: null, standings: [{ at: c.createdAt.getTime(), state: null, resolved: false }], estimates: [], sprints: [], outside: [], bornInside: true, values: [], projects: [{ at: c.createdAt.getTime(), key: rid.split('-')[0]! }] });
     }
   }
 
