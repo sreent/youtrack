@@ -162,7 +162,7 @@ function MachineForm({ project, fields, machine, onDone, onCancel }: { project: 
   );
 }
 
-function MachineCard({ machine, manages, fields, onEdit }: { machine: StateMachine; manages: boolean; fields: ProjectField[]; onEdit: () => void }) {
+function MachineCard({ machine, manages, onEdit }: { machine: StateMachine; manages: boolean; onEdit: () => void }) {
   const qc = useQueryClient();
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const done = () => void qc.invalidateQueries({ queryKey: workflowKeys.all });
@@ -175,7 +175,6 @@ function MachineCard({ machine, manages, fields, onEdit }: { machine: StateMachi
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   const remove = useMutation({ mutationFn: () => del(`/state-machines/${machine.id}`), onSuccess: done, onError: (e) => setSaid({ text: errorText(e), bad: true }) });
-  void fields;
   return (
     <li className={machine.enabled ? 'card rule-card' : 'card rule-card off'}>
       <div className="rule-head">
@@ -258,7 +257,7 @@ export function Machines({ project, projectName, fields, manages }: { project: s
                 />
               </li>
             ) : (
-              <MachineCard key={m.id} machine={m} manages={manages} fields={fields} onEdit={() => setEditing(m.id)} />
+              <MachineCard key={m.id} machine={m} manages={manages} onEdit={() => setEditing(m.id)} />
             ),
           )}
         </ul>
