@@ -125,15 +125,16 @@ export const samlProviderKey = (idp: Pick<IdpSettings, 'entityId'>) => `saml:${i
 /**
  * The library's cache, kept in Postgres so every instance shares it: request ids from the start of
  * a sign-in until its response comes back (taken once, in one statement), and the ids of
- * assertions received until they would expire. A request's row holds what this sign-in needs back
- * (the browser it started in, and where to go): `consumed` gets it as the request is taken.
+ * assertions received until they would expire. Beside a request's row (whose value, the time it
+ * was made, the library reads), a second row holds what this sign-in needs back: the browser it
+ * started in, and where to go. `takePending` gets it, once the library has taken the request.
  */
 class PostgresCache implements CacheProvider {
-  consumed: string | null = null;
+  private consumedKey: string | null = null;
 
   constructor(
     private db: Db,
-    /** What a request's row holds; without it, the library's own value. */
+    /** What the sign-in being started needs back. */
     private pending?: string,
   ) {}
 
@@ -141,14 +142,31 @@ class PostgresCache implements CacheProvider {
     return sha256(`saml:${k}`);
   }
 
+  private static pendingKey(k: string) {
+    return sha256(`saml-pending:${k}`);
+  }
+
   async saveAsync(key: string, value: string): Promise<CacheItem | null> {
-    const stored = this.pending ?? value;
     const expiresAt = new Date(Date.now() + SAML_REQUEST_TTL_MS);
+    const rows = [{ key: PostgresCache.key(key), value, expiresAt }];
+    if (this.pending) rows.push({ key: PostgresCache.pendingKey(key), value: this.pending, expiresAt });
     await this.db
       .insert(samlCache)
-      .values({ key: PostgresCache.key(key), value: stored, expiresAt })
-      .onConflictDoUpdate({ target: samlCache.key, set: { value: stored, expiresAt } });
-    return { value: stored, createdAt: Date.now() };
+      .values(rows)
+      .onConflictDoUpdate({ target: samlCache.key, set: { value: sql`excluded.value`, expiresAt } });
+    return { value, createdAt: Date.now() };
+  }
+
+  /** What the sign-in whose request the library just took needs back, taken with it; null if none was. */
+  async takePending(): Promise<string | null> {
+    if (!this.consumedKey) return null;
+    const [row] = await this.db.delete(samlCache).where(eq(samlCache.key, PostgresCache.pendingKey(this.consumedKey))).returning({ value: samlCache.value });
+    return row?.value ?? null;
+  }
+
+  /** Whether the library took a request of a4a's for this response. */
+  get answeredRequest(): boolean {
+    return this.consumedKey !== null;
   }
 
   async getAsync(key: string): Promise<string | null> {
@@ -169,7 +187,7 @@ class PostgresCache implements CacheProvider {
   async consumeAsync(key: string): Promise<string | null> {
     const [row] = await this.db.delete(samlCache).where(eq(samlCache.key, PostgresCache.key(key))).returning({ value: samlCache.value, expiresAt: samlCache.expiresAt });
     if (!row || row.expiresAt.getTime() <= Date.now()) return null;
-    this.consumed = row.value;
+    this.consumedKey = key;
     return row.value;
   }
 
@@ -328,8 +346,8 @@ export async function finishSamlSignIn(
 
   // A response to a request of a4a's: it must come back to the browser that started it.
   let returnTo: string;
-  if (cache.consumed) {
-    const pending = JSON.parse(cache.consumed) as { browser?: string; returnTo?: string };
+  if (cache.answeredRequest) {
+    const pending = JSON.parse((await cache.takePending()) ?? '{}') as { browser?: string; returnTo?: string };
     if (!browserCookie || !pending.browser || !sameText(sha256(browserCookie), pending.browser)) {
       throw new SsoError('expired', 'This sign-in was started in another browser or tab, or has run out of time');
     }

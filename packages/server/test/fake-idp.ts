@@ -14,6 +14,8 @@ export interface Person {
   email_verified?: unknown;
   name?: string;
   preferred_username?: string;
+  /** The groups claim, under whatever name the test configures. */
+  groups?: unknown;
 }
 
 /** One way to get the next ID token wrong. */

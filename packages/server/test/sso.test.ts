@@ -2,11 +2,14 @@
  * Single sign-on (OpenID Connect) against a provider made for the test: the good path, and each
  * way a sign-in must fail.
  */
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createRuntime, type Runtime } from '../src/app-services';
 import { loadConfig, type OidcConfig } from '../src/config';
 import { openDatabase, type Database } from '../src/db/client';
+import { groupMembers, groups } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
+import { newId } from '../src/lib/ids';
 import { FakeIdp, type Person } from './fake-idp';
 import { freshPostgres } from './helpers';
 
@@ -196,6 +199,24 @@ describe('signing in with the provider', () => {
     runtime.config.oidc = oidc({ createUsers: false });
     const res = await signIn({ sub: 'p-new', email: 'uma@corp.com', email_verified: true });
     expect(res).toMatchObject({ location: '/login?sso=no_account', session: '' });
+  });
+
+  it('puts them in the groups from the provider that its groups claim names, at every sign-in (D27)', async () => {
+    runtime.config.oidc = oidc({ groupsClaim: 'groups' });
+    const platform = newId();
+    await database.db.insert(groups).values([
+      { id: platform, name: 'Platform', providerName: 'platform' },
+      { id: newId(), name: 'platform-by-hand' },
+    ]);
+    const members = async () => (await database.db.select().from(groupMembers).where(eq(groupMembers.groupId, platform))).map((m) => m.userId);
+    const res = await signIn({ sub: 'p-groups', email: 'gita@corp.com', email_verified: true, name: 'Gita', groups: ['PLATFORM', 'platform-by-hand', 'unknown'] });
+    const gita = (await me(res.session)).body;
+    expect(await members()).toEqual([gita.id]);
+    // A claim that's one string still counts; one gone takes them out.
+    await signIn({ sub: 'p-groups', email: 'gita@corp.com', email_verified: true, groups: 'platform' });
+    expect(await members()).toEqual([gita.id]);
+    await signIn({ sub: 'p-groups', email: 'gita@corp.com', email_verified: true });
+    expect(await members()).toEqual([]);
   });
 });
 
