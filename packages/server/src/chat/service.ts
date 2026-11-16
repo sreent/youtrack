@@ -21,11 +21,13 @@ import {
   type ChatSubscription,
   type CreateChatSubscriptionInput,
 } from '@a4a/shared';
+import type { Translator } from '@a4a/shared/i18n';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { chatAccounts, chatChannels, chatLinkTokens, chatSubscriptions, chatWorkspaces, projects, savedSearches, userIdentities, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
+import { intlTag, problemFor, translatorFor } from '../i18n';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
@@ -37,7 +39,7 @@ import { createIssue, getIssue } from '../services/issues';
 import { findFollowableSearch } from '../services/subscriptions';
 import { userRefDto } from '../services/values';
 import { cardIssue, type CardIssue } from './cards';
-import { chatCtx, type Answer } from './common';
+import { channelTr, chatCtx, personTr, type Answer } from './common';
 
 type WorkspaceRow = typeof chatWorkspaces.$inferSelect;
 type ChannelRow = typeof chatChannels.$inferSelect;
@@ -195,25 +197,28 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
 // ---------------------------------------------------------------------------
 
 const KIND_WORDS: Record<ChatChangeKind, string> = {
-  created: 'new issues',
-  state: 'state changes',
-  assigned: 'assignments',
-  commented: 'comments',
-  fields: 'other changes',
+  created: 'server.chat.kind.created',
+  state: 'server.chat.kind.state',
+  assigned: 'server.chat.kind.assigned',
+  commented: 'server.chat.kind.commented',
+  fields: 'server.chat.kind.fields',
 };
 
-function listWords(words: string[]): string {
-  if (words.length <= 1) return words[0] ?? '';
-  return `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+/**
+ * "New issues, state changes and comments in Backend", in a language: English for the API, the
+ * server's for a channel (D49).
+ */
+export function aboutChannel(kinds: readonly string[], target: { project?: string | null; search?: string | null }, tr: Translator): string {
+  const words = CHAT_CHANGE_KINDS.filter((k) => kinds.includes(k)).map((k) => tr.t(KIND_WORDS[k]));
+  const listed = words.length ? new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words) : tr.t('server.chat.kind.nothing');
+  const what = `${listed.charAt(0).toUpperCase()}${listed.slice(1)}`;
+  return target.project
+    ? tr.t('server.chat.about.project', { what, project: target.project })
+    : tr.t('server.chat.about.search', { what, search: target.search ?? tr.t('server.chat.about.aSavedSearch') });
 }
 
-/** "New issues, state changes and comments in Backend". */
-export function aboutChannel(kinds: readonly string[], target: { project?: string | null; search?: string | null }): string {
-  const words = CHAT_CHANGE_KINDS.filter((k) => kinds.includes(k)).map((k) => KIND_WORDS[k]);
-  const what = listWords(words) || 'nothing';
-  const where = target.project ? `in ${target.project}` : `to issues in “${target.search ?? 'a saved search'}”`;
-  return `${what.charAt(0).toUpperCase()}${what.slice(1)} ${where}`;
-}
+/** The API's words are English (D49). */
+const ENGLISH = translatorFor('en');
 
 /**
  * Whether someone may have a channel told of a project's issues: they read it, and, when it's open to
@@ -249,7 +254,7 @@ async function subscriptionDtos(ctx: Ctx, rows: SubscriptionRow[]): Promise<Chat
       project: project ? { key: project.key, name: project.name } : null,
       search: search ? { id: search.id, name: search.name } : null,
       kinds: CHAT_CHANGE_KINDS.filter((k) => r.kinds.includes(k)),
-      about: aboutChannel(r.kinds, { project: project?.name, search: search?.name }),
+      about: aboutChannel(r.kinds, { project: project?.name, search: search?.name }, ENGLISH),
       createdBy: by ? userRefDto(by) : null,
       createdAt: r.createdAt.toISOString(),
       ended: r.endedAt ? { at: r.endedAt.toISOString(), reason: r.endedReason ?? 'It stopped' } : null,
@@ -491,17 +496,6 @@ export async function unlinkChatAccount(ctx: Ctx, id: string): Promise<void> {
 // What people ask the bot
 // ---------------------------------------------------------------------------
 
-export const HELP = [
-  'What I understand, done as you, with what you may do in a4a:',
-  '• BACK-12: show an issue',
-  '• BACK-12 State Fixed: apply a command to an issue (State, Assignee, for me, tag…)',
-  '• comment BACK-12 Looks good: comment on an issue',
-  '• new BACK The export times out: report an issue in a project',
-  '• search #Unresolved for: me: find issues',
-  '• subscribe BACK, or subscribe "My bugs" new comments: tell this channel of a project’s or a saved search’s issues',
-  '• unsubscribe BACK: stop telling this channel of them',
-  '• link: link this chat account to your a4a account',
-].join('\n');
 
 const KIND_ALIASES: Record<string, ChatChangeKind> = {
   new: 'created',
@@ -526,17 +520,20 @@ export async function issueForCard(ctx: Ctx, id: string): Promise<CardIssue> {
   return cardIssue(ctx.app, await ctx.app.schema.get(), detail);
 }
 
-/** What a command did to an issue, in a line: its changes, or why not. */
-export function commandOutcome(res: Awaited<ReturnType<typeof runCommand>>): { text: string; bad: boolean } {
+/**
+ * What a command did to an issue, in a line, in its person's language: its changes, or why not. The
+ * command's own words (what it changes, a problem with how it's written) are the command language's.
+ */
+export function commandOutcome(res: Awaited<ReturnType<typeof runCommand>>, tr: Translator): { text: string; bad: boolean } {
   if (res.problems.length) return { text: res.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; '), bad: true };
   const r = res.results[0];
   if (r?.errors.length) return { text: r.errors.join('; '), bad: true };
-  if (!r?.changes.length) return { text: 'Nothing to change: it is so already.', bad: false };
-  return { text: `Done: ${res.description}.`, bad: false };
+  if (!r?.changes.length) return { text: tr.t('server.chat.nothingToChange'), bad: false };
+  return { text: tr.t('server.chat.done', { change: res.description }), bad: false };
 }
 
-function errorWords(e: unknown): string {
-  if (e instanceof AppError) return e.hint ? `${e.message}. ${e.hint}` : e.message;
+function errorWords(e: unknown, tr: Translator): string {
+  if (e instanceof AppError) return problemFor(tr, e);
   return e instanceof Error ? e.message : String(e);
 }
 
@@ -546,59 +543,74 @@ function errorWords(e: unknown): string {
  */
 export async function runChatCommand(app: AppServices, platform: ChatPlatform, user: UserRow, raw: string, where: { channelId?: string | null } = {}): Promise<Answer> {
   const ctx = chatCtx(app, user, platform);
+  // Said to them in their language, and the cards beside it too; the bot's own words (help, new,
+  // search, subscribe) are its commands', the same in every language.
+  const tr = personTr(app, user);
+  const locale = tr.locale;
   const text = raw.replace(/\s+/g, ' ').trim();
   try {
-    if (!text || /^(help|\?)$/i.test(text)) return { text: HELP };
+    if (!text || /^(help|\?)$/i.test(text)) return { text: tr.t('server.chat.help'), locale };
     let m: RegExpExecArray | null;
     if ((m = /^(?:new|create|report)\s+([A-Za-z][A-Za-z0-9]*)\s+(.+)$/i.exec(text))) {
       const created = await createIssue(ctx, { project: m[1]!, summary: m[2]!.slice(0, 500) });
-      return { text: `Reported ${created.id}.`, issues: [cardIssue(app, await app.schema.get(), created)] };
+      return { text: tr.t('server.chat.reported', { id: created.id }), locale, issues: [cardIssue(app, await app.schema.get(), created)] };
     }
     if ((m = /^(?:search|find)\s+(.+)$/i.exec(text))) {
       const found = await searchIssues(ctx, m[1]!, 0, 5);
-      if (!found.total) return { text: 'Nothing matches.' };
+      if (!found.total) return { text: tr.t('server.chat.nothingMatches'), locale };
       const shown = await Promise.all(found.items.map((i) => issueForCard(ctx, i.id)));
-      const more = found.total > shown.length ? ` The first ${shown.length} of ${found.total}: ${app.config.publicUrl}/issues?q=${encodeURIComponent(m[1]!)}` : '';
-      return { text: `${found.total === 1 ? 'One issue matches' : `${found.total} issues match`}.${more}`, issues: shown };
+      const text =
+        found.total > shown.length
+          ? tr.t('server.chat.matchesFirst', { total: found.total, shown: shown.length, url: `${app.config.publicUrl}/issues?q=${encodeURIComponent(m[1]!)}` })
+          : tr.t('server.chat.matches', { total: found.total });
+      return { text, locale, issues: shown };
     }
     if ((m = /^comment\s+([A-Za-z][A-Za-z0-9]*-\d+)\s+(.+)$/i.exec(text))) {
       await addComment(ctx, m[1]!, raw.trim().replace(/^comment\s+\S+\s+/i, '').slice(0, 50_000));
-      return { text: `Commented on ${m[1]!.toUpperCase()}.`, issues: [await issueForCard(ctx, m[1]!)] };
+      return { text: tr.t('server.chat.commentedOn', { id: m[1]!.toUpperCase() }), locale, issues: [await issueForCard(ctx, m[1]!)] };
     }
-    if ((m = /^(subscribe|unsubscribe)\b\s*(.*)$/i.exec(text))) return await subscribeHere(ctx, m[1]!.toLowerCase() === 'subscribe', m[2]!, where.channelId ?? null);
+    if ((m = /^(subscribe|unsubscribe)\b\s*(.*)$/i.exec(text))) return await subscribeHere(ctx, m[1]!.toLowerCase() === 'subscribe', m[2]!, where.channelId ?? null, tr);
     if ((m = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*(.*)$/.exec(text))) {
       const id = m[1]!.toUpperCase();
-      if (!m[2]) return { text: id, issues: [await issueForCard(ctx, id)] };
-      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }));
-      return { text: outcome.text, issues: [await issueForCard(ctx, id)] };
+      if (!m[2]) return { text: id, locale, issues: [await issueForCard(ctx, id)] };
+      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }), tr);
+      return { text: outcome.text, locale, issues: [await issueForCard(ctx, id)] };
     }
-    return { text: `I don't know "${excerpt(text, 60)}". Say help for what I understand.` };
+    return { text: tr.t('server.chat.unknown', { text: excerpt(text, 60) }), locale };
   } catch (e) {
-    return { text: errorWords(e) };
+    return { text: errorWords(e, tr), locale };
   }
 }
 
-/** subscribe BACK [kinds], subscribe "Saved search" [kinds], unsubscribe BACK: for the channel asked in. */
-async function subscribeHere(ctx: Ctx, on: boolean, rest: string, channelId: string | null): Promise<Answer> {
-  if (!channelId) return { text: 'Ask me in the channel you want told: subscribe BACK.' };
+/**
+ * subscribe BACK [kinds], subscribe "Saved search" [kinds], unsubscribe BACK: for the channel asked in.
+ * Said to the person in theirs; what the whole channel reads, in the channel's (D49).
+ */
+async function subscribeHere(ctx: Ctx, on: boolean, rest: string, channelId: string | null, tr: Translator): Promise<Answer> {
+  const locale = tr.locale;
+  if (!channelId) return { text: tr.t('server.chat.askInChannel'), locale };
   const m = /^(?:"([^"]+)"|“([^”]+)”|(\S+))\s*(.*)$/.exec(rest.trim());
-  if (!m) return { text: on ? 'Say which project or saved search: subscribe BACK, or subscribe "My bugs".' : 'Say which: unsubscribe BACK.' };
+  if (!m) return { text: tr.t(on ? 'server.chat.sayWhich' : 'server.chat.sayWhichUnsubscribe'), locale };
   const quoted = m[1] ?? m[2];
   const word = m[3];
   const target = quoted ? { savedSearch: quoted } : { project: word! };
   if (on) {
     const named = m[4]!.split(/[\s,]+/).filter(Boolean);
     const kinds = named.map((w) => KIND_ALIASES[w.toLowerCase()]).filter((k): k is ChatChangeKind => Boolean(k));
-    if (named.length && kinds.length !== named.length) return { text: `I hear of: ${Object.keys(KIND_ALIASES).join(', ')}.` };
+    if (named.length && kinds.length !== named.length) return { text: tr.t('server.chat.kinds', { kinds: Object.keys(KIND_ALIASES).join(', ') }), locale };
     const sub = await createChatSubscription(ctx, { channel: channelId, ...target, kinds: kinds.length ? kinds : [...DEFAULT_CHAT_KINDS] });
-    return { text: `${ctx.actor.user.name} subscribed this channel: ${sub.about}.`, public: true };
+    const channel = channelTr(ctx.app);
+    const about = aboutChannel(sub.kinds, { project: sub.project?.name, search: sub.search?.name }, channel);
+    return { text: channel.t('server.chat.subscribed', { name: ctx.actor.user.name, about }), locale: channel.locale, public: true };
   }
   const mine = (await listChatSubscriptions(ctx)).filter(
     (s) => s.channel.id === channelId && !s.ended && (quoted ? s.search?.name.toLowerCase() === quoted.toLowerCase() : s.project?.key === word!.toUpperCase()),
   );
-  if (!mine.length) return { text: 'This channel hears of nothing by that name.' };
+  if (!mine.length) return { text: tr.t('server.chat.hearsNothing'), locale };
   for (const s of mine) await deleteChatSubscription(ctx, s.id);
-  return { text: `${ctx.actor.user.name} stopped this channel's ${mine.map((s) => s.about.charAt(0).toLowerCase() + s.about.slice(1)).join('; ')}.`, public: true };
+  const channel = channelTr(ctx.app);
+  const about = mine.map((s) => aboutChannel(s.kinds, { project: s.project?.name, search: s.search?.name }, channel)).join('; ');
+  return { text: channel.t('server.chat.unsubscribed', { name: ctx.actor.user.name, about }), locale: channel.locale, public: true };
 }
 
 /** Where the platform's name reads in a sentence. */

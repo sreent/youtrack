@@ -186,7 +186,7 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
     let ref: string | null;
     if (where.workspace.platform === 'teams') {
       if (!where.workspace.serviceUrl) throw new ChatCallError('The team has no service URL', 'removed');
-      ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(issue, job.event));
+      ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, job.event));
     } else {
       ref = await slackPost(app, where.workspace, where.channel.externalId, issue, job.event);
     }

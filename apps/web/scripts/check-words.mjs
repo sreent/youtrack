@@ -93,6 +93,11 @@ const VERBATIM = new Set(['code', 'pre', 'kbd', 'samp', 'var', 'script', 'style'
 const UI_PROPS = new Set(['text', 'label', 'title', 'help', 'hint', 'placeholder', 'message', 'description', 'heading', 'confirm', 'empty', 'emptyText', 'legend', 'tooltip', 'caption', 'note', 'okLabel', 'cancelLabel', 'busyLabel', 'about', 'word', 'words', 'group', 'why', 'did', 'verb', 'sub', 'long', 'short']);
 // What the server sends people: emails, push and chat messages say every word through a translator.
 const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/cards|helpdesk\/mails)\.ts$/;
+// What the chat bot says to people, beside the API's problems (which stay English) in the same files:
+// a reply's or a note's text, and an answer to a card's action.
+const CHAT_SAYS = /packages\/server\/src\/chat\/(service|teams|slack)\.ts$/;
+const CHAT_PROPS = new Set(['text', 'note']);
+const CHAT_CALLS = new Set(['message']);
 const UI_CALLS = new Set(['setSaid', 'onSaid', 'setError', 'setStatus', 'setMessage', 'setNote', 'setProgress', 'setWarning', 'toast', 'alert', 'confirm']);
 const letters = (s) => /[A-Za-zÀ-ÿ]/.test(s);
 const looksLikeCode = (s) => {
@@ -123,6 +128,21 @@ function checkFile(file, { web }) {
       }
     }
     if (!web) {
+      if (CHAT_SAYS.test(rel.replace(/\\/g, '/'))) {
+        const literal = ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) ? node.text : ts.isTemplateExpression(node) ? [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join(' ') : null;
+        if (literal !== null && wordsLike(literal) && !allowed(node)) {
+          let n = node;
+          let p = n.parent;
+          while (p && (ts.isConditionalExpression(p) || ts.isParenthesizedExpression(p) || (ts.isBinaryExpression(p) && ['??', '||'].includes(p.operatorToken.getText(sf))))) {
+            if (ts.isConditionalExpression(p) && p.condition === n) break;
+            n = p;
+            p = p.parent;
+          }
+          const inProp = p && ts.isPropertyAssignment(p) && p.initializer === n && CHAT_PROPS.has(p.name.getText(sf));
+          const inCall = p && ts.isCallExpression(p) && p.arguments.includes(n) && ts.isIdentifier(p.expression) && CHAT_CALLS.has(p.expression.text);
+          if (inProp || inCall) say(at(node), `words the chat bot says: '${literal.slice(0, 60)}'`);
+        }
+      }
       if (SENDS_PEOPLE.test(rel.replace(/\\/g, '/')) && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && wordsLike(node.text) && !KEY.test(node.text) && !allowed(node) && !ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent) && !(ts.isBinaryExpression(node.parent) && /^(===|!==)$/.test(node.parent.operatorToken.getText(sf))) && !ts.isCaseClause(node.parent)) {
         say(at(node), `words sent to people: '${node.text.slice(0, 60)}'`);
       }

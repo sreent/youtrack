@@ -14,7 +14,6 @@ import { actorName, eventDetail, eventVerb } from '../notify/words';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { issueUrl } from './common';
 import type { Translator } from '@a4a/shared/i18n';
-import { translatorFor } from '../i18n';
 
 /** An issue as a card shows it. */
 export interface CardIssue {
@@ -23,6 +22,8 @@ export interface CardIssue {
   url: string;
   project: string;
   state: string | null;
+  /** The name of the field that holds its state, as people named it: the label of "Move to…". */
+  stateField: string;
   resolved: boolean;
   /** The key fields that have a value: Type, Priority, Assignee, and the like. */
   facts: { title: string; value: string }[];
@@ -72,14 +73,16 @@ export function cardIssue(app: AppServices, s: SchemaSnapshot, issue: IssueDetai
     url: issueUrl(app, issue.id),
     project: issue.project.name,
     state: state ? fieldText(state) : null,
+    // not words: the field's name, as a4a's own fields are named
+    stateField: state?.name ?? 'State',
     resolved: issue.resolvedAt !== null,
     facts,
     states: states.slice(0, 50),
   };
 }
 
-/** What an event did, in the words the inbox uses: never a requester's address. */
-export function cardChange(event: TrackerEvent, tr: Translator = translatorFor(null)): CardChange {
+/** What an event did, in the words the inbox uses, in the reader's language: never a requester's address. */
+export function cardChange(event: TrackerEvent, tr: Translator): CardChange {
   return {
     who: actorName(tr, event),
     did: eventVerb(tr, event),
@@ -172,6 +175,20 @@ export function bindTemplate(node: Json, scope: unknown, root: unknown = scope):
 /** How a card tells a state's meaning: resolved is good; the rest says nothing in colour. */
 const stateStyle = (issue: CardIssue) => (issue.resolved ? 'Good' : 'Subtle'); // not words: Adaptive Card styles
 
+/** What a card says of its own, in its reader's language: Ocean's templates hold no words (D49). */
+function cardWords(tr: Translator) {
+  return {
+    refresh: tr.t('server.chat.refresh'),
+    assignToMe: tr.t('server.chat.assignToMe'),
+    moveTo: tr.t('server.chat.moveTo'),
+    move: tr.t('server.chat.move'),
+    comment: tr.t('server.chat.comment'),
+    commentLabel: tr.t('server.chat.commentLabel'),
+    commentNeeded: tr.t('server.chat.commentNeeded'),
+    openInA4a: tr.t('server.chat.openInA4a'),
+  };
+}
+
 export interface IssueCardOptions {
   /** Who it's for, alone, when it's one person's (Teams' user id): Teams refreshes it for them. */
   refreshFor?: string | null;
@@ -181,10 +198,11 @@ export interface IssueCardOptions {
   canAct?: boolean;
 }
 
-/** The issue card (a4a-issue.json), as one person sees the issue. */
-export function teamsIssueCard(issue: CardIssue, opts: IssueCardOptions = {}): Json {
+/** The issue card (a4a-issue.json), as one person sees the issue, in their language. */
+export function teamsIssueCard(issue: CardIssue, tr: Translator, opts: IssueCardOptions = {}): Json {
   const data = {
     ...issue,
+    words: cardWords(tr),
     stateStyle: stateStyle(issue),
     refreshFor: opts.refreshFor ?? null,
     note: opts.note?.text ?? null,
@@ -198,11 +216,12 @@ export function teamsIssueCard(issue: CardIssue, opts: IssueCardOptions = {}): J
   return bindTemplate(issueTemplate as unknown as Json, data) as Json;
 }
 
-/** The change card (a4a-change.json), as a channel is posted it. */
-export function teamsChangeCard(issue: CardIssue, change: CardChange): Json {
+/** The change card (a4a-change.json), as a channel is posted it, in the channel's language. */
+export function teamsChangeCard(issue: CardIssue, change: CardChange, tr: Translator): Json {
   const data = {
     ...issue,
     ...change,
+    words: cardWords(tr),
     stateStyle: stateStyle(issue),
     // not words: Adaptive Card icons and styles
     changeIcon: change.kind === 'created' ? 'AddCircle' : change.kind === 'commented' ? 'Comment' : 'Edit',
@@ -226,10 +245,11 @@ export const slackText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '
 
 type Block = Record<string, unknown>;
 
-/** An issue as blocks, with what changed above it when it's a channel's news. */
-export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actions?: boolean; note?: string; tr?: Translator } = {}): Block[] {
-  // A channel's card is in the server's language; a reply to a person, in theirs (D49).
-  const tr = opts.tr ?? translatorFor(null);
+/**
+ * An issue as blocks, with what changed above it when it's a channel's news. In its reader's language:
+ * a channel's in the server's, a reply to a person in theirs (D49).
+ */
+export function slackBlocks(issue: CardIssue, tr: Translator, opts: { change?: CardChange; actions?: boolean; note?: string } = {}): Block[] {
   const blocks: Block[] = [];
   if (opts.change) {
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `*${slackText(opts.change.who)}* ${slackText(opts.change.did)}` }] });
@@ -238,8 +258,7 @@ export function slackBlocks(issue: CardIssue, opts: { change?: CardChange; actio
     }
   }
   const head = `<${issue.url}|*${slackText(issue.id)}*> ${slackText(issue.summary)}`;
-  // not words: the field's name, as people named it
-  const facts = [...(issue.state ? [{ title: 'State', value: issue.state }] : []), ...issue.facts].slice(0, 10);
+  const facts = [...(issue.state ? [{ title: issue.stateField, value: issue.state }] : []), ...issue.facts].slice(0, 10);
   blocks.push({
     type: 'section',
     text: { type: 'mrkdwn', text: `${head}\n_${slackText(issue.project)}_` },
