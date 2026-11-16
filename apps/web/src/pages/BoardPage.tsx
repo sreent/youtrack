@@ -66,8 +66,9 @@ export default function BoardPage() {
       refocus.current = null;
       return;
     }
+    // Focus still in the dialog that just closed is about to fall to the page: it's lost too.
     const active = document.activeElement;
-    if (active && active !== document.body) return;
+    if (active && active !== document.body && !active.closest('dialog:not([open])')) return;
     document.querySelector<HTMLElement>(`li[data-issue="${r.id}"] button.issue-id`)?.focus();
   }, [ask, v]);
 
