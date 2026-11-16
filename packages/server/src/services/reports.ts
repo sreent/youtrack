@@ -5,7 +5,6 @@
  * that should change.
  */
 import {
-  formatPeriod,
   parsePeriod,
   WELL_KNOWN_FIELDS,
   type Burndown,
@@ -389,14 +388,20 @@ export async function findSprint(ctx: Ctx, input: { sprint?: string; board?: str
   return { sprint, board };
 }
 
-function amount(n: number, by: 'estimate' | 'count'): string {
-  if (by === 'count') return `${Math.round(n)} ${Math.round(n) === 1 ? 'issue' : 'issues'}`;
-  return n > 0 ? formatPeriod(n) : 'nothing';
+/** Hours, as a burndown counts work: "68h", "4.5h". */
+function hoursWords(minutes: number): string {
+  const h = Math.round((minutes / 60) * 10) / 10;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
 }
 
-/** "1.5 issues", "3h 20m": a pace, which a count may make a fraction of. */
+function amount(n: number, by: 'estimate' | 'count'): string {
+  if (by === 'count') return `${Math.round(n)} ${Math.round(n) === 1 ? 'issue' : 'issues'}`;
+  return n > 0 ? hoursWords(n) : 'nothing';
+}
+
+/** "1.5 issues", "3.5h": a pace, which a count may make a fraction of. */
 function paceWords(n: number, by: 'estimate' | 'count'): string {
-  if (by === 'estimate') return formatPeriod(n);
+  if (by === 'estimate') return hoursWords(n);
   const r = Math.round(n * 10) / 10;
   return `${r} ${r === 1 ? 'issue' : 'issues'}`;
 }
@@ -536,13 +541,14 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
       const needed = Math.ceil(res.remaining / pace);
       forecastEnd = addWorkingDays(cal, today, Math.max(0, needed - (days.some((d) => d.date === today) ? 1 : 0)));
     }
-    const lead = `${amount(res.remaining, by)} left, where the ideal for today is ${amount(idealNow, by)}`;
+    // Measured against the ideal as today began, so a morning isn't behind for not yet doing the day's work.
+    const lead = `${amount(res.remaining, by)} left, where the ideal had ${amount(idealNow, by)} left as today began`;
     if (res.remaining > idealNow + tolerance) {
       verdict = 'behind';
       if (forecastEnd) {
         const late = forecastEnd > sprint.endDate;
         words = `Behind: ${lead}. At the pace so far, ${paceWords(pace, by)} a day, the rest would be done by ${todayStr(forecastEnd)}${late ? ', after the sprint ends' : ''}.`;
-      } else words = `Behind: ${lead}, and nothing has been resolved yet. ${toGo}`;
+      } else words = `Behind: ${lead}, and ${by === 'estimate' ? 'no estimated work' : 'nothing'} has been resolved yet. ${toGo}`;
     } else if (res.remaining < idealNow - tolerance) {
       verdict = 'ahead';
       words = `Ahead: ${lead}. ${toGo}`;

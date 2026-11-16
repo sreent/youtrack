@@ -18,9 +18,11 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Work',
     items: [
+      { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
       { to: '/issues', label: 'Issues', icon: 'tasks' },
       { to: '/boards', label: 'Boards', icon: 'board' },
       { to: '/plan', label: 'Plan', icon: 'timeline' },
+      { to: '/reports', label: 'Reports', icon: 'report' },
       { to: '/assistant', label: 'Assistant', icon: 'agent' },
     ],
   },
@@ -30,6 +32,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/projects', label: 'Projects', icon: 'book' },
       { to: '/fields', label: 'Fields', icon: 'settings', admin: true },
+      { to: '/import', label: 'Import', icon: 'import', admin: true },
     ],
   },
   {
@@ -55,6 +58,7 @@ function useLiveInvalidation() {
       qc.invalidateQueries({ queryKey: ['boards'] });
       qc.invalidateQueries({ queryKey: ['events'] });
       qc.invalidateQueries({ queryKey: ['plan'] });
+      qc.invalidateQueries({ queryKey: ['reports'] });
       for (const id of touched) qc.invalidateQueries({ queryKey: keys.issue(id) });
       touched.clear();
     };

@@ -313,14 +313,18 @@ function mapValue(c: Context, m: StoredMapping, target: string, value: string): 
   return suggestOption(f.name, value, allowedValues(c.s, f.id, c.project.id).map((v) => v.name));
 }
 
-function emptyMeaning(c: Context, target: string): string {
-  if (target === 'reporter') return 'Nobody here: the reporter is left empty';
-  if (target === 'sprint') return 'In no sprint';
+/** What leaving a value unmapped means: as a choice in a list, and in a sentence. */
+function emptyMeaning(c: Context, target: string): { choice: string; sentence: string } {
+  if (target === 'reporter') return { choice: 'Nobody: the reporter is left empty', sentence: 'the reporter is left empty' };
+  if (target === 'sprint') return { choice: 'In no sprint', sentence: 'it goes in no sprint' };
   const f = fieldOf(c, target)!;
-  if (f.type === 'user') return 'Unassigned';
+  if (f.type === 'user') return { choice: 'Unassigned', sentence: `${f.name} is left empty` };
   const pf = (c.s.projectFields.get(c.project.id) ?? []).find((x) => x.fieldId === f.id);
-  if (pf?.defaultValue !== null && pf?.defaultValue !== undefined) return `The project's default, ${Array.isArray(pf.defaultValue) ? pf.defaultValue.join(', ') : String(pf.defaultValue)}`;
-  return 'Left empty';
+  if (pf?.defaultValue !== null && pf?.defaultValue !== undefined) {
+    const value = Array.isArray(pf.defaultValue) ? pf.defaultValue.join(', ') : String(pf.defaultValue);
+    return { choice: `The project's default, ${value}`, sentence: `it takes the project's default, ${value}` };
+  }
+  return { choice: 'Left empty', sentence: `${f.name} is left empty` };
 }
 
 function choicesFor(c: Context, target: string): { value: string; label: string }[] {
@@ -359,7 +363,7 @@ async function dto(ctx: Ctx, row: ImportRowRecord, project: ProjectRow, c?: Cont
         items: items.map(([value, count]) => ({ value, count, ...mapValue(cx, m, target, value) })),
         more,
         choices: choicesFor(cx, target),
-        empty: emptyMeaning(cx, target),
+        empty: emptyMeaning(cx, target).choice,
       });
     }
   }
@@ -689,7 +693,7 @@ function mappingWarnings(c: Context, m: StoredMapping): string[] {
       .slice(0, 5)
       .map(([v]) => `"${v}"`)
       .join(', ');
-    out.push(`${names}${unmapped.length > 5 ? ` and ${unmapped.length - 5} more` : ''} (${rows} ${rows === 1 ? 'row' : 'rows'}) ${unmapped.length === 1 ? 'has' : 'have'} no ${kind.label} here: ${emptyMeaning(c, target).toLowerCase()}.`);
+    out.push(`${names}${unmapped.length > 5 ? ` and ${unmapped.length - 5} more` : ''} (${rows} ${rows === 1 ? 'row' : 'rows'}) ${unmapped.length === 1 ? 'has' : 'have'} no ${kind.label} here, so ${emptyMeaning(c, target).sentence}.`);
   }
   return out;
 }

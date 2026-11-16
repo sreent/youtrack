@@ -40,6 +40,8 @@ const A4A: Record<string, string[]> = {
   command: ['M5 7l5 5-5 5', 'M12 17h7'],
   key: ['M8.5 11.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M11.4 12.6L19 5', 'M16 8l2 2', 'M14 10l1.5 1.5'],
   person: ['M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M5.5 20a6.5 6.5 0 0 1 13 0'],
+  dashboard: ['M4.5 4.5h6.5v8H4.5z', 'M13 4.5h6.5v4.5H13z', 'M13 11.5h6.5v8H13z', 'M4.5 15h6.5v4.5H4.5z'],
+  import: ['M12 4v10', 'M7.5 9.5L12 14l4.5-4.5', 'M4.5 15v4.5h15V15'],
 };
 
 const PATHS: Record<string, string[]> = { ...OCEAN, ...A4A };

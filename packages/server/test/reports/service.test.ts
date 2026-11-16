@@ -143,7 +143,7 @@ describe('a sprint\'s burndown', () => {
       ['BACK-1', 'reopened'],
     ]);
     expect(b.status.verdict).toBe('behind');
-    expect(b.status.words).toMatch(/^Behind: 2d 4h left, where the ideal for today is/);
+    expect(b.status.words).toMatch(/^Behind: 20h left, where the ideal had \d+(\.\d)?h left as today began/);
     expect(b.workingDaysLeft).toBe(3);
   });
 

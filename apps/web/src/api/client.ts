@@ -110,7 +110,7 @@ export function subscribeEvents(onEvent: (event: { type: string; issue: { id: st
     source.addEventListener('ready', () => {
       retry = 1000;
     });
-    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created'];
+    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'sprint.issue_added', 'sprint.issue_removed'];
     for (const t of types) source.addEventListener(t, (e) => onEvent(JSON.parse((e as MessageEvent).data)));
     source.onerror = () => {
       source?.close();

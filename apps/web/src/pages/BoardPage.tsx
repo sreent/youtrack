@@ -100,17 +100,24 @@ export default function BoardPage() {
         crumbs={crumbs}
         about={`${kind} for ${projects || 'no project'}, in columns by ${v.board.columnField}${v.board.swimlaneField ? ` and lanes by ${v.board.swimlaneField}` : ''}.`}
         actions={
-          v.sprints.length > 1 ? (
-            <SprintPicker
-              sprints={v.sprints}
-              current={v.sprint?.id ?? null}
-              onPick={(sprint) => setParams((p) => {
-                const next = new URLSearchParams(p);
-                next.set('sprint', sprint);
-                return next;
-              })}
-            />
-          ) : null
+          <>
+            {v.sprints.length > 1 ? (
+              <SprintPicker
+                sprints={v.sprints}
+                current={v.sprint?.id ?? null}
+                onPick={(sprint) => setParams((p) => {
+                  const next = new URLSearchParams(p);
+                  next.set('sprint', sprint);
+                  return next;
+                })}
+              />
+            ) : null}
+            {v.sprint?.startDate && v.sprint.endDate ? (
+              <Link className="button" to={`/reports/burndown?board=${v.board.id}&sprint=${v.sprint.id}`}>
+                {v.sprint.name}'s burndown
+              </Link>
+            ) : null}
+          </>
         }
       />
       {/* Not a card: the board is the page's own surface, as Ocean's preview draws it. */}
