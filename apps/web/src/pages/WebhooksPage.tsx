@@ -39,6 +39,9 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'commit.linked': 'a commit mentions an issue',
   'pull_request.linked': 'a pull request mentions an issue',
   'pull_request.updated': 'a pull request is merged or closed',
+  'project.group.added': 'a group is given a role in a project',
+  'project.group.changed': 'a group’s role in a project changes',
+  'project.group.removed': 'a group is taken out of a project',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

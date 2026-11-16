@@ -30,6 +30,8 @@ import { importRoutes } from './routes/imports';
 import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
 import { workflowRoutes } from './routes/workflow';
+import { groupRoutes } from './routes/groups';
+import { samlRoutes } from './routes/saml';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -78,6 +80,8 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
+  groupRoutes(api);
+  samlRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -111,7 +115,8 @@ export function createHttpApp(runtime: Runtime) {
   root.onError((err, c) => toErrorResponse(c, err));
   root.use('*', securityHeaders());
   root.use('*', authenticate(runtime));
-  root.use('/api/*', csrfGuard(runtime.config.publicUrl));
+  // The SAML assertion consumer takes the provider's post: signed, answering a request of this browser's (D27).
+  root.use('/api/*', csrfGuard(runtime.config.publicUrl, ['/api/v1/auth/saml/acs']));
   root.use('/api/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
   root.use('/mcp', rateLimit(new RateLimiter(runtime.config.mcpRateLimit, 60_000), runtime.config.trustProxy));
   // What anyone may post without signing in is small: a help desk request, a reply, an unsubscribe.

@@ -71,6 +71,9 @@ export const EVENT_TYPES = [
   'commit.linked',
   'pull_request.linked',
   'pull_request.updated',
+  'project.group.added',
+  'project.group.changed',
+  'project.group.removed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

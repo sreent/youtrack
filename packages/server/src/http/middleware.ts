@@ -61,13 +61,16 @@ const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /**
  * Cookie-authenticated writes must come from our own pages. Bearer-token requests
- * carry no ambient credentials, so they are not subject to CSRF.
+ * carry no ambient credentials, so they are not subject to CSRF. `exempt` paths take
+ * posts from other sites by design and check what they're sent themselves: the SAML
+ * assertion consumer, which a same-site identity provider reaches with the session cookie.
  */
-export function csrfGuard(publicUrl: string): MiddlewareHandler<HttpEnv> {
+export function csrfGuard(publicUrl: string, exempt: string[] = []): MiddlewareHandler<HttpEnv> {
   const allowed = new Set([new URL(publicUrl).host]);
+  const open = new Set(exempt);
   return async (c, next) => {
     const ctx = c.get('ctx');
-    if (UNSAFE.has(c.req.method) && ctx?.actor.authMethod === 'session') {
+    if (UNSAFE.has(c.req.method) && ctx?.actor.authMethod === 'session' && !open.has(c.req.path)) {
       const origin = c.req.header('origin') ?? c.req.header('referer');
       const host = c.req.header('host');
       let ok = false;

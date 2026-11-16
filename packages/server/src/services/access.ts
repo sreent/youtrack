@@ -7,8 +7,9 @@
  * - Roles in a project, least first: viewer (reads and comments), member (also changes issues),
  *   manager (also changes the project's settings, people, boards and baselines).
  * - Someone's role in a project: manager, if they're an administrator or its lead; otherwise the
- *   role the project gives them among its people; otherwise member, if the project is open. So
- *   an open project can still keep someone to reading, by naming them a viewer.
+ *   highest of the role the project gives them among its people and the roles it gives groups
+ *   they're in (D27); otherwise member, if the project is open. So an open project can still keep
+ *   someone to reading, by naming them (or a group of theirs) a viewer.
  * - Scopes cap it. Reading needs "read"; commenting, changing issues and managing need "write"
  *   (an administrator also manages with "admin"). So a read-only account or token never writes,
  *   whatever its role in a project. Commenting counts as writing.
@@ -24,7 +25,7 @@ import { PROJECT_ROLES, type ProjectAccess, type ProjectRole, type Scope, type T
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, projectMembers, projects, users } from '../db/schema';
+import { activities, groupMembers, groups, projectGroupRoles, projectMembers, projects, users } from '../db/schema';
 import { forbidden, notFound } from '../lib/errors';
 import { projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 
@@ -37,6 +38,8 @@ interface Grant {
   role: ProjectRole;
   via: ProjectAccess['via'];
   key: string;
+  /** With `via: group`, the group's name. */
+  group?: string;
 }
 
 export function isProjectRole(role: string | null | undefined): role is ProjectRole {
@@ -97,6 +100,7 @@ export class AccessView {
     return {
       role: g.role,
       via: g.via,
+      group: g.group ?? null,
       read: true,
       comment: this.canComment(projectId),
       write: this.canWrite(projectId),
@@ -119,24 +123,47 @@ interface ProjectAccessRow {
   key: string;
   visibility: string;
   leadId: string | null;
+  /** The role the project gives the person among its people. */
   role: string | null;
+  /** The highest role it gives a group they're in, and that group's name (the first by name, on a tie). */
+  groupRole?: string | null;
+  groupName?: string | null;
 }
 
 function grantFor(admin: boolean, userId: string, r: ProjectAccessRow): Grant | null {
   if (admin) return { role: 'manager', via: 'admin', key: r.key };
   if (r.leadId === userId) return { role: 'manager', via: 'lead', key: r.key };
-  if (isProjectRole(r.role)) return { role: r.role, via: 'member', key: r.key };
+  const own = isProjectRole(r.role) ? r.role : null;
+  const viaGroup = isProjectRole(r.groupRole) ? r.groupRole : null;
+  // The highest of their own and their groups'; their own, when they're the same.
+  if (viaGroup && (!own || RANK[viaGroup] > RANK[own])) return { role: viaGroup, via: 'group', key: r.key, group: r.groupName ?? undefined };
+  if (own) return { role: own, via: 'member', key: r.key };
   if (r.visibility !== 'members') return { role: 'member', via: 'open', key: r.key };
   return null;
 }
 
+/** Roles as numbers, in SQL, so the highest can be chosen there. */
+const RANK_SQL = (role: SQL | string) => sql`CASE ${role} WHEN 'manager' THEN 3 WHEN 'member' THEN 2 WHEN 'viewer' THEN 1 ELSE 0 END`;
+
 async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds'>): Promise<AccessView> {
   const admin = actor.user.role === 'admin' || actor.scopes.includes('admin');
   const limit = actor.projectIds ? new Set(actor.projectIds) : null;
-  const rows = await db
-    .select({ id: projects.id, key: projects.key, visibility: projects.visibility, leadId: projects.leadId, role: projectMembers.role })
-    .from(projects)
-    .leftJoin(projectMembers, and(eq(projectMembers.projectId, projects.id), eq(projectMembers.userId, actor.user.id)));
+  // One query: each project, the person's own role in it, and the best role a group of theirs has there.
+  const res = await db.execute(sql`
+    SELECT p.id, p.key, p.visibility, p.lead_id AS "leadId", pm.role AS role, g.role AS "groupRole", g.name AS "groupName"
+    FROM ${projects} p
+    LEFT JOIN ${projectMembers} pm ON pm.project_id = p.id AND pm.user_id = ${actor.user.id}
+    LEFT JOIN LATERAL (
+      SELECT pgr.role, gr.name
+      FROM ${projectGroupRoles} pgr
+      JOIN ${groupMembers} gm ON gm.group_id = pgr.group_id AND gm.user_id = ${actor.user.id}
+      JOIN ${groups} gr ON gr.id = pgr.group_id
+      WHERE pgr.project_id = p.id
+      ORDER BY ${RANK_SQL(sql`pgr.role`)} DESC, lower(gr.name)
+      LIMIT 1
+    ) g ON TRUE
+  `);
+  const rows = (res as unknown as { rows: ProjectAccessRow[] }).rows;
   const grants = new Map<string, Grant>();
   for (const r of rows) {
     if (limit && !limit.has(r.id)) continue;
@@ -371,9 +398,21 @@ export async function projectRolesOf(db: Db, projectId: string, userIds: string[
     .from(projectMembers)
     .where(and(eq(projectMembers.projectId, projectId), inArray(projectMembers.userId, unique)));
   const byUser = new Map(roles.map((r) => [r.userId, r.role]));
+  // The roles groups have here, for whichever of these people are in them (D27).
+  const viaGroups = await db
+    .select({ userId: groupMembers.userId, role: projectGroupRoles.role })
+    .from(projectGroupRoles)
+    .innerJoin(groupMembers, eq(groupMembers.groupId, projectGroupRoles.groupId))
+    .where(and(eq(projectGroupRoles.projectId, projectId), inArray(groupMembers.userId, unique)));
+  const bestByGroup = new Map<string, ProjectRole>();
+  for (const r of viaGroups) {
+    if (!isProjectRole(r.role)) continue;
+    const had = bestByGroup.get(r.userId);
+    if (!had || RANK[r.role] > RANK[had]) bestByGroup.set(r.userId, r.role);
+  }
   for (const u of people) {
     if (u.banned) continue;
-    const g = grantFor(u.role === 'admin', u.id, { ...p, role: byUser.get(u.id) ?? null });
+    const g = grantFor(u.role === 'admin', u.id, { ...p, role: byUser.get(u.id) ?? null, groupRole: bestByGroup.get(u.id) ?? null });
     if (g) out.set(u.id, g.role);
   }
   return out;

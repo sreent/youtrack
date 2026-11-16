@@ -1226,3 +1226,76 @@ export const helpThrottle = pgTable(
   },
   (t) => [index('help_throttle_ends').on(t.windowEnds)],
 );
+
+// ---------------------------------------------------------------------------
+// Groups, and SAML sign-in (package 1: docs/architecture.md, D27)
+// ---------------------------------------------------------------------------
+
+/**
+ * A group of people, which a project can give a role as it gives one to a person. One with a
+ * `provider_name` comes from the identity provider: who is in it is set at each sign-in, from the
+ * groups the provider says the person is in, and never by hand. One without is kept by hand.
+ */
+export const groups = pgTable(
+  'groups',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    /** Its name at the identity provider (an OIDC claim's or a SAML attribute's value), when it comes from there. */
+    providerName: text('provider_name'),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('groups_name_lower').on(sql`lower(${t.name})`), uniqueIndex('groups_provider_name_lower').on(sql`lower(${t.providerName})`)],
+);
+
+/** Who is in a group. `added_by_id` is null for someone the identity provider put there. */
+export const groupMembers = pgTable(
+  'group_members',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('group_members_user').on(t.userId)],
+);
+
+/** A group's role in a project (viewer, member, manager): everyone in it has at least that role there. services/access.ts reads it. */
+export const projectGroupRoles = pgTable(
+  'project_group_roles',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.groupId] }), index('project_group_roles_group').on(t.groupId)],
+);
+
+/**
+ * What SAML sign-in must remember between requests, shared by every instance: each AuthnRequest's
+ * id until its response comes back (taken once), and each assertion's id until it would expire, so
+ * no response is accepted twice. Keys are hashed.
+ */
+export const samlCache = pgTable(
+  'saml_cache',
+  {
+    key: text('key').primaryKey(),
+    value: text('value').notNull(),
+    createdAt: created(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [index('saml_cache_expires').on(t.expiresAt)],
+);

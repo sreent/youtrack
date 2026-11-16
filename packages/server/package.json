@@ -21,8 +21,10 @@
     "@hono/node-server": "^2.1.8",
     "@hono/zod-openapi": "^1.6.3",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@node-saml/node-saml": "^5.2.0",
     "@scalar/api-reference": "^1.78.1",
     "@scalar/hono-api-reference": "^0.12.20",
+    "@xmldom/xmldom": "^0.8.15",
     "busboy": "^1.6.0",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
@@ -32,6 +34,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@peculiar/x509": "^3.1.0",
     "@types/busboy": "^1.5.5",
     "@types/node": "^22.19.0",
     "@types/pg": "^8.15.6",
@@ -41,6 +44,7 @@
     "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "5.9.3",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "xml-crypto": "^6.4.0"
   }
 }
