@@ -6,12 +6,14 @@
 import { backgroundFactories, choreFactories } from '../server';
 import { pollsDone, startPoll } from './imap';
 import { pruneInbound } from './inbound';
+import { prunePortal } from '../services/portal';
 import { slaTick } from '../services/sla';
 
 choreFactories.push((runtime) => [
   { name: 'helpdesk-inbound-prune', everyMs: 24 * 3_600_000, run: () => pruneInbound(runtime.db) },
   // What time alone brings to SLA targets (D45): at risk, past due. A minute at most late.
   { name: 'helpdesk-sla', everyMs: 60_000, run: async () => void (await slaTick(runtime)) },
+  { name: 'helpdesk-portal-prune', everyMs: 6 * 3_600_000, run: () => prunePortal(runtime.db) },
   ...(runtime.config.helpdeskImapUrl ? [{ name: 'helpdesk-imap', everyMs: runtime.config.helpdeskImapPollMs, run: async () => startPoll(runtime) }] : []),
 ]);
 

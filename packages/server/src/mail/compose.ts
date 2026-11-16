@@ -25,6 +25,8 @@ export interface MailContent {
 
 export interface RenderedMail {
   to: string;
+  /** Who it's from, when not a4a's own address: a desk's address and name (D45). */
+  from?: string;
   subject: string;
   text: string;
   html: string;

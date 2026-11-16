@@ -22,7 +22,7 @@ import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
 import { helpdeskRoutes } from './routes/helpdesk';
 import { helpdeskMailRoutes } from './routes/helpdesk-mail';
-import { helpdeskDepthRoutes } from './routes/helpdesk-depth';
+import { helpdeskDepthRoutes, portalRoutes } from './routes/helpdesk-depth';
 import { issueRoutes } from './routes/issues';
 import { notificationRoutes } from './routes/notifications';
 import { planningRoutes } from './routes/planning';
@@ -91,6 +91,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskRoutes(api);
   helpdeskMailRoutes(api);
   helpdeskDepthRoutes(api);
+  portalRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
   oauthRoutes(api);

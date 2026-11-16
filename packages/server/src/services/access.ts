@@ -809,3 +809,24 @@ export async function managersOf(db: Db, projectId: string): Promise<string[]> {
   const grants = await projectGrantsOf(db, projectId, candidates);
   return [...grants].filter(([id, g]) => g.permissions.has('manage') && (g.via !== 'admin' || id === p?.leadId || named.some((n) => n.userId === id))).map(([id]) => id);
 }
+
+// ---------------------------------------------------------------------------
+// Requesters on the portal (D45)
+// ---------------------------------------------------------------------------
+
+/** An email's domain, in lower case: what a desk's organizations are named by. */
+export function emailDomain(email: string): string {
+  return email.trim().toLowerCase().split('@').pop() ?? '';
+}
+
+/**
+ * Whether a requester signed in to the portal sees a request: one they made, or a colleague's at a
+ * desk that shares requests within their organization (an email domain the desk names). Nothing
+ * else of a project, ever: a requester is never a member.
+ */
+export function requesterSees(project: ProjectRow, viewer: { id: string; email: string }, owner: { id: string; email: string }): boolean {
+  if (viewer.id === owner.id) return true;
+  const domain = emailDomain(viewer.email);
+  const settings = (project.settings ?? {}) as { helpdesk?: { organizations?: string[] } };
+  return Boolean(domain) && domain === emailDomain(owner.email) && (settings.helpdesk?.organizations ?? []).includes(domain);
+}
