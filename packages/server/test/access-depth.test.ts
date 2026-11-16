@@ -28,7 +28,7 @@ import { createIssue, deleteIssue, findIssue, getIssue, setIssueVisibility, upda
 import { linkIssues } from '../src/services/links';
 import { addMember, removeMember, updateMember } from '../src/services/members';
 import { listNotifications } from '../src/services/notifications';
-import { createProject, listProjects } from '../src/services/projects';
+import { createProject, listProjects, updateProject } from '../src/services/projects';
 import { createRole, deleteRole, listRoles, updateRole } from '../src/services/roles';
 import { insertUser } from '../src/services/users';
 import { listWatchers } from '../src/services/watchers';
@@ -347,3 +347,80 @@ describe('over HTTP', () => {
     expect(roles.status).toBe(200);
   });
 });
+
+describe('guests, who read a project open to anyone without signing in', () => {
+  let app: ReturnType<typeof createHttpApp>;
+  const anon = async (method: string, path: string, body?: unknown) => {
+    const res = await app.request(`/api/v1${path}`, {
+      method,
+      headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    return { status: res.status, body: (await res.json().catch(() => null)) as Record<string, unknown> | null };
+  };
+
+  beforeAll(() => {
+    w.app.config.guestRateLimit = 40;
+    app = createHttpApp(w.app);
+  });
+
+  it('are refused everything while no project is open to them', async () => {
+    expect((await anon('GET', '/guest')).body).toEqual({ projects: [] });
+    expect((await anon('GET', '/projects')).status).toBe(401);
+  });
+
+  it('are let in only by an administrator, and only to an open project', async () => {
+    expect((await failure(() => updateProject(chloe, 'BACK', { guestAccess: true }))).status).toBe(403);
+    expect((await failure(() => updateProject(admin, 'OPS', { guestAccess: true }))).status).toBe(400);
+    const web = await updateProject(admin, 'WEB', { guestAccess: true });
+    expect(web.guestAccess).toBe(true);
+    expect((await anon('GET', '/guest')).body).toEqual({ projects: [{ id: web.id, key: 'WEB', name: 'Web app' }] });
+  });
+
+  it('read that project, its issues and comments, and nothing limited or elsewhere', async () => {
+    const open = await createIssue(anna, { project: 'WEB', summary: 'Public roadmap page' });
+    await addComment(anna, open.id, 'Shipping next week');
+    const limited = await createIssue(anna, { project: 'WEB', summary: 'Pricing experiment', visibleTo: { users: [], groups: [] } });
+    const projects = (await anon('GET', '/projects')).body as unknown as { key: string; access: { via: string; permissions: string[] } }[];
+    expect(projects.map((p) => p.key)).toEqual(['WEB']);
+    expect(projects[0]!.access).toMatchObject({ via: 'guest', permissions: ['read'] });
+    expect((await anon('GET', `/issues/${open.id}`)).body?.summary).toBe('Public roadmap page');
+    expect(((await anon('GET', `/issues/${open.id}/comments`)).body as unknown as unknown[]).length).toBe(1);
+    const list = (await anon('GET', `/issues?query=${encodeURIComponent('project: WEB')}`)).body as { items: { id: string }[] };
+    expect(list.items.map((i) => i.id)).toContain(open.id);
+    expect(list.items.map((i) => i.id)).not.toContain(limited.id);
+    // An issue in a project not open to guests, or one limited away from everyone but a few, is missing.
+    const words = (r: { body: Record<string, unknown> | null }, id: string) => JSON.stringify(r.body).replace(new RegExp(`\\b${id}\\b`, 'g'), 'X');
+    const missing = await anon('GET', '/issues/WEB-999');
+    expect(words(await anon('GET', '/issues/BACK-1'), 'BACK-1')).toBe(words(missing, 'WEB-999'));
+    expect(words(await anon('GET', `/issues/${limited.id}`), limited.id)).toBe(words(missing, 'WEB-999'));
+  });
+
+  it('write nothing, and reach no people, events, tokens or MCP', async () => {
+    const open = (await searchIssues(admin, 'project: WEB')).items[0]!;
+    for (const [method, path, body] of [
+      ['POST', '/issues', { project: 'WEB', summary: 'Spam' }],
+      ['POST', `/issues/${open.id}/comments`, { text: 'Spam' }],
+      ['PATCH', `/issues/${open.id}`, { summary: 'Spam' }],
+      ['GET', '/users', undefined],
+      ['GET', '/me', undefined],
+      ['GET', '/events', undefined],
+      ['GET', '/notifications', undefined],
+      ['GET', `/issues/${open.id}/watchers`, undefined],
+      ['GET', `/issues/${open.id}/work-items`, undefined],
+    ] as const) {
+      expect([method, path, (await anon(method, path, body)).status]).toEqual([method, path, 401]);
+    }
+    const mcp = await app.request('/mcp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    expect(mcp.status).toBe(401);
+  });
+
+  it('are limited per address, apart from people who sign in', async () => {
+    const statuses: number[] = [];
+    for (let i = 0; i < 45; i++) statuses.push((await anon('GET', '/projects')).status);
+    expect(statuses).toContain(429);
+    const token = (await issueTokenFor(w.app.db, w.ben.id, { name: 'ben-after-guests', scopes: ['read'] })).token;
+    expect((await app.request('/api/v1/projects', { headers: { authorization: `Bearer ${token}` } })).status).toBe(200);
+  });
+});
+

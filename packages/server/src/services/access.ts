@@ -241,7 +241,10 @@ async function groupIdsOf(db: Db, userId: string): Promise<string[]> {
 async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' | 'guest'>): Promise<AccessView> {
   // A guest reads the projects open to guests, and nothing else (D37).
   if (actor.guest) {
-    const open = await db.select({ id: projects.id, key: projects.key }).from(projects).where(eq(projects.guestAccess, true));
+    const open = await db
+      .select({ id: projects.id, key: projects.key })
+      .from(projects)
+      .where(and(eq(projects.guestAccess, true), eq(projects.visibility, 'open')));
     const grants = new Map<string, Grant>(open.map((p) => [p.id, { role: GUEST.id, roleName: GUEST.name, permissions: GUEST.permissions, via: 'guest', key: p.key }]));
     return new AccessView(false, actor.scopes, grants, false, actor.user.id, [], true);
   }

@@ -12,6 +12,7 @@ import { newId } from '../lib/ids';
 import { ACCESS_PREFIX, mcpChallenge } from '../oauth/common';
 import { actorFromOAuthToken } from '../oauth/tokens';
 import { actorFromSession, actorFromToken, SESSION_COOKIE } from '../services/auth';
+import { guestCtx, guestMayRequest } from '../services/guests';
 import type { HttpEnv } from './env';
 
 export function errorBody(code: string, message: string, hint?: string, details?: unknown) {
@@ -61,6 +62,10 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
         const actor = await actorFromSession(runtime.db, session);
         if (actor) ctx = { app: runtime, db: runtime.db, actor };
       }
+    }
+    // Not signed in, and reading: a guest, while some project is open to guests (D37).
+    if (!ctx && !header && c.req.path.startsWith('/api/v1/') && guestMayRequest(c.req.method, c.req.path.slice('/api/v1'.length))) {
+      ctx = await guestCtx(runtime);
     }
     c.set('ctx', ctx);
     await next();
@@ -133,11 +138,13 @@ export class RateLimiter {
   }
 }
 
-export function rateLimit(limiter: RateLimiter, trustedProxies = 0): MiddlewareHandler<HttpEnv> {
+export function rateLimit(limiter: RateLimiter, trustedProxies = 0, guests?: RateLimiter): MiddlewareHandler<HttpEnv> {
   return async (c, next) => {
     const ctx = c.get('ctx');
-    const key = ctx ? (ctx.actor.tokenId ?? ctx.actor.user.id) : `ip:${clientIp(c, trustedProxies)}`;
-    const wait = limiter.hit(key);
+    // A guest is nobody in particular (D37): each address has an allowance of its own, a smaller one.
+    const guest = Boolean(ctx?.actor.guest);
+    const key = ctx && !guest ? (ctx.actor.tokenId ?? ctx.actor.user.id) : `ip:${clientIp(c, trustedProxies)}`;
+    const wait = guest && guests ? guests.hit(key) : limiter.hit(key);
     if (wait) {
       c.header('retry-after', String(wait));
       return c.json(errorBody('rate_limited', 'Too many requests', `Retry in ${wait}s`), 429);

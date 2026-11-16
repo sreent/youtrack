@@ -36,7 +36,8 @@ export async function commentDto(ctx: Ctx, row: CommentRow, issueReadable?: stri
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     visibility: row.visibility as CommentVisibility,
-    requester: requesterName !== null ? { name: requesterName } : null,
+    // A help desk's requester is someone outside: a guest (D37) isn't told who.
+    requester: requesterName !== null ? { name: ctx.actor.guest ? 'The requester' : requesterName } : null,
     visibleTo: visibleTo ?? null,
   };
 }

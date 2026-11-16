@@ -178,6 +178,7 @@ export async function updateProject(
     lead?: string | null;
     archived?: boolean;
     visibility?: ProjectVisibility;
+    guestAccess?: boolean;
     settings?: { triageMode?: TriageMode; plan?: Partial<PlanSettings>; helpdesk?: Partial<HelpdeskSettings> };
   },
 ): Promise<Project> {
@@ -199,6 +200,14 @@ export async function updateProject(
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
+  // Opening a project to guests (D37) is an administrator's call, and only an open project can be:
+  // one its people alone see isn't for anyone who passes. Closing it to its people closes it to guests.
+  let guestAccess = input.guestAccess !== undefined && input.guestAccess !== p.guestAccess ? input.guestAccess : undefined;
+  if (guestAccess !== undefined) requireScope(ctx, 'admin');
+  if (guestAccess && (visibility ?? projectVisibility(p)) !== 'open') {
+    throw badRequest(`Only an open project can be open to guests, and ${p.key} is for its members only`, 'Make it open first, then let guests read it.');
+  }
+  if (visibility === 'members' && p.guestAccess) guestAccess = false;
   const activities: ActivityRow[] = [];
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -210,23 +219,24 @@ export async function updateProject(
         ...(leadId !== undefined ? { leadId } : {}),
         ...(input.archived !== undefined ? { archived: input.archived } : {}),
         ...(visibility ? { visibility } : {}),
+        ...(guestAccess !== undefined ? { guestAccess } : {}),
         settings,
         updatedAt: new Date(),
       })
       .where(eq(projects.id, p.id));
-    if (visibility) {
+    if (visibility || guestAccess !== undefined) {
       activities.push(
         await recordActivity(tx, ctx, {
           type: 'project.visibility.changed',
           projectId: p.id,
           issueId: null,
-          payload: { data: { from: projectVisibility(p), to: visibility } },
+          payload: { data: { from: projectVisibility(p), to: visibility ?? projectVisibility(p), ...(guestAccess !== undefined ? { guests: guestAccess } : {}) } },
         }),
       );
     }
   });
   ctx.app.schema.invalidate();
-  if (visibility || leadId !== undefined) accessChanged(ctx.app);
+  if (visibility || leadId !== undefined || guestAccess !== undefined) accessChanged(ctx.app);
   await publishActivities(ctx.app, activities);
   return getProject(ctx, key);
 }

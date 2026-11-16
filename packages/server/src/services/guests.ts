@@ -1,0 +1,71 @@
+import type { GuestInfo } from '@a4a/shared';
+import type { Runtime } from '../app-services';
+import type { Ctx, UserRow } from '../context';
+
+/**
+ * Guests (D37): someone not signed in, reading a project its administrators opened to anyone. A
+ * guest has the read permission there and nowhere else, and no scope but read, so nothing they do
+ * writes. They reach only the reading routes below; people's details stay with the users routes,
+ * which they don't reach. Their requests are limited per address (GUEST_RATE_LIMIT).
+ */
+
+/** Who a guest is, as far as the code that wants a person goes: nobody in particular. */
+const GUEST_USER = {
+  id: 'guest',
+  login: 'guest',
+  name: 'Guest',
+  email: null,
+  role: 'viewer',
+  banned: false,
+  isBot: false,
+  avatarColor: '#8a8f98',
+  timeZone: null,
+} as unknown as UserRow;
+
+/** The API paths (under /api/v1) a guest may read. */
+const READABLE = [
+  /^\/projects$/,
+  /^\/projects\/[^/]+$/,
+  /^\/projects\/[^/]+\/(fields|articles)$/,
+  /^\/issues$/,
+  /^\/issues\/[^/]+$/,
+  /^\/issues\/[^/]+\/(activity|articles|attachments|comments|links)$/,
+  /^\/search\/(count|parse|suggest)$/,
+  /^\/articles$/,
+  /^\/articles\/[^/]+$/,
+  /^\/articles\/[^/]+\/attachments$/,
+  /^\/attachments\/[^/]+$/,
+  /^\/attachments\/[^/]+\/(content|text)$/,
+  /^\/fields$/,
+  /^\/tags$/,
+  /^\/link-types$/,
+];
+
+/** Whether a guest may make this request: reading one of the paths above (a count or a parse is a read, sent as a post). */
+export function guestMayRequest(method: string, apiPath: string): boolean {
+  const reading = method === 'GET' || method === 'HEAD' || (method === 'POST' && /^\/search\/(count|parse)$/.test(apiPath));
+  return reading && READABLE.some((r) => r.test(apiPath));
+}
+
+/** The projects anyone may read, signed in or not. */
+export async function guestProjects(app: Ctx['app']): Promise<{ id: string; key: string; name: string }[]> {
+  const s = await app.schema.get();
+  return [...s.projects.values()]
+    .filter((p) => p.guestAccess && p.visibility === 'open')
+    .map((p) => ({ id: p.id, key: p.key, name: p.name }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+export async function guestInfo(app: Ctx['app']): Promise<GuestInfo> {
+  return { projects: await guestProjects(app) };
+}
+
+/** A request's context as a guest, when some project is open to guests; null otherwise. */
+export async function guestCtx(runtime: Runtime): Promise<Ctx | null> {
+  if (!(await guestProjects(runtime)).length) return null;
+  return {
+    app: runtime,
+    db: runtime.db,
+    actor: { user: GUEST_USER, scopes: ['read'], channel: 'web', tokenId: null, tokenName: null, authMethod: 'session', guest: true },
+  };
+}

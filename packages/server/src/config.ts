@@ -96,6 +96,8 @@ export interface Config {
   /** Requests per minute per token, user or address, on each instance. */
   apiRateLimit: number;
   mcpRateLimit: number;
+  /** Requests per minute per address from guests, who aren't signed in (GUEST_RATE_LIMIT, D37). */
+  guestRateLimit: number;
   /** The largest file one upload may carry (ATTACHMENT_MAX_MB, default 20). */
   attachmentMaxBytes: number;
   /** All the files on one issue, its comments' included, or on one article (ATTACHMENTS_PER_ISSUE_MB, default 100). */
@@ -358,6 +360,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     trustProxy: intEnv(env.TRUST_PROXY, 0),
     apiRateLimit: intEnv(env.API_RATE_LIMIT, 1200, 1),
     mcpRateLimit: intEnv(env.MCP_RATE_LIMIT, 600, 1),
+    guestRateLimit: intEnv(env.GUEST_RATE_LIMIT, 300, 1),
     attachmentMaxBytes: megabytes(env.ATTACHMENT_MAX_MB, 20),
     attachmentsPerIssueMaxBytes: megabytes(env.ATTACHMENTS_PER_ISSUE_MB, 100),
     attachmentStorage,

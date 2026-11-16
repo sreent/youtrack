@@ -1,6 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { CreateRoleBody, RoleDefSchema, UpdateRoleBody } from '@a4a/shared';
+import { CreateRoleBody, GuestInfoSchema, RoleDefSchema, UpdateRoleBody } from '@a4a/shared';
 import { z } from 'zod';
+import { guestInfo } from '../../services/guests';
 import { createRole, deleteRole, getRole, listRoles, updateRole } from '../../services/roles';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -58,5 +59,23 @@ export function roleRoutes(app: OpenAPIHono<HttpEnv>) {
       await deleteRole(ctx, params.id);
       return null;
     },
+  );
+}
+
+/** What's open to guests, for anyone to ask before signing in (D37). */
+export function guestRoutes(app: OpenAPIHono<HttpEnv>) {
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/guest',
+      tags: ['Projects'],
+      summary: 'The projects anyone may read without signing in',
+      description:
+        "Administrators open an open project to guests (`guestAccess` on PATCH /projects/{key}). A guest, sending no credentials, may then read its issues, comments, files and articles through the reading routes, and nothing else: no people's details, no events stream, no MCP, no writes.",
+      auth: 'none',
+      response: GuestInfoSchema,
+    },
+    ({ c }) => guestInfo(c.get('runtime')),
   );
 }
