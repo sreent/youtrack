@@ -89,14 +89,15 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 
 **Conventions**
 
-- **Errors:** `{ "error": { "code", "message", "hint?", "details?" } }`.
+- **Errors:** `{ "error": { "code", "message", "hint?", "details?", "key?", "values?" } }`. `message` and `hint` are English, for programs and agents; `key` and `values`, where a problem has them, say the same problem for a page in another language: `problem.<key>` in the catalogs (D49).
+- **Language:** the API and MCP speak English. A page says its language in `x-a4a-locale`, which the server uses for the inbox's titles it answers and the problems' keys; emails and push are in each recipient's language (their profile's, else `DEFAULT_LOCALE`).
 - **Lists:** paginated as `?offset=&limit=` → `{ total, items }`.
 - **IDs:** readable issue IDs are accepted everywhere.
 - **Custom fields:** set by name, as `{"fields": {"Priority": "Critical", "Assignee": "anna"}}`.
 
 | Area | Endpoints | What it enables |
 |---|---|---|
-| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, LDAP, single sign-on). Your `timeZone` (an IANA name, or null for the server's, `serverTimeZone`) is where your dates are read: "today" in your searches and commands, your digest's hour, your email's times. `POST /auth/login` takes a4a's own password, then an LDAP directory's (D38) |
+| Auth and setup | `POST /auth/login`, `POST /auth/logout`, `GET/POST /auth/setup`, `GET/PATCH /me` | First-run admin setup, sessions, profile. `GET /auth/setup` says how people sign in here (password, LDAP, single sign-on). Your `timeZone` (an IANA name, or null for the server's, `serverTimeZone`) is where your dates are read: "today" in your searches and commands, your digest's hour, your email's times. Your `locale` (`en`, `de`, or null for your browser's) is the language a4a writes to you in; `defaultLocale` is the server's, for whoever chose none (D49). `POST /auth/login` takes a4a's own password, then an LDAP directory's (D38) |
 | Two-factor sign-in | `POST /auth/two-factor/verify`, `POST /auth/two-factor/setup`, `POST /auth/two-factor/setup/confirm`; `GET /me/two-factor`, `POST /me/two-factor/setup`, `/confirm`, `/recovery-codes`, `/disable`; `DELETE /users/{id}/two-factor` | When it's on, `POST /auth/login` answers `{ "step": "two_factor" }` (or `two_factor_setup`, where everyone is asked) and a ten-minute cookie, and the code finishes the sign-in. From the profile: a new secret and its QR code (a `data:` image), turning it on with a code (the recovery codes are answered once), new recovery codes, turning it off; a signed-in browser only, never a token. An administrator resets someone's (D38) |
 | Provisioning | `GET/POST /scim/tokens`, `DELETE /scim/tokens/{id}` | Administrators' SCIM tokens for an identity provider; the secret and the tenant URL are answered once. SCIM itself is at `/scim/v2`, outside `/api/v1`: below |
 | Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
