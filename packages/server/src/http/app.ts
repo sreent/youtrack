@@ -70,7 +70,7 @@ export function createHttpApp(runtime: Runtime) {
   const api = new OpenAPIHono<HttpEnv>({
     defaultHook: (result, c) => {
       if (!result.success) {
-        return c.json(errorBody('validation_failed', `Invalid request: ${summarizeIssues(result.error.issues)}`, undefined, result.error.issues), 400);
+        return c.json(errorBody('validation_failed', `Invalid request: ${summarizeIssues(result.error.issues)}`, undefined, result.error.issues, { key: 'validationFailed' }), 400);
       }
     },
   });
