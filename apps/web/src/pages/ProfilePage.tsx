@@ -7,6 +7,7 @@ import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
 import { errorText, FormField, Said } from '../features/common/bits';
+import { DaysAway } from '../features/away/DaysAway';
 import { EmailSettings } from '../features/notifications/EmailSettings';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
@@ -174,6 +175,14 @@ export default function ProfilePage() {
       <section className="card" aria-labelledby="notifications">
         <h2 id="notifications">Notifications</h2>
         <EmailSettings />
+      </section>
+      <section className="card" aria-labelledby="away">
+        <div className="section-head">
+          <h2 id="away">Days away</h2>
+          <span className="note">Plans skip them for your work</span>
+        </div>
+        <p className="section-note">Everyone sees when you're away; why, only you, administrators and whoever enters it.</p>
+        <DaysAway person={{ login: m.login, name: m.name }} you canEnter={m.auth.scopes.includes('write') && !m.isBot} />
       </section>
       <section className="card" aria-labelledby="password">
         <h2 id="password">{passwords ? 'Password' : 'Signing in'}</h2>
