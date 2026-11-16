@@ -4,7 +4,7 @@ a4a speaks to each person in their own language (D49 in [architecture.md](archit
 
 ## What is translated, and what isn't
 
-Translated: every word the web app says (pages, buttons, labels, empty states, problems, the tour's pages, the names screen readers read), and what a4a sends people: emails, the inbox's titles, push notifications, and the buttons on chat cards.
+Translated: every word the web app says (pages, buttons, labels, empty states, problems, the tour's pages, the names screen readers read), and what a4a sends people: emails, the inbox's titles, push notifications, and chat: the bot's replies and its cards' words. The bot's commands (`help`, `new`, `search`, `subscribe`) are the same in every language, as the command language's are.
 
 Not translated:
 

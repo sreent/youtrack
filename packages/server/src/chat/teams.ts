@@ -10,13 +10,15 @@
 import { createPublicKey, verify as verifySignature, type JsonWebKey } from 'node:crypto';
 import type { TrackerEvent } from '@a4a/shared';
 import { and, eq } from 'drizzle-orm';
-import type { AppServices } from '../context';
+import { matchLocale, type Translator } from '@a4a/shared/i18n';
+import type { AppServices, UserRow } from '../context';
+import { problemFor, translatorFor } from '../i18n';
 import { chatWorkspaces } from '../db/schema';
 import { AppError, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { addComment } from '../services/comments';
 import { cardAttachment, cardChange, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
-import { callable, ChatCallError, chatCtx, retryAfterMs, type Answer } from './common';
+import { callable, channelTr, ChatCallError, chatCtx, personTr, retryAfterMs, type Answer } from './common';
 import {
   channelByExternal,
   commandOutcome,
@@ -25,6 +27,7 @@ import {
   markChannelGone,
   markWorkspaceRemoved,
   personFor,
+  platformName,
   runChatCommand,
   upsertChannel,
   upsertWorkspace,
@@ -45,6 +48,8 @@ export interface TeamsActivity {
   channelId?: string;
   serviceUrl?: string;
   text?: string;
+  /** The language of the sender's Teams ("de-DE"): a4a's words for someone it doesn't know yet (D49). */
+  locale?: string;
   value?: { action?: { type?: string; verb?: string; data?: Record<string, unknown> }; trigger?: string };
   from?: { id?: string; name?: string; aadObjectId?: string };
   recipient?: { id?: string; name?: string };
@@ -229,20 +234,25 @@ async function teamChannels(app: AppServices, serviceUrl: string, teamId: string
   return list.filter((c): c is { id: string; name?: string } => typeof c.id === 'string').map((c) => ({ id: c.id, name: c.name || 'General' }));
 }
 
-/** A message to someone: words, and the issues as cards for them alone. */
+/** A message to someone: words, and the issues as cards for them alone, in the answer's language. */
 function answerActivity(answer: Answer, refreshFor?: string): Record<string, unknown> {
+  const tr = translatorFor(answer.locale);
   return {
     text: answer.text,
     textFormat: 'plain',
-    ...(answer.issues?.length ? { attachments: answer.issues.map((i) => cardAttachment(teamsIssueCard(i, { refreshFor }))) } : {}),
+    ...(answer.issues?.length ? { attachments: answer.issues.map((i) => cardAttachment(teamsIssueCard(i, tr, { refreshFor }))) } : {}),
   };
 }
 
-/** A channel's news: the change card, from its template in Ocean. */
-export function teamsChannelPost(issue: CardIssue, event: TrackerEvent): Record<string, unknown> {
-  const change = cardChange(event);
-  return { summary: `${change.who} ${change.did}: ${issue.id}`, attachments: [cardAttachment(teamsChangeCard(issue, change))] };
+/** A channel's news: the change card, from its template in Ocean, in the channel's language (D49). */
+export function teamsChannelPost(app: AppServices, issue: CardIssue, event: TrackerEvent): Record<string, unknown> {
+  const tr = channelTr(app);
+  const change = cardChange(event, tr);
+  return { summary: `${change.who} ${change.did}: ${issue.id}`, attachments: [cardAttachment(teamsChangeCard(issue, change, tr))] };
 }
+
+/** Whom a4a doesn't know yet: the language their Teams says, else the server's (D49). */
+const senderTr = (app: AppServices, a: TeamsActivity): Translator => translatorFor(matchLocale(a.locale ?? null, app.config.defaultLocale));
 
 // ---------------------------------------------------------------------------
 // What Teams sends
@@ -325,16 +335,18 @@ async function channelOf(app: AppServices, a: TeamsActivity) {
   return known ?? upsertChannel(app.db, ws.id, channelId, a.channelData?.channel?.name ?? 'A channel');
 }
 
-/** Send someone a sign-in link where only they read it: their personal chat with the bot. */
-async function sendLink(app: AppServices, a: TeamsActivity, who: ChatPerson, again: boolean): Promise<void> {
+/**
+ * Send someone a sign-in link where only they read it: their personal chat with the bot. In the
+ * language of whom it's linked to, or else of their Teams.
+ */
+async function sendLink(app: AppServices, a: TeamsActivity, who: ChatPerson, linked: UserRow | null): Promise<void> {
+  const tr = linked ? personTr(app, linked) : senderTr(app, a);
   const tenant = tenantOf(a)!;
   const personal = a.conversation?.conversationType === 'personal' ? a.conversation.id! : await personalChat(app, a.serviceUrl!, tenant, a.from!.id!);
   const url = await linkUrl(app, who, { serviceUrl: a.serviceUrl!, conversationId: personal });
-  const words = again
-    ? `To link this Teams account to another a4a account, open this link, sign in as them, and confirm. It works once, for 15 minutes: ${url}`
-    : `I don't know who you are in a4a yet. Open this link, sign in to a4a, and confirm, and I'll act as you. It works once, for 15 minutes: ${url}`;
-  await teamsSend(app, a.serviceUrl!, personal, { text: words, textFormat: 'plain' });
-  if (personal !== a.conversation?.id) await teamsSend(app, a.serviceUrl!, a.conversation!.id!, { text: 'I’ve answered you in our personal chat.', textFormat: 'plain', replyToId: a.id });
+  const text = tr.t(linked ? 'server.chat.linkAgain' : 'server.chat.linkFirst', { platform: platformName('teams'), url });
+  await teamsSend(app, a.serviceUrl!, personal, { text, textFormat: 'plain' });
+  if (personal !== a.conversation?.id) await teamsSend(app, a.serviceUrl!, a.conversation!.id!, { text: tr.t('server.chat.answeredPrivately'), textFormat: 'plain', replyToId: a.id });
 }
 
 async function onMessage(app: AppServices, a: TeamsActivity): Promise<void> {
@@ -342,7 +354,7 @@ async function onMessage(app: AppServices, a: TeamsActivity): Promise<void> {
   if (!who || !a.serviceUrl || !a.conversation?.id || !a.from?.id) return;
   const text = plainText(a.text);
   const user = await personFor(app, who);
-  if (!user || /^link$/i.test(text)) return sendLink(app, a, who, Boolean(user));
+  if (!user || /^link$/i.test(text)) return sendLink(app, a, who, user);
   const channel = await channelOf(app, a);
   const answer = await runChatCommand(app, 'teams', user, text, { channelId: channel?.id ?? null });
   const inChannel = a.conversation.conversationType !== 'personal';
@@ -350,7 +362,7 @@ async function onMessage(app: AppServices, a: TeamsActivity): Promise<void> {
     // Only they may see what they asked for: in their personal chat, and a word in the channel.
     const personal = await personalChat(app, a.serviceUrl, tenantOf(a)!, a.from.id);
     await teamsSend(app, a.serviceUrl, personal, answerActivity(answer, a.from.id));
-    await teamsSend(app, a.serviceUrl, a.conversation.id, { text: 'I’ve answered you in our personal chat.', textFormat: 'plain', replyToId: a.id });
+    await teamsSend(app, a.serviceUrl, a.conversation.id, { text: personTr(app, user).t('server.chat.answeredPrivately'), textFormat: 'plain', replyToId: a.id });
     return;
   }
   await teamsSend(app, a.serviceUrl, a.conversation.id, { ...answerActivity(answer, inChannel ? undefined : a.from.id), replyToId: a.id });
@@ -364,43 +376,46 @@ async function onAction(app: AppServices, a: TeamsActivity): Promise<Record<stri
   const verb = a.value?.action?.verb ?? '';
   const data = a.value?.action?.data ?? {};
   const issueId = typeof data.issue === 'string' ? data.issue.toUpperCase() : '';
-  if (!who || !issueId) return message('I can’t tell which issue that was for.');
+  if (!who || !issueId) return message(senderTr(app, a).t('server.chat.whichIssue'));
   const user = await personFor(app, who);
-  if (!user) return message('I don’t know who you are in a4a yet: say "link" to me in our personal chat.');
+  if (!user) return message(senderTr(app, a).t('server.chat.whoAreYou'));
   const ctx = chatCtx(app, user, 'teams');
+  // What they did, and the card after it, in their language (D49).
+  const tr = personTr(app, user);
   let note: { text: string; bad?: boolean } | null = null;
   try {
     if (verb === 'assign') {
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }));
-      note = o.bad ? o : { text: 'Assigned to you.' };
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      note = o.bad ? o : { text: tr.t('server.chat.assigned') };
     } else if (verb === 'state') {
       const state = typeof data.state === 'string' ? data.state.trim() : '';
-      if (!state) note = { text: 'Choose a state first.', bad: true };
+      if (!state) note = { text: tr.t('server.chat.chooseState'), bad: true };
       else {
         const current = await issueForCard(ctx, issueId);
         const field = (await app.schema.get()).fields;
         const stateField = [...field.values()].find((f) => f.type === 'state' && current.states.includes(state));
-        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }));
-        note = o.bad ? o : { text: `Moved to ${state}.` };
+        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }), tr);
+        note = o.bad ? o : { text: tr.t('server.chat.moved', { state }) };
       }
     } else if (verb === 'comment') {
       const text = typeof data.comment === 'string' ? data.comment.trim() : '';
-      if (!text) note = { text: 'Say something to comment.', bad: true };
+      if (!text) note = { text: tr.t('server.chat.commentNeeded'), bad: true };
       else {
         await addComment(ctx, issueId, text.slice(0, 50_000));
-        note = { text: 'Commented.' };
+        note = { text: tr.t('server.chat.commented') };
       }
     }
   } catch (e) {
-    if (e instanceof AppError && e.status === 404) return message(e.message);
-    note = { text: e instanceof AppError ? (e.hint ? `${e.message}. ${e.hint}` : e.message) : 'That didn’t work.', bad: true };
+    // Missing, or hidden from them, in the same words: the problem alone.
+    if (e instanceof AppError && e.status === 404) return message(problemFor(tr, { message: e.message, words: e.words }));
+    note = { text: e instanceof AppError ? problemFor(tr, e) : tr.t('server.chat.didntWork'), bad: true };
   }
   try {
     const issue = await issueForCard(ctx, issueId);
-    return { statusCode: 200, type: 'application/vnd.microsoft.card.adaptive', value: teamsIssueCard(issue, { refreshFor: a.from?.id ?? null, note }) };
+    return { statusCode: 200, type: 'application/vnd.microsoft.card.adaptive', value: teamsIssueCard(issue, tr, { refreshFor: a.from?.id ?? null, note }) };
   } catch (e) {
     // Gone from them since (deleted, or limited away): missing, in the same words.
-    return message(e instanceof AppError ? e.message : 'That issue isn’t there.');
+    return message(e instanceof AppError ? problemFor(tr, { message: e.message, words: e.words }) : tr.t('server.chat.issueGone'));
   }
 }
 
@@ -439,8 +454,8 @@ export async function handleTeamsActivity(app: AppServices, a: TeamsActivity): P
   }
 }
 
-/** Tell someone their Teams account is linked, in the personal chat the link was sent to. */
-export async function teamsLinked(app: AppServices, reply: { serviceUrl?: string; conversationId?: string } | null, name: string): Promise<void> {
+/** Tell someone their Teams account is linked, in the personal chat the link was sent to, in their language. */
+export async function teamsLinked(app: AppServices, reply: { serviceUrl?: string; conversationId?: string } | null, user: Pick<UserRow, 'name' | 'locale'>): Promise<void> {
   if (!reply?.serviceUrl || !reply.conversationId || !app.config.teams) return;
-  await teamsSend(app, reply.serviceUrl, reply.conversationId, { text: `You're linked: I act as ${name} in a4a now. Say help for what I understand.`, textFormat: 'plain' });
+  await teamsSend(app, reply.serviceUrl, reply.conversationId, { text: personTr(app, user).t('server.chat.linkedTeams', { name: user.name }), textFormat: 'plain' });
 }

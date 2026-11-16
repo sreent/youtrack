@@ -125,8 +125,8 @@ export function chatRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params }) =>
       acceptChatLink(ctx, params.token, async (row, user) => {
-        if (row.platform === 'teams') await teamsLinked(ctx.app, row.reply, user.name);
-        else await slackLinked(ctx.app, row.externalUserId, user.name);
+        if (row.platform === 'teams') await teamsLinked(ctx.app, row.reply, user);
+        else await slackLinked(ctx.app, row.externalUserId, user);
       }),
   );
 
