@@ -2,7 +2,7 @@ import type { SimilarIssue } from '@a4a/shared';
 import { sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { prefixTsQuery } from '../search/compiler';
-import { projectAccess } from '../services/access';
+import { issueSeenSql, projectAccess } from '../services/access';
 import { findVisibleIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
 import { projectByKey } from '../services/schema-cache';
@@ -42,6 +42,9 @@ export async function findSimilar(ctx: Ctx, q: SimilarQuery): Promise<SimilarIss
   if (project) conds.push(sql`i.project_id = ${project.id}`);
   if (exclude) conds.push(sql`i.id <> ${exclude.id}`);
   if (scope) conds.push(scope.length ? sql`i.project_id IN (${sql.join(scope.map((v) => sql`${v}`), sql`, `)})` : sql`FALSE`);
+  // Nor one limited away from the caller (D37): a duplicate they can't open is no duplicate to them.
+  const seen = issueSeenSql(view, s, 'i');
+  if (seen) conds.push(seen);
   const rank = tsq ? sql`ts_rank(i.search_vector, to_tsquery('english', ${tsq}))` : sql`0`;
   const res = await ctx.db.execute(sql`
     SELECT i.id, i.project_id,

@@ -8,7 +8,7 @@ import { isISODate } from '../lib/dates';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { todayIn } from '../reports/tz';
-import { assertCanWriteProject, projectAccess } from './access';
+import { assertCanProject, projectAccess } from './access';
 import { issueRefsById, readableId } from './issue-refs';
 import { findVisibleIssue, resolveIssue } from './issues';
 import { findUser } from './schema-cache';
@@ -36,6 +36,8 @@ export async function listWorkItems(ctx: Ctx, issueId: string): Promise<WorkItem
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
+  // Time logged is for roles that see time and costs (D37).
+  await assertCanProject(ctx, issue.projectId, 'costs');
   const rows = await ctx.db.select().from(workItems).where(eq(workItems.issueId, issue.id)).orderBy(asc(workItems.date));
   const rid = readableId(s, issue);
   return Promise.all(rows.map((r) => dto(ctx, r, rid)));
@@ -49,7 +51,7 @@ export async function logWork(
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
-  await assertCanWriteProject(ctx, issue.projectId);
+  await assertCanProject(ctx, issue.projectId, 'time');
   const minutes = parsePeriod(input.duration);
   if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${input.duration}"`, 'Use "1h 30m", "2d" or minutes.');
   // Work logged without a date is on the day it is where its person is (D31).
@@ -102,7 +104,7 @@ export async function deleteWorkItem(ctx: Ctx, id: string): Promise<void> {
   // Work on an issue the caller can't see is not found, exactly as work that doesn't exist.
   const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
   if (!row || !issue) throw notFound('Work item');
-  await assertCanWriteProject(ctx, issue.projectId);
+  await assertCanProject(ctx, issue.projectId, 'time');
   if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
     throw forbidden('You can only delete your own work items', 'Managers of the project can delete anyone’s.');
   }

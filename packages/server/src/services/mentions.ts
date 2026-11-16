@@ -10,7 +10,7 @@ import type { AppServices, Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments, issues, mentions } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
-import { visibleProjectIds } from './access';
+import { commentSeenSql, projectAccess, seenIssueIds, visibleProjectIds } from './access';
 import { articleRefsById } from './article-refs';
 import { findIssue } from './issues';
 import { issueRefsById, readableId } from './issue-refs';
@@ -62,9 +62,17 @@ export async function mentionsOf(ctx: Ctx, target: string, opts: { exceptArticle
     .select({ sourceType: mentions.sourceType, issueId: mentions.issueId, articleId: mentions.articleId })
     .from(mentions)
     .leftJoin(comments, and(eq(mentions.sourceType, 'comment'), eq(comments.id, mentions.sourceId)))
-    .where(and(eq(mentions.target, target.toUpperCase()), or(sql`${mentions.sourceType} <> 'comment'`, isNull(comments.deletedAt)), await visibleCondition(ctx)))
+    .where(
+      and(
+        eq(mentions.target, target.toUpperCase()),
+        // A comment that's gone, or limited away from the caller (D37), mentions nothing to them.
+        or(sql`${mentions.sourceType} <> 'comment'`, and(isNull(comments.deletedAt), commentSeenSql(await projectAccess(ctx), 'comments'))),
+        await visibleCondition(ctx),
+      ),
+    )
     .limit(500);
-  const issueIds = [...new Set(rows.map((r) => r.issueId).filter((x): x is string => Boolean(x)))];
+  const seen = await seenIssueIds(ctx, rows.map((r) => r.issueId).filter((x): x is string => Boolean(x)));
+  const issueIds = [...seen];
   const articleIds = [...new Set(rows.map((r) => r.articleId).filter((x): x is string => Boolean(x) && x !== opts.exceptArticle))];
   const [issueRefs, articleRefs] = await Promise.all([issueRefsById(ctx.db, s, issueIds), articleRefsById(ctx.db, s, articleIds)]);
   const byId = (x: { id: string }, y: { id: string }) => x.id.localeCompare(y.id, undefined, { numeric: true });

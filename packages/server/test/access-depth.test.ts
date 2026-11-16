@@ -3,7 +3,9 @@
  * everyone else, in the same words, wherever issues and comments are read; roles are sets of
  * permissions an administrator can add to; and a project can be read without signing in.
  */
+import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { findSimilar } from '../src/ai/similar';
 import type { Ctx, UserRow } from '../src/context';
 import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
@@ -11,11 +13,18 @@ import { AppError } from '../src/lib/errors';
 import { notifierConsumer } from '../src/notify/notifier';
 import { countIssues, searchIssues } from '../src/search/service';
 import { issueActivity, eventFeed } from '../src/services/activity';
+import { commentUploadTarget, getAttachment, listIssueAttachments, storeAttachment } from '../src/services/attachments';
+import { createBoard, boardView, createSprint, setSprintIssues } from '../src/services/boards';
+import { mentionsConsumer, mentionsOf } from '../src/services/mentions';
+import { getSchedule } from '../src/services/planning';
+import { createdResolvedReport, timeReport } from '../src/services/reports';
+import { logWork, listWorkItems } from '../src/services/workitems';
+import { recipientsFor } from '../src/workflow/tell';
 import { eventLimited } from '../src/services/access';
 import { issueTokenFor } from '../src/services/auth';
 import { addComment, deleteComment, listComments, setCommentVisibility, updateComment } from '../src/services/comments';
 import { addGroupMember, createGroup } from '../src/services/groups';
-import { createIssue, deleteIssue, getIssue, setIssueVisibility, updateIssue } from '../src/services/issues';
+import { createIssue, deleteIssue, findIssue, getIssue, setIssueVisibility, updateIssue } from '../src/services/issues';
 import { linkIssues } from '../src/services/links';
 import { addMember, removeMember, updateMember } from '../src/services/members';
 import { listNotifications } from '../src/services/notifications';
@@ -62,7 +71,7 @@ beforeAll(async () => {
   await addMember(admin, 'BACK', { user: 'chloe', role: 'manager' });
   await createGroup(admin, { name: 'Security' });
   await addGroupMember(admin, 'Security', 'dan');
-  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app)], {}, [], () => {});
+  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), mentionsConsumer(w.app)], {}, [], () => {});
   await outbox.drain();
 });
 
@@ -154,6 +163,72 @@ describe('an issue limited to some people and groups', () => {
     const deleted = (feed: { type: string; issue?: { id: string } | null }[]) => feed.some((e) => e.type === 'issue.deleted' && e.issue?.id === gone.id);
     expect(deleted(await eventFeed(ben, { project: 'BACK' }))).toBe(false);
     expect(deleted(await eventFeed(chloe, { project: 'BACK' }))).toBe(true);
+  });
+});
+
+describe('everything else that reads issues', () => {
+  let secretId = '';
+  let plainId = '';
+
+  beforeAll(async () => {
+    secretId = (await createIssue(anna, { project: 'BACK', summary: 'Falcon payroll export breaks', visibleTo: { users: ['erin'] } })).id;
+    plainId = (await createIssue(anna, { project: 'BACK', summary: 'Falcon payroll export is slow', description: `Maybe the same as ${secretId}` })).id;
+    await outbox.drain();
+  });
+
+  it('finds no possible duplicate, and no mention, the caller cannot open', async () => {
+    const similar = async (ctx: Ctx) => (await findSimilar(ctx, { summary: 'Falcon payroll export' })).map((x) => x.issue.id);
+    expect(await similar(ben)).not.toContain(secretId);
+    expect(await similar(erin)).toContain(secretId);
+    // Mentions of an issue are listed only from issues the caller sees; and the limited one's own
+    // mentions aren't listed for them either.
+    await createIssue(anna, { project: 'BACK', summary: 'Note', description: `See ${plainId}`, visibleTo: { users: [], groups: [] } });
+    await outbox.drain();
+    expect((await mentionsOf(ben, plainId)).issues).toEqual([]);
+    expect((await mentionsOf(anna, plainId)).issues).toHaveLength(1);
+  });
+
+  it('plans, sprints and reports count only what the caller sees', async () => {
+    const tasks = async (ctx: Ctx) => (await getSchedule(ctx, 'BACK')).tasks.map((t) => t.issue.id);
+    expect(await tasks(ben)).not.toContain(secretId);
+    expect(await tasks(chloe)).toContain(secretId);
+    const board = await createBoard(chloe, { name: 'Payroll', projects: ['BACK'], sprintsEnabled: true });
+    const sprint = await createSprint(chloe, board.id, { name: 'Sprint 1' });
+    await setSprintIssues(chloe, sprint.id, [secretId, plainId], false);
+    const counted = async (ctx: Ctx) => (await boardView(ctx, board.id, sprint.id)).sprint?.issueCount;
+    expect(await counted(ben)).toBe(1);
+    expect(await counted(chloe)).toBe(2);
+    const created = async (ctx: Ctx) => (await createdResolvedReport(ctx, { project: 'BACK' })).buckets.reduce((n, b) => n + b.created, 0);
+    expect(await created(chloe)).toBeGreaterThan(await created(ben));
+  });
+
+  it('tells a rule\'s message only to who sees the issue', async () => {
+    const s = await w.app.schema.get();
+    const row = (await findIssue(w.app.db, s, secretId))!;
+    const people = await recipientsFor(w.app.db, s, { to: ['managers'], people: ['ben', 'erin'] }, row);
+    // Its lead and its manager by role, and whoever is named who sees it: not Ben.
+    expect(people.map((u) => u.login).sort()).toEqual(['admin', 'chloe', 'erin']);
+  });
+
+  it("keeps a limited comment's files to who sees the comment", async () => {
+    const c = await addComment(anna, plainId, 'Payslips attached', { visibleTo: { users: ['erin'] } });
+    const file = await storeAttachment(anna, await commentUploadTarget(anna, c.id), { name: 'payslips.txt', stream: Readable.from([Buffer.from('salaries')]) });
+    expect((await listIssueAttachments(ben, plainId)).map((a) => a.id)).not.toContain(file.id);
+    expect((await listIssueAttachments(erin, plainId)).map((a) => a.id)).toContain(file.id);
+    const hidden = await failure(() => getAttachment(ben, file.id));
+    expect(hidden).toEqual(await failure(() => getAttachment(ben, 'no-such-file')));
+  });
+
+  it('logs time with the time permission, and shows it with the costs permission', async () => {
+    await createRole(admin, { name: 'Observer', permissions: ['read'] });
+    await createProject(admin, { key: 'HR', name: 'People', template: 'software', visibility: 'members' });
+    await addMember(admin, 'HR', { user: 'dan', role: 'Observer' });
+    const hr = await createIssue(admin, { project: 'HR', summary: 'Review the bands' });
+    await logWork(admin, hr.id, { duration: '2h' });
+    expect((await failure(() => logWork(dan, hr.id, { duration: '1h' }))).status).toBe(403);
+    expect((await failure(() => listWorkItems(dan, hr.id))).status).toBe(403);
+    expect((await timeReport(dan, { project: 'HR' })).totalMinutes).toBe(0);
+    expect((await timeReport(admin, { project: 'HR' })).totalMinutes).toBe(120);
   });
 });
 
