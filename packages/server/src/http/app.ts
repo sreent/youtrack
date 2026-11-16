@@ -20,6 +20,7 @@ import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
 import { helpdeskRoutes } from './routes/helpdesk';
+import { helpdeskMailRoutes } from './routes/helpdesk-mail';
 import { issueRoutes } from './routes/issues';
 import { notificationRoutes } from './routes/notifications';
 import { planningRoutes } from './routes/planning';
@@ -80,6 +81,7 @@ export function createHttpApp(runtime: Runtime) {
   importRoutes(api);
   notificationRoutes(api);
   helpdeskRoutes(api);
+  helpdeskMailRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
   oauthRoutes(api);

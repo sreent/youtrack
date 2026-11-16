@@ -9,6 +9,7 @@ import { activities, helpdeskRequests } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { enqueueMail, kickMail } from '../mail/outbox';
 import { mailConfigured } from '../notify/state';
+import { requestMessageId } from '../services/helpdesk';
 import { stateField } from '../services/schema-cache';
 
 export function helpdeskConsumer(app: AppServices): OutboxConsumer {
@@ -43,8 +44,9 @@ export async function mailRequester(app: AppServices, event: TrackerEvent): Prom
   const queued = await enqueueMail(app.db, app, {
     kind,
     dedupeKey: `request-event:${event.id}`,
-    payload: { issueId: row.issueId, eventId: event.id, ...payload },
-    messageId: `request-event-${event.id}`,
+    // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
+    payload: { issueId: row.issueId, eventId: event.id, replyable: true, ...payload },
+    messageId: requestMessageId(kind),
   });
   if (queued) kickMail(app);
 }

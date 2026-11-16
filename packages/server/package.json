@@ -28,6 +28,9 @@
     "busboy": "^1.6.0",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.18",
+    "html-to-text": "10.0.1",
+    "imapflow": "^2.12.1",
+    "mailparser": "^3.14.5",
     "nodemailer": "10.3.1",
     "openid-client": "^6.8.9",
     "pg": "^8.23.1",
@@ -36,6 +39,8 @@
   "devDependencies": {
     "@peculiar/x509": "^3.1.0",
     "@types/busboy": "^1.5.5",
+    "@types/html-to-text": "^9.0.4",
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^22.19.0",
     "@types/pg": "^8.15.6",
     "drizzle-kit": "^0.31.11",

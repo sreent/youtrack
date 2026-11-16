@@ -1,0 +1,17 @@
+From: Jane Doe <{{FROM}}>
+To: {{TO}}
+Subject: RE: Password reset email never arrives
+Date: Mon, 16 Nov 2026 13:00:00 +0000
+Message-ID: <{{ID}}@EXAMPLE.prod.outlook.com>
+In-Reply-To: {{IN_REPLY_TO}}
+References: {{REFERENCES}}
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+
+<html><body>
+<div style="font-family: Calibri">Here is the error text: <b>SMTP 421, try later</b>.</div>
+<div id="appendonsend"></div>
+<hr style="display:inline-block;width:98%">
+<div id="divRplyFwdMsg" dir="ltr"><font face="Calibri"><b>From:</b> Backend's help desk &lt;a4a@desk.test&gt;<br><b>Sent:</b> Monday, November 16, 2026 11:40 AM</font></div>
+<div>anna replied to your request.</div>
+</body></html>

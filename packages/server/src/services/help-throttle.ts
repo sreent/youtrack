@@ -27,13 +27,23 @@ export const HELP_THROTTLE = {
   replyIp: { limit: 10, windowMs: 10 * 60_000 },
   /** Replies, per request (by its token). */
   replyRequest: { limit: 30, windowMs: 60 * 60_000 },
+  /** A proof of work's answer is taken once (D30): its challenge, for as long as it is good. */
+  captcha: { limit: 1, windowMs: 30 * 60_000 },
+  /** New requests by email, per sender (D30). */
+  mailSender: { limit: 5, windowMs: 60 * 60_000 },
+  /** Messages by email, per help desk, from everyone. */
+  mailDesk: { limit: 300, windowMs: 60 * 60_000 },
+  /** Replies by email, per request. */
+  mailReply: { limit: 30, windowMs: 60 * 60_000 },
+  /** Posts to a desk's mail webhook without its secret, per address. */
+  mailAuth: { limit: 20, windowMs: 10 * 60_000 },
 } as const;
 
 export type HelpLimit = keyof typeof HELP_THROTTLE;
 
 /** How a value is kept as a key: addresses and ids as they are (capped), emails and tokens hashed. */
 export function throttleKey(limit: HelpLimit, value: string): string {
-  const hashed = limit === 'submitEmail' || limit === 'replyRequest';
+  const hashed = limit === 'submitEmail' || limit === 'replyRequest' || limit === 'mailSender' || limit === 'captcha';
   return `${limit}:${hashed ? sha256(value.trim().toLowerCase()) : value.trim().slice(0, 64)}`;
 }
 

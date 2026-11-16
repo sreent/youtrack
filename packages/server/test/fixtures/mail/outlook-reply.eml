@@ -1,0 +1,37 @@
+From: Jane Doe <{{FROM}}>
+To: "Backend's help desk" <{{TO}}>
+Subject: RE: Password reset email never arrives
+Date: Mon, 16 Nov 2026 12:30:00 +0000
+Message-ID: <{{ID}}@EXAMPLE.prod.outlook.com>
+In-Reply-To: {{IN_REPLY_TO}}
+References: {{REFERENCES}}
+Content-Language: en-GB
+X-MS-Has-Attach:
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="_000_outlook_"
+
+--_000_outlook_
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+Sorry, it stopped again this afternoon. Same account.
+
+Jane
+
+Sent from Mail for Windows
+
+From: Backend's help desk <a4a@desk.test>
+Sent: Monday, November 16, 2026 11:40 AM
+To: Jane Doe <jane@example.com>
+Subject: Re: Password reset email never arrives
+
+anna replied to your request.
+
+--_000_outlook_
+Content-Type: text/html; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><div>Sorry, it stopped again this afternoon. Same account.</div><div>Jane</div>=
+<div id=3D"appendonsend"></div><hr><div id=3D"divRplyFwdMsg"><b>From:</b> Backend's help desk</div><div>anna replied to your request.</div></body></html>
+
+--_000_outlook_--

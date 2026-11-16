@@ -5,12 +5,13 @@
  */
 import { and, eq, isNull } from 'drizzle-orm';
 import type { AppServices } from '../context';
-import { comments, helpdeskRequests, helpdeskTokens, issues, requesters } from '../db/schema';
+import { comments, helpdeskReplyTokens, helpdeskRequests, helpdeskTokens, issues, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
 import { sha256 } from '../lib/crypto';
-import { mintTrackingToken, trackingUrl } from '../services/helpdesk';
+import { deskAddress, mintTrackingToken, trackingUrl } from '../services/helpdesk';
 import { unsubscribeToken } from '../services/notifications';
+import { mintReplyToken, replyAddress } from './addresses';
 
 export async function renderRequestMail(app: AppServices, row: MailRow): Promise<RenderedMail | null> {
   const p = row.payload as { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean };
@@ -55,27 +56,37 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
 
   const token = await mintTrackingToken(app.db, issue.id);
   const stop = await unsubscribeToken(app, 'request', issue.id);
+  // A desk that takes mail gets answers by email too: each email's reply address carries a token
+  // of its own, minted as it's sent, as the tracking link's is (D30).
+  const deskMail = await deskAddress(app, issue.projectId);
+  const replyToken = deskMail ? await mintReplyToken(app.db, issue.id) : null;
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
     lead,
     sections: quote || head ? [{ head: head ?? 'They wrote:', quote }] : [],
     action: { label: 'See your request and reply', url: trackingUrl(app, token) },
-    why: `You get this because you asked ${desk} for help. To reply, use the link above: replies to this email don't reach anyone.`,
+    why: replyToken
+      ? `You get this because you asked ${desk} for help. To reply, answer this email, or use the link above.`
+      : `You get this because you asked ${desk} for help. To reply, use the link above: replies to this email don't reach anyone.`,
     ...(row.kind === 'request-received' ? {} : { stop: { label: 'Stop emails about this request', url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` } }),
   });
-  const thread = `<request-${issue.id}@${mailHost(app)}>`;
+  // Everything threads under the request's first message: the requester's own, when they wrote in.
+  const thread = request.threadId ?? `<request-${issue.id}@${mailHost(app)}>`;
+  const threaded = row.kind !== 'request-received' || request.via === 'email';
   return {
     to: requester.email,
-    subject,
+    subject: row.kind === 'request-received' && request.via === 'email' ? `Re: ${issue.summary}` : subject,
     text,
     html,
     headers: {
       ...AUTOMATIC,
-      ...(row.kind === 'request-received' ? {} : threadHeaders(thread)),
+      ...(threaded ? threadHeaders(thread) : {}),
+      ...(replyToken && deskMail ? { 'Reply-To': replyAddress(deskMail, replyToken) } : {}),
       ...unsubscribeHeaders(`${base}/api/v1/unsubscribe?token=${encodeURIComponent(stop)}`),
     },
     onFailed: async () => {
       await app.db.delete(helpdeskTokens).where(eq(helpdeskTokens.tokenHash, sha256(token)));
+      if (replyToken) await app.db.delete(helpdeskReplyTokens).where(eq(helpdeskReplyTokens.tokenHash, sha256(replyToken)));
     },
   };
 }

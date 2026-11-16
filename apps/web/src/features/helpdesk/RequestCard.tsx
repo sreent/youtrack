@@ -46,6 +46,7 @@ export function RequestCard({ issue }: { issue: IssueDetail }) {
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
       <SlaBadge sla={r.firstResponse} since={r.createdAt} />
       <p className="note">
+        {r.via === 'email' ? 'They wrote in by email, and may answer by email. ' : ''}
         {r.emailMuted
           ? 'They stopped emails about it. Public replies still show on their page.'
           : 'Public replies and changes of state reach them by email, and on their page. Internal notes never do.'}

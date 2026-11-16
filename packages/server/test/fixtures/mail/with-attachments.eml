@@ -1,0 +1,54 @@
+From: Lee Chen <lee@example.net>
+To: {{DESK}}
+Subject: Invoice PDF is blank
+Date: Mon, 16 Nov 2026 11:00:00 +0000
+Message-ID: <{{ID}}@example.net>
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg=sha-256; boundary="sig"
+
+--sig
+Content-Type: multipart/mixed; boundary="mixed"
+
+--mixed
+Content-Type: multipart/related; boundary="related"
+
+--related
+Content-Type: text/plain; charset="utf-8"
+
+The invoice for November opens as a blank page. The log and the invoice are attached.
+
+--related
+Content-Type: image/png; name="logo.png"
+Content-Disposition: inline; filename="logo.png"
+Content-ID: <logo@example.net>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==
+
+--related--
+
+--mixed
+Content-Type: text/plain; charset="utf-8"; name="render.log"
+Content-Disposition: attachment; filename="render.log"
+
+2026-11-16T10:59:01Z render invoice 2026-11 for account 7781
+2026-11-16T10:59:02Z warn font missing: Inter-Bold
+2026-11-16T10:59:02Z done, 1 page, 0 glyphs drawn
+
+--mixed
+Content-Type: application/pdf; name="invoice-2026-11.pdf"
+Content-Disposition: attachment; filename="invoice-2026-11.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4KZW5kb2JqCjIgMCBvYmoKPDwvVHlwZS9QYWdlcy9LaWRzWzMgMCBSXS9Db3VudCAxPj4KZW5kb2JqCjMgMCBvYmoKPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0+PgplbmRvYmoKdHJhaWxlcgo8PC9Sb290IDEgMCBSPj4KJSVFT0YK
+
+--mixed--
+
+--sig
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Disposition: attachment; filename="smime.p7s"
+Content-Transfer-Encoding: base64
+
+MIAGCSqGSIb3DQEHAqCAMIACAQExDzANBglghkgBZQMEAgEFADCABgkqhkiG9w0BBwEAAKCAMIIB
+
+--sig--

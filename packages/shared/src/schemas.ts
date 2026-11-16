@@ -254,6 +254,9 @@ export const HelpdeskSettingsSchema = z
       .nullable()
       .describe('First-response target in hours, counted round the clock from when a request is filed; null for none'),
     intro: z.string().max(2000).describe('Words above the public form, such as what to ask here'),
+    captcha: z
+      .boolean()
+      .describe("The form asks the sender's browser for a proof of work (a short computation, no puzzle and no third party) before it takes a request"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -1590,9 +1593,34 @@ export const HelpdeskRequestSchema = z
     createdAt: timestamp,
     firstResponse: SlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
+    via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
   })
   .meta({ id: 'HelpdeskRequest' });
 export type HelpdeskRequest = z.infer<typeof HelpdeskRequestSchema>;
+
+/**
+ * A help desk's proof of work (D30): find `number` from 0 to `maxnumber` whose SHA-256 of
+ * `salt + number`, as hex, is `challenge`. The server signed the challenge, so it keeps nothing
+ * until the answer comes back, and takes each answer once.
+ */
+export const CaptchaChallengeSchema = z
+  .object({
+    algorithm: z.literal('SHA-256'),
+    salt: z.string().describe('Says when it expires; part of what is hashed'),
+    challenge: z.string().describe('The SHA-256, in hex, to find'),
+    maxnumber: z.number().int().describe('The largest number it can be'),
+    signature: z.string().describe("The server's signature of the challenge; send it back as it came"),
+  })
+  .meta({ id: 'CaptchaChallenge' });
+export type CaptchaChallenge = z.infer<typeof CaptchaChallengeSchema>;
+
+export const CaptchaSolutionSchema = z.object({
+  salt: z.string().max(200),
+  challenge: z.string().max(128),
+  signature: z.string().max(200),
+  number: z.number().int().min(0),
+});
+export type CaptchaSolution = z.infer<typeof CaptchaSolutionSchema>;
 
 /** What the public form needs: whose help desk it is, its words, and a token against forged posts. */
 export const HelpFormSchema = z
@@ -1601,6 +1629,8 @@ export const HelpFormSchema = z
     intro: z.string(),
     csrf: z.string().describe('Send it back with the request'),
     mail: z.boolean().describe('Whether a confirmation email goes out; without it, the tracking link is shown once'),
+    captcha: CaptchaChallengeSchema.nullable().describe("When the desk asks for a proof of work: solve it and send it with the request as `captcha`"),
+    email: z.string().nullable().describe('The desk\'s address, when people may also write to it'),
   })
   .meta({ id: 'HelpForm' });
 export type HelpForm = z.infer<typeof HelpFormSchema>;
@@ -1612,6 +1642,7 @@ export const HelpRequestBody = z.object({
   description: z.string().max(HELP_LIMITS.description).default(''),
   website: z.string().max(500).optional().describe('Leave it empty: it is a trap for bots, hidden from people'),
   csrf: z.string().min(1).max(500),
+  captcha: CaptchaSolutionSchema.optional().describe("The form's proof of work, solved, when the desk asks for one"),
 });
 
 export const HelpRequestReceivedSchema = z
@@ -2160,3 +2191,74 @@ export const AddProjectGroupBody = z.object({
   role: z.enum(PROJECT_ROLES).default('member'),
 });
 export const UpdateProjectGroupBody = z.object({ role: z.enum(PROJECT_ROLES) });
+
+// The help desk by email (D30)
+// ---------------------------------------------------------------------------
+
+export const HELPDESK_INBOUND_OUTCOMES = ['received', 'request', 'reply', 'ignored', 'refused', 'failed'] as const;
+export type HelpdeskInboundOutcome = (typeof HELPDESK_INBOUND_OUTCOMES)[number];
+
+/** A desk's mail, as its managers set it up: its address, where a mail provider posts, and the shared mailbox. */
+export const HelpdeskMailSchema = z
+  .object({
+    address: z.string().nullable().describe("The desk's address, where people write; null until one is set"),
+    replyAddress: z
+      .string()
+      .nullable()
+      .describe('What a reply address looks like (the token differs in each email): the mail server must deliver it to the same mailbox'),
+    inbound: z
+      .object({
+        url: z.string().describe('Where a mail provider posts each message, raw, with the secret as the password of HTTP Basic authentication'),
+        secretPrefix: z.string().nullable().describe("The secret's first characters; null until one is made"),
+      })
+      .describe('Mail by webhook'),
+    imap: z
+      .object({
+        configured: z.boolean(),
+        server: z.string().nullable().describe("The shared mailbox's server and folder, when HELPDESK_IMAP_URL is set"),
+      })
+      .describe('Mail read from the shared mailbox'),
+    maxBytes: z.number().int().describe('The largest message the desk takes, attachments included'),
+  })
+  .meta({ id: 'HelpdeskMail' });
+export type HelpdeskMail = z.infer<typeof HelpdeskMailSchema>;
+
+export const HelpdeskMailBody = z.object({
+  address: z
+    .string()
+    .trim()
+    .max(254)
+    .email()
+    .nullable()
+    .describe("The desk's address, e.g. support@acme.example; null to stop taking mail"),
+});
+
+/** A new secret for a desk's mail webhook: shown once. */
+export const HelpdeskMailSecretSchema = z
+  .object({
+    secret: z.string(),
+    url: z.string().describe('The webhook address with the secret in it, as most providers take it'),
+  })
+  .meta({ id: 'HelpdeskMailSecret' });
+export type HelpdeskMailSecret = z.infer<typeof HelpdeskMailSecretSchema>;
+
+/** One message that came in for a desk, and what became of it. */
+export const HelpdeskInboundSchema = z
+  .object({
+    id: z.number().int(),
+    at: timestamp,
+    via: z.enum(['webhook', 'imap']),
+    sender: z.string(),
+    subject: z.string(),
+    outcome: z.enum(HELPDESK_INBOUND_OUTCOMES),
+    reason: z.string().describe('Why, in words: "an automatic reply", "sent from an address that isn\'t the requester\'s"'),
+    issue: z.string().nullable().describe('The request it filed or answered'),
+  })
+  .meta({ id: 'HelpdeskInbound' });
+export type HelpdeskInbound = z.infer<typeof HelpdeskInboundSchema>;
+
+/** What the inbound webhook answers a mail provider: nothing about any request or person. */
+export const HelpdeskInboundAnswerSchema = z
+  .object({ outcome: z.enum(HELPDESK_INBOUND_OUTCOMES).or(z.literal('duplicate')), reason: z.string() })
+  .meta({ id: 'HelpdeskInboundAnswer' });
+export type HelpdeskInboundAnswer = z.infer<typeof HelpdeskInboundAnswerSchema>;

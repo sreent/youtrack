@@ -1201,6 +1201,13 @@ export const helpdeskRequests = pgTable(
     firstResponseDueAt: ts('first_response_due_at'),
     /** The requester stopped emails about it (one click, from any of them); the tracking page still works. */
     emailMutedAt: ts('email_muted_at'),
+    /** How it came in: 'form' (the public page) or 'email' (to the desk's address, D30). */
+    via: text('via').notNull().default('form'),
+    /**
+     * The Message-ID the conversation threads under: the requester's own message when they wrote
+     * in, else the first email a4a sent them. Null for requests from before threading.
+     */
+    threadId: text('thread_id'),
   },
   (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId)],
 );
@@ -1451,3 +1458,83 @@ export const samlCache = pgTable(
   },
   (t) => [index('saml_cache_expires').on(t.expiresAt)],
 );
+
+// The help desk by email (D30): a desk's address, the tokens in its reply addresses, what came in,
+// and how far the shared mailbox has been read
+// ---------------------------------------------------------------------------
+
+/**
+ * A help desk's address, and the secret its mail provider sends with what it posts there. The
+ * address is public (people write to it) and belongs to one desk; the secret is kept as a SHA-256
+ * hash, shown once, like an API token.
+ */
+export const helpdeskMailboxes = pgTable(
+  'helpdesk_mailboxes',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    address: text('address').notNull(),
+    secretHash: text('secret_hash'),
+    /** The secret's first characters, so people can tell which one a provider has. */
+    secretPrefix: text('secret_prefix'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('helpdesk_mailboxes_address').on(sql`lower(${t.address})`)],
+);
+
+/**
+ * The tokens in reply addresses (support+token@…), as SHA-256 hashes. Each email to a requester
+ * mints one, as tracking tokens are minted, and every one stays good for its request.
+ */
+export const helpdeskReplyTokens = pgTable(
+  'helpdesk_reply_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [index('helpdesk_reply_tokens_issue').on(t.issueId)],
+);
+
+/**
+ * Each message that came in for a desk, once (by its Message-ID): what became of it, and why. The
+ * row is claimed before the work, so a message sent again, or read twice, changes nothing twice.
+ * Kept 30 days, for the desk's managers.
+ */
+export const helpdeskInbound = pgTable(
+  'helpdesk_inbound',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').notNull(),
+    /** 'webhook' or 'imap'. */
+    via: text('via').notNull(),
+    sender: text('sender').notNull(),
+    subject: text('subject').notNull(),
+    /** 'received' while it's worked on, then 'request', 'reply', 'ignored', 'refused' or 'failed'. */
+    outcome: text('outcome').notNull(),
+    reason: text('reason').notNull().default(''),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    commentId: text('comment_id'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('helpdesk_inbound_message').on(t.projectId, t.messageId),
+    index('helpdesk_inbound_project_created').on(t.projectId, t.createdAt),
+    index('helpdesk_inbound_created').on(t.createdAt),
+  ],
+);
+
+/** How far the shared help desk mailbox (HELPDESK_IMAP_URL) has been read: by UID, within its UIDVALIDITY. */
+export const helpdeskImapState = pgTable('helpdesk_imap_state', {
+  /** A hash of the server, user and folder, so a new mailbox starts afresh. */
+  mailbox: text('mailbox').primaryKey(),
+  uidValidity: bigint('uid_validity', { mode: 'number' }).notNull(),
+  lastUid: bigint('last_uid', { mode: 'number' }).notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
