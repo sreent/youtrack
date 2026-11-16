@@ -193,10 +193,9 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the polite past, with no subject: 「{issue}を変更しました」, 「報告しました」. A badge is a noun: 「課題の削除」.
   - A webhook's events are joined into 「{join}とき」 with 「、または」, so each is a clause in the plain past: 「課題が作成された」.
-  - A rule's sentence keeps English's order (when, if, then), so Japanese labels its parts 「トリガー：」, 「条件：」 and 「アクション：」, as Japanese automation tools do.
-- **English the code passes in a value**:
-  - Where a page passes an English word that has no place in Japanese ('its', 'is'/'are', 'rule'/'rules'), the placeholder sits in a select whose only branch is an empty `other`, `{v, select, other {}}`, and says nothing.
-  - Where the word is one of a few ('above'/'below', 'earlier'/'later', 'add'/'apply'), a select picks the Japanese word for it.
+  - A rule is one sentence, in Japanese order: its trigger and conditions are clauses, its actions are verbs in the plain form, and the rule's words in `<t0>` are the particles that join them. 「課題が作成された<t0>とき</t0>、Type: Bugに一致する<t0>場合</t0>は、Assignee annaを適用する。」
+  - The loading line is 「{el}{v}読み込み中…」, so each `loading.*` word carries its particle: 「アプリを」.
+- **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Japanese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`. A plural that English words differently for one keeps `=1` where Japanese does too: `{n, plural, =1 {課題} other {#件の課題}}`.
 - **Dates and numbers** come from Intl: 「2026年11月16日」, 「1,234.5」, 「3分前」.
 - **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
 
