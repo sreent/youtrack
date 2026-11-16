@@ -17,6 +17,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'issue.updated': 'an issue changes',
   'issue.deleted': 'an issue is deleted',
   'issue.moved': 'an issue moves to another project',
+  'sla.warning': "a help desk request's SLA target is at risk",
+  'sla.breached': "a help desk request goes past its SLA target",
   'comment.created': 'someone comments',
   'comment.updated': 'a comment is edited',
   'comment.deleted': 'a comment is deleted',

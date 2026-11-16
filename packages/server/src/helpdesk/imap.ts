@@ -18,6 +18,7 @@ import { eq, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { helpdeskImapState } from '../db/schema';
 import { sha256 } from '../lib/crypto';
+import type { ProjectRow } from '../services/schema-cache';
 import { receiveMail, refuseTooLarge } from './inbound';
 
 /** What reading needs from a mailbox: imapflow's client behind it, or a stand-in in tests. */
@@ -140,7 +141,7 @@ export async function pollMailbox(
   app: AppServices,
   client: MailboxClient,
   key: string,
-  opts: { batch?: number; stillHolder?: () => boolean } = {},
+  opts: { batch?: number; stillHolder?: () => boolean; desk?: ProjectRow } = {},
 ): Promise<PollResult> {
   const result: PollResult = { read: 0, outcomes: {} };
   const validity = await client.open();
@@ -157,7 +158,9 @@ export async function pollMailbox(
     for (const uid of (await client.uidsAfter(state.lastUid)).slice(0, opts.batch ?? POLL_BATCH)) {
       if (opts.stillHolder && !opts.stillHolder()) break;
       const size = await client.size(uid);
-      const got = size > max ? await refuseTooLarge(app, { via: 'imap' }, size) : await receiveMail(app, await client.source(uid), { via: 'imap' });
+      // A desk's own mailbox is the desk's (D45): its mail goes there, whatever address it names.
+      const inbound = { via: 'imap' as const, ...(opts.desk ? { desk: opts.desk } : {}) };
+      const got = size > max ? await refuseTooLarge(app, inbound, size) : await receiveMail(app, await client.source(uid), inbound);
       result.read++;
       result.outcomes[got.outcome] = (result.outcomes[got.outcome] ?? 0) + 1;
       await client.markSeen(uid).catch(() => {});

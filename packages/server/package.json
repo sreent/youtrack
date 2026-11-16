@@ -26,7 +26,7 @@
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@node-saml/node-saml": "^5.2.0",
     "@scalar/api-reference": "^1.78.1",
-    "@sreent/ocean": "github:sreent/ocean#e6e422c962e543bb35e0c99ee98b6df0f47330cd",
+    "@sreent/ocean": "github:sreent/ocean#966b220155861273afcb60cc169b5dafb4b99247",
     "@scalar/hono-api-reference": "^0.12.20",
     "@xmldom/xmldom": "^0.8.15",
     "busboy": "^1.6.0",

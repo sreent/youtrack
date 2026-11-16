@@ -12,7 +12,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { systemCtx } from '../src/app-services';
 import type { Ctx, UserRow } from '../src/context';
-import { helpdeskImapState, helpdeskInbound, issues, mailOutbox, notifications, users } from '../src/db/schema';
+import { helpdeskImapState, helpdeskInbound, helpdeskMailboxes, issues, mailOutbox, notifications, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { CAPTCHA_TTL_MS, captchaChallenge, checkCaptcha } from '../src/helpdesk/captcha';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
@@ -26,6 +26,7 @@ import { listIssueAttachments } from '../src/services/attachments';
 import { listComments } from '../src/services/comments';
 import { deskAddress, requestOf } from '../src/services/helpdesk';
 import { deskMail, inboundLog, newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
+import { deskMailbox, setDeskMailbox, startDeskPolls } from '../src/services/desk-mailbox';
 import { getIssue } from '../src/services/issues';
 import { updateProject } from '../src/services/projects';
 import { projectByKey, type ProjectRow } from '../src/services/schema-cache';
@@ -535,5 +536,41 @@ describe("the form's proof of work", () => {
     expect((await req('POST', '/help/BACK/requests', { ...fields, captcha })).status).toBe(201);
     expect(await req('POST', '/help/BACK/requests', { ...fields, summary: 'Again', captcha })).toMatchObject({ status: 400, body: { error: { code: 'captcha_failed' } } });
     await updateProject(w.adminCtx, 'BACK', { settings: { helpdesk: { captcha: false } } });
+  });
+});
+
+describe("a desk's own mailbox (D45)", () => {
+  it('is an administrator’s to set, kept sealed, read as the desk’s, and its mail comes from the desk', async () => {
+    const url = 'imaps://desk-user:s3cret-pass@imap.desk.test/Support';
+    await expect(setDeskMailbox(as(w.anna), 'BACK', { imapUrl: url })).rejects.toMatchObject({ status: 403 });
+    await expect(setDeskMailbox(w.adminCtx, 'BACK', { imapUrl: 'http://imap.desk.test' })).rejects.toMatchObject({ status: 400 });
+    const set = await setDeskMailbox(w.adminCtx, 'BACK', { imapUrl: url });
+    expect(set.imap).toEqual({ host: 'imap.desk.test', port: 993, user: 'desk-user', folder: 'Support', secure: true });
+    expect(JSON.stringify(set)).not.toContain('s3cret');
+    const [row] = await w.app.db.select().from(helpdeskMailboxes).where(eq(helpdeskMailboxes.projectId, projectByKey(await w.app.schema.get(), 'BACK')!.id));
+    expect(row!.imapUrlSealed).toMatch(/^v1\./);
+    expect(row!.imapUrlSealed).not.toContain('s3cret');
+    // Its managers name the sender.
+    expect((await setDeskMailbox(as(w.anna), 'BACK', { fromName: 'Backend Support' })).fromName).toBe('Backend Support');
+
+    const { box, client } = fakeMailbox(11);
+    box.messages.set(1, { raw: simple({ from: 'old@example.com', subject: 'Before a4a', body: 'Old.' }) });
+    const seen: string[] = [];
+    await startDeskPolls(w.app, (t) => {
+      seen.push(`${t.user}@${t.host}/${t.folder}`);
+      return client;
+    });
+    expect(seen).toEqual(['desk-user@imap.desk.test/Support']);
+    // Mail in the desk's own mailbox is the desk's, whatever address it names.
+    box.messages.set(2, { raw: simple({ from: 'Omar <omar@example.com>', to: 'helpme@desk-alias.test', subject: 'Export is stuck', body: 'Since noon.' }) });
+    await startDeskPolls(w.app, () => client);
+    const issue = await issueOf('Export is stuck');
+    expect((await requestOf(as(w.anna), issue.id)).via).toBe('email');
+    expect((await deskMailbox(as(w.anna), 'BACK')).lastReadAt).not.toBeNull();
+    await flush();
+    const ack = [...smtp.messages].reverse().find((m) => m.to.includes('omar@example.com'))!;
+    expect(ack.headers.get('from')).toBe('Backend Support <support@desk.test>');
+    await setDeskMailbox(w.adminCtx, 'BACK', { imapUrl: null, fromName: null });
+    expect((await deskMailbox(w.adminCtx, 'BACK')).imap).toBeNull();
   });
 });

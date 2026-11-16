@@ -42,7 +42,7 @@ export function ip(c: Context<HttpEnv>): string {
  * Posts to the public pages must come from them: an Origin (or Referer) of this server. With the
  * form's token, tied to a SameSite=Strict cookie, that keeps other sites from posting for a visitor.
  */
-function sameOrigin(c: Context<HttpEnv>): void {
+export function sameOrigin(c: Context<HttpEnv>): void {
   const publicHost = new URL(c.get('runtime').config.publicUrl).host;
   const from = c.req.header('origin') ?? c.req.header('referer');
   let ok = false;

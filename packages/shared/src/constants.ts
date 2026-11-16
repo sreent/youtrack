@@ -41,7 +41,7 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci', 'email'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */
@@ -140,6 +140,8 @@ export const EVENT_TYPES = [
   'issue.moved',
   'work.updated',
   'build.recorded',
+  'sla.warning',
+  'sla.breached',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -202,6 +204,22 @@ export type CommentVisibility = (typeof COMMENT_VISIBILITIES)[number];
 /** Where a help desk request stands against its project's first-response target. */
 export const SLA_STATES = ['none', 'due', 'overdue', 'met', 'missed'] as const;
 export type SlaState = (typeof SLA_STATES)[number];
+
+/** A desk's two SLA targets (D45): the team's first public reply, and the request resolved. */
+export const SLA_TARGETS = ['first_response', 'resolution'] as const;
+export type SlaTarget = (typeof SLA_TARGETS)[number];
+/**
+ * How one target's clock stands: counting within it, within its warning, paused while the request
+ * waits on its requester, past it and still counting, or stopped within it or after it.
+ */
+export const SLA_CLOCK_STATES = ['running', 'at_risk', 'paused', 'breached', 'met', 'missed'] as const;
+export type SlaClockState = (typeof SLA_CLOCK_STATES)[number];
+/** A request's SLA as one word, the values of its SLA field: the worst of its targets. */
+export const SLA_STATUSES = ['On track', 'At risk', 'Paused', 'Breached', 'Met'] as const;
+export type SlaStatus = (typeof SLA_STATUSES)[number];
+/** The kinds of change a person can choose to be told of (D45), each by the inbox and by email. */
+export const NOTIFY_KINDS = ['created', 'commented', 'state', 'assigned', 'fields', 'linked', 'attachments', 'sla'] as const;
+export type NotifyKind = (typeof NOTIFY_KINDS)[number];
 
 /** What a help desk's public form and tracking page take, at most (the server's limits, and the form's maxlength). */
 export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;

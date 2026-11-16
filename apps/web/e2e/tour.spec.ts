@@ -326,6 +326,25 @@ const board = (name: string) => async (api: Api) => {
   return `/boards/${found.id}`;
 };
 
+/** A desk of its own with working hours and two SLA policies (D45). */
+async function deskWithSla(api: Api): Promise<string> {
+  const key = uniqueKey('SL');
+  await api.createProject({ key, name: `Service levels ${key}` });
+  await api.patch(`/projects/${key}`, {
+    settings: {
+      helpdesk: {
+        enabled: true,
+        businessHours: { timeZone: 'Europe/Berlin', hours: [1, 2, 3, 4, 5].map((day) => ({ day, from: '09:00', to: '17:00' })), holidays: ['2026-12-24', '2026-12-25'] },
+        waitingStates: ['Blocked'],
+        resumeState: 'Open',
+      },
+    },
+  });
+  await api.post(`/projects/${key}/sla-policies`, { name: 'Critical within the hour', query: 'Priority: Critical', firstResponseMinutes: 60, resolutionMinutes: 480, warnMinutes: 15 });
+  await api.post(`/projects/${key}/sla-policies`, { name: 'Everything else', query: '', firstResponseMinutes: 480, resolutionMinutes: 2400, warnMinutes: 60 });
+  return `/projects/${key}`;
+}
+
 const STOPS: Stop[] = [
   { name: 'issues', path: '/issues', ready: (p) => p.getByRole('list', { name: /^\d+ issues$/ }) },
   { name: 'an issue with comments and work', path: '/issues/BACK-2', ready: (p) => p.getByRole('heading', { name: 'History and comments' }) },
@@ -379,6 +398,8 @@ const STOPS: Stop[] = [
     ready: (p) => p.getByRole('heading', { name: /^Ask .+ for help$/ }),
   },
   { name: 'a help desk by email', path: deskWithMail, ready: (p) => p.getByRole('region', { name: 'Table of what came in by email' }) },
+  { name: "a help desk's service levels", path: deskWithSla, ready: (p) => p.getByRole('region', { name: 'SLA policies' }).getByText('Critical within the hour') },
+  { name: 'the requesters’ portal', path: '/portal', ready: (p) => p.getByRole('button', { name: 'Email me a link' }).or(p.getByRole('heading', { name: 'Your requests' })) },
   { name: "a help desk's form that checks for a person", path: checkedForm, ready: (p) => p.getByRole('heading', { name: /^Ask .+ for help$/ }) },
   { name: 'the knowledge base', path: '/articles?project=BACK', ready: (p) => p.getByRole('link', { name: 'Database failover' }).first() },
   { name: 'an article', path: '/articles/BACK-A-2', ready: (p) => p.getByRole('article', { name: 'Database failover' }) },

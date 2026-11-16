@@ -111,6 +111,11 @@ export interface Config {
   smtpUrl: string | undefined;
   /** Who email comes from, e.g. "a4a <a4a@example.com>". */
   mailFrom: string;
+  /**
+   * The address the team's replies to notification emails go to (MAIL_REPLY_ADDRESS, D45), plus a
+   * token: its mail must reach a4a as a desk's does (the shared mailbox, or a desk's webhook).
+   */
+  mailReplyAddress: string | undefined;
   /** Changes to one issue within this long fold into one notification (and one email). */
   notifyWindowMs: number;
   /** The hour (server time, 0-23) the daily digest goes out. */
@@ -575,6 +580,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     s3,
     smtpUrl: env.SMTP_URL || undefined,
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
+    mailReplyAddress: env.MAIL_REPLY_ADDRESS?.trim().toLowerCase() || undefined,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
     mcpOAuth,

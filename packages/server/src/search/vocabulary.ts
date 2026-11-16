@@ -10,7 +10,8 @@ export type TermKind =
   | { kind: 'textAttr'; column: 'summary' | 'description' }
   | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' | 'watcher' | 'voter' }
   | { kind: 'votes' }
-  | { kind: 'sla' }
+  | { kind: 'sla'; target?: 'first_response' | 'resolution' }
+  | { kind: 'slaDue'; target: 'first_response' | 'resolution' }
   | { kind: 'requester' }
   | { kind: 'dateAttr'; column: 'created' | 'updated' | 'resolved' }
   | { kind: 'tag' }
@@ -53,7 +54,11 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   voter: { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it (voter: me)' },
   'voted by': { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it' },
   votes: { name: 'votes', term: { kind: 'votes' }, valueType: 'integer', description: 'How many people voted for it (votes: 3 .. *)' },
-  sla: { name: 'sla', term: { kind: 'sla' }, valueType: 'sla', description: 'A help desk request against its first-response target' },
+  sla: { name: 'sla', term: { kind: 'sla' }, valueType: 'sla', description: 'A help desk request against its SLA targets: on track, at risk, paused, breached, met (D45)' },
+  'first response': { name: 'first response', term: { kind: 'sla', target: 'first_response' }, valueType: 'sla', description: "A help desk request against its first-response target" },
+  resolution: { name: 'resolution', term: { kind: 'sla', target: 'resolution' }, valueType: 'sla', description: 'A help desk request against its resolution target' },
+  'first response due': { name: 'first response due', term: { kind: 'slaDue', target: 'first_response' }, valueType: 'date', description: "When a request's first-response target runs out, while it counts" },
+  'resolution due': { name: 'resolution due', term: { kind: 'slaDue', target: 'resolution' }, valueType: 'date', description: "When a request's resolution target runs out, while it counts" },
   requester: { name: 'requester', term: { kind: 'requester' }, valueType: 'string', description: 'Who asked, through the help desk: an email or a name' },
   'commented by': { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
   for: { name: 'for', term: { kind: 'assigneeAlias' }, valueType: 'user', description: 'Assignee (shortcut)' },
@@ -71,8 +76,13 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
 
 export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request', 'votes'];
 
-/** sla: values: waiting within the target, waiting past it, answered within it, answered after it. */
-export const SLA_VALUES = ['overdue', 'due', 'met', 'missed'];
+/**
+ * sla: values (D45): a request's status (the worst of its targets), or any target waiting within it
+ * (due), waiting past it (overdue), or stopped after it (missed).
+ */
+export const SLA_VALUES = ['on track', 'at risk', 'paused', 'breached', 'met', 'overdue', 'due', 'missed'];
+/** first response: and resolution: values: how that one target's clock stands. */
+export const SLA_TARGET_VALUES = ['due', 'at risk', 'paused', 'overdue', 'met', 'missed', 'breached'];
 
 export interface Vocabulary {
   snapshot: SchemaSnapshot;
@@ -150,7 +160,9 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
         case 'dateAttr':
           return ['today', 'yesterday', '{this week}', '{last week}', '{this month}', '{last month}', '-7d', '-30d'];
         case 'sla':
-          return SLA_VALUES;
+          return t.target ? SLA_TARGET_VALUES : SLA_VALUES;
+        case 'slaDue':
+          return ['today', 'tomorrow', '{this week}', '{next week}'];
         default:
           return [];
       }

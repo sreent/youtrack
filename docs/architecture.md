@@ -1217,6 +1217,42 @@ Four more reports, worked out on request as D21's are, each on the Reports page,
 
 **Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead); or a project's key can be renamed (moves name keys).
 
+### D45. The help desk in depth: SLAs in working hours, a mailbox per desk, a portal, the team by email, kinds of change
+
+D24 gave a desk one target, the first response, counted round the clock. D30 took requests by email, and only the requester answered. Five pieces now, each through the paths already there.
+
+**SLAs.**
+
+- **Policies.** A desk's policies are tried in order; the first whose query a request matches covers it (`Priority: Critical`, or empty for every request), with a first-response target, a resolution target, or both, and how long before one it turns at risk. Changing a request so another policy matches it moves it to that one's targets, keeping the time used. A query that no longer reads covers nothing, rather than everything. A desk without policies keeps D24's hours as its one target.
+- **Working hours** are wall-clock times in the desk's time zone, per day of the week, with holidays off (`helpdesk/business-time.ts`). They're worked out day by day as instants, so a day on which clocks change runs the hours its wall clock shows: a desk open round the clock has 23 hours that day, or 25, and nine to five is eight either way. A desk without hours counts every hour.
+- **A clock per target** (`sla_clocks`): business time used before the stretch now counting, and while it counts, the instants it turns at risk and runs out. Those are fixed while it counts, so `sla:` and its kin compare them with now in SQL, and nothing has to tick to be right.
+- **In the write path.** After any change to a request, in its transaction (services/sla.ts, called from `applyChanges`), its clocks follow: paused while it waits on its requester (one of the desk's waiting states, and they haven't answered since it began waiting), resumed when they answer, stopped when met, and the resolution's restarted with what's left of it when the request is reopened. A first response is the team's first public comment, as in D24, and resolving answers it too. A requester's answer can move a waiting request to the desk's resume state; a rule that refuses the move doesn't lose their words. Imports don't come here.
+- **What time alone brings** the worker says, as the lease holder (D17), once a minute: `sla.warning` once a stretch, `sla.breached` once, as the help desk's agent, in the request's history; who watches it is told (its desk's lead does), as a kind of change of its own.
+- **A field.** "SLA status" (On track, At risk, Paused, Breached, Met: the worst of its targets) is made with a desk's first policy and kept by the help desk's agent, so boards, reports and rules read it as any field: a rule on `updated` with `SLA status: Breached` escalates. Its own change tells nobody; the sla.* events do. The field isn't named "SLA", so the built-in `sla:` keeps its meaning.
+- **Search:** `sla: on track | at risk | paused | breached | met` (the status), `sla: overdue | due | missed` (any target); `first response:` and `resolution:` per target; `first response due:` and `resolution due:` as dates, while a target counts. **A report**: met and breached, by policy, per week, each target in the week it was met or went past.
+
+**A mailbox per desk.** A desk can read its own IMAP mailbox beside the shared one, down D30's one path, with its own place by UID; what it reads is the desk's, whatever address it names. Its URL, password and all, is sealed with the server's key (lib/secret-box.ts) and shown again as host, user and folder. Setting it is an administrator's: it has the server connect to a host someone names, as `HELPDESK_IMAP_URL` does, and desk managers aren't trusted with that. A desk with a mailbox or a name of its own sends to its requesters from its address, under that name.
+
+**Requester accounts and a portal** (`/portal`).
+
+- A requester signs in with a link sent to their email: no password to forget. The link is minted as its email goes, kept as a hash, good once for twenty minutes; asking answers alike for any address, and is limited per address and per email. Signing in first makes the requester, named for their email until they say otherwise. The team can invite a request's requester.
+- A session is a cookie of its own (`a4a_portal`: HttpOnly, SameSite=Strict, scoped to the portal's API), opening nothing of the team's: a requester is never a member, and has no projects, search, tokens or agents.
+- They see the requests they made, with public comments only; where a desk names their email domain as an organization, their colleagues' at that desk, read-only. The desk names its domains, rather than sharing by any domain, because a requester at a webmail domain shares it with the world. They reply on their own, and open requests at desks they've asked before without the proof of work, since they're known. What they see goes through the access seam (`requesterSees`); anything else answers as missing, alike.
+
+**The team replying by email.** With `MAIL_REPLY_ADDRESS`, each notification email to someone on the team carries a reply address of its own (the address plus a token for that person and issue, minted as it's sent, kept as a hash). Their answer comes down D30's path, from the shared mailbox or any desk's webhook, and becomes a comment by them, with their access and permissions, cut from what it quoted, its files attached, on a channel of its own (`email`). It must come from an address of theirs (their email, or one they confirmed); one that failed DMARC, a guessed or someone else's token, and an issue they can't see now are refused, and nobody is told. On a request, a reply is internal unless what they answered was public (a requester's message, a public reply); a line `#public` or `#internal` of its own says otherwise, and a public one takes the edit permission, else it stays internal.
+
+**Subscriptions by kind.** A person chooses which kinds of change reach their inbox and their email: created, commented, state, assigned, other fields, linked, attachments, SLA. For what they watch, and as their subscriptions' default; a subscription may choose for itself. Being mentioned or assigned, a rule's message and a new request for a desk's lead always tell them. Email still follows their level (D23).
+
+**What it costs.**
+
+- A change to a help desk request reads its policies, its state and two times from its comments, in its transaction; a policy's query is one more `EXISTS` on the issue. A change to any other issue costs one lookup by key. Working time is worked out day by day: a year open is 365 small steps, done when a clock stops or starts, not per read.
+- A clock created late (a policy now matching an older request) counts from the request's filing, without the waits before it, which weren't kept.
+- The status field changes in its own history entry, beside the change that made it, so a request's history shows the help desk's agent keeping it; people can set the field by hand, and the agent puts it right at the next change or tick.
+- Sign-in links mean the portal needs email: without SMTP, requesters keep their tracking links.
+- Reply addresses need the mail server to deliver plus addresses to a4a, as D30's do.
+
+**Revisit when:** a desk wants an SLA per customer (contracts, a calendar per organization), or targets that pause on states other than waiting; requesters want passwords or single sign-on to the portal; colleagues should answer each other's requests; or reply addresses should work without plus addressing (a mailbox per conversation, or the Message-ID alone).
+
 ### D46. Integrations: builds from CI, three more importers, accounts people connect, and VS Code
 
 Four pieces that bring the work around the code into a4a, each through a path a4a already has.
@@ -1307,7 +1343,7 @@ Not native apps: the web app is the product, and a phone can install it. What th
 | A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
 | A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
 | A message to a help desk posted twice, or read twice | Known by its Message-ID within its desk, claimed in the log before the work; a failed claim, or one ten minutes stale, may be handled again (D30) |
-| The shared help desk mailbox, read by a new lease holder | Its place is a UID within its UIDVALIDITY, in Postgres, and only ever moves on; a message read twice is a duplicate by its Message-ID |
+| A help desk mailbox, shared or a desk's own, read by a new lease holder | Its place is a UID within its UIDVALIDITY, in Postgres, and only ever moves on; a message read twice is a duplicate by its Message-ID |
 | Two people undo one agent's change, or someone changes the issue as it's undone | The undo locks the change's row, then the issue, and checks the issue is as the agent left it under those locks: the second undo gets 409 `already_undone`, and a change that got in first makes it refuse with what changed (D34) |
 
 ## Security
@@ -1360,19 +1396,20 @@ Not native apps: the web app is the product, and a phone can install it. What th
 - **A workflow script** runs for 250 ms (a guard for 60 ms) in 16 MB at most, is 20,000 characters at most, asks for 20 commands and 5 comments a run, and sees an issue's latest 20 comments and 100 links (D40).
 - **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). Project keys can't be renamed: that would be an alias for each of their issues.
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
-- **One shared help desk mailbox,** read once a minute by default; desks are told apart by the address mail was sent to, and a desk's replies need its mail server to deliver plus addresses (D30).
+- **Help desk mail** is read once a minute by default: from the shared mailbox, where desks are told apart by the address mail was sent to, or from a desk's own mailbox (D45). A desk's replies need its mail server to deliver plus addresses (D30).
 
 ## Not yet
 
 Planned, with the seams already in place:
 
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
-- subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
+- being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - days away from an HR calendar (D36);
 - fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
 - ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
+- SLAs per customer, with a calendar per organization; passwords or single sign-on for the requesters' portal; colleagues answering each other's requests (D45);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47).

@@ -9,7 +9,7 @@ import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../se
 import { isEmptyWord } from '../services/values';
 import { fixValue } from './lexer';
 import type { ParsedQuery, QueryNode, SortItem, Span, ValueNode } from './parser';
-import { HAS_ATTRIBUTES, SLA_VALUES, type TermDef } from './vocabulary';
+import { HAS_ATTRIBUTES, SLA_TARGET_VALUES, SLA_VALUES, type TermDef } from './vocabulary';
 
 export interface CompileContext {
   s: SchemaSnapshot;
@@ -478,7 +478,16 @@ class Compiler {
         return this.hasCondition(single, v.span);
       case 'sla':
         if (!single) return this.rangeNotSupported(def, v);
-        return this.slaCondition(single, v.span);
+        return this.slaCondition(single, v.span, t.target ?? null);
+      case 'slaDue': {
+        const range = this.dateRange(v, def.name);
+        if (!range) return FALSE;
+        this.readsDates = true;
+        const conds: SQL[] = [sql`k.met_at IS NULL`, sql`k.due_at IS NOT NULL`];
+        if (range.from) conds.push(sql`k.due_at >= ${this.midnight(range.from)}`);
+        if (range.to) conds.push(sql`k.due_at < ${this.midnight(range.to)}`);
+        return sql`EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id} AND k.target = ${t.target} AND ${andAll(conds)})`;
+      }
       case 'requester': {
         if (!single) return this.rangeNotSupported(def, v);
         const like = `%${single.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
@@ -594,27 +603,60 @@ class Compiler {
   }
 
   /**
-   * A help desk request against its first-response target (services/helpdesk.ts slaOf): the first
-   * public reply from the team answers it, and so does resolving it without one.
+   * A help desk request against its SLA targets (D45, services/sla.ts): each target's clock row
+   * holds when it runs out and turns at risk while it counts, so each value is a comparison with now.
+   * Without a target, the request's status, the worst of its targets, or any target in a state.
    */
-  private slaCondition(raw: string, span: Span): SQL {
-    const lower = raw.toLowerCase();
-    if (!SLA_VALUES.includes(lower)) {
-      const guess = didYouMean(raw, SLA_VALUES);
-      this.problem(`Unknown value "${raw}" for sla`, span, guess ? `Did you mean "${guess}"?` : `Values: ${SLA_VALUES.join(', ')}`, guess);
+  private slaCondition(raw: string, span: Span, target: 'first_response' | 'resolution' | null): SQL {
+    const lower = raw.toLowerCase().replace(/\s+/g, ' ');
+    const allowed = target ? SLA_TARGET_VALUES : SLA_VALUES;
+    if (!allowed.includes(lower)) {
+      const guess = didYouMean(raw, allowed);
+      const name = target === 'first_response' ? 'first response' : (target ?? 'sla');
+      this.problem(`Unknown value "${raw}" for ${name}`, span, guess ? `Did you mean "${guess}"?` : `Values: ${allowed.join(', ')}`, guess);
       return FALSE;
     }
-    const answered = sql`coalesce((SELECT min(c.created_at) FROM comments c WHERE c.issue_id = ${issues.id} AND c.visibility = 'public' AND c.requester_id IS NULL), ${issues.resolvedAt})`;
     const now = this.cc.now ?? new Date();
-    const cond =
-      lower === 'overdue'
-        ? sql`${answered} IS NULL AND r.first_response_due_at < ${now}`
-        : lower === 'due'
-          ? sql`${answered} IS NULL AND r.first_response_due_at >= ${now}`
-          : lower === 'met'
-            ? sql`${answered} <= r.first_response_due_at`
-            : sql`${answered} > r.first_response_due_at`;
-    return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id} AND r.first_response_due_at IS NOT NULL AND ${cond})`;
+    const breached = sql`(k.breached_at IS NOT NULL OR (k.met_at IS NULL AND k.due_at IS NOT NULL AND k.due_at <= ${now}))`;
+    const state = (value: string): SQL => {
+      switch (value) {
+        case 'overdue':
+          return sql`k.met_at IS NULL AND ${breached}`;
+        case 'due':
+          return sql`k.met_at IS NULL AND NOT ${breached}`;
+        case 'met':
+          return sql`k.met_at IS NOT NULL AND k.breached_at IS NULL`;
+        case 'missed':
+          return sql`k.met_at IS NOT NULL AND k.breached_at IS NOT NULL`;
+        case 'breached':
+          return breached;
+        case 'at risk':
+          return sql`k.met_at IS NULL AND k.running_since IS NOT NULL AND NOT ${breached} AND k.warn_at <= ${now}`;
+        case 'paused':
+          return sql`k.met_at IS NULL AND k.running_since IS NULL AND NOT ${breached}`;
+        default: // on track
+          return sql`k.met_at IS NULL AND k.running_since IS NOT NULL AND NOT ${breached} AND (k.warn_at IS NULL OR k.warn_at > ${now})`;
+      }
+    };
+    const any = (value: string, only?: string): SQL =>
+      sql`EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id}${only ? sql` AND k.target = ${only}` : sql``} AND ${state(value)})`;
+    if (target) return any(lower, target);
+    // The status: Breached, then Met (every target met), At risk, On track, Paused, as services/sla.ts statusOf.
+    const isBreached = sql`(${any('breached')})`;
+    switch (lower) {
+      case 'breached':
+        return isBreached;
+      case 'met':
+        return sql`(EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id}) AND NOT EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id} AND NOT (${state('met')})))`;
+      case 'at risk':
+        return sql`(NOT ${isBreached} AND ${any('at risk')})`;
+      case 'on track':
+        return sql`(NOT ${isBreached} AND NOT ${any('at risk')} AND ${any('on track')})`;
+      case 'paused':
+        return sql`(NOT ${isBreached} AND NOT ${any('at risk')} AND NOT ${any('on track')} AND ${any('paused')})`;
+      default: // overdue, due, missed: any target
+        return any(lower);
+    }
   }
 
   // -------------------------------------------------------------------------

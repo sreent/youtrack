@@ -2,6 +2,7 @@ import type { IssueDetail, Sla } from '@a4a/shared';
 import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
 import { useRequestInfo } from '../notifications/api';
+import { RequestSla } from './Sla';
 
 /** A length of time as people say it: "40 minutes", "3 hours", "2 days". */
 export function span(ms: number): string {
@@ -44,7 +45,7 @@ export function RequestCard({ issue }: { issue: IssueDetail }) {
     <section className="card side-card stack tight" aria-labelledby="request-title">
       <h2 id="request-title">Help desk request</h2>
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
-      <SlaBadge sla={r.firstResponse} since={r.createdAt} />
+      {r.sla.clocks.length ? <RequestSla issueId={issue.id} r={r} canReply /> : <SlaBadge sla={r.firstResponse} since={r.createdAt} />}
       <p className="note">
         {r.via === 'email' ? 'They wrote in by email, and may answer by email. ' : ''}
         {r.emailMuted

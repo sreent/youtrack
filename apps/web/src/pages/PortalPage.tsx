@@ -1,0 +1,299 @@
+import type { PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
+import { HELP_LIMITS } from '@a4a/shared/constants';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { ApiError, get, patch, post } from '../api/client';
+import { Lone } from '../app/Auth';
+import { Badge } from '../components/Badges';
+import { Markdown } from '../components/Markdown';
+import { ErrorNote, Loading } from '../components/States';
+import { Avatar } from '../components/Who';
+import { FormField } from '../features/common/bits';
+import { whenRead } from '../features/common/format';
+
+/** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
+function linkToken(): string {
+  const t = window.location.hash.replace(/^#/, '').trim();
+  return /^hdl_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
+}
+
+function SignIn() {
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const desk = new URLSearchParams(window.location.search).get('desk') ?? undefined;
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await post('/portal/sign-in', { email, desk });
+      setSent(true);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Lone>
+      <h1>Your requests</h1>
+      {sent ? (
+        <p role="status">If {email} can sign in, a link is on its way. It works once, for 20 minutes.</p>
+      ) : (
+        <form className="form" onSubmit={send} aria-label="Sign in with your email">
+          <p className="note">We’ll email you a link to sign in: there’s no password to remember.</p>
+          <FormField label="Your email">{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+          {error ? <ErrorNote error={error} /> : null}
+          <div className="cluster end">
+            <button type="submit" className="primary" disabled={busy || !email.trim()}>
+              {busy ? 'Sending…' : 'Email me a link'}
+            </button>
+          </div>
+        </form>
+      )}
+    </Lone>
+  );
+}
+
+function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
+  return (
+    <ol className="history" aria-label="The request, and the replies to it">
+      <li>
+        <Avatar kind="person" name={r.requester.mine ? me.name : r.requester.name} small />
+        <div className="history-body">
+          <p className="history-head">
+            <strong className="who-name">{r.requester.mine ? 'You' : r.requester.name}</strong> asked · <time dateTime={r.createdAt}>{whenRead(r.createdAt)}</time>
+          </p>
+          {r.description.trim() ? (
+            <div className="history-comment">
+              <Markdown text={r.description} outside />
+            </div>
+          ) : null}
+        </div>
+      </li>
+      {r.messages.map((m) => (
+        <li key={m.id}>
+          <Avatar kind="person" name={m.from === 'you' ? me.name : m.name} small />
+          <div className="history-body">
+            <p className="history-head">
+              <strong className="who-name">{m.from === 'you' ? 'You' : m.name}</strong>
+              {m.from === 'team' ? ' replied' : ''} · <time dateTime={m.at}>{whenRead(m.at)}</time>
+            </p>
+            <div className="history-comment">
+              <Markdown text={m.text} outside />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () => void }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['portal', 'request', id], queryFn: () => get<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`), retry: false });
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  if (q.error) return <ErrorNote error={q.error} />;
+  if (!q.data) return <Loading what="the request" />;
+  const r = q.data;
+  const reply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      qc.setQueryData(['portal', 'request', id], await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}/replies`, { text }));
+      setText('');
+      void qc.invalidateQueries({ queryKey: ['portal', 'requests'] });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="stack" aria-label={r.summary}>
+      <button type="button" className="link" onClick={onBack}>
+        All your requests
+      </button>
+      <p className="label">
+        {r.desk.name} · {r.id}
+      </p>
+      <div className="title-row">
+        <h2>{r.summary}</h2>
+        {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
+      </div>
+      <Conversation r={r} me={me} />
+      {r.requester.mine ? (
+        <form className="form" onSubmit={reply}>
+          <FormField label="Your reply">{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
+          {error ? <ErrorNote error={error} /> : null}
+          <div className="cluster end">
+            <button type="submit" className="primary" disabled={busy || !text.trim()}>
+              {busy ? 'Sending…' : 'Send the reply'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="note">This is {r.requester.name}’s request, shared within your organization: they reply to it.</p>
+      )}
+    </section>
+  );
+}
+
+function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: string) => void }) {
+  const [desk, setDesk] = useState(desks[0]?.key ?? '');
+  const [summary, setSummary] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  if (!desks.length) return null;
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      onMade((await post<PortalRequestDetail>('/portal/requests', { desk, summary, description })).id);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="card form" onSubmit={send} aria-label="Ask for help">
+      <h2>Ask for help</h2>
+      {desks.length > 1 ? (
+        <FormField label="Help desk">
+          {(id) => (
+            <select id={id} value={desk} onChange={(e) => setDesk(e.target.value)}>
+              {desks.map((d) => (
+                <option key={d.key} value={d.key}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+      ) : null}
+      <FormField label="What do you need?">{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
+      <FormField label="Details">{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
+      {error ? <ErrorNote error={error} /> : null}
+      <div className="cluster end">
+        <button type="submit" className="primary" disabled={busy || !summary.trim()}>
+          {busy ? 'Sending…' : 'Send the request'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** The requesters' portal (D45): their requests, their organization's where a desk shares them, and a way to ask. */
+export default function PortalPage() {
+  const qc = useQueryClient();
+  const [token] = useState(linkToken);
+  const [redeemError, setRedeemError] = useState<unknown>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token });
+  useEffect(() => {
+    if (!token) return;
+    history.replaceState(null, '', window.location.pathname);
+    post<PortalMe>('/portal/sign-in/redeem', { token })
+      .then((m) => qc.setQueryData(['portal', 'me'], m))
+      .catch(setRedeemError)
+      .finally(() => void qc.invalidateQueries({ queryKey: ['portal'] }));
+  }, [token, qc]);
+  const signedIn = Boolean(me.data);
+  const list = useQuery({ queryKey: ['portal', 'requests'], queryFn: () => get<PortalRequest[]>('/portal/requests'), enabled: signedIn });
+  const desks = useQuery({ queryKey: ['portal', 'desks'], queryFn: () => get<PortalDesk[]>('/portal/desks'), enabled: signedIn });
+  const [name, setName] = useState('');
+  useEffect(() => {
+    document.title = 'Your requests';
+  }, []);
+
+  if (redeemError) {
+    return (
+      <Lone>
+        <h1>This sign-in link has expired</h1>
+        <p className="note">Links work once, for 20 minutes. Ask for a new one below.</p>
+        <a href="/portal">Sign in again</a>
+      </Lone>
+    );
+  }
+  if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
+  if (!me.data) {
+    if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) return <Lone><ErrorNote error={me.error} /></Lone>;
+    return <SignIn />;
+  }
+  const m = me.data;
+  const signOut = async () => {
+    await post('/portal/sign-out');
+    qc.removeQueries({ queryKey: ['portal'] });
+    window.location.assign('/portal');
+  };
+  return (
+    <Lone wide>
+      <div className="title-row">
+        <h1>Your requests</h1>
+        <button type="button" onClick={() => void signOut()}>
+          Sign out
+        </button>
+      </div>
+      <p className="note">
+        Signed in as {m.name} ({m.email}){m.organization ? `. You also see requests from your colleagues at ${m.organization}.` : '.'}
+      </p>
+      {open ? (
+        <RequestView id={open} me={m} onBack={() => setOpen(null)} />
+      ) : (
+        <div className="stack">
+          {list.data?.length ? (
+            <ul className="list" aria-label="Requests">
+              {list.data.map((r) => (
+                <li key={r.id} className="list-row">
+                  <button type="button" className="link" onClick={() => setOpen(r.id)}>
+                    {r.summary}
+                  </button>
+                  <span className="note">
+                    {r.desk.name} · {r.id} · {r.requester.mine ? 'yours' : r.requester.name} · updated {whenRead(r.updatedAt)}
+                  </span>
+                  {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
+                </li>
+              ))}
+            </ul>
+          ) : list.isLoading ? (
+            <Loading what="your requests" />
+          ) : (
+            <p className="note">No requests yet.</p>
+          )}
+          <NewRequest desks={desks.data ?? []} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
+          <form
+            className="form"
+            aria-label="Your name"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void patch<PortalMe>('/portal/me', { name }).then((x) => qc.setQueryData(['portal', 'me'], x));
+            }}
+          >
+            <FormField label="The name the team sees">{(id) => <input id={id} placeholder={m.name} value={name} onChange={(e) => setName(e.target.value)} />}</FormField>
+            <div className="cluster end">
+              <button type="submit" disabled={!name.trim()}>
+                Change my name
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </Lone>
+  );
+}
+
+function Loone() {
+  return (
+    <Lone>
+      <Loading what="your requests" />
+    </Lone>
+  );
+}

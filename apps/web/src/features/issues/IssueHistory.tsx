@@ -54,6 +54,8 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
       return { kind: 'agent', name: 'assistant', forWhom: person, via: 'asked in words' };
     case 'automation':
       return { kind: 'agent', name: actor.login ?? 'automation', via: 'on its own' };
+    case 'email':
+      return { kind: 'person', name: person, via: 'by email' };
     case 'vcs':
       // A commit's author, known by a confirmed email or their login at the provider, or the integration itself.
       return actor.id
@@ -277,6 +279,17 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.called':
       return { ...base, did: `${byRule(data) ?? 'applied a rule'}, and called its webhook` };
+    case 'sla.warning':
+    case 'sla.breached': {
+      // What time alone brought to a request's targets (D45), said by the help desk's agent.
+      const target = data.target === 'resolution' ? 'resolution' : 'first-response';
+      const policy = typeof data.policy === 'string' ? ` (${data.policy})` : '';
+      const due = typeof data.dueAt === 'string' ? new Date(data.dueAt).toLocaleString() : null;
+      return {
+        ...base,
+        did: e.type === 'sla.warning' ? `said its ${target} target${policy} is at risk${due ? `: due ${due}` : ''}` : `said it went past its ${target} target${policy}${due ? `, due ${due}` : ''}`,
+      };
+    }
     default:
       return null;
   }

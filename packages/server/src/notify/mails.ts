@@ -8,6 +8,7 @@ import { mailHost, type MailRow } from '../mail/outbox';
 import { accessFor, eventSeen } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
 import { aboutInline, aboutSubscriptions } from '../services/subscriptions';
+import { forgetTeamReplyAddress, mintTeamReplyAddress } from '../services/team-replies';
 import { zoneOfUser } from '../services/time-zones';
 import { emailPrefs, emailSends, levelSends } from './notifier';
 import { actorName, BECAUSE, emailTime, eventDetail, eventVerb, notificationTitle } from './words';
@@ -65,6 +66,13 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const written = new Map(
     ids.length ? (await app.db.select({ id: comments.id, text: comments.text, deletedAt: comments.deletedAt }).from(comments).where(inArray(comments.id, ids))).map((c) => [c.id, c]) : [],
   );
+  // Their answer to this email is a comment by them (D45), when replies by email are set up and
+  // they may comment: public if what they answer was (the requester's message, a public reply).
+  const lastComment = [...events].reverse().find((e) => e.type === 'comment.created');
+  const replyTo =
+    n.issueId && view.canComment(n.projectId)
+      ? await mintTeamReplyAddress(app, app.db, user.id, n.issueId, (lastComment?.data as { visibility?: string } | undefined)?.visibility === 'public')
+      : null;
   const sections: MailSection[] = events.map((e) => {
     const head = `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt, zone)}`;
     if (e.type.startsWith('comment')) {
@@ -80,7 +88,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
     lead: `${title} on ${issue.id}: ${issue.summary}`,
     sections,
     action: n.issueId ? { label: `Open ${issue.id}`, url: l.issue(issue.id) } : { label: 'Open your inbox', url: l.inbox },
-    why: stopKind === 'subscription' ? `You get this because you subscribed to ${aboutInline(sub!.about)}.` : `You get this because ${BECAUSE[kind]}.`,
+    why: `${stopKind === 'subscription' ? `You get this because you subscribed to ${aboutInline(sub!.about)}.` : `You get this because ${BECAUSE[kind]}.`}${replyTo ? ' Reply to this email to comment.' : ''}`,
     stop: {
       label:
         stopKind === 'subscription'
@@ -97,7 +105,13 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
     subject,
     text,
     html,
-    headers: { ...AUTOMATIC, ...unsubscribeHeaders(l.oneClick(token)), ...(n.issueId ? threadHeaders(`<issue-${n.issueId}@${mailHost(app)}>`) : {}) },
+    headers: {
+      ...AUTOMATIC,
+      ...unsubscribeHeaders(l.oneClick(token)),
+      ...(n.issueId ? threadHeaders(`<issue-${n.issueId}@${mailHost(app)}>`) : {}),
+      ...(replyTo ? { 'Reply-To': replyTo } : {}),
+    },
+    onFailed: async () => forgetTeamReplyAddress(app.db, replyTo, app),
     onSent: async () => {
       await app.db.update(notifications).set({ emailedAt: new Date() }).where(eq(notifications.id, n.id));
     },

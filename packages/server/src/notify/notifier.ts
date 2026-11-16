@@ -10,6 +10,7 @@
  * - At least once in, once out: the outbox may hand an event over twice, and notification_events
  *   remembers who it reached, so nobody gets the same event twice.
  */
+import { choicesFor } from './kinds';
 import { EMAIL_LEVELS, NOTIFICATION_KINDS, type EmailLevel, type IssueRef, type NotificationKind, type TrackerEvent } from '@a4a/shared';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
@@ -115,6 +116,11 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
     case 'issue.deleted':
       for (const l of facts.watchers ?? []) add(byLogin(l), 'watching');
       break;
+    case 'sla.warning':
+    case 'sla.breached':
+      // What time brings to a request's targets (D45): who watches it (its desk's lead does).
+      await watchers();
+      break;
     case 'rule.notified': {
       // A workflow rule's message: to the people it worked out when it acted (workflow/tell.ts).
       const people = (event.data as { people?: unknown }).people;
@@ -127,7 +133,7 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
   return out;
 }
 
-const WATCHED_TYPES = ['issue.created', 'issue.updated', 'issue.moved', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'];
+const WATCHED_TYPES = ['issue.created', 'issue.updated', 'issue.moved', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed', 'sla.warning', 'sla.breached'];
 const SEARCH_TYPES = new Set<string>(SEARCH_EVENT_TYPES);
 
 export function notifierConsumer(app: AppServices): OutboxConsumer {
@@ -156,7 +162,10 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
   // import brought in isn't told later as if it had just come into a search.
   const fromSearches = row.issueId && SEARCH_TYPES.has(event.type) ? await searchSubscribed(app, event, row.issueId, row.projectId) : [];
   if (imported) return;
-  const recipients = await recipientsOf(app, event, row.issueId, row.projectId);
+  // The SLA status field's own change says what an sla.* event says already (D45): it moves
+  // searches, and tells nobody else.
+  const slaField = Boolean((event.data as { sla?: unknown } | undefined)?.sla);
+  const recipients = slaField ? new Map<string, NotificationKind>() : await recipientsOf(app, event, row.issueId, row.projectId);
   // Subscribers (D31): the weakest reason. A search's subscription is named before a project's, as
   // the more particular, and a person is emailed if any of theirs asks for it.
   const subscribed = new Map<string, { id: string; email: boolean }>();
@@ -178,15 +187,19 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
     if (!other) return;
     seeing.push(await projectRolesOf(app.db, other.id, ids));
   }
+  // Each person's choice of the kinds of change that tell them, and how (D45).
+  const choices = await choicesFor(app.db, event, recipients, subscribed);
   const told: string[] = [];
   for (const [userId, kind] of recipients) {
+    const choice = choices.get(userId);
+    if (choice && !choice.inbox) continue;
     const user = s.users.get(userId);
     if (!user || user.banned) continue;
     if (!seeing.every((roles) => roles.has(userId))) continue;
     // The issue, the comment or the link's other end limited away from them (D37): not theirs to hear of.
     if (!(await eventSeen(await accessFor(app.db, user), app.db, s, event))) continue;
     try {
-      if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId, subscribed.get(userId) ?? null)) told.push(userId);
+      if (await deliver(app, event, event.issue, userId, kind, row.issueId, row.projectId, subscribed.get(userId) ?? null, choice?.email ?? true)) told.push(userId);
     } catch (e) {
       // Another instance delivered it at the same moment (its lease ran out mid-batch): it's done.
       const code = (e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code;
@@ -209,6 +222,8 @@ async function deliver(
   projectId: string | null,
   /** The subscription that brought it, when one did: named in the inbox, and it may ask for email. */
   subscription: { id: string; email: boolean } | null = null,
+  /** Whether this kind of change may email them, as they chose (D45). */
+  emailKind = true,
 ): Promise<boolean> {
   const at = new Date(event.occurredAt);
   const window = app.config.notifyWindowMs;
@@ -282,7 +297,7 @@ async function deliver(
     // Its email, if this person wants this kind: sent once the window has passed, as one message.
     if (mailConfigured(app)) {
       const [user] = await tx.select({ email: users.email, isBot: users.isBot }).from(users).where(eq(users.id, userId));
-      if (user?.email && !user.isBot && emailSends(prefs.email, notificationKind, subscription)) {
+      if (emailKind && user?.email && !user.isBot && emailSends(prefs.email, notificationKind, subscription)) {
         await enqueueMail(tx, app, {
           kind: 'notification',
           dedupeKey: `notification:${notificationId}`,

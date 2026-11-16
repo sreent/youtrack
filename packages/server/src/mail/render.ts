@@ -3,6 +3,7 @@ import type { AppServices } from '../context';
 import { renderRequestMail } from '../helpdesk/mails';
 import { renderDigestMail, renderNotificationMail } from '../notify/mails';
 import { renderEmailConfirmMail } from '../services/emails';
+import { renderPortalSignIn } from '../services/portal';
 import type { RenderedMail } from './compose';
 import type { MailRow } from './outbox';
 
@@ -18,6 +19,8 @@ export async function renderMail(app: AppServices, row: MailRow): Promise<Render
       return renderRequestMail(app, row);
     case 'email-confirm':
       return renderEmailConfirmMail(app, row);
+    case 'portal-sign-in':
+      return renderPortalSignIn(app, row);
     default:
       return null;
   }

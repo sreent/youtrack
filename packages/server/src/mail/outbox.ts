@@ -18,7 +18,7 @@ import { zoneOfUser } from '../services/time-zones';
 import { renderMail } from './render';
 import { PermanentMailError } from './transport';
 
-export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state' | 'email-confirm';
+export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state' | 'email-confirm' | 'portal-sign-in';
 export type MailRow = typeof mailOutbox.$inferSelect;
 
 const POLL_MS = 5_000;
@@ -104,7 +104,7 @@ async function sendOne(app: AppServices, row: MailRow, now: Date): Promise<'sent
   }
   try {
     await transport.send({
-      from: app.config.mailFrom,
+      from: rendered.from ?? app.config.mailFrom,
       to: rendered.to,
       subject: rendered.subject,
       text: rendered.text,
