@@ -151,7 +151,7 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
     resources: new Map(input.resources.map((r) => [r.id, r])),
     edits: new Map(),
     warn: warnings.add,
-    availabilityOf: availabilities(cal, input.absences, input.today),
+    availabilityOf: availabilities(cal, input.absences, input.today, input.resources),
   };
   collectEdits(ctx, overrides);
 

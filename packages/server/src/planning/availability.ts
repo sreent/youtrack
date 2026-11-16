@@ -1,12 +1,13 @@
 /**
  * People's days away (docs/architecture.md, D36), as the engine works with them. Each person
  * works on the plan's calendar with their whole days away taken out, and on a half day away
- * gives half their hours. Someone with no days away works on the plan's calendar itself, the
- * same object, so a plan without any is scheduled exactly as it was before there were absences.
+ * gives half their hours; someone with a working week of their own (D43) works the plan's days on
+ * which they have hours, and those hours. Someone with neither works on the plan's calendar itself,
+ * the same object, so a plan without any is scheduled exactly as it was before there were absences.
  */
 import { addDays, isISODate, maxDate, minDate } from '../lib/dates';
 import { addWorkingDays, normalizeCalendar } from './calendar';
-import type { AwayPart, PlanAbsence, PlanCalendar } from './types';
+import type { AwayPart, PlanAbsence, PlanCalendar, PlanResource } from './types';
 import { ceilSafe } from './util';
 
 /** Days away the engine looks at around today: a year back, and five ahead. */
@@ -18,9 +19,9 @@ export interface Availability {
   cal: PlanCalendar;
   /** Whether they're away on a date, and for which part of it. */
   away(date: string): AwayPart | null;
-  /** The share of a working day they're there: 1, or ½ on a half day away. */
+  /** The share of a working day they give: 1, ½ on a half day away, times their working week's share of their capacity (D43). */
   share(date: string): number;
-  /** False when they're never away: then `cal` is the plan's own calendar. */
+  /** False when they're never away and work the plan's week: then `cal` is the plan's own calendar. */
   hasAbsences: boolean;
 }
 
@@ -29,21 +30,48 @@ export function everyone(cal: PlanCalendar): Availability {
   return { cal, away: () => null, share: () => 1, hasAbsences: false };
 }
 
+/** Days of the week as the engine counts them (0 = Sunday). */
+function dayOfWeek(iso: string): number {
+  return new Date(`${iso}T00:00:00Z`).getUTCDay();
+}
+
 /**
- * Each person's availability, from the plan's (normalised) calendar and their days away. People
- * without days away, and work with nobody to do it, get the plan's calendar.
+ * Someone's own working week (D43), as the engine uses it: the plan's working days on which they
+ * have hours, and what share of their capacity each weekday is. Null when they have none, or one
+ * that changes nothing (every working day, at their capacity), or one with no working day in it.
+ */
+export function ownWeek(cal: PlanCalendar, r: Pick<PlanResource, 'week' | 'capacityHoursPerDay'>): { workingDays: number[]; ratio: number[] } | null {
+  const week = r.week;
+  if (!week || week.length !== 7 || week.some((h) => typeof h !== 'number' || !Number.isFinite(h) || h < 0)) return null;
+  const workingDays = cal.workingDays.filter((d) => (week[d] ?? 0) > 0);
+  if (!workingDays.length) return null;
+  const capacity = Number.isFinite(r.capacityHoursPerDay) && r.capacityHoursPerDay > 0 ? r.capacityHoursPerDay : 0;
+  const ratio = week.map((h) => (capacity > 0 ? h / capacity : h > 0 ? 1 : 0));
+  const same = workingDays.length === cal.workingDays.length && workingDays.every((d) => Math.abs(ratio[d]! - 1) < 1e-9);
+  return same ? null : { workingDays, ratio };
+}
+
+/**
+ * Each person's availability, from the plan's (normalised) calendar, their days away and their own
+ * working week (D43). People with neither, and work with nobody to do it, get the plan's calendar.
  */
 export function availabilities(
   cal: PlanCalendar,
   absences: readonly PlanAbsence[] | undefined,
   today: string,
+  resources: readonly PlanResource[] = [],
 ): (resourceId: string | null) => Availability {
   const plain = everyone(cal);
-  if (!absences?.length) return () => plain;
+  const weeks = new Map<string, NonNullable<ReturnType<typeof ownWeek>>>();
+  for (const r of resources) {
+    const w = weeks.has(r.id) ? null : ownWeek(cal, r);
+    if (w) weeks.set(r.id, w);
+  }
+  if (!absences?.length && !weeks.size) return () => plain;
   const first = addDays(today, -AWAY_LOOK_BACK_DAYS);
   const last = addDays(today, AWAY_LOOK_AHEAD_DAYS);
   const byPerson = new Map<string, Map<string, AwayPart>>();
-  for (const a of absences) {
+  for (const a of absences ?? []) {
     if (!isISODate(a.from) || !isISODate(a.to) || a.to < a.from) continue;
     const days = byPerson.get(a.resourceId) ?? new Map<string, AwayPart>();
     byPerson.set(a.resourceId, days);
@@ -62,15 +90,19 @@ export function availabilities(
     const done = built.get(resourceId);
     if (done) return done;
     const days = byPerson.get(resourceId);
+    const week = weeks.get(resourceId);
     let a = plain;
-    if (days?.size) {
-      const whole = [...days].filter(([, part]) => part === 'day').map(([d]) => d);
+    if (days?.size || week) {
+      const whole = days ? [...days].filter(([, part]) => part === 'day').map(([d]) => d) : [];
+      const own =
+        whole.length || week ? normalizeCalendar({ ...cal, workingDays: week?.workingDays ?? cal.workingDays, holidays: [...cal.holidays, ...whole] }) : cal;
       a = {
-        cal: whole.length ? normalizeCalendar({ ...cal, holidays: [...cal.holidays, ...whole] }) : cal,
-        away: (d) => days.get(d) ?? null,
+        cal: own,
+        away: (d) => days?.get(d) ?? null,
         share: (d) => {
-          const part = days.get(d);
-          return part === undefined ? 1 : part === 'day' ? 0 : 0.5;
+          const part = days?.get(d);
+          const there = part === undefined ? 1 : part === 'day' ? 0 : 0.5;
+          return week ? there * week.ratio[dayOfWeek(d)]! : there;
         },
         hasAbsences: true,
       };

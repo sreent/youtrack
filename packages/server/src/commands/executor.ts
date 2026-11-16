@@ -1,10 +1,13 @@
-import { MAX_BULK_ISSUES, type CommandResult } from '@a4a/shared';
+import { MAX_BULK_ISSUES, type Change, type CommandResult } from '@a4a/shared';
+import { and, eq, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
+import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { AppError, badRequest } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
-import { visibleSchema } from '../services/access';
+import { assertCanWriteProject, visibleSchema } from '../services/access';
+import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
 import { applyChanges, findIssue, findVisibleIssue, type ChangeSpec, type FieldChangeSpec, type IssueRow, type LinkSpec } from '../services/issues';
 import { resolveFieldInput } from '../services/values';
 import { todayIn } from '../reports/tz';
@@ -59,8 +62,11 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
     const rid = readableId(s, issue);
     const errors: string[] = [];
     let spec: ChangeSpec;
+    let moves: SprintMove[];
     try {
-      spec = await commandSpec(ctx, issue, parsed.ops, req.comment, { meId: req.meId });
+      spec = await commandSpec(ctx, issue, parsed.ops, req.comment, { meId: req.meId, sprints: true });
+      moves = await sprintMoves(ctx, issue, parsed.ops);
+      if (moves.length) await assertCanWriteProject(ctx, issue.projectId);
     } catch (e) {
       results.push({ issue: rid, changes: [], errors: [e instanceof Error ? e.message : String(e)] });
       continue;
@@ -69,7 +75,19 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
       const res = await ctx.db.transaction(async (tx) => {
         // Re-read inside the transaction so concurrent edits are not lost.
         const fresh = (await findIssue(tx as unknown as Db, s, issue.id)) ?? issue;
-        return applyChanges(tx as unknown as Db, ctx, fresh, spec, { dryRun: req.dryRun });
+        const applied = await applyChanges(tx as unknown as Db, ctx, fresh, spec, { dryRun: req.dryRun });
+        // Into or out of sprints in the same transaction: all of the command, or none of it (D43).
+        const sprintChanges: Change[] = [];
+        for (const m of moves) {
+          if (req.dryRun) {
+            sprintChanges.push(m.remove ? { field: 'Sprint', from: m.sprint.name, to: null } : { field: 'Sprint', from: null, to: m.sprint.name });
+            continue;
+          }
+          const done = await changeSprintInTx(tx as unknown as Db, ctx, m.sprint, m.board, [fresh], m.remove);
+          applied.activities.push(...done);
+          if (done.length) sprintChanges.push(m.remove ? { field: 'Sprint', from: m.sprint.name, to: null } : { field: 'Sprint', from: null, to: m.sprint.name });
+        }
+        return { ...applied, changes: [...applied.changes, ...sprintChanges] };
       });
       activities.push(...res.activities);
       results.push({ issue: rid, changes: res.changes, errors });
@@ -82,6 +100,41 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   return { applied: !req.dryRun && results.some((r) => r.changes.length > 0), problems: [], results, description };
 }
 
+interface SprintMove {
+  sprint: SprintRow;
+  board: BoardRow;
+  remove: boolean;
+}
+
+/**
+ * The sprints a command's sprint clauses name, for one issue (D43): by name, on the boards of its
+ * project that use sprints. A name more than one such sprint has is refused, as is one none has;
+ * an archived sprint takes no new issues.
+ */
+async function sprintMoves(ctx: Ctx, issue: IssueRow, ops: CommandOp[]): Promise<SprintMove[]> {
+  const out: SprintMove[] = [];
+  for (const op of ops) {
+    if (op.kind !== 'sprint') continue;
+    const found = await ctx.db
+      .select({ sprint: sprints, board: boards })
+      .from(sprints)
+      .innerJoin(boards, eq(boards.id, sprints.boardId))
+      .where(and(sql`lower(${sprints.name}) = ${op.name.toLowerCase()}`, eq(boards.sprintsEnabled, true), sql`${issue.projectId} = ANY(${boards.projectIds})`));
+    const open = op.mode === 'add' ? found.filter((f) => !f.sprint.archived) : found;
+    if (!open.length) {
+      throw badRequest(
+        found.length ? `${found[0]!.sprint.name} is archived` : `No board of this issue's project has a sprint called ${op.name}`,
+        found.length ? 'Choose a sprint that is still open.' : 'Name a sprint of one of its boards.',
+      );
+    }
+    if (open.length > 1) {
+      throw badRequest(`${open.length} sprints are called ${op.name}: on ${open.map((f) => f.board.name).join(', ')}`, 'Rename one, or use PUT /sprints/{id}/issues.');
+    }
+    out.push({ sprint: open[0]!.sprint, board: open[0]!.board, remove: op.mode === 'remove' });
+  }
+  return out;
+}
+
 /**
  * What a command's ops change on one issue, with names resolved in the issue's project: the step
  * the executor takes for each issue, before applyChanges. "me" is `meId`, by default whoever acts.
@@ -92,7 +145,7 @@ export async function commandSpec(
   issue: IssueRow,
   ops: CommandOp[],
   comment?: string,
-  opts: { meId?: string; db?: Db } = {},
+  opts: { meId?: string; db?: Db; sprints?: boolean } = {},
 ): Promise<ChangeSpec> {
   const db = opts.db ?? ctx.db;
   const meId = opts.meId ?? ctx.actor.user.id;
@@ -127,6 +180,10 @@ export async function commandSpec(
         break;
       case 'comment':
         if (op.text) comments.push(op.text);
+        break;
+      case 'sprint':
+        // Only a command run on issues moves them between sprints (runCommand does), not a rule's.
+        if (!opts.sprints) throw badRequest('Sprints are changed by a command run on issues', 'Leave the sprint clause out here.');
         break;
     }
   }

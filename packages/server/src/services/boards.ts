@@ -1,8 +1,8 @@
-import type { Board, BoardColumn, BoardView, Sprint } from '@a4a/shared';
+import type { Board, BoardColumn, BoardView, Issue, Sprint } from '@a4a/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { boards, issues, sprintIssues, sprints } from '../db/schema';
+import { boardRanks, boards, issues, sprintIssues, sprints } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
@@ -13,8 +13,8 @@ import { issueDtos } from './issues';
 import { resolveIssue } from './issues';
 import { allowedValues, fieldByName, projectByKey, type SchemaSnapshot } from './schema-cache';
 
-type BoardRow = typeof boards.$inferSelect;
-type SprintRow = typeof sprints.$inferSelect;
+export type BoardRow = typeof boards.$inferSelect;
+export type SprintRow = typeof sprints.$inferSelect;
 
 interface StoredColumn {
   name: string;
@@ -22,7 +22,7 @@ interface StoredColumn {
   wipLimit: number | null;
 }
 
-const MAX_BOARD_ISSUES = 500;
+export const MAX_BOARD_ISSUES = 500;
 
 function columnsDto(s: SchemaSnapshot, stored: StoredColumn[]): BoardColumn[] {
   return stored.map((c) => ({
@@ -32,7 +32,7 @@ function columnsDto(s: SchemaSnapshot, stored: StoredColumn[]): BoardColumn[] {
   }));
 }
 
-function boardDto(s: SchemaSnapshot, row: BoardRow): Board {
+export function boardDto(s: SchemaSnapshot, row: BoardRow): Board {
   return {
     id: row.id,
     name: row.name,
@@ -44,12 +44,50 @@ function boardDto(s: SchemaSnapshot, row: BoardRow): Board {
     columns: columnsDto(s, row.columns as StoredColumn[]),
     swimlaneField: row.swimlaneFieldId ? (s.fields.get(row.swimlaneFieldId)?.name ?? null) : null,
     query: row.query,
+    backlogQuery: row.backlogQuery,
+    pointsField: row.pointsFieldId ? (s.fields.get(row.pointsFieldId)?.name ?? null) : null,
     sprintsEnabled: row.sprintsEnabled,
   };
 }
 
+/** An issue's story points: the board's points field, when it holds a number (D43). */
+export function pointsOf(issue: Issue, pointsFieldId: string): number | null {
+  const v = issue.fields.find((f) => f.fieldId === pointsFieldId)?.value;
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+/** The points of issues, or null when the board has no points field. */
+export function sumPoints(items: Issue[], pointsFieldId: string | null): number | null {
+  if (!pointsFieldId) return null;
+  return Math.round(items.reduce((sum, i) => sum + (pointsOf(i, pointsFieldId) ?? 0), 0) * 100) / 100;
+}
+
+/**
+ * Issue rows in board order (D43): those with a rank first, lowest first, then the rest in the
+ * order they came (the query's).
+ */
+export async function rankRows<T extends { id: string }>(db: Db, boardId: string, rows: T[]): Promise<{ rows: T[]; ranks: Map<string, number> }> {
+  if (!rows.length) return { rows, ranks: new Map() };
+  const found = await db
+    .select({ issueId: boardRanks.issueId, rank: boardRanks.rank })
+    .from(boardRanks)
+    .where(and(eq(boardRanks.boardId, boardId), inArray(boardRanks.issueId, rows.map((r) => r.id))));
+  const ranks = new Map(found.map((r) => [r.issueId, r.rank]));
+  if (!ranks.size) return { rows, ranks };
+  const at = new Map(rows.map((r, i) => [r.id, i]));
+  const ordered = [...rows].sort((a, b) => {
+    const ra = ranks.get(a.id);
+    const rb = ranks.get(b.id);
+    if (ra !== undefined && rb !== undefined) return ra - rb || at.get(a.id)! - at.get(b.id)!;
+    if (ra !== undefined) return -1;
+    if (rb !== undefined) return 1;
+    return at.get(a.id)! - at.get(b.id)!;
+  });
+  return { rows: ordered, ranks };
+}
+
 /** Sprints, counting only the issues the caller can see. */
-async function sprintDtos(db: Db, view: AccessView, rows: SprintRow[]): Promise<Sprint[]> {
+export async function sprintDtos(db: Db, view: AccessView, rows: SprintRow[]): Promise<Sprint[]> {
   if (!rows.length) return [];
   const visible = view.visibleIds();
   const counts = await db
@@ -121,7 +159,7 @@ function seesBoard(view: AccessView, row: BoardRow): boolean {
 }
 
 /** The reference data as the caller sees it, so a board names no project or value they can't see. */
-async function scoped(ctx: Ctx): Promise<{ s: SchemaSnapshot; view: AccessView }> {
+export async function scoped(ctx: Ctx): Promise<{ s: SchemaSnapshot; view: AccessView }> {
   const view = await projectAccess(ctx);
   return { s: scopeSchema(await ctx.app.schema.get(), view.visibleIds()), view };
 }
@@ -133,7 +171,7 @@ export async function listBoards(ctx: Ctx): Promise<Board[]> {
   return rows.filter((r) => seesBoard(view, r)).map((r) => boardDto(s, r));
 }
 
-async function loadBoard(ctx: Ctx, id: string, need: 'read' | 'manage' = 'read'): Promise<BoardRow> {
+export async function loadBoard(ctx: Ctx, id: string, need: 'read' | 'manage' = 'read'): Promise<BoardRow> {
   requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(boards).where(eq(boards.id, id));
   const view = await projectAccess(ctx);
@@ -163,6 +201,8 @@ export interface BoardInput {
   columns?: { name: string; values: string[]; wipLimit?: number | null }[];
   swimlaneField?: string | null;
   query?: string | null;
+  backlogQuery?: string | null;
+  pointsField?: string | null;
   sprintsEnabled?: boolean;
 }
 
@@ -178,11 +218,18 @@ function resolveBoardInput(s: SchemaSnapshot, input: BoardInput) {
   }
   const swimlane = input.swimlaneField ? fieldByName(s, input.swimlaneField) : undefined;
   if (input.swimlaneField && !swimlane) throw notFound(`Field ${input.swimlaneField}`);
+  const points = input.pointsField ? fieldByName(s, input.pointsField) : undefined;
+  if (input.pointsField && !points) throw notFound(`Field ${input.pointsField}`);
+  if (points && !['integer', 'float'].includes(points.type)) {
+    throw badRequest(`Story points are counted in a number field, and ${points.name} isn't one`, 'Choose an integer or float field, such as Story points.');
+  }
   return {
     projectIds,
     columnFieldId: columnField.id,
     columns: resolveColumns(s, columnField.id, projectIds, input.columns),
     swimlaneFieldId: swimlane?.id ?? null,
+    pointsFieldId: points?.id ?? null,
+    backlogQuery: input.backlogQuery?.trim() || null,
   };
 }
 
@@ -201,6 +248,8 @@ export async function createBoard(ctx: Ctx, input: BoardInput): Promise<Board> {
       columns: r.columns,
       swimlaneFieldId: r.swimlaneFieldId,
       query: input.query ?? null,
+      backlogQuery: r.backlogQuery,
+      pointsFieldId: r.pointsFieldId,
       sprintsEnabled: input.sprintsEnabled ?? false,
       ownerId: ctx.actor.user.id,
     })
@@ -219,6 +268,8 @@ export async function updateBoard(ctx: Ctx, id: string, input: Partial<BoardInpu
     columns: input.columns ?? (input.columnField || input.projects ? undefined : current.columns),
     swimlaneField: input.swimlaneField === undefined ? current.swimlaneField : input.swimlaneField,
     query: input.query === undefined ? current.query : input.query,
+    backlogQuery: input.backlogQuery === undefined ? current.backlogQuery : input.backlogQuery,
+    pointsField: input.pointsField === undefined ? current.pointsField : input.pointsField,
     sprintsEnabled: input.sprintsEnabled ?? current.sprintsEnabled,
   };
   const r = resolveBoardInput(s, merged);
@@ -232,6 +283,8 @@ export async function updateBoard(ctx: Ctx, id: string, input: Partial<BoardInpu
       columns: r.columns,
       swimlaneFieldId: r.swimlaneFieldId,
       query: merged.query ?? null,
+      backlogQuery: r.backlogQuery,
+      pointsFieldId: r.pointsFieldId,
       sprintsEnabled: merged.sprintsEnabled ?? false,
       updatedAt: new Date(),
     })
@@ -268,7 +321,9 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
   const extraWhere = sprint
     ? sql`EXISTS (SELECT 1 FROM sprint_issues si WHERE si.issue_id = issues.id AND si.sprint_id = ${sprint.id})`
     : undefined;
-  const { rows } = await searchIssueRows(ctx, row.query ?? '', { projectIds: readable, extraWhere, limit: MAX_BOARD_ISSUES });
+  const found = await searchIssueRows(ctx, row.query ?? '', { projectIds: readable, extraWhere, limit: MAX_BOARD_ISSUES });
+  // Cards are in the board's rank, the backlog's (D43).
+  const { rows } = await rankRows(ctx.db, row.id, found.rows);
   const items = await issueDtos(ctx, rows);
   const stored = row.columns as StoredColumn[];
   const columns = board.columns.map((c, i) => {
@@ -280,7 +335,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
       const values = Array.isArray(v) ? v : [v];
       return values.some((x) => typeof x === 'object' && x !== null && 'id' in x && ids.has((x as { id: string }).id));
     });
-    return { ...c, issues: inColumn, count: inColumn.length };
+    return { ...c, issues: inColumn, count: inColumn.length, points: sumPoints(inColumn, row.pointsFieldId) };
   });
   let swimlanes: string[] = [];
   if (row.swimlaneFieldId) {
@@ -298,7 +353,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
       swimlanes.push('No value');
     }
   }
-  return { board, sprint, sprints: allSprints, columns, swimlanes };
+  return { board, sprint, sprints: allSprints, columns, swimlanes, points: sumPoints(items, row.pointsFieldId) };
 }
 
 // Sprints ---------------------------------------------------------------------
@@ -319,7 +374,7 @@ export async function createSprint(
 }
 
 /** A sprint on a board the caller sees (404 otherwise, as for one that doesn't exist). */
-async function loadSprint(ctx: Ctx, id: string, need: 'read' | 'manage'): Promise<{ sprint: SprintRow; board: BoardRow }> {
+export async function loadSprint(ctx: Ctx, id: string, need: 'read' | 'manage'): Promise<{ sprint: SprintRow; board: BoardRow }> {
   const [sprint] = await ctx.db.select().from(sprints).where(eq(sprints.id, id));
   if (!sprint) throw notFound('Sprint');
   const board = await loadBoard(ctx, sprint.boardId, need).catch((e: unknown) => {

@@ -9,6 +9,8 @@ const IssuePage = lazy(() => import('../pages/IssuePage'));
 const NewIssuePage = lazy(() => import('../pages/NewIssuePage'));
 const BoardsPage = lazy(() => import('../pages/BoardsPage'));
 const BoardPage = lazy(() => import('../pages/BoardPage'));
+const SprintPlanningPage = lazy(() => import('../pages/SprintPlanningPage'));
+const TimesheetPage = lazy(() => import('../pages/TimesheetPage'));
 const PlanPage = lazy(() => import('../pages/PlanPage'));
 const AssistantPage = lazy(() => import('../pages/AssistantPage'));
 const SuggestionsPage = lazy(() => import('../pages/SuggestionsPage'));
@@ -56,6 +58,8 @@ export function App() {
           <Route path="/issues/:id" element={<Page><IssuePage /></Page>} />
           <Route path="/boards" element={<Page><BoardsPage /></Page>} />
           <Route path="/boards/:id" element={<Page><BoardPage /></Page>} />
+          <Route path="/boards/:id/plan" element={<Page><SprintPlanningPage /></Page>} />
+          <Route path="/timesheet" element={<Page><TimesheetPage /></Page>} />
           <Route path="/plan" element={<Page><PlanPage /></Page>} />
           <Route path="/plan/:project" element={<Page><PlanPage /></Page>} />
           <Route path="/plan/:project/:view" element={<Page><PlanPage /></Page>} />

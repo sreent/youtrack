@@ -120,12 +120,19 @@ export const SignInSchema = z
   .meta({ id: 'SignIn' });
 export type SignIn = z.infer<typeof SignInSchema>;
 
+/** Hours on each weekday, Sunday first (D43). */
+const workWeek = z.array(z.number().min(0).max(24)).length(7);
+
 export const UserSchema = UserRefSchema.extend({
   email: z.string().nullable(),
   role: z.enum(ROLES),
   banned: z.boolean(),
   hourlyRate: z.number().nullable().describe('Cost rate per hour, used for cost tracking'),
   capacityHoursPerDay: z.number().describe('Working hours per day available for planned work'),
+  workWeek: z
+    .array(z.number())
+    .nullable()
+    .describe("Their working week: hours on each weekday, Sunday first. Null: the plan's working days at their capacity"),
   createdAt: timestamp,
   signIn: SignInSchema.optional().describe('How they sign in: only in what administrators get'),
 }).meta({ id: 'User' });
@@ -178,6 +185,7 @@ export const UpdateMeBody = z.object({
   name: z.string().min(1).max(100).optional(),
   email: z.string().email().nullable().optional(),
   timeZone: z.string().min(1).max(64).nullable().optional().describe("An IANA time zone, such as Europe/Berlin; null for the server's"),
+  workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
   password: z.string().min(8).optional(),
   currentPassword: z.string().optional(),
 });
@@ -191,6 +199,7 @@ export const CreateUserBody = z.object({
   isBot: z.boolean().default(false),
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
+  workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first'),
 });
 export const UpdateUserBody = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -200,6 +209,7 @@ export const UpdateUserBody = z.object({
   banned: z.boolean().optional(),
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
+  workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
 });
 
 export const ApiTokenSchema = z
@@ -271,11 +281,19 @@ export const HelpdeskSettingsSchema = z
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
 
+export const TimeSettingsSchema = z
+  .object({
+    workTypeRequired: z.boolean().describe('Whether work logged in the project must say its type (D43)'),
+  })
+  .meta({ id: 'TimeSettings' });
+export type TimeSettings = z.infer<typeof TimeSettingsSchema>;
+
 export const ProjectSettingsSchema = z
   .object({
     triageMode: z.enum(TRIAGE_MODES),
     plan: PlanSettingsSchema,
     helpdesk: HelpdeskSettingsSchema,
+    time: TimeSettingsSchema,
   })
   .meta({ id: 'ProjectSettings' });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
@@ -340,6 +358,7 @@ export const UpdateProjectBody = z.object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
       plan: PlanSettingsSchema.partial().optional(),
       helpdesk: HelpdeskSettingsSchema.partial().optional(),
+      time: TimeSettingsSchema.partial().optional(),
     })
     .optional(),
 });
@@ -674,6 +693,7 @@ export const WorkItemSchema = z
     minutes: z.number().int(),
     description: z.string(),
     hourlyRate: z.number().nullable().describe('Cost rate snapshot at the time the work was logged'),
+    type: z.object({ id: z.string(), name: z.string() }).nullable().describe('What kind of work it was (D43)'),
     createdAt: timestamp,
   })
   .meta({ id: 'WorkItem' });
@@ -683,6 +703,7 @@ export const WorkItemBody = z.object({
   date: isoDate.optional(),
   description: z.string().max(5000).default(''),
   author: z.string().optional().describe('Login; admins can log work for others'),
+  type: z.string().nullable().optional().describe("The work type's name or id, from the project's list"),
 });
 
 export const TagBody = z.object({ name: z.string().min(1).max(60) });
@@ -853,6 +874,8 @@ export const BoardSchema = z
     columns: z.array(BoardColumnSchema),
     swimlaneField: z.string().nullable(),
     query: z.string().nullable(),
+    backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved'),
+    pointsField: z.string().nullable().describe('The field its story points are in'),
     sprintsEnabled: z.boolean(),
   })
   .meta({ id: 'Board' });
@@ -868,6 +891,8 @@ export const BoardBody = z.object({
     .describe('Defaults to one column per value of the column field'),
   swimlaneField: z.string().nullable().optional(),
   query: z.string().nullable().optional(),
+  backlogQuery: z.string().max(1000).nullable().optional().describe('What its backlog holds; #Unresolved by default'),
+  pointsField: z.string().nullable().optional().describe('A number or period field to sum as story points'),
   sprintsEnabled: z.boolean().default(false),
 });
 
@@ -876,7 +901,14 @@ export const BoardViewSchema = z
     board: BoardSchema,
     sprint: SprintSchema.nullable(),
     sprints: z.array(SprintSchema),
-    columns: z.array(BoardColumnSchema.extend({ issues: z.array(IssueSchema), count: z.number().int() })),
+    columns: z.array(
+      BoardColumnSchema.extend({
+        issues: z.array(IssueSchema),
+        count: z.number().int(),
+        points: z.number().nullable().describe('Story points of the issues shown; null without a points field'),
+      }),
+    ),
+    points: z.number().nullable().describe('Story points of every issue shown; null without a points field'),
     swimlanes: z.array(z.string()).describe('Swimlane values in display order (empty when no swimlane field)'),
   })
   .meta({ id: 'BoardView' });
@@ -999,6 +1031,9 @@ export const ScheduleSchema = z
     baseline: z
       .object({ id: z.string(), name: z.string(), finish: isoDate, finishVarianceDays: z.number() })
       .nullable(),
+    away: z
+      .array(z.object({ assignee: z.string().describe('Login'), days: z.array(z.object({ date: isoDate, part: z.enum(['day', 'morning', 'afternoon']) })) }))
+      .describe("Assignees' days away between the plan's start and finish, drawn on the Gantt (D36, D43)"),
   })
   .meta({ id: 'Schedule' });
 export type Schedule = z.infer<typeof ScheduleSchema>;
@@ -2513,3 +2548,128 @@ export const VoteSchema = z.object({ votes: z.number().int(), voted: z.boolean()
 export type Vote = z.infer<typeof VoteSchema>;
 
 export const ReactBody = z.object({ emoji: z.enum(REACTIONS) });
+
+// ---------------------------------------------------------------------------
+// Agile and time tracking: backlog, story points, velocity, timers, work types,
+// timesheets and the working week (docs/architecture.md, D43)
+// ---------------------------------------------------------------------------
+
+export const BacklogSchema = z
+  .object({
+    query: z.string().describe('The query the backlog holds'),
+    issues: z.array(IssueSchema).describe("In rank order: ranked issues first, then the rest in the query's order"),
+    ranked: z.array(z.string()).describe('Which of them have a place of their own (readable ids)'),
+    count: z.number().int().describe('How many issues the query matches outside the open sprints, shown or not'),
+    points: z.number().nullable().describe('Story points of the issues shown; null without a points field'),
+  })
+  .meta({ id: 'Backlog' });
+export type Backlog = z.infer<typeof BacklogSchema>;
+
+export const RankBody = z.object({
+  issue: z.string().describe('The issue to move (readable id)'),
+  after: z.string().nullable().optional().describe('Put it just after this issue'),
+  before: z.string().nullable().optional().describe('Put it just before this issue; with neither, at the top'),
+});
+export type RankInput = z.infer<typeof RankBody>;
+
+export const VELOCITY_MEASURES = ['points', 'estimate', 'count'] as const;
+export const VelocitySchema = z
+  .object({
+    by: z.enum(VELOCITY_MEASURES),
+    unit: z.string().describe('"points", "hours" or "issues"'),
+    sprints: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        startDate: isoDate,
+        endDate: isoDate,
+        committed: z.number().describe('What the sprint held when it started'),
+        done: z.number().describe('What was resolved in it by its end'),
+        finished: z.boolean().describe('Whether its end has passed'),
+      }),
+    ),
+    average: z.number().nullable().describe('Done per sprint over the last three finished sprints'),
+  })
+  .meta({ id: 'Velocity' });
+export type Velocity = z.infer<typeof VelocitySchema>;
+
+export const SprintPlanSchema = z
+  .object({
+    sprint: SprintSchema,
+    from: isoDate.nullable().describe('The first day counted: its start, or today once it has started'),
+    to: isoDate.nullable(),
+    people: z.array(
+      z.object({
+        user: UserRefSchema.nullable().describe('Null for the unassigned issues'),
+        issues: z.number().int(),
+        points: z.number().nullable(),
+        loadHours: z.number().describe('Remaining estimates of their unresolved issues in the sprint'),
+        capacityHours: z.number().nullable().describe('Hours they can work in it, by their working week and days away; null without dates'),
+      }),
+    ),
+    totals: z.object({ issues: z.number().int(), points: z.number().nullable(), loadHours: z.number(), capacityHours: z.number().nullable() }),
+  })
+  .meta({ id: 'SprintPlan' });
+export type SprintPlan = z.infer<typeof SprintPlanSchema>;
+
+export const WorkTypeSchema = z
+  .object({ id: z.string(), name: z.string(), ordinal: z.number().int(), archived: z.boolean() })
+  .meta({ id: 'WorkType' });
+export type WorkType = z.infer<typeof WorkTypeSchema>;
+export const WorkTypeBody = z.object({ name: z.string().trim().min(1).max(60) });
+export const UpdateWorkTypeBody = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  archived: z.boolean().optional().describe('Archived types stay on the work logged with them, but are no longer offered'),
+  ordinal: z.number().int().min(0).optional(),
+});
+
+export const TimerSchema = z
+  .object({
+    issue: IssueRefSchema,
+    running: z.boolean(),
+    runningSince: timestamp.nullable(),
+    elapsedSeconds: z.number().int().describe('Counted so far, now included'),
+  })
+  .meta({ id: 'Timer' });
+export type Timer = z.infer<typeof TimerSchema>;
+export const StopTimerBody = z.object({
+  duration: z.union([z.string(), z.number()]).optional().describe('What to log instead of the time counted ("1h 30m", or minutes)'),
+  date: isoDate.optional().describe('Today where you are, by default'),
+  description: z.string().max(5000).default(''),
+  type: z.string().nullable().optional().describe("The work type's name or id"),
+});
+export type StopTimerInput = z.input<typeof StopTimerBody>;
+export const StopTimerResultSchema = z
+  .object({ workItem: WorkItemSchema.nullable().describe('Null when nothing was counted') })
+  .meta({ id: 'StopTimerResult' });
+
+export const TimesheetSchema = z
+  .object({
+    user: UserRefSchema,
+    week: isoDate.describe('Its Monday'),
+    days: z.array(isoDate).length(7),
+    hours: z.array(z.number()).length(7).describe('Their working hours each day: their working week, less days away'),
+    totals: z.array(z.number().int()).length(7).describe('Minutes logged each day'),
+    rows: z.array(
+      z.object({
+        issue: IssueRefSchema,
+        type: z.object({ id: z.string(), name: z.string() }).nullable(),
+        minutes: z.array(z.number().int()).length(7),
+        entries: z.array(z.number().int()).length(7).describe('How many work items make up each day: one cell edits one'),
+      }),
+    ),
+  })
+  .meta({ id: 'Timesheet' });
+export type Timesheet = z.infer<typeof TimesheetSchema>;
+export const TimesheetQuery = z.object({
+  week: isoDate.optional().describe('Any day of the week; this week by default'),
+  user: z.string().optional().describe('Whose (a login); yours by default. Administrators only for others'),
+});
+export const TimesheetCellBody = z.object({
+  issue: z.string(),
+  date: isoDate,
+  minutes: z.number().int().min(0).max(24 * 60).describe('0 deletes the entry'),
+  type: z.string().nullable().optional().describe("The row's work type (name or id); null for none"),
+  user: z.string().optional().describe('Whose (a login); yours by default'),
+});
+export type TimesheetCellInput = z.infer<typeof TimesheetCellBody>;

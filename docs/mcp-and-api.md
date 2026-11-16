@@ -71,6 +71,7 @@ State Fixed Assignee john tag regression
 Critical In Progress            # field names can be omitted when the value is unambiguous
 subtask of BACK-3 Estimation 2d
 remove tag needs-info duplicates BACK-7
+sprint Sprint 4                 # into a sprint of a board of the issue's project; "remove sprint Sprint 4" takes it out
 ```
 
 - Every command can be **previewed** (`dryRun`), which returns the exact field changes per issue without applying them.
@@ -118,7 +119,10 @@ remove tag needs-info duplicates BACK-7
 | Moving and cloning | `POST /issues/{id}/move`, `POST /issues/{id}/clone` | A move takes the other project's next number; the old id keeps finding the issue everywhere (`formerIds` on the issue). Values carry over by name; what doesn't is a problem with its choices, and nothing moves until `fields` gives each a value (or null). `dryRun` shows the plan; a move with problems left is a 400 with the plan in `details`. It takes changing issues in both projects. A clone copies summary, description, values and tags, linked back (D41) |
 | Votes and reactions | `POST/DELETE /issues/{id}/vote`, `POST /issues/{id}/reactions`, `POST /comments/{id}/reactions` | Once each, not by the reporter; `votes` on every issue, `voted` and `reactions` on one. A reaction (👍 👎 😄 🎉 😕 ❤️ 🚀 👀) toggles. Neither changes the issue's version or history |
 | Tags | `GET/POST /tags`, `PATCH/DELETE /tags/{id}`, plus `addTags` / `removeTags` on issues | Colored tags |
-| Time tracking | `GET/POST /issues/{id}/work-items`, `DELETE /work-items/{id}` | Log work (`1h 30m`); spent time is rolled up on the issue |
+| Time tracking | `GET/POST /issues/{id}/work-items`, `PATCH/DELETE /work-items/{id}` | Log work (`1h 30m`, with a work `type`) and correct it; spent time is rolled up on the issue |
+| Timers | `GET /timers`, `POST /issues/{id}/timer/start`, `/pause`, `/stop`, `DELETE /issues/{id}/timer` | Your timer on an issue; one runs at a time. Stopping it logs what it counted (or a `duration`) as a work item |
+| Timesheet | `GET /timesheet?week=&user=`, `PUT /timesheet/cell` | A week by issue and work type, each day against your working hours; setting a cell logs, corrects or (at 0) deletes its entry. Others' only for administrators |
+| Work types | `GET/POST /projects/{key}/work-types`, `PATCH/DELETE /work-types/{id}` | A project's kinds of work; a project can require one (`settings.time.workTypeRequired`). Used ones are archived, not deleted |
 | Attachments | `GET/POST /issues/{id}/attachments`, `POST /comments/{id}/attachments`, `GET/POST /articles/{id}/attachments`, `GET/DELETE /attachments/{id}`, `GET /attachments/{id}/content`, `GET /attachments/{id}/text`, `GET /attachments/limits` | Files on issues, comments (the author's own) and articles. Upload as `multipart/form-data` with the file in a part named `file` (`curl -F file=@build.log`), streamed, one per request: up to `ATTACHMENT_MAX_MB` (20) each and `ATTACHMENTS_PER_ISSUE_MB` (100) for an issue with its comments, or an article; 413 otherwise. The type is read from the bytes, never from the name or the request; the name is made safe; the SHA-256 is kept and is the ETag. `content` serves PNG, JPEG, GIF and WebP `inline` and everything else as an `attachment`, with `nosniff` and `Content-Security-Policy: sandbox`; `?download=1` downloads images too. It answers one byte range (`Range: bytes=…`) with 206 and `Content-Range`, 416 past the end, and honours `If-Range`; several ranges get the whole file. `text` reads a text file in slices of up to 128 KB, from an offset or its end (`tail=true`). A file says `text` when it can be read so, and `play` (`audio` or `video`) when the web app plays it in place. Who added a file may delete it, and so may anyone who may change its project. When the store of files (a bucket, `ATTACHMENT_STORAGE=s3`) fails, uploads and downloads answer 503 `storage_unavailable` |
 | Knowledge base | `GET/POST /articles`, `GET/PATCH/DELETE /articles/{id}`, `GET /projects/{key}/articles`, `GET /articles/{id}/versions[/{version}]`, `POST /articles/{id}/versions/{version}/restore`, `GET /issues/{id}/articles` | Articles per project, by readable id (`BACK-A-3`), in a tree: `parent` and `position` place them, and a move under one of its own descendants is refused. Markdown, saved as a new version each time (with `expectedVersion` for 409 on a newer save); a version comes with its diff against the one before, and an old one can be brought back as a new one. `GET /articles?query=` searches titles and bodies (full text, prefixes, near misses on titles), with snippets. Ids written in articles, descriptions and comments are mentions: an article lists the issues and articles that mention it, and `GET /issues/{id}/articles` the articles that mention an issue. An article with articles under it can't be deleted |
 | Activity | `GET /issues/{id}/activity`, `POST /events/{id}/undo` | Full change history with actor and channel. A change an agent made on its own says whether a person can still undo it (`undo`: `possible`, `changed_since` with what, `undone` by whom); undoing it puts its fields, summary, description, tags or link back as the person asking, all or nothing, once (409 `changed_since`, `already_undone`) |
@@ -126,7 +130,8 @@ remove tag needs-info duplicates BACK-7
 | Commands | `POST /commands`, `POST /commands/parse` | Apply or preview a command on up to 50 issues |
 | Saved searches | `GET/POST /saved-searches`, `PATCH/DELETE /saved-searches/{id}` | Personal and shared saved queries |
 | Agile boards | `GET/POST /boards`, `GET/PATCH/DELETE /boards/{id}`, `GET /boards/{id}/view?sprint=` | Kanban or scrum boards: columns mapped to State values, WIP limits, swimlanes, board filter query |
-| Sprints | `GET/POST /boards/{id}/sprints`, `PATCH/DELETE /sprints/{id}`, `POST /sprints/{id}/issues` | Sprint planning |
+| Sprints | `GET/POST /boards/{id}/sprints`, `PATCH/DELETE /sprints/{id}`, `POST /sprints/{id}/issues`, `GET /sprints/{id}/plan` | Sprint planning: each person's remaining estimate against the hours they can work in it |
+| Backlog | `GET /boards/{id}/backlog`, `POST /boards/{id}/rank`, `GET /boards/{id}/velocity?by=points\|estimate\|count` | A board's backlog (its `backlogQuery`) in rank order, less its open sprints' issues; placing an issue just after or before another; points committed and done per sprint, with the average of the last three |
 | Schedule (Gantt) | `GET /projects/{key}/schedule?query=&baseline=`, `POST /projects/{key}/schedule/what-if` | Critical-path schedule: early/late dates, slack, critical path, summary roll-ups, dependency cycles, finish date. *What-if* takes overrides (delay, estimate, assignee) and returns the impact without saving |
 | Resources | `GET /projects/{key}/resources?from=&to=`, `POST /projects/{key}/level` | Per-person daily load against each day's capacity (half on a half day away, none on a day away, with `away` saying which part, never why), over-allocated days, levelling preview (`dryRun`, default) or apply (`within_slack`, the default, or `allow_delay`). Applying writes the Start date of the tasks moved for resources, in one transaction; pass the preview's `starts` as `expect` and nothing is applied if the plan changed since (409). For a plan with no start date of its own, `keepsStart` says where applying fixes its start, so the plan stays as proposed |
 | Costs | `GET /projects/{key}/costs?baseline=` | Budget, planned and actual cost by task and by person; earned value (PV, EV, AC, CPI, SPI, EAC) against a baseline |
@@ -192,7 +197,7 @@ remove tag needs-info duplicates BACK-7
 | `move_issue` | Move to another project; `dry_run` first shows what doesn't carry over, and `fields` gives each a value (or null) | write |
 | `clone_issue` | Copy an issue, in its project or another, linked back | write |
 | `vote_issue` | Vote for an issue, or take the vote back | write |
-| `log_work` | Log time on an issue (`"1h 30m"`, optional date and note) | write |
+| `log_work` | Log time on an issue (`"1h 30m"`, optional date, note and work type) | write |
 | `get_schedule` | The project plan: finish date, critical path, slack, late tasks, and variance against a baseline. Optional `what_if` overrides answer *"what slips if BACK-12 slips 3 days?"* without saving anything | read |
 | `get_resource_load` | Who is over-allocated, and on which days; and who is away when (`awayDays`), never why | read |
 | `get_cost_report` | Budget vs. planned vs. actual cost, plus earned value against a baseline | read |
@@ -303,7 +308,7 @@ An agent or integration can react to changes instead of polling.
 
 What notifications need is in `data`, as logins: `assigned` (new assignees) and `mentions` (people newly mentioned who can see the project) on `issue.created`, `issue.updated`, `comment.created` and `comment.updated`; `watchers` on `issue.deleted`, since they go with the issue. A help desk request's events come through the `helpdesk` channel, by the `helpdesk` agent, with `data.requester.name` (never their email); a public comment has `data.visibility: "public"`. Watching, reading and email preferences are each person's own, and are no events.
 - `link.created`, `link.deleted`
-- `work.logged`
+- `work.logged`, `work.updated` (corrected, from a timesheet or `PATCH /work-items/{id}`, with what it was), `work.deleted`
 - `ai.triage.completed`
 - `baseline.created`
 - `project.member.added`, `project.member.changed`, `project.member.removed`, `project.visibility.changed`

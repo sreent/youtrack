@@ -32,10 +32,15 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Deliveries are checked (each provider's signature, GitLab's token), handled once, rate-limited and logged.
   - Bitbucket Data Center's pushes don't say what their commits say, and Bitbucket Cloud's carry the latest five a branch got: given an access token, a4a reads the rest from Bitbucket.
 - **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
+  - A backlog to plan sprints from (a board's saved query, `#Unresolved` by default), ranked by dragging or from the keyboard (Alt and an arrow); issues go into a sprint by dragging, or with the command `sprint Sprint 4`.
+  - Story points in a number field the board chooses, summed on each column, the sprint and the backlog; a velocity chart of points committed and done per sprint, with the average of the last three.
+  - Planning a sprint shows each person's remaining estimate against the hours they can work in it, by their working week and days away.
+- **Time tracking:** a timer on an issue (start, pause, stop; one running per person) that becomes a work item; work types per project, required where the project says so; and a weekly timesheet where people enter and correct their time across issues, each day against their working hours.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
-  - people's days away, whole or half days: their work waits for them, levelling finds room on the days they're there, and the load grid shows them (over the days each person chooses), never why;
+  - people's days away, whole or half days: their work waits for them, levelling finds room on the days they're there, and the load grid and the Gantt show them (the grid over the days each person chooses), never why;
+  - each person's working week (part time, a weekday off), which scheduling, levelling, the load grid, sprint planning and the timesheet use;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
 - **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk or to an S3-compatible bucket (S3, MinIO, R2), with a size limit per file and a cap per issue.

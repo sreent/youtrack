@@ -35,6 +35,8 @@ export interface GanttTask {
   after: string[];
   /** Where a what-if would put it, when that's elsewhere. */
   whatIf: { start: string; finish: string } | null;
+  /** The days its assignee is away while it's on, and which part of each (D36, D43); never why. */
+  away: { date: string; part: 'day' | 'morning' | 'afternoon' }[];
 }
 
 /** A milestone takes no time: the API has no flag for it, but a leaf of 0 working days is one. */
@@ -43,8 +45,10 @@ export const isMilestone = (t: ScheduleTask) => t.isMilestone;
 export function ganttRows(s: Schedule, cal: WorkCalendar, whatIf: Schedule | null = null): GanttTask[] {
   const after = whatIf ? new Map(whatIf.tasks.map((t) => [t.issue.id, t])) : null;
   const inPlan = new Set(s.tasks.map((t) => t.issue.id));
+  const awayOf = new Map((s.away ?? []).map((a) => [a.assignee, a.days]));
   return s.tasks.map((t) => {
     const w = after?.get(t.issue.id);
+    const away = t.assignee && !t.isSummary ? (awayOf.get(t.assignee.login) ?? []).filter((d) => d.date >= t.start && d.date <= t.finish) : [];
     return {
       id: t.issue.id,
       kind: t.isSummary ? 'summary' : isMilestone(t) ? 'milestone' : 'task',
@@ -61,6 +65,7 @@ export function ganttRows(s: Schedule, cal: WorkCalendar, whatIf: Schedule | nul
       slackDays: t.slackDays,
       after: t.predecessors.filter((p) => inPlan.has(p)),
       whatIf: w && (w.start !== t.start || w.finish !== t.finish) ? { start: w.start, finish: w.finish } : null,
+      away,
     };
   });
 }

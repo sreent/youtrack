@@ -92,7 +92,7 @@ function ownerOf(t: ScheduledTask, resources: Map<string, PlanResource>): string
  */
 export function computeLoad(input: PlanInput, schedule: ScheduleResult, from?: string, to?: string): ResourceLoadResult {
   const cal = normalizeCalendar(input.calendar);
-  const availabilityOf = availabilities(cal, input.absences, input.today);
+  const availabilityOf = availabilities(cal, input.absences, input.today, input.resources);
   const window = loadWindow(cal, schedule, from, to);
   const inWindow = new Set(window.days);
   const resources = resourceMap(input.resources);

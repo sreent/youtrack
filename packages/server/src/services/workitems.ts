@@ -11,15 +11,18 @@ import { todayIn } from '../reports/tz';
 import { assertCanWriteProject, projectAccess } from './access';
 import { issueRefsById, readableId } from './issue-refs';
 import { findVisibleIssue, resolveIssue } from './issues';
+import { projectSettings } from './projects';
 import { findUser } from './schema-cache';
 import { zoneOf } from './time-zones';
 import { userRefDto } from './values';
+import { resolveWorkType, workTypeNames } from './work-types';
 
 type WorkItemRow = typeof workItems.$inferSelect;
 
-async function dto(ctx: Ctx, row: WorkItemRow, issueReadable: string): Promise<WorkItem> {
+async function dto(ctx: Ctx, row: WorkItemRow, issueReadable: string, typeName?: string): Promise<WorkItem> {
   const s = await ctx.app.schema.get();
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
+  if (row.workTypeId && typeName === undefined) typeName = (await workTypeNames(ctx.db, [row.workTypeId])).get(row.workTypeId);
   return {
     id: row.id,
     issueId: issueReadable,
@@ -28,6 +31,7 @@ async function dto(ctx: Ctx, row: WorkItemRow, issueReadable: string): Promise<W
     minutes: row.minutes,
     description: row.description,
     hourlyRate: row.hourlyRate,
+    type: row.workTypeId && typeName ? { id: row.workTypeId, name: typeName } : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -38,20 +42,27 @@ export async function listWorkItems(ctx: Ctx, issueId: string): Promise<WorkItem
   const issue = await resolveIssue(ctx, issueId);
   const rows = await ctx.db.select().from(workItems).where(eq(workItems.issueId, issue.id)).orderBy(asc(workItems.date));
   const rid = readableId(s, issue);
-  return Promise.all(rows.map((r) => dto(ctx, r, rid)));
+  const names = await workTypeNames(ctx.db, rows.map((r) => r.workTypeId));
+  return Promise.all(rows.map((r) => dto(ctx, r, rid, r.workTypeId ? (names.get(r.workTypeId) ?? '') : undefined)));
+}
+
+/** Minutes from "1h 30m", "2d" or a number of minutes; refused when it isn't more than nothing. */
+export function minutesOrRefuse(duration: string | number): number {
+  const minutes = parsePeriod(duration);
+  if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${duration}"`, 'Use "1h 30m", "2d" or minutes.');
+  return minutes;
 }
 
 export async function logWork(
   ctx: Ctx,
   issueId: string,
-  input: { duration: string | number; date?: string; description?: string; author?: string },
+  input: { duration: string | number; date?: string; description?: string; author?: string; type?: string | null },
 ): Promise<WorkItem> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
   await assertCanWriteProject(ctx, issue.projectId);
-  const minutes = parsePeriod(input.duration);
-  if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${input.duration}"`, 'Use "1h 30m", "2d" or minutes.');
+  const minutes = minutesOrRefuse(input.duration);
   // Work logged without a date is on the day it is where its person is (D31).
   const date = input.date ?? todayIn(zoneOf(ctx));
   if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD');
@@ -64,6 +75,8 @@ export async function logWork(
     }
     author = u;
   }
+  const project = s.projects.get(issue.projectId)!;
+  const type = await resolveWorkType(ctx.db, project, input.type, projectSettings(project).time.workTypeRequired);
   const ref = (await issueRefsById(ctx.db, s, [issue.id])).get(issue.id);
   const { row, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -77,6 +90,7 @@ export async function logWork(
         minutes,
         description: input.description ?? '',
         hourlyRate: author.hourlyRate,
+        workTypeId: type?.id ?? null,
       })
       .returning();
     await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, issue.id));
@@ -86,26 +100,88 @@ export async function logWork(
       issueId: issue.id,
       payload: {
         issue: ref,
-        data: { workItemId: row!.id, minutes, duration: formatPeriod(minutes), date, author: author.login, description: input.description ?? '' },
+        data: {
+          workItemId: row!.id,
+          minutes,
+          duration: formatPeriod(minutes),
+          date,
+          author: author.login,
+          description: input.description ?? '',
+          ...(type ? { type: type.name } : {}),
+        },
       },
     });
     return { row: row!, activity };
   });
   await publishActivities(ctx.app, [activity]);
-  return dto(ctx, row, readableId(s, issue));
+  return dto(ctx, row, readableId(s, issue), type?.name);
+}
+
+/**
+ * A work item the caller may change: their own, or anyone's in a project they manage. One on an
+ * issue they can't see is not found, exactly as one that doesn't exist.
+ */
+async function loadOwnOrManaged(ctx: Ctx, id: string, verb: string) {
+  const [row] = await ctx.db.select().from(workItems).where(eq(workItems.id, id));
+  const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
+  if (!row || !issue) throw notFound('Work item');
+  await assertCanWriteProject(ctx, issue.projectId);
+  if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx) && !(await projectAccess(ctx)).canManage(issue.projectId)) {
+    throw forbidden(`You can only ${verb} your own work items`, `Managers of the project can ${verb} anyone’s.`);
+  }
+  return { row, issue };
+}
+
+/** Corrects logged work (D43): its time, day, note or type. Recorded as work.updated. */
+export async function updateWorkItem(
+  ctx: Ctx,
+  id: string,
+  input: { duration?: string | number; date?: string; description?: string; type?: string | null },
+): Promise<WorkItem> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const { row, issue } = await loadOwnOrManaged(ctx, id, 'change');
+  const minutes = input.duration !== undefined ? minutesOrRefuse(input.duration) : row.minutes;
+  const date = input.date ?? row.date;
+  if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD');
+  const project = s.projects.get(issue.projectId)!;
+  const type =
+    input.type !== undefined
+      ? await resolveWorkType(ctx.db, project, input.type, projectSettings(project).time.workTypeRequired)
+      : undefined;
+  const ref = (await issueRefsById(ctx.db, s, [issue.id])).get(issue.id);
+  const { updated, activity } = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const [updated] = await tx
+      .update(workItems)
+      .set({
+        minutes,
+        date,
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(type !== undefined ? { workTypeId: type?.id ?? null } : {}),
+      })
+      .where(eq(workItems.id, id))
+      .returning();
+    await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, issue.id));
+    const activity = await recordActivity(tx, ctx, {
+      type: 'work.updated',
+      projectId: issue.projectId,
+      issueId: issue.id,
+      payload: {
+        issue: ref,
+        data: { workItemId: id, minutes, duration: formatPeriod(minutes), date, was: { minutes: row.minutes, date: row.date } },
+      },
+    });
+    return { updated: updated!, activity };
+  });
+  await publishActivities(ctx.app, [activity]);
+  return dto(ctx, updated, readableId(s, issue));
 }
 
 export async function deleteWorkItem(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
-  const [row] = await ctx.db.select().from(workItems).where(eq(workItems.id, id));
-  // Work on an issue the caller can't see is not found, exactly as work that doesn't exist.
-  const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue) throw notFound('Work item');
-  await assertCanWriteProject(ctx, issue.projectId);
-  if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
-    throw forbidden('You can only delete your own work items', 'Managers of the project can delete anyone’s.');
-  }
+  const { row, issue } = await loadOwnOrManaged(ctx, id, 'delete');
   const ref = (await issueRefsById(ctx.db, s, [issue.id])).get(issue.id);
   const activity = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;

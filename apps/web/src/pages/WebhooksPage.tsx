@@ -24,6 +24,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'link.deleted': 'issues are unlinked',
   'work.logged': 'work is logged',
   'work.deleted': 'logged work is removed',
+  'work.updated': 'logged work is corrected',
   'ai.triage.completed': 'triage suggests changes',
   'baseline.created': 'a baseline is saved',
   'project.member.added': 'someone is given a role in a project',

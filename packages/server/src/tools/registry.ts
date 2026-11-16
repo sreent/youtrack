@@ -563,14 +563,20 @@ const logWorkTool = defineTool({
   name: 'log_work',
   title: 'Log work',
   description: 'Record time spent on an issue ("1h 30m", "2d"), optionally on a date with a note. Spent time feeds the plan and cost reports.',
-  input: z.object({ issue: z.string(), duration: z.string(), date: z.string().optional().describe('YYYY-MM-DD, default today'), description: z.string().optional() }),
+  input: z.object({
+    issue: z.string(),
+    duration: z.string(),
+    date: z.string().optional().describe('YYYY-MM-DD, default today'),
+    description: z.string().optional(),
+    type: z.string().optional().describe("The work type, from the project's list (GET /projects/{key}/work-types); required where the project says so"),
+  }),
   kind: 'changes',
   async preview(_ctx, input) {
-    return `Log ${input.duration} on ${input.issue.toUpperCase()}${input.date ? ` for ${input.date}` : ''}`;
+    return `Log ${input.duration}${input.type ? ` of ${input.type}` : ''} on ${input.issue.toUpperCase()}${input.date ? ` for ${input.date}` : ''}`;
   },
   async run(ctx, input) {
     const w = await logWork(ctx, input.issue, input);
-    return { data: { id: w.id, issue: w.issueId, minutes: w.minutes, date: w.date }, summary: `Logged ${formatPeriod(w.minutes)} on ${w.issueId}` };
+    return { data: { id: w.id, issue: w.issueId, minutes: w.minutes, date: w.date, type: w.type?.name ?? null }, summary: `Logged ${formatPeriod(w.minutes)} on ${w.issueId}` };
   },
 });
 

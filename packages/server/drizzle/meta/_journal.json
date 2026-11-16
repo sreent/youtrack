@@ -120,6 +120,13 @@
       "when": 1794844303236,
       "tag": "0016_issues_and_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794847640499,
+      "tag": "0017_agile_and_time",
+      "breakpoints": true
     }
   ]
 }

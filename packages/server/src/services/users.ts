@@ -23,6 +23,7 @@ export function userDto(u: UserRow): User {
     banned: u.banned,
     hourlyRate: u.hourlyRate,
     capacityHoursPerDay: u.capacityHoursPerDay,
+    workWeek: u.workWeek ?? null,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -63,6 +64,7 @@ export interface NewUser {
   isBot?: boolean;
   hourlyRate?: number | null;
   capacityHoursPerDay?: number;
+  workWeek?: number[] | null;
 }
 
 export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
@@ -83,6 +85,7 @@ export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
       avatarColor: colorFor(input.login),
       hourlyRate: input.hourlyRate ?? null,
       capacityHoursPerDay: input.capacityHoursPerDay ?? 8,
+      workWeek: input.workWeek ?? null,
     })
     .returning();
   return row!;
@@ -111,6 +114,8 @@ export async function updateUser(
     banned?: boolean;
     hourlyRate?: number | null;
     capacityHoursPerDay?: number;
+    /** Hours on each weekday, Sunday first (D43), or null for the plan's working days. */
+    workWeek?: number[] | null;
     /** A canonical IANA name (services/time-zones.ts checks it), or null for the server's. */
     timeZone?: string | null;
   },
@@ -142,6 +147,7 @@ export async function updateUser(
       ...(input.banned !== undefined ? { banned: input.banned } : {}),
       ...(input.hourlyRate !== undefined ? { hourlyRate: input.hourlyRate } : {}),
       ...(input.capacityHoursPerDay !== undefined ? { capacityHoursPerDay: input.capacityHoursPerDay } : {}),
+      ...(input.workWeek !== undefined ? { workWeek: input.workWeek } : {}),
       ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
       updatedAt: new Date(),
     })
@@ -155,7 +161,7 @@ export async function updateUser(
 
 export async function updateMe(
   ctx: Ctx,
-  input: { name?: string; email?: string | null; password?: string; currentPassword?: string; timeZone?: string | null },
+  input: { name?: string; email?: string | null; password?: string; currentPassword?: string; timeZone?: string | null; workWeek?: number[] | null },
 ): Promise<User> {
   requireScope(ctx, 'write');
   // A zone this server doesn't know is refused before anything changes; one it knows is kept by its canonical name.
@@ -167,7 +173,7 @@ export async function updateMe(
     const ok = await verifyPassword(input.currentPassword ?? '', ctx.actor.user.passwordHash);
     if (!ok && ctx.actor.user.passwordHash) throw forbidden('Current password is incorrect');
   }
-  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone });
+  return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone, workWeek: input.workWeek });
 }
 
 export async function deleteUser(ctx: Ctx, idOrLogin: string): Promise<void> {

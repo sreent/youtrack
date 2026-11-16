@@ -1597,6 +1597,7 @@ export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }
       'link.deleted': 'unlinked it',
       'work.logged': 'logged work on it',
       'work.deleted': 'removed work logged on it',
+      'work.updated': 'corrected work logged on it',
       'sprint.issue_added': 'put it in a sprint',
       'sprint.issue_removed': 'took it out of a sprint',
       'ai.triage.completed': 'triaged it',

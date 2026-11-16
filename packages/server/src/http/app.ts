@@ -16,6 +16,7 @@ import { aiRoutes } from './routes/ai';
 import { articleRoutes } from './routes/articles';
 import { attachmentRoutes } from './routes/attachments';
 import { authRoutes } from './routes/auth';
+import { agileRoutes } from './routes/agile';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
@@ -71,6 +72,7 @@ export function createHttpApp(runtime: Runtime) {
   coreRoutes(api);
   issueRoutes(api);
   boardRoutes(api);
+  agileRoutes(api);
   eventRoutes(api);
   planningRoutes(api);
   aiRoutes(api);
