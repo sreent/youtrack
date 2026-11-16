@@ -72,6 +72,22 @@ export class OrderedLog {
   }
 
   /**
+   * Wait until every id taken so far is final: the transactions writing to the log now
+   * have ended. A reader that starts at the end of the log calls this after reading
+   * where the end is, or an earlier id committing late would fall behind its cursor.
+   * Gives up after `maxWaitMs`.
+   */
+  async untilWritersFinish(maxWaitMs: number): Promise<void> {
+    const deadline = this.now() + maxWaitMs;
+    const first = await this.writers();
+    while (first.size && this.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+      const now = await this.writers();
+      for (const tx of first) if (!now.has(tx)) first.delete(tx);
+    }
+  }
+
+  /**
    * Every id up to a probe's horizon was taken before the probe (a higher id was
    * already visible), so whoever took one and still runs is writing to the log now.
    * When none of the writers seen after the probe is running any more, a missing id up

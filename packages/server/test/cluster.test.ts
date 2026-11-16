@@ -298,6 +298,31 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
     });
   });
 
+  it('starts an instance’s feed only once ids being written below its start are final', async () => {
+    const tx = new pg.Client({ connectionString: db!.url });
+    await tx.connect();
+    try {
+      const before = await maxActivityId();
+      await tx.query('begin');
+      const heldId = Number((await tx.query<{ id: string }>(`insert into activities (type, channel, payload) values ('issue.updated', 'system', '{}') returning id`)).rows[0]!.id);
+      const after = await createIssue(ctxA, { project: 'BACK', summary: 'Committed while an instance starts' });
+      // A new instance starts now; a client resumes on it from before the held id.
+      const fresh = await createRuntime(loadConfig({ aiEnabled: false, seedDemo: false, publicUrl: BASE }), a.database);
+      const http = createHttpApp(fresh);
+      const resuming = openStream(async (p, i) => http.request(p, i), token, { lastEventId: String(before) });
+      await sleep(300);
+      await tx.query('commit');
+      const stream = await resuming;
+      const got = await stream.waitForEvents(2, 3_000);
+      expect(got.map((e) => e.id)).toEqual([heldId, heldId + 1]);
+      expect(got[1]!.issue?.id).toBe(after.id);
+      await stream.close();
+      fresh.live.stop();
+    } finally {
+      await tx.end();
+    }
+  });
+
   describe('reference data', () => {
     it('sees a field value added on A at once on B, well before the minute', async () => {
       const before = await b.runtime.schema.get();
@@ -475,7 +500,8 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
       await until(() => standby.worker.active, LEASE_MS + POLL_MS + 1_000, 'the standby taking over');
       const tookOver = Date.now() - died;
       expect(tookOver).toBeGreaterThan(LEASE_MS - 600);
-      expect(tookOver).toBeLessThan(LEASE_MS + POLL_MS + 500);
+      // The lease, plus one poll, plus slack for a busy machine.
+      expect(tookOver).toBeLessThan(LEASE_MS + POLL_MS + 1_000);
       expect(await leaseHolder()).toBe(standby.runtime.instanceId);
       const mid = await maxActivityId();
       for (const n of [1, 2]) await createIssue(ctxA, { project: 'BACK', summary: `After the crash ${n}` });

@@ -59,6 +59,8 @@ export class LiveEvents {
   start(): Promise<void> {
     this.started ??= (async () => {
       const [{ max } = { max: 0 }] = await this.app.db.select({ max: sql<number>`coalesce(max(${activities.id}), 0)` }).from(activities);
+      // An earlier id still being written would land behind the cursor: let those finish first.
+      await this.log.untilWritersFinish(2_000);
       this.cursor = Number(max);
       this.unsubscribers.push(this.app.bus.subscribe(() => this.poke()));
       this.unsubscribers.push(
