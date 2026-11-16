@@ -26,10 +26,11 @@ import {
   updateGroup,
   updateProjectGroup,
 } from '../src/services/groups';
-import { createIssue, updateIssue } from '../src/services/issues';
+import { createIssue, findIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { createProject, listProjects } from '../src/services/projects';
 import { toolByName } from '../src/tools/registry';
+import { recipientsFor } from '../src/workflow/tell';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -143,6 +144,24 @@ describe('a group with a role in a project', () => {
     const f = await failure(() => updateIssue(admin, issue.id, { fields: { Assignee: 'ben' } }));
     expect(f.status).toBe(400);
     expect(f.message).toMatch(/can't see SECRET/);
+  });
+  it("counts a group's managers among the project's managers a rule tells", async () => {
+    const leads = await createGroup(admin, { name: 'Merger leads' });
+    try {
+      await addGroupMember(admin, leads.id, 'ben');
+      await addProjectGroup(admin, 'SECRET', { group: leads.id, role: 'manager' });
+      const made = await createIssue(admin, { project: 'SECRET', summary: 'Due diligence room' });
+      const managers = async () => {
+        const s = await w.app.schema.get();
+        const row = (await findIssue(w.app.db, s, made.id))!;
+        return (await recipientsFor(w.app.db, s, { to: ['managers'], people: [] }, row)).map((u) => u.login);
+      };
+      expect(await managers()).toContain('ben');
+      await removeProjectGroup(admin, 'SECRET', leads.id);
+      expect(await managers()).not.toContain('ben');
+    } finally {
+      await deleteGroup(admin, leads.id);
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 /**
  * Whom a rule tells about an issue it acts on: its assignee, its reporter, its watchers, the
- * project's managers (its lead and its members with the manager role, not every administrator), and
+ * project's managers (its lead and its people with the manager role, their own or a group's; not
+ * every administrator), and
  * people the rule names. Never an agent or a banned account, never whoever set the rule off (as the
  * notifier never tells whoever acted), and only people who can see the issue as they would signing
  * in (services/access.ts). The notifier checks that again when it delivers.
@@ -9,7 +10,7 @@ import type { RuleNotify } from '@a4a/shared';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import type { UserRow } from '../context';
 import type { Db } from '../db/client';
-import { issueFieldValues, projectMembers } from '../db/schema';
+import { groupMembers, issueFieldValues, projectGroupRoles, projectMembers } from '../db/schema';
 import { projectRolesOf } from '../services/access';
 import type { IssueRow } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
@@ -44,6 +45,13 @@ export async function recipientsFor(
       .from(projectMembers)
       .where(and(eq(projectMembers.projectId, issue.projectId), eq(projectMembers.role, 'manager')));
     for (const r of rows) ids.add(r.userId);
+    // Managers by a group's role count as managers by their own (D27).
+    const viaGroups = await db
+      .select({ userId: groupMembers.userId })
+      .from(projectGroupRoles)
+      .innerJoin(groupMembers, eq(groupMembers.groupId, projectGroupRoles.groupId))
+      .where(and(eq(projectGroupRoles.projectId, issue.projectId), eq(projectGroupRoles.role, 'manager')));
+    for (const r of viaGroups) ids.add(r.userId);
   }
   for (const login of notify.people) {
     const u = s.usersByLogin.get(login.trim().toLowerCase());
