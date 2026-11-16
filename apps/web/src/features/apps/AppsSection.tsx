@@ -266,7 +266,7 @@ function InstalledApp({ app }: { app: App }) {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const removal = useQuery({ queryKey: [...appKeys.all, 'removal', app.name], queryFn: () => get<AppRemoval>(`/apps/${app.name}/removal`), enabled: false });
+  const removal = useQuery({ queryKey: ['app-removal', app.name], queryFn: () => get<AppRemoval>(`/apps/${app.name}/removal`), enabled: false });
   const remove = async () => {
     try {
       await del(`/apps/${app.name}`);
@@ -316,7 +316,7 @@ function InstalledApp({ app }: { app: App }) {
         <button type="button" className="small" aria-expanded={open === 'runs'} onClick={() => setOpen(open === 'runs' ? null : 'runs')}>
           What it did
         </button>
-        <span onFocusCapture={() => void removal.refetch()} onMouseEnter={() => void removal.refetch()}>
+        <span onFocusCapture={() => !removal.data && void removal.refetch()} onMouseEnter={() => !removal.data && void removal.refetch()}>
           <Confirm
             small
             label="Remove it"
