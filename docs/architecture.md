@@ -1088,6 +1088,51 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
 
+### D42. Chat: Teams and Slack, told only what every reader may see, and people acting as themselves
+
+The team works in Microsoft Teams, or Slack: an issue's news should reach them there, and they should be able to answer it there. Two things, in both: a channel is subscribed to a project's issues or a saved search's, and people talk to a4a's bot, which acts as them (`chat/`).
+
+**The line no post crosses.** A channel holds people a4a can't vouch for: guests, people outside the project, people who joined after. So a channel is told only what every reader of the project may see.
+
+- Never an issue or a comment limited to some people (D37), nor a link's other end that is; never a help desk's internal note on a request, nor a requester's address; nothing an import brought.
+- It's checked when the outbox's consumer writes a post, and again when the post is sent: an issue limited in between isn't posted, and isn't posted about again.
+- Whoever subscribes a channel vouches for its people, and every post is read as they would read the issue. A project open to everyone takes anyone who reads it (a read-only account excepted); one open to its members alone, someone who manages it, since the channel's people may not be members. A subscriber who loses the project, or is banned, ends a project's subscription, saying why; a saved search's only stops telling of that project.
+- What goes to one person (an answer, a card refreshed for them) follows their own access, as anywhere else in a4a: Slack's ephemeral messages, Teams' personal chat and `refresh.userIds`. A question asked in a Teams channel is answered in the asker's personal chat, with a word in the channel; only a subscription's confirmation is answered in the channel, since it says what the channel will hear.
+- A channel hears of what happens from when it's subscribed, however late the outbox hands an event over.
+
+**Posting.** As mail is (D17): the consumer writes one row per channel per event (`chat_outbox`, keyed so a second hand-over writes nothing), and a sender on every instance claims due rows (`FOR UPDATE SKIP LOCKED`, with a lease) and posts them, rendered from the issue as it is then. A 429 or a 5xx waits as long as the service asks (`Retry-After`), and at least 30 s, 2 min, 10 min, 30 min, then 2 h; a channel that's gone (Teams' `ConversationNotFound`, Slack's `channel_not_found`, `is_archived`, `not_in_channel`) is marked so and its subscriptions end, saying why; a revoked token or a bot taken out of a team ends every subscription in that workspace. Ended subscriptions stay on the page with their reason until someone takes them off.
+
+**Teams.** A bot on Azure Bot Service, on a single-tenant Entra app (`TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID`, from settings: one bot per a4a).
+
+- What Teams sends is checked before anything in it is read: Bot Framework's JWT, RS256, signed with a key from its OpenID metadata (cached a day, fetched again for a key id it doesn't know, at most once a minute), issued by `https://api.botframework.com`, for this bot, in date (five minutes' skew), its key endorsing `msteams`, and its `serviceurl` the activity's. Another tenant's activities are ignored.
+- The bot calls Teams with a token from the tenant's token endpoint (client credentials), kept until five minutes before it expires, and only at Bot Framework's hosts (`smba.trafficmanager.net` and the government clouds', `TEAMS_SERVICE_HOSTS` to add one). The service URL is the signed token's, and checked against them too.
+- Added to a team, the bot lists its channels; a channel created, renamed or deleted, and the team archived or deleted, are kept up with.
+- Posts are Adaptive Cards 1.5 from Ocean's templates (`teams/cards/a4a-change.json`, `a4a-issue.json`), bound with a subset of Adaptive Cards' templating (`${…}`, `$when`, `$data`) and bundled into the server's build. Their actions are Universal Actions (`Action.Execute`): Assign to me, Move to… and Comment, done as whoever acts, answered with the issue card as they see it, refreshed for them alone. The channel's post stays as it was posted.
+- An administrator downloads the app package (the manifest naming the bot and a4a's address, and its two icons, drawn in Ocean's blue) to upload in Teams' admin center.
+
+**Slack.** One workspace per a4a, connected on the Chat page with its app's bot token and signing secret, both sealed (`SECRET_KEY`).
+
+- Every request (slash commands, interactivity, events) is checked with the signing secret, `v0` HMAC-SHA256 over `v0:<timestamp>:<raw body>`, the timestamp within five minutes, before anything in it is read. Only Slack's Web API is called.
+- Posts are Block Kit; `/a4a` answers ephemerally; a button's action is done as whoever pressed it and answered to them alone (`chat.postEphemeral`), within Slack's three seconds. A link to an issue is unfurled only for a linked person who sees it, and only an issue a channel may be told of, as they would vouch for it.
+- Its channels are those it's in: listed when it's connected, added when it's invited (`member_joined_channel`) or asked in, gone when deleted, archived or left. `app_uninstalled` and `tokens_revoked` end everything, and forget the token and secret.
+
+**People.** A chat account acts as the a4a account it's linked to, through the one write path, with that account's access and permissions: the history says it was them, "via Teams" or "via Slack" (channel `chat`). Someone a4a doesn't know is told how to link, and nothing else; an issue hidden from them answers as missing, in the same words.
+
+- Teams names people by their Entra object id (`from.aadObjectId`). Someone who signs in to a4a through Entra ID is known by it: sign-in now keeps the ID token's `oid` and `tid` with their identity (D16), so the bot knows them from their next sign-in, without linking.
+- Anyone else links once: the bot sends a sign-in link where only they read it (Slack: ephemerally; Teams: their personal chat, never a channel). It works once, for 15 minutes, is kept as a hash, and names the chat account it would link; whoever opens it, signed in on the web, confirms. A token or an agent can't link anyone. The bot then says it's done, where it sent the link. People see their chat accounts on their profile, and unlink them; an account banned, or an agent's, can't act from chat.
+
+**MCP and REST.** `/chat/subscriptions` and four tools (`list_chat_channels`, `list_chat_subscriptions`, `subscribe_chat_channel`, `unsubscribe_chat_channel`), as the person: an agent can subscribe a channel as its person may, and can't link anyone.
+
+**What it costs.**
+
+- Each event of a kind a channel hears of costs a query for the active subscriptions; with any, a few more: the event's issue, its comment, its subscribers' access, and a saved search's query against the issue. With none, one query.
+- A post is rendered from the issue as its subscriber reads it, when it's sent: one issue read per post.
+- Teams' signing keys and the bot's token are fetched once a day and once an hour, per instance.
+- A linked person who loses access in a4a loses it in chat at once; one who leaves the chat workspace stays linked until they or an administrator unlink them, which harms nothing, since it's the chat service that says who's speaking.
+- Requests from Teams and Slack come through `/api`, under the guests' rate limit by address (300 a minute): a busy Slack workspace, whose requests come from few addresses, may need `GUEST_RATE_LIMIT` raised.
+
+**Revisit when:** a channel's posts should change in place as their issue changes (Teams' `updateActivity`, Slack's `chat.update`), which wants posts remembered by issue; Teams should unfurl links (a message extension, `composeExtension/queryLink`); more than one Slack workspace or Teams bot is needed; or another chat is (Google Chat, Mattermost).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1185,3 +1230,4 @@ Planned, with the seams already in place:
 - fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37).
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40).
 - CI reporting builds to a build field on its own, with a token per pipeline (D41).
+- chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42).

@@ -38,6 +38,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a4a knows a commit's author by any of their confirmed emails, or by their login at the provider (an administrator records it). People add emails on their profile and confirm each by a link a4a mails; an administrator can confirm one instead. When the email and the login name two people, it's nobody.
   - Deliveries are checked (each provider's signature, GitLab's token), handled once, rate-limited and logged.
   - Bitbucket Data Center's pushes don't say what their commits say, and Bitbucket Cloud's carry the latest five a branch got: given an access token, a4a reads the rest from Bitbucket.
+- **Chat with Microsoft Teams and Slack** (D42):
+  - A channel is told of a project's issues, or a saved search's: new issues, state changes, assignments, comments and other changes, as chosen for it. Teams gets Ocean's cards, Slack its own blocks.
+  - A channel is told only what everyone who reads the project may see: never an issue or a comment limited to some people, a help desk's internal note or a requester's address. Whoever subscribes a channel vouches for its people; a project open to its members alone takes someone who manages it.
+  - People ask the bot as themselves, with their own access: `BACK-12`, `BACK-12 State Fixed`, `comment BACK-12 …`, `new BACK …`, `search …`, `subscribe BACK`. A card's buttons (Assign to me, Move to…, Comment) do the same, and answer the person alone.
+  - Teams knows people who sign in with Microsoft Entra ID; anyone else links their chat account once, with a link only they see. Slack unfurls links to issues a channel may be told of.
 - **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
@@ -255,6 +260,10 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `HELPDESK_CAPTCHA_MAX_NUMBER` | `100000` | How hard a help desk form's proof of work is: the most numbers a browser may have to try (half that on average, about a second) |
 | `IMPORT_ALLOW_HOSTS` | empty | Comma-separated host names an import may read from although they are inside the network, such as a YouTrack or Jira of your own. Every other host must be public; https always |
 | `IMPORT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets an import read over plain http from this machine |
+| `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID` | empty | A Teams bot (D42): its Entra app's id and client secret, and the one tenant it serves. All three, or none |
+| `TEAMS_SERVICE_HOSTS` | Bot Framework's | More hosts a Teams service URL may name, comma-separated, beside Bot Framework's own (`smba.trafficmanager.net` and the government clouds') |
+| `SLACK_API_URL` | `https://slack.com/api` | Slack's Web API. Slack itself is connected on the Chat page, with its app's token and signing secret |
+| `CHAT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets chat services be reached over plain http on this machine |
 
 ## Production
 
@@ -330,6 +339,20 @@ OIDC_GROUPS_CLAIM=groups
 Entra's groups claim names each group by its object id, not its name: give each a4a group that follows the provider the Entra group's Object ID as its provider name. Or define app roles in the registration, assign groups to them, and set `OIDC_GROUPS_CLAIM=roles` to have names instead. Once sign-in works, `PASSWORD_LOGIN=false` leaves sign-in, and its multi-factor checks, to Entra.
 
 To have Entra add and remove people between sign-ins, make a SCIM token in Administration → Provisioning. In Entra, open the enterprise application, then Provisioning, and set the mode to Automatic: the tenant URL is `https://a4a.example.com/scim/v2` and the secret token is the SCIM token. Entra's default mappings work as they are. A group it provisions follows it under its object id, as the groups claim names it, so provisioning and sign-in agree; someone it deactivates is banned, and keeps their history.
+
+### Chat with Microsoft Teams and Slack
+
+**Teams.** In the Azure portal, create an Azure Bot, single tenant, on an app registration: the one a4a signs people in with, or its own. Give it a client secret, and set the bot's messaging endpoint to `https://a4a.example.com/api/v1/chat/teams/messages`, then turn on its Microsoft Teams channel. On the a4a server:
+
+```
+TEAMS_APP_ID=<the app's client id>
+TEAMS_APP_PASSWORD=<its client secret>
+TEAMS_TENANT_ID=<your tenant id>
+```
+
+Then download the app package from the Chat page (Download the Teams app), upload it in the Teams admin center under Manage apps, and add it to a team: a4a lists the team's channels. People who sign in to a4a with Entra ID are known to the bot from their next sign-in (a4a keeps their `oid`); anyone else says "link" to it once.
+
+**Slack.** Create an app at api.slack.com from scratch. Give its bot the scopes `chat:write`, `commands`, `channels:read`, `groups:read`, `links:read` and `links:write`; add the slash command `/a4a`, interactivity, and event subscriptions (`link_shared`, `member_joined_channel`, `channel_deleted`, `channel_archive`, `channel_rename`, `app_uninstalled`), each at the URL the Chat page shows; and add your a4a's domain under App unfurl domains. Install it, then paste its bot token and signing secret on the Chat page. Invite it to a channel with `/invite @a4a`, and subscribe the channel there with `/a4a subscribe BACK`, or on the project's page.
 
 ## Development
 
