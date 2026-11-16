@@ -10,7 +10,9 @@ import { rules, ruleRuns, stateMachines, workflowActions } from '../src/db/schem
 import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
 import { issueActivity } from '../src/services/activity';
-import { issueTokenFor } from '../src/services/auth';
+import { issueAgentToken, undoAgentChange } from '../src/services/agents';
+import { actorFromToken, issueTokenFor } from '../src/services/auth';
+import { createUser } from '../src/services/users';
 import { addComment, listComments } from '../src/services/comments';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
 import { updateProject } from '../src/services/projects';
@@ -294,6 +296,19 @@ describe('state machines', () => {
     const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Imported', fields: { State: 'Open' } });
     await updateIssue(w.adminCtx, issue.id, { fields: { State: 'Fixed' } }, { data: { imported: { source: 'test' } } });
     expect(value(await getIssue(w.adminCtx, issue.id), 'State')).toBe('Fixed');
+  });
+
+  it('lets a person undo what an agent moved, though no transition goes back', async () => {
+    await createMachine(w.adminCtx, { project: 'WEB', field: 'State', transitions: [{ name: 'Start', from: ['Open'], to: 'In Progress' }] });
+    await createUser(w.adminCtx, { login: 'robo', name: 'Robo', role: 'member', isBot: true });
+    const token = (await issueAgentToken(w.adminCtx, 'robo', { name: 'ci', scopes: ['read', 'write'] })).token;
+    const agent = { app: w.app, db: w.app.db, actor: (await actorFromToken(w.app.db, token, 'mcp'))! };
+    const issue = await createIssue(w.as(w.anna), { project: 'WEB', summary: 'Moved by an agent', fields: { State: 'Open' } });
+    await runTransition(agent, issue.id, { transition: 'Start' });
+    await expect(updateIssue(w.as(w.anna), issue.id, { fields: { State: 'Open' } })).rejects.toMatchObject({ code: 'refused_by_state_machine' });
+    const moved = (await issueActivity(w.adminCtx, issue.id)).find((e) => e.type === 'issue.updated' && e.actor.login === 'robo')!;
+    await undoAgentChange(w.as(w.anna), moved.id);
+    expect(value(await getIssue(w.adminCtx, issue.id), 'State')).toBe('Open');
   });
 
   it("is checked when it's saved, is the project manager's, and refuses nothing while off", async () => {
