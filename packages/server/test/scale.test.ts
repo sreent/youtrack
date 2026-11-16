@@ -114,6 +114,9 @@ describe('the live stream', () => {
   it('replays what a client missed after its Last-Event-ID, then goes on live, in order and once', async () => {
     const first = await openStream(request, token);
     await first.waitFor((f) => f.event === 'ready');
+    expect(first.headers.get('content-type')).toMatch(/^text\/event-stream/);
+    // So a proxy such as nginx passes it on as it is written.
+    expect(first.headers.get('x-accel-buffering')).toBe('no');
     await createIssue(w.adminCtx, { project: 'BACK', summary: 'Seen live' });
     await first.waitForEvents(1);
     const last = first.lastEventId()!;
@@ -288,6 +291,32 @@ describe('the outbox worker on its own', () => {
     expect(after!.lastId).toBe(before!.lastId);
     await worker.stop();
     await w.app.db.delete(workerLeases);
+  });
+});
+
+describe('the outbox worker stopping', () => {
+  it('releases its lease on stop without waiting out a slow consumer', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    let started = false;
+    const consumer: OutboxConsumer = {
+      name: 'stuck-probe',
+      handle: async () => {
+        started = true;
+        await gate;
+      },
+    };
+    const worker = new OutboxWorker(w.app, [consumer], { leaseMs: 60_000, pollMs: 10_000, holder: 'stuck', stopWaitMs: 300 }, []);
+    worker.start();
+    await until(() => worker.active, 2_000, 'the lease');
+    await until(async () => (await w.app.db.select().from(outboxCursors).where(eq(outboxCursors.consumer, 'stuck-probe'))).length === 1, 2_000, 'a cursor');
+    await createIssue(w.adminCtx, { project: 'BACK', summary: 'Handled forever' });
+    await until(() => started, 3_000, 'the consumer starting');
+    const stopping = Date.now();
+    await worker.stop();
+    expect(Date.now() - stopping).toBeLessThan(2_000);
+    expect(await w.app.db.select().from(workerLeases)).toEqual([]);
+    release();
   });
 });
 

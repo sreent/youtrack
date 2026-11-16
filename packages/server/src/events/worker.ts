@@ -34,6 +34,8 @@ export interface WorkerOptions {
   holder?: string;
   /** Local clock, for the holder's own deadline only. The lease itself runs on the database's clock. */
   now?: () => number;
+  /** How long stop() waits for the event in hand before it releases the lease anyway. */
+  stopWaitMs?: number;
 }
 
 const LEASE_NAME = 'outbox';
@@ -58,6 +60,7 @@ export class OutboxWorker {
   private readonly pollMs: number;
   private readonly batch: number;
   private readonly now: () => number;
+  private readonly stopWaitMs: number;
   private readonly log: OrderedLog;
   /** Local time until which this instance may act as the holder; 0 when it doesn't hold the lease. */
   private leaseUntil = 0;
@@ -82,6 +85,7 @@ export class OutboxWorker {
     this.pollMs = opts.pollMs ?? 2_000;
     this.batch = opts.batch ?? 100;
     this.now = opts.now ?? Date.now;
+    this.stopWaitMs = opts.stopWaitMs ?? 5_000;
     this.log = new OrderedLog(app.db, { settleMs: opts.settleMs, maxWaitMs: opts.maxGapWaitMs, now: this.now });
   }
 
@@ -118,7 +122,10 @@ export class OutboxWorker {
       this.leaseUntil = 0;
       return;
     }
-    await this.running;
+    // Wait a little for the event in hand, not for a webhook's last retry: the server's
+    // shutdown has 10 seconds. Released early, its event may be handled again by the
+    // next holder (at least once), and its cursor write is refused (the lease is gone).
+    await Promise.race([this.running, new Promise((r) => setTimeout(r, this.stopWaitMs).unref?.())]);
     this.leaseUntil = 0;
     await this.app.db
       .delete(workerLeases)

@@ -7,6 +7,7 @@ export interface Frame {
 }
 
 export interface SseClient {
+  headers: Headers;
   frames: Frame[];
   /** Tracker events received so far (not `ready`, `resync` or comments). */
   events(): TrackerEvent[];
@@ -71,6 +72,7 @@ export async function openStream(request: Fetcher, token: string, opts: { query?
   });
   const isEvent = (f: Frame) => f.event !== 'ready' && f.event !== 'resync' && f.event !== 'message';
   const client: SseClient = {
+    headers: res.headers,
     frames,
     closed,
     events: () => frames.filter(isEvent).map((f) => JSON.parse(f.data) as TrackerEvent),
