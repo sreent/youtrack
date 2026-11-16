@@ -1,4 +1,4 @@
-import type { Project } from '@a4a/shared';
+import type { Project, ProjectVisibility } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -8,6 +8,7 @@ import { Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
 import { FormField, Scroll } from '../features/common/bits';
+import { ROLE_NAMES } from '../features/projects/PeopleAndAccess';
 import { TRIAGE_WORDS } from '../features/projects/triage';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
@@ -20,7 +21,14 @@ function CreateProject() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const users = useUsers();
-  const [form, setForm] = useState({ key: '', name: '', description: '', lead: '', template: 'software' as 'software' | 'waterfall' | 'blank' });
+  const [form, setForm] = useState({
+    key: '',
+    name: '',
+    description: '',
+    lead: '',
+    template: 'software' as 'software' | 'waterfall' | 'blank',
+    visibility: 'open' as ProjectVisibility,
+  });
   const create = useMutation({
     mutationFn: () =>
       post<Project>('/projects', {
@@ -29,6 +37,7 @@ function CreateProject() {
         description: form.description.trim(),
         ...(form.lead ? { lead: form.lead } : {}),
         template: form.template,
+        visibility: form.visibility,
       }),
     onSuccess: (p) => {
       void qc.invalidateQueries({ queryKey: keys.projects });
@@ -104,6 +113,23 @@ function CreateProject() {
             </label>
           ))}
         </fieldset>
+        <fieldset className="choice-group column">
+          <legend>Who sees it</legend>
+          <label className="choice">
+            <input type="radio" name="visibility" value="open" checked={form.visibility === 'open'} onChange={() => setForm((f) => ({ ...f, visibility: 'open' }))} />
+            <span>
+              Open
+              <small className="field-help">Everyone sees it and works in it.</small>
+            </span>
+          </label>
+          <label className="choice">
+            <input type="radio" name="visibility" value="members" checked={form.visibility === 'members'} onChange={() => setForm((f) => ({ ...f, visibility: 'members' }))} />
+            <span>
+              Members only
+              <small className="field-help">Only its lead, the people you add on its page, and administrators see it.</small>
+            </span>
+          </label>
+        </fieldset>
         <div className="cluster">
           <button type="submit" className="primary" disabled={create.isPending}>
             {create.isPending ? 'Creating…' : 'Create the project'}
@@ -142,6 +168,7 @@ export default function ProjectsPage() {
                       Open
                     </th>
                     <th scope="col">Triage</th>
+                    <th scope="col">You</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,6 +183,12 @@ export default function ProjectsPage() {
                         <Link to={`/projects/${p.key}`} className="item-name">
                           {p.name}
                         </Link>
+                        {p.visibility === 'members' ? (
+                          <>
+                            {' '}
+                            <span className="chip">members only</span>
+                          </>
+                        ) : null}
                         {p.archived ? (
                           <>
                             {' '}
@@ -173,6 +206,7 @@ export default function ProjectsPage() {
                         </span>
                       </td>
                       <td>{TRIAGE_WORDS[p.settings.triageMode]}</td>
+                      <td>{p.access.via === 'admin' ? 'Administrator' : ROLE_NAMES[p.access.role]}</td>
                     </tr>
                   ))}
                 </tbody>

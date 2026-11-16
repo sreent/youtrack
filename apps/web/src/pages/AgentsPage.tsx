@@ -2,7 +2,7 @@ import type { ApiToken, Scope } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, post } from '../api/client';
-import { keys, useMe, useTokens } from '../api/queries';
+import { keys, useMe, useProjects, useTokens } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText, FormField, Said, Scroll } from '../features/common/bits';
@@ -87,10 +87,14 @@ export default function AgentsPage() {
   const me = useMe();
   const tokens = useTokens();
   const tools = useAITools();
+  const projects = useProjects();
   const origin = window.location.origin;
   const isAdmin = Boolean(me.data?.auth.scopes.includes('admin'));
   const [name, setName] = useState('claude-code');
   const [scopes, setScopes] = useState<Set<Scope>>(() => new Set<Scope>(['read', 'write']));
+  // Every project you can see, or only these (by key).
+  const [reach, setReach] = useState<'all' | 'some'>('all');
+  const [only, setOnly] = useState<Set<string>>(() => new Set());
   const [expires, setExpires] = useState('90');
   const [created, setCreated] = useState<Created | null>(null);
   const [client, setClient] = useState<Client>('claude-code');
@@ -102,6 +106,7 @@ export default function AgentsPage() {
         name: name.trim(),
         scopes: SCOPES.map((s) => s.scope).filter((s) => scopes.has(s)),
         expiresInDays: expires === 'never' ? null : Number(expires),
+        ...(reach === 'some' ? { projects: [...only] } : {}),
       }),
     onSuccess: (t) => {
       setCreated(t);
@@ -129,6 +134,16 @@ export default function AgentsPage() {
       if (s === 'admin' && next.has('admin')) next.add('read');
       return next;
     });
+  const pick = (key: string) =>
+    setOnly((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  // A token limited to projects never administers: administration reaches every project.
+  const limitedAdmin = reach === 'some' && scopes.has('admin');
+  const noProjects = reach === 'some' && !only.size;
 
   const token = created?.token ?? PLACEHOLDER;
   const current = CLIENTS.find((c) => c.id === client)!;
@@ -188,11 +203,43 @@ export default function AgentsPage() {
                       );
                     })}
                   </fieldset>
+                  <fieldset className="choice-group column">
+                    <legend>Where it may</legend>
+                    <label className="choice">
+                      <input type="radio" name="token-reach" checked={reach === 'all'} onChange={() => setReach('all')} />
+                      <span>
+                        Every project you can see
+                        <small className="field-help">Including projects you join later.</small>
+                      </span>
+                    </label>
+                    <label className="choice">
+                      <input type="radio" name="token-reach" checked={reach === 'some'} onChange={() => setReach('some')} />
+                      <span>
+                        Only some projects
+                        <small className="field-help">There it may do what you may; the others it can't see at all. It can't administer.</small>
+                      </span>
+                    </label>
+                  </fieldset>
+                  {reach === 'some' ? (
+                    <fieldset className="choice-group columns">
+                      <legend>Its projects</legend>
+                      {(projects.data ?? []).map((p) => (
+                        <label key={p.id} className="choice">
+                          <input type="checkbox" checked={only.has(p.key)} onChange={() => pick(p.key)} />
+                          <span>
+                            <span className="mono">{p.key}</span> {p.name}
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : null}
                   <div className="cluster">
-                    <button type="submit" className="primary" disabled={create.isPending || !scopes.size || !name.trim()}>
+                    <button type="submit" className="primary" disabled={create.isPending || !scopes.size || !name.trim() || limitedAdmin || noProjects}>
                       {create.isPending ? 'Creating…' : 'Create the token'}
                     </button>
                     {!scopes.size ? <span className="note">Choose at least one thing it may do.</span> : null}
+                    {noProjects ? <span className="note">Choose at least one project.</span> : null}
+                    {limitedAdmin ? <span className="note">A token limited to projects can't have admin: leave out admin, or the limit.</span> : null}
                   </div>
                   {create.error ? <ErrorNote error={create.error} /> : null}
                 </form>
@@ -252,6 +299,7 @@ export default function AgentsPage() {
                     <tr>
                       <th scope="col">Name</th>
                       <th scope="col">May</th>
+                      <th scope="col">Where</th>
                       <th scope="col">Last used</th>
                       <th scope="col">Created</th>
                       <th scope="col">Expires</th>
@@ -275,6 +323,21 @@ export default function AgentsPage() {
                               </span>
                             ))}
                           </span>
+                        </td>
+                        <td>
+                          {t.projects === null ? (
+                            'Every project'
+                          ) : t.projects.length ? (
+                            <span className="chips">
+                              {t.projects.map((k) => (
+                                <span key={k} className="chip mono">
+                                  {k}
+                                </span>
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="muted">No project any more</span>
+                          )}
                         </td>
                         <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">Never</span>}</td>
                         <td>
