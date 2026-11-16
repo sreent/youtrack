@@ -9,6 +9,7 @@
  * its own project's names (match.ts, ruleWorld), so nothing in it can probe another.
  */
 import {
+  type ScriptRun,
   RULE_MATCH,
   RULE_RELATIONS,
   RULE_TARGETS,
@@ -50,6 +51,10 @@ import { findVisibleIssue } from '../services/issues';
 import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
 import { resolveFieldInput, userRefDto } from '../services/values';
 import { aggregationTypeIds, condition, parsedQuery, relatedSql, ruleWorld, rulePhrase, rulePhrases, targetIssues, type RelatedCondition } from './match';
+import { assertCanScript } from './actions';
+import { checkScript, SCRIPT_LIMITS } from './sandbox';
+import { changeOf, type ScriptChange } from './script-issue';
+import { dryRunScript } from './scripts';
 import { recipientsFor, seeingProject, tidyLogins } from './tell';
 import { DEFAULT_AT, nextRunAfter, ruleSentence, scheduleWords, targetWords, triggerWords } from './words';
 
@@ -73,6 +78,8 @@ export interface Draft {
   notify: RuleNotify | null;
   /** The webhook it calls, if any. */
   callWebhookId: string | null;
+  /** A scripted rule's JavaScript (D40): it runs in place of the command, or of what a guard requires. */
+  script: string | null;
   enabled: boolean;
 }
 
@@ -138,6 +145,7 @@ export function draftOf(row: RuleRow): Draft {
     target: targetOf(row.target),
     notify: notifyOf(row.notify),
     callWebhookId: row.callWebhookId,
+    script: row.script ?? null,
     enabled: row.enabled,
   };
 }
@@ -145,8 +153,11 @@ export function draftOf(row: RuleRow): Draft {
 /** Only the parts that belong to the rule's kind, tidied. */
 function tidy(d: Draft): Draft {
   const acts = d.kind !== 'guard';
-  const r = acts ? d.related : null;
-  const t = acts && d.target && d.target.to !== 'issue' ? d.target : null;
+  const script = d.script?.trim() ? d.script : null;
+  // A script reads related issues and changes them itself: a scripted rule has no further condition
+  // on them, nor a target, nor a command of its own.
+  const r = acts && !script ? d.related : null;
+  const t = acts && !script && d.target && d.target.to !== 'issue' ? d.target : null;
   const n = acts ? d.notify : null;
   return {
     ...d,
@@ -155,10 +166,11 @@ function tidy(d: Draft): Draft {
     field: d.kind === 'change' && d.trigger === 'updated' ? trimmed(d.field) : null,
     schedule: d.kind === 'schedule' && d.schedule ? { every: d.schedule.every, ...(d.schedule.every === 'hour' ? {} : { at: d.schedule.at ?? DEFAULT_AT }) } : null,
     query: d.query.trim(),
-    command: d.kind === 'guard' ? '' : d.command.trim(),
-    comment: d.kind === 'guard' ? null : trimmed(d.comment),
-    requires: d.kind === 'guard' ? trimmed(d.requires) : null,
-    message: d.kind === 'guard' ? trimmed(d.message) : null,
+    command: d.kind === 'guard' || script ? '' : d.command.trim(),
+    comment: d.kind === 'guard' || script ? null : trimmed(d.comment),
+    requires: d.kind === 'guard' && !script ? trimmed(d.requires) : null,
+    message: d.kind === 'guard' && !script ? trimmed(d.message) : null,
+    script,
     // A parent is one issue: it matches or it doesn't.
     related: r ? { of: r.of, phrase: r.of === 'linked' ? trimmed(r.phrase) : null, match: r.of === 'parent' ? 'any' : (r.match ?? 'all'), query: r.query.trim() } : null,
     target: t ? { to: t.to, phrase: t.to === 'linked' ? trimmed(t.phrase) : null } : null,
@@ -197,6 +209,7 @@ function draftFrom(projectId: string | null, input: RuleInput): Draft {
     target: input.target ? { to: input.target.to ?? 'issue', phrase: input.target.phrase ?? null } : null,
     notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null,
     callWebhookId: input.call?.webhook ?? null,
+    script: input.script ?? null,
     enabled: input.enabled ?? true,
   });
 }
@@ -247,14 +260,14 @@ export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
     }
   }
   if (d.kind === 'schedule' && !d.schedule) add('schedule', [{ message: 'Say how often it runs: every hour, every day or every weekday', ...whole('') }]);
-  if (d.kind === 'guard') {
+  if (d.kind === 'guard' && !d.script) {
     if (!d.query) add('query', [{ message: 'Say which changes it checks: what they would make an issue match', hint: "e.g. State: {Won't fix}", ...whole('') }]);
     if (!d.requires) add('requires', [{ message: 'Say what such an issue must also match', hint: 'e.g. has: comments', ...whole('') }]);
   }
   if (d.query) add('query', queryProblems(s, d, d.query));
   if (d.kind === 'guard' && d.requires) add('requires', queryProblems(s, d, d.requires));
   if (d.kind !== 'guard') {
-    if (!d.command && !d.comment && !d.notify && !d.callWebhookId) {
+    if (!d.script && !d.command && !d.comment && !d.notify && !d.callWebhookId) {
       add('command', [{ message: 'Say what it does: a change to make, a comment to post, whom to tell, or a webhook to call', hint: 'e.g. tag urgent', ...whole('') }]);
     }
     if (d.command) {
@@ -323,6 +336,7 @@ async function callProblems(ctx: Ctx, webhookId: string): Promise<RuleProblem[]>
  */
 export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promise<RuleProblem[]> {
   const out = readingProblems(s, d);
+  if (d.script) for (const p of await checkScript(d.script)) out.push({ part: 'script', message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) });
   if (d.kind !== 'guard' && d.callWebhookId) out.push(...(await callProblems(ctx, d.callWebhookId)));
   // A project's rule tells only people who can see the project: naming someone who can't is a mistake to say now.
   if (d.kind !== 'guard' && d.notify?.people.length && d.projectId) {
@@ -421,6 +435,7 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
     target: d.target ?? { to: 'issue', phrase: null },
     notify: d.notify,
     call: row.callWebhookId ? { webhook: row.callWebhookId, origin: callOrigin } : null,
+    script: row.script ?? null,
     enabled: row.enabled,
     sentence: ruleSentence({ ...d, callOrigin, calls: Boolean(row.callWebhookId) }),
     problems: readingProblems(row.projectId ? ruleWorld(s, row.projectId) : seen, d),
@@ -566,6 +581,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
   const d = draftFrom(await projectIdOf(ctx, input.project, 'manage'), input);
   await assertCanManage(ctx, d.projectId);
   if (d.callWebhookId) assertCanCall(ctx);
+  if (d.script) assertCanScript(ctx, 'a scripted rule');
   const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
   if (problems.length) refuseProblems(problems);
   const [row] = await ctx.db
@@ -587,6 +603,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
       target: d.target,
       notify: d.notify,
       callWebhookId: d.callWebhookId,
+      script: d.script,
       enabled: d.enabled,
       nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null,
       createdById: ctx.actor.user.id,
@@ -626,14 +643,17 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
       ? { notify: input.notify ? { to: input.notify.to ?? [], people: input.notify.people ?? [], message: input.notify.message } : null }
       : {}),
     ...(input.call !== undefined ? { callWebhookId: input.call?.webhook ?? null } : {}),
+    ...(input.script !== undefined ? { script: input.script ?? null } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
   });
   // Turning off a rule that calls a webhook is anyone's who manages it; anything else about one is an administrator's.
   const onlyTurningOff = input.enabled === false && Object.keys(input).every((k) => k === 'enabled' || k === 'expectedVersion');
   if ((before.callWebhookId || d.callWebhookId) && !onlyTurningOff) assertCanCall(ctx);
+  // So it is with a script: code that runs on every change it is set off by is an administrator's.
+  if ((before.script || d.script) && !onlyTurningOff) assertCanScript(ctx, 'a scripted rule');
   // Turning a rule off, or renaming it, never waits on fixing it: a rule that no longer reads
   // must be easy to stop. What it does, and turning it on, is checked.
-  const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires', 'related', 'target', 'notify', 'call'] as const).some(
+  const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires', 'related', 'target', 'notify', 'call', 'script'] as const).some(
     (k) => input[k] !== undefined,
   );
   if (reworked || (d.enabled && !before.enabled)) {
@@ -659,6 +679,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
       target: d.target,
       notify: d.notify,
       callWebhookId: d.callWebhookId,
+      script: d.script,
       enabled: d.enabled,
       ...(scheduleMoved ? { nextRunAt: d.schedule && d.enabled ? nextRunAfter(d.schedule, new Date()) : null } : {}),
       version: sql`${rules.version} + 1`,
@@ -677,6 +698,7 @@ export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
   const row = await loadRule(ctx, id);
   await assertCanManage(ctx, row.projectId);
   if (row.callWebhookId) assertCanCall(ctx);
+  if (row.script) assertCanScript(ctx, 'a scripted rule');
   await ctx.db.delete(rules).where(eq(rules.id, row.id));
   ctx.app.schema.invalidate();
 }
@@ -719,7 +741,7 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
   const matching = await count(where);
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-  if (d.kind === 'guard') {
+  if (d.kind === 'guard' && !d.script) {
     const requires = condition(s, d.requires ?? '', { meId: me });
     const breakingWhere = requires.where ? and(where, sql`NOT ${requires.where}`)! : sql`FALSE`;
     const breaking = await count(breakingWhere);
@@ -738,6 +760,7 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
     };
   }
 
+  if (d.script) return previewScript(ctx, s, d, where, matching, problems, sentence);
   const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
   const full = await ctx.app.schema.get();
   // The issues it would act on: each matching one, or the issues related to it that the rule reaches.
@@ -823,9 +846,13 @@ export function relatedCondition(s: SchemaSnapshot, d: Pick<Draft, 'projectId'>,
 /** Live problems, a reading and suggestions for one part of a rule as it's typed, as the command bar has them. */
 export async function checkRulePart(
   ctx: Ctx,
-  body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command' | 'related'; text: string; caret?: number },
+  body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command' | 'related' | 'script'; text: string; caret?: number },
 ): Promise<{ problems: QueryProblem[]; description: string; suggestions: SuggestItem[] }> {
   requireScope(ctx, 'read');
+  if (body.part === 'script') {
+    const problems = await checkScript(body.text);
+    return { problems: problems.map((p) => ({ message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) })), description: problems.length ? '' : 'It compiles.', suggestions: [] };
+  }
   const projectId = await projectIdOf(ctx, body.project);
   const s = await worldFor(ctx, projectId);
   const caret = Math.min(body.caret ?? body.text.length, body.text.length);
@@ -853,4 +880,75 @@ export const RUN_LOG_DAYS = 30;
 
 export async function pruneRuleRuns(db: Db, now = new Date()): Promise<void> {
   await db.delete(ruleRuns).where(lt(ruleRuns.createdAt, new Date(now.getTime() - RUN_LOG_DAYS * 86_400_000)));
+}
+
+// ---------------------------------------------------------------------------
+// Scripted rules: a preview, and a test run on one issue (D40)
+// ---------------------------------------------------------------------------
+
+/** What a scripted rule is told happened, when it's previewed or tested: its trigger's kind, with nothing changed. */
+function testChange(ctx: Ctx, s: SchemaSnapshot, d: Draft): ScriptChange {
+  const by = s.users.get(ctx.actor.user.id);
+  if (d.kind === 'schedule') return changeOf('scheduled', null);
+  if (d.kind === 'change' && d.trigger) return changeOf(d.trigger, by);
+  return changeOf('updated', by);
+}
+
+/** A scripted rule's preview: what its script would do to a few of the issues it matches now, as the workflow agent, saving nothing. */
+async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, matching: number, problems: RuleProblem[], sentence: string): Promise<RulePreview> {
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const ok = problems.length === 0;
+  const counted = `${plural(matching, 'issue matches', 'issues match')} its query now.`;
+  if (problems.some((p) => p.part === 'script')) return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Fix its script to see what it would do.` };
+  const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
+  const full = await ctx.app.schema.get();
+  const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.id));
+  const bot = full.usersByLogin.get(WORKFLOW_BOT);
+  const sample: RulePreview['sample'] = [];
+  for (const r of rows) {
+    const actor = d.kind === 'guard' || !bot ? ctx : botCtx(ctx.app, bot, r.projectId);
+    const guard = d.kind === 'guard';
+    const run = await dryRunScript(actor, full, r, d.script!, testChange(ctx, full, d), { meId: ctx.actor.user.id, guard, timeMs: guard ? SCRIPT_LIMITS.guardTimeMs : undefined });
+    const self = refs.get(r.id)?.id;
+    const errors = [
+      ...(run.error ? [run.error.message] : []),
+      ...(run.refusal !== null ? [guard ? `Would refuse a change to it: “${run.refusal}”` : `Would do nothing: “${run.refusal}”`] : []),
+      ...run.applies.flatMap((a) => a.errors),
+      ...run.applies.filter((a) => a.issue && a.issue.id !== self && a.changes.length).map((a) => `Would also change ${a.issue!.id}`),
+    ];
+    sample.push({ issue: refs.get(r.id)!, changes: run.applies.filter((a) => a.issue?.id === self).flatMap((a) => a.changes), errors });
+  }
+  const what =
+    d.kind === 'guard' ? 'It runs on every change to an issue that matches, and may refuse it' : d.kind === 'schedule' ? `${scheduleWords(d.schedule)}, it runs on each of them` : `It runs on one when ${triggerWords(d.trigger, d.field)}`;
+  return {
+    ok,
+    problems,
+    sentence,
+    matching,
+    breaking: null,
+    sample,
+    note: `${counted} ${what}.${sample.length ? ` Here is what its script would do to ${sample.length} of them, as they are now (a dry run: nothing was saved).` : ''}`,
+  };
+}
+
+/**
+ * Run a rule's script on one issue as it is now, and show what it would do: a dry run, saving
+ * nothing. For the person writing a script, so an administrator's, as writing one is.
+ */
+export async function testRule(ctx: Ctx, input: RuleInput & { issue: string }): Promise<ScriptRun> {
+  requireScope(ctx, 'read');
+  assertCanScript(ctx, 'a scripted rule');
+  const d = draftFrom(await projectIdOf(ctx, input.project), input);
+  if (!d.script) throw badRequest('There is no script to run', 'Write one first.');
+  const issue = await findVisibleIssue(ctx, input.issue);
+  if (!issue) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.');
+  const full = await ctx.app.schema.get();
+  if (d.projectId && issue.projectId !== d.projectId) {
+    const key = full.projects.get(d.projectId)?.key ?? 'its project';
+    throw badRequest(`${input.issue.toUpperCase()} isn't in ${key}`, `A rule of ${key} runs only on ${key}'s issues.`);
+  }
+  const bot = full.usersByLogin.get(WORKFLOW_BOT);
+  const guard = d.kind === 'guard';
+  const actor = guard || !bot ? ctx : botCtx(ctx.app, bot, issue.projectId);
+  return dryRunScript(actor, full, issue, d.script, testChange(ctx, full, d), { meId: ctx.actor.user.id, guard, timeMs: guard ? SCRIPT_LIMITS.guardTimeMs : undefined });
 }

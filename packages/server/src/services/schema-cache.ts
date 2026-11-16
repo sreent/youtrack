@@ -1,7 +1,7 @@
-import type { FieldType } from '@a4a/shared';
+import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { fields, fieldValues, linkTypes, projectFields, projects, rules, tags, users } from '../db/schema';
+import { fields, fieldValues, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -11,6 +11,8 @@ export type TagRow = typeof tags.$inferSelect;
 export type LinkTypeRow = typeof linkTypes.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
 export type RuleRow = typeof rules.$inferSelect;
+export type MachineRow = typeof stateMachines.$inferSelect;
+export type ActionRow = typeof workflowActions.$inferSelect;
 
 export interface LinkPhrase {
   phrase: string; // lower-case
@@ -36,6 +38,10 @@ export interface SchemaSnapshot {
   usersByLogin: Map<string, UserRow>;
   /** Workflow rules, oldest first, so the write path finds a project's guards without a query. */
   rules: RuleRow[];
+  /** State machines (D40): the write path checks a move of a state field without a query. */
+  machines: MachineRow[];
+  /** Custom actions (D40), by position: the command language reads their names. */
+  actions: ActionRow[];
   loadedAt: number;
 }
 
@@ -126,6 +132,8 @@ export class SchemaCache {
     const linkRows = await db.select().from(linkTypes).orderBy(asc(linkTypes.ordinal));
     const userRows = await db.select().from(users).orderBy(asc(users.login));
     const ruleRows = await db.select().from(rules).orderBy(asc(rules.createdAt), asc(rules.id));
+    const machineRows = await db.select().from(stateMachines).orderBy(asc(stateMachines.createdAt), asc(stateMachines.id));
+    const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
     const snap: SchemaSnapshot = {
       fields: new Map(),
       fieldsByName: new Map(),
@@ -141,6 +149,8 @@ export class SchemaCache {
       users: new Map(),
       usersByLogin: new Map(),
       rules: ruleRows,
+      machines: machineRows,
+      actions: actionRows,
       loadedAt: Date.now(),
     };
     for (const f of fieldRows) {
@@ -236,6 +246,35 @@ export function findUser(s: SchemaSnapshot, loginOrName: string, meId?: string):
   if (byLogin) return byLogin;
   for (const u of s.users.values()) if (u.name.toLowerCase() === v) return u;
   return undefined;
+}
+
+/** A project's state machines (D40): one per state field at most. */
+export function machinesFor(s: SchemaSnapshot, projectId: string): MachineRow[] {
+  return s.machines.filter((m) => m.projectId === projectId);
+}
+
+/** A state machine's transitions, as they were checked when it was saved. */
+export function transitionsOf(m: MachineRow): StateTransition[] {
+  const list = Array.isArray(m.transitions) ? (m.transitions as unknown[]) : [];
+  return list.flatMap((x): StateTransition[] => {
+    if (!x || typeof x !== 'object') return [];
+    const t = x as Record<string, unknown>;
+    if (typeof t.name !== 'string' || typeof t.to !== 'string' || !Array.isArray(t.from)) return [];
+    return [
+      {
+        name: t.name,
+        from: t.from.filter((f): f is string => typeof f === 'string'),
+        to: t.to,
+        condition: typeof t.condition === 'string' && t.condition.trim() ? t.condition : null,
+        command: typeof t.command === 'string' && t.command.trim() ? t.command : null,
+      },
+    ];
+  });
+}
+
+/** A project's custom actions (D40), in their order. */
+export function actionsFor(s: SchemaSnapshot, projectId: string): ActionRow[] {
+  return s.actions.filter((a) => a.projectId === projectId);
 }
 
 /** The rules that apply in a project: its own and the global ones, oldest first. */

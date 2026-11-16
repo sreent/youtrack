@@ -1785,11 +1785,19 @@ export const RuleBody = z.object({
     .nullable()
     .optional()
     .describe("A change or scheduled rule: a webhook it calls about each issue it acts on, signed with the webhook's secret. Administrators only, and only an https webhook"),
+  script: z
+    .string()
+    .max(20_000)
+    .nullable()
+    .optional()
+    .describe(
+      'JavaScript run in a sandbox (D40) in place of the command (a change or scheduled rule) or of `requires` (a guard). Its globals: `issue`, `change`, `project`, and apply(command[, issueId]), comment(text), refuse(message), log(...). Administrators only',
+    ),
   enabled: z.boolean().default(true),
 });
 export type RuleInput = z.input<typeof RuleBody>;
 
-export const RULE_PARTS = ['name', 'trigger', 'field', 'schedule', 'query', 'requires', 'command', 'related', 'target', 'notify', 'call'] as const;
+export const RULE_PARTS = ['name', 'trigger', 'field', 'schedule', 'query', 'requires', 'command', 'related', 'target', 'notify', 'call', 'script'] as const;
 export const RuleProblemSchema = QueryProblemSchema.extend({
   part: z.enum(RULE_PARTS).describe('Which part of the rule it is in'),
 }).meta({ id: 'RuleProblem' });
@@ -1830,6 +1838,7 @@ export const RuleSchema = z
       .object({ webhook: z.string(), origin: z.string().nullable().describe('Where the webhook is, without its path: https://host') })
       .nullable()
       .describe('The webhook it calls, if any'),
+    script: z.string().nullable().describe('A scripted rule\'s JavaScript (D40), or null'),
     enabled: z.boolean(),
     sentence: z.string().describe('The rule in words: "When an issue is created, if it matches …, then apply …"'),
     problems: z
@@ -1880,8 +1889,8 @@ export type RulePreview = z.infer<typeof RulePreviewSchema>;
 export const RuleCheckBody = z.object({
   project: z.string().nullable(),
   kind: z.enum(RULE_KINDS),
-  part: z.enum(['query', 'requires', 'command', 'related']),
-  text: z.string().max(2000),
+  part: z.enum(['query', 'requires', 'command', 'related', 'script']),
+  text: z.string().max(20_000),
   caret: z.number().int().min(0).optional(),
 });
 export const RuleCheckResultSchema = z
@@ -2421,3 +2430,145 @@ export const ProviderLoginBody = z.object({
     .max(200)
     .describe("Their username at the provider. For Bitbucket Cloud, their account id or UUID: its nicknames aren't unique"),
 });
+
+// ---------------------------------------------------------------------------
+// Scripted workflows: test runs, state machines and custom actions (D40)
+// ---------------------------------------------------------------------------
+
+export const SCRIPT_ERROR_KINDS = ['syntax', 'runtime', 'time', 'memory'] as const;
+
+/** What a script did on one issue, as a dry run: nothing is saved or changed. */
+export const ScriptRunSchema = z
+  .object({
+    ok: z.boolean().describe('It ran to its end'),
+    error: z
+      .object({ kind: z.enum(SCRIPT_ERROR_KINDS), message: z.string(), line: z.number().int().nullable() })
+      .nullable()
+      .describe('Where it went wrong: its syntax, an error as it ran, or past its time or memory'),
+    logs: z.array(z.string()).describe('What it wrote with log()'),
+    refusal: z.string().nullable().describe('What it said with refuse(): a guard refuses the change with it'),
+    comments: z.array(z.string()),
+    applies: z
+      .array(
+        z.object({
+          command: z.string(),
+          issue: IssueRefSchema.nullable().describe('The issue the command is for'),
+          changes: z.array(ChangeSchema).describe('What it would change there (a dry run)'),
+          errors: z.array(z.string()),
+        }),
+      )
+      .describe('The commands it asked for, and what each would change'),
+    ms: z.number().int(),
+    note: z.string(),
+  })
+  .meta({ id: 'ScriptRun' });
+export type ScriptRun = z.infer<typeof ScriptRunSchema>;
+
+export const RuleTestBody = RuleBody.extend({ issue: z.string().describe('The issue to run it on, as it is now, e.g. BACK-12') });
+
+export const WORKFLOW_PARTS = ['name', 'field', 'transitions', 'from', 'to', 'condition', 'command', 'script'] as const;
+export const WorkflowProblemSchema = QueryProblemSchema.extend({
+  part: z.enum(WORKFLOW_PARTS),
+  transition: z.number().int().nullable().optional().describe("For a state machine: which transition, from 0"),
+}).meta({ id: 'WorkflowProblem' });
+export type WorkflowProblem = z.infer<typeof WorkflowProblemSchema>;
+
+export const StateTransitionSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60).describe('What the move is called, e.g. "Start work"; also a command'),
+    from: z.array(z.string().max(100)).min(1).max(50).describe('The states it leaves; ["*"] for any'),
+    to: z.string().max(100).describe('The state it reaches'),
+    condition: z.string().max(2000).nullable().optional().describe('What the issue must match as the move finds it, e.g. "has: Assignee"'),
+    command: z.string().max(2000).nullable().optional().describe('What the move also does, in the command language, as whoever makes it'),
+  })
+  .meta({ id: 'StateTransition' });
+export type StateTransition = z.infer<typeof StateTransitionSchema>;
+
+export const StateMachineBody = z.object({
+  project: z.string().describe('Project key'),
+  field: z.string().describe('A state field of the project, e.g. State'),
+  transitions: z.array(StateTransitionSchema).min(1).max(100),
+  enabled: z.boolean().default(true),
+});
+export type StateMachineInput = z.input<typeof StateMachineBody>;
+export const UpdateStateMachineBody = z.object({
+  transitions: z.array(StateTransitionSchema).min(1).max(100).optional(),
+  enabled: z.boolean().optional(),
+  expectedVersion: z.number().int().optional().describe('Fail with 409 if it changed since this version'),
+});
+
+export const StateMachineSchema = z
+  .object({
+    id: z.string(),
+    project: z.string(),
+    field: z.string(),
+    states: z.array(z.string()).describe("The field's values in the project, in order"),
+    transitions: z.array(StateTransitionSchema),
+    enabled: z.boolean(),
+    problems: z.array(WorkflowProblemSchema).describe('What no longer reads, e.g. a state renamed since. A machine with problems refuses nothing until they are fixed'),
+    version: z.number().int(),
+    updatedAt: timestamp,
+  })
+  .meta({ id: 'StateMachine' });
+export type StateMachine = z.infer<typeof StateMachineSchema>;
+
+export const WorkflowActionBody = z.object({
+  project: z.string().describe('Project key'),
+  name: z.string().trim().min(1).max(60).describe('What it is called; also a command'),
+  command: z.string().max(2000).default('').describe('What it does, in the command language'),
+  script: z.string().max(20_000).nullable().optional().describe('Or what it does, in JavaScript run in the sandbox (administrators only)'),
+  condition: z.string().max(2000).default('').describe('When it is offered, in the query language; empty: always'),
+  enabled: z.boolean().default(true),
+});
+export type WorkflowActionInput = z.input<typeof WorkflowActionBody>;
+export const UpdateWorkflowActionBody = patchBody(WorkflowActionBody)
+  .omit({ project: true })
+  .extend({ expectedVersion: z.number().int().optional().describe('Fail with 409 if it changed since this version') });
+
+export const WorkflowActionSchema = z
+  .object({
+    id: z.string(),
+    project: z.string(),
+    name: z.string(),
+    command: z.string(),
+    script: z.string().nullable(),
+    condition: z.string(),
+    enabled: z.boolean(),
+    problems: z.array(WorkflowProblemSchema),
+    version: z.number().int(),
+    updatedAt: timestamp,
+  })
+  .meta({ id: 'WorkflowAction' });
+export type WorkflowAction = z.infer<typeof WorkflowActionSchema>;
+
+/** What someone can do to an issue now, by its project's workflows: its state machines' moves and its custom actions. */
+export const IssueWorkflowSchema = z
+  .object({
+    transitions: z.array(
+      z.object({
+        field: z.string(),
+        name: z.string(),
+        to: z.string(),
+        allowed: z.boolean(),
+        why: z.string().nullable().describe("Why it can't be done now"),
+      }),
+    ),
+    actions: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        scripted: z.boolean(),
+        allowed: z.boolean(),
+        why: z.string().nullable(),
+      }),
+    ),
+  })
+  .meta({ id: 'IssueWorkflow' });
+export type IssueWorkflow = z.infer<typeof IssueWorkflowSchema>;
+
+export const TransitionBody = z.object({
+  field: z.string().optional().describe("The state field, when the project's issues have more than one machine"),
+  transition: z.string().describe("The transition's name"),
+  expectedVersion: z.number().int().optional(),
+});
+export const RunActionBody = z.object({ expectedVersion: z.number().int().optional() });

@@ -50,6 +50,9 @@ import { todayIn } from '../reports/tz';
 import { zoneOf } from './time-zones';
 import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
 import { enforceGuards, guardChecks, guardsHeld } from '../workflow/guards';
+import { machineMoves, transitionSpecs } from '../workflow/machines';
+import { changeOf } from '../workflow/script-issue';
+import { enforceScriptGuards } from '../workflow/scripts';
 import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
 import {
   fieldValueDto,
@@ -318,6 +321,8 @@ export interface ChangeSpec {
   commentVisibility?: CommentVisibility;
   /** The requester of a help desk request wrote the comment, on their tracking page (services/helpdesk.ts). */
   commentRequester?: { id: string; name: string };
+  /** Which of a state machine's transitions the change makes, by name, when it was asked for by name (D40). */
+  transition?: { fieldId: string; name: string };
 }
 
 export interface ApplyResult {
@@ -356,7 +361,7 @@ export async function applyChanges(
   ctx: Ctx,
   stale: IssueRow,
   spec: ChangeSpec,
-  opts: { dryRun?: boolean; guards?: boolean } = {},
+  opts: { dryRun?: boolean; guards?: boolean; machines?: boolean } = {},
 ): Promise<ApplyResult> {
   const s = await ctx.app.schema.get(tx);
   // Lock the issue row for the rest of the transaction so concurrent changes to the
@@ -479,6 +484,11 @@ export async function applyChanges(
   const comment = spec.comment?.trim();
   if (comment) changes.push({ field: 'Comment', from: null, to: excerpt(comment, 200) });
 
+  // State machines (D40): each change to a governed field must be one of its transitions. An import
+  // brings history, and an undo puts back what was: neither is a move.
+  const history = Boolean((spec.data as { imported?: unknown } | undefined)?.imported) || (spec.data as { undoes?: unknown } | undefined)?.undoes !== undefined;
+  const moves = opts.machines === false || history ? [] : await machineMoves(tx, ctx, s, issue, fieldUpdates, current, spec.transition);
+
   if (opts.dryRun || !changes.length) return { changes, activities: [], issue };
 
   // Guards: whether each holds before the change, so that one the change breaks refuses it below.
@@ -560,7 +570,8 @@ export async function applyChanges(
   const told = { ...(assigned.length ? { assigned } : {}), ...(describedMentions.length ? { mentions: describedMentions } : {}) };
 
   if (fieldOrMetaChanged) {
-    const data = spec.data || assigned.length || describedMentions.length ? { ...spec.data, ...told } : undefined;
+    const via = moves.length ? { transition: moves.map((m) => m.transition.name).join(', ') } : {};
+    const data = spec.data || assigned.length || describedMentions.length || moves.length ? { ...spec.data, ...told, ...via } : undefined;
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'issue.updated',
@@ -651,11 +662,23 @@ export async function applyChanges(
     );
   }
 
+  // What the transitions made also do: their commands, as whoever made the move, in this transaction.
+  let final = updated!;
+  for (const extra of moves.length ? await transitionSpecs(tx, ctx, s, final, moves) : []) {
+    const res = await applyChanges(tx, ctx, final, extra, { guards: false, machines: false });
+    changes.push(...res.changes);
+    activities.push(...res.activities);
+    final = res.issue;
+  }
+
   // Everything is written and nothing is committed: a change that breaks a guard is refused here,
   // and the caller's transaction takes all of it back.
-  await enforceGuards(tx, ctx, s, guards, heldBefore, updated!);
+  await enforceGuards(tx, ctx, s, guards, heldBefore, final);
+  if (opts.guards !== false && !imported) {
+    await enforceScriptGuards(tx, ctx, s, final, changeOf(isCommentOnly(spec) ? 'commented' : 'updated', s.users.get(ctx.actor.user.id), changes, { comment: comment ?? null }), false);
+  }
 
-  return { changes, activities, issue: updated! };
+  return { changes, activities, issue: final };
 }
 
 function isCommentOnly(spec: ChangeSpec): boolean {
@@ -882,7 +905,10 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
   }
   // A new issue has no "before": it must keep every guard it matches, or it isn't made at all.
   // An imported one is history, which the team's guards, made for new work, don't judge.
-  if (!imported) await enforceGuards(tx, ctx, s, guardChecks(ctx, s, project.id), null, issue);
+  if (!imported) {
+    await enforceGuards(tx, ctx, s, guardChecks(ctx, s, project.id), null, issue);
+    await enforceScriptGuards(tx, ctx, s, issue, changeOf('created', s.users.get(ctx.actor.user.id)), true);
+  }
   await opts.inTransaction?.(tx, issue);
   return { issue, activities };
 }

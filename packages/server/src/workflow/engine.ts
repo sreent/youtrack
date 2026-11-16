@@ -36,10 +36,13 @@ import { callableUrl, webhookOrigin } from '../events/webhooks';
 import type { Chore, OutboxConsumer } from '../events/worker';
 import { AppError } from '../lib/errors';
 import { issueRef, readableId, stateNames } from '../services/issue-refs';
-import { applyChanges, findIssue, type ChangeSpec, type IssueRow } from '../services/issues';
+import { findIssue, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
 import { condition, meets, relatedSql, ruleWorld, TARGETS_CAP, targetIssues } from './match';
 import { botCtx, draftOf, pruneRuleRuns, readingProblems, relatedCondition } from './rules';
+import { runScript } from './sandbox';
+import { changeOf, scriptInput, type ScriptChange } from './script-issue';
+import { applyPlanned, plannedChanges, scriptErrorText, type Planned } from './scripts';
 import { recipientsFor } from './tell';
 import { listWords, nextRunAfter } from './words';
 
@@ -62,6 +65,8 @@ interface Chain {
   me: string | null;
   eventId: number | null;
   actorId: string | null;
+  /** What happened, as a scripted rule is told it (D40); a scheduled turn when absent. */
+  change?: ScriptChange;
 }
 
 /** Whether this instance still holds the worker's lease (the worker renews it while a chore runs). */
@@ -100,6 +105,13 @@ function changeWords(changes: Change[]): string {
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** What a script logged, for its run: the first few lines. */
+function logWords(logs: string[]): string {
+  if (!logs.length) return '';
+  const shown = logs.slice(0, 5).map((l) => (l.length > 200 ? `${l.slice(0, 199)}…` : l));
+  return ` Logged: ${shown.join(' | ')}${logs.length > 5 ? ` (and ${logs.length - 5} more)` : ''}`;
+}
 
 /**
  * A rule's whole condition on the issue it acts for, as SQL on `issues`: its query, and its further
@@ -171,12 +183,15 @@ export class RuleEngine {
     const issue = await findIssue(this.app.db, s, event.issue.id);
     if (!issue) return;
     const cause = causeOf(event);
+    const kind = event.type === 'issue.created' ? 'created' : event.type === 'comment.created' ? 'commented' : 'updated';
+    const text = (event.data as { text?: unknown } | undefined)?.text;
     const chain: Chain = {
       origin: cause?.origin ?? String(event.id),
       depth: cause?.depth ?? 0,
       me: cause ? cause.by : event.actor.id,
       eventId: event.id,
       actorId: cause ? cause.by : event.actor.id,
+      change: changeOf(kind, event.actor.id ? s.users.get(event.actor.id) : null, event.changes, { comment: typeof text === 'string' ? text : null }),
     };
     const readable: RuleRow[] = [];
     for (const rule of fired) if (await this.reads(s, rule)) readable.push(rule);
@@ -278,15 +293,37 @@ export class RuleEngine {
     if (chain.origin !== null && (await this.actedFor(rule, issue, chain.origin))) return 'duplicate';
     const d = draftOf(rule);
 
-    let spec: ChangeSpec | null = null;
-    if (d.command || d.comment) {
+    // What it changes: its command, or what its script asks for (D40), worked out before the
+    // transaction, as the workflow agent, with "me" as whoever set it off.
+    let planned: Planned[] = [];
+    let logs: string[] = [];
+    if (rule.script) {
+      const input = await scriptInput(this.app.db, s, issue, chain.change ?? changeOf('scheduled', null));
+      const out = await runScript(rule.script, input);
+      const logged = logWords(out.intents.logs);
+      if (out.error) {
+        await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`);
+        return 'failed';
+      }
+      if (out.intents.refusal !== null) {
+        await this.record(s, rule, issue, chain, 'skipped', `It did nothing: ${out.intents.refusal}${logged}`);
+        return 'unchanged';
+      }
+      try {
+        planned = await plannedChanges(ctx, this.app.db, s, issue, input.issue, out.intents, { meId: chain.me ?? undefined });
+      } catch (e) {
+        await this.record(s, rule, issue, chain, 'failed', `${errorText(e)}${logged}`);
+        return 'failed';
+      }
+      logs = out.intents.logs;
+    } else if (d.command || d.comment) {
       try {
         const parsed = parseCommand(rule.command, s, [issue.projectId]);
         if (parsed.problems.length) {
           const key = s.projects.get(issue.projectId)?.key ?? 'this project';
           throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
         }
-        spec = await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined });
+        planned = [{ issue, spec: await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined }), command: rule.command }];
       } catch (e) {
         await this.record(s, rule, issue, chain, 'failed', errorText(e));
         return 'failed';
@@ -299,9 +336,9 @@ export class RuleEngine {
         const tx = txRaw as unknown as Db;
         // applyChanges locks the issue's row first, as every write to an issue does.
         const fresh = (await findIssue(tx, s, issue.id)) ?? issue;
-        const res = spec ? await applyChanges(tx, ctx, fresh, spec) : { changes: [] as Change[], activities: [] as ActivityRow[] };
+        const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as string[], activities: [] as ActivityRow[] };
         const activities = [...res.activities];
-        const after = spec ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
+        const after = planned.length ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
         const ref = (d.notify || call?.ok) && after ? await refOf(tx, s, after) : null;
 
         // Whom it tells, as the issue is after its change: "its assignee" is whoever it just assigned.
@@ -330,11 +367,12 @@ export class RuleEngine {
           );
         }
 
-        const changed = res.changes.length > 0;
+        const changed = res.changes.length > 0 || res.others.length > 0;
         const acted = changed || told.length > 0 || Boolean(call?.ok);
         if (chain.origin !== null || acted) {
           const said = [
-            changed ? changeWords(res.changes) : '',
+            res.changes.length ? changeWords(res.changes) : '',
+            res.others.length ? `Also changed ${res.others.join('; ')}` : '',
             told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
             call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
           ].filter(Boolean);
@@ -349,7 +387,7 @@ export class RuleEngine {
               originId: chain.origin,
               actorId: chain.actorId,
               outcome: acted ? 'applied' : 'unchanged',
-              message: said.length ? said.join('; ') : 'Nothing to change: it was so already.',
+              message: `${said.length ? said.join('; ') : 'Nothing to change: it was so already.'}${logWords(logs)}`,
               changes: res.changes,
             })
             .onConflictDoNothing()

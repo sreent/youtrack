@@ -1,7 +1,7 @@
 import { isOwnAgent, type QueryProblem, type SuggestItem } from '@a4a/shared';
 import { fixValue, lex, type Token } from '../search/lexer';
 import { didYouMean, editDistance } from '../lib/text';
-import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
+import { actionsFor, allowedValues, machinesFor, transitionsOf, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
 
 export type CommandOp =
@@ -9,7 +9,27 @@ export type CommandOp =
   | { kind: 'tag'; mode: 'add' | 'remove'; name: string }
   | { kind: 'link'; mode: 'add' | 'remove'; phrase: LinkPhrase; targets: string[] }
   /** `at`: where the comment clause starts in the command, so it can be taken out. */
-  | { kind: 'comment'; text: string; at: number };
+  | { kind: 'comment'; text: string; at: number }
+  /** A project's custom action, by name (D40): what it does is read in each issue's project. */
+  | { kind: 'action'; name: string }
+  /** A state machine's transition, by name (D40): its field moves to `to`, by that transition. */
+  | { kind: 'transition'; name: string; field: string; to: string };
+
+type Named = { kind: 'action'; name: string } | { kind: 'transition'; name: string; field: string; to: string };
+
+/** The names of the custom actions and transitions in these projects, which read as commands. */
+export function namedCommands(s: SchemaSnapshot, projectIds: string[]): Named[] {
+  const out = new Map<string, Named>();
+  for (const pid of projectIds) {
+    for (const a of actionsFor(s, pid)) if (a.enabled && !out.has(a.name.toLowerCase())) out.set(a.name.toLowerCase(), { kind: 'action', name: a.name });
+    for (const m of machinesFor(s, pid)) {
+      if (!m.enabled) continue;
+      const field = s.fields.get(m.fieldId)?.name ?? '';
+      for (const t of transitionsOf(m)) if (!out.has(t.name.toLowerCase())) out.set(t.name.toLowerCase(), { kind: 'transition', name: t.name, field, to: t.to });
+    }
+  }
+  return [...out.values()];
+}
 
 export interface ParsedCommand {
   ops: CommandOp[];
@@ -38,6 +58,7 @@ class CommandParser {
   private fieldPhrases: Phrase<FieldRow>[];
   private linkPhrases: Phrase<LinkPhrase>[];
   private valuePhrases: Phrase<{ field: FieldRow; value: string }>[];
+  private namedPhrases: Phrase<Named>[];
   private fieldsInScope: FieldRow[];
 
   constructor(
@@ -59,6 +80,7 @@ class CommandParser {
       for (const n of names) valueEntries.push([n, { field: f, value: n }]);
     }
     this.valuePhrases = phrases(valueEntries);
+    this.namedPhrases = phrases(namedCommands(s, projectIds).map((n) => [n.name, n]));
   }
 
   private peek(o = 0) {
@@ -102,7 +124,7 @@ class CommandParser {
     const w = this.word();
     if (!w) return false;
     if (['add', 'remove', 'tag', 'untag', 'for', 'comment'].includes(w)) return true;
-    return this.matchPhrase(this.fieldPhrases).length > 0 || this.matchPhrase(this.linkPhrases).length > 0;
+    return this.matchPhrase(this.fieldPhrases).length > 0 || this.matchPhrase(this.linkPhrases).length > 0 || this.matchPhrase(this.namedPhrases).length > 0;
   }
 
   parse(): ParsedCommand {
@@ -160,6 +182,21 @@ class CommandParser {
       if (!user) return this.problem('Expected a user after "for"', this.peek() ?? t);
       this.ops.push({ kind: 'field', field: assignee, mode: 'set', raw: [user], display: `${assignee.name} ${user}` });
       return;
+    }
+    // An action or a transition, by its name, when no field, link or value reads longer: a value
+    // as long as it wins, since setting it goes by the machine's transition anyway.
+    const named = mode === 'set' ? this.matchPhrase(this.namedPhrases)[0] : undefined;
+    if (named) {
+      const longest = Math.max(
+        this.matchPhrase(this.linkPhrases)[0]?.length ?? 0,
+        this.matchPhrase(this.fieldPhrases)[0]?.length ?? 0,
+        this.matchPhrase(this.valuePhrases)[0]?.length ?? 0,
+      );
+      if (named.length > longest) {
+        this.pos += named.length;
+        this.ops.push(named.item);
+        return;
+      }
     }
     const link = this.matchPhrase(this.linkPhrases)[0];
     if (link) {
@@ -232,6 +269,7 @@ class CommandParser {
       ...this.fieldsInScope.map((f) => f.name),
       ...this.valuePhrases.map((v) => v.item.value),
       ...this.s.linkPhrases.map((p) => p.display),
+      ...this.namedPhrases.map((n) => n.item.name),
       'tag',
       'untag',
       'for',
@@ -423,6 +461,10 @@ export function describeCommand(ops: CommandOp[]): string {
           return `${op.mode === 'add' ? 'link' : 'unlink'}: ${op.phrase.display} ${op.targets.join(', ')}`;
         case 'comment':
           return 'add a comment';
+        case 'action':
+          return `run the action “${op.name}”`;
+        case 'transition':
+          return `${op.name}: set ${op.field} to ${op.to}`;
       }
     })
     .join('; ');
@@ -470,6 +512,7 @@ export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, 
       .filter((f) => f.type === 'enum' || f.type === 'state' || f.type === 'version')
       .flatMap((f) => valuesOf(f.id).map((n): [string, SuggestItem['kind'], string] => [n, 'value', f.name])),
     ...s.linkPhrases.map((p): [string, SuggestItem['kind'], string] => [p.display, 'keyword', 'Link to another issue']),
+    ...namedCommands(s, projectIds).map((n): [string, SuggestItem['kind'], string] => [n.name, 'keyword', n.kind === 'action' ? 'Action' : `${n.field} → ${n.to}`]),
     ...['tag', 'untag', 'for me', 'remove', 'add', 'comment'].map((k): [string, SuggestItem['kind']] => [k, 'keyword']),
   ];
 

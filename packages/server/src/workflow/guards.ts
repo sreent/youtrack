@@ -41,7 +41,8 @@ export interface GuardCheck {
 export function guardChecks(ctx: Ctx, s: SchemaSnapshot, projectId: string): GuardCheck[] {
   const out: GuardCheck[] = [];
   for (const rule of rulesFor(s, projectId)) {
-    if (rule.kind !== 'guard' || !rule.enabled) continue;
+    // A scripted guard decides in its script (./scripts.ts), not by what it requires.
+    if (rule.kind !== 'guard' || !rule.enabled || rule.script) continue;
     const world = ruleWorld(s, rule.projectId);
     const when = condition(world, rule.query, { meId: ctx.actor.user.id });
     const requires = condition(world, rule.requires ?? '', { meId: ctx.actor.user.id });
@@ -91,6 +92,11 @@ export function refusedBy(rule: RuleRow): AppError {
   );
 }
 
+/** A scripted guard's refusal, in the words it gave refuse(). */
+export function refusedByScript(rule: RuleRow, message: string): AppError {
+  return new AppError(422, 'refused_by_rule', message, `The rule "${rule.name}" refuses it in its script.`, { rule: { id: rule.id, name: rule.name } });
+}
+
 export function isRefusal(e: unknown): e is AppError {
   return e instanceof AppError && e.code === 'refused_by_rule';
 }
@@ -100,7 +106,7 @@ function actorOf(ctx: Ctx): string | null {
 }
 
 /** The refusal, in the rule's run log: written on the pool and not awaited, so the refused transaction never waits on it. */
-function noteRefusal(ctx: Ctx, rule: RuleRow, issue: { id: string; key: string; projectId: string } | null, projectId: string): void {
+export function noteRefusal(ctx: Ctx, rule: RuleRow, issue: { id: string; key: string; projectId: string } | null, projectId: string, message?: string): void {
   void ctx.app.db
     .insert(ruleRuns)
     .values({
@@ -111,7 +117,7 @@ function noteRefusal(ctx: Ctx, rule: RuleRow, issue: { id: string; key: string; 
       issueKey: issue?.key ?? null,
       actorId: actorOf(ctx),
       outcome: 'refused',
-      message: issue ? (rule.message ?? '') : `Refused a new issue. ${rule.message ?? ''}`.trim(),
+      message: issue ? (message ?? rule.message ?? '') : `Refused a new issue. ${message ?? rule.message ?? ''}`.trim(),
     })
     .catch(() => {});
 }
@@ -120,7 +126,7 @@ const brokenNoted = new Map<string, number>();
 const BROKEN_NOTE_EVERY_MS = 3_600_000;
 
 /** A guard that no longer reads is written down once an hour, not on every change. */
-function noteBroken(ctx: Ctx, rule: RuleRow, problems: string): void {
+export function noteBroken(ctx: Ctx, rule: RuleRow, problems: string, said?: string): void {
   const last = brokenNoted.get(rule.id) ?? 0;
   if (Date.now() - last < BROKEN_NOTE_EVERY_MS) return;
   brokenNoted.set(rule.id, Date.now());
@@ -130,7 +136,7 @@ function noteBroken(ctx: Ctx, rule: RuleRow, problems: string): void {
       ruleId: rule.id,
       projectId: rule.projectId,
       outcome: 'failed',
-      message: `It no longer reads (${problems}), so it refuses nothing until it is fixed.`,
+      message: said ?? `It no longer reads (${problems}), so it refuses nothing until it is fixed.`,
     })
     .catch(() => {});
 }

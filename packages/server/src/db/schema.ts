@@ -621,6 +621,11 @@ export const rules = pgTable(
     notify: jsonb('notify'),
     /** A webhook it calls about each issue it acts on. A webhook a rule calls can't be deleted until the rule lets it go. */
     callWebhookId: text('call_webhook_id').references(() => webhooks.id, { onDelete: 'restrict' }),
+    /**
+     * A scripted rule's JavaScript (D40), run in the sandbox in place of its command (a change or
+     * scheduled rule) or of what it requires (a guard). Only administrators write scripts.
+     */
+    script: text('script'),
     enabled: boolean('enabled').notNull().default(true),
     nextRunAt: ts('next_run_at'),
     lastRunAt: ts('last_run_at'),
@@ -1710,4 +1715,64 @@ export const providerLogins = pgTable(
     createdAt: created(),
   },
   (t) => [uniqueIndex('provider_logins_once').on(t.provider, t.matchKey), index('provider_logins_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Scripted workflows: state machines and custom actions (docs/architecture.md, D40)
+// ---------------------------------------------------------------------------
+
+/**
+ * A project's state machine for one of its state fields: the moves allowed between its values.
+ * A change that moves the field another way is refused in the write path. Reference data: it loads
+ * with the schema snapshot, so a project without one pays no query.
+ */
+export const stateMachines = pgTable(
+  'state_machines',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    fieldId: text('field_id')
+      .notNull()
+      .references(() => fields.id, { onDelete: 'cascade' }),
+    /** StateTransition[]: each a name, the states it leaves ("*": any), the one it reaches, a condition and an action. */
+    transitions: jsonb('transitions').notNull().default([]),
+    enabled: boolean('enabled').notNull().default(true),
+    version: integer('version').notNull().default(1),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('state_machines_project_field').on(t.projectId, t.fieldId)],
+);
+
+/**
+ * A project's custom action: a named thing people do to an issue, as a command or a script, offered
+ * on the issue's page and understood by the command language. It runs as whoever does it.
+ */
+export const workflowActions = pgTable(
+  'workflow_actions',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** What it does, in the command language; empty for a scripted action. */
+    command: text('command').notNull().default(''),
+    /** A scripted action's JavaScript (administrators only). */
+    script: text('script'),
+    /** When it's offered, in the query language; empty: always. */
+    condition: text('condition').notNull().default(''),
+    enabled: boolean('enabled').notNull().default(true),
+    position: integer('position').notNull().default(0),
+    version: integer('version').notNull().default(1),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('workflow_actions_name').on(t.projectId, sql`lower(${t.name})`)],
 );
