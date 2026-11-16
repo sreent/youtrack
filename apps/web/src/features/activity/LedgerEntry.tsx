@@ -45,6 +45,7 @@ function byLine(e: TrackerEvent): string {
   const itself = e.actor.isBot && (e.actor.channel === 'api' || e.actor.channel === 'mcp');
   const through: Record<TrackerEvent['actor']['channel'], string> = {
     web: 'through the web',
+    email: 'by email',
     api: itself ? 'through the API, as itself' : `through the API, as ${name}`,
     mcp: itself ? 'over MCP, as itself' : `over MCP, for ${name}`,
     assistant: `through the assistant, for ${name}`,

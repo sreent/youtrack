@@ -1,4 +1,5 @@
 import type { Me } from '@a4a/shared';
+import { NotifyKindsSettingsCard } from '../features/notifications/Kinds';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
@@ -236,6 +237,7 @@ export default function ProfilePage() {
       <section className="card" aria-labelledby="notifications">
         <h2 id="notifications">Notifications</h2>
         <EmailSettings />
+        <NotifyKindsSettingsCard />
       </section>
       <section className="card" aria-labelledby="away">
         <div className="section-head">

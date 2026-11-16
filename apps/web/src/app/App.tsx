@@ -32,6 +32,7 @@ const InboxPage = lazy(() => import('../pages/InboxPage'));
 // Public: a help desk's form and a request's page, and where an email's unsubscribe link leads.
 const HelpPage = lazy(() => import('../pages/HelpPage'));
 const TrackPage = lazy(() => import('../pages/TrackPage'));
+const PortalPage = lazy(() => import('../pages/PortalPage'));
 const UnsubscribePage = lazy(() => import('../pages/UnsubscribePage'));
 // Before the frame: an app that asks to work in a4a as someone (OAuth for MCP); it signs them in itself.
 const OAuthConsentPage = lazy(() => import('../pages/OAuthConsentPage'));
@@ -49,6 +50,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/help/:key" element={<HelpPage />} />
         <Route path="/request" element={<TrackPage />} />
+        <Route path="/portal" element={<PortalPage />} />
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
         <Route path="/public" element={<GuestHome />} />

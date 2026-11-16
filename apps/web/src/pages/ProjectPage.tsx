@@ -17,6 +17,7 @@ import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
@@ -284,6 +285,13 @@ export default function ProjectPage() {
         </div>
         <HelpdeskSettings project={p} canEdit={canEdit} />
       </section>
+      <section className="card" aria-labelledby="service-levels">
+        <div className="section-head">
+          <h2 id="service-levels">Service levels</h2>
+          <span className="note">Targets for the team's first reply and for resolving, in working hours, and how they've gone.</span>
+        </div>
+        <SlaSettings project={p} canEdit={canEdit} />
+      </section>
       {canEdit ? (
         <section className="card" aria-labelledby="helpdesk-mail">
           <div className="section-head">
@@ -291,6 +299,7 @@ export default function ProjectPage() {
             <span className="note">An address people write to, and where their mail comes in.</span>
           </div>
           <HelpdeskMail project={p} />
+          <DeskMailboxSettings project={p} />
         </section>
       ) : null}
       <section className="card" aria-labelledby="plan">
