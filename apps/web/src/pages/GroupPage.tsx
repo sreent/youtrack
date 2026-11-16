@@ -12,6 +12,7 @@ import { Confirm } from '../features/common/Confirm';
 import { comesFrom, groupKeys, useGroup } from '../features/groups/api';
 import { providerNameOf } from '../features/groups/GroupsSection';
 import { t, tr } from '../i18n';
+import { roleLabel } from '../features/roles/words';
 
 function useRefresh(id: string) {
   const qc = useQueryClient();
@@ -173,7 +174,7 @@ function Roles({ group }: { group: GroupDetail }) {
                     <Link to={`/projects/${r.project.key}`}>{r.project.name}</Link>
                     <span className="item-about mono">{r.project.key}</span>
                   </th>
-                  <td>{r.roleName}</td>
+                  <td>{roleLabel(r.role, r.roleName)}</td>
                 </tr>
               ))}
             </tbody>

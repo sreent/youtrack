@@ -7,7 +7,7 @@ import { keys, useRoles } from '../../api/queries';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { PERMISSION_ABOUT, PERMISSION_NAMES } from './words';
+import { PERMISSION_ABOUT, PERMISSION_NAMES, roleLabel } from './words';
 import { t } from '../../i18n';
 
 interface Draft {
@@ -89,7 +89,7 @@ function RoleRow({ role }: { role: RoleDef }) {
   return (
     <tr>
       <th scope="row" className="row-head">
-        {role.name}
+        {roleLabel(role.id, role.name)}
         {role.builtin ? <span className="item-about">{t('roles.rolesSection.builtIn')}</span> : role.description ? <span className="item-about">{role.description}</span> : null}
       </th>
       <td>

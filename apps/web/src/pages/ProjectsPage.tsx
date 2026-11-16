@@ -11,6 +11,7 @@ import { FormField, Scroll } from '../features/common/bits';
 import { TRIAGE_WORDS } from '../features/projects/triage';
 import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
+import { roleLabel } from '../features/roles/words';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
   { id: 'software', name: t('page.projects.software'), about: t('page.projects.statePriorityTypeAssigneeSubsystem') },
@@ -194,7 +195,7 @@ export default function ProjectsPage() {
                         <span className="of-total">{tr('page.projects.of', { openIssueCount: p.openIssueCount, t0: (c: ReactNode) => <strong>{c}</strong>, issueCount: p.issueCount })}</span>
                       </td>
                       <td>{TRIAGE_WORDS[p.settings.triageMode]}</td>
-                      <td>{p.access.via === 'admin' ? t('page.projects.administrator') : p.access.roleName}</td>
+                      <td>{p.access.via === 'admin' ? t('page.projects.administrator') : roleLabel(p.access.role, p.access.roleName)}</td>
                     </tr>
                   ))}
                 </tbody>
