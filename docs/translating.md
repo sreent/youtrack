@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German is complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German and Spanish are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -98,7 +98,7 @@ German:
 
 ## Adding a language
 
-French, Spanish and Japanese come next, each a catalog:
+French and Japanese come next, each a catalog, as Spanish came:
 
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES` ("Français", "Español", "日本語").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
@@ -107,3 +107,69 @@ French, Spanish and Japanese come next, each a catalog:
 5. Write its voice and its terms here, then run the checks above. A copy of `e2e/german.spec.ts` with the language's words checks it in a browser.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
+
+## Spanish
+
+One Spanish for Spain and Latin America: no *vosotros*, and no word only one side uses. Where the two differ, the catalog takes the form most Spanish speakers use and every reader knows: *agregar* (not *añadir*), *costo* (not *coste*), *correo* for email, *PC* where English says computer, *informe* for a report.
+
+- **Tú**, always: "Elige un proyecto", "Tu perfil". Spanish software, Jira's and Slack's among them, says *tú* to its people on both sides of the Atlantic; *usted* reads as a form letter there. German's *Sie* is German's own convention.
+- **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Pulsa".
+- **What just happened is the present perfect**: "Se ha guardado.", "Se ha creado {name}.". History and notifications, which carry their time, are the preterite: "la movió", "comentó", "te la asignó".
+- **An issue is *incidencia***, feminine, so what refers to one agrees with it: "la notificó", "Notificada por", "resuelta".
+- **Gender**: a4a doesn't guess a person's. It says "la persona", "quien…", "quienes la siguen", and takes nouns that don't change: *responsable* (assignee), *solicitante* (requester), *informante*, *agente*, *miembro*. Where a person's gender would show in an adjective, the sentence turns: "Ya no tienes suscripción a…", not "Ya no estás suscrito". Roles stay as their words, as German's do: *administrador*, *gestor*, *miembro*, *lector*.
+- **Typography**: opening ¿ and ¡. Quotation marks are “…”, as English's are (« » is Spain's print habit, not Latin America's). A space before % and before a unit: "50 %", "30 s". The ellipsis is one character.
+- **Dates and numbers** come from Intl: "16 nov 2026", "1.234,5", "hace 3 minutos".
+- **English the page passes in.** Some messages are given an English word as a value ("is"/"are", "field"/"fields", "later"/"earlier", "it"/"them", a pull request's "merged"). The Spanish selects on it, `{v, select, is {…} other {…}}`, so it reads right; where nothing can be selected on, the English shows until the page passes a number or a key instead.
+
+| English | Spanish |
+|---|---|
+| issue | incidencia |
+| project | proyecto |
+| board | tablero |
+| sprint | sprint |
+| backlog | backlog |
+| help desk | servicio de asistencia |
+| request (help desk) | solicitud |
+| requester | solicitante, la persona solicitante |
+| reporter | informante; "quien la notificó" in a sentence |
+| report (an issue), reported | notificar, notificada |
+| assignee | responsable |
+| agent | agente |
+| workflow | flujo de trabajo |
+| rule | regla |
+| state machine | máquina de estados |
+| transition | transición |
+| knowledge base | base de conocimientos |
+| article | artículo |
+| inbox | bandeja de entrada |
+| notification | notificación |
+| digest | resumen |
+| subscription, subscribe | suscripción, suscribirse |
+| watch, watchers | seguir, quienes la siguen |
+| timesheet | hoja de horas |
+| work logged, log time | trabajo registrado, registrar tiempo |
+| estimate | estimación |
+| days away | ausencias |
+| levelling | nivelación |
+| slack (in a plan) | holgura |
+| baseline | línea base |
+| earned value | valor ganado |
+| triage | clasificación |
+| suggestion | sugerencia |
+| token | token |
+| two-factor sign-in | verificación en dos pasos |
+| sign in, sign out | iniciar sesión, cerrar sesión |
+| identity provider | proveedor de identidad |
+| single sign-on | inicio de sesión único |
+| webhook, delivery | webhook, entrega |
+| secret | secreto |
+| commit, pull request, branch | commit, pull request (la), rama |
+| build (CI) | compilación |
+| field, value | campo, valor |
+| link (between issues) | enlace |
+| resolve, resolved | resolver, resuelta |
+| dashboard, widget | panel, widget |
+| report | informe |
+| role: administrator, manager, member, viewer | administrador, gestor, miembro, lector |
+
+To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person of its own in through a Spanish browser and shoots the issues, an issue, the inbox, the profile and the sign-in page in light, in dark and at 390px; and a read of the pages in a browser that asks for Spanish.
