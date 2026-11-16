@@ -439,7 +439,7 @@ An article's id can't be read as an issue's, and the reverse:
 - **Pagination.** Search results use offset pagination (sortable by any field); the event feed uses a cursor (`after`).
 - **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. The sign-in throttle is shared.
 - **A token's last-used time** is written at most once a minute per instance.
-- **An assistant conversation whose instance dies mid-answer** stays "running", so it can't take another message; a new conversation can. Fixing it belongs to the assistant (a claim that expires, as idempotency keys now have).
+- **An assistant conversation whose instance dies mid-answer** takes messages again two minutes later: a turn claims its conversation in one statement and refreshes the claim every 30 s while it runs, so a claim left stale was cut off. The same claim stops two decisions sent at once from both running the changes.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
