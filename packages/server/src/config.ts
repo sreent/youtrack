@@ -65,6 +65,14 @@ export interface Config {
   notifyWindowMs: number;
   /** The hour (server time, 0-23) the daily digest goes out. */
   digestHour: number;
+  /**
+   * Hosts an import may read from although their addresses are inside the network
+   * (IMPORT_ALLOW_HOSTS, comma-separated names): a YouTrack or Jira of the company's own.
+   * Every other host must be public. https always.
+   */
+  importAllowHosts: string[];
+  /** For tests: an import may read over plain http from this machine (IMPORT_ALLOW_HTTP_LOOPBACK). Never in production. */
+  importAllowHttpLoopback: boolean;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -178,6 +186,11 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
+    importAllowHosts: (env.IMPORT_ALLOW_HOSTS ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+    importAllowHttpLoopback: truthy(env.IMPORT_ALLOW_HTTP_LOOPBACK, false),
     ...overrides,
   };
 }

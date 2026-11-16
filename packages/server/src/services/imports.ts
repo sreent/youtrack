@@ -16,6 +16,11 @@
  * Importing is managing the project (its managers, and administrators): an import sets other people
  * as reporters and comment authors, and keeps the other tracker's dates. In a project only its
  * people see, only they can be named so.
+ *
+ * An import from YouTrack's or Jira's API (services/api-imports.ts) fills the same rows, so the
+ * same mapping, check, run and undo serve it. Its rows also bring what a file's cells can't
+ * hold: comments, work items and files, each by its id there, so running again adds only what's
+ * new. Its files are downloaded as it runs, with the token given for the run.
  */
 import {
   formatPeriod,
@@ -23,7 +28,9 @@ import {
   type ImportCheck,
   type ImportColumn,
   type ImportCounts,
+  type ImportCredentials,
   type ImportOptions,
+  type ImportOrigin,
   type ImportProblem,
   type ImportRow,
   type ImportSource,
@@ -48,11 +55,14 @@ import {
   type FieldInfo,
   type PersonInfo,
 } from '../imports/mapping';
-import { badRequest, conflict, notFound } from '../lib/errors';
+import { readerFor, type RemotePerson, type RowExtra, type StoredOrigin } from '../imports/readers';
+import { RemoteError, type Remote } from '../imports/remote';
+import { AppError, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { excerpt } from '../lib/text';
+import { excerpt, normalizeName } from '../lib/text';
 import { localDate, timeZoneOrThrow } from '../reports/tz';
 import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject } from './access';
+import { formatBytes, storeAttachment, type UploadTarget } from './attachments';
 import { changeSprintInTx } from './boards';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { applyChanges, createIssueInTx, resolveFieldsInput, resolveLinkPhrase, type LinkSpec } from './issues';
@@ -71,16 +81,16 @@ const STALE_MS = 60_000;
 const SINGLE_TARGETS = new Set(['key', 'external-id', 'summary', 'description', 'parent', 'created', 'updated', 'resolved', 'reporter', 'spent']);
 const SOURCE_NAMES: Record<ImportSource, string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'the other tracker' };
 
-type ImportRowRecord = typeof imports.$inferSelect;
+export type ImportRowRecord = typeof imports.$inferSelect;
 
-interface ColumnStats {
+export interface ColumnStats {
   samples: string[];
   filled: number;
   /** Each value and how many rows have it, or null past DISTINCT_CAP different values. */
   distinct: [string, number][] | null;
 }
 
-interface StoredMapping {
+export interface StoredMapping {
   targets: string[];
   found: boolean[];
   columns: ColumnStats[];
@@ -94,7 +104,7 @@ interface StoredMapping {
 // Context: the project, its fields, its people, its sprints
 // ---------------------------------------------------------------------------
 
-interface Context {
+export interface Context {
   s: SchemaSnapshot;
   project: ProjectRow;
   fields: FieldRow[];
@@ -105,7 +115,7 @@ interface Context {
   meId: string;
 }
 
-async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
+export async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
   const s = await ctx.app.schema.get();
   const fields = (s.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
   // In a project only its people see, only they can be its reporters, assignees and comment
@@ -133,13 +143,13 @@ async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
 }
 
 /** Importing is managing a project: its managers, and administrators. A hidden project answers as a missing one. */
-async function projectFor(ctx: Ctx, key: string): Promise<ProjectRow> {
+export async function projectFor(ctx: Ctx, key: string): Promise<ProjectRow> {
   const project = await requireProject(ctx, key, 'manage');
   if (project.archived) throw badRequest(`Project ${project.key} is archived`);
   return project;
 }
 
-async function loadImport(ctx: Ctx, id: string): Promise<{ row: ImportRowRecord; project: ProjectRow }> {
+export async function loadImport(ctx: Ctx, id: string): Promise<{ row: ImportRowRecord; project: ProjectRow }> {
   requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(imports).where(eq(imports.id, id));
   const s = await ctx.app.schema.get();
@@ -171,6 +181,64 @@ function valueKind(c: Context, target: string): { kind: 'option' | 'user' | 'spr
 // Upload
 // ---------------------------------------------------------------------------
 
+/** Each column's samples, how many rows fill it, and its values with their counts, as rows go by. */
+export class ColumnTally {
+  readonly stats: ColumnStats[] = [];
+  private readonly distinct: Map<string, number>[] = [];
+
+  constructor(width: number) {
+    for (let i = 0; i < width; i++) {
+      this.stats.push({ samples: [], filled: 0, distinct: [] });
+      this.distinct.push(new Map());
+    }
+  }
+
+  add(cells: string[]): void {
+    cells.forEach((cell, i) => {
+      const st = this.stats[i];
+      if (!st || !cell.trim()) return;
+      st.filled++;
+      if (st.samples.length < 3) st.samples.push(excerpt(cell, 80));
+      const d = this.distinct[i]!;
+      if (st.distinct !== null) {
+        const v = cell.trim().slice(0, 200);
+        d.set(v, (d.get(v) ?? 0) + 1);
+        if (d.size > DISTINCT_CAP) {
+          st.distinct = null;
+          d.clear();
+        }
+      }
+    });
+  }
+
+  done(): ColumnStats[] {
+    this.stats.forEach((st, i) => {
+      if (st.distinct !== null) st.distinct = [...this.distinct[i]!.entries()].sort((a, b) => b[1] - a[1]);
+    });
+    return this.stats;
+  }
+}
+
+/** The mapping a header and its values suggest: each column's target, a target that takes one value taken by its first column. */
+export function firstMapping(c: Context, header: string[], stats: ColumnStats[], notes: string[]): StoredMapping {
+  const targets: string[] = [];
+  const found: boolean[] = [];
+  const taken = new Set<string>();
+  header.forEach((name, i) => {
+    const t = targetFor(name, stats[i]?.samples ?? [], c.fields, c.phrases);
+    const single = SINGLE_TARGETS.has(t.target) || (fieldOf(c, t.target) ? !fieldOf(c, t.target)!.multi : false);
+    if (t.target !== 'ignore' && single && taken.has(t.target)) {
+      targets.push('ignore');
+      found.push(false);
+      return;
+    }
+    taken.add(t.target);
+    targets.push(t.target);
+    found.push(t.found);
+  });
+  return { targets, found, columns: stats, values: {}, options: { onExisting: 'update', timeZone: timeZoneOrThrow(null) }, notes };
+}
+
 export async function uploadImport(
   ctx: Ctx,
   input: { project: string; source?: ImportSource; fileName?: string },
@@ -189,9 +257,7 @@ export async function uploadImport(
     header: [],
     mapping: {},
   });
-  const file: { header: string[] | null } = { header: null };
-  const stats: ColumnStats[] = [];
-  const distinct: Map<string, number>[] = [];
+  const file: { header: string[] | null; tally: ColumnTally | null } = { header: null, tally: null };
   let rows = 0;
   try {
     const res = await parseCsvStream(
@@ -203,29 +269,12 @@ export async function uploadImport(
             const header = r.cells.map((h) => h.trim());
             if (!header.some(Boolean)) throw new CsvError('The first line, the header, is empty', 1);
             file.header = header;
-            header.forEach(() => {
-              stats.push({ samples: [], filled: 0, distinct: [] });
-              distinct.push(new Map());
-            });
+            file.tally = new ColumnTally(header.length);
             continue;
           }
           rows++;
           if (rows > MAX_ROWS) throw new CsvError(`The file has more than ${MAX_ROWS.toLocaleString('en')} rows`, r.line);
-          r.cells.forEach((cell, i) => {
-            const st = stats[i];
-            if (!st || !cell.trim()) return;
-            st.filled++;
-            if (st.samples.length < 3) st.samples.push(excerpt(cell, 80));
-            const d = distinct[i]!;
-            if (st.distinct !== null) {
-              const v = cell.trim().slice(0, 200);
-              d.set(v, (d.get(v) ?? 0) + 1);
-              if (d.size > DISTINCT_CAP) {
-                st.distinct = null;
-                d.clear();
-              }
-            }
-          });
+          file.tally!.add(r.cells);
           batch.push({ importId: id, n: r.record, cells: r.cells });
         }
         for (let i = 0; i < batch.length; i += BATCH) await ctx.db.insert(importRows).values(batch.slice(i, i + BATCH));
@@ -235,36 +284,11 @@ export async function uploadImport(
     const h = file.header;
     if (!h) throw new CsvError('The file is empty', 0);
     if (!rows) throw new CsvError('The file has a header and no rows', 1);
-    stats.forEach((st, i) => {
-      if (st.distinct !== null) st.distinct = [...distinct[i]!.entries()].sort((a, b) => b[1] - a[1]);
-    });
     const c = await contextFor(ctx, project);
     const source = input.source ?? detectSource(h);
-    const targets: string[] = [];
-    const found: boolean[] = [];
-    const taken = new Set<string>();
-    h.forEach((name, i) => {
-      const t = targetFor(name, stats[i]!.samples, c.fields, c.phrases);
-      const single = SINGLE_TARGETS.has(t.target) || (fieldOf(c, t.target) ? !fieldOf(c, t.target)!.multi : false);
-      if (t.target !== 'ignore' && single && taken.has(t.target)) {
-        targets.push('ignore');
-        found.push(false);
-        return;
-      }
-      taken.add(t.target);
-      targets.push(t.target);
-      found.push(t.found);
-    });
     const notes: string[] = [];
     if (res.replaced) notes.push(`${res.replaced} ${res.replaced === 1 ? 'character' : 'characters'} in the file weren't UTF-8 and show as �. Export it as UTF-8 to keep them.`);
-    const mapping: StoredMapping = {
-      targets,
-      found,
-      columns: stats,
-      values: {},
-      options: { onExisting: 'update', timeZone: timeZoneOrThrow(null) },
-      notes,
-    };
+    const mapping = firstMapping(c, h, file.tally!.done(), notes);
     await ctx.db.update(imports).set({ header: h, rowCount: rows, mapping, source, status: 'ready' }).where(eq(imports.id, id));
   } catch (e) {
     await ctx.db.delete(imports).where(eq(imports.id, id));
@@ -278,10 +302,22 @@ export async function uploadImport(
 // What an import is now
 // ---------------------------------------------------------------------------
 
-function statusOf(row: ImportRowRecord, now = Date.now()): Import['status'] {
-  if (row.status === 'running' && (!row.heartbeatAt || now - row.heartbeatAt.getTime() > STALE_MS)) return 'stopped';
+/** A run or a fetch that hasn't said it's alive for a minute has stopped. */
+export function statusOf(row: ImportRowRecord, now = Date.now()): Import['status'] {
+  if ((row.status === 'running' || row.status === 'fetching') && (!row.heartbeatAt || now - row.heartbeatAt.getTime() > STALE_MS)) return 'stopped';
   return row.status as Import['status'];
 }
+
+/** Where an import from an API reads, as anyone who may see the import sees it: never a credential, nor the cursor. */
+export function publicOrigin(raw: unknown): ImportOrigin | null {
+  const o = raw as StoredOrigin | null;
+  if (!o) return null;
+  const { cursor: _cursor, ...fetch } = o.fetch;
+  return { kind: o.kind, deployment: o.deployment, url: o.url, query: o.query, account: o.account, bring: o.bring, fetch };
+}
+
+/** Whether an import from an API has read every issue; a file's has. */
+const fetched = (row: ImportRowRecord) => !row.origin || (row.origin as StoredOrigin).fetch.complete;
 
 /** Each distinct value of the columns with `target`, with how many rows have it. */
 function valuesOf(m: StoredMapping, target: string, multi: boolean): { items: [string, number][]; more: number } {
@@ -385,11 +421,12 @@ async function dto(ctx: Ctx, row: ImportRowRecord, project: ProjectRow, c?: Cont
     columns,
     values,
     options: m.options ?? { onExisting: 'update', timeZone: timeZoneOrThrow(null) },
-    progress: { phase: (row.progressPhase as 'issues' | 'links' | null) ?? null, done: row.progressDone, total: row.progressTotal },
+    progress: { phase: (row.progressPhase as 'fetching' | 'issues' | 'links' | null) ?? null, done: row.progressDone, total: row.progressTotal },
     startedAt: row.startedAt?.toISOString() ?? null,
     finishedAt: row.finishedAt?.toISOString() ?? null,
     error: row.error,
     result: (row.result as ImportCounts | null) ?? null,
+    origin: publicOrigin(row.origin),
   };
 }
 
@@ -433,6 +470,7 @@ export async function updateMapping(
   const status = statusOf(row);
   if (status === 'running') throw conflict('The import is running', 'Wait for it to finish; change the mapping before running it again.');
   if (status === 'undone') throw conflict('This import was undone', 'Upload the file again to import it afresh.');
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Map them once every issue has been read.');
   const c = await contextFor(ctx, project);
   const m = structuredClone(row.mapping as StoredMapping);
   const header = row.header as string[];
@@ -488,6 +526,32 @@ interface Comment {
   authorId: string | null;
   authorName: string | null;
   text: string;
+  /** Its id in the other tracker, when it came from its API: what running again knows it by. */
+  extId?: string;
+}
+
+/** A work item from the other tracker's API, as it was logged there. */
+interface WorkIntent {
+  extId: string;
+  date: string;
+  minutes: number;
+  authorId: string | null;
+  authorName: string | null;
+  text: string;
+}
+
+/** A file from the other tracker's API, downloaded as the import runs. */
+interface FileIntent {
+  extId: string;
+  name: string;
+  size: number;
+  href: string;
+  at: number;
+  uploaderId: string | null;
+  /** The comment it was on there, by its id there. */
+  comment: string | null;
+  /** Larger than one file may be here: it is left out, and says so. */
+  tooLarge: boolean;
 }
 
 interface Intent {
@@ -510,6 +574,10 @@ interface Intent {
   links: { phrase: string; keys: string[] }[];
   parent: string | null;
   sprintIds: string[];
+  /** From an API: its work items, one by one. */
+  work: WorkIntent[];
+  /** From an API: its files. */
+  files: FileIntent[];
   problems: ImportProblem[];
   failed: boolean;
 }
@@ -522,6 +590,12 @@ interface Snapshot {
   tags: string[];
   comments: string[];
   spent: number;
+  /** From an API: the work items written, by their ids there. */
+  work?: string[];
+  /** From an API: the files settled (brought, or left out as too large), by their ids there. */
+  files?: string[];
+  /** From an API: each comment's id here, by its id there, for the files that were on it. */
+  commentIds?: Record<string, string>;
 }
 
 function hash(text: string): string {
@@ -530,14 +604,42 @@ function hash(text: string): string {
   return `${text.length}:${h.toString(36)}`;
 }
 
-const commentHash = (c: Comment) => hash(`${c.at}|${c.authorName ?? ''}|${c.text}`);
+/** A comment from an API is known by its id there, so one edited there since isn't added twice; a file's, by what it says. */
+const commentHash = (c: Comment) => (c.extId ? `ext:${c.extId}` : hash(`${c.at}|${c.authorName ?? ''}|${c.text}`));
 
-function snapshotOf(i: Intent): Snapshot {
-  return { summary: i.summary ?? '', description: i.description, fields: i.fields, tags: [...i.tags].sort(), comments: i.comments.map(commentHash), spent: i.spent ?? 0 };
+function snapshotOf(i: Intent, before?: Snapshot): Snapshot {
+  const snap: Snapshot = { summary: i.summary ?? '', description: i.description, fields: i.fields, tags: [...i.tags].sort(), comments: i.comments.map(commentHash), spent: i.spent ?? 0 };
+  if (i.work.length || before?.work) snap.work = [...new Set([...(before?.work ?? []), ...i.work.map((w) => w.extId)])];
+  // Files are settled one by one as they're brought, after the row's transaction: the snapshot keeps what was settled before.
+  if (i.files.length || before?.files) snap.files = [...(before?.files ?? [])];
+  if (before?.commentIds) snap.commentIds = { ...before.commentIds };
+  return snap;
 }
 
-/** The values a row's cells give, by target, and the problems found reading them. */
-function readRow(c: Context, m: StoredMapping, header: string[], source: ImportSource, n: number, cells: string[], now: number): Intent {
+/** Files of a row not settled yet: neither brought nor left out as too large. */
+const filesToBring = (i: Intent, before?: Snapshot) => i.files.filter((f) => !(before?.files ?? []).includes(f.extId));
+
+/** Someone here, by the other tracker's account: email, then login, then name. */
+function matchRemote(by: RemotePerson | null, people: PersonInfo[]): PersonInfo | null {
+  if (!by) return null;
+  const email = by.email?.toLowerCase();
+  if (email) {
+    const p = people.find((x) => x.email?.toLowerCase() === email);
+    if (p) return p;
+  }
+  const login = by.login?.toLowerCase();
+  if (login) {
+    const p = people.find((x) => x.login.toLowerCase() === login);
+    if (p) return p;
+  }
+  const name = by.name ? normalizeName(by.name) : null;
+  return name ? (people.find((x) => normalizeName(x.name) === name) ?? null) : null;
+}
+
+const remoteName = (by: RemotePerson | null) => by?.name || by?.login || null;
+
+/** The values a row's cells give, by target, and the problems found reading them; with what an API's row brings beside them. */
+function readRow(c: Context, m: StoredMapping, header: string[], source: ImportSource, n: number, cells: string[], now: number, extra?: RowExtra | null, maxFile = Infinity): Intent {
   const problems: ImportProblem[] = [];
   const tz = m.options.timeZone;
   const cellsOf = (target: string) => m.targets.flatMap((t, i) => (t === target && (cells[i] ?? '').trim() ? [{ value: (cells[i] ?? '').trim(), column: header[i] ?? `Column ${i + 1}` }] : []));
@@ -629,6 +731,24 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
     const person = parsed.author ? matchPerson(parsed.author, c.people) : null;
     comments.push({ at: Math.min(parsed.at ?? updated, now), authorId: person?.id ?? null, authorName: parsed.author, text: parsed.text });
   }
+  // What an API's row brings beside its cells, each item by its id there.
+  for (const cm of extra?.comments ?? []) {
+    const person = matchRemote(cm.by, c.people);
+    comments.push({ at: Math.min(cm.at, now), authorId: person?.id ?? null, authorName: remoteName(cm.by), text: cm.text.slice(0, 50_000), extId: cm.id });
+  }
+  if (extra?.leftComments) {
+    const k = extra.leftComments;
+    problem('warning', null, `${k} ${k === 1 ? 'comment is' : 'comments are'} for only some people to see in ${SOURCE_NAMES[source]}, so ${k === 1 ? 'it is' : 'they are'} left out`);
+  }
+  const work: WorkIntent[] = (extra?.work ?? []).map((w) => {
+    const person = matchRemote(w.by, c.people);
+    return { extId: w.id, date: w.date, minutes: w.minutes, authorId: person?.id ?? null, authorName: remoteName(w.by), text: w.text };
+  });
+  const files: FileIntent[] = (extra?.files ?? []).map((f) => {
+    const tooLarge = f.size > maxFile;
+    if (tooLarge) problem('warning', null, `${f.name} is ${formatBytes(f.size)}, larger than ${formatBytes(maxFile)}, the most one file may be here, so it is left out`);
+    return { extId: f.id, name: f.name, size: f.size, href: f.href, at: Math.min(f.at, now), uploaderId: matchRemote(f.by, c.people)?.id ?? null, comment: f.comment, tooLarge };
+  });
 
   let spent: number | null = null;
   for (const cell of cellsOf('spent')) {
@@ -674,6 +794,8 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
     links,
     parent: first('parent')?.value ?? null,
     sprintIds,
+    work,
+    files,
     problems,
     failed,
   };
@@ -723,32 +845,48 @@ function changedFields(before: Snapshot, after: Snapshot): string[] {
   if (JSON.stringify(before.tags ?? []) !== JSON.stringify(after.tags)) out.push('Tags');
   if (after.comments.some((h) => !(before.comments ?? []).includes(h))) out.push('Comments');
   if ((before.spent ?? 0) !== after.spent) out.push('Spent time');
+  if ((after.work ?? []).some((id) => !(before.work ?? []).includes(id))) out.push('Work items');
   return out;
 }
 
 export async function checkImport(ctx: Ctx, id: string): Promise<ImportCheck> {
   const { row, project } = await loadImport(ctx, id);
   if (statusOf(row) === 'running') throw conflict('The import is running', 'Its progress is on the import; check it again when it has finished.');
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Check it once every issue has been read.');
   const c = await contextFor(ctx, project);
   const m = row.mapping as StoredMapping;
   const header = row.header as string[];
-  const counts: ImportCounts = { total: row.rowCount, created: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0, comments: 0, links: 0, linksMissing: 0, problems: 0 };
+  const fromApi = Boolean(row.origin);
+  const counts: ImportCounts = {
+    total: row.rowCount,
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    skipped: 0,
+    failed: 0,
+    comments: 0,
+    ...(fromApi ? { work: 0, files: 0 } : {}),
+    links: 0,
+    linksMissing: 0,
+    problems: 0,
+  };
   const problems: ImportProblem[] = [];
   const keys = new Set<string>();
   const ids = new Set<string>();
   const pendingLinks: { n: number; key: string | null; refs: string[] }[] = [];
   const now = Date.now();
   const canImport = m.targets.includes('key') && m.targets.includes('summary');
+  const maxFile = ctx.app.config.attachmentMaxBytes;
   for (let after = 0; ; ) {
     const batch = await ctx.db
-      .select({ n: importRows.n, cells: importRows.cells })
+      .select({ n: importRows.n, cells: importRows.cells, extra: importRows.extra })
       .from(importRows)
       .where(and(eq(importRows.importId, id), gt(importRows.n, after)))
       .orderBy(asc(importRows.n))
       .limit(BATCH);
     if (!batch.length) break;
     after = batch[batch.length - 1]!.n;
-    const intents = batch.map((b) => readRow(c, m, header, row.source as ImportSource, b.n, b.cells as string[], now));
+    const intents = batch.map((b) => readRow(c, m, header, row.source as ImportSource, b.n, b.cells as string[], now, b.extra as RowExtra | null, maxFile));
     const existing = await existingFor(ctx.db, project.id, row.source, intents.map((i) => i.key).filter((k): k is string => Boolean(k)));
     for (const it of intents) {
       if (it.key && keys.has(it.key)) {
@@ -765,16 +903,26 @@ export async function checkImport(ctx: Ctx, id: string): Promise<ImportCheck> {
       keys.add(it.key!);
       if (it.externalId) ids.add(it.externalId);
       const ex = existing.get(it.key!);
+      const bringable = (list: FileIntent[]) => list.filter((f) => !f.tooLarge).length;
       if (!ex) {
         counts.created++;
         counts.comments += it.comments.length;
+        if (fromApi) {
+          counts.work! += it.work.length;
+          counts.files! += bringable(it.files);
+        }
       } else if (!ex.issueId || m.options.onExisting === 'skip') counts.skipped++;
       else {
-        const changed = changedFields(ex.values as Snapshot, snapshotOf(it));
-        if (changed.length) {
+        const before = ex.values as Snapshot;
+        const changed = changedFields(before, snapshotOf(it, before));
+        const files = filesToBring(it, before);
+        if (changed.length || files.length) {
           counts.updated++;
-          const before = (ex.values as Snapshot).comments ?? [];
-          counts.comments += it.comments.filter((x) => !before.includes(commentHash(x))).length;
+          counts.comments += it.comments.filter((x) => !(before.comments ?? []).includes(commentHash(x))).length;
+          if (fromApi) {
+            counts.work! += it.work.filter((w) => !(before.work ?? []).includes(w.extId)).length;
+            counts.files! += bringable(files);
+          }
         } else counts.unchanged++;
       }
       const refs = [...it.links.flatMap((l) => l.keys), ...(it.parent ? [it.parent] : [])];
@@ -831,11 +979,41 @@ export async function waitForImport(id: string): Promise<void> {
   await running.get(id);
 }
 
-export async function runImport(ctx: Ctx, id: string): Promise<Import> {
+/** Where an import may read from, as the server's configuration says. */
+export function remotePolicy(ctx: Ctx) {
+  return { allowHosts: ctx.app.config.importAllowHosts, allowHttpLoopback: ctx.app.config.importAllowHttpLoopback };
+}
+
+/** What reaching the other tracker came to, as the API says it: its refusals are the request's to fix, its silences are a bad gateway. */
+export function sourceError(e: unknown): unknown {
+  if (!(e instanceof RemoteError)) return e;
+  const theirs = ['network', 'unavailable', 'slow_down', 'too_large'].includes(e.kind);
+  return new AppError(theirs ? 502 : 400, theirs ? 'source_unavailable' : 'source_refused', e.message, e.hint);
+}
+
+export async function runImport(ctx: Ctx, id: string, opts: { credentials?: ImportCredentials } = {}): Promise<Import> {
   const { row, project } = await loadImport(ctx, id);
   const m = row.mapping as StoredMapping;
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Run it once every issue has been read.');
   if (!m.targets?.includes('key')) throw badRequest('No column is the key', "Map the column with each issue's key in the other tracker: running the import again finds the issues it made by it.");
   if (!m.targets.includes('summary')) throw badRequest('No column is the summary', 'Map the column with each issue\'s title.');
+  // An API's files come down as the import runs, with the token given for the run: a4a doesn't keep it.
+  const origin = row.origin as StoredOrigin | null;
+  let remote: Remote | null = null;
+  if (origin?.bring.files && origin.fetch.files > 0) {
+    const name = origin.kind === 'youtrack' ? 'YouTrack' : 'Jira';
+    if (!opts.credentials) {
+      throw badRequest(
+        `It brings ${origin.fetch.files} ${origin.fetch.files === 1 ? 'file' : 'files'} from ${name}, and a4a needs the token again to download them`,
+        "a4a doesn't keep the token: send it with the run, as credentials.",
+      );
+    }
+    const reader = readerFor(remotePolicy(ctx), origin, opts.credentials);
+    await reader.probe().catch((e) => {
+      throw sourceError(e);
+    });
+    remote = reader.remote;
+  }
   // Claim the run: one at a time, per import and per project. A run whose heartbeat stopped may be taken over.
   const stale = new Date(Date.now() - STALE_MS);
   const [busy] = await ctx.db
@@ -849,7 +1027,7 @@ export async function runImport(ctx: Ctx, id: string): Promise<Import> {
     .where(and(eq(imports.id, id), sql`(${imports.status} IN ('ready', 'done', 'failed', 'undone') OR (${imports.status} = 'running' AND (${imports.heartbeatAt} IS NULL OR ${imports.heartbeatAt} < ${stale})))`))
     .returning();
   if (!claimed) throw conflict('The import is running already', 'Its progress is on the import.');
-  const job = execute(ctx, claimed, project).catch(async (e) => {
+  const job = execute(ctx, claimed, project, remote).catch(async (e) => {
     const message = e instanceof Error ? e.message : String(e);
     console.error(`import ${id} failed:`, e);
     await ctx.app.db
@@ -867,19 +1045,71 @@ interface Tally {
   comments: number;
   links: number;
   linksMissing: number;
+  work: number;
+  files: number;
 }
 
-async function execute(ctx: Ctx, imp: ImportRowRecord, project: ProjectRow): Promise<void> {
+/** Add problems to a row's, in one statement. */
+async function appendProblems(db: Db, importId: string, n: number, problems: ImportProblem[]): Promise<void> {
+  if (!problems.length) return;
+  await db
+    .update(importRows)
+    .set({ problems: sql`coalesce(${importRows.problems}, '[]'::jsonb) || ${JSON.stringify(problems)}::jsonb` })
+    .where(and(eq(importRows.importId, importId), eq(importRows.n, n)));
+}
+
+async function execute(ctx: Ctx, imp: ImportRowRecord, project: ProjectRow, remote: Remote | null): Promise<void> {
   const c = await contextFor(ctx, project);
   const m = imp.mapping as StoredMapping;
   const header = imp.header as string[];
   const source = imp.source as ImportSource;
-  const tally: Tally = { comments: 0, links: 0, linksMissing: 0 };
+  const tally: Tally = { comments: 0, links: 0, linksMissing: 0, work: 0, files: 0 };
   const origin = (key: string) => ({ importId: imp.id, source, key });
   const beat = (done: number, phase: 'issues' | 'links', total: number) =>
     ctx.db.update(imports).set({ heartbeatAt: new Date(), progressDone: done, progressPhase: phase, progressTotal: total }).where(eq(imports.id, imp.id));
+  const maxFile = ctx.app.config.attachmentMaxBytes;
 
-  // Pass 1: the issues, a row at a time, each in a transaction of its own.
+  // Pass 1: the issues, a row at a time, each in a transaction of its own; an API's files after each.
+  // Downloading a large file can take longer than a heartbeat lasts: with files, the run beats on a timer too.
+  const timer = remote
+    ? setInterval(() => {
+        ctx.db
+          .update(imports)
+          .set({ heartbeatAt: new Date() })
+          .where(and(eq(imports.id, imp.id), eq(imports.status, 'running')))
+          .catch(() => {});
+      }, 10_000)
+    : null;
+  try {
+    await passOne(ctx, c, imp, m, header, source, tally, origin, beat, maxFile, remote);
+  } finally {
+    if (timer) clearInterval(timer);
+  }
+  await beat(imp.rowCount, 'issues', imp.rowCount);
+  await passTwo(ctx, c, imp, m, header, source, tally, origin, beat);
+
+  const result = await countsOf(ctx.db, imp.id, imp.rowCount, tally, Boolean(imp.origin));
+  await ctx.db
+    .update(imports)
+    .set({ status: 'done', finishedAt: new Date(), heartbeatAt: new Date(), progressPhase: null, progressDone: imp.rowCount, progressTotal: imp.rowCount, result })
+    .where(eq(imports.id, imp.id));
+}
+
+type Beat = (done: number, phase: 'issues' | 'links', total: number) => Promise<unknown>;
+
+async function passOne(
+  ctx: Ctx,
+  c: Context,
+  imp: ImportRowRecord,
+  m: StoredMapping,
+  header: string[],
+  source: ImportSource,
+  tally: Tally,
+  origin: (key: string) => Record<string, unknown>,
+  beat: Beat,
+  maxFile: number,
+  remote: Remote | null,
+): Promise<void> {
   const seen = new Set<string>();
   let done = 0;
   const now = Date.now();
@@ -893,21 +1123,37 @@ async function execute(ctx: Ctx, imp: ImportRowRecord, project: ProjectRow): Pro
     if (!batch.length) break;
     after = batch[batch.length - 1]!.n;
     for (const r of batch) {
-      const it = readRow(c, m, header, source, r.n, r.cells as string[], now);
+      const it = readRow(c, m, header, source, r.n, r.cells as string[], now, r.extra as RowExtra | null, maxFile);
       if (it.key && seen.has(it.key)) {
         it.problems.push({ row: it.n, key: it.key, column: null, severity: 'error', message: `${it.key} is on an earlier row of the file too, so this row is not imported` });
         it.failed = true;
       }
       if (it.key) seen.add(it.key);
-      await importOne(ctx, c, imp, it, origin, tally);
+      const landed = await importOne(ctx, c, imp, it, origin, tally);
+      if (landed && remote && it.files.length) {
+        const problems = await bringFiles(ctx, c, imp, it, landed, remote, tally, () => beat(done, 'issues', imp.rowCount));
+        await appendProblems(ctx.db, imp.id, it.n, problems);
+      }
       if (++done % 25 === 0) await beat(done, 'issues', imp.rowCount);
     }
   }
-  await beat(done, 'issues', imp.rowCount);
+}
 
-  // Pass 2: links, parents and sprints, by external key, now that every issue exists.
+/** Pass 2: links, parents and sprints, by external key, now that every issue exists. */
+async function passTwo(
+  ctx: Ctx,
+  c: Context,
+  imp: ImportRowRecord,
+  m: StoredMapping,
+  header: string[],
+  source: ImportSource,
+  tally: Tally,
+  origin: (key: string) => Record<string, unknown>,
+  beat: Beat,
+): Promise<void> {
+  const now = Date.now();
   const withRefs = await ctx.db
-    .select({ n: importRows.n, cells: importRows.cells, issueId: importRows.issueId, problems: importRows.problems })
+    .select({ n: importRows.n, cells: importRows.cells, issueId: importRows.issueId })
     .from(importRows)
     .where(and(eq(importRows.importId, imp.id), isNotNull(importRows.issueId)))
     .orderBy(asc(importRows.n));
@@ -916,24 +1162,13 @@ async function execute(ctx: Ctx, imp: ImportRowRecord, project: ProjectRow): Pro
     const it = readRow(c, m, header, source, r.n, r.cells as string[], now);
     if (it.links.length || it.parent || it.sprintIds.length) {
       const problems = await linkOne(ctx, c, imp, it, r.issueId!, origin(it.key ?? ''), tally);
-      if (problems.length) {
-        await ctx.db
-          .update(importRows)
-          .set({ problems: [...((r.problems as ImportProblem[] | null) ?? []), ...problems] })
-          .where(and(eq(importRows.importId, imp.id), eq(importRows.n, r.n)));
-      }
+      await appendProblems(ctx.db, imp.id, r.n, problems);
     }
     if (++linked % 25 === 0) await beat(linked, 'links', withRefs.length);
   }
-
-  const result = await countsOf(ctx.db, imp.id, imp.rowCount, tally);
-  await ctx.db
-    .update(imports)
-    .set({ status: 'done', finishedAt: new Date(), heartbeatAt: new Date(), progressPhase: null, progressDone: imp.rowCount, progressTotal: imp.rowCount, result })
-    .where(eq(imports.id, imp.id));
 }
 
-async function countsOf(db: Db, importId: string, total: number, tally: Tally): Promise<ImportCounts> {
+async function countsOf(db: Db, importId: string, total: number, tally: Tally, fromApi: boolean): Promise<ImportCounts> {
   const rows = await db
     .select({ status: importRows.status, n: sql<number>`count(*)::int`, problems: sql<number>`coalesce(sum(jsonb_array_length(coalesce(${importRows.problems}, '[]'::jsonb))), 0)::int` })
     .from(importRows)
@@ -948,6 +1183,7 @@ async function countsOf(db: Db, importId: string, total: number, tally: Tally): 
     skipped: by('skipped'),
     failed: by('failed'),
     comments: tally.comments,
+    ...(fromApi ? { work: tally.work, files: tally.files } : {}),
     links: tally.links,
     linksMissing: tally.linksMissing,
     problems: rows.reduce((n, r) => n + Number(r.problems), 0),
@@ -961,17 +1197,24 @@ async function markRow(tx: Db, importId: string, n: number, status: ImportRow['s
     .where(and(eq(importRows.importId, importId), eq(importRows.n, n)));
 }
 
-/** One row: create its issue, update the one it made before, or leave it, with its comments and spent time. */
-async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent, origin: (key: string) => Record<string, unknown>, tally: Tally): Promise<void> {
+/** Where a row's issue landed, and what its snapshot settled: what bringing its files works from. */
+interface Landed {
+  issueId: string;
+  snap: Snapshot;
+}
+
+/** One row: create its issue, update the one it made before, or leave it, with its comments, spent time and work items. */
+async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent, origin: (key: string) => Record<string, unknown>, tally: Tally): Promise<Landed | null> {
   const m = imp.mapping as StoredMapping;
   const source = imp.source as ImportSource;
   if (it.failed || !it.key || !it.summary) {
     await markRow(ctx.db, imp.id, it.n, 'failed', it.problems);
-    return;
+    return null;
   }
   const key = it.key;
   const data = { ...origin(key) };
   let published: ActivityRow[] = [];
+  let landed: Landed | null = null;
   try {
     published = await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
@@ -981,7 +1224,6 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         .from(externalIssues)
         .where(and(eq(externalIssues.projectId, c.project.id), eq(externalIssues.source, imp.source), eq(externalIssues.externalKey, key)))
         .for('update');
-      const snap = snapshotOf(it);
       if (ex && (!ex.issueId || m.options.onExisting === 'skip')) {
         const why = ex.issueId ? `${ex.readableId} was imported from it before; this import leaves existing issues as they are` : `${ex.readableId}, made from it before, has been deleted since, so it is not made again`;
         await markRow(tx, imp.id, it.n, 'skipped', [...it.problems, { row: it.n, key, column: null, severity: 'warning', message: why }]);
@@ -994,8 +1236,9 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
           return acts;
         }
         const before = ex.values as Snapshot;
+        const snap = snapshotOf(it, before);
         const changed = changedFields(before, snap);
-        if (!changed.length) {
+        if (!changed.length && !filesToBring(it, before).length) {
           await markRow(tx, imp.id, it.n, 'unchanged', it.problems, { id: issue.id, rid: ex.readableId });
           return acts;
         }
@@ -1024,16 +1267,23 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
           .set({ updatedAt: new Date(Math.max(it.updated, issue.updatedAt.getTime())) })
           .where(eq(issues.id, issue.id));
         const fresh = it.comments.filter((x) => !(before.comments ?? []).includes(commentHash(x)));
-        acts.push(...(await addComments(tx, ctx, c, res.issue, fresh, source, data)));
+        const added = await addComments(tx, ctx, c, res.issue, fresh, source, data);
+        acts.push(...added.activities);
+        if (Object.keys(added.ids).length) snap.commentIds = { ...(snap.commentIds ?? {}), ...added.ids };
         tally.comments += fresh.length;
+        const freshWork = it.work.filter((w) => !(before.work ?? []).includes(w.extId));
+        acts.push(...(await addWork(tx, ctx, c, res.issue, freshWork, source, data)));
+        tally.work += freshWork.length;
         if (snap.spent > (before.spent ?? 0)) acts.push(...(await addSpent(tx, ctx, c, res.issue, it, snap.spent - (before.spent ?? 0), source, data, m.options.timeZone)));
         await tx
           .update(externalIssues)
           .set({ values: snap, lastImportId: imp.id, updatedAt: new Date(), ...(it.externalId ? { externalId: it.externalId } : {}) })
           .where(and(eq(externalIssues.projectId, c.project.id), eq(externalIssues.source, imp.source), eq(externalIssues.externalKey, key)));
         await markRow(tx, imp.id, it.n, 'updated', it.problems, { id: issue.id, rid: ex.readableId });
+        landed = { issueId: issue.id, snap };
         return acts;
       }
+      const snap = snapshotOf(it);
       const reporterName = it.reporterName && !it.reporterId ? it.reporterName : null;
       const created = await createIssueInTx(
         tx,
@@ -1056,8 +1306,12 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         },
       );
       acts.push(...created.activities);
-      acts.push(...(await addComments(tx, ctx, c, created.issue, it.comments, source, data)));
+      const added = await addComments(tx, ctx, c, created.issue, it.comments, source, data);
+      acts.push(...added.activities);
+      if (Object.keys(added.ids).length) snap.commentIds = added.ids;
       tally.comments += it.comments.length;
+      acts.push(...(await addWork(tx, ctx, c, created.issue, it.work, source, data)));
+      tally.work += it.work.length;
       if (snap.spent > 0) acts.push(...(await addSpent(tx, ctx, c, created.issue, it, snap.spent, source, data, m.options.timeZone)));
       const rid = readableId(c.s, created.issue);
       await tx.insert(externalIssues).values({
@@ -1072,6 +1326,7 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         values: snap,
       });
       await markRow(tx, imp.id, it.n, 'created', it.problems, { id: created.issue.id, rid });
+      landed = { issueId: created.issue.id, snap };
       return acts;
     });
   } catch (e) {
@@ -1079,17 +1334,86 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
     const duplicate = err.code === '23505' || err.cause?.code === '23505';
     const message = duplicate ? `${key} was imported by another run at the same moment, so this row was left` : `It could not be imported: ${err.message ?? String(e)}`;
     await markRow(ctx.db, imp.id, it.n, duplicate ? 'skipped' : 'failed', [...it.problems, { row: it.n, key, column: null, severity: duplicate ? 'warning' : 'error', message, ...(err.hint ? { hint: err.hint } : {}) }]);
-    return;
+    return null;
   }
   await publishActivities(ctx.app, published);
+  return landed;
 }
 
-async function addComments(tx: Db, ctx: Ctx, c: Context, issue: IssueRow, list: Comment[], source: ImportSource, data: Record<string, unknown>): Promise<ActivityRow[]> {
-  if (!list.length) return [];
+/**
+ * A row's files from the other tracker's API, after its issue is written: each downloaded and
+ * stored as any upload is (its type read from its bytes, the limits held), as added by its author
+ * when they're here and by whoever runs the import when not, on the comment it was on when that
+ * came too. Each is settled on the issue's record as it's stored, so a run that stops part-way
+ * brings the rest next time and nothing twice. One that can never fit is settled too, and says so.
+ */
+async function bringFiles(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent, landed: Landed, remote: Remote, tally: Tally, beat: () => Promise<unknown>): Promise<ImportProblem[]> {
+  const want = filesToBring(it, landed.snap);
+  if (!want.length || !it.key) return [];
+  const problems: ImportProblem[] = [];
+  const key = it.key;
+  const settle = (extId: string) =>
+    ctx.db
+      .update(externalIssues)
+      .set({ values: sql`jsonb_set(${externalIssues.values}, '{files}', coalesce(${externalIssues.values}->'files', '[]'::jsonb) || ${JSON.stringify([extId])}::jsonb)` })
+      .where(and(eq(externalIssues.projectId, c.project.id), eq(externalIssues.source, imp.source), eq(externalIssues.externalKey, key)));
+  const [issue] = await ctx.db.select().from(issues).where(eq(issues.id, landed.issueId));
+  if (!issue) return problems;
+  for (const f of want) {
+    if (f.tooLarge) {
+      await settle(f.extId); // readRow said why
+      continue;
+    }
+    const commentId = f.comment ? landed.snap.commentIds?.[f.comment] : undefined;
+    let target: UploadTarget = { kind: 'issue', issue };
+    if (commentId) {
+      const [cm] = await ctx.db.select({ deletedAt: comments.deletedAt }).from(comments).where(eq(comments.id, commentId));
+      if (cm && !cm.deletedAt) target = { kind: 'comment', issue, commentId };
+    }
+    try {
+      const got = await remote.download(f.href);
+      await storeAttachment(
+        ctx,
+        target,
+        { name: f.name, stream: got.stream, abort: got.abort },
+        { imported: { uploadedById: f.uploaderId ?? ctx.actor.user.id, createdAt: new Date(f.at), data: { importId: imp.id, source: imp.source, key, file: f.extId } } },
+      );
+      await settle(f.extId);
+      tally.files++;
+    } catch (e) {
+      const err = e as { message?: string; hint?: string };
+      problems.push({
+        row: it.n,
+        key,
+        column: null,
+        severity: 'warning',
+        message: e instanceof AppError ? err.message ?? `${f.name} couldn't be brought` : `${f.name} couldn't be brought: ${err.message ?? String(e)}`,
+        ...(err.hint ? { hint: err.hint } : {}),
+      });
+      // One that can't fit never will: settle it, so running again doesn't try it again. One that didn't come may come next time.
+      if (e instanceof AppError && e.code === 'too_large') await settle(f.extId);
+    }
+    await beat();
+  }
+  return problems;
+}
+
+async function addComments(
+  tx: Db,
+  ctx: Ctx,
+  c: Context,
+  issue: IssueRow,
+  list: Comment[],
+  source: ImportSource,
+  data: Record<string, unknown>,
+): Promise<{ activities: ActivityRow[]; ids: Record<string, string> }> {
+  const ids: Record<string, string> = {};
+  if (!list.length) return { activities: [], ids };
   const ref = (await issueRefsById(tx, c.s, [issue.id])).get(issue.id);
   const out: ActivityRow[] = [];
   for (const cm of list) {
     const id = newId();
+    if (cm.extId) ids[cm.extId] = id;
     // Someone not here keeps their name, at the top of what they wrote.
     const text = cm.authorId || !cm.authorName ? cm.text : `**${cm.authorName}** wrote in ${SOURCE_NAMES[source]}:\n\n${cm.text}`;
     await tx.insert(comments).values({ id, issueId: issue.id, authorId: cm.authorId, text, channel: ctx.actor.channel, createdAt: new Date(cm.at), updatedAt: new Date(cm.at) });
@@ -1099,6 +1423,32 @@ async function addComments(tx: Db, ctx: Ctx, c: Context, issue: IssueRow, list: 
         projectId: issue.projectId,
         issueId: issue.id,
         payload: { issue: ref, data: { commentId: id, text: excerpt(text, 1000), imported: { ...data, at: new Date(cm.at).toISOString(), ...(cm.authorName ? { author: cm.authorName } : {}) } } },
+      }),
+    );
+  }
+  return { activities: out, ids };
+}
+
+/** An API's work items, each as it was logged there: by its author when they're here, else with their name in its words. */
+async function addWork(tx: Db, ctx: Ctx, c: Context, issue: IssueRow, list: WorkIntent[], source: ImportSource, data: Record<string, unknown>): Promise<ActivityRow[]> {
+  if (!list.length) return [];
+  const ref = (await issueRefsById(tx, c.s, [issue.id])).get(issue.id);
+  const out: ActivityRow[] = [];
+  for (const w of list) {
+    const author = w.authorId ? c.s.users.get(w.authorId) : undefined;
+    const said = w.text.trim();
+    const description = (author || !w.authorName ? said : `${said ? `${said} ` : ''}(logged by ${w.authorName} in ${SOURCE_NAMES[source]})`).slice(0, 2000);
+    const id = newId();
+    await tx.insert(workItems).values({ id, issueId: issue.id, authorId: author?.id ?? null, date: w.date, minutes: w.minutes, description, hourlyRate: author?.hourlyRate ?? null });
+    out.push(
+      await recordActivity(tx, ctx, {
+        type: 'work.logged',
+        projectId: issue.projectId,
+        issueId: issue.id,
+        payload: {
+          issue: ref,
+          data: { workItemId: id, minutes: w.minutes, duration: formatPeriod(w.minutes), date: w.date, author: author?.login ?? null, description, imported: { ...data, workItem: w.extId } },
+        },
       }),
     );
   }
@@ -1300,6 +1650,8 @@ export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }
 /** Forget an upload: its rows and its record. The issues it made, and what links them to their keys, stay. */
 export async function deleteImport(ctx: Ctx, id: string): Promise<void> {
   const { row } = await loadImport(ctx, id);
-  if (statusOf(row) === 'running') throw conflict('The import is running', 'Delete it when it has finished.');
+  const status = statusOf(row);
+  if (status === 'running') throw conflict('The import is running', 'Delete it when it has finished.');
+  if (status === 'fetching') throw conflict('It is reading the issues', 'Delete it when it has finished, or once it has stopped.');
   await ctx.db.delete(imports).where(eq(imports.id, id));
 }

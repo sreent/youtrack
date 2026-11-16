@@ -206,12 +206,23 @@ async function removeBlob(app: AppServices, key: string): Promise<void> {
 }
 
 /**
+ * A file an import brings: who added it and when, as the other tracker says, and the import it
+ * came with. It is recorded as imported, so nobody is told, and it leaves the issue's updated date
+ * as the import set it.
+ */
+export interface ImportedFile {
+  uploadedById: string;
+  createdAt: Date;
+  data: Record<string, unknown>;
+}
+
+/**
  * Store an upload: stream it to storage, counting, hashing and sniffing it on the way,
  * then record it. The owner's cap is checked twice, before the first byte (to stop early)
  * and under the owner's row lock once the size is known (so two uploads at once can't
  * both squeeze in). Whatever fails, nothing is left behind.
  */
-export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: UploadSource): Promise<Attachment> {
+export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: UploadSource, opts: { imported?: ImportedFile } = {}): Promise<Attachment> {
   const s = await ctx.app.schema.get();
   const { attachmentMaxBytes: maxFile, attachmentsPerIssueMaxBytes: cap } = ctx.app.config;
   const name = safeFileName(source.name);
@@ -295,12 +306,13 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
           size,
           sha256,
           blobKey: key,
-          uploadedById: ctx.actor.user.id,
+          uploadedById: opts.imported?.uploadedById ?? ctx.actor.user.id,
           channel: ctx.actor.channel,
           tokenName: ctx.actor.tokenName,
+          ...(opts.imported ? { createdAt: opts.imported.createdAt } : {}),
         })
         .returning();
-      if (target.kind !== 'article') await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, target.issue.id));
+      if (target.kind !== 'article' && !opts.imported) await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, target.issue.id));
       const activity = await recordActivity(tx, ctx, {
         type: 'attachment.added',
         projectId: row!.projectId,
@@ -311,6 +323,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
             attachment: { id: row!.id, name, size, contentType, sha256, url: contentUrl(ctx.app, row!.id) },
             ...(row!.commentId ? { commentId: row!.commentId } : {}),
             ...(article ? { article } : {}),
+            ...(opts.imported ? { imported: opts.imported.data } : {}),
           },
         },
       });
