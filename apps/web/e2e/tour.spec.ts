@@ -175,6 +175,19 @@ const withIntegration = async (api: Api) => {
   return '/integrations';
 };
 
+/** A project of the tour's own with builds from CI (D46): one that marked an issue, one that failed. */
+const withBuilds = async (api: Api) => {
+  const key = uniqueKey('TB');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const source = await api.post<{ hookUrl: string; token: string }>('/build-sources', { kind: 'generic', name: 'Jenkins: tour', project: key });
+  const fixed = await api.createIssue({ project: key, summary: 'Invoices round twice', fields: { Type: 'Bug' } });
+  await api.post('/commands', { issues: [fixed.id], command: 'State Fixed' });
+  const post = (body: unknown) => api.context.post(source.hookUrl, { data: body, headers: { authorization: `Bearer ${source.token}` } });
+  await post({ build: '1.4.206', status: 'failure', url: 'https://ci.acme.example/job/tour/206/', commits: [{ message: 'Try the rounding' }] });
+  await post({ build: '1.4.207', url: 'https://ci.acme.example/job/tour/207/', commits: [{ message: `Round once (${fixed.id})` }] });
+  return `/builds/${key}`;
+};
+
 /** An app of the tour's own, asking to work as the person (OAuth): registered, then its request. Nobody follows it back. */
 const anAppAsks = async (api: Api) => {
   const callback = 'http://127.0.0.1:9/callback';
@@ -336,6 +349,7 @@ const STOPS: Stop[] = [
   { name: 'state machines and actions', path: workflowRules, ready: (p) => p.getByRole('heading', { name: 'Escalate' }) },
   { name: "an issue's moves and actions", path: withWorkflows, ready: (p) => p.getByRole('group', { name: 'Move it on' }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
+  { name: 'builds', path: withBuilds, ready: (p) => p.getByRole('region', { name: 'Table of builds' }) },
   { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },
   { name: 'agents of their own', path: withAgent, ready: (p) => p.getByRole('region', { name: /^Tokens of tour-/ }) },
   { name: "an agent's change to undo", path: agentsChanges, ready: (p) => p.getByRole('button', { name: /^Undo tour-.+’s change$/ }) },
