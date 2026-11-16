@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createRuntime, type Runtime } from '../src/app-services';
 import { loadConfig, type OidcConfig } from '../src/config';
 import { openDatabase, type Database } from '../src/db/client';
-import { groupMembers, groups } from '../src/db/schema';
+import { groupMembers, groups, userIdentities } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
 import { newId } from '../src/lib/ids';
 import { FakeIdp, type Person } from './fake-idp';
@@ -203,6 +203,13 @@ describe('signing in with the provider', () => {
     runtime.config.oidc = oidc({ allowedDomains: ['corp.com'] });
     expect((await signIn({ sub: 'p-entra-in', email: 'kai@corp.com', xms_edov: true })).location).toBe('/issues');
     expect(await signIn({ sub: 'p-entra-unsure', email: 'lee@corp.com' })).toMatchObject({ location: '/login?sso=unverified', session: '' });
+  });
+
+  it("keeps Entra ID's object id and tenant from each sign-in, which Teams knows people by (D42)", async () => {
+    const res = await signIn({ sub: 'p-teams', email: 'nadia@corp.com', xms_edov: true, oid: 'oid-nadia', tid: 'tenant-1' });
+    expect(res.location).toBe('/issues');
+    const [identity] = await runtime.db.select().from(userIdentities).where(eq(userIdentities.subject, 'p-teams'));
+    expect(identity).toMatchObject({ objectId: 'oid-nadia', tenantId: 'tenant-1' });
   });
 
   it('refuses a domain that is not allowed', async () => {

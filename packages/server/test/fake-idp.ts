@@ -14,6 +14,9 @@ export interface Person {
   email_verified?: unknown;
   /** Microsoft Entra ID's word for an email, where it sends no email_verified. */
   xms_edov?: unknown;
+  /** Entra ID's object id and tenant for the person, which Teams names them by (D42). */
+  oid?: string;
+  tid?: string;
   name?: string;
   preferred_username?: string;
   /** The groups claim, under whatever name the test configures. */
