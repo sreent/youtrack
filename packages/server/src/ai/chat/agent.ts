@@ -16,6 +16,7 @@ import { todayISO } from '../../lib/dates';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors';
 import { newId } from '../../lib/ids';
 import { excerpt } from '../../lib/text';
+import { visibleSchema } from '../../services/access';
 import { projectByKey } from '../../services/schema-cache';
 import { toolByName, toolErrorText } from '../../tools/registry';
 import { FALLBACK_BETA, requireAI, THINKING_UPDATES_BETA, toAppError } from '../client';
@@ -76,7 +77,7 @@ async function loadOwn(ctx: Ctx, id: string): Promise<ConversationRow> {
 
 export async function listConversations(ctx: Ctx): Promise<Conversation[]> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const rows = await ctx.db
     .select()
     .from(aiConversations)
@@ -88,7 +89,7 @@ export async function listConversations(ctx: Ctx): Promise<Conversation[]> {
 
 export async function createConversation(ctx: Ctx, input: { title?: string; project?: string }): Promise<Conversation> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const project = input.project ? projectByKey(s, input.project) : undefined;
   if (input.project && !project) throw notFound(`Project ${input.project}`);
   // Frozen for the conversation's life so the prompt prefix stays cacheable.
@@ -125,7 +126,7 @@ export async function deleteConversation(ctx: Ctx, id: string): Promise<void> {
 
 export async function getConversation(ctx: Ctx, id: string): Promise<ConversationDetail> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const row = await loadOwn(ctx, id);
   const messages = await ctx.db.select().from(aiMessages).where(eq(aiMessages.conversationId, id)).orderBy(asc(aiMessages.id));
   const pending = (row.pending as Pending | null) ?? null;

@@ -35,6 +35,7 @@ import { deleteLinkById, linkIssues, listLinks } from '../../services/links';
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
 import { deleteWorkItem, listWorkItems, logWork } from '../../services/workitems';
 import { requireScope, withChannel } from '../../context';
+import { visibleSchema } from '../../services/access';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -134,7 +135,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ ctx, query }) => {
       requireScope(ctx, 'read');
-      const s = await ctx.app.schema.get();
+      const s = await visibleSchema(ctx);
       return { items: suggest(s, query.query, Math.min(query.caret ?? query.query.length, query.query.length)) };
     },
   );
@@ -171,7 +172,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       requireScope(ctx, 'read');
       const rows = await Promise.all(body.issues.map((id) => resolveIssue(ctx, id)));
       const projectIds = [...new Set(rows.map((r) => r.projectId))];
-      const s = await ctx.app.schema.get();
+      const s = await visibleSchema(ctx);
       const parsed = await parseCommandForApi(ctx, body.command, projectIds);
       return { ...parsed, suggestions: suggestCommand(body.command, Math.min(body.caret ?? body.command.length, body.command.length), s, projectIds) };
     },

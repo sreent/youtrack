@@ -11,7 +11,8 @@ import { addComment } from '../services/comments';
 import { addFieldValue } from '../services/fields';
 import { createIssue, updateIssue } from '../services/issues';
 import { linkIssues } from '../services/links';
-import { createProject } from '../services/projects';
+import { addMember } from '../services/members';
+import { createProject, updateProject } from '../services/projects';
 import { createSavedSearch } from '../services/saved-searches';
 import { createBoard, createSprint, setSprintIssues } from '../services/boards';
 import { createBaseline } from '../services/planning';
@@ -187,6 +188,12 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   ] as const) {
     await createSavedSearch(ctx, { name, query, shared: true });
   }
+
+  // --- Who works where ----------------------------------------------------------------
+  // The migration is its team's alone; Diego reads the web app's issues but leaves them to its team.
+  for (const login of ['anna', 'ben', 'diego']) await addMember(ctx, 'MIG', { user: login, role: 'member' });
+  await updateProject(ctx, 'MIG', { visibility: 'members' });
+  await addMember(ctx, 'WEB', { user: 'diego', role: 'viewer' });
 }
 
 /** Move an issue's creation (and its creation event) into the past, for a lifelike history. */

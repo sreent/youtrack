@@ -40,7 +40,7 @@ import {
   type ScheduleResult,
 } from '../planning';
 import { searchIssueRows } from '../search/service';
-import { assertCanReadProject } from './access';
+import { canReadProject, projectAccess, requireProject, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
@@ -62,18 +62,18 @@ function localDate(d: Date): string {
   return todayISO(d);
 }
 
-async function projectFor(ctx: Ctx, key: string): Promise<{ s: SchemaSnapshot; project: ProjectRow }> {
-  requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const project = projectByKey(s, key);
-  if (!project) throw notFound(`Project ${key}`);
-  await assertCanReadProject(ctx, project.id);
-  return { s, project };
+async function projectFor(ctx: Ctx, key: string, need: ProjectNeed = 'read'): Promise<{ s: SchemaSnapshot; project: ProjectRow }> {
+  const project = await requireProject(ctx, key, need);
+  return { s: await ctx.app.schema.get(), project };
 }
 
 /** Everything the engine needs about a project, as plain data. */
-export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; baselineId?: string; today?: string } = {}): Promise<Loaded> {
-  const { s, project } = await projectFor(ctx, key);
+export async function loadPlan(
+  ctx: Ctx,
+  key: string,
+  opts: { query?: string; baselineId?: string; today?: string; need?: ProjectNeed } = {},
+): Promise<Loaded> {
+  const { s, project } = await projectFor(ctx, key, opts.need);
   const rows: IssueRow[] = opts.query?.trim()
     ? (await searchIssueRows(ctx, opts.query, { projectId: project.id, limit: MAX_PLAN_ISSUES })).rows
     : await ctx.db.select().from(issues).where(eq(issues.projectId, project.id)).orderBy(asc(issues.number)).limit(MAX_PLAN_ISSUES);
@@ -115,8 +115,11 @@ export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; ba
     }
   }
   if (externalIds.size) {
+    // A dependency on an issue in another project is named only when the caller can see it: the
+    // plan's warnings must not give away an issue they can't open.
+    const view = await projectAccess(ctx);
     const ext = await ctx.db.select().from(issues).where(inArray(issues.id, [...externalIds]));
-    for (const e of ext) rid.set(e.id, readableId(s, e));
+    for (const e of ext) if (view.canRead(e.projectId)) rid.set(e.id, readableId(s, e));
   }
 
   const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
@@ -310,7 +313,8 @@ export async function level(
   opts: { query?: string; mode: LevelingMode; dryRun: boolean; expect?: Record<string, string> },
 ): Promise<LevelingResult> {
   if (!opts.dryRun) requireScope(ctx, 'write');
-  const l = await loadPlan(ctx, key, { query: opts.query });
+  // Applying writes Start dates, which is work on issues: members may, as for each issue by hand.
+  const l = await loadPlan(ctx, key, { query: opts.query, need: opts.dryRun ? 'read' : 'write' });
   const p = levelResources(l.input, opts.mode);
   const changes = p.changes.map((c) => ({
     issue: c.id,
@@ -437,8 +441,8 @@ export async function getBaseline(ctx: Ctx, id: string): Promise<Baseline> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row) throw notFound('Baseline');
-  await assertCanReadProject(ctx, row.projectId);
+  // A baseline of a project the caller can't see is not found, as one that doesn't exist.
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline');
   return baselineDto(ctx, s, row);
 }
 
@@ -453,7 +457,8 @@ export async function createBaseline(
   internal: { asOf?: string; createdAt?: Date } = {},
 ): Promise<Baseline> {
   requireScope(ctx, 'write');
-  const l = await loadPlan(ctx, key, { query: input.query, today: internal.asOf });
+  // Baselines are the plan of record: its managers keep them.
+  const l = await loadPlan(ctx, key, { query: input.query, today: internal.asOf, need: 'manage' });
   const schedule = computeSchedule(l.input);
   const leaves = schedule.tasks.filter((t) => !t.isSummary);
   const plannedCost = leaves.reduce((sum, t) => sum + t.plannedCost, 0);
@@ -503,8 +508,9 @@ export async function createBaseline(
 
 export async function deleteBaseline(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row) throw notFound('Baseline');
-  await assertCanReadProject(ctx, row.projectId);
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline');
+  await requireProject(ctx, s.projects.get(row.projectId)?.key ?? '', 'manage');
   await ctx.db.delete(baselines).where(eq(baselines.id, id));
 }

@@ -6,6 +6,7 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { requireScope } from '../../context';
 import { createWebhook, deleteWebhook, listDeliveries, listWebhooks, testWebhook, updateWebhook } from '../../events/webhooks';
+import { eventVisible, projectAccess } from '../../services/access';
 import { eventFeed } from '../../services/activity';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -52,7 +53,8 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/events/stream',
       tags,
       summary: 'Live events over Server-Sent Events',
-      description: 'Best effort and live only: after reconnecting, catch up with GET /events?after=<last id>.',
+      description:
+        'Best effort and live only: after reconnecting, catch up with GET /events?after=<last id>. Only events you may see are sent, as access stands when each is sent.',
       query: z.object({ project: z.string().optional(), types: z.string().optional() }),
     },
     async ({ c, ctx, query }) => {
@@ -76,6 +78,10 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
         while (!stream.aborted && !stream.closed) {
           while (queue.length) {
             const event = queue.shift()!;
+            // Access is worked out again as events go (at most two seconds old), so someone
+            // taken off a project stops hearing about it on a stream that is already open.
+            const [view, s] = [await projectAccess(ctx), await runtime.schema.get()];
+            if (!eventVisible(view, s, event)) continue;
             await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
           }
           await new Promise<void>((resolve) => {

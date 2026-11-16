@@ -25,6 +25,10 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'work.deleted': 'logged work is removed',
   'ai.triage.completed': 'triage suggests changes',
   'baseline.created': 'a baseline is saved',
+  'project.member.added': 'someone is given a role in a project',
+  'project.member.changed': 'someone’s role in a project changes',
+  'project.member.removed': 'someone is taken out of a project',
+  'project.visibility.changed': 'who sees a project changes',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

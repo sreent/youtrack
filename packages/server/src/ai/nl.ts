@@ -8,6 +8,7 @@ import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../search/reference';
 import { prepareQuery } from '../search/service';
 import { listComments } from '../services/comments';
 import { getIssue, issueDtos, resolveIssue } from '../services/issues';
+import { visibleSchema } from '../services/access';
 import { projectByKey } from '../services/schema-cache';
 import { presentField } from '../tools/registry';
 import { structured } from './client';
@@ -27,7 +28,7 @@ const QueryOut = z.object({
 
 export async function wordsToQuery(ctx: Ctx, text: string, projectKey?: string): Promise<NLQueryResult> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const project = projectKey ? projectByKey(s, projectKey) : undefined;
   const system = `You turn a request in plain words into a search query in a4a's query language. Reply with the query and one sentence explaining it. Use only fields, values, people, tags and projects that exist. Prefer field values over free text when the request names a state, priority, type or person. ${VOICE}
 
@@ -110,11 +111,18 @@ export async function summarizeIssue(ctx: Ctx, issueId: string): Promise<{ summa
 // Duplicate judging
 // ---------------------------------------------------------------------------
 
+/**
+ * Ask Claude which candidates repeat a draft. Only candidates the caller can open are sent: each
+ * is read through getIssue, and one that fails (gone, or out of sight) is dropped, not sent.
+ */
 export async function judgeDuplicates(
   ctx: Ctx,
   draft: { summary: string; description?: string },
   candidates: SimilarIssue[],
 ): Promise<SimilarIssue[]> {
+  const details = await Promise.all(candidates.map((c) => getIssue(ctx, c.issue.id).catch(() => null)));
+  candidates = candidates.filter((_, i) => details[i] !== null);
+  const readable = details.filter((d): d is NonNullable<typeof d> => d !== null);
   if (!candidates.length) return candidates;
   const ids = candidates.map((c) => c.issue.id) as [string, ...string[]];
   const Out = z.object({
@@ -126,9 +134,8 @@ export async function judgeDuplicates(
       }),
     ),
   });
-  const details = await Promise.all(candidates.map((c) => getIssue(ctx, c.issue.id).catch(() => null)));
   const list = candidates
-    .map((c, i) => `- ${c.issue.id} [${c.issue.state ?? '—'}${c.issue.resolved ? ', resolved' : ''}] "${c.issue.summary}": ${excerpt(details[i]?.description ?? '', 600)}`)
+    .map((c, i) => `- ${c.issue.id} [${c.issue.state ?? '—'}${c.issue.resolved ? ', resolved' : ''}] "${c.issue.summary}": ${excerpt(readable[i]?.description ?? '', 600)}`)
     .join('\n');
   const { output } = await structured(ctx.app, {
     system: `You decide whether a new issue reports the same problem as existing ones. "duplicate": the same problem or request, so one should be closed in favour of the other. "related": overlapping or connected, but separate work. "different": unrelated despite similar words. Judge by meaning, not shared words. ${VOICE}`,

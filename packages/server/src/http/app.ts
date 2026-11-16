@@ -18,6 +18,8 @@ import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
 import { issueRoutes } from './routes/issues';
 import { planningRoutes } from './routes/planning';
+import { accessRoutes } from './routes/access';
+import { ssoRoutes } from './routes/sso';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -55,6 +57,8 @@ export function createHttpApp(runtime: Runtime) {
   eventRoutes(api);
   planningRoutes(api);
   aiRoutes(api);
+  accessRoutes(api);
+  ssoRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

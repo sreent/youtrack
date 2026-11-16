@@ -8,6 +8,7 @@ import {
   SetupBody,
   SetupStatusSchema,
   UpdateMeBody,
+  UpdateTokenBody,
   type Me,
 } from '@a4a/shared';
 import { deleteCookie, setCookie } from 'hono/cookie';
@@ -16,7 +17,8 @@ import { adminCtx } from '../../app-services';
 import { effectiveScopes, type Ctx } from '../../context';
 import { seedDemo } from '../../db/seed';
 import { AppError, badRequest } from '../../lib/errors';
-import { createToken, listTokens, login, logout, needsSetup, revokeToken, SESSION_COOKIE } from '../../services/auth';
+import { projectAccess } from '../../services/access';
+import { createToken, listTokens, login, logout, needsSetup, revokeToken, SESSION_COOKIE, updateToken } from '../../services/auth';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
 import { APP_NAME } from '@a4a/shared';
@@ -27,13 +29,15 @@ import { route } from '../route';
 
 const loginLimiter = new RateLimiter(10, 15 * 60_000);
 
-export function meDto(ctx: Ctx): Me {
+export async function meDto(ctx: Ctx): Promise<Me> {
+  const view = await projectAccess(ctx);
   return {
     ...userDto(ctx.actor.user),
     auth: {
       method: ctx.actor.authMethod === 'token' ? 'token' : 'session',
       scopes: ctx.actor.scopes,
       tokenName: ctx.actor.tokenName,
+      projects: ctx.actor.projectIds ? ctx.actor.projectIds.filter((id) => view.canRead(id)).map((id) => view.keyOf(id)!) : null,
     },
   };
 }
@@ -43,9 +47,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'get', path: '/auth/setup', tags, summary: 'Whether the first administrator still has to be created', auth: 'none', response: SetupStatusSchema }, async ({ c }) => {
     const runtime = c.get('runtime');
+    const sso = runtime.config.oidc;
     return {
       needsSetup: await needsSetup(runtime.db),
       instanceName: ((await getSetting(runtime.db, 'instanceName')) as string | undefined) ?? APP_NAME,
+      signIn: { password: runtime.config.passwordLogin, sso: sso ? { name: sso.name, url: '/api/v1/auth/oidc/start' } : null },
     };
   });
 
@@ -63,7 +69,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       const runtime = c.get('runtime');
       if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator');
-      const admin = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, password: body.password, role: 'admin' });
+      if (!runtime.config.passwordLogin && !body.email) {
+        throw badRequest('Give your email', `Passwords are off here: from now on you sign in with ${runtime.config.oidc?.name ?? 'single sign-on'}, which finds you by it.`);
+      }
+      // The first administrator vouches for their own email: single sign-on may find them by it.
+      const admin = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, emailVerified: true, password: body.password, role: 'admin' });
       runtime.schema.invalidate();
       if (body.seedDemo) await seedDemo(runtime, admin);
       await setSetting(runtime.db, 'setupAt', new Date().toISOString());
@@ -71,12 +81,15 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       setSessionCookie(c, runtime.config.publicUrl, session.token, session.expiresAt);
       const ctx = adminCtx(runtime, admin, 'web');
       ctx.actor.authMethod = 'session';
-      return meDto(ctx);
+      return await meDto(ctx);
     },
   );
 
   route(app, { method: 'post', path: '/auth/login', tags, summary: 'Sign in with login and password (sets a session cookie)', auth: 'none', body: LoginBody, response: MeSchema, status: 200 }, async ({ c, body }) => {
     const runtime = c.get('runtime');
+    if (!runtime.config.passwordLogin) {
+      throw new AppError(403, 'password_login_off', 'Signing in with a password is turned off here', `Sign in with ${runtime.config.oidc?.name ?? 'single sign-on'}.`);
+    }
     const key = `${clientIp(c)}|${body.login.toLowerCase()}`;
     const wait = loginLimiter.hit(key);
     if (wait) {
@@ -86,7 +99,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
     const session = await login(runtime.db, body.login, body.password, runtime.config.sessionTtlDays, c.req.header('user-agent'));
     loginLimiter.reset(key);
     setSessionCookie(c, runtime.config.publicUrl, session.token, session.expiresAt);
-    return meDto({
+    return await meDto({
       app: runtime,
       db: runtime.db,
       actor: { user: session.user, scopes: effectiveScopes(session.user.role), channel: 'web', tokenId: null, tokenName: null, authMethod: 'session' },
@@ -104,7 +117,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email or password', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
     const user = await updateMe(ctx, body);
-    return { ...meDto(ctx), ...user };
+    return { ...(await meDto(ctx)), ...user };
   });
 
   route(app, { method: 'get', path: '/me/tokens', tags: ['API tokens'], summary: 'Your API tokens', response: z.array(ApiTokenSchema) }, async ({ ctx }) => listTokens(ctx));
@@ -116,7 +129,8 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/me/tokens',
       tags: ['API tokens'],
       summary: 'Create an API token (the secret is returned once)',
-      description: 'Scopes narrow what the token may do; they never exceed your role. Use a read-only token to let an agent explore safely.',
+      description:
+        'Scopes narrow what the token may do; they never exceed your role. Use a read-only token to let an agent explore safely. `projects` limits it to some projects: there it may do what you may, and it reaches no other.',
       body: CreateTokenBody,
       response: ApiTokenCreatedSchema,
     },
@@ -126,13 +140,28 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
     },
   );
 
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/me/tokens/{id}',
+      tags: ['API tokens'],
+      summary: 'Rename a token, or change the projects it reaches',
+      description: '`projects: null` lets it reach every project you can see; a list limits it to those.',
+      params: z.object({ id: z.string() }),
+      body: UpdateTokenBody,
+      response: ApiTokenSchema,
+    },
+    async ({ ctx, params, body }) => updateToken(ctx, params.id, body),
+  );
+
   route(app, { method: 'delete', path: '/me/tokens/{id}', tags: ['API tokens'], summary: 'Revoke an API token', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await revokeToken(ctx, params.id);
     return null;
   });
 }
 
-function setSessionCookie(c: Parameters<typeof setCookie>[0], publicUrl: string, token: string, expiresAt: Date) {
+export function setSessionCookie(c: Parameters<typeof setCookie>[0], publicUrl: string, token: string, expiresAt: Date) {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'Lax',
