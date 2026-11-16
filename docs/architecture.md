@@ -103,7 +103,7 @@ effective scopes = role scopes ∩ token scopes
 
 Every service function checks the scope it needs (`requireScope`), so a REST route, an MCP tool and the assistant can't drift apart: there is no route-level permission logic to forget.
 
-All project visibility goes through one module (`services/access.ts`). v1 makes every project visible to every user. Per-project roles, and tokens restricted to certain projects, change that module alone.
+All project visibility goes through one module (`services/access.ts`): see D14 for what it decides.
 
 ### D8. MCP is a curated tool layer, shared with the assistant
 
@@ -203,6 +203,56 @@ A query or command problem names its span and, when there is a likely fix, the t
 - Agents over MCP or the API can apply it the same way.
 - A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
 
+### D14. Projects have their own people; what you can't see doesn't exist
+
+Every project is **open** (everyone works in it) or **members only** (only its people and administrators see it at all). Its people have roles:
+
+| Role | May |
+| --- | --- |
+| viewer | read its issues, and comment |
+| member | also change its issues: fields, links, work, sprints, levelling |
+| manager | also change its settings, fields, people, visibility, boards and baselines |
+
+- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the role the project gives them; otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out.
+- **Scopes still cap it.** Reading needs `read`; commenting, changing issues and managing need `write`. A read-only account or token never writes, whatever its role in a project.
+- **Commenting counts as a write** for scopes (it changes the record, notifies, fires webhooks), but a viewer's role is enough for it. A manager may change or delete anyone's comment in their project.
+- **A link needs write access to both ends**, because it shows on both issues and changes both histories. Its other end must be visible to be named at all.
+- **People set in a user field** (an assignee) of a members-only project must be able to see it.
+- **Boards span projects.** A board is visible when one of its projects is, and shows only the issues and values of the projects the viewer can see. Changing a board or its sprints is for managers of all its projects; putting an issue in a sprint is work on the issue (a member).
+- **Tokens can be limited to projects.** Their access is the person's access to those projects only. A limited token can't hold the admin scope (administration reaches every project), and can only make tokens as limited as itself, with no more scopes.
+
+**Not found, not forbidden.** A project, issue, comment, link, board, sprint, baseline or suggestion the caller can't see answers 404 in the very words used for one that doesn't exist; the query language calls a hidden project an unknown word, as it does a misspelt one, and offers no "did you mean". Only what the caller can see but may not change answers 403, and says who can.
+
+**How it is enforced.** Services ask the seam; no route or tool decides:
+
+- `projectAccess(ctx)` works out, in one query, the caller's role in every project. A request keeps it for two seconds at most, or until something on this instance changes it (`accessChanged`), so a long-lived context (an SSE stream, the worker) sees changes, and someone taken off a project loses it at once.
+- `assertCanReadProject` / `assertCanCommentProject` / `assertCanWriteProject` / `assertCanManageProject`, `requireProject(ctx, key, need)`, and `visibleProjectIds` for searches.
+- `visibleSchema(ctx)` is the reference data as the caller sees it: the query language, completion and every prompt to Claude are built from it, so a hidden project's name and its own values never reach them.
+- The event feed and issue history filter in SQL (`eventsVisibleSql`), so pages stay full and a consumer's cursor never stalls behind events it can't see. Link events are dropped when their other end is hidden. SSE checks each event as it is sent.
+- Triage offers Claude possible duplicates only from projects every reader of the issue can see (its own, and open ones), and every suggestion is filtered again as it is read, because visibility can change after it was made.
+- `projectRolesOf(db, projectId, userIds)` answers who can see a project, for whoever decides whom to tell or assign.
+
+- **Costs:** one small query per request; every list that names other issues (links, events, suggestions, boards) filters as it reads.
+- **Not done:** groups (a project's people are individuals); tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers everything (only administrators make them).
+- **Revisit when:** teams want groups. A `project_group_roles` table joins the same query, and the rest stays as it is.
+
+### D15. Single sign-on with OpenID Connect, through openid-client
+
+People can sign in with their organisation's identity provider: the authorization code flow with PKCE (S256), a state and a nonce, configured from `OIDC_*` in the environment.
+
+**The choice: `openid-client` (v6), not `jose` and our own code.** Both are by the same author; `jose` would do the cryptography well, but the protocol around it would be ours: discovery and its issuer check, building the request, the token request and client authentication, RFC 9207's `iss`, the order and meaning of every claim check. openid-client is certified by the OpenID Foundation for the relying-party profiles, and turns the flow into a few calls that each check what the specification says. What is left to a4a (about 300 lines, with its routes) is mostly deciding who someone is. One default had to change: for an ID token received straight from the token endpoint, openid-client relies on TLS and doesn't check the signature; a4a turns that check on (`enableNonRepudiationChecks`), so the token's signature is verified against the provider's keys, as well as its issuer, audience, expiry and nonce. The tests sign tokens with `jose` in a provider made for them.
+
+- **The redirect URI** is `PUBLIC_URL/api/v1/auth/oidc/callback`, sent the same at both steps; nothing in a request chooses it, and the URL handed to the library is built from it, not from the request's Host.
+- **The state** is bound to the browser that started (an HttpOnly cookie) and stored with the PKCE verifier and nonce, keyed by its hash, for ten minutes. The callback takes the row (a `DELETE … RETURNING`), so a state works once.
+- **Who someone is:** found by the provider's issuer and subject (`user_identities`). The first time, by email only when the provider says `email_verified: true`, and only to an account whose own email an administrator set or a provider verified (`users.email_verified`). An email people type for themselves never links: otherwise anyone could claim an address before its owner first signs in. An account already linked to another subject at the same provider isn't taken over by a second one with the same email (a reused address).
+- **Optionally:** allowed email domains, accounts made on first sign-in, and password sign-in turned off (only while single sign-on is on).
+- **Each sign-in starts a new session**, and ends the one the browser had.
+
+- **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout and SCIM are not done: an account removed at the provider keeps its a4a sessions until they expire, or until an administrator bans it.
+- **Revisit when:** several providers are needed (the table already keys identities by provider), or remote MCP needs OAuth (below).
+
+**OAuth for remote MCP (not done).** What it would take: a4a as an OAuth 2.1 authorization server for `/mcp`, as the MCP authorization specification asks. Protected-resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource`, and `WWW-Authenticate` with `resource_metadata` on a 401 from `/mcp`; authorization-server metadata (RFC 8414); dynamic client registration (RFC 7591), since MCP clients register themselves; the authorization code flow with PKCE, signing the person in with a password or this single sign-on, and a consent page that names the client and lets the person choose scopes and projects, which become exactly a token limited to projects (D14); short-lived access tokens bound to the `/mcp` resource (RFC 8707) with refresh tokens, revocable from Agents and tokens; and rate limits on registration. The bearer tokens of today stay, for clients that don't speak OAuth.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -221,7 +271,9 @@ A query or command problem names its span and, when there is a likely fix, the t
 - **Sessions:** random 256-bit tokens, stored as SHA-256 hashes. The cookie is `HttpOnly; SameSite=Lax`, plus `Secure` behind HTTPS.
 - **CSRF:** cookie-authenticated unsafe requests must come from the server's own origin (Origin/Referer check). Bearer-token requests are not CSRF-able.
 - **API tokens:** `a4a_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
-- **Login:** throttled per IP and login.
+- **Login:** throttled per IP and login. Starting a single sign-on is throttled per IP too.
+- **Single sign-on:** see D15.
+- **Project access:** see D14. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Agents:**
@@ -242,8 +294,8 @@ A query or command problem names its span and, when there is a likely fix, the t
 
 Planned, with the seams already in place:
 
-- per-project roles, and tokens limited to projects (`services/access.ts`);
-- OAuth 2.1 for remote MCP;
+- groups of people with a role in a project (D14);
+- OAuth 2.1 for remote MCP (what it takes is in D15);
 - attachments;
 - a knowledge base;
 - notifications;
