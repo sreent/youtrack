@@ -51,7 +51,7 @@ import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
 import { resolveFieldInput, userRefDto } from '../services/values';
 import { aggregationTypeIds, condition, parsedQuery, relatedSql, ruleWorld, rulePhrase, rulePhrases, targetIssues, type RelatedCondition } from './match';
 import { recipientsFor, seeingProject, tidyLogins } from './tell';
-import { DEFAULT_AT, nextRunAfter, relatedWords, ruleSentence, scheduleWords, targetWords, triggerWords } from './words';
+import { DEFAULT_AT, nextRunAfter, ruleSentence, scheduleWords, targetWords, triggerWords } from './words';
 
 /** A rule as the service works with it: names resolved, every part present. */
 export interface Draft {
