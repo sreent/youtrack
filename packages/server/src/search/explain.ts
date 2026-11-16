@@ -46,7 +46,8 @@ function node(n: QueryNode): string {
       }
       if (t.kind === 'assigneeAlias') return `assigned to ${values(n.values).replace(/\bme\b/g, 'you')}`;
       if (t.kind === 'userAttr' && t.column === 'watcher') return `watched by ${values(n.values).replace(/\bme\b/g, 'you')}`;
-      if (t.kind === 'sla') return `whose first response is ${values(n.values)}`;
+      if (t.kind === 'sla') return t.target ? `whose ${t.target === 'first_response' ? 'first response' : 'resolution'} is ${values(n.values)}` : `whose SLA is ${values(n.values)}`;
+      if (t.kind === 'slaDue') return `whose ${t.target === 'first_response' ? 'first response' : 'resolution'} is due ${values(n.values)}`;
       if (t.kind === 'requester') return `asked for by ${values(n.values)}`;
       if (t.kind === 'project') return `in project ${values(n.values)}`;
       if (t.kind === 'dateAttr') return `${name} ${values(n.values)}`;

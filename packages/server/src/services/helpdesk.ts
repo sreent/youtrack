@@ -28,6 +28,7 @@ import { mailConfigured, sign, verify } from '../notify/state';
 import { issueRef, readableId, stateNames } from './issue-refs';
 import { applyChanges, createIssue, resolveIssue } from './issues';
 import { projectSettings } from './projects';
+import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
 import { addWatchers } from './watchers';
@@ -196,6 +197,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const received = requestMessageId('request-received');
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
+  let slaActivities: ActivityRow[] = [];
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
@@ -203,7 +205,9 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
       data: { requester: { name }, ...(input.via === 'email' ? { via: 'email' } : {}) },
       inTransaction: async (tx, row) => {
         const due = settings.firstResponseHours ? new Date(row.createdAt.getTime() + settings.firstResponseHours * 3_600_000) : null;
-        await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId });
+        const [request] = await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId }).returning();
+        // Its SLA clocks start with it (D45), counted from when it was filed.
+        slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
@@ -212,6 +216,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
     },
   );
   kickMail(app);
+  await publishActivities(app, slaActivities);
   return issue;
 }
 
@@ -287,14 +292,33 @@ export async function postRequesterReply(
   via: 'page' | 'email',
 ): Promise<{ commentId: string | null; activities: ActivityRow[] }> {
   const ctx = await botCtx(app, issue.projectId);
-  const result = await app.db.transaction(async (tx) =>
-    applyChanges(tx as unknown as Db, ctx, issue, {
-      comment: text,
-      commentVisibility: 'public',
-      commentRequester: requester,
-      ...(via === 'email' ? { data: { via: 'email' } } : {}),
-    }),
-  );
+  const reply = (withResume: boolean) =>
+    app.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      // Their answer ends the wait (D45): a desk that says so moves the request out of its waiting state.
+      const fields = withResume ? await resumeFields(tx, await app.schema.get(tx), issue) : [];
+      return applyChanges(
+        tx,
+        ctx,
+        issue,
+        {
+          comment: text,
+          commentVisibility: 'public',
+          commentRequester: requester,
+          ...(fields.length ? { fields } : {}),
+          ...(via === 'email' ? { data: { via: 'email' } } : {}),
+        },
+        fields.length ? { machines: false } : {},
+      );
+    });
+  let result: Awaited<ReturnType<typeof reply>>;
+  try {
+    result = await reply(true);
+  } catch (e) {
+    // A rule that refuses the move mustn't lose their words: the answer goes in, the state stays.
+    if (!(e instanceof AppError) || e.status >= 500) throw e;
+    result = await reply(false);
+  }
   await publishActivities(app, result.activities);
   const created = result.activities.find((a) => a.type === 'comment.created');
   const commentId = (created?.payload as { data?: { commentId?: unknown } } | undefined)?.data?.commentId;
@@ -342,11 +366,21 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     .where(eq(helpdeskRequests.issueId, issue.id));
   if (!row) throw notFound(`A help desk request for ${readableId(s, issue)}`, 'Only issues filed through a help desk have one.');
   const responded = await firstResponseAt(ctx.db, issue.id);
+  const sla = await requestSla(ctx.db, s, issue.id, issue.projectId, row.request.waitingSince);
+  const first = sla.clocks.find((c) => c.target === 'first_response');
   return {
     issue: readableId(s, issue),
     requester: { name: row.requester.name, email: row.requester.email },
     createdAt: row.request.createdAt.toISOString(),
-    firstResponse: slaOf(row.request.firstResponseDueAt, responded ?? issue.resolvedAt, responded),
+    // D24's first-response target, as its clock now stands (D45); a request from before clocks, as it was.
+    firstResponse: first
+      ? {
+          state: first.state === 'met' ? 'met' : first.state === 'missed' ? 'missed' : first.state === 'breached' ? 'overdue' : 'due',
+          dueAt: first.dueAt ?? (first.metAt || first.breachedAt ? (row.request.firstResponseDueAt?.toISOString() ?? null) : null),
+          respondedAt: responded?.toISOString() ?? null,
+        }
+      : slaOf(row.request.firstResponseDueAt, responded ?? issue.resolvedAt, responded),
+    sla,
     emailMuted: row.request.emailMutedAt !== null,
     via: row.request.via === 'email' ? 'email' : 'form',
   };

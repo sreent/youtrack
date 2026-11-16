@@ -37,13 +37,21 @@ export const HELP_THROTTLE = {
   mailReply: { limit: 30, windowMs: 60 * 60_000 },
   /** Posts to a desk's mail webhook without its secret, per address. */
   mailAuth: { limit: 20, windowMs: 10 * 60_000 },
+  /** Sign-in links to the portal (D45), per address. */
+  portalIp: { limit: 10, windowMs: 15 * 60_000 },
+  /** Sign-in links to the portal, per email address. */
+  portalEmail: { limit: 3, windowMs: 60 * 60_000 },
+  /** What a signed-in requester does on the portal: replies and new requests, per requester. */
+  portalAct: { limit: 30, windowMs: 60 * 60_000 },
+  /** Team replies by email (D45), per person. */
+  teamReply: { limit: 60, windowMs: 60 * 60_000 },
 } as const;
 
 export type HelpLimit = keyof typeof HELP_THROTTLE;
 
 /** How a value is kept as a key: addresses and ids as they are (capped), emails and tokens hashed. */
 export function throttleKey(limit: HelpLimit, value: string): string {
-  const hashed = limit === 'submitEmail' || limit === 'replyRequest' || limit === 'mailSender' || limit === 'captcha';
+  const hashed = limit === 'submitEmail' || limit === 'replyRequest' || limit === 'mailSender' || limit === 'captcha' || limit === 'portalEmail';
   return `${limit}:${hashed ? sha256(value.trim().toLowerCase()) : value.trim().slice(0, 64)}`;
 }
 

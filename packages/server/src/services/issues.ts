@@ -63,6 +63,7 @@ import { machineMoves, transitionSpecs } from '../workflow/machines';
 import { changeOf } from '../workflow/script-issue';
 import { enforceScriptGuards } from '../workflow/scripts';
 import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
+import { afterRequestChange } from './sla';
 import {
   fieldValueDto,
   presentValues,
@@ -743,6 +744,12 @@ export async function applyChanges(
   await enforceGuards(tx, ctx, s, guards, heldBefore, final);
   if (opts.guards !== false && !imported) {
     await enforceScriptGuards(tx, ctx, s, final, changeOf(isCommentOnly(spec) ? 'commented' : 'updated', s.users.get(ctx.actor.user.id), changes, { comment: comment ?? null }), false);
+  }
+
+  // A help desk request's SLA clocks follow the change, in its transaction (D45): paused, resumed,
+  // met, reopened. Not an import's, which is history, nor the status field's own change.
+  if (!imported && !(spec.data as { sla?: unknown } | undefined)?.sla) {
+    activities.push(...(await afterRequestChange(tx, ctx.app, s, final)));
   }
 
   return { changes, activities, issue: final };

@@ -29,6 +29,10 @@ import {
   RULE_TRIGGERS,
   SCOPES,
   SLA_STATES,
+  SLA_CLOCK_STATES,
+  SLA_STATUSES,
+  SLA_TARGETS,
+  NOTIFY_KINDS,
   SUBSCRIPTION_EVENTS,
   TRIAGE_MODES,
   UNDO_STATES,
@@ -262,6 +266,27 @@ export const PlanSettingsSchema = z
   .meta({ id: 'PlanSettings' });
 export type PlanSettings = z.infer<typeof PlanSettingsSchema>;
 
+const clockTime = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/, 'Expected a time as HH:MM, from 00:00 to 24:00');
+
+/** A desk's working hours (D45): wall-clock times in its time zone, by day of the week, and holidays off. */
+export const BusinessHoursSchema = z
+  .object({
+    timeZone: z.string().trim().min(1).max(64).describe('An IANA time zone, such as Europe/Berlin: the hours are its wall-clock times'),
+    hours: z
+      .array(
+        z.object({
+          day: z.number().int().min(0).max(6).describe('0 = Sunday … 6 = Saturday'),
+          from: clockTime,
+          to: clockTime.describe('24:00 for the end of the day'),
+        }),
+      )
+      .min(1)
+      .max(70),
+    holidays: z.array(isoDate).max(400).describe('Days with no working hours, as YYYY-MM-DD in the time zone'),
+  })
+  .meta({ id: 'BusinessHours' });
+export type BusinessHours = z.infer<typeof BusinessHoursSchema>;
+
 export const HelpdeskSettingsSchema = z
   .object({
     enabled: z.boolean().describe('The public request form at /help/<KEY> takes requests; turning it off closes the form, and requests already filed keep their tracking pages'),
@@ -275,6 +300,22 @@ export const HelpdeskSettingsSchema = z
     captcha: z
       .boolean()
       .describe("The form asks the sender's browser for a proof of work (a short computation, no puzzle and no third party) before it takes a request"),
+    businessHours: BusinessHoursSchema.nullable().describe("The hours SLA targets count in (D45); null counts every hour"),
+    waitingStates: z
+      .array(z.string().trim().min(1).max(100))
+      .max(20)
+      .describe("States in which a request waits on its requester: its SLA clocks pause until they answer (D45)"),
+    resumeState: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .nullable()
+      .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
+    organizations: z
+      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Expected an email domain, such as acme.com'))
+      .max(50)
+      .describe("Email domains whose requesters see each other's requests on the portal, such as acme.com (D45)"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -1705,12 +1746,40 @@ export const SlaSchema = z
   .meta({ id: 'Sla' });
 export type Sla = z.infer<typeof SlaSchema>;
 
+/** One of a request's SLA targets, as its clock stands (D45). Minutes are business minutes. */
+export const SlaClockSchema = z
+  .object({
+    target: z.enum(SLA_TARGETS),
+    state: z.enum(SLA_CLOCK_STATES),
+    targetMinutes: z.number().int(),
+    usedMinutes: z.number().int().describe('Business minutes counted so far'),
+    leftMinutes: z.number().int().describe('Business minutes left; negative once past the target'),
+    dueAt: timestamp.nullable().describe('When it runs out, while it counts; null while paused or stopped'),
+    warnAt: timestamp.nullable().describe('When it turns at risk, while it counts'),
+    metAt: timestamp.nullable(),
+    breachedAt: timestamp.nullable().describe('When it went past its target'),
+  })
+  .meta({ id: 'SlaClock' });
+export type SlaClock = z.infer<typeof SlaClockSchema>;
+
+export const RequestSlaSchema = z
+  .object({
+    policy: z.object({ id: z.string(), name: z.string() }).nullable().describe('The policy that covers it: the first whose query it matches'),
+    status: z.enum(SLA_STATUSES).nullable().describe('The worst of its targets; null without one'),
+    clocks: z.array(SlaClockSchema),
+    waiting: z.boolean().describe('It waits on its requester: its clocks are paused until they answer'),
+    businessHours: z.boolean().describe("Its targets count the desk's working hours, not every hour"),
+  })
+  .meta({ id: 'RequestSla' });
+export type RequestSla = z.infer<typeof RequestSlaSchema>;
+
 export const HelpdeskRequestSchema = z
   .object({
     issue: z.string(),
     requester: z.object({ name: z.string(), email: z.string() }),
     createdAt: timestamp,
     firstResponse: SlaSchema,
+    sla: RequestSlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
   })
@@ -2819,3 +2888,137 @@ export const UpdateCommentBody = CommentBody.extend({
   expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
 });
 export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;
+
+// ---------------------------------------------------------------------------
+// Help desk in depth: SLAs, a mailbox per desk, requester accounts, team replies by email,
+// subscriptions by kind (docs/architecture.md, D45)
+// ---------------------------------------------------------------------------
+
+export const SlaPolicySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    query: z.string().describe('The requests it covers, in the search language; empty for every request'),
+    firstResponseMinutes: z.number().int().nullable().describe("Business minutes to the team's first public reply; null for no such target"),
+    resolutionMinutes: z.number().int().nullable().describe('Business minutes to resolved; null for no such target'),
+    warnMinutes: z.number().int().describe('Business minutes before a target that it turns at risk'),
+    position: z.number().int().describe('Policies are tried in this order; the first a request matches covers it'),
+  })
+  .meta({ id: 'SlaPolicy' });
+export type SlaPolicy = z.infer<typeof SlaPolicySchema>;
+
+const slaTargetMinutes = z.number().int().min(1).max(366 * 24 * 60);
+export const SlaPolicyBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  query: z.string().trim().max(2000).default(''),
+  firstResponseMinutes: slaTargetMinutes.nullable().default(null),
+  resolutionMinutes: slaTargetMinutes.nullable().default(null),
+  warnMinutes: z.number().int().min(0).max(30 * 24 * 60).default(60),
+});
+export type SlaPolicyInput = z.input<typeof SlaPolicyBody>;
+export const SlaPolicyOrderBody = z.object({ ids: z.array(z.string()).min(1).max(100).describe('Every policy of the desk, in the order to try them') });
+
+/** Met and breached, by policy, per week (D45): each target counted in the week it stopped or went past. */
+export const SlaReportSchema = z
+  .object({
+    timeZone: z.string(),
+    weeks: z.array(
+      z.object({
+        week: isoDate.describe('The Monday it starts on'),
+        policies: z.array(
+          z.object({
+            policy: z.string().describe("The policy's name, or (none)"),
+            firstResponse: z.object({ met: z.number().int(), breached: z.number().int() }),
+            resolution: z.object({ met: z.number().int(), breached: z.number().int() }),
+          }),
+        ),
+      }),
+    ),
+  })
+  .meta({ id: 'SlaReport' });
+export type SlaReport = z.infer<typeof SlaReportSchema>;
+
+/** A desk's own mailbox (D45), read beside the shared one: its password is never shown again. */
+export const DeskMailboxSchema = z
+  .object({
+    imap: z
+      .object({ host: z.string(), port: z.number().int(), user: z.string(), folder: z.string(), secure: z.boolean() })
+      .nullable()
+      .describe('Its own IMAP mailbox, read by the server; null when it has none'),
+    fromName: z.string().nullable().describe("The name mail to its requesters comes from, beside the desk's address"),
+    lastReadAt: timestamp.nullable(),
+    lastError: z.string().nullable(),
+  })
+  .meta({ id: 'DeskMailbox' });
+export type DeskMailbox = z.infer<typeof DeskMailboxSchema>;
+export const DeskMailboxBody = z.object({
+  imapUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullable()
+    .optional()
+    .describe('imaps://user:password@host[:port][/folder]; null removes it, left out keeps it. imap:// must upgrade with STARTTLS'),
+  fromName: z.string().trim().max(100).nullable().optional(),
+});
+
+/** A requester signed in to the portal (D45). */
+export const PortalMeSchema = z
+  .object({ name: z.string(), email: z.string(), organization: z.string().nullable().describe("Their email's domain, when a desk shares requests within it") })
+  .meta({ id: 'PortalMe' });
+export type PortalMe = z.infer<typeof PortalMeSchema>;
+
+export const PortalRequestSchema = z
+  .object({
+    id: z.string().describe("The request's issue id"),
+    desk: z.object({ key: z.string(), name: z.string() }),
+    summary: z.string(),
+    state: z.object({ name: z.string().nullable(), resolved: z.boolean() }),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared within their organization") }),
+  })
+  .meta({ id: 'PortalRequest' });
+export type PortalRequest = z.infer<typeof PortalRequestSchema>;
+
+export const PortalRequestDetailSchema = PortalRequestSchema.extend({
+  description: z.string(),
+  messages: z.array(z.object({ id: z.string(), from: z.enum(['you', 'team', 'colleague']), name: z.string(), text: z.string(), at: timestamp })),
+}).meta({ id: 'PortalRequestDetail' });
+export type PortalRequestDetail = z.infer<typeof PortalRequestDetailSchema>;
+
+export const PortalDeskSchema = z.object({ key: z.string(), name: z.string() }).meta({ id: 'PortalDesk' });
+export type PortalDesk = z.infer<typeof PortalDeskSchema>;
+
+export const PortalSignInBody = z.object({
+  email: z.string().trim().email().max(320),
+  desk: z.string().trim().max(20).optional().describe('The desk whose page they signed in from'),
+});
+export const PortalRedeemBody = z.object({ token: z.string().min(10).max(200) });
+export const PortalNameBody = z.object({ name: z.string().trim().min(1).max(200) });
+export const PortalNewRequestBody = z.object({
+  desk: z.string().trim().min(1).max(20),
+  summary: z.string().trim().min(1).max(500),
+  description: z.string().max(50_000).default(''),
+});
+export const PortalReplyBody = z.object({ text: z.string().trim().min(1).max(50_000) });
+
+const kindChoice = z.object({ inbox: z.boolean(), email: z.boolean() });
+/** For each kind of change, whether it reaches the inbox and email (D45). Kinds left out keep their default. */
+export const NotifyKindsSchema = z
+  .partialRecord(z.enum(NOTIFY_KINDS), kindChoice)
+  .describe('created, commented, state, assigned, fields, linked, attachments, sla: each { inbox, email }')
+  .meta({ id: 'NotifyKinds' });
+export type NotifyKinds = z.infer<typeof NotifyKindsSchema>;
+export const NotifyKindsBody = z.object({
+  watching: NotifyKindsSchema.optional().describe('For issues they watch'),
+  defaults: NotifyKindsSchema.optional().describe('For subscriptions that say nothing of their own'),
+});
+export const NotifyKindsSettingsSchema = z
+  .object({
+    watching: z.record(z.enum(NOTIFY_KINDS), kindChoice),
+    defaults: z.record(z.enum(NOTIFY_KINDS), kindChoice),
+    always: z.array(z.string()).describe('What always tells them, whatever they choose: being mentioned, being assigned'),
+  })
+  .meta({ id: 'NotifyKindsSettings' });
+export type NotifyKindsSettings = z.infer<typeof NotifyKindsSettingsSchema>;

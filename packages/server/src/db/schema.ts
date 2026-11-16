@@ -1261,6 +1261,8 @@ export const helpdeskRequests = pgTable(
      * in, else the first email a4a sent them. Null for requests from before threading.
      */
     threadId: text('thread_id'),
+    /** Since when it has been in one of the desk's waiting states (D45): a requester's answer after it ends the wait. */
+    waitingSince: ts('waiting_since'),
   },
   (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId)],
 );
@@ -1538,6 +1540,13 @@ export const helpdeskMailboxes = pgTable(
     secretHash: text('secret_hash'),
     /** The secret's first characters, so people can tell which one a provider has. */
     secretPrefix: text('secret_prefix'),
+    /** The desk's own IMAP mailbox (D45), its URL with its password sealed (lib/secret-box.ts); null when it has none. */
+    imapUrlSealed: text('imap_url_sealed'),
+    /** The name mail to the desk's requesters comes from, beside its address (D45). */
+    fromName: text('from_name'),
+    /** When its own mailbox was last read, and what went wrong, if anything did. */
+    imapReadAt: ts('imap_read_at'),
+    imapError: text('imap_error'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -1653,6 +1662,8 @@ export const subscriptions = pgTable(
     events: text('events').notNull(),
     /** Whether it emails too, as the person's email level allows. */
     email: boolean('email').notNull().default(true),
+    /** The kinds of change it tells of, and how (D45); null follows the person's defaults. */
+    kinds: jsonb('kinds').$type<Record<string, { inbox: boolean; email: boolean }> | null>(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -1983,5 +1994,124 @@ export const scimGroups = pgTable('scim_groups', {
     .references(() => groups.id, { onDelete: 'cascade' }),
   externalId: text('external_id'),
   createdAt: created(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Help desk in depth: SLAs, requester accounts, team replies by email, kinds (docs/architecture.md, D45)
+// ---------------------------------------------------------------------------
+
+/**
+ * A desk's SLA policies, tried in order: the first whose query a request matches covers it, with
+ * its targets counted in the desk's working hours.
+ */
+export const slaPolicies = pgTable(
+  'sla_policies',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** A query in the search language; '' covers every request. */
+    query: text('query').notNull().default(''),
+    firstResponseMinutes: integer('first_response_minutes'),
+    resolutionMinutes: integer('resolution_minutes'),
+    warnMinutes: integer('warn_minutes').notNull().default(60),
+    position: integer('position').notNull().default(0),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('sla_policies_project').on(t.projectId, t.position)],
+);
+
+/**
+ * One SLA target of one request, as its clock stands: business time used before the stretch now
+ * counting, and while it counts, when it runs out and when it turns at risk. Those are instants on
+ * the wall clock, so a search compares them with now and nothing has to tick.
+ */
+export const slaClocks = pgTable(
+  'sla_clocks',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    /** SLA_TARGETS: 'first_response' or 'resolution'. */
+    target: text('target').notNull(),
+    policyId: text('policy_id').references(() => slaPolicies.id, { onDelete: 'set null' }),
+    targetMinutes: integer('target_minutes').notNull(),
+    usedMs: bigint('used_ms', { mode: 'number' }).notNull().default(0),
+    /** When the stretch now counting began; null while paused or stopped. */
+    runningSince: ts('running_since'),
+    dueAt: ts('due_at'),
+    warnAt: ts('warn_at'),
+    metAt: ts('met_at'),
+    breachedAt: ts('breached_at'),
+    /** The worker said it's at risk, for this stretch; and that it went past (once). */
+    warnedAt: ts('warned_at'),
+    breachToldAt: ts('breach_told_at'),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.target] }), index('sla_clocks_due').on(t.dueAt), index('sla_clocks_warn').on(t.warnAt)],
+);
+
+/** A requester signed in to the portal: the session's token as a SHA-256 hash, as a person's are. */
+export const requesterSessions = pgTable(
+  'requester_sessions',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+    lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [index('requester_sessions_requester').on(t.requesterId)],
+);
+
+/** A sign-in link sent to a requester: its token as a hash, good once, for a short while. */
+export const requesterSignIns = pgTable(
+  'requester_sign_ins',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+  },
+  (t) => [index('requester_sign_ins_requester').on(t.requesterId)],
+);
+
+/**
+ * The tokens in the reply address of a notification email to someone on the team (D45), as hashes:
+ * minted per email and person, so a reply speaks for them, about that issue, and only from them.
+ */
+export const teamReplyTokens = pgTable(
+  'team_reply_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    /** What they replied to went to the requester of a help desk request, so their reply does too. */
+    publicReply: boolean('public_reply').notNull().default(false),
+    createdAt: created(),
+  },
+  (t) => [index('team_reply_tokens_issue').on(t.issueId), index('team_reply_tokens_created').on(t.createdAt)],
+);
+
+/** A person's choice of the kinds of change they're told of (D45): for what they watch, and their subscriptions' default. */
+export const notifyKinds = pgTable('notify_kinds', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  watching: jsonb('watching').$type<Record<string, { inbox: boolean; email: boolean }>>().notNull().default({}),
+  defaults: jsonb('defaults').$type<Record<string, { inbox: boolean; email: boolean }>>().notNull().default({}),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });

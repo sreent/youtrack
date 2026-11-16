@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { systemCtx } from '../src/app-services';
 import type { Ctx, UserRow } from '../src/context';
-import { comments, helpdeskRequests, helpdeskTokens, issues, notifications, users } from '../src/db/schema';
+import { comments, helpdeskRequests, helpdeskTokens, issues, notifications, slaClocks, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { createHttpApp } from '../src/http/app';
@@ -107,13 +107,13 @@ describe('the help desk', () => {
       body: JSON.stringify({ settings: { helpdesk: { firstResponseHours: 8 } } }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { settings: { helpdesk: unknown } }).settings.helpdesk).toEqual({ enabled: false, firstResponseHours: 8, intro: '', captcha: false });
+    expect(((await res.json()) as { settings: { helpdesk: unknown } }).settings.helpdesk).toEqual({ enabled: false, firstResponseHours: 8, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, organizations: [] });
     // Anna is a member of WEB, not a manager; she leads BACK, so she manages it.
     await expect(updateProject(as(w.anna), 'WEB', { settings: { helpdesk: { enabled: true } } })).rejects.toMatchObject({ status: 403 });
     expect((await updateProject(as(w.anna), 'BACK', { settings: { helpdesk: { intro: 'Ask the backend team.' } } })).settings.helpdesk.enabled).toBe(true);
     // Changing something else keeps it.
     const p = await updateProject(w.adminCtx, 'BACK', { description: 'APIs and data.' });
-    expect(p.settings.helpdesk).toEqual({ enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.', captcha: false });
+    expect(p.settings.helpdesk).toEqual({ enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.', captcha: false, businessHours: null, waitingStates: [], resumeState: null, organizations: [] });
   });
 
   it('shows its form only where it is on, and says the same wherever it is not', async () => {
@@ -304,7 +304,11 @@ describe('the help desk', () => {
     expect((await searchIssues(as(w.anna), `has: request sla: due ${issue.id}`, 0, 10)).total).toBe(1);
     expect((await searchIssues(as(w.anna), 'requester: sam@example.org', 0, 10)).items.map((i) => i.id)).toEqual([issue.id]);
     // Past its target with no reply, it is overdue; replied to late, the target was missed.
-    await w.app.db.update(helpdeskRequests).set({ firstResponseDueAt: new Date(Date.now() - 60_000) }).where(eq(helpdeskRequests.issueId, issue.uid));
+    // Its clock started long ago (D45): the deadline it counts to is past.
+    await w.app.db
+      .update(slaClocks)
+      .set({ runningSince: new Date(Date.now() - 1000 * 3_600_000), dueAt: new Date(Date.now() - 60_000), warnAt: new Date(Date.now() - 60_000) })
+      .where(eq(slaClocks.issueId, issue.uid));
     expect((await requestOf(as(w.anna), issue.id)).firstResponse.state).toBe('overdue');
     expect((await searchIssues(as(w.anna), 'sla: overdue', 0, 50)).items.map((i) => i.id)).toContain(issue.id);
     expect((await searchIssues(as(w.anna), 'sla: overdeu', 0, 50).catch((e) => e)).details.fixed).toBe('sla: overdue');

@@ -14,9 +14,11 @@ import type { Db } from '../db/client';
 import { issues, projectFields, projects } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
+import { calendarOf } from '../helpdesk/business-time';
 import { newId } from '../lib/ids';
 import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
 import { getSetting } from './settings';
+import { resyncOpen } from './sla';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
 
@@ -30,7 +32,7 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false };
+export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, organizations: [] };
 
 export function projectSettings(row: ProjectRow): ProjectSettings {
   const raw = (row.settings ?? {}) as Partial<ProjectSettings>;
@@ -199,6 +201,9 @@ export async function updateProject(
     helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
+  // A desk's working hours must read before they're kept: a 400 says what's wrong with them (D45).
+  calendarOf(settings.helpdesk.businessHours);
+  const slaChanged = ['businessHours', 'waitingStates', 'firstResponseHours'].some((k) => input.settings?.helpdesk && k in input.settings.helpdesk);
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
   // Opening a project to guests (D37) is an administrator's call, and only an open project can be:
   // one its people alone see isn't for anyone who passes. Closing it to its people closes it to guests.
@@ -238,6 +243,8 @@ export async function updateProject(
   ctx.app.schema.invalidate();
   if (visibility || leadId !== undefined || guestAccess !== undefined) accessChanged(ctx.app);
   await publishActivities(ctx.app, activities);
+  // Its open requests' clocks follow new hours, waiting states or targets now (D45).
+  if (slaChanged) await resyncOpen(ctx.app, p.id);
   return getProject(ctx, key);
 }
 
