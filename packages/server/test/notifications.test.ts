@@ -294,7 +294,7 @@ describe('email', () => {
   it('emails a mention once its window has passed, with a plain and a simple HTML part', async () => {
     await flush();
     const issue = await createIssue(as(w.anna), { project: 'BACK', summary: 'Token page shows the secret twice' });
-    await addComment(as(w.anna), issue.id, 'Can you look at this, @ben? <script>alert(1)</script>');
+    await addComment(as(w.anna), issue.id, 'Can you look at this, @ben?\n\nIt shows twice on Safari only. <script>alert(1)</script>');
     await run();
     await mailer.drain();
     const mails = smtp.messages.filter((m) => m.to.includes('ben@example.com'));
@@ -302,6 +302,8 @@ describe('email', () => {
     const m = mails[0]!;
     expect(m.headers.get('subject')).toBe(`${issue.id}: Token page shows the secret twice`);
     expect(m.text).toContain('Anna Schmidt mentioned you on');
+    // The comment as written, line by line, not the event's one-line excerpt.
+    expect(m.text).toMatch(/> Can you look at this, @ben\?\r?\n\s+> \r?\n\s+> It shows twice on Safari only\./);
     expect(m.text).toContain(`http://a4a.test/issues/${issue.id}`);
     expect(m.html).toContain(`href="http://a4a.test/issues/${issue.id}"`);
     expect(m.html).not.toMatch(/<script|<img|src=|style=/i);

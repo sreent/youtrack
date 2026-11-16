@@ -1,9 +1,9 @@
 /** A notification's email, and the daily digest: rendered when sent, from what is true then. */
 import type { IssueRef, NotificationKind } from '@a4a/shared';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { systemCtx } from '../app-services';
 import type { AppServices } from '../context';
-import { notifications, notificationSettings, users } from '../db/schema';
+import { comments, notifications, notificationSettings, users } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSection, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
 import { canReadProject } from '../services/access';
@@ -51,13 +51,21 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const l = links(app);
   const stopKind: UnsubscribeKind = kind === 'watching' ? 'watching' : 'direct';
   const token = await unsubscribeToken(app, stopKind, n.userId);
+  // A comment as it was written, with its lines, where the event keeps only an excerpt; one deleted since isn't quoted.
+  const ids = events.map((e) => (e.type.startsWith('comment') ? (e.data as { commentId?: string }).commentId : undefined)).filter((id): id is string => Boolean(id));
+  const written = new Map(
+    ids.length ? (await app.db.select({ id: comments.id, text: comments.text, deletedAt: comments.deletedAt }).from(comments).where(inArray(comments.id, ids))).map((c) => [c.id, c]) : [],
+  );
   const sections: MailSection[] = events.map((e) => {
+    const head = `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt)}`;
+    if (e.type.startsWith('comment')) {
+      const c = written.get(String((e.data as { commentId?: string }).commentId ?? ''));
+      if (c?.deletedAt) return { head: `${head} (deleted since)` };
+      const text = c ? (c.text.length > 4000 ? `${c.text.slice(0, 3999)}…` : c.text) : eventDetail(e).join('\n');
+      return { head, quote: text };
+    }
     const detail = eventDetail(e);
-    const quoted = e.type.startsWith('comment') || e.type === 'issue.created';
-    return {
-      head: `${actorName(e)} ${eventVerb(e)} · ${emailTime(e.occurredAt)}`,
-      ...(quoted ? { quote: detail.join('\n') } : { lines: detail }),
-    };
+    return e.type === 'issue.created' ? { head, quote: detail.join('\n') } : { head, lines: detail };
   });
   const { text, html } = composeMail(subject, {
     lead: `${title} on ${issue.id}: ${issue.summary}`,

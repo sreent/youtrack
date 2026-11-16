@@ -9,7 +9,7 @@ import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { Runtime } from '../../app-services';
-import { randomToken } from '../../lib/crypto';
+import { randomToken, sha256 } from '../../lib/crypto';
 import { AppError, badRequest } from '../../lib/errors';
 import { deskProject, fileRequest, formTokenValid, helpForm, replyToRequest, requestOf, trackRequest } from '../../services/helpdesk';
 import type { HttpEnv } from '../env';
@@ -178,7 +178,8 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       const l = limitsFor(runtime);
       hit(c, l.replyIp, clientIp(c), 'Too many replies from your address');
       if (!token) throw badRequest('Missing the tracking token', `Send it in the ${TRACKING_HEADER} header.`);
-      hit(c, l.replyRequest, token, 'Too many replies to this request just now');
+      // Keyed by its hash: a token is kept nowhere in plain text, not even in memory.
+      hit(c, l.replyRequest, sha256(token), 'Too many replies to this request just now');
       return replyToRequest(runtime, token, body.text);
     },
   );
