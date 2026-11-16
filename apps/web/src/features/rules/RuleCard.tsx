@@ -13,8 +13,8 @@ import { Sentence } from './words';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
 function input(rule: Rule, canCall: boolean): RuleInput {
-  const { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call } = rule;
-  return { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call: canCall && call ? { webhook: call.webhook } : null };
+  const { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call, script } = rule;
+  return { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call: canCall && call ? { webhook: call.webhook } : null, script };
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -91,7 +91,8 @@ function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
  * managers can still turn it off.
  */
 export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: Rule; canManage: boolean; canCall?: boolean; onEdit: () => void }) {
-  const canChange = canManage && (!rule.call || canCall);
+  // A rule that calls out, or runs a script, is an administrator's to change (D32, D40).
+  const canChange = canManage && ((!rule.call && !rule.script) || canCall);
   const qc = useQueryClient();
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const [preview, setPreview] = useState<RulePreview | null>(null);
@@ -125,10 +126,17 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
           {rule.kind !== 'guard' && (rule.command || rule.comment) ? <Badge grammar="changes">changes issues</Badge> : null}
           {rule.notify ? <Badge>tells people</Badge> : null}
           {rule.call ? <Badge grammar="outside">calls out</Badge> : null}
+          {rule.script ? <Badge>a script</Badge> : null}
           {broken ? <Badge tone="bad">needs fixing</Badge> : rule.enabled ? <Badge tone="good">on</Badge> : <Badge tone="idle">off</Badge>}
         </span>
       </div>
       <Sentence rule={rule} />
+      {rule.script ? (
+        <details>
+          <summary>Its script</summary>
+          <pre className="script-log">{rule.script}</pre>
+        </details>
+      ) : null}
       <Last rule={rule} run={rule.lastRun} />
       {rule.problems.map((p) => (
         <div className="error-note" role="note" key={`${p.part}-${p.start}-${p.message}`}>
@@ -195,7 +203,7 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
                 onConfirm={() => remove.mutate()}
               />
             ) : (
-              <span className="note">It calls a webhook, so an administrator changes it.</span>
+              <span className="note">{rule.script ? 'It runs a script' : 'It calls a webhook'}, so an administrator changes it.</span>
             )}
           </>
         ) : null}
