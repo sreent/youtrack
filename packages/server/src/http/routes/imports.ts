@@ -32,7 +32,7 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
     tags,
     summary: 'Upload a CSV export (Jira or YouTrack) to import into a project',
     description:
-      'Send the file as the body with Content-Type: text/csv. It is read as it streams, up to 64 MB and 50,000 rows, and its columns are mapped from their headers. Nothing is imported yet: check the mapping, then POST /imports/{id}/check and /run. Administrators only.',
+      'Send the file as the body with Content-Type: text/csv. It is read as it streams, up to 64 MB and 50,000 rows, and its columns are mapped from their headers. Nothing is imported yet: check the mapping, then POST /imports/{id}/check and /run. For the project\'s managers, and administrators.',
     security: [{ bearerAuth: [] }, { cookieAuth: [] }],
     request: {
       query: ImportUploadQuery,
@@ -42,7 +42,7 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
       201: { description: 'Uploaded, with the mapping found', content: { 'application/json': { schema: ImportSchema } } },
       400: { description: 'The file can\'t be read: the error says where', content: errors },
       401: { description: 'Not signed in', content: errors },
-      403: { description: 'Not an administrator', content: errors },
+      403: { description: 'Not a manager of the project', content: errors },
       404: { description: 'No such project', content: errors },
     },
   });

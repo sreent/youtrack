@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, Fragment } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { post, subscribeEvents } from '../api/client';
-import { keys } from '../api/queries';
+import { keys, useProjects } from '../api/queries';
 import { Icon, type IconName } from '../components/Icon';
 import { initials } from '../components/Who';
 
@@ -12,6 +12,8 @@ interface NavItem {
   label: string;
   icon: IconName;
   admin?: boolean;
+  /** For someone who manages a project (or an administrator). */
+  manager?: boolean;
 }
 
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -32,7 +34,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { to: '/projects', label: 'Projects', icon: 'book' },
       { to: '/fields', label: 'Fields', icon: 'settings', admin: true },
-      { to: '/import', label: 'Import', icon: 'import', admin: true },
+      { to: '/import', label: 'Import', icon: 'import', manager: true },
     ],
   },
   {
@@ -83,6 +85,8 @@ export function Shell({ me }: { me: Me }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const isAdmin = me.auth.scopes.includes('admin');
+  const projectList = useProjects();
+  const managesSome = isAdmin || Boolean(projectList.data?.some((p) => p.access.manage));
   const signOut = async () => {
     await post('/auth/logout').catch(() => {});
     qc.clear();
@@ -97,7 +101,7 @@ export function Shell({ me }: { me: Me }) {
         </NavLink>
         <nav aria-label="a4a's pages">
           {NAV.map((g) => {
-            const items = g.items.filter((i) => !i.admin || isAdmin);
+            const items = g.items.filter((i) => (!i.admin || isAdmin) && (!i.manager || managesSome));
             if (!items.length) return null;
             return (
               <Fragment key={g.group}>

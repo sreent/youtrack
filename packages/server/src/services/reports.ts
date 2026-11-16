@@ -27,7 +27,7 @@ import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, perce
 import { buildTimelines, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
-import { assertCanReadProject, canReadProject } from './access';
+import { projectAccess, requireProject, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
 import { allowedValues, fieldByName, findUser, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
@@ -62,14 +62,8 @@ function inList(column: SQL | typeof activities.projectId, values: string[]): SQ
 async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: string; query?: string }): Promise<Scope> {
   requireScope(ctx, 'read');
   const query = input.query?.trim() || null;
-  let project: ProjectRow | undefined;
-  if (input.project?.trim()) {
-    project = projectByKey(s, input.project);
-    if (!project) throw notFound(`Project ${input.project}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`);
-    await assertCanReadProject(ctx, project.id).catch(() => {
-      throw notFound(`Project ${input.project}`);
-    });
-  }
+  // A project the caller can't see answers exactly as one that doesn't exist.
+  const project = input.project?.trim() ? await requireProject(ctx, input.project, 'read') : undefined;
   if (query) {
     const { compiled } = await compileOrThrow(ctx, query, { projectId: project?.id });
     const where = compiled.where ?? sql`TRUE`;
@@ -84,7 +78,10 @@ async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project?: stri
   }
   const projects: ProjectRow[] = [];
   if (project) projects.push(project);
-  else for (const p of s.projects.values()) if (await canReadProject(ctx, p.id)) projects.push(p);
+  else {
+    const visible = await visibleProjectIds(ctx);
+    for (const p of s.projects.values()) if (visible === null || visible.includes(p.id)) projects.push(p);
+  }
   const ids = projects.map((p) => p.id);
   return { projects, query: null, activityWhere: inList(activities.projectId, ids), issueWhere: inList(sql`${issues.projectId}`, ids), includesDeleted: true };
 }
@@ -359,21 +356,27 @@ export async function cycleTimeReport(ctx: Ctx, input: WindowInput & { start?: s
 type SprintRow = typeof sprints.$inferSelect;
 type BoardRow = typeof boards.$inferSelect;
 
-/** The sprint asked for: by id, by name on a board, or a board's current one (as the board shows it). */
+/**
+ * The sprint asked for: by id, by name on a board, or a board's current one (as the board shows it).
+ * A board is the caller's to see when any of its projects is, as on the board itself; one they can't
+ * see, and its sprints, answer exactly as ones that don't exist.
+ */
 export async function findSprint(ctx: Ctx, input: { sprint?: string; board?: string }, today: string): Promise<{ sprint: SprintRow; board: BoardRow }> {
+  const view = await projectAccess(ctx);
+  const sees = (b: BoardRow) => b.projectIds.some((id) => view.canRead(id));
   const name = input.sprint?.trim();
   if (name) {
     const [byId] = await ctx.db.select().from(sprints).where(eq(sprints.id, name));
     if (byId) {
       const [board] = await ctx.db.select().from(boards).where(eq(boards.id, byId.boardId));
-      if (board) return { sprint: byId, board };
+      if (board && sees(board)) return { sprint: byId, board };
     }
   }
   const boardName = input.board?.trim();
   if (!boardName) {
     throw badRequest(name ? `No sprint has the id "${name}"` : 'Say which sprint', 'Give a sprint id, or a board (its current sprint) and optionally the sprint\'s name.');
   }
-  const all = await ctx.db.select().from(boards);
+  const all = (await ctx.db.select().from(boards)).filter(sees);
   const board = all.find((b) => b.id === boardName) ?? all.find((b) => b.name.toLowerCase() === boardName.toLowerCase());
   if (!board) throw notFound(`Board ${boardName}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`);
   const list = await ctx.db.select().from(sprints).where(eq(sprints.boardId, board.id)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
@@ -420,29 +423,32 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
   const today = todayIn(tz, now);
   const by = input.by ?? 'estimate';
   const { sprint, board } = await findSprint(ctx, input, today);
-  // A burndown shows every issue in the sprint, so every project on the board must be readable.
-  for (const pid of board.projectIds) {
-    await assertCanReadProject(ctx, pid).catch(() => {
-      throw notFound('Sprint');
-    });
-  }
+  // As the board shows it: the issues of the projects the caller can read, and no others.
+  const view = await projectAccess(ctx);
+  const readable = board.projectIds.filter((id) => view.canRead(id));
   if (!sprint.startDate || !sprint.endDate) {
     throw badRequest(`${sprint.name} has no ${sprint.startDate ? 'end' : 'start'} date`, `Give it its dates (PATCH /sprints/${sprint.id}) to see its burndown.`);
   }
   if (sprint.endDate < sprint.startDate) throw badRequest(`${sprint.name} ends before it starts`, 'Correct its dates.');
   if (diffDays(sprint.startDate, sprint.endDate) > 366) throw badRequest(`${sprint.name} is longer than a year`, 'A burndown is for a sprint of days or weeks.');
-  const projects = board.projectIds.map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));
+  const projects = readable.map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));
 
   // Who is in it now, and every record of joining or leaving it.
   const current = await ctx.db
     .select({ id: issues.id, projectId: issues.projectId, number: issues.number, createdAt: issues.createdAt })
     .from(sprintIssues)
     .innerJoin(issues, eq(issues.id, sprintIssues.issueId))
-    .where(eq(sprintIssues.sprintId, sprint.id));
+    .where(and(eq(sprintIssues.sprintId, sprint.id), inList(sql`${issues.projectId}`, readable)));
   const sprintRows = await ctx.db
     .select({ issueId: activities.issueId, rid: sql<string | null>`${activities.payload}->'issue'->>'id'`, type: activities.type })
     .from(activities)
-    .where(and(sql`${activities.payload}->'data'->>'sprintId' = ${sprint.id}`, sql`${activities.type} in ('sprint.issue_added', 'sprint.issue_removed')`))
+    .where(
+      and(
+        sql`${activities.payload}->'data'->>'sprintId' = ${sprint.id}`,
+        sql`${activities.type} in ('sprint.issue_added', 'sprint.issue_removed')`,
+        inList(activities.projectId, readable),
+      ),
+    )
     .orderBy(asc(activities.id));
   const ridOf = (r: { projectId: string; number: number }) => `${s.projects.get(r.projectId)?.key ?? '?'}-${r.number}`;
   const liveIds = new Set(current.map((c) => c.id));
@@ -454,7 +460,7 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
   const conds: SQL[] = [];
   if (liveIds.size) conds.push(inList(sql`${activities.issueId}`, [...liveIds]));
   if (deletedRids.size) {
-    conds.push(and(inList(activities.projectId, board.projectIds), inList(sql`${activities.payload}->'issue'->>'id'`, [...deletedRids]))!);
+    conds.push(and(inList(activities.projectId, readable), inList(sql`${activities.payload}->'issue'->>'id'`, [...deletedRids]))!);
   }
   const events = conds.length
     ? await loadEvents(ctx, s, conds.length === 1 ? conds[0]! : sql`(${sql.join(conds, sql` OR `)})`, { sprintEvents: true, estimates: true })

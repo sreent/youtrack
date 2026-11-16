@@ -13,8 +13,9 @@
  *    duplicates. Links and parents go in a second pass, by external key, once every issue exists.
  * 5. Report, and undo: the issues it created go again, unless someone has worked on them since.
  *
- * Imports are for administrators: they set other people as reporters and comment authors, and
- * keep the other tracker's dates.
+ * Importing is managing the project (its managers, and administrators): an import sets other people
+ * as reporters and comment authors, and keeps the other tracker's dates. In a project only its
+ * people see, only they can be named so.
  */
 import {
   formatPeriod,
@@ -51,7 +52,7 @@ import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { localDate, timeZoneOrThrow } from '../reports/tz';
-import { assertCanWriteProject } from './access';
+import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject } from './access';
 import { changeSprintInTx } from './boards';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { applyChanges, createIssueInTx, resolveFieldsInput, resolveLinkPhrase, type LinkSpec } from './issues';
@@ -107,7 +108,14 @@ interface Context {
 async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
   const s = await ctx.app.schema.get();
   const fields = (s.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
-  const people = [...s.users.values()].filter((u) => !u.banned).map((u) => ({ id: u.id, login: u.login, name: u.name, email: u.email }));
+  // In a project only its people see, only they can be its reporters, assignees and comment
+  // authors: someone else would own, or be told about, an issue they can't open.
+  let users = [...s.users.values()].filter((u) => !u.banned);
+  if (project.visibility === 'members') {
+    const roles = await projectRolesOf(ctx.db, project.id, users.map((u) => u.id));
+    users = users.filter((u) => roles.has(u.id));
+  }
+  const people = users.map((u) => ({ id: u.id, login: u.login, name: u.name, email: u.email }));
   const rows = await ctx.db
     .select({ id: sprints.id, name: sprints.name, board: boards.name, projectIds: boards.projectIds })
     .from(sprints)
@@ -124,24 +132,21 @@ async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
   };
 }
 
+/** Importing is managing a project: its managers, and administrators. A hidden project answers as a missing one. */
 async function projectFor(ctx: Ctx, key: string): Promise<ProjectRow> {
-  requireScope(ctx, 'admin');
-  const s = await ctx.app.schema.get();
-  const project = projectByKey(s, key);
-  if (!project) throw notFound(`Project ${key}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`);
-  await assertCanWriteProject(ctx, project.id);
+  const project = await requireProject(ctx, key, 'manage');
   if (project.archived) throw badRequest(`Project ${project.key} is archived`);
   return project;
 }
 
 async function loadImport(ctx: Ctx, id: string): Promise<{ row: ImportRowRecord; project: ProjectRow }> {
-  requireScope(ctx, 'admin');
+  requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(imports).where(eq(imports.id, id));
-  if (!row) throw notFound('Import', 'GET /imports lists them.');
   const s = await ctx.app.schema.get();
-  const project = s.projects.get(row.projectId);
-  if (!project) throw notFound('Import');
-  await assertCanWriteProject(ctx, project.id);
+  const project = row ? s.projects.get(row.projectId) : undefined;
+  // An import into a project the caller can't see answers exactly as one that doesn't exist.
+  if (!row || !project || !(await canReadProject(ctx, project.id))) throw notFound('Import', 'GET /imports lists them.');
+  await assertCanManageProject(ctx, project.id);
   return { row, project };
 }
 
@@ -394,10 +399,10 @@ export async function getImport(ctx: Ctx, id: string): Promise<Import> {
 }
 
 export async function listImports(ctx: Ctx, projectKey?: string): Promise<Import[]> {
-  requireScope(ctx, 'admin');
+  requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
-  const project = projectKey ? projectByKey(s, projectKey) : undefined;
-  if (projectKey && !project) throw notFound(`Project ${projectKey}`);
+  const view = await projectAccess(ctx);
+  const project = projectKey ? await requireProject(ctx, projectKey, 'read') : undefined;
   const rows = await ctx.db
     .select()
     .from(imports)
@@ -407,12 +412,8 @@ export async function listImports(ctx: Ctx, projectKey?: string): Promise<Import
   const out: Import[] = [];
   for (const r of rows) {
     const p = s.projects.get(r.projectId);
-    if (!p || r.status === 'uploading') continue;
-    try {
-      await assertCanWriteProject(ctx, p.id);
-    } catch {
-      continue;
-    }
+    // The imports of the projects the caller manages; the others are theirs to know of no more than the projects.
+    if (!p || r.status === 'uploading' || !view.canManage(p.id)) continue;
     out.push({ ...(await dto(ctx, r, p)), values: [] });
   }
   return out;

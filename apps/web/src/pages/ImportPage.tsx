@@ -6,7 +6,7 @@ import { useLinkTypes, useProjectFields, useProjects } from '../api/queries';
 import { Badge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading, PageHead } from '../components/States';
-import { AdminOnly, Said, errorText } from '../features/common/bits';
+import { Said, errorText } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { checkImport, importKeys, putMapping, runImport, undoImport, uploadFile, useImport, useImportRows, useImports } from '../features/imports/api';
 import { ColumnsTable, ProblemsTable, Tally, ValuesTable } from '../features/imports/MappingTable';
@@ -50,7 +50,8 @@ function Stages({ now }: { now: number }) {
 function Upload() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const projects = (useProjects().data ?? []).filter((p) => !p.archived);
+  // Importing is managing a project: the ones you manage.
+  const projects = (useProjects().data ?? []).filter((p) => !p.archived && p.access.manage);
   const past = useImports();
   const id = useId();
   const [project, setProject] = useState('');
@@ -388,7 +389,7 @@ export default function ImportPage() {
   const { id } = useParams();
   const imp = useImport(id);
   return (
-    <AdminOnly title="Import">
+    <ManagersOnly>
       <PageHead
         title="Import"
         crumbs={
@@ -409,6 +410,15 @@ export default function ImportPage() {
         {id && imp.error ? <ErrorNote error={imp.error} /> : null}
         {imp.data ? <ImportSteps imp={imp.data} /> : null}
       </div>
-    </AdminOnly>
+    </ManagersOnly>
   );
+}
+
+/** For someone who manages a project; others are told who can import. */
+function ManagersOnly({ children }: { children: React.ReactNode }) {
+  const projects = useProjects();
+  if (projects.data && !projects.data.some((p) => p.access.manage)) {
+    return <PageHead title="Import" about="Importing is for a project's managers and administrators. Ask a manager of the project to import into it." />;
+  }
+  return <>{children}</>;
 }
