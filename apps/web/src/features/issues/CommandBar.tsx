@@ -7,7 +7,7 @@ import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
-import { t, tr } from '../../i18n';
+import { t, tr, problemWords } from '../../i18n';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -121,7 +121,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       setRead(res);
       if (res.comment && !comment) setComment(res.comment);
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : t('issues.commandBar.theAssistantCouldNotRead'));
+      setError(e instanceof ApiError ? (problemWords(e) ?? `${e.message}${e.hint ? `. ${e.hint}` : ''}`) : t('issues.commandBar.theAssistantCouldNotRead'));
     } finally {
       setBusy(null);
     }
@@ -151,7 +151,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       onApplied?.();
       onClose();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : t('issues.commandBar.couldNotApplyTheCommand'));
+      setError(e instanceof ApiError ? (problemWords(e) ?? `${e.message}${e.hint ? `. ${e.hint}` : ''}`) : t('issues.commandBar.couldNotApplyTheCommand'));
     } finally {
       setBusy(null);
     }

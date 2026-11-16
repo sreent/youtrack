@@ -1,6 +1,6 @@
 import { ApiError } from '../api/client';
 import { Icon } from './Icon';
-import { t, tr } from '../i18n';
+import { problemWords, t, tr } from '../i18n';
 
 export function Loading({ what }: { what?: string }) {
   return (
@@ -11,12 +11,14 @@ export function Loading({ what }: { what?: string }) {
 /** What went wrong, as Ocean's error note: a cross, what happened, and how to put it right. */
 export function ErrorNote({ error }: { error: unknown }) {
   const e = error instanceof ApiError ? error : null;
-  const message = e?.message ?? (error instanceof Error ? error.message : t('ui.states.somethingWentWrong'));
+  // A problem with a key says itself in the page's language (D49); its words there hold its hint too.
+  const said = problemWords(error);
+  const message = said ?? e?.message ?? (error instanceof Error ? error.message : t('ui.states.somethingWentWrong'));
   return (
     <div className="error-note" role="alert">
       <Icon name="cross" />
       <strong>{message}</strong>
-      {e?.hint ? <p>{e.hint}</p> : null}
+      {!said && e?.hint ? <p>{e.hint}</p> : null}
     </div>
   );
 }

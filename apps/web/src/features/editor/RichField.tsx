@@ -7,7 +7,7 @@ import { ErrorLine } from '../../components/States';
 import { contentPath, refusal, uploadFile, useAttachmentLimits } from '../attachments/api';
 import { MentionField } from '../issues/MentionField';
 import type { Placed } from './VisualEditor';
-import { t } from '../../i18n';
+import { t, problemWords } from '../../i18n';
 
 // Fetched when someone first writes: pages that only read never load the editor.
 const VisualEditor = lazy(() => import('./VisualEditor'));
@@ -109,7 +109,7 @@ export function RichField({
           // The server decides what's a picture, from the bytes: an SVG is a file to download, never drawn.
           return stored.inline ? { kind: 'image', name: stored.name, href: imagePath(stored.id) } : { kind: 'link', name: stored.name, href: contentPath(stored) };
         } catch (e) {
-          say(e instanceof ApiError ? (e.hint ? `${e.message}. ${e.hint}` : e.message) : t('editor.richField.wasnTUploadedTryAgain', { name: file.name }), true);
+          say(e instanceof ApiError ? (problemWords(e) ?? (e.hint ? `${e.message}. ${e.hint}` : e.message)) : t('editor.richField.wasnTUploadedTryAgain', { name: file.name }), true);
           return null;
         }
       }

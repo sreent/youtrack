@@ -199,7 +199,7 @@ export function LoginPage() {
   const ldap = status.data?.signIn.ldap ?? null;
   const own = status.data?.signIn.password ?? true;
   const passwords = own || Boolean(ldap);
-  const formName = ldap && own ? t('app.auth.a4aOrLogin', { name: ldap.name }) : ldap ? t('app.auth.login2', { name: ldap.name }) : 'a4a login';
+  const formName = ldap && own ? t('app.auth.a4aOrLogin', { name: ldap.name }) : ldap ? t('app.auth.login2', { name: ldap.name }) : t('app.auth.a4aLogin');
   const failed = params.get('sso');
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

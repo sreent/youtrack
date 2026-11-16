@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, put } from '../../api/client';
 import { errorText, Said } from '../common/bits';
 import { useState } from 'react';
-import { t, tr } from '../../i18n';
+import { t, tr, formatList } from '../../i18n';
 
 const WORDS: Record<NotifyKind, string> = {
   created: t('notifications.kinds.created'),
@@ -49,12 +49,12 @@ export function NotifyKindsSettingsCard() {
                   <label key={`${scope}-${way}`} className="check">
                     <input
                       type="checkbox"
-                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? t('notifications.kinds.issuesYouWatch') : t('notifications.kinds.yourSubscriptions')}, ${way}`}
+                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? t('notifications.kinds.issuesYouWatch') : t('notifications.kinds.yourSubscriptions')}, ${way === 'inbox' ? t('notifications.kinds.byInbox') : t('notifications.kinds.byEmail')}`}
                       checked={s[scope][k][way]}
                       disabled={save.isPending}
                       onChange={(e) => toggle(scope, k, way, e.target.checked)}
                     />
-                    {scope === 'watching' ? t('notifications.kinds.watched') : t('notifications.kinds.subscribed')}: {way}
+                    {scope === 'watching' ? t('notifications.kinds.watched') : t('notifications.kinds.subscribed')}: {way === 'inbox' ? t('notifications.kinds.byInbox') : t('notifications.kinds.byEmail')}
                   </label>
                 )),
               )}
@@ -62,7 +62,7 @@ export function NotifyKindsSettingsCard() {
           </fieldset>
         ))}
       </div>
-      <p className="note">{tr('notifications.kinds.whateverYouChooseAlwaysTell', { join: s.always.join(', ') })}</p>
+      <p className="note">{tr('notifications.kinds.whateverYouChooseAlwaysTell', { join: formatList([t('notifications.kinds.alwaysMentioned'), t('notifications.kinds.alwaysAssigned'), t('notifications.kinds.alwaysRule'), t('notifications.kinds.alwaysRequest')]) })}</p>
       {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
     </div>
   );

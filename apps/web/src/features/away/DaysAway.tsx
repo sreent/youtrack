@@ -110,7 +110,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       ) : null}
       {seesWhy ? (
         <div className="form-fields">
-          <FormField label={t('away.daysAway.why')} help={t('away.daysAway.onlyAdministratorsAndWhoeverEnters', { v: you ? 'you' : person.name })}>
+          <FormField label={t('away.daysAway.why')} help={you ? t('away.daysAway.onlyYouAdministratorsAndWhoever') : t('away.daysAway.onlyAdministratorsAndWhoeverEnters', { v: person.name })}>
             {(fid, help) => (
               <select id={fid} aria-describedby={help} value={kind} onChange={(e) => setKind(e.target.value as AbsenceKind)}>
                 {KINDS.map((k) => (
@@ -195,7 +195,7 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
                           label={t('away.daysAway.remove')}
                           name={t('away.daysAway.remove3', { whenWords: whenWords(a) })}
                           title={t('away.daysAway.remove2', { whenWords: whenWords(a) })}
-                          about={t('away.daysAway.plansThenCountOnThat', { v: you ? 'you' : person.name, v2: a.from === a.to ? 'day' : 'time' })}
+                          about={you ? (a.from === a.to ? t('away.daysAway.plansCountOnYouThatDay') : t('away.daysAway.plansCountOnYouThatTime')) : (a.from === a.to ? t('away.daysAway.plansCountOnThemThatDay', { name: person.name }) : t('away.daysAway.plansCountOnThemThatTime', { name: person.name }))}
                           confirm={t('away.daysAway.removeIt')}
                           disabled={remove.isPending}
                           onConfirm={() =>

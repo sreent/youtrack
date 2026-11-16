@@ -12,6 +12,7 @@ import { t, weekdayNames } from '../../i18n';
 
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
 const NAMES = weekdayNames('long');
+const SHORT = weekdayNames();
 
 export function WorkWeek({ week, capacity, canChange }: { week: number[] | null; capacity: number; canChange: boolean }) {
   const id = useId();
@@ -38,7 +39,7 @@ export function WorkWeek({ week, capacity, canChange }: { week: number[] | null;
       <div className="work-week">
         {ORDER.map((d) => (
           <div className="form-field" key={d}>
-            <label htmlFor={`${id}-${d}`}>{NAMES[d]!.slice(0, 3)}</label>
+            <label htmlFor={`${id}-${d}`}>{SHORT[d]}</label>
             <input
               id={`${id}-${d}`}
               inputMode="decimal"

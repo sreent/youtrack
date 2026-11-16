@@ -4,7 +4,7 @@ import { ApiError, get, post, qs } from '../../api/client';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
-import { t } from '../../i18n';
+import { t, problemWords } from '../../i18n';
 
 export const checkQuery: Checker = async (text, caret) => {
   const [parsed, next] = await Promise.all([
@@ -95,7 +95,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t
         setText(res.query);
       }
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : t('issues.queryBar.theAssistantCouldNotRead'));
+      setError(e instanceof ApiError ? (problemWords(e) ?? `${e.message}${e.hint ? `. ${e.hint}` : ''}`) : t('issues.queryBar.theAssistantCouldNotRead'));
     } finally {
       setAsking(false);
     }
