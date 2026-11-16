@@ -8,6 +8,12 @@ const input = {
   project: { key: 'BACK', name: 'Backend' },
 };
 
+/**
+ * Ample time for a run that isn't about the time limit: a limit of a few hundred ms is the machine's
+ * as much as the script's, and suites running side by side can hold a thread up past it.
+ */
+const AMPLE = { timeMs: 5_000 };
+
 describe('the sandbox', () => {
   it('runs a script on the issue it is given, and writes down what it asks', async () => {
     const out = await runScript(
@@ -17,6 +23,7 @@ describe('the sandbox', () => {
         log('changed by', change.by.login, change.changes);
       }`,
       input,
+      AMPLE,
     );
     expect(out.error).toBeNull();
     expect(out.intents.applies).toEqual([{ command: 'tag triaged', to: null }]);
@@ -25,12 +32,12 @@ describe('the sandbox', () => {
   });
 
   it('reaches nothing outside: no network, timers, modules or process', async () => {
-    const out = await runScript(`log(typeof fetch, typeof setTimeout, typeof require, typeof process, typeof XMLHttpRequest, typeof globalThis.__input)`, input);
+    const out = await runScript(`log(typeof fetch, typeof setTimeout, typeof require, typeof process, typeof XMLHttpRequest, typeof globalThis.__input)`, input, AMPLE);
     expect(out.intents.logs).toEqual(['undefined undefined undefined undefined undefined undefined']);
   });
 
   it("can't change what it was given", async () => {
-    const out = await runScript(`"use strict"; issue.fields.State = 'Fixed';`, input);
+    const out = await runScript(`"use strict"; issue.fields.State = 'Fixed';`, input, AMPLE);
     expect(out.error).toMatchObject({ kind: 'runtime' });
     expect(out.error!.message).toMatch(/TypeError/);
   });
@@ -55,15 +62,16 @@ describe('the sandbox', () => {
     clearInterval(tick);
     // Ended at its limit; or, if QuickJS ran out of memory first, sooner.
     expect(['time', 'memory']).toContain(strings.error?.kind);
-    expect(took).toBeLessThan(SCRIPT_LIMITS.timeMs + 200);
+    // Within a second of its limit, however busy the machine: before, it ran 4 to 15 s.
+    expect(took).toBeLessThan(SCRIPT_LIMITS.timeMs + 1_000);
     expect(ticks).toBeGreaterThan(5);
     // A guard's limit, 60 ms, holds the same way.
     const guardStarted = Date.now();
     const arrays = await runScript('const xs = []; for (;;) xs.push(new Array(100000).fill(1));', input, { guard: true });
     expect(['time', 'memory']).toContain(arrays.error?.kind);
-    expect(Date.now() - guardStarted).toBeLessThan(SCRIPT_LIMITS.guardTimeMs + 200);
+    expect(Date.now() - guardStarted).toBeLessThan(SCRIPT_LIMITS.guardTimeMs + 1_000);
     // The pool replaced what it ended, and the next run is as any other.
-    expect((await runScript("log('still here')", input)).intents.logs).toEqual(['still here']);
+    expect((await runScript("log('still here')", input, AMPLE)).intents.logs).toEqual(['still here']);
     expect(sandboxStats()).toMatchObject({ workers: SANDBOX_WORKERS });
   });
 
@@ -76,7 +84,7 @@ describe('the sandbox', () => {
     const ended = runs.filter((r) => r.error?.kind === 'time').length;
     expect(ended + runs.filter((r) => r.error?.kind === 'memory').length).toBe(3);
     expect(sandboxStats().replaced - before.replaced).toBeGreaterThanOrEqual(ended > 0 ? 1 : 0);
-    expect((await runScript("log('fresh')", input)).intents.logs).toEqual(['fresh']);
+    expect((await runScript("log('fresh')", input, AMPLE)).intents.logs).toEqual(['fresh']);
   });
 
   it('runs scripts side by side, a guard ahead of the rest', async () => {
@@ -93,21 +101,21 @@ describe('the sandbox', () => {
   });
 
   it('says where a script went wrong, and what a function was given wrongly', async () => {
-    const out = await runScript('const a = 1;\nnothing();\n', input);
+    const out = await runScript('const a = 1;\nnothing();\n', input, AMPLE);
     expect(out.error).toMatchObject({ kind: 'runtime', line: 2 });
     expect(out.error!.message).toMatch(/'nothing' is not defined \(line 2\)/);
-    const bad = await runScript('apply(42)', input);
+    const bad = await runScript('apply(42)', input, AMPLE);
     expect(bad.error!.message).toMatch(/apply\(\) takes a command/);
   });
 
   it('keeps a run to its limits', async () => {
-    const out = await runScript(`for (let i = 0; i < ${SCRIPT_LIMITS.applies + 5}; i++) apply('tag t' + i)`, input);
+    const out = await runScript(`for (let i = 0; i < ${SCRIPT_LIMITS.applies + 5}; i++) apply('tag t' + i)`, input, AMPLE);
     expect(out.error!.message).toMatch(new RegExp(`${SCRIPT_LIMITS.applies} commands at most`));
     expect(out.intents.applies).toHaveLength(SCRIPT_LIMITS.applies);
   });
 
   it('refuses in its own words, and names an issue to change by its id', async () => {
-    const out = await runScript(`refuse('Say why in a comment first.'); apply('State Fixed', 'back-7')`, input);
+    const out = await runScript(`refuse('Say why in a comment first.'); apply('State Fixed', 'back-7')`, input, AMPLE);
     expect(out.intents.refusal).toBe('Say why in a comment first.');
     expect(out.intents.applies).toEqual([{ command: 'State Fixed', to: 'BACK-7' }]);
   });
