@@ -13,6 +13,8 @@ import {
   PortalRequestDetailSchema,
   PortalRequestSchema,
   PortalSignInBody,
+  DeskMailboxBody,
+  DeskMailboxSchema,
   NotifyKindsBody,
   NotifyKindsSettingsSchema,
   SlaPolicyBody,
@@ -44,6 +46,7 @@ import {
   signOut,
 } from '../../services/portal';
 import { myKinds, setMyKinds, setSubscriptionKinds } from '../../notify/kinds';
+import { deskMailbox, setDeskMailbox } from '../../services/desk-mailbox';
 import { createPolicy, deletePolicy, listPolicies, reorderPolicies, slaReport, updatePolicy } from '../../services/sla';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -107,6 +110,26 @@ export function helpdeskDepthRoutes(app: OpenAPIHono<HttpEnv>) {
       response: SlaReportSchema,
     },
     ({ ctx, params, query }) => slaReport(ctx, params.key, { from: query.from, to: query.to, timeZone: query.tz }),
+  );
+
+  route(
+    app,
+    { method: 'get', path: '/projects/{key}/helpdesk/mailbox', tags, summary: "A desk's own mailbox, and the name its mail comes from", params: Key, response: DeskMailboxSchema },
+    ({ ctx, params }) => deskMailbox(ctx, params.key),
+  );
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/projects/{key}/helpdesk/mailbox',
+      tags,
+      summary: "Set a desk's own mailbox, or its name",
+      description: 'The IMAP address is an administrator\'s to set, and is kept sealed; the name, the desk\'s managers\'. Left out keeps it; null removes it.',
+      params: Key,
+      body: DeskMailboxBody,
+      response: DeskMailboxSchema,
+    },
+    ({ ctx, params, body }) => setDeskMailbox(ctx, params.key, body),
   );
 
   // Subscriptions by kind (D45)

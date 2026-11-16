@@ -128,10 +128,10 @@ export async function helpForm(app: AppServices, key: string, nonce: string): Pr
  */
 export async function deskAddress(app: AppServices, projectId: string): Promise<string | null> {
   const [row] = await app.db
-    .select({ address: helpdeskMailboxes.address, secret: helpdeskMailboxes.secretHash })
+    .select({ address: helpdeskMailboxes.address, secret: helpdeskMailboxes.secretHash, imap: helpdeskMailboxes.imapUrlSealed })
     .from(helpdeskMailboxes)
     .where(eq(helpdeskMailboxes.projectId, projectId));
-  return row && (row.secret || app.config.helpdeskImapUrl) ? row.address : null;
+  return row && (row.secret || row.imap || app.config.helpdeskImapUrl) ? row.address : null;
 }
 
 /**

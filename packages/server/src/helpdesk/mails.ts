@@ -11,6 +11,7 @@ import { mailHost, type MailRow } from '../mail/outbox';
 import { sha256 } from '../lib/crypto';
 import { deskAddress, mintTrackingToken, trackingUrl } from '../services/helpdesk';
 import { unsubscribeToken } from '../services/notifications';
+import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
 
 export async function renderRequestMail(app: AppServices, row: MailRow): Promise<RenderedMail | null> {
@@ -73,8 +74,11 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   // Everything threads under the request's first message: the requester's own, when they wrote in.
   const thread = request.threadId ?? `<request-${issue.id}@${mailHost(app)}>`;
   const threaded = row.kind !== 'request-received' || request.via === 'email';
+  // From the desk's own address and name, once it has a mailbox or a name of its own (D45).
+  const from = project ? await deskSender(app, project.id, project.name) : undefined;
   return {
     to: requester.email,
+    ...(from ? { from } : {}),
     subject: row.kind === 'request-received' && request.via === 'email' ? `Re: ${issue.summary}` : subject,
     text,
     html,
