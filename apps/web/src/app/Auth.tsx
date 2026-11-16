@@ -1,8 +1,8 @@
-import type { Me } from '@a4a/shared';
-import { useQueryClient } from '@tanstack/react-query';
+import type { GuestInfo, Me } from '@a4a/shared';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ApiError, post } from '../api/client';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { ApiError, get, post } from '../api/client';
 import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorNote, Loading } from '../components/States';
 import { Icon } from '../components/Icon';
@@ -149,6 +149,7 @@ export function LoginPage() {
           </button>
         </form>
       ) : null}
+      <GuestLink />
     </AuthCard>
   );
 }
@@ -203,5 +204,17 @@ export function SetupPage() {
         </button>
       </form>
     </AuthCard>
+  );
+}
+
+/** Where some projects are open to anyone (D37): a way in without signing in. */
+function GuestLink() {
+  const info = useQuery({ queryKey: ['guest'], queryFn: () => get<GuestInfo>('/guest'), staleTime: 60_000 });
+  const projects = info.data?.projects ?? [];
+  if (!projects.length) return null;
+  return (
+    <p className="note">
+      {projects.map((p) => p.name).join(', ')} {projects.length === 1 ? 'is' : 'are'} open to anyone. <Link to="/public">Read without signing in</Link>
+    </p>
   );
 }

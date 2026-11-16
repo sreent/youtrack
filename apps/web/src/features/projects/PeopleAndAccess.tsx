@@ -87,7 +87,46 @@ function Visibility({ project, canEdit }: { project: Project; canEdit: boolean }
           <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
         </div>
       ) : null}
+      <Guests project={project} />
     </form>
+  );
+}
+
+/** Whether anyone may read an open project without signing in (D37): administrators decide. */
+function Guests({ project }: { project: Project }) {
+  const qc = useQueryClient();
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const admin = project.access.via === 'admin';
+  const save = useMutation({
+    mutationFn: (guestAccess: boolean) => patch<Project>(`/projects/${project.key}`, { guestAccess }),
+    onSuccess: (p) => {
+      qc.setQueryData(keys.project(p.key), p);
+      void qc.invalidateQueries({ queryKey: keys.projects });
+      setSaid({ text: p.guestAccess ? `Anyone may read ${p.key} now, signed in or not.` : `Only people who sign in see ${p.key} now.` });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (!admin && !project.guestAccess) return null;
+  return (
+    <div className="stack tight">
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={project.guestAccess}
+          disabled={!admin || save.isPending || (project.visibility !== 'open' && !project.guestAccess)}
+          onChange={(e) => save.mutate(e.target.checked)}
+        />
+        <span>
+          Open to guests
+          <small className="field-help">
+            {project.visibility === 'open'
+              ? `Anyone may read its issues, comments, files and articles without signing in, and change nothing. Issues and comments limited to some people stay theirs. ${admin ? '' : 'Administrators decide this.'}`
+              : 'Only an open project can be open to guests.'}
+          </small>
+        </span>
+      </label>
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+    </div>
   );
 }
 

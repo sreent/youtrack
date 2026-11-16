@@ -23,6 +23,7 @@ import { IssueCode } from '../features/vcs/IssueCode';
 import { FormField } from '../components/Form';
 import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
 import { WatchersCard, WatchToggle } from '../features/issues/Watching';
+import { VisibleToCard } from '../features/issues/VisibleTo';
 import { useRequestInfo } from '../features/notifications/api';
 import { useProjectGroups } from '../features/groups/api';
 
@@ -339,6 +340,7 @@ export default function IssuePage() {
             <Loading what="fields" />
           )}
           <RequestCard issue={data} />
+          <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />
         </div>
       </div>
