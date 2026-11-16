@@ -45,7 +45,8 @@ test('an administrator makes a role, and a project gives it to someone', async (
   await api.createProject({ key, name: `Desk ${key}` });
   await page.goto(`/projects/${key}`);
   const add = page.getByRole('region', { name: 'People and access' }).getByRole('group', { name: 'Add someone' });
-  await add.getByLabel('Person').selectOption({ label: ines.name });
+  // By login, not name: a retry, or another file, makes someone of the same name.
+  await add.getByLabel('Person').selectOption({ value: ines.login });
   await add.getByLabel('Role').selectOption({ label: name });
   await expect(add.getByText(`A ${name} may read its issues, comment on them and report issues.`)).toBeVisible();
   await add.getByRole('button', { name: 'Add them' }).click();
@@ -63,14 +64,14 @@ test('an issue limited to one person, and a comment, as its reporter sets them',
   const card = page.getByRole('region', { name: 'Visible to' });
   await expect(card.getByText(`Everyone who sees ${key}.`)).toBeVisible();
   await card.getByRole('button', { name: 'Limit who sees it' }).click();
-  await card.getByLabel('People').selectOption({ label: erin.name });
+  await card.getByLabel('People').selectOption({ value: erin.login });
   await card.getByRole('button', { name: 'Limit it to them' }).click();
   await expect(card.getByRole('status')).toHaveText(`It's limited to ${erin.name} now, besides those who always see it.`);
   await expect(card.getByRole('listitem').filter({ hasText: erin.name })).toBeVisible();
 
   const history = page.getByRole('region', { name: 'History and comments' });
   await history.getByRole('button', { name: 'Limit who sees it' }).click();
-  await history.getByLabel('People').selectOption({ label: erin.name });
+  await history.getByLabel('People').selectOption({ value: erin.login });
   await history.getByLabel(/^A comment/).fill('The numbers are in the data room.');
   await history.getByRole('button', { name: 'Comment' }).click();
   await expect(history.getByText(`visible to ${erin.name}`)).toBeVisible();

@@ -44,7 +44,8 @@ test('an administrator makes a group and puts someone in it, and a project gives
   const people = page.getByRole('region', { name: 'People in it' });
   await expect(people.getByText('Nobody is in it yet.')).toBeVisible();
   const put = people.getByRole('group', { name: 'Put someone in it' });
-  await put.getByLabel('Person').selectOption({ label: ines.name });
+  // By login, not name: a retry, or another file, makes someone of the same name.
+  await put.getByLabel('Person').selectOption({ value: ines.login });
   await put.getByRole('button', { name: 'Put them in' }).click();
   await expect(put.getByRole('status')).toHaveText(`${ines.name} is in ${name} now.`);
   await expect(people.getByRole('region', { name: `People in ${name}` }).getByRole('row').filter({ hasText: ines.login })).toContainText('added by');

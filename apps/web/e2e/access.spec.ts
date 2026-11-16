@@ -44,7 +44,8 @@ test('a manager makes a project members only, and gives someone a role in it', a
   await expect(access.getByText('Members only', { exact: true })).toBeVisible();
 
   const add = access.getByRole('group', { name: 'Add someone' });
-  await add.getByLabel('Person').selectOption({ label: noor.name });
+  // By login, not name: a retry, or another file, makes someone of the same name.
+  await add.getByLabel('Person').selectOption({ value: noor.login });
   await add.getByLabel('Role').selectOption('viewer');
   await add.getByRole('button', { name: 'Add them' }).click();
   await expect(add.getByRole('status')).toHaveText(`${noor.name} is a viewer of ${key} now.`);
