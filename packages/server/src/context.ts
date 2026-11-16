@@ -3,6 +3,7 @@ import type { Config } from './config';
 import type { Db } from './db/client';
 import type { users } from './db/schema';
 import type { EventBus } from './events/bus';
+import type { Signals } from './events/signals';
 import { forbidden } from './lib/errors';
 import type { SchemaCache } from './services/schema-cache';
 
@@ -28,6 +29,8 @@ export interface AppServices {
   config: Config;
   db: Db;
   bus: EventBus;
+  /** What instances tell each other (LISTEN/NOTIFY on Postgres; nothing to tell on PGlite). */
+  signals: Signals;
   schema: SchemaCache;
   /** Late-bound hooks so services can trigger AI work without import cycles. */
   hooks: {

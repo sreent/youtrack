@@ -58,8 +58,16 @@ export function toEventDto(s: SchemaSnapshot, row: ActivityRow): TrackerEvent {
   };
 }
 
+/**
+ * After commit: wake this instance's live feed and worker (the bus), and tell the
+ * other instances which ids committed (NOTIFY). A lost notification only delays
+ * delivery until the next one, a LISTEN reconnect or the backstop poll, since every
+ * reader works from the log itself; so a failure here is logged, never thrown at a
+ * caller whose change is already committed.
+ */
 export async function publishActivities(app: AppServices, rows: ActivityRow[]): Promise<void> {
   if (!rows.length) return;
   const s = await app.schema.get();
   for (const row of rows) app.bus.publish(toEventDto(s, row));
+  await app.signals.announceEvents(rows.map((r) => r.id)).catch((e) => console.warn(`live events: NOTIFY failed (${e instanceof Error ? e.message : e})`));
 }

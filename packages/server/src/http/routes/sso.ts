@@ -30,7 +30,8 @@ export function ssoRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, query }) => {
       const runtime = c.get('runtime');
-      const wait = startLimiter.hit(clientIp(c));
+      // Behind a proxy, the address is the one TRUST_PROXY says to read, as for every limit.
+      const wait = startLimiter.hit(clientIp(c, runtime.config.trustProxy));
       if (wait) {
         c.header('retry-after', String(wait));
         return c.json(errorBody('rate_limited', 'Too many sign-ins started', `Try again in ${Math.ceil(wait / 60)} minutes`), 429);

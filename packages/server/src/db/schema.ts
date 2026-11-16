@@ -611,3 +611,18 @@ export const outboxCursors = pgTable('outbox_cursors', {
   lastId: bigint('last_id', { mode: 'number' }).notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/**
+ * Failed sign-ins per IP and per login, in a fixed window, shared by every instance
+ * and kept across restarts. One row per key ("ip:203.0.113.9", "login:anna"), written
+ * with an upsert per attempt; housekeeping deletes rows whose window has passed.
+ */
+export const loginThrottle = pgTable(
+  'login_throttle',
+  {
+    key: text('key').primaryKey(),
+    windowStart: ts('window_start').notNull(),
+    failures: integer('failures').notNull(),
+  },
+  (t) => [index('login_throttle_window').on(t.windowStart)],
+);

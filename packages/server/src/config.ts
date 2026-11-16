@@ -24,6 +24,8 @@ export interface Config {
   port: number;
   publicUrl: string;
   databaseUrl: string | undefined;
+  /** Postgres for the LISTEN connection, when DATABASE_URL goes through a pooler that drops LISTEN. */
+  databaseListenUrl: string | undefined;
   dataDir: string;
   seedDemo: boolean;
   /** Who serves the model: AI_PROVIDER, Anthropic unless set. */
@@ -40,6 +42,15 @@ export interface Config {
   oidc: OidcConfig | null;
   /** Whether people may sign in with a password. It can be off only when single sign-on is on. */
   passwordLogin: boolean;
+  /**
+   * How many proxies in front of the server append to X-Forwarded-For (a load
+   * balancer: 1). The client's address is the entry the outermost of them added;
+   * with 0 the header is ignored, since anyone can send it.
+   */
+  trustProxy: number;
+  /** Requests per minute per token, user or address, on each instance. */
+  apiRateLimit: number;
+  mcpRateLimit: number;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -75,6 +86,11 @@ export function oidcFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): OidcConf
   };
 }
 
+function intEnv(value: string | undefined, fallback: number, min = 0): number {
+  const n = Number(value);
+  return value !== undefined && value !== '' && Number.isInteger(n) && n >= min ? n : fallback;
+}
+
 function loadDotEnv() {
   const candidates = [path.resolve(process.cwd(), '.env'), path.resolve(process.cwd(), '../../.env')];
   for (const file of candidates) {
@@ -108,6 +124,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     port,
     publicUrl,
     databaseUrl: env.DATABASE_URL || undefined,
+    databaseListenUrl: env.DATABASE_LISTEN_URL || undefined,
     dataDir: path.resolve(env.DATA_DIR || path.resolve(process.cwd(), 'data')),
     seedDemo: (env.SEED_DEMO ?? 'true') !== 'false',
     aiProvider: ai.provider,
@@ -120,6 +137,9 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     isDev: env.NODE_ENV !== 'production',
     oidc,
     passwordLogin,
+    trustProxy: intEnv(env.TRUST_PROXY, 0),
+    apiRateLimit: intEnv(env.API_RATE_LIMIT, 1200, 1),
+    mcpRateLimit: intEnv(env.MCP_RATE_LIMIT, 600, 1),
     ...overrides,
   };
 }

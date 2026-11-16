@@ -68,7 +68,8 @@ async function me(session: string) {
 
 beforeAll(async () => {
   await idp.start();
-  const config = loadConfig({ aiEnabled: false, seedDemo: false, publicUrl: BASE, webDist: undefined, oidc: oidc(), passwordLogin: true });
+  // Browsers are told apart by the address one proxy in front adds, as behind a load balancer.
+  const config = loadConfig({ aiEnabled: false, seedDemo: false, publicUrl: BASE, webDist: undefined, oidc: oidc(), passwordLogin: true, trustProxy: 1 });
   pg = await freshPostgres();
   database = await openDatabase(pg ? { url: pg.url } : { memory: true });
   runtime = await createRuntime(config, database);
