@@ -229,6 +229,7 @@ remove tag needs-info duplicates BACK-7
 | `subscribe` | Subscribe the person to a project (its new issues, or every change) or to a saved search, by name or id (an issue coming into it, or any change to one in it); `events: "none"` ends it. Subscribing again changes it | write (idempotent) |
 | `list_rules` | A project's workflow rules, each in words ("When an issue is created, if it matches …, then apply …"), with when it next runs, what it did last, and anything that no longer reads | read |
 | `preview_rule` | What a rule would do, saved or described, without saving or changing anything: its problems (with the text fixed where a4a knows the fix), how many issues match now, what its command would change on a few (a dry run), and, for a rule across issues, which related issues it would act on and whom it would tell | read |
+| `list_apps` | The apps that run where you can see: what each adds (widgets, handlers), and what it may do (D48). Installing and removing them is people's | read |
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
@@ -380,6 +381,41 @@ These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on D
   - To anyone else it's missing, in the words of one that doesn't exist: in lookups, search, links, the event feed and stream, notifications, reports, plans and MCP. Webhooks don't carry it.
   - `add_comment` takes `visibleTo` too.
 - **Guests**: see Authentication above. An administrator sets `guestAccess` on `PATCH /projects/{key}`, on an open project only.
+
+## 7b. Apps (D48)
+
+An app is a zip with `manifest.json`: its name, title, version, what it asks for (`permissions`: `read` and `write` of `issues`, `comments`, `articles`, `fields`, `time`), and what it adds, each part saying what it `uses`:
+
+```json
+{ "name": "time-by-person", "title": "Time by person", "version": "1.0.0",
+  "permissions": { "read": ["issues", "time"] },
+  "widgets": [{ "name": "time", "title": "Time by person", "at": "issue-panel", "entry": "widgets/time.html", "uses": {} }],
+  "handlers": [{ "name": "by-person", "file": "handlers/by-person.js", "uses": { "read": ["issues", "time"] } }] }
+```
+
+Places a widget goes (`at`): `issue-panel`, `issue-below-summary`, `project-settings`, `main-menu`, `dashboard`, `article-panel`. A rule is `{ "name", "file", "kind": "change" | "schedule", "on": "created" | "updated" | "commented", "field", "query", "every": "hour" | "day" | "weekday", "at": "HH:MM", "uses" }`. A setting is `{ "name", "title", "type": "text" | "number" | "boolean" | "choice" | "secret", "scope": "app" | "project", "default", "choices", "description" }`.
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /apps` | admin | Installed apps: what each may do (in words), where it runs, its widgets, handlers, rules and settings |
+| `POST /apps/preview` `{ package }` | admin, signed in | What a package is, adds and asks for; nothing kept |
+| `POST /apps` `{ package, accept, allProjects?, projects? }` | admin, signed in | Install; `accept` must be exactly what it asks for |
+| `PUT /apps/{name}/package` `{ package, accept? }` | admin, signed in | Update; 409 `consent_required`, with `more`, when it asks for more than it was granted |
+| `GET /apps/catalog`, `POST /apps/catalog/preview`, `POST /apps/catalog/install` | admin (signed in to install) | Catalogs' apps; install or update from one, digest and signature checked |
+| `PATCH /apps/{name}` `{ enabled?, allProjects?, projects? }` | admin | Turn on or off, choose where it runs |
+| `GET /apps/{name}/removal`, `DELETE /apps/{name}` | admin (signed in to remove) | What goes; remove it all |
+| `GET /apps/{name}/runs` | admin | What its handlers and rules did |
+| `GET`/`PUT /apps/{name}/settings` | admin (its own), a project's managers (`project`) | Settings; a secret reads as `{ set }` |
+| `GET /projects/{key}/apps`, `PUT /projects/{key}/apps/{name}` `{ on }` | the project's managers | The apps chosen for it; turn one off there |
+| `GET /apps/extensions?at=…&issue=…` | anyone signed in | The widgets to draw at a place, with signed addresses |
+| `POST /apps/{name}/handlers/{handler}` `{ issue?, project?, body? }` (or `GET` with a query) | who can see the issue or project | Run a handler: `{ response, applied, commented }` |
+| `GET /apps/{name}/storage`, `PUT`/`DELETE /apps/{name}/storage/{key}` | readers; writers of the project (or admin, the app's own) | What the app keeps |
+
+A widget loads `/app-kit/a4a-app.js`, then `await a4a.ready()`, `a4a.get(path)`, `a4a.post(path, body)`, `a4a.handler(name, body)`, `a4a.storage.get()` and `.set(key, value)`, `a4a.resize(height)`, `a4a.notify(text)`, `a4a.open('/issues/BACK-1')` (the person agrees first). The page sends its calls with `x-a4a-app` and `x-a4a-widget`, as the person, narrowed to the app's projects and grant; the server refuses anything else (403).
+
+A handler's script has the D40 globals (`issue`, with `workItems` when it reads time and comments only when it reads them, and `project`), plus `request` (`method`, `query`, `body`), `settings` (secrets opened), `storage` and `app`, and answers with `respond(value)`; `store(key, value)` keeps a value (null forgets it).
+
+MCP: `list_apps` lists the apps that run where the caller can see, their widgets, handlers and what they may do. Agents can't install, update or remove apps.
 
 ## 8. Security model for agents
 

@@ -1133,6 +1133,54 @@ Four more reports, worked out on request as D21's are, each on the Reports page,
 
 **Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead); or a project's key can be renamed (moves name keys).
 
+### D48. Apps: extensions installed with consent, in a sandbox, within a grant
+
+Some teams need a4a to do one more thing their way: a panel that adds up time by person, a rule that reads a setting, a page of their own. An app is that thing, packaged: a zip whose `manifest.json` says what it adds and what it asks for. An administrator installs it from a file or from a catalog.
+
+- **What an app adds.**
+  - Widgets, at six places: an issue's side panel, below an issue's summary, a project's page, a page of its own in the menu, dashboards, an article's side. Each is an HTML file among its files.
+  - Handlers, at `/api/v1/apps/{app}/handlers/{name}`: scripts that run in D40's sandbox, with its limits. They answer with `respond(value)`, keep values with `store(key, value)`, and change the issue they're about with `apply()` and `comment()`.
+  - Rules: D40 scripted rules, on a change or on a schedule, never guards (refusing people's changes stays the project's own). They're installed with the app, named after it, and go with it. They can be turned off on the Rules page, but not edited there.
+  - Settings, for the app or for each project: text, number, yes or no, a choice, a secret.
+- **What it asks for, exactly.** It asks to read or write issues, comments, articles, fields and time. Each widget, handler and rule says what it uses, and the app asks for exactly what its parts use. Asking for what no part uses is refused, and so is a part using what the app doesn't ask for. So what an administrator reads is what runs.
+- **Consent, as OAuth's** (D28). Installing shows what it asks in words, what it adds and where, whether a trusted key signed it, and its digest. The administrator accepts exactly that and chooses where it runs: every project, or some. An update asks again only when it asks for more, and saying no keeps the version installed. Installing, updating and removing is a person's decision, made signed in: a token, an agent or MCP is refused.
+- **Where it runs.** An app is on or off. It runs in every project or in those chosen, less those whose managers turned it off. Its rules act only there. Its widgets show only there. Its handlers answer only about issues and projects there.
+- **As whom.**
+  - Its rules act as its agent (D34), `app-<name>`, made when it's installed. The access seam gives that agent what the grant does, in the projects it runs in: reading, and each kind of writing it was granted. Nothing else.
+    - It sees no issue or comment limited to some people (D37), and reads comments only if it was granted them.
+    - Its settings come with each run, the project's over the app's.
+    - It takes no tokens, and isn't listed among the agents.
+  - A person acts through it: what a widget asks for them, and a handler they call.
+    - It's their own access, narrowed to the projects the app runs in and to the scopes its grant allows. So an app never shows or does for a person what they couldn't themselves.
+    - History and the ledger say it came through the app (channel `app`, the app's title): "Anna Schmidt · via the Time by person app".
+- **Widgets, safely.**
+  - **The frame.** A widget's frame is sandboxed (`allow-scripts allow-forms`, no origin of its own). Its files are served under a policy that sandboxes them again, reaches nothing (`connect-src 'none'`) and may be framed only by a4a's pages. So opened on its own, a widget is still no part of a4a.
+  - **Its files.** They come from addresses a4a signs for twelve hours (an HMAC from SECRET_KEY's key, naming the app and its version). They need no cookie, and an old version's address stops working at an update.
+  - **What it can ask.** A widget talks to the page by postMessage, and the page hears only its own frame. A call goes to the API as the person, with `x-a4a-app` and `x-a4a-widget`. The server allows only what a widget may call (issues, comments, articles, fields, time, its own handlers and storage), each within the grant and what that widget said it uses.
+  - **What it can do to the page.** Its words show as text in a status line. Its height stays between 80 and 800 pixels. It opens a page of a4a's only when the person agrees. The page offers it Ocean's stylesheet (and its fonts, with a CORS header), so it can look like a4a.
+- **Packages, checked before anything is kept.**
+  - A zip of at most APP_MAX_MB (5 MB), 200 files, 2 MB a file and 20 MB unzipped. Sizes are checked as the zip states them and again as they come out.
+  - Files are named by plain relative paths, and only kinds a widget needs: HTML, scripts, styles, JSON, images, woff2 and text.
+  - Scripts must compile. Files are kept in the database, never on disk.
+  - `apps:pack` builds packages and a catalog from folders. Two examples are in `examples/apps`: Time by person (a widget and a handler) and Keyword tags (a rule and a project's setting).
+- **Catalogs.** JSON indexes at addresses in APP_CATALOGS, read as the importers read other trackers (https, public addresses, each redirect checked).
+  - Each app's package is named by its SHA-256, checked before anything in it is read.
+  - A signature is Ed25519, by a key in APP_TRUSTED_KEYS, over `name@version` and the digest. A catalog that says it signs has every app checked, and an unsigned one, or one signed by a key a4a doesn't trust, is refused.
+- **Storage and runs.**
+  - An app keeps JSON by key, its own or a project's: 1 MB each, 64 KB a value. Writing a project's needs someone who may change its issues; writing the app's own needs an administrator.
+  - Its handlers' runs are logged (the latest 200), beside its rules' runs.
+- **Removing it** says what goes, then takes its rules, files, settings, storage, run log and project choices. Its agent goes too, or, when history names it, stays banned so that history still says who.
+- **For agents** (MCP): `list_apps` says what's installed where they can see: what each adds, its handlers, and what it may do. They call handlers through the API. They can't install, update or remove apps.
+
+**What it costs.**
+- **Per run:** a handler call is a sandbox run (about a millisecond, D40) and a few queries. The run log is pruned as it's written.
+- **Per page:** an issue's page asks once for its widgets, and each widget's frame loads its files and Ocean's stylesheet.
+- **A widget's reach:** one that's sent something can send it on, by navigating its own frame. The grant limits what it can be sent, so grant reading only to apps you trust.
+- **What updates lose:** an update replaces its rules, and their run log with them. A file address lasts twelve hours, so a page left open longer needs reloading for its widgets.
+- **No events:** installing and removing an app records no event. They're about a4a, not a project, as a person's account changes are.
+
+**Revisit when:** apps should call out to services of their own (a handler's webhook, through D32's signed call), share code between parts, or ship guards; a catalog wants a marketplace's reviews and ratings; widgets need a4a's live events; or apps should be installed per project by its managers.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1230,4 +1278,5 @@ Planned, with the seams already in place:
 - fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
-- CI reporting builds to a build field on its own, with a token per pipeline (D41).
+- CI reporting builds to a build field on its own, with a token per pipeline (D41);
+- apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48).
