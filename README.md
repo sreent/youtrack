@@ -19,6 +19,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
+- **Notifications** of what concerns you:
+  - You watch what you report, are assigned, comment on or are mentioned in (`@anna`), and what you choose to; `watcher: me` finds it.
+  - An inbox under Work, by issue, its unread count live in the sidebar. Changes close together on one issue are one notification, and nobody hears of their own changes.
+  - Email if you want it: everything, mentions and assignments only, or never, and a daily digest. Each email stops its kind in one click.
+- **A help desk** per project: a public form at `/help/<KEY>` for people who aren't users, a page of their own for each request, where they follow the public replies and answer them, and a first-response target (`sla: overdue`). Comments stay internal unless the team makes one public.
 - **AI with Claude**:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
@@ -29,7 +34,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 22 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
+- **For agents**: an MCP server at `/mcp` with 27 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. `list_notifications` shows an agent what's waiting for its person.
 
 ## Quick start
 
@@ -104,6 +109,10 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
+| `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
+| `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
+| `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
+| `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
 
 ## Production
 
