@@ -79,7 +79,11 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
               {name} asks to work in a4a as you
             </h1>
             <span className="who-about">
-              {client.name ? 'The name is its own, and a4a can’t check it · ' : ''}
+              {client.documentHost
+                ? `${client.documentHost} describes it (its name is that site’s word) · `
+                : client.name
+                  ? 'The name is its own, and a4a can’t check it · '
+                  : ''}
               {client.local ? 'it is a program on this computer' : `it sends you back to ${client.redirectHost}`}
             </span>
           </span>

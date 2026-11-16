@@ -19,6 +19,7 @@ import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { BASE_URL, TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
 import { deskTakingMail, message, postMail } from './support/helpdesk';
+import { withTwoFactor } from './support/totp';
 import { startYouTrack, YT_TOKEN } from './support/youtrack';
 
 /** A project of the tour's own whose help desk takes mail, with what came in: a request, and an auto-reply set aside. */
@@ -47,7 +48,24 @@ interface Stop {
   path: string | ((api: Api, page: Page) => Promise<string>);
   /** Something that shows only once the page has drawn what it's for. */
   ready: (page: Page) => Locator;
+  /** For a state no address reaches: what to do once it's drawn, and what shows when that's done. */
+  then?: (page: Page) => Promise<Locator>;
 }
+
+/** Someone with two-factor sign-in on, at the step after their password (D38). */
+const atTheCode = async (api: Api, page: Page) => {
+  const login = `tour-2fa-${unique()}`;
+  await api.createUser({ login, name: 'Noor Haddad', password: 'tour-2fa-pass-1', role: 'member' });
+  await withTwoFactor(page, login, 'tour-2fa-pass-1');
+  return `/login?as=${login}`;
+};
+
+const signInWithPassword = async (page: Page) => {
+  await page.getByLabel('Login').fill(new URL(page.url()).searchParams.get('as')!);
+  await page.getByLabel('Password').fill('tour-2fa-pass-1');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  return page.getByRole('heading', { name: 'Two-factor sign-in' });
+};
 
 const waitingOnBack3 = (to: string) => async (_api: Api, page: Page) => {
   await mockWaitingSuggestions(page, [triageSuggestion('BACK-3', BACK_3_TRIAGE)]);
@@ -230,6 +248,15 @@ const STOPS: Stop[] = [
   { name: 'webhooks', path: '/webhooks', ready: (p) => p.getByRole('heading', { name: 'Where it sends' }) },
   { name: 'administration', path: '/admin', ready: (p) => p.getByRole('region', { name: 'Table of people' }) },
   { name: 'your profile', path: '/me', ready: (p) => p.getByRole('heading', { name: 'Password' }) },
+  {
+    name: 'setting up two-factor sign-in',
+    path: '/me',
+    ready: (p) => p.getByRole('button', { name: 'Set up two-factor sign-in' }),
+    then: async (p) => {
+      await p.getByRole('button', { name: 'Set up two-factor sign-in' }).click();
+      return p.getByRole('img', { name: 'QR code for your authenticator app' });
+    },
+  },
   { name: 'your inbox', path: '/inbox', ready: (p) => p.getByRole('heading', { name: "You're up to date" }).or(p.getByRole('list', { name: 'Unread, by issue' })) },
   {
     name: "a help desk's form",
@@ -267,10 +294,11 @@ const MODES = [
 test.describe.configure({ mode: 'parallel' });
 test.use({ storageState: TOUR_AUTH_FILE });
 
-async function visit(page: Page, path: string, ready: Locator) {
+async function visit(page: Page, path: string, ready: Locator, then?: (page: Page) => Promise<Locator>) {
   await holdLiveEvents(page);
   await page.goto(path);
   await expect(ready.first()).toBeVisible();
+  if (then) await expect((await then(page)).first()).toBeVisible();
   await settled(page);
   await expectNoSidewaysScroll(page);
   await expectAccessible(page);
@@ -283,7 +311,7 @@ for (const mode of MODES) {
     for (const stop of STOPS) {
       test(stop.name, async ({ page, api }) => {
         const path = typeof stop.path === 'string' ? stop.path : await stop.path(api, page);
-        await visit(page, path, stop.ready(page));
+        await visit(page, path, stop.ready(page), stop.then);
       });
     }
 
@@ -291,6 +319,11 @@ for (const mode of MODES) {
       test.use({ storageState: { cookies: [], origins: [] } });
       test('sign in', async ({ page }) => {
         await visit(page, '/login', page.getByRole('button', { name: 'Sign in' }));
+      });
+      test('the code after the password', async ({ page, api }) => {
+        await visit(page, await atTheCode(api, page), page.getByRole('button', { name: 'Sign in' }), signInWithPassword);
+        // The code's field is drawn and labelled; nothing is typed, so the step stays as it is.
+        await expect(page.getByLabel('Code', { exact: true })).toBeVisible();
       });
     });
   });

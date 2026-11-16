@@ -11,6 +11,7 @@ import { DaysAway } from '../features/away/DaysAway';
 import { EmailSettings } from '../features/notifications/EmailSettings';
 import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
+import { TwoFactorCard } from '../features/identity/TwoFactor';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
   admin: 'an administrator: you may change everything',
@@ -204,6 +205,9 @@ export default function ProfilePage() {
   const m = me.data;
   const sso = status.data?.signIn.sso ?? status.data?.signIn.saml ?? null;
   const passwords = status.data?.signIn.password ?? true;
+  const ldap = status.data?.signIn.ldap ?? null;
+  // A code after the password, for whoever signs in with one: a4a's or the directory's (D38).
+  const signsInWithPassword = !m.isBot && ((passwords && m.signIn?.password !== false) || Boolean(ldap));
   return (
     <>
       <PageHead
@@ -254,6 +258,15 @@ export default function ProfilePage() {
         {passwords ? <Password me={m} /> : <p className="note">You sign in with {sso?.name ?? 'single sign-on'}. Passwords aren’t used here.</p>}
         {passwords && sso ? <p className="note">You can also sign in with {sso.name}, with the email {sso.name} has for you.</p> : null}
       </section>
+      {signsInWithPassword ? (
+        <section className="card" aria-labelledby="two-factor">
+          <div className="section-head">
+            <h2 id="two-factor">Two-factor sign-in</h2>
+            <span className="note">A code from your phone after your password</span>
+          </div>
+          <TwoFactorCard />
+        </section>
+      ) : null}
       <section className="card" aria-labelledby="agents">
         <h2 id="agents">Tokens for agents and scripts</h2>
         <p className="note">
