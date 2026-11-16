@@ -6,7 +6,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 ## What it does
 
-- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German and Spanish so far, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
+- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German, Spanish and Japanese so far, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
 - **On a phone**: a4a installs from the browser (Android, iOS, desktop), opens offline and says so, and pushes what your inbox gets to the devices you turn it on for, encrypted to each, one notification per issue, with the unread count on its icon. Share a page into it to start an issue. Every page is made for a thumb: 44px to tap, clear of the notch, the keyboard never covering what you type.
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
@@ -285,7 +285,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `VAPID_SUBJECT` | `PUBLIC_URL` if https, else `mailto:` `MAIL_FROM` | Who push services may contact about a4a's pushes |
 | `PUSH_HOSTS` | the browsers' | The push services a4a sends to, comma-separated, `*.example.com` for any host under it. By default `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com` and `*.notify.windows.com` |
 | `PUSH_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets push go over plain http to this machine |
-| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de` or `es` |
+| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de`, `es` or `ja` |
 | `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 | `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
