@@ -24,8 +24,8 @@ importers:
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#38e84a433ec6474ebd43419d3b681e37e0d27709
-        version: https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709
+        specifier: github:sreent/ocean#ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2
+        version: https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)
@@ -163,6 +163,9 @@ importers:
       pg:
         specifier: ^8.23.1
         version: 8.23.1
+      quickjs-emscripten:
+        specifier: 0.31.0
+        version: 0.31.0
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -938,6 +941,21 @@ packages:
   '@internationalized/number@3.6.9':
     resolution: {integrity: sha512-GgWy2caO/+hV9sT/oCTWGHvbjmJMPT9kkXzoKRLnkEq7adghhR7UprhvY9sXrKfrp3NcDfhF6QQHXR1KfQbB8g==}
 
+  '@jitl/quickjs-ffi-types@0.31.0':
+    resolution: {integrity: sha512-1yrgvXlmXH2oNj3eFTrkwacGJbmM0crwipA3ohCrjv52gBeDaD7PsTvFYinlAnqU8iPME3LGP437yk05a2oejw==}
+
+  '@jitl/quickjs-wasmfile-debug-asyncify@0.31.0':
+    resolution: {integrity: sha512-YkdzQdr1uaftFhgEnTRjTTZHk2SFZdpWO7XhOmRVbi6CEVsH9g5oNF8Ta1q3OuSJHRwwT8YsuR1YzEiEIJEk6w==}
+
+  '@jitl/quickjs-wasmfile-debug-sync@0.31.0':
+    resolution: {integrity: sha512-8XvloaaWBONqcHXYs5tWOjdhQVxzULilIfB2hvZfS6S+fI4m2+lFiwQy7xeP8ExHmiZ7D8gZGChNkdLgjGfknw==}
+
+  '@jitl/quickjs-wasmfile-release-asyncify@0.31.0':
+    resolution: {integrity: sha512-uz0BbQYTxNsFkvkurd7vk2dOg57ElTBLCuvNtRl4rgrtbC++NIndD5qv2+AXb6yXDD3Uy1O2PCwmoaH0eXgEOg==}
+
+  '@jitl/quickjs-wasmfile-release-sync@0.31.0':
+    resolution: {integrity: sha512-hYduecOByj9AsAfsJhZh5nA6exokmuFC8cls39+lYmTCGY51bgjJJJwReEu7Ff7vBWaQCL6TeDdVlnp2WYz0jw==}
+
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
@@ -1484,8 +1502,8 @@ packages:
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2':
+    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2}
     version: 0.1.0
     engines: {node: '>=20'}
 
@@ -3146,6 +3164,13 @@ packages:
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
 
+  quickjs-emscripten-core@0.31.0:
+    resolution: {integrity: sha512-oQz8p0SiKDBc1TC7ZBK2fr0GoSHZKA0jZIeXxsnCyCs4y32FStzCW4d1h6E1sE0uHDMbGITbk2zhNaytaoJwXQ==}
+
+  quickjs-emscripten@0.31.0:
+    resolution: {integrity: sha512-K7Yt78aRPLjPcqv3fIuLW1jW3pvwO21B9pmFOolsjM/57ZhdVXBr51GqJpalgBlkPu9foAvhEAuuQPnvIGvLvQ==}
+    engines: {node: '>=16.0.0'}
+
   radix-vue@1.9.17:
     resolution: {integrity: sha512-mVCu7I2vXt1L2IUYHTt0sZMz7s1K2ZtqKeTIxG3yC5mMFfLBG4FtE1FDeRMpDd+Hhg/ybi9+iXmAP1ISREndoQ==}
     peerDependencies:
@@ -4531,6 +4556,24 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.24
 
+  '@jitl/quickjs-ffi-types@0.31.0': {}
+
+  '@jitl/quickjs-wasmfile-debug-asyncify@0.31.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
+
+  '@jitl/quickjs-wasmfile-debug-sync@0.31.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
+
+  '@jitl/quickjs-wasmfile-release-asyncify@0.31.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
+
+  '@jitl/quickjs-wasmfile-release-sync@0.31.0':
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -5366,7 +5409,7 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/38e84a433ec6474ebd43419d3b681e37e0d27709': {}
+  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2': {}
 
   '@stablelib/base64@1.0.1': {}
 
@@ -7182,6 +7225,18 @@ snapshots:
       side-channel: 1.1.1
 
   quick-format-unescaped@4.0.4: {}
+
+  quickjs-emscripten-core@0.31.0:
+    dependencies:
+      '@jitl/quickjs-ffi-types': 0.31.0
+
+  quickjs-emscripten@0.31.0:
+    dependencies:
+      '@jitl/quickjs-wasmfile-debug-asyncify': 0.31.0
+      '@jitl/quickjs-wasmfile-debug-sync': 0.31.0
+      '@jitl/quickjs-wasmfile-release-asyncify': 0.31.0
+      '@jitl/quickjs-wasmfile-release-sync': 0.31.0
+      quickjs-emscripten-core: 0.31.0
 
   radix-vue@1.9.17(vue@3.5.45(typescript@5.9.3)):
     dependencies:

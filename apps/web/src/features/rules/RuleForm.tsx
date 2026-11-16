@@ -8,6 +8,9 @@ import { ErrorLine } from '../../components/States';
 import { errorText, FormField } from '../common/bits';
 import { ChangeLines } from '../common/ChangeLines';
 import { LanguageField, useLanguage, type Checker } from '../issues/LanguageField';
+import { testRule } from '../workflow/api';
+import { ScriptField, ScriptRunView, useScriptProblems } from '../workflow/ScriptField';
+import type { ScriptRun } from '@a4a/shared';
 import { previewRule, ruleChecker, ruleKeys } from './api';
 
 /** What sets a rule off, as the form's first word says it. Each choice is one kind of rule. */
@@ -71,6 +74,9 @@ export interface Draft {
   saying: string;
   /** The webhook it calls, by id. */
   call: string;
+  /** Written as a script (D40), an administrator's: it runs in place of the command, or of what a guard requires. */
+  scripted: boolean;
+  script: string;
 }
 
 export const EMPTY: Draft = {
@@ -92,7 +98,21 @@ export const EMPTY: Draft = {
   people: '',
   saying: '',
   call: '',
+  scripted: false,
+  script: '',
 };
+
+/** What a new script starts as: what it's given, and what it can ask for. */
+const SCRIPT_START = `// It's given \`issue\` (fields, tags, links, parent, subtasks, comments), \`change\` (who changed what) and \`project\`.
+// It asks with apply(command[, issueId]), comment(text) and refuse(why), and writes to its run log with log(...).
+if (issue.fields.Priority === 'Critical' && !issue.tags.includes('triaged')) {
+  apply('tag triaged');
+}
+`;
+const GUARD_START = `// A guard runs after a change and before it's saved: refuse(why) refuses it.
+const fixing = change.changes.some((c) => c.field === 'State' && c.to === 'Fixed');
+if (fixing && !issue.comments.length) refuse('Say how it was fixed in a comment first');
+`;
 
 /** The brief's examples, to start from. */
 export const EXAMPLES: { label: string; draft: Draft }[] = [
@@ -169,12 +189,15 @@ export function draftOf(rule: Rule): Draft {
     people: (rule.notify?.people ?? []).join(', '),
     saying: rule.notify?.message ?? '',
     call: rule.call?.webhook ?? '',
+    scripted: Boolean(rule.script),
+    script: rule.script ?? '',
   };
 }
 
 function toInput(project: string | null, d: Draft): RuleInput {
   const kind = kindOf(d.when);
   const acts = kind !== 'guard';
+  const scripted = d.scripted;
   const [of, match] = d.and === 'parent' ? (['parent', 'any'] as const) : d.and ? (d.and.split('-') as [RuleRelation, 'all' | 'any']) : [null, null];
   const people = peopleOf(d.people);
   return {
@@ -185,12 +208,13 @@ function toInput(project: string | null, d: Draft): RuleInput {
     field: d.when === 'updated' && d.field ? d.field : null,
     schedule: kind === 'schedule' ? { every: d.when as 'hour' | 'day' | 'weekday', ...(d.when === 'hour' ? {} : { at: d.at || '09:00' }) } : null,
     query: d.query,
-    command: kind === 'guard' ? '' : d.command,
-    comment: kind === 'guard' ? null : d.comment.trim() || null,
-    requires: kind === 'guard' ? d.requires : null,
-    message: kind === 'guard' ? d.message.trim() || null : null,
-    related: acts && of ? { of, phrase: of === 'linked' ? d.andPhrase || null : null, match, query: d.andQuery } : null,
-    target: acts && d.to !== 'issue' ? { to: d.to, phrase: d.to === 'linked' ? d.toPhrase || null : null } : null,
+    command: kind === 'guard' || scripted ? '' : d.command,
+    comment: kind === 'guard' || scripted ? null : d.comment.trim() || null,
+    requires: kind === 'guard' && !scripted ? d.requires : null,
+    message: kind === 'guard' && !scripted ? d.message.trim() || null : null,
+    related: acts && !scripted && of ? { of, phrase: of === 'linked' ? d.andPhrase || null : null, match, query: d.andQuery } : null,
+    target: acts && !scripted && d.to !== 'issue' ? { to: d.to, phrase: d.to === 'linked' ? d.toPhrase || null : null } : null,
+    script: scripted ? d.script : null,
     notify: acts && (d.tell.length || people.length || d.saying.trim()) ? { to: d.tell, people, message: d.saying } : null,
     call: acts && d.call ? { webhook: d.call } : null,
     enabled: true,
@@ -276,6 +300,7 @@ export function RuleForm({
   rule,
   initial,
   canCall = false,
+  canScript = canCall,
   onDone,
   onCancel,
 }: {
@@ -285,6 +310,8 @@ export function RuleForm({
   rule?: Rule;
   initial?: Draft;
   canCall?: boolean;
+  /** Writing a script is an administrator's (D40). */
+  canScript?: boolean;
   onDone: (rule: Rule) => void;
   onCancel?: () => void;
 }) {
@@ -318,13 +345,19 @@ export function RuleForm({
   const query = useLanguage(checkers.query, d.query, d.query.trim() !== '');
   const requires = useLanguage(checkers.requires, d.requires, kind === 'guard' && d.requires.trim() !== '');
   const command = useLanguage(checkers.command, d.command, kind !== 'guard' && d.command.trim() !== '');
-  const related = useLanguage(checkers.related, d.andQuery, kind !== 'guard' && d.and !== '' && d.andQuery.trim() !== '');
-  const live = [...query.problems, ...requires.problems, ...command.problems, ...related.problems];
+  const related = useLanguage(checkers.related, d.andQuery, kind !== 'guard' && !d.scripted && d.and !== '' && d.andQuery.trim() !== '');
+  const scriptProblems = useScriptProblems(project, d.script, d.scripted);
+  const live = [...query.problems, ...(d.scripted ? scriptProblems : [...requires.problems, ...command.problems, ...related.problems])];
+  // A test run: the script on one issue, as it is now, saving nothing.
+  const [testOn, setTestOn] = useState('');
+  const [tested, setTested] = useState<{ issue: string; run: ScriptRun } | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
 
   // What it would do now, once something is written: debounced, the latest answer wins. A preview
   // needs no name yet.
   const input = useMemo(() => toInput(project, d), [project, d]);
-  const touched = Boolean(d.query.trim() || d.command.trim() || d.requires.trim() || d.comment.trim() || d.saying.trim() || d.call);
+  const touched = Boolean(d.query.trim() || d.command.trim() || d.requires.trim() || d.comment.trim() || d.saying.trim() || d.call || (d.scripted && d.script.trim()));
   const key = JSON.stringify(input);
   useEffect(() => {
     let current = true;
@@ -355,7 +388,15 @@ export function RuleForm({
     setRefused([]);
     try {
       const saved = rule
-        ? await patch<Rule>(`/rules/${rule.id}`, { ...input, project: undefined, kind: undefined, enabled: undefined, ...(canCall ? {} : { call: undefined }), expectedVersion: rule.version })
+        ? await patch<Rule>(`/rules/${rule.id}`, {
+            ...input,
+            project: undefined,
+            kind: undefined,
+            enabled: undefined,
+            ...(canCall ? {} : { call: undefined }),
+            ...(canScript ? {} : { script: undefined }),
+            expectedVersion: rule.version,
+          })
         : await post<Rule>('/rules', input);
       await qc.invalidateQueries({ queryKey: ruleKeys.all });
       onDone(saved);
@@ -374,6 +415,28 @@ export function RuleForm({
   const thenId = `${id}-then`;
   const tellId = `${id}-tell`;
 
+  const test = async () => {
+    setTesting(true);
+    setTestError(null);
+    try {
+      const issue = testOn.trim().toUpperCase();
+      setTested({ issue, run: await testRule({ ...input, name: input.name || 'A rule', issue }) });
+    } catch (e) {
+      setTested(null);
+      setTestError(errorText(e));
+    } finally {
+      setTesting(false);
+    }
+  };
+  const scriptField = (
+    <ScriptField
+      text={d.script}
+      onText={(t) => set('script', t)}
+      problems={scriptProblems}
+      label={kind === 'guard' ? 'Its script, which may refuse the change' : 'Then run this script'}
+    />
+  );
+
   return (
     <form
       className="form"
@@ -385,6 +448,24 @@ export function RuleForm({
       <FormField label="Name" help="Say what it's for: people see it in each issue's history.">
         {(fid, help) => <input id={fid} aria-describedby={help} value={d.name} onChange={(e) => set('name', e.target.value)} maxLength={80} required />}
       </FormField>
+      {canScript ? (
+        <fieldset className="choice-group">
+          <legend>Write it as</legend>
+          <label className="choice">
+            <input type="radio" name={`${id}-as`} checked={!d.scripted} onChange={() => set('scripted', false)} />
+            <span>a sentence, in the query and command languages</span>
+          </label>
+          <label className="choice">
+            <input
+              type="radio"
+              name={`${id}-as`}
+              checked={d.scripted}
+              onChange={() => setD((x) => ({ ...x, scripted: true, script: x.script.trim() ? x.script : kindOf(x.when) === 'guard' ? GUARD_START : SCRIPT_START }))}
+            />
+            <span>a script, in JavaScript (it runs in a sandbox: no network, files or timers)</span>
+          </label>
+        </fieldset>
+      ) : null}
       <fieldset className="unframed rule-form">
         <legend className="hidden">The rule, as a sentence</legend>
         <div className="rule-clause">
@@ -421,7 +502,13 @@ export function RuleForm({
               ) : null}
             </div>
             {kind === 'guard' ? (
-              <Part lang={query} text={d.query} onText={(t) => set('query', t)} label="When a change would make an issue match this query" placeholder="State: {Won't fix}" />
+              <Part
+                lang={query}
+                text={d.query}
+                onText={(t) => set('query', t)}
+                label={d.scripted ? 'When a change is made to an issue that matches this query (empty: any issue)' : 'When a change would make an issue match this query'}
+                placeholder="State: {Won't fix}"
+              />
             ) : null}
           </div>
         </div>
@@ -430,7 +517,12 @@ export function RuleForm({
             if
           </span>
           <div className="rule-clause-body">
-            {kind === 'guard' ? (
+            {kind === 'guard' && d.scripted ? (
+              <>
+                <span>its script refuses it</span>
+                {scriptField}
+              </>
+            ) : kind === 'guard' ? (
               <>
                 <span>it doesn't also match</span>
                 <Part lang={requires} text={d.requires} onText={(t) => set('requires', t)} label="If it doesn't also match this query" placeholder="has: comments" />
@@ -445,7 +537,7 @@ export function RuleForm({
                   label={kind === 'schedule' ? 'If an issue matches this query' : 'If it matches this query'}
                   placeholder={kind === 'schedule' ? '#Unresolved Due date: Overdue' : 'Type: Bug Priority: Critical'}
                 />
-                <div className="cluster">
+                <div className="cluster" hidden={d.scripted}>
                   <span>and</span>
                   <select aria-label="And what its related issues match" value={d.and} onChange={(e) => set('and', e.target.value as And)}>
                     {AND.map((a) => (
@@ -456,7 +548,7 @@ export function RuleForm({
                   </select>
                   {d.and.startsWith('linked') ? <PhraseSelect label="Which link, as it reads from the issue" value={d.andPhrase} onChange={(v) => set('andPhrase', v)} phrases={phrases} /> : null}
                 </div>
-                {d.and ? (
+                {d.and && !d.scripted ? (
                   <Part lang={related} text={d.andQuery} onText={(t) => set('andQuery', t)} label="What its related issues must match" placeholder="#Resolved" />
                 ) : null}
               </>
@@ -468,12 +560,21 @@ export function RuleForm({
             then
           </span>
           <div className="rule-clause-body">
-            {kind === 'guard' ? (
+            {kind === 'guard' && d.scripted ? (
+              <span>refuse the change, in the words its script gives refuse()</span>
+            ) : kind === 'guard' ? (
               <FormField label="refuse the change, saying">
                 {(fid) => <input id={fid} value={d.message} onChange={(e) => set('message', e.target.value)} maxLength={500} placeholder="Say in a comment why it won't be fixed." />}
               </FormField>
             ) : (
               <>
+                {d.scripted ? (
+                  <>
+                    <span>run this script</span>
+                    {scriptField}
+                  </>
+                ) : (
+                  <>
                 <div className="cluster">
                   <span>acting on</span>
                   <select aria-label="Which issues it acts on" value={d.to} onChange={(e) => set('to', e.target.value as RuleTargetKind)}>
@@ -490,6 +591,8 @@ export function RuleForm({
                 <FormField label="And a comment, if it should post one" help="It goes on each issue the rule changes, by the workflow agent.">
                   {(fid, help) => <textarea id={fid} aria-describedby={help} rows={2} value={d.comment} onChange={(e) => set('comment', e.target.value)} maxLength={5000} />}
                 </FormField>
+                  </>
+                )}
                 <fieldset className="choice-group columns" aria-describedby={tellId}>
                   <legend>And tell</legend>
                   {TELL.map((t) => (
@@ -564,6 +667,21 @@ export function RuleForm({
               ))}
             </ul>
           ) : null}
+        </div>
+      ) : null}
+
+      {d.scripted && canScript ? (
+        <div className="stack">
+          <div className="cluster">
+            <FormField label="Test it on an issue" className="inline" help="As the issue is now. Nothing is saved.">
+              {(fid, help) => <input id={fid} aria-describedby={help} className="mono" value={testOn} onChange={(e) => setTestOn(e.target.value)} placeholder={`${project ?? 'BACK'}-1`} />}
+            </FormField>
+            <button type="button" onClick={() => void test()} disabled={testing || !testOn.trim() || !d.script.trim()}>
+              {testing ? 'Running…' : 'Run it'}
+            </button>
+          </div>
+          {testError ? <ErrorLine>{testError}</ErrorLine> : null}
+          {tested ? <ScriptRunView issue={tested.issue} run={tested.run} /> : null}
         </div>
       ) : null}
 

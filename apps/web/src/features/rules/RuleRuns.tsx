@@ -55,7 +55,17 @@ export function RuleRuns({ project }: { project: string }) {
               <td>
                 <Badge tone={OUTCOME[r.outcome].tone}>{OUTCOME[r.outcome].word}</Badge>
               </td>
-              <td>{r.outcome === 'applied' && r.changes.length ? <ChangeLines changes={r.changes} /> : r.message}</td>
+              <td>
+                {r.outcome === 'applied' && r.changes.length ? (
+                  <>
+                    <ChangeLines changes={r.changes} />
+                    {/* What a script logged as it ran (D40), after its changes. */}
+                    {r.message.includes(' Logged: ') ? <span className="item-about">{r.message.slice(r.message.indexOf(' Logged: ') + 1)}</span> : null}
+                  </>
+                ) : (
+                  r.message
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -49,6 +49,8 @@ interface Readable {
   callOrigin?: string | null;
   /** Whether it calls a webhook at all, even one whose address isn't known here. */
   calls?: boolean;
+  /** A scripted rule's JavaScript (D40): it runs in place of the command, or of what a guard requires. */
+  script?: string | null;
 }
 
 export function listWords(words: string[]): string {
@@ -113,6 +115,10 @@ export function notifyWords(n: Pick<RuleNotify, 'to' | 'people' | 'message'>, t:
 }
 
 function then(r: Readable): string {
+  if (r.script?.trim()) {
+    const rest = [r.notify ? notifyWords(r.notify, r.target) : '', r.calls || r.callOrigin ? `call ${r.callOrigin ?? 'a webhook'}` : ''].filter(Boolean);
+    return listWords(['run its script', ...rest]);
+  }
   const command = r.command.trim();
   const comment = r.comment?.trim() ? `comment “${excerpt(r.comment.trim(), 80)}”` : '';
   const actions: string[] = [];
@@ -147,6 +153,7 @@ export function ruleSentence(r: Readable): string {
       return fullStop(`${scheduleWords(r.schedule)}, ${cond}, then ${then(r)}`);
     }
     case 'guard':
+      if (r.script?.trim()) return fullStop(`When a change is made to an issue${query ? ` that matches “${query}”` : ''}, run its script, which may refuse it`);
       return `When a change would make an issue match “${query}”, if it doesn't also match “${r.requires?.trim() ?? ''}”, then refuse the change${
         r.message?.trim() ? `: “${r.message.trim()}”` : ''
       }`;

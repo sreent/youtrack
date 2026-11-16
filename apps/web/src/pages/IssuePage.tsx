@@ -26,6 +26,7 @@ import { WatchersCard, WatchToggle } from '../features/issues/Watching';
 import { CloneButton, MoveIssue, ReactionBar, VoteToggle } from '../features/issues/Moves';
 import { useRequestInfo } from '../features/notifications/api';
 import { useProjectGroups } from '../features/groups/api';
+import { WorkflowBar } from '../features/workflow/WorkflowBar';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -340,6 +341,7 @@ export default function IssuePage() {
       ) : null}
       <div className="split">
         <div className="stack">
+          <WorkflowBar key={`workflow-${data.id}`} issue={data} canEdit={canWrite} />
           <Description issue={data} canEdit={canWrite} canReact={canComment} />
           <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}

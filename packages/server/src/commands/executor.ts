@@ -9,6 +9,10 @@ import { applyChanges, findIssue, findVisibleIssue, type ChangeSpec, type FieldC
 import { resolveFieldInput } from '../services/values';
 import { todayIn } from '../reports/tz';
 import { zoneOf } from '../services/time-zones';
+import { actionsFor, machinesFor, transitionsOf } from '../services/schema-cache';
+import { condition, meets, ruleWorld } from '../workflow/match';
+import { runScript } from '../workflow/sandbox';
+import { changeOf, scriptInput } from '../workflow/script-issue';
 import { describeCommand, parseCommand, type CommandOp } from './parser';
 
 export interface CommandRequest {
@@ -92,7 +96,7 @@ export async function commandSpec(
   issue: IssueRow,
   ops: CommandOp[],
   comment?: string,
-  opts: { meId?: string; db?: Db } = {},
+  opts: { meId?: string; db?: Db; noScripts?: boolean; inAction?: string } = {},
 ): Promise<ChangeSpec> {
   const db = opts.db ?? ctx.db;
   const meId = opts.meId ?? ctx.actor.user.id;
@@ -106,8 +110,62 @@ export async function commandSpec(
   const addTags: string[] = [];
   const removeTags: string[] = [];
   const comments: string[] = [];
+  let transition: ChangeSpec['transition'];
+  /** What another spec (an action's) adds to this one. */
+  const merge = (sub: ChangeSpec) => {
+    fields.push(...(sub.fields ?? []));
+    links.push(...(sub.links ?? []));
+    addTags.push(...(sub.addTags ?? []));
+    removeTags.push(...(sub.removeTags ?? []));
+    if (sub.comment) comments.push(sub.comment);
+    if (sub.transition) transition = sub.transition;
+  };
   for (const op of ops) {
     switch (op.kind) {
+      case 'transition': {
+        const found = machinesFor(s, project.id)
+          .filter((m) => m.enabled)
+          .flatMap((m) => transitionsOf(m).map((t) => ({ m, t })))
+          .find((x) => x.t.name.toLowerCase() === op.name.toLowerCase());
+        const field = found ? s.fields.get(found.m.fieldId) : undefined;
+        if (!found || !field || !attached.has(field.id)) throw badRequest(`${project.key} has no transition “${op.name}”`);
+        // The write path checks that it goes from the state the issue is in, and its condition (D40).
+        fields.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, found.t.to, meId, today) });
+        transition = { fieldId: field.id, name: found.t.name };
+        break;
+      }
+      case 'action': {
+        if (opts.inAction) throw badRequest(`The action “${opts.inAction}” runs another action, “${op.name}”, and an action can't`);
+        const action = actionsFor(s, project.id).find((a) => a.enabled && a.name.toLowerCase() === op.name.toLowerCase());
+        if (!action) throw badRequest(`${project.key} has no action “${op.name}”`);
+        const rid = `${project.key}-${issue.number}`;
+        if (action.condition.trim()) {
+          const when = condition(ruleWorld(s, project.id), action.condition, { meId });
+          if (when.problems.length) throw badRequest(`The action “${action.name}” no longer reads: ${when.problems.map((p) => p.message).join('; ')}`);
+          if (when.where && !(await meets(db, issue.id, [when.where]))[0]) {
+            throw badRequest(`“${action.name}” isn't offered for ${rid} now`, `It's for issues that match “${action.condition}”.`);
+          }
+        }
+        if (action.script) {
+          if (opts.noScripts) throw badRequest(`“${action.name}” is a scripted action, and a script can't run another script`);
+          const out = await runScript(action.script, await scriptInput(db, s, issue, changeOf('action', s.users.get(ctx.actor.user.id), [], { action: action.name })));
+          if (out.error) throw badRequest(`The action “${action.name}” stopped: ${out.error.message}`);
+          if (out.intents.refusal !== null) throw new AppError(422, 'refused_by_action', out.intents.refusal, `The action “${action.name}” refuses it.`);
+          for (const a of out.intents.applies) {
+            // Run as a command, a scripted action changes only its issue: its button reaches the rest.
+            if (a.to && a.to !== rid) throw badRequest(`Run as a command, “${action.name}” changes only ${rid}, not ${a.to}`, 'Use its button on the issue.');
+            const parsed = parseCommand(a.command, s, [project.id]);
+            if (parsed.problems.length) throw badRequest(`The action “${action.name}” asks for “${a.command}”, which doesn't fit ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+            merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, noScripts: true, inAction: action.name }));
+          }
+          comments.push(...out.intents.comments);
+        } else {
+          const parsed = parseCommand(action.command, s, [project.id]);
+          if (parsed.problems.length) throw badRequest(`The action “${action.name}” no longer fits ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+          merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, inAction: action.name }));
+        }
+        break;
+      }
       case 'field': {
         if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`);
         const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId, today, zoneOf(ctx)));
@@ -132,7 +190,7 @@ export async function commandSpec(
   }
   if (comment?.trim()) comments.push(comment.trim());
   // The same words given both ways (in the command and as its comment) are one comment.
-  return { fields, links, addTags, removeTags, comment: [...new Set(comments)].join('\n\n') || undefined };
+  return { fields, links, addTags, removeTags, comment: [...new Set(comments)].join('\n\n') || undefined, ...(transition ? { transition } : {}) };
 }
 
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {

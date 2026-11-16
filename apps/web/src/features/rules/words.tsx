@@ -72,16 +72,18 @@ export function relatedLead(r: Pick<RuleRelated, 'of' | 'phrase' | 'match'>): st
 }
 
 type Parts = Pick<Rule, 'kind' | 'trigger' | 'field' | 'schedule' | 'query' | 'command' | 'comment' | 'requires' | 'message'> &
-  Partial<Pick<Rule, 'related' | 'target' | 'notify' | 'call'>>;
+  Partial<Pick<Rule, 'related' | 'target' | 'notify' | 'call' | 'script'>>;
 
 const short = (text: string, n: number) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 
 /** The things a rule does after its "then", each its own phrase. */
 function actions(rule: Parts): React.ReactNode[] {
   const out: React.ReactNode[] = [];
+  // A scripted rule (D40) runs its script where a command would be.
+  if (rule.script?.trim()) out.push('run its script');
   const comment = rule.comment?.trim();
   const onWhat = targetWords(rule.target);
-  if (rule.command || comment) {
+  if (!rule.script?.trim() && (rule.command || comment)) {
     out.push(
       <>
         {rule.command ? (
@@ -144,6 +146,14 @@ function Related({ rule }: { rule: Parts }) {
 export function Sentence({ rule }: { rule: Parts }) {
   const query = rule.query.trim();
   const related = rule.related?.query.trim() ? <Related rule={rule} /> : null;
+  if (rule.kind === 'guard' && rule.script?.trim()) {
+    return (
+      <p className="rule-sentence">
+        <span className="rule-word">When</span> a change is made to {query ? <>an issue that matches <code>{query}</code></> : 'an issue'}, <span className="rule-word">then</span> run its
+        script, which may refuse it.
+      </p>
+    );
+  }
   if (rule.kind === 'guard') {
     return (
       <p className="rule-sentence">

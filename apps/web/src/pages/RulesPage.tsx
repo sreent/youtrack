@@ -7,6 +7,8 @@ import { useRules } from '../features/rules/api';
 import { RuleCard } from '../features/rules/RuleCard';
 import { EXAMPLES, RuleForm, type Draft } from '../features/rules/RuleForm';
 import { RuleRuns } from '../features/rules/RuleRuns';
+import { Actions } from '../features/workflow/Actions';
+import { Machines } from '../features/workflow/Machines';
 
 /**
  * A project's workflow rules: each read as a sentence, made and changed with the query and command
@@ -50,7 +52,7 @@ export default function RulesPage() {
     <>
       <PageHead
         title="Rules"
-        about="Rules change issues on their own, as the workflow agent: when something happens to an issue, or on a schedule. A guard refuses a change that would break it. Each reads as a sentence."
+        about="Rules change issues on their own, as the workflow agent: when something happens to an issue, or on a schedule. A guard refuses a change that would break it. Each reads as a sentence, or, an administrator's, runs a script. State machines say how a field may move, and actions are buttons on issues."
         actions={
           <FormField label="Project" className="inline">
             {(id) => (
@@ -161,6 +163,9 @@ export default function RulesPage() {
           />
         </section>
       ) : null}
+
+      <Machines project={project.key} projectName={project.name} fields={fields.data ?? []} manages={manages} />
+      <Actions project={project.key} projectName={project.name} manages={manages} isAdmin={isAdmin && scopes.includes('write')} />
 
       <section className="card" aria-labelledby="runs-title">
         <div className="section-head">
