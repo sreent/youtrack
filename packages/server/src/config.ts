@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { AI_PROVIDER_IDS, AI_PROVIDERS, isAIProviderId, providerKey, type AIProviderId } from './ai/providers';
 
@@ -137,6 +137,50 @@ export interface Config {
   importAllowHosts: string[];
   /** For tests: an import may read over plain http from this machine (IMPORT_ALLOW_HTTP_LOOPBACK). Never in production. */
   importAllowHttpLoopback: boolean;
+  /**
+   * The key secrets a4a reads back are encrypted with (SECRET_KEY): a TOTP secret (D38). The same on
+   * every instance. Without it, one is made in DATA_DIR/secret.key the first time it's needed.
+   */
+  secretKey: string | undefined;
+  /** Sign-in with a password checked against an LDAP directory, from LDAP_* in the environment (D38). */
+  ldap: LdapConfig | null;
+  /**
+   * Whether an MCP client may be known by a client ID metadata document: an https client_id whose
+   * metadata a4a reads (MCP_OAUTH_CLIENT_DOCUMENTS, on unless "false"; D38).
+   */
+  oauthClientDocuments: boolean;
+  /** For tests: a client ID metadata document may be read over plain http from this machine. Never in production. */
+  oauthClientDocumentsAllowHttpLoopback: boolean;
+}
+
+/** An LDAP directory people sign in with (D38): bind as a service account, find the person, bind as them. */
+export interface LdapConfig {
+  /** ldaps://host:636, or ldap://host:389 with StartTLS (plain ldap only to this machine). */
+  url: string;
+  startTls: boolean;
+  /** Who a4a binds as to search; null for an anonymous search. */
+  bindDn: string | null;
+  bindPassword: string | null;
+  baseDn: string;
+  /** The search for a person, with {login} for what they typed (escaped). */
+  userFilter: string;
+  loginAttribute: string;
+  emailAttribute: string;
+  nameAttribute: string;
+  /** A person's stable id there: objectGUID (Active Directory), entryUUID, or their DN when neither is sent. */
+  idAttribute: string | null;
+  /** The attribute listing a person's groups as DNs (memberOf); null to search for groups instead, or for none. */
+  groupsAttribute: string | null;
+  /** Where to search for groups, with {dn} for the person's DN; null for none. */
+  groupBaseDn: string | null;
+  groupFilter: string;
+  groupNameAttribute: string;
+  /** PEM certificates to trust for the directory's TLS, beside the system's. */
+  caCerts: string[];
+  name: string;
+  createUsers: boolean;
+  trustEmail: boolean;
+  allowedDomains: string[];
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -251,6 +295,65 @@ export function samlFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): SamlConf
   };
 }
 
+/** PEM certificates from LDAP_CA_CERT: the text itself, or a file's path. */
+function pemCerts(value: string | undefined): string[] {
+  const v = value?.trim();
+  if (!v) return [];
+  const text = v.includes('-----BEGIN') ? v.replace(/\\n/g, '\n') : readFileSync(v, 'utf8');
+  return text.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
+}
+
+/** LDAP_* from the environment; a half-made configuration stops the server with what's missing (D38). */
+export function ldapFromEnv(env: NodeJS.ProcessEnv): LdapConfig | null {
+  const raw = env.LDAP_URL?.trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`LDAP_URL=${raw} isn't an address: give ldaps://host:636, or ldap://host:389 with LDAP_STARTTLS=true`);
+  }
+  const startTls = truthy(env.LDAP_STARTTLS, false);
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'ldaps:' && url.protocol !== 'ldap:') throw new Error(`LDAP_URL must be ldaps:// or ldap://, not ${url.protocol}`);
+  // A password goes to the directory: never in the clear, but to this machine (development, tests).
+  if (url.protocol === 'ldap:' && !startTls && !local) throw new Error('LDAP_URL is plain ldap://: use ldaps://, or set LDAP_STARTTLS=true, since people’s passwords go to the directory');
+  const baseDn = env.LDAP_BASE_DN?.trim();
+  if (!baseDn) throw new Error('LDAP needs LDAP_BASE_DN: where to look for people, e.g. dc=acme,dc=example');
+  const bindDn = env.LDAP_BIND_DN?.trim() || null;
+  const bindPassword = env.LDAP_BIND_PASSWORD ?? null;
+  if (bindDn && !bindPassword) throw new Error('LDAP_BIND_DN needs LDAP_BIND_PASSWORD');
+  const userFilter = env.LDAP_USER_FILTER?.trim() || '(|(uid={login})(sAMAccountName={login})(userPrincipalName={login})(mail={login}))';
+  if (!userFilter.includes('{login}')) throw new Error('LDAP_USER_FILTER must hold {login}, where what the person typed goes');
+  const allowedDomains = (env.LDAP_ALLOWED_DOMAINS ?? '')
+    .split(',')
+    .map((d) => d.trim().toLowerCase().replace(/^@/, ''))
+    .filter(Boolean);
+  const trustEmail = truthy(env.LDAP_TRUST_EMAIL, false);
+  if (allowedDomains.length && !trustEmail) throw new Error('LDAP_ALLOWED_DOMAINS needs LDAP_TRUST_EMAIL=true: a domain is only worth checking on an email the directory vouches for.');
+  return {
+    url: url.href.replace(/\/$/, ''),
+    startTls,
+    bindDn,
+    bindPassword,
+    baseDn,
+    userFilter,
+    loginAttribute: env.LDAP_LOGIN_ATTRIBUTE?.trim() || 'uid',
+    emailAttribute: env.LDAP_EMAIL_ATTRIBUTE?.trim() || 'mail',
+    nameAttribute: env.LDAP_NAME_ATTRIBUTE?.trim() || 'displayName',
+    idAttribute: env.LDAP_ID_ATTRIBUTE?.trim() || null,
+    groupsAttribute: env.LDAP_GROUPS_ATTRIBUTE?.trim() || null,
+    groupBaseDn: env.LDAP_GROUP_BASE_DN?.trim() || null,
+    groupFilter: env.LDAP_GROUP_FILTER?.trim() || '(|(member={dn})(uniqueMember={dn}))',
+    groupNameAttribute: env.LDAP_GROUP_NAME_ATTRIBUTE?.trim() || 'cn',
+    caCerts: pemCerts(env.LDAP_CA_CERT),
+    name: env.LDAP_NAME?.trim() || url.hostname,
+    createUsers: truthy(env.LDAP_CREATE_USERS, false),
+    trustEmail,
+    allowedDomains,
+  };
+}
+
 function intEnv(value: string | undefined, fallback: number, min = 0): number {
   const n = Number(value);
   return value !== undefined && value !== '' && Number.isInteger(n) && n >= min ? n : fallback;
@@ -322,10 +425,12 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
   const publicUrl = (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, '');
   const oidc = oidcFromEnv(env, overrides.publicUrl ?? publicUrl);
   const saml = samlFromEnv(env, overrides.publicUrl ?? publicUrl);
-  // Turning passwords off without single sign-on would let nobody in: then it stays on.
-  const passwordLogin = !(oidc || saml) || truthy(env.PASSWORD_LOGIN, true);
-  if (oidc === null && saml === null && !truthy(env.PASSWORD_LOGIN, true)) {
-    console.warn('PASSWORD_LOGIN=false is ignored: single sign-on is not configured (OIDC_ISSUER or SAML_IDP_*), so nobody could sign in.');
+  const ldap = ldapFromEnv(env);
+  // Turning a4a's own passwords off with no other way in would let nobody in: then they stay on.
+  // LDAP's passwords are the directory's, so it counts as another way in.
+  const passwordLogin = !(oidc || saml || ldap) || truthy(env.PASSWORD_LOGIN, true);
+  if (oidc === null && saml === null && ldap === null && !truthy(env.PASSWORD_LOGIN, true)) {
+    console.warn('PASSWORD_LOGIN=false is ignored: neither single sign-on nor LDAP is configured (OIDC_ISSUER, SAML_IDP_* or LDAP_URL), so nobody could sign in.');
   }
   const attachmentStorage = (env.ATTACHMENT_STORAGE || 'local').trim().toLowerCase();
   if (attachmentStorage !== 'local' && attachmentStorage !== 's3') {
@@ -376,6 +481,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
     importAllowHttpLoopback: truthy(env.IMPORT_ALLOW_HTTP_LOOPBACK, false),
+    secretKey: env.SECRET_KEY?.trim() || undefined,
+    ldap,
+    oauthClientDocuments: truthy(env.MCP_OAUTH_CLIENT_DOCUMENTS, true),
+    oauthClientDocumentsAllowHttpLoopback: truthy(env.OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK, false),
     ...overrides,
   };
 }

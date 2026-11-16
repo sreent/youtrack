@@ -19,10 +19,16 @@ export async function login(
   ttlDays: number,
   userAgent?: string,
 ): Promise<{ token: string; user: UserRow; expiresAt: Date }> {
+  const user = await passwordUser(db, loginName, password);
+  if (!user) throw unauthorized('Wrong login or password');
+  return { ...(await startSession(db, user.id, ttlDays, userAgent)), user };
+}
+
+/** The person whose a4a password this is, if they may sign in; null otherwise. Starts nothing. */
+export async function passwordUser(db: Db, loginName: string, password: string): Promise<UserRow | null> {
   const [user] = await db.select().from(users).where(sql`lower(${users.login}) = ${loginName.trim().toLowerCase()}`);
   const ok = user && !user.banned && !user.isBot && (await verifyPassword(password, user.passwordHash));
-  if (!ok) throw unauthorized('Wrong login or password');
-  return { ...(await startSession(db, user.id, ttlDays, userAgent)), user };
+  return ok ? user : null;
 }
 
 /** A new session, with a token never used before (sign-in never carries an old session over). */

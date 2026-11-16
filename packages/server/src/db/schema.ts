@@ -1284,6 +1284,13 @@ export const oauthClients = pgTable(
     scope: text('scope'),
     softwareId: text('software_id'),
     softwareVersion: text('software_version'),
+    /**
+     * An app known by its client ID metadata document (D38): its id is that document's https
+     * address, and these say when a4a last read it and until when that reading holds. Null for an
+     * app that registered itself.
+     */
+    documentFetchedAt: ts('document_fetched_at'),
+    documentExpiresAt: ts('document_expires_at'),
     createdAt: created(),
     lastUsedAt: ts('last_used_at'),
   },
@@ -1711,3 +1718,93 @@ export const providerLogins = pgTable(
   },
   (t) => [uniqueIndex('provider_logins_once').on(t.provider, t.matchKey), index('provider_logins_user').on(t.userId)],
 );
+
+// ---------------------------------------------------------------------------
+// Identity in depth (D38): two-factor sign-in, sign-ins halfway, SCIM provisioning
+// ---------------------------------------------------------------------------
+
+/**
+ * A person's second factor: a TOTP secret (RFC 6238), kept encrypted (lib/secret-box.ts). It counts
+ * once confirmed by a code; until then it is an enrolment under way. `lastStep` is the 30-second
+ * step of the last code taken, so no code works twice.
+ */
+export const userTotp = pgTable('user_totp', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  secret: text('secret').notNull(),
+  confirmedAt: ts('confirmed_at'),
+  lastStep: integer('last_step'),
+  createdAt: created(),
+});
+
+/** Codes for when the authenticator is lost: each a hash, each good once. */
+export const recoveryCodes = pgTable(
+  'recovery_codes',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('recovery_codes_user').on(t.userId)],
+);
+
+/**
+ * A sign-in halfway: the password was right, and a second step is owed, to check a code
+ * (`verify`) or to set two-factor up first (`enroll`). Its token is a cookie's, kept as a hash.
+ */
+export const signInTickets = pgTable(
+  'sign_in_tickets',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text('purpose').notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: created(),
+  },
+  (t) => [index('sign_in_tickets_expires').on(t.expiresAt)],
+);
+
+/** What an identity provider provisions with (SCIM 2.0): a token an administrator issues, kept as a hash. */
+export const scimTokens = pgTable('scim_tokens', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  prefix: text('prefix').notNull(),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: created(),
+  lastUsedAt: ts('last_used_at'),
+  revokedAt: ts('revoked_at'),
+});
+
+/** A person the provider provisioned: their userName and id there. */
+export const scimUsers = pgTable(
+  'scim_users',
+  {
+    userId: text('user_id')
+      .primaryKey()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    userName: text('user_name').notNull(),
+    externalId: text('external_id'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('scim_users_user_name_lower').on(sql`lower(${t.userName})`)],
+);
+
+/** A group the provider provisioned: its id there. The group follows the provider (D27). */
+export const scimGroups = pgTable('scim_groups', {
+  groupId: text('group_id')
+    .primaryKey()
+    .references(() => groups.id, { onDelete: 'cascade' }),
+  externalId: text('external_id'),
+  createdAt: created(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});

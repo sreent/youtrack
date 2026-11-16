@@ -16,6 +16,7 @@ import { aiRoutes } from './routes/ai';
 import { articleRoutes } from './routes/articles';
 import { attachmentRoutes } from './routes/attachments';
 import { authRoutes } from './routes/auth';
+import { twoFactorRoutes } from './routes/two-factor';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
@@ -68,6 +69,7 @@ export function createHttpApp(runtime: Runtime) {
   api.openAPIRegistry.registerComponent('securitySchemes', 'cookieAuth', { type: 'apiKey', in: 'cookie', name: SESSION_COOKIE });
 
   authRoutes(api);
+  twoFactorRoutes(api);
   coreRoutes(api);
   issueRoutes(api);
   boardRoutes(api);
