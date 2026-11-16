@@ -149,7 +149,8 @@ export async function deskProject(app: AppServices, key: string): Promise<Projec
   return p;
 }
 
-async function requesterFor(db: Db, email: string, name: string): Promise<string> {
+/** A requester by their email, made when new; their name as they last gave it. */
+export async function requesterFor(db: Db, email: string, name: string): Promise<string> {
   const res = await db.execute(sql`
     INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${email}, ${name})
     ON CONFLICT ((lower(email))) DO UPDATE SET name = EXCLUDED.name, updated_at = now()

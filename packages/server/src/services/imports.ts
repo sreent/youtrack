@@ -26,7 +26,9 @@ import { formatPeriod, type Import, type ImportCheck, type ImportColumn, type Im
 import { and, asc, eq, gt, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, boards, comments, externalIssues, importRows, imports, issues, sprints, workItems } from '../db/schema';
+import { activities, boards, comments, externalIssues, helpdeskRequests, importRows, imports, issues, sprints, workItems } from '../db/schema';
+import { requesterFor } from './helpdesk';
+import { projectSettings } from './projects';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { CsvError, parseCsvStream } from '../imports/csv';
 import {
@@ -65,7 +67,7 @@ const PROBLEMS_SHOWN = 200;
 const STALE_MS = 60_000;
 
 const SINGLE_TARGETS = new Set(['key', 'external-id', 'summary', 'description', 'parent', 'created', 'updated', 'resolved', 'reporter', 'spent']);
-const SOURCE_NAMES: Record<ImportSource, string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'the other tracker' };
+const SOURCE_NAMES: Record<ImportSource, string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'the other tracker', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk' };
 
 export type ImportRowRecord = typeof imports.$inferSelect;
 
@@ -512,6 +514,10 @@ interface Comment {
   authorId: string | null;
   authorName: string | null;
   text: string;
+  /** Who sees it on a help desk's request, as the tracker said (D46). */
+  visibility?: 'public' | 'internal';
+  /** The request's requester wrote it (D46). */
+  byRequester?: boolean;
   /** Its id in the other tracker, when it came from its API: what running again knows it by. */
   extId?: string;
 }
@@ -564,6 +570,8 @@ interface Intent {
   work: WorkIntent[];
   /** From an API: its files. */
   files: FileIntent[];
+  /** Who asked, for a help desk's request (D46). */
+  requester: { name: string; email: string } | null;
   problems: ImportProblem[];
   failed: boolean;
 }
@@ -723,8 +731,17 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
   }
   // What an API's row brings beside its cells, each item by its id there.
   for (const cm of extra?.comments ?? []) {
-    const person = matchRemote(cm.by, c.people);
-    comments.push({ at: Math.min(cm.at, now), authorId: person?.id ?? null, authorName: remoteName(cm.by), text: cm.text.slice(0, 50_000), extId: cm.id });
+    // The requester of a help desk's request isn't one of the people here: the comment is theirs as the requester.
+    const person = cm.byRequester ? null : matchRemote(cm.by, c.people);
+    comments.push({
+      at: Math.min(cm.at, now),
+      authorId: person?.id ?? null,
+      authorName: remoteName(cm.by),
+      text: cm.text.slice(0, 50_000),
+      extId: cm.id,
+      ...(cm.visibility ? { visibility: cm.visibility } : {}),
+      ...(cm.byRequester ? { byRequester: true } : {}),
+    });
   }
   if (extra?.leftComments) {
     const k = extra.leftComments;
@@ -786,6 +803,7 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
     sprintIds,
     work,
     files,
+    requester: extra?.requester?.email ? { name: extra.requester.name || extra.requester.email, email: extra.requester.email } : null,
     problems,
     failed,
   };
@@ -991,7 +1009,7 @@ export async function runImport(ctx: Ctx, id: string, opts: { credentials?: Impo
   const origin = row.origin as StoredOrigin | null;
   let remote: Remote | null = null;
   if (origin?.bring.files && origin.fetch.files > 0) {
-    const name = origin.kind === 'youtrack' ? 'YouTrack' : 'Jira';
+    const name = SOURCE_NAMES[origin.kind];
     if (!opts.credentials) {
       throw badRequest(
         `It brings ${origin.fetch.files} ${origin.fetch.files === 1 ? 'file' : 'files'} from ${name}, and a4a needs the token again to download them`,
@@ -1296,6 +1314,11 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         },
       );
       acts.push(...created.activities);
+      if (it.requester && projectSettings(c.project).helpdesk.enabled) {
+        // A help desk's request, as it was there: who asked, by their email (D46). No target: it's history.
+        const requesterId = await requesterFor(tx, it.requester.email, it.requester.name);
+        await tx.insert(helpdeskRequests).values({ issueId: created.issue.id, projectId: c.project.id, requesterId, createdAt: new Date(it.created), via: 'email' }).onConflictDoNothing();
+      }
       const added = await addComments(tx, ctx, c, created.issue, it.comments, source, data);
       acts.push(...added.activities);
       if (Object.keys(added.ids).length) snap.commentIds = added.ids;
@@ -1400,13 +1423,26 @@ async function addComments(
   const ids: Record<string, string> = {};
   if (!list.length) return { activities: [], ids };
   const ref = (await issueRefsById(tx, c.s, [issue.id])).get(issue.id);
+  // On a help desk's request, a comment keeps who saw it there, and its requester's are theirs (D46).
+  const [request] = projectSettings(c.project).helpdesk.enabled ? await tx.select().from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issue.id)) : [];
   const out: ActivityRow[] = [];
   for (const cm of list) {
     const id = newId();
     if (cm.extId) ids[cm.extId] = id;
+    const theirs = Boolean(request && cm.byRequester);
     // Someone not here keeps their name, at the top of what they wrote.
-    const text = cm.authorId || !cm.authorName ? cm.text : `**${cm.authorName}** wrote in ${SOURCE_NAMES[source]}:\n\n${cm.text}`;
-    await tx.insert(comments).values({ id, issueId: issue.id, authorId: cm.authorId, text, channel: ctx.actor.channel, createdAt: new Date(cm.at), updatedAt: new Date(cm.at) });
+    const text = cm.authorId || !cm.authorName || theirs ? cm.text : `**${cm.authorName}** wrote in ${SOURCE_NAMES[source]}:\n\n${cm.text}`;
+    await tx.insert(comments).values({
+      id,
+      issueId: issue.id,
+      authorId: cm.authorId,
+      text,
+      channel: theirs ? 'helpdesk' : ctx.actor.channel,
+      createdAt: new Date(cm.at),
+      updatedAt: new Date(cm.at),
+      ...(request && cm.visibility === 'public' ? { visibility: 'public' } : {}),
+      ...(theirs ? { requesterId: request!.requesterId } : {}),
+    });
     out.push(
       await recordActivity(tx, ctx, {
         type: 'comment.created',
