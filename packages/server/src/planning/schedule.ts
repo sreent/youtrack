@@ -5,6 +5,7 @@
  * scheduled; summary tasks span their subtasks.
  */
 import { isISODate, maxDate } from '../lib/dates';
+import { availabilities, everyone, spanFrom, type Availability } from './availability';
 import {
   addWorkingDays,
   nextWorkingDay,
@@ -46,6 +47,13 @@ export interface PlanModel {
   calendar: PlanCalendar;
   graph: PlanGraph;
   tasks: Map<string, ScheduledTask>;
+  /** When each person can work: the plan's calendar without their days away (D36). */
+  availabilityOf(resourceId: string | null): Availability;
+  /**
+   * Where a task not yet started would run if it began no earlier than `from`: its assignee's
+   * first working day from then, and the day its work would be done.
+   */
+  spanOf(id: string, from: string): { start: string; finish: string };
 }
 
 type LeafKind = 'resolved' | 'in_progress' | 'planned';
@@ -73,6 +81,8 @@ interface Leaf {
   startFloor: string | null;
   /** Earliest of its own due date and its ancestors'. */
   deadlineCap: string | null;
+  /** When its assignee works; a milestone, or work with nobody to do it, keeps the plan's calendar. */
+  avail: Availability;
   delay: number;
   es: string;
   ef: string;
@@ -90,6 +100,7 @@ interface Context {
   resources: Map<string, PlanResource>;
   edits: Map<string, TaskEdit>;
   warn: (message: string) => void;
+  availabilityOf: (resourceId: string | null) => Availability;
 }
 
 /** When two start terms give the same date, the more specific reason wins. */
@@ -131,14 +142,16 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
   const warnings = new Warnings();
   const tasks = sanitizeTasks(input.tasks, warnings.add);
   const graph = buildGraph(tasks, warnings.add);
+  const cal = normalizeCalendar(input.calendar);
   const ctx: Context = {
     today: input.today,
-    cal: normalizeCalendar(input.calendar),
+    cal,
     graph,
     tasks: new Map(tasks.map((t) => [t.id, t])),
     resources: new Map(input.resources.map((r) => [r.id, r])),
     edits: new Map(),
     warn: warnings.add,
+    availabilityOf: availabilities(cal, input.absences, input.today),
   };
   collectEdits(ctx, overrides);
 
@@ -175,7 +188,21 @@ export function buildPlan(input: PlanInput, overrides: readonly PlanOverride[] =
     warnings: warnings.list,
     baseline,
   };
-  return { schedule, calendar: ctx.cal, graph, tasks: byId, anchor: planStart, anchorWith: (starts) => projectStart(ctx, starts) };
+  return {
+    schedule,
+    calendar: ctx.cal,
+    graph,
+    tasks: byId,
+    anchor: planStart,
+    anchorWith: (starts) => projectStart(ctx, starts),
+    availabilityOf: ctx.availabilityOf,
+    spanOf: (id, from) => {
+      const leaf = leaves.get(id);
+      if (!leaf) throw new Error(`${id} is not a task of this plan's to schedule`);
+      const { start, finish } = spanAt(leaf, from);
+      return { start, finish };
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +282,8 @@ function setUpLeaf(ctx: Context, id: string): Leaf {
   const kind: LeafKind = t.resolved ? 'resolved' : !t.isMilestone && t.firstWorkDate ? 'in_progress' : 'planned';
   const assigneeId = edit.assigneeId !== undefined ? edit.assigneeId : t.assigneeId;
   const ownStart = edit.start ?? t.startConstraint;
+  // A milestone is a point in time, not anybody's work; nor is work with nobody to do it.
+  const avail = t.isMilestone ? everyone(ctx.cal) : ctx.availabilityOf(assigneeId && ctx.resources.has(assigneeId) ? assigneeId : null);
   const leaf: Leaf = {
     task: t,
     kind,
@@ -265,6 +294,7 @@ function setUpLeaf(ctx: Context, id: string): Leaf {
     pinned: false,
     startFloor: maxOf([ownStart, ...ancestors.map((a) => ctx.edits.get(a)?.start ?? ctx.tasks.get(a)!.startConstraint)]),
     deadlineCap: minOf([t.deadline, ...ancestors.map((a) => ctx.tasks.get(a)!.deadline)]),
+    avail,
     delay: delayOf(ctx, id),
     es: ctx.today,
     ef: ctx.today,
@@ -308,7 +338,11 @@ function plannedDuration(ctx: Context, leaf: Leaf, ownStart: string | null): { d
     return { duration: clampDays(ctx, t.id, ceilSafe(leaf.effort / 60 / leaf.dailyHours)), pinned: false };
   }
   if (ownStart && t.deadline) {
-    return { duration: clampDays(ctx, t.id, workingDaysInclusive(ctx.cal, ownStart, t.deadline)), pinned: true };
+    const theirs = workingDaysInclusive(leaf.avail.cal, ownStart, t.deadline);
+    if (theirs === 0 && workingDaysInclusive(ctx.cal, ownStart, t.deadline) > 0) {
+      ctx.warn(`${t.id} falls on days its assignee is away; planned for when they’re back`);
+    }
+    return { duration: clampDays(ctx, t.id, theirs), pinned: true };
   }
   ctx.warn(`${t.id} has no estimate; planned as 1 day`);
   return { duration: 1, pinned: false };
@@ -350,14 +384,19 @@ function placeResolved(ctx: Context, leaf: Leaf): void {
   leaf.duration = t.isMilestone ? 0 : Math.max(1, workingDaysInclusive(ctx.cal, start, finish));
 }
 
-/** Started on its first logged work; the remaining work runs from today. */
+/** Started on its first logged work; the remaining work runs from today, on its assignee's days. */
 function placeInProgress(ctx: Context, leaf: Leaf): void {
   const start = leaf.task.firstWorkDate!;
-  const resume = nextWorkingDay(ctx.cal, maxDate(ctx.today, start));
+  const cal = leaf.avail.cal;
+  const resume = nextWorkingDay(cal, maxDate(ctx.today, start));
+  const remaining = Math.max(leaf.effort - leaf.task.spentMinutes, 0) / 60;
   leaf.es = start;
-  leaf.ef = addWorkingDays(ctx.cal, resume, leaf.duration - 1 + leaf.delay);
+  leaf.ef =
+    leaf.avail.hasAbsences && remaining > 0
+      ? spanFrom(leaf.avail, addWorkingDays(cal, resume, leaf.delay), remaining, leaf.dailyHours, MAX_TASK_DAYS).finish
+      : addWorkingDays(cal, resume, leaf.duration - 1 + leaf.delay);
   leaf.from = 'actual';
-  leaf.duration = Math.max(1, workingDaysInclusive(ctx.cal, start, leaf.ef));
+  leaf.duration = Math.max(1, workingDaysInclusive(cal, start, leaf.ef));
 }
 
 /**
@@ -375,11 +414,28 @@ function placePlanned(ctx: Context, leaf: Leaf, planStart: string, preds: readon
   for (const p of preds) terms.push([milestone ? p.ef : addWorkingDays(ctx.cal, p.ef, 1), 'dependencies']);
   let [date, from] = terms[0]!;
   for (const [d, f] of terms) if (d > date || (d === date && REASON_RANK[f] > REASON_RANK[from])) [date, from] = [d, f];
-  let es = nextWorkingDay(ctx.cal, date);
-  if (leaf.delay > 0) es = addWorkingDays(ctx.cal, es, leaf.delay);
-  leaf.es = es;
-  leaf.ef = milestone ? es : addWorkingDays(ctx.cal, es, leaf.duration - 1);
+  let es = nextWorkingDay(leaf.avail.cal, date);
+  if (leaf.delay > 0) es = addWorkingDays(leaf.avail.cal, es, leaf.delay);
+  const span = spanAt(leaf, es);
+  leaf.es = span.start;
+  leaf.ef = span.finish;
+  leaf.duration = span.days;
   leaf.from = from;
+}
+
+/**
+ * Where a leaf not yet started runs if it begins no earlier than `from`, on its assignee's
+ * days, and how many of their days that is. Its work at its daily hours takes as many as it
+ * needs, a half day away giving half; a start-to-due window keeps its length.
+ */
+function spanAt(leaf: Leaf, from: string): { start: string; finish: string; days: number } {
+  const start = nextWorkingDay(leaf.avail.cal, from);
+  if (leaf.task.isMilestone) return { start, finish: start, days: 0 };
+  if (leaf.pinned || !leaf.avail.hasAbsences || leaf.effort <= 0) {
+    return { start, finish: addWorkingDays(leaf.avail.cal, start, leaf.duration - 1), days: leaf.duration };
+  }
+  const span = spanFrom(leaf.avail, start, leaf.effort / 60, leaf.dailyHours, MAX_TASK_DAYS);
+  return { start, finish: span.finish, days: span.days };
 }
 
 /**
@@ -400,15 +456,15 @@ function backwardPass(ctx: Context, leaves: Map<string, Leaf>, projectFinish: st
       const bound = succ.task.isMilestone ? succ.ls : addWorkingDays(ctx.cal, succ.ls, -1);
       if (bound < lf) lf = bound;
     }
-    if (leaf.deadlineCap) {
-      const cap = prevWorkingDay(ctx.cal, leaf.deadlineCap);
-      if (cap < lf) lf = cap;
-    }
+    if (leaf.deadlineCap && leaf.deadlineCap < lf) lf = leaf.deadlineCap;
+    // Its own days: the last it can finish on is a day its assignee works.
+    const cal = leaf.avail.cal;
+    lf = prevWorkingDay(cal, lf);
     leaf.lf = lf;
     // Started work cannot start any later: its late start is its actual start, its slack is finish slack.
     if (leaf.kind === 'in_progress') leaf.ls = leaf.es;
-    else leaf.ls = leaf.task.isMilestone ? lf : addWorkingDays(ctx.cal, lf, -(leaf.duration - 1));
-    leaf.slack = workingDaysBetween(ctx.cal, leaf.ef, lf);
+    else leaf.ls = leaf.task.isMilestone ? lf : addWorkingDays(cal, lf, -(leaf.duration - 1));
+    leaf.slack = workingDaysBetween(cal, leaf.ef, lf);
   }
 }
 

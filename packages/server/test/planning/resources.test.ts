@@ -16,8 +16,8 @@ describe('computeLoad', () => {
     expect([load.from, load.to, load.unassignedHours]).toEqual(['2026-11-16', '2026-11-17', 8]);
     const anna = load.resources.find((r) => r.resourceId === 'u-anna')!;
     expect(anna.days).toEqual([
-      { date: '2026-11-16', hours: 16, capacity: 8, tasks: [{ issue: 'A', hours: 8 }, { issue: 'B', hours: 8 }] },
-      { date: '2026-11-17', hours: 8, capacity: 8, tasks: [{ issue: 'A', hours: 8 }] },
+      { date: '2026-11-16', hours: 16, capacity: 8, away: null, tasks: [{ issue: 'A', hours: 8 }, { issue: 'B', hours: 8 }] },
+      { date: '2026-11-17', hours: 8, capacity: 8, away: null, tasks: [{ issue: 'A', hours: 8 }] },
     ]);
     expect([anna.totalHours, anna.overallocatedDays, anna.peakLoadPct]).toEqual([24, 1, 200]);
     const ben = load.resources.find((r) => r.resourceId === 'u-ben')!;

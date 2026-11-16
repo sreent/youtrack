@@ -79,6 +79,20 @@ export interface PlanBaseline {
   tasks: PlanBaselineTask[];
 }
 
+/** How much of a day someone is away: all of it, or the morning or the afternoon. */
+export type AwayPart = 'day' | 'morning' | 'afternoon';
+
+/**
+ * Days a person is away (D36): whole days from `from` to `to`, or, when `half` is set, half of
+ * the one day `from` is. Their work skips whole days away and does half a day's on a half day.
+ */
+export interface PlanAbsence {
+  resourceId: string;
+  from: string;
+  to: string;
+  half: 'morning' | 'afternoon' | null;
+}
+
 export interface PlanInput {
   /** The status date. The engine never reads the clock. */
   today: string;
@@ -87,6 +101,8 @@ export interface PlanInput {
   resources: PlanResource[];
   workItems: PlanWorkItem[];
   baseline?: PlanBaseline | null;
+  /** People's days away. Without any, everyone works on the plan's calendar. */
+  absences?: PlanAbsence[];
 }
 
 /** A what-if change to one task; nothing is saved. */
@@ -208,7 +224,10 @@ export interface WhatIfAnalysis {
 export interface ResourceLoadDay {
   date: string;
   hours: number;
+  /** Hours they can work that day: their capacity, half of it on a half day away, 0 on a day away. */
   capacity: number;
+  /** Whether they're away that day, and for which part of it. */
+  away: AwayPart | null;
   tasks: { issue: string; hours: number }[];
 }
 
