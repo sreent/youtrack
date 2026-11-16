@@ -25,6 +25,15 @@ One file per language in `packages/shared/i18n/`: `en.json`, `de.json`. Each hol
 
 Messages are whole sentences where English could make them so, but some are pieces a page puts together: "{who} {did}" in an email, "an issue is created" after "When". The key's prefix says where a piece goes; read the pieces of one prefix together.
 
+What the code gives a message is never English words to choose by:
+
+- **Counts are the message's own plural.** "Apply to {n, plural, one {# issue} other {# issues}}": inflect the noun as the sentence needs ("von # Vorgängen"), and agree the verb with it.
+- **Choices are codes.** `{who, select, you {…} other {…}}` (you, or a person by `{name}`), `{target, select, resolution {…} other {…}}`, `{joined, select, yes {…} other {…}}`: word each option in your language; `other` takes whatever else comes.
+- **Lists come joined** by the language's own list (Intl.ListFormat): "A, B und C", "A、B、C". Don't add "and" around a `{join}`, `{actions}` or `{states}`.
+- **A role is its name alone** outside English, "ist jetzt {role}": English alone adds "a" or "an". A built-in role's name is a message (`roles.builtin.*`); one people made stays as named.
+- **A rule is one sentence** per kind (`rules.words.whenSentence`, `rules.words.scheduleSentence`): put its parts in your order.
+- **Sizes and numbers** come from Intl ("12,3 MB", "12,3 Mo"), never from the catalog.
+
 ## The voice
 
 a4a writes as it does in English: short sentences, plain words, the thing named rather than described, no exclamation marks, no "please" except where something is asked of someone. It says what happened and what to do next.
