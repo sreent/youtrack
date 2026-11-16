@@ -191,6 +191,8 @@ export const fieldValues = pgTable(
     ordinal: integer('ordinal').notNull().default(0),
     isResolved: boolean('is_resolved').notNull().default(false),
     archived: boolean('archived').notNull().default(false),
+    /** An owned field's value: who owns it, and is assigned an issue given it while it has nobody (D41). */
+    ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [index('field_values_field').on(t.fieldId)],
 );
@@ -207,6 +209,8 @@ export const projectFields = pgTable(
     ordinal: integer('ordinal').notNull().default(0),
     required: boolean('required').notNull().default(false),
     defaultValue: jsonb('default_value'),
+    /** A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always. */
+    condition: text('condition'),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.fieldId] })],
 );
@@ -231,6 +235,8 @@ export const issues = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
     resolvedAt: ts('resolved_at'),
     version: integer('version').notNull().default(1),
+    /** How many people voted for it (issue_votes), kept here so sorting by it reads nothing else (D41). */
+    votes: integer('votes').notNull().default(0),
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(summary, '')), 'A') || setweight(to_tsvector('english', coalesce(description, '')), 'B')`,
     ),
@@ -259,11 +265,16 @@ export const issueFieldValues = pgTable(
     textValue: text('text_value'),
     numberValue: doublePrecision('number_value'),
     dateValue: date('date_value', { mode: 'string' }),
+    /** A group field's value (D41). */
+    groupId: text('group_id').references((): AnyPgColumn => groups.id, { onDelete: 'cascade' }),
+    /** A date-and-time field's value, an instant (D41). */
+    timeValue: ts('time_value'),
   },
   (t) => [
     index('ifv_issue_field').on(t.issueId, t.fieldId),
     index('ifv_field_value').on(t.fieldId, t.valueId),
     index('ifv_field_user').on(t.fieldId, t.userId),
+    index('ifv_field_group').on(t.fieldId, t.groupId),
   ],
 );
 
@@ -1710,4 +1721,65 @@ export const providerLogins = pgTable(
     createdAt: created(),
   },
   (t) => [uniqueIndex('provider_logins_once').on(t.provider, t.matchKey), index('provider_logins_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Issues and fields (package 5: docs/architecture.md, D41)
+// ---------------------------------------------------------------------------
+
+/**
+ * The ids an issue had before it moved: (its old project, its old number) still finds it, in
+ * addresses, the API, MCP, Markdown and commit messages. A project's numbers are never given out
+ * twice, so an alias never meets a live issue.
+ */
+export const issueAliases = pgTable(
+  'issue_aliases',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    movedById: text('moved_by_id').references(() => users.id, { onDelete: 'set null' }),
+    movedAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.number] }), index('issue_aliases_issue').on(t.issueId)],
+);
+
+/** Who voted for an issue; issues.votes counts them. */
+export const issueVotes = pgTable(
+  'issue_votes',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.userId] }), index('issue_votes_user').on(t.userId)],
+);
+
+/**
+ * A reaction to an issue's description (`target_id` is the issue's id) or to a comment (the
+ * comment's), from a fixed set (REACTIONS). `issue_id` is the issue either way, for access.
+ */
+export const reactions = pgTable(
+  'reactions',
+  {
+    targetKind: text('target_kind').notNull(),
+    targetId: text('target_id').notNull(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    emoji: text('emoji').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.targetKind, t.targetId, t.emoji, t.userId] }), index('reactions_issue').on(t.issueId)],
 );

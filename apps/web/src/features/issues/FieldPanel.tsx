@@ -1,9 +1,10 @@
 import type { FieldValue, IssueDetail, IssueField, ProjectField, User } from '@a4a/shared';
-import { isOwnAgent } from '@a4a/shared/constants';
+import { isOptionType, isOwnAgent } from '@a4a/shared/constants';
 import { formatPeriod } from '@a4a/shared/periods';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Avatar, Who } from '../../components/Who';
+import { ApiError } from '../../api/client';
 import { errorText, useUpdateIssue } from './api';
 import { isOption, isPeriod, isUser } from './fields';
 import { ErrorLine } from '../../components/States';
@@ -34,6 +35,20 @@ function optionView(field: ProjectField, v: { name: string; tone: FieldValue['to
   if (field.type === 'state') return <Badge tone={v.tone}>{v.name}</Badge>;
   if (isMeter(field)) return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} wordId={wordId} />;
   return <>{v.name}</>;
+}
+
+/** A moment in the reader's own time: "20 Nov 2026, 15:30". */
+function formatMoment(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/** A moment as a datetime-local input takes it, in the reader's own time. */
+function localInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function formatDate(iso: string): string {
@@ -183,7 +198,7 @@ function TextValue({
   labelId: string;
   initial: string;
   mono?: boolean;
-  type: 'text' | 'date';
+  type: 'text' | 'date' | 'datetime-local';
   placeholder: string;
   proposedId?: string;
   onSave: (v: string) => Promise<void>;
@@ -204,10 +219,10 @@ function TextValue({
 
   // A date reads as words at rest ("No due date", "12 Nov 2026") and becomes a date field to change it.
   // At rest it's a button, so, like a choice, it's named by its label and the words it shows.
-  if (type === 'date' && !editingDate) {
+  if ((type === 'date' || type === 'datetime-local') && !editingDate) {
     return (
       <button type="button" className={cls} id={ownId} aria-labelledby={`${labelId} ${ownId}`} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
-        {initial ? formatDate(initial) : <span className="empty">{placeholder}</span>}
+        {initial ? (type === 'date' ? formatDate(initial) : formatMoment(initial)) : <span className="empty">{placeholder}</span>}
       </button>
     );
   }
@@ -219,7 +234,7 @@ function TextValue({
       aria-describedby={proposedId}
       value={text}
       placeholder={placeholder}
-      autoFocus={type === 'date'}
+      autoFocus={type !== 'text'}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         void save();
@@ -270,11 +285,21 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
   const [busy, setBusy] = useState<string | null>(null);
   const byId = new Map(issue.fields.map((f) => [f.fieldId, f]));
 
+  // A change refused for a field it makes required (D41) waits here for that field's value.
+  const [waiting, setWaiting] = useState<{ fields: Record<string, string | string[] | null>; need: string } | null>(null);
   const set = async (name: string, value: string | string[] | null) => {
     setErrors((e) => ({ ...e, [name]: '' }));
+    const fields = waiting && waiting.need === name ? { ...waiting.fields, [name]: value } : { [name]: value };
     try {
-      await update({ fields: { [name]: value } });
+      await update({ fields });
+      setWaiting(null);
     } catch (e) {
+      const need = e instanceof ApiError ? (e.details as { requiredField?: string } | undefined)?.requiredField : undefined;
+      if (need && need !== name) {
+        setWaiting({ fields, need });
+        setErrors((x) => ({ ...x, [need]: `${errorText(e)}: choose it, and ${Object.keys(fields).join(' and ')} change${Object.keys(fields).length > 1 ? '' : 's'} with it.` }));
+        return;
+      }
       setErrors((x) => ({ ...x, [name]: errorText(e) }));
       throw e;
     }
@@ -294,7 +319,8 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
 
   // People, and agents an administrator added; a4a's own agents take no work (D34).
   const people = users.filter((u) => !u.banned && !isOwnAgent(u));
-  const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal);
+  // A field with a condition shows only while the issue matches it, or while a change waits for it.
+  const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal).filter((pf) => byId.get(pf.fieldId)?.applies !== false || waiting?.need === pf.name);
 
   return (
     <aside className="fields" aria-label={`Fields of ${issue.id}`}>
@@ -312,8 +338,13 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
           const proposedId = proposal ? `${labelId}-proposed` : undefined;
           let control: React.ReactNode;
 
-          if (pf.type === 'enum' || pf.type === 'state' || pf.type === 'version') {
-            const chosenValues = f?.value === null || f?.value === undefined ? [] : Array.isArray(f.value) ? f.value.filter(isOption) : isOption(f.value) ? [f.value] : [];
+          if (isOptionType(pf.type) || pf.type === 'group') {
+            const raw: unknown[] = f?.value === null || f?.value === undefined ? [] : Array.isArray(f.value) ? f.value : [f.value];
+            // A group is named, without a tone or an order of its own.
+            type Shown = { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean };
+            const chosenValues = raw.flatMap((v): Shown[] =>
+              isOption(v) ? [v] : typeof v === 'object' && v !== null && 'name' in v ? [{ name: String((v as { name: unknown }).name), tone: null, ordinal: 0, isResolved: false }] : [],
+            );
             const chosen = new Set(chosenValues.map((v) => v.name));
             const values = pf.values.filter((v) => !v.archived || chosen.has(v.name));
             const shown = proposal ? values.find((v) => v.name === proposal.value) : null;
@@ -344,7 +375,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
                   ...values.map((v) => {
-                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined;
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : v.owner ? v.owner.name : undefined;
                     return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
                   }),
                 ]}
@@ -380,6 +411,20 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                   })),
                 ]}
                 onPick={(keys) => void set(pf.name, keys[0] || null).catch(() => {})}
+              />
+            );
+          } else if (pf.type === 'datetime') {
+            const iso = typeof f?.value === 'string' ? f.value : '';
+            control = !canEdit ? (
+              <span className="fields-value">{iso ? formatMoment(iso) : <span className="empty">{emptyWords(pf.name)}</span>}</span>
+            ) : (
+              <TextValue
+                labelId={labelId}
+                initial={iso ? localInput(iso) : ''}
+                type="datetime-local"
+                placeholder={emptyWords(pf.name)}
+                proposedId={proposedId}
+                onSave={(v) => set(pf.name, v === '' ? null : new Date(v).toISOString())}
               />
             );
           } else {

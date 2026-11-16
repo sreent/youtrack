@@ -1,4 +1,4 @@
-import { parsePeriod, type QueryProblem } from '@a4a/shared';
+import { parsePeriod, type QueryProblem, isOptionType } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { issues } from '../db/schema';
 import { isISODate, parseDateExpression, type DateRange } from '../lib/dates';
@@ -155,7 +155,7 @@ class Compiler {
     // Option values (e.g. #Critical, #Bug, #{In Progress})
     const matches: SQL[] = [];
     for (const f of s.fields.values()) {
-      if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+      if (!isOptionType(f.type)) continue;
       const ids = (s.valuesByField.get(f.id) ?? []).filter((v) => v.name.toLowerCase() === lower).map((v) => v.id);
       if (ids.length) matches.push(this.optionIn(f.id, ids));
     }
@@ -237,7 +237,9 @@ class Compiler {
       switch (field.type) {
         case 'enum':
         case 'state':
-        case 'version': {
+        case 'version':
+        case 'build':
+        case 'owned': {
           if (v.kind === 'range') {
             this.problem(`Ranges are not supported for ${field.name}`, v.span);
             return null;
@@ -307,6 +309,30 @@ class Compiler {
           if (range.to) conds.push(sql`ifv.date_value < ${range.to}`);
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
         }
+        case 'datetime': {
+          // A moment, asked about by the day: the asker's days (D41).
+          const range = this.dateRange(v, field.name);
+          if (!range) return FALSE;
+          this.readsDates = true;
+          const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`, sql`ifv.time_value IS NOT NULL`];
+          if (range.from) conds.push(sql`ifv.time_value >= ${this.midnight(range.from)}`);
+          if (range.to) conds.push(sql`ifv.time_value < ${this.midnight(range.to)}`);
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
+        }
+        case 'group': {
+          if (v.kind === 'range') {
+            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            return null;
+          }
+          const g = s.groupsByName.get(v.raw.toLowerCase());
+          if (!g) {
+            const names = [...s.groups.values()].map((x) => x.name);
+            const guess = didYouMean(v.raw, names);
+            this.problem(`Unknown group "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'There are no groups yet.', guess);
+            return FALSE;
+          }
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.group_id = ${g.id})`;
+        }
       }
     });
   }
@@ -336,7 +362,8 @@ class Compiler {
       if (!silent) this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return silent ? null : FALSE;
     }
-    return sql`(${issues.projectId} = ${p.id} AND ${issues.number} = ${parsed.number})`;
+    // An id it had before it moved finds it too (D41).
+    return sql`((${issues.projectId} = ${p.id} AND ${issues.number} = ${parsed.number}) OR ${issues.id} IN (SELECT a.issue_id FROM issue_aliases a WHERE a.project_id = ${p.id} AND a.number = ${parsed.number}))`;
   }
 
   private issueIdSubquery(raw: string, span: Span): SQL | null {
@@ -346,7 +373,7 @@ class Compiler {
       this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return null;
     }
-    return sql`(SELECT x.id FROM issues x WHERE x.project_id = ${p.id} AND x.number = ${parsed.number})`;
+    return sql`(SELECT coalesce((SELECT x.id FROM issues x WHERE x.project_id = ${p.id} AND x.number = ${parsed.number}), (SELECT a.issue_id FROM issue_aliases a WHERE a.project_id = ${p.id} AND a.number = ${parsed.number})))`;
   }
 
   private tagCondition(lowerNames: string[]): SQL {
@@ -390,6 +417,7 @@ class Compiler {
         if (t.column === 'reporter') return sql`${issues.reporterId} = ${u.id}`;
         if (t.column === 'updatedBy') return sql`${issues.updatedById} = ${u.id}`;
         if (t.column === 'watcher') return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id} AND w.user_id = ${u.id})`;
+        if (t.column === 'voter') return sql`EXISTS (SELECT 1 FROM issue_votes iv WHERE iv.issue_id = ${issues.id} AND iv.user_id = ${u.id})`;
         return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.author_id = ${u.id})`;
       }
       case 'dateAttr': {
@@ -441,6 +469,27 @@ class Compiler {
         const conds: SQL[] = [];
         if (from !== null) conds.push(sql`${total} >= ${from}`);
         if (to !== null) conds.push(sql`${total} <= ${to}`);
+        return andAll(conds);
+      }
+      case 'votes': {
+        const count = (x: string | null): number | null | undefined => (x === null ? null : /^\d+$/.test(x.trim()) ? Number(x.trim()) : undefined);
+        if (v.kind === 'single') {
+          const n = count(v.raw);
+          if (n === undefined || n === null) {
+            this.problem(`"${v.raw}" is not a number of votes`, v.span, 'Use a number, e.g. votes: 3, or a range, e.g. votes: 5 .. *');
+            return FALSE;
+          }
+          return sql`${issues.votes} = ${n}`;
+        }
+        const from = v.from ? count(v.from) : null;
+        const to = v.to ? count(v.to) : null;
+        if (from === undefined || to === undefined) {
+          this.problem('Invalid range for votes', v.span, 'Use e.g. votes: 5 .. * or votes: 1 .. 3');
+          return FALSE;
+        }
+        const conds: SQL[] = [];
+        if (from !== null) conds.push(sql`${issues.votes} >= ${from}`);
+        if (to !== null) conds.push(sql`${issues.votes} <= ${to}`);
         return andAll(conds);
       }
       case 'links': {
@@ -503,6 +552,8 @@ class Compiler {
         return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id})`;
       case 'request':
         return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id})`;
+      case 'votes':
+        return sql`${issues.votes} > 0`;
     }
     const guess = didYouMean(raw, [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES]);
     this.problem(`Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
@@ -566,6 +617,8 @@ class Compiler {
         return sql`lower(${issues.summary})`;
       case 'spent time':
         return sql`(SELECT coalesce(sum(w.minutes), 0) FROM work_items w WHERE w.issue_id = ${issues.id})`;
+      case 'votes':
+        return sql`${issues.votes}`;
     }
     const field = fieldByName(this.cc.s, name);
     if (!field) return null;
@@ -573,11 +626,17 @@ class Compiler {
       case 'enum':
       case 'state':
       case 'version':
+      case 'build':
+      case 'owned':
         return sql`(SELECT min(fv.ordinal) FROM issue_field_values ifv JOIN field_values fv ON fv.id = ifv.value_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'user':
         return sql`(SELECT min(lower(u.login)) FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'date':
         return sql`(SELECT min(ifv.date_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+      case 'datetime':
+        return sql`(SELECT min(ifv.time_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+      case 'group':
+        return sql`(SELECT min(lower(g.name)) FROM issue_field_values ifv JOIN groups g ON g.id = ifv.group_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'string':
       case 'text':
         return sql`(SELECT min(lower(ifv.text_value)) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;

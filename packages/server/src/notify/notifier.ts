@@ -100,6 +100,7 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
       break;
     case 'link.created':
     case 'link.deleted':
+    case 'issue.moved':
       await watchers();
       break;
     case 'attachment.added':
@@ -122,7 +123,7 @@ async function recipientsOf(app: AppServices, event: TrackerEvent, issueId: stri
   return out;
 }
 
-const WATCHED_TYPES = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'];
+const WATCHED_TYPES = ['issue.created', 'issue.updated', 'issue.moved', 'issue.deleted', 'comment.created', 'comment.updated', 'link.created', 'link.deleted', 'attachment.added', 'attachment.removed'];
 const SEARCH_TYPES = new Set<string>(SEARCH_EVENT_TYPES);
 
 export function notifierConsumer(app: AppServices): OutboxConsumer {

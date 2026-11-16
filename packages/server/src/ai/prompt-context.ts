@@ -1,3 +1,4 @@
+import { isOptionType } from '@a4a/shared';
 import type { Ctx } from '../context';
 import { todayIn } from '../reports/tz';
 import { visibleSchema } from '../services/access';
@@ -32,13 +33,13 @@ function fieldLines(s: SchemaSnapshot, projectIds: string[]): string[] {
   for (const id of fieldIds) {
     const f = s.fields.get(id);
     if (!f) continue;
-    if (f.type === 'enum' || f.type === 'state' || f.type === 'version') {
+    if (isOptionType(f.type)) {
       const values = new Map<string, boolean>();
       for (const pid of projectIds) for (const v of allowedValues(s, f.id, pid)) values.set(v.name, v.isResolved);
       const list = [...values].map(([n, resolved]) => (resolved ? `${n} (resolved)` : n)).join(', ');
       out.push(`${f.name} (${f.type}${f.multi ? ', several' : ''}): ${list || '(no values)'}`);
     } else {
-      out.push(`${f.name} (${f.type}${f.type === 'period' ? ', e.g. 2d 4h' : f.type === 'date' ? ', YYYY-MM-DD' : ''})`);
+      out.push(`${f.name} (${f.type}${f.type === 'period' ? ', e.g. 2d 4h' : f.type === 'date' ? ', YYYY-MM-DD' : f.type === 'datetime' ? ', YYYY-MM-DD HH:mm' : f.type === 'group' ? ', a group name' : ''})`);
     }
   }
   return out;

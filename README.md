@@ -8,6 +8,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
+  - Fields can also hold groups, builds (a list CI can add to twice without harm), owned values (each Subsystem has an owner, who takes an issue about it that nobody has) and moments with a time, typed in your own time zone.
+  - A field can show, and be required, only while its issue matches a search: *Fixed in build*, while `State: Fixed`. Marking it Fixed asks for the build.
+- **Moving and cloning.** An issue moves to another project and takes its next number; its old id still finds it everywhere (addresses, the API, MCP, Markdown, commit messages). What doesn't carry over by name is asked for before anything moves. A clone copies its words, values and tags, linked back.
+- **Votes and reactions.** Vote for what you want (`sort by: votes desc`, `voter: me`), and react to a description or a comment with one of eight emoji.
 - **The query language**, as in YouTrack: `project: BACK #Unresolved for: me Priority: Critical, Major sort by: updated desc`.
   - Autocomplete as you type.
   - Problems are underlined where they are, with the fix one click away: *Unknown value "Fixd" for State · Did you mean Fixed?* The API gives agents the same fix as data.

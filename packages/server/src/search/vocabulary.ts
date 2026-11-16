@@ -1,3 +1,4 @@
+import { isOptionType } from '@a4a/shared';
 import type { FieldType } from '@a4a/shared';
 import { allowedValues, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 
@@ -7,7 +8,8 @@ export type TermKind =
   | { kind: 'project' }
   | { kind: 'issueId' }
   | { kind: 'textAttr'; column: 'summary' | 'description' }
-  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' | 'watcher' }
+  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' | 'watcher' | 'voter' }
+  | { kind: 'votes' }
   | { kind: 'sla' }
   | { kind: 'requester' }
   | { kind: 'dateAttr'; column: 'created' | 'updated' | 'resolved' }
@@ -48,6 +50,9 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   commenter: { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
   watcher: { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it (watcher: me)' },
   'watched by': { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it' },
+  voter: { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it (voter: me)' },
+  'voted by': { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it' },
+  votes: { name: 'votes', term: { kind: 'votes' }, valueType: 'integer', description: 'How many people voted for it (votes: 3 .. *)' },
   sla: { name: 'sla', term: { kind: 'sla' }, valueType: 'sla', description: 'A help desk request against its first-response target' },
   requester: { name: 'requester', term: { kind: 'requester' }, valueType: 'string', description: 'Who asked, through the help desk: an email or a name' },
   'commented by': { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
@@ -64,7 +69,7 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   links: { name: 'links', term: { kind: 'links' }, valueType: 'issue', description: 'Linked to an issue in any way' },
 };
 
-export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request'];
+export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request', 'votes'];
 
 /** sla: values: waiting within the target, waiting past it, answered within it, answered after it. */
 export const SLA_VALUES = ['overdue', 'due', 'met', 'missed'];
@@ -125,10 +130,11 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
       const t = def.term;
       if (t.kind === 'custom') {
         if (t.field.type === 'user') return userNames();
-        if (t.field.type === 'enum' || t.field.type === 'state' || t.field.type === 'version') {
+        if (isOptionType(t.field.type)) {
           return [...new Set(allowedValues(s, t.field.id, null).map((v) => v.name))];
         }
-        if (t.field.type === 'date') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d', 'Overdue'];
+        if (t.field.type === 'date' || t.field.type === 'datetime') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d', 'Overdue'];
+        if (t.field.type === 'group') return [...s.groups.values()].map((g) => g.name);
         return [];
       }
       switch (t.kind) {
@@ -152,4 +158,4 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
   };
 }
 
-export const SORT_ATTRIBUTES = ['created', 'updated', 'resolved date', 'summary', 'issue id', 'spent time'];
+export const SORT_ATTRIBUTES = ['created', 'updated', 'resolved date', 'summary', 'issue id', 'spent time', 'votes'];

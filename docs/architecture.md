@@ -387,7 +387,7 @@ An article's id can't be read as an issue's, and the reverse:
 
 **Search.** As for issues: a generated `tsvector` (title weighted A, body B) with prefix matching, and trigram word similarity on titles for near misses, with `ts_headline` snippets whose matches are marked.
 
-**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), since readable ids are permanent; a mention of an article written before the article exists counts once it does.
+**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), or as it reads now for an issue that has moved (D41); a mention of an article written before the article exists counts once it does.
 
 - An article's mentions are written in the transaction that saves it.
 - An issue's description and its comments are read by an outbox consumer, from the events their write path already records. So `applyChanges` needs to know nothing of the knowledge base.
@@ -920,6 +920,35 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 
 **Revisit when:** people work part time on a pattern (every Friday off), which wants each person's own working week rather than an absence a week; or days away should come from an HR system (iCal or its API), as the same rows.
 
+### D41. Issues move, clone, take votes and reactions, and fields gain kinds and conditions
+
+An issue can now leave its project, be copied, gather votes and reactions, and hold four more kinds of value. A field can be one a project shows only while its issue matches a search.
+
+- **Moving.** An issue moves to another project and takes that project's next number, as a new issue would.
+  - The id it had stays its own: `issue_aliases` keeps (old project, old number), so `BACK-12` still finds it in addresses, the API, MCP, Markdown and commit messages. `findIssue` falls back to the aliases, and the query language's ids (`issue id: BACK-12`, a bare `BACK-12`, `depends on: BACK-12`) read them too. A project never gives a number out twice, so an alias never meets a live issue. The web app shows the id it has now, and says which it had.
+  - Mentions follow it: what named its old id names its new one, and an old id written later is recorded as the new.
+  - Its values carry over by name: the same value where the other project has it, else one of the same name. Whatever doesn't carry is a problem with its fix, raised before anything moves: a value the other project lacks (with the ones it has), a person who can't see it, a field it requires and the issue lacks. The caller gives a value, or null, for each and asks again. `dryRun` shows the problems and what each field will hold. Fields the other project doesn't have are left behind, and said so.
+  - It leaves the sprints of boards that show none of the project it joins. Comments, files, work, links, votes and watchers go with it.
+  - It changes both projects, so it takes the right to change issues in both. It's one event, `issue.moved`, in the project it joins; its watchers are told.
+  - A move isn't a change of fields: rules and guards don't judge it, and the history says what each field held before.
+- **Cloning** copies the summary, description, values and tags into a new issue, in the same project or another, with a `clones` link back (a link type, Clone, made on start-up where it's missing) and the same parent. Comments, files, work, votes, reactions, watchers and other links stay with the original. In another project, values it lacks are left to its defaults. The person cloning is the reporter: it takes reading the original and filing in the project.
+- **Votes.** Anyone who may comment may vote for an issue, once, except its reporter, who said so by reporting it. `issues.votes` keeps the count, so `sort by: votes desc` reads nothing else. `votes: 5 .. *`, `voter: me` and `has: votes` search them.
+- **Reactions** are a fixed set of eight emoji on a description or a comment. Toggling one adds it or takes it back; each says how many and who.
+- Neither votes nor reactions change the issue: no version, no history, nobody told. They say how much people care, and that's all.
+- **New kinds of field.** Each works in fields, commands, the query language, imports, counts by field and MCP.
+  - A *group* field holds groups (D27) by name, and offers every group as its choices.
+  - A *build* field is a list of builds, as a version field is a list of versions. Adding a build that's there already returns it, so CI can report each build it makes, maybe twice; reporting them is CI's, later.
+  - An *owned* field's values each have an owner: Subsystem, on a new installation. Given a value whose owner can see the project, an issue nobody has goes to the owner in the same change, unless the change says who has it. An enum field becomes owned, and back.
+  - A *date and time* is an instant. It's typed in the person's own time zone (D31), or with an offset, or as `+2h`, `now` or `tomorrow 09:30`. Searches ask about it by the day, in the asker's days. History and email show it in UTC, the same for every reader.
+- **Conditional fields.** A project's field can carry a condition, a search in the project's own words (`State: Fixed`), checked when it's saved, as a rule's are.
+  - While the issue matches it, the field shows, and is required if the project requires it. While it doesn't, the field is hidden and nothing asks for it. An issue's fields say whether each applies now.
+  - Required while a condition holds works as a guard does. A change that leaves the field empty while the condition holds is refused, unless that was so already before the change. A new issue needs every one. The web app asks for the field, and makes the change with it.
+  - A condition that no longer reads (a value renamed since) holds always: the field behaves as though it had none.
+
+**What it costs.** An issue's page reads its aliases, its votes and its reactions, and answers all its fields' conditions in one query. A list reads none of these: `votes` is on the issue's row.
+
+**Revisit when:** CI reports builds itself (a token per pipeline, posting to `/fields/{id}/values`); or a project's key can be renamed, which is an alias for each of its issues.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1000,7 +1029,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time. One from an API reads up to 50,000 issues, each page of its answers 64 MB at most, and waits out a `Retry-After` of up to ten minutes at a time.
 - **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
-- **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
+- **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). Project keys can't be renamed: that would be an alias for each of their issues.
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 - **One shared help desk mailbox,** read once a minute by default; desks are told apart by the address mail was sent to, and a desk's replies need its mail server to deliver plus addresses (D30).
 
@@ -1012,4 +1041,5 @@ Planned, with the seams already in place:
 - client ID metadata documents for MCP clients, beside registration, and asking for writing only when a tool needs it (D28);
 - people connecting their own accounts at version control providers, rather than an administrator recording their logins (D33);
 - subscriptions by kind of change (only resolutions, only comments), and being told what time alone brings into a saved search (an issue becoming overdue) (D31);
-- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36).
+- each person's own working week (part time, every Friday off), and days away from an HR calendar (D36);
+- CI reporting builds to a build field on its own, with a token per pipeline (D41).

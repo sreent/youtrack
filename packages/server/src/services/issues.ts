@@ -46,6 +46,9 @@ import {
   type SchemaSnapshot,
 } from './schema-cache';
 import { ensureTags, tagDto } from './tags';
+import { issueIdByAlias, formerIdsOf } from './aliases';
+import { enforceRequiredWhen, fieldsApplying, missingNow, requiredWhen } from './conditions';
+import { hasVoted, reactionsOf } from './votes';
 import { todayIn } from '../reports/tz';
 import { zoneOf } from './time-zones';
 import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
@@ -58,6 +61,8 @@ import {
   rowToResolved,
   sameValues,
   userRefDto,
+  ownerOfNew,
+  valueRow,
   type ResolvedValue,
 } from './values';
 
@@ -76,7 +81,12 @@ export async function findIssue(db: Db, s: SchemaSnapshot, idOrReadable: string)
       .select()
       .from(issues)
       .where(and(eq(issues.projectId, project.id), eq(issues.number, parsed.number)));
-    return row;
+    if (row) return row;
+    // An id it had before it moved still finds it (D41).
+    const moved = await issueIdByAlias(db, project.id, parsed.number);
+    if (!moved) return undefined;
+    const [now] = await db.select().from(issues).where(eq(issues.id, moved));
+    return now;
   }
   const [row] = await db.select().from(issues).where(eq(issues.id, idOrReadable.trim()));
   return row;
@@ -179,6 +189,7 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
         .filter((t): t is NonNullable<typeof t> => Boolean(t))
         .map(tagDto),
       commentCount: counts.get(r.id) ?? 0,
+      votes: r.votes,
     };
   });
 }
@@ -232,8 +243,20 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
   const parentLink = links.find((l) => aggregation.has(l.typeId) && l.direction === 'inward');
   const subtasks = links.filter((l) => aggregation.has(l.typeId) && l.direction === 'outward').map((l) => l.issue);
   const updatedBy = row.updatedById ? s.users.get(row.updatedById) : undefined;
+  const me = ctx.actor.user.id;
+  const [voted, reactionMap, formerIds, applying] = await Promise.all([
+    hasVoted(ctx.db, row.id, me),
+    reactionsOf(ctx.db, s, row.id, me),
+    formerIdsOf(ctx.db, s, row.id),
+    fieldsApplying(ctx.db, s, row.projectId, row.id),
+  ]);
   return {
     ...base!,
+    // A field with a condition says whether it applies now; the others always do (D41).
+    fields: base!.fields.map((f) => (applying.has(f.fieldId) ? { ...f, applies: applying.get(f.fieldId)! } : f)),
+    voted,
+    reactions: reactionMap.get(`issue:${row.id}`) ?? [],
+    formerIds,
     description: row.description,
     updatedBy: updatedBy ? userRefDto(updatedBy) : null,
     links,
@@ -266,6 +289,8 @@ export function resolveFieldsInput(
   meId: string,
   /** "today" for dates typed as words, where whoever asks is (D31). */
   today?: string,
+  /** Where a moment typed without an offset is read (D41). */
+  zone?: string,
 ): FieldChangeSpec[] {
   if (!input) return [];
   const attached = new Set((s.projectFields.get(project.id) ?? []).map((pf) => pf.fieldId));
@@ -276,7 +301,7 @@ export function resolveFieldsInput(
       const names = projectFieldList(s, project.id).map((f) => f.name);
       throw badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`);
     }
-    out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId, today) });
+    out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId, today, zone) });
   }
   return out;
 }
@@ -390,13 +415,20 @@ export async function applyChanges(
     const after = mergeValues(fs.field, before, fs);
     if (sameValues(before, after)) continue;
     const pf = pfs.find((p) => p.fieldId === fs.field.id);
-    if (pf?.required && after.length === 0) throw badRequest(`${fs.field.name} is required in ${project.key}`);
+    if (pf?.required && !pf.condition && after.length === 0) throw badRequest(`${fs.field.name} is required in ${project.key}`);
     if (fs.field.type === 'user') {
       const added = after.map((v) => v.userId).filter((id): id is string => Boolean(id) && !before.some((b) => b.userId === id));
       await assertPeopleSeeProject(tx, s, project, fs.field, added);
     }
     fieldUpdates.push({ field: fs.field, values: after });
     changes.push({ field: fs.field.name, from: presentValues(s, fs.field, before), to: presentValues(s, fs.field, after) });
+  }
+  // An owned field's value given to an issue nobody has: the value's owner takes it, in the same
+  // change, unless the change says who does (D41).
+  const owned = await ownerAssignment(tx, s, project, spec.fields ?? [], current, fieldUpdates);
+  if (owned) {
+    fieldUpdates.push(owned);
+    changes.push({ field: owned.field.name, from: null, to: presentValues(s, owned.field, owned.values) });
   }
 
   const patch: Partial<typeof issues.$inferInsert> = {};
@@ -485,13 +517,16 @@ export async function applyChanges(
   // An import's changes are history: the guards, made for new work, don't judge them.
   const guards = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : guardChecks(ctx, s, issue.projectId);
   const heldBefore = guards.length ? await guardsHeld(tx, guards, issue.id) : [];
+  // Fields required while a condition holds, and which were missing already (D41).
+  const needs = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : requiredWhen(s, issue.projectId);
+  const missingBefore = needs.length ? await missingNow(tx, issue.id, needs) : [];
 
   // ---- write ---------------------------------------------------------------
   const activities: ActivityRow[] = [];
   for (const u of fieldUpdates) {
     await tx.delete(issueFieldValues).where(and(eq(issueFieldValues.issueId, issue.id), eq(issueFieldValues.fieldId, u.field.id)));
     if (u.values.length) {
-      await tx.insert(issueFieldValues).values(u.values.map((v) => ({ issueId: issue.id, fieldId: u.field.id, ...v })));
+      await tx.insert(issueFieldValues).values(u.values.map((v) => ({ issueId: issue.id, fieldId: u.field.id, ...valueRow(v) })));
     }
   }
   let addedTags: string[] = [];
@@ -653,9 +688,32 @@ export async function applyChanges(
 
   // Everything is written and nothing is committed: a change that breaks a guard is refused here,
   // and the caller's transaction takes all of it back.
+  await enforceRequiredWhen(tx, issue.id, needs, missingBefore);
   await enforceGuards(tx, ctx, s, guards, heldBefore, updated!);
 
   return { changes, activities, issue: updated! };
+}
+
+/**
+ * The assignee an owned field's change brings (D41): when the issue has nobody, the change doesn't
+ * say who, and a value it gains has an owner who can see the project.
+ */
+async function ownerAssignment(
+  db: Db,
+  s: SchemaSnapshot,
+  project: ProjectRow,
+  specs: { field: FieldRow }[],
+  current: Map<string, ResolvedValue[]>,
+  updates: { field: FieldRow; values: ResolvedValue[] }[],
+): Promise<{ field: FieldRow; values: ResolvedValue[] } | null> {
+  const assignee = assigneeFieldOf(s);
+  if (!assignee || !(s.projectFields.get(project.id) ?? []).some((pf) => pf.fieldId === assignee.id)) return null;
+  if (specs.some((sp) => sp.field.id === assignee.id) || current.get(assignee.id)?.length) return null;
+  for (const u of updates) {
+    const owner = ownerOfNew(s, u.field, current.get(u.field.id) ?? [], u.values);
+    if (owner && (await whoSees(db, s, project.id, [owner.login])).has(owner.login.toLowerCase())) return { field: assignee, values: [{ userId: owner.id }] };
+  }
+  return null;
 }
 
 function isCommentOnly(spec: ChangeSpec): boolean {
@@ -724,6 +782,8 @@ export interface CreateOptions {
   data?: Record<string, unknown>;
   /** More to write in the creating transaction, once the issue exists (services/helpdesk.ts). */
   inTransaction?: (tx: Db, row: IssueRow) => Promise<void>;
+  /** Values it takes as they are, already resolved: a clone's (services/move.ts). Given fields win. */
+  carry?: { field: FieldRow; values: ResolvedValue[] }[];
 }
 
 interface PreparedIssue {
@@ -739,7 +799,7 @@ interface PreparedIssue {
 }
 
 /** Everything a new issue needs, checked, before anything is written. Reads through `db`. */
-async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<PreparedIssue> {
+async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: CreateOptions['carry'] = []): Promise<PreparedIssue> {
   const s = await ctx.app.schema.get(db);
   const view = await projectAccess(ctx, db);
   const project = projectByKey(s, input.project);
@@ -754,7 +814,11 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
   if (!summary) throw badRequest('Summary cannot be empty');
 
   const today = todayIn(zoneOf(ctx));
-  const specs = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, today);
+  const given = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, today, zoneOf(ctx));
+  const specs = [
+    ...given,
+    ...carry.filter((c) => !given.some((g) => g.field.id === c.field.id)).map((c) => ({ field: c.field, mode: 'set' as const, values: c.values })),
+  ];
   const pfs = s.projectFields.get(project.id) ?? [];
   const values = new Map<string, ResolvedValue[]>();
   for (const pf of pfs) {
@@ -763,9 +827,23 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db): Promise<
     const given = specs.find((sp) => sp.field.id === field.id);
     if (given) values.set(field.id, given.values);
     else if (pf.defaultValue !== null && pf.defaultValue !== undefined) {
-      values.set(field.id, resolveFieldInput(s, field, project.id, pf.defaultValue as string | string[], ctx.actor.user.id, today));
+      values.set(field.id, resolveFieldInput(s, field, project.id, pf.defaultValue as string | string[], ctx.actor.user.id, today, zoneOf(ctx)));
     }
-    if (pf.required && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
+  }
+  const owned = await ownerAssignment(
+    db,
+    s,
+    project,
+    specs,
+    new Map(),
+    [...values.entries()].flatMap(([fid, vals]) => (s.fields.get(fid) ? [{ field: s.fields.get(fid)!, values: vals }] : [])),
+  );
+  if (owned) values.set(owned.field.id, owned.values);
+  for (const pf of pfs) {
+    const field = s.fields.get(pf.fieldId);
+    if (!field) continue;
+    // A field required only while a condition holds is checked once the issue is written (D41).
+    if (pf.required && !pf.condition && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
     if (field.type === 'user') {
       await assertPeopleSeeProject(db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
     }
@@ -812,7 +890,7 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
       resolvedAt: p.resolved ? (imported ? (imported.resolvedAt ?? imported.updatedAt) : now) : null,
     })
     .returning();
-  const fieldRowsToInsert = [...values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: id, fieldId, ...v })));
+  const fieldRowsToInsert = [...values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: id, fieldId, ...valueRow(v) })));
   if (fieldRowsToInsert.length) await tx.insert(issueFieldValues).values(fieldRowsToInsert);
 
   const fieldsPresentation: Record<string, string | null> = {};
@@ -882,6 +960,7 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
   }
   // A new issue has no "before": it must keep every guard it matches, or it isn't made at all.
   // An imported one is history, which the team's guards, made for new work, don't judge.
+  if (!imported) await enforceRequiredWhen(tx, issue.id, requiredWhen(s, project.id), null);
   if (!imported) await enforceGuards(tx, ctx, s, guardChecks(ctx, s, project.id), null, issue);
   await opts.inTransaction?.(tx, issue);
   return { issue, activities };
@@ -889,7 +968,7 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
 
 export async function createIssue(ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<IssueDetail> {
   requireScope(ctx, 'write');
-  const prepared = await prepareIssue(ctx, input, ctx.db);
+  const prepared = await prepareIssue(ctx, input, ctx.db, opts.carry);
   const { issue: created, activities } = await ctx.db.transaction(async (txRaw) => insertIssue(txRaw as unknown as Db, ctx, prepared, opts));
   await publishActivities(ctx.app, activities);
   ctx.app.hooks.onIssueCreated?.(created.id, ctx.actor);
@@ -903,7 +982,7 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput, opts: Creat
  */
 export async function createIssueInTx(tx: Db, ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<{ issue: IssueRow; activities: ActivityRow[] }> {
   requireScope(ctx, 'write');
-  return insertIssue(tx, ctx, await prepareIssue(ctx, input, tx), opts);
+  return insertIssue(tx, ctx, await prepareIssue(ctx, input, tx, opts.carry), opts);
 }
 
 export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateIssueInput, opts: { data?: Record<string, unknown> } = {}): Promise<IssueDetail> {
@@ -914,7 +993,7 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
   const spec: ChangeSpec = {
     summary: input.summary,
     description: input.description,
-    fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx))),
+    fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx)), zoneOf(ctx)),
     addTags: input.addTags,
     removeTags: input.removeTags,
     expectedVersion: input.expectedVersion,

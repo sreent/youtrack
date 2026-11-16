@@ -11,6 +11,7 @@ import type { Db } from '../db/client';
 import { comments, issues, mentions } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { visibleProjectIds } from './access';
+import { currentIds } from './aliases';
 import { articleRefsById } from './article-refs';
 import { findIssue } from './issues';
 import { issueRefsById, readableId } from './issue-refs';
@@ -32,7 +33,11 @@ export async function indexMentions(db: Db, s: SchemaSnapshot, source: MentionSo
   await db.delete(mentions).where(and(eq(mentions.sourceType, source.type), eq(mentions.sourceId, source.id)));
   const seen = new Set<string>();
   const rows: (typeof mentions.$inferInsert)[] = [];
-  for (const ref of findRefs(text)) {
+  const refs = findRefs(text);
+  // An id an issue had before it moved names the issue by the id it has now (D41).
+  const now = await currentIds(db, s, refs.filter((r) => r.kind === 'issue').map((r) => r.id));
+  for (const found of refs) {
+    const ref = found.kind === 'issue' && now.get(found.id) !== found.id ? { ...found, id: now.get(found.id)! } : found;
     if (seen.has(ref.id) || ref.id === self?.toUpperCase() || !s.projectsByKey.has(ref.key)) continue;
     seen.add(ref.id);
     rows.push({

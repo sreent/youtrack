@@ -13,6 +13,7 @@ import { Markdown } from '../../components/Markdown';
 import { ErrorNote, Loading, ErrorLine } from '../../components/States';
 import { Avatar, type WhoKind } from '../../components/Who';
 import { errorText } from './api';
+import { ReactionBar } from './Moves';
 import { FormField } from '../../components/Form';
 import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
@@ -89,6 +90,8 @@ interface Entry {
   anchor?: string;
   /** A change an agent made on its own: its event, and whether a person can undo it (D34). */
   undo?: { event: number; state: NonNullable<TrackerEvent['undo']>['state']; note: string };
+  /** A comment's reactions, and its id to react to it (D41). */
+  reactions?: { id: string; list: Comment['reactions'] };
 }
 
 /** "undid claude's change": whose change an undo put back, from the history it's in. */
@@ -270,6 +273,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
     files,
     anchor: `comment-${c.id}`,
+    reactions: { id: c.id, list: c.reactions },
   };
 }
 
@@ -474,6 +478,7 @@ export function IssueHistory({
                 <div className={['history-comment', e.public ? 'public' : '', e.files?.length ? 'stack tight' : ''].filter(Boolean).join(' ')}>
                   <Markdown text={e.comment} />
                   {e.files?.length ? <CommentFiles files={e.files} /> : null}
+                  {e.reactions ? <ReactionBar reactions={e.reactions.list} path={`/comments/${e.reactions.id}/reactions`} issue={issue.id} canReact={canComment} /> : null}
                 </div>
               ) : null}
             </div>

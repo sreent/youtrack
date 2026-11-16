@@ -10,6 +10,8 @@ import { newId } from '../lib/ids';
 export const TRIAGE_BOT = 'triage';
 /** The agent that applies workflow rules. */
 export const WORKFLOW_BOT = 'workflow';
+/** The link type a clone links back to its original with (D41). */
+export const CLONE_LINK = { name: 'Clone', outward: 'clones', inward: 'is cloned by' } as const;
 
 const v = (name: string, tone: Tone | null = null, isResolved = false) => ({ name, tone, isResolved });
 
@@ -54,9 +56,10 @@ export async function ensureDefaults(db: Db): Promise<void> {
     await createFieldRaw(db, { name: WELL_KNOWN_FIELDS.assignee, type: 'user', ordinal: ordinal++, description: 'Who does the work.' });
     await createFieldRaw(db, {
       name: WELL_KNOWN_FIELDS.subsystem,
-      type: 'enum',
+      // Each part has an owner, who takes an issue about it that nobody has (D41).
+      type: 'owned',
       ordinal: ordinal++,
-      description: 'The part of the product. Each project has its own values.',
+      description: 'The part of the product, and who owns it. Each project has its own values.',
     });
     await createFieldRaw(db, {
       name: WELL_KNOWN_FIELDS.fixVersions,
@@ -79,6 +82,15 @@ export async function ensureDefaults(db: Db): Promise<void> {
       { id: newId(), name: 'Duplicate', outward: 'duplicates', inward: 'is duplicated by', directed: true, ordinal: 2 },
       { id: newId(), name: 'Subtask', outward: 'parent for', inward: 'subtask of', directed: true, aggregation: true, ordinal: 3 },
     ]);
+  }
+  // Clones came later: an installation from before gets the link type now.
+  const [clone] = await db.select({ id: linkTypes.id }).from(linkTypes).where(eq(linkTypes.name, CLONE_LINK.name));
+  if (!clone) {
+    const [{ max } = { max: 0 }] = await db.select({ max: sql<number>`coalesce(max(${linkTypes.ordinal}), -1)::int` }).from(linkTypes);
+    await db
+      .insert(linkTypes)
+      .values({ id: newId(), ...CLONE_LINK, directed: true, ordinal: Number(max) + 1 })
+      .onConflictDoNothing();
   }
 
   const [bot] = await db.select().from(users).where(eq(users.login, TRIAGE_BOT));

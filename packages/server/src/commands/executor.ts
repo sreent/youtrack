@@ -110,7 +110,7 @@ export async function commandSpec(
     switch (op.kind) {
       case 'field': {
         if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`);
-        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId, today));
+        const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId, today, zoneOf(ctx)));
         fields.push({ field: op.field, mode: op.mode, values });
         break;
       }
