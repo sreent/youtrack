@@ -20,6 +20,8 @@ const AgentsPage = lazy(() => import('../pages/AgentsPage'));
 const WebhooksPage = lazy(() => import('../pages/WebhooksPage'));
 const RulesPage = lazy(() => import('../pages/RulesPage'));
 const IntegrationsPage = lazy(() => import('../pages/IntegrationsPage'));
+const ChatPage = lazy(() => import('../pages/ChatPage'));
+const ChatLinkPage = lazy(() => import('../pages/ChatLinkPage'));
 const AdminPage = lazy(() => import('../pages/AdminPage'));
 const GroupPage = lazy(() => import('../pages/GroupPage'));
 const ProfilePage = lazy(() => import('../pages/ProfilePage'));
@@ -81,6 +83,8 @@ export function App() {
           <Route path="/rules" element={<Page><RulesPage /></Page>} />
           <Route path="/rules/:project" element={<Page><RulesPage /></Page>} />
           <Route path="/integrations" element={<Page><IntegrationsPage /></Page>} />
+          <Route path="/chat" element={<Page><ChatPage /></Page>} />
+          <Route path="/chat/link" element={<Page><ChatLinkPage /></Page>} />
           <Route path="/admin" element={<Page><AdminPage /></Page>} />
           <Route path="/groups/:id" element={<Page><GroupPage /></Page>} />
           <Route path="/me" element={<Page><ProfilePage /></Page>} />

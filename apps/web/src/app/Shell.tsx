@@ -50,6 +50,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/agents', label: 'Agents and tokens', icon: 'key' },
       { to: '/webhooks', label: 'Webhooks', icon: 'send', admin: true },
       { to: '/integrations', label: 'Integrations', icon: 'code', admin: true },
+      { to: '/chat', label: 'Chat', icon: 'chat', admin: true },
       { to: '/admin', label: 'Administration', icon: 'people', admin: true },
     ],
   },

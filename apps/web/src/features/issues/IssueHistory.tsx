@@ -43,6 +43,8 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
       return { kind: 'person', name: requester ?? 'The requester', via: 'via the help desk' };
     case 'web':
       return { kind: 'person', name: person, via: 'via the web' };
+    case 'chat':
+      return { kind: 'person', name: person, via: `via ${actor.token ?? 'chat'}` };
     case 'api':
       return { kind: 'service', name: actor.token ?? 'a script', forWhom: person, via: 'via the API' };
     case 'mcp':

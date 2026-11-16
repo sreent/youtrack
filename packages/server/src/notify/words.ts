@@ -15,6 +15,8 @@ export function actorName(e: TrackerEvent): string {
       return `assistant for ${person}`;
     case 'api':
       return e.actor.token ? `${e.actor.token} for ${person}` : person;
+    case 'chat':
+      return person;
     case 'system':
       return 'a4a';
     default:
