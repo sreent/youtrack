@@ -25,6 +25,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'work.deleted': 'logged work is removed',
   'ai.triage.completed': 'triage suggests changes',
   'baseline.created': 'a baseline is saved',
+  'sprint.issue_added': 'an issue joins a sprint',
+  'sprint.issue_removed': 'an issue leaves a sprint',
 };
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';

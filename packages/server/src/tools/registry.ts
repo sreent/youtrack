@@ -24,6 +24,7 @@ import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
+import { reportTools } from './reports';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
 import { defineTool, type ToolDef } from './types';
@@ -515,6 +516,7 @@ export const TOOLS: ToolDef[] = [
   unlinkIssuesTool,
   logWorkTool,
   ...planningTools,
+  ...reportTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

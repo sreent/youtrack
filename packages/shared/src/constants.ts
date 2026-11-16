@@ -46,6 +46,8 @@ export const EVENT_TYPES = [
   'work.deleted',
   'ai.triage.completed',
   'baseline.created',
+  'sprint.issue_added',
+  'sprint.issue_removed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

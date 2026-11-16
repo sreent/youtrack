@@ -3,9 +3,12 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprintIssues, sprints } from '../db/schema';
+import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { searchIssueRows } from '../search/service';
+import { assertCanWriteProject } from './access';
+import { issueRefsById } from './issue-refs';
 import { issueDtos } from './issues';
 import { resolveIssue } from './issues';
 import { allowedValues, fieldByName, projectByKey, type SchemaSnapshot } from './schema-cache';
@@ -313,16 +316,52 @@ export async function setSprintIssues(ctx: Ctx, sprintId: string, issueIds: stri
   const rows = await Promise.all(issueIds.map((id) => resolveIssue(ctx, id)));
   for (const r of rows) {
     if (!board.projectIds.includes(r.projectId)) throw badRequest('An issue from another project cannot join this board\'s sprint');
+    await assertCanWriteProject(ctx, r.projectId);
   }
-  if (remove) {
-    await ctx.db
-      .delete(sprintIssues)
-      .where(and(eq(sprintIssues.sprintId, sprintId), inArray(sprintIssues.issueId, rows.map((r) => r.id))));
-  } else {
-    await ctx.db
-      .insert(sprintIssues)
-      .values(rows.map((r) => ({ sprintId, issueId: r.id })))
-      .onConflictDoNothing();
-  }
+  const recorded = await ctx.db.transaction(async (txRaw) => changeSprintInTx(txRaw as unknown as Db, ctx, sprint, board, rows, remove));
+  await publishActivities(ctx.app, recorded);
   return (await sprintDtos(ctx.db, [sprint]))[0]!;
+}
+
+/**
+ * Issues join or leave a sprint inside `tx`. Who joined or left is history a burndown reads, so
+ * each change is recorded with it, at once; `data` is said in each activity (an import's origin).
+ */
+export async function changeSprintInTx(
+  tx: Db,
+  ctx: Ctx,
+  sprint: SprintRow,
+  board: BoardRow,
+  rows: { id: string; projectId: string }[],
+  remove: boolean,
+  data: Record<string, unknown> = {},
+): Promise<ActivityRow[]> {
+  const ids = rows.map((r) => r.id);
+  if (!ids.length) return [];
+  const changed = remove
+    ? await tx
+        .delete(sprintIssues)
+        .where(and(eq(sprintIssues.sprintId, sprint.id), inArray(sprintIssues.issueId, ids)))
+        .returning({ issueId: sprintIssues.issueId })
+    : await tx
+        .insert(sprintIssues)
+        .values(ids.map((issueId) => ({ sprintId: sprint.id, issueId })))
+        .onConflictDoNothing()
+        .returning({ issueId: sprintIssues.issueId });
+  if (!changed.length) return [];
+  const s = await ctx.app.schema.get(tx);
+  const refs = await issueRefsById(tx, s, changed.map((c) => c.issueId));
+  const out: ActivityRow[] = [];
+  for (const c of changed) {
+    const row = rows.find((r) => r.id === c.issueId)!;
+    out.push(
+      await recordActivity(tx, ctx, {
+        type: remove ? 'sprint.issue_removed' : 'sprint.issue_added',
+        projectId: row.projectId,
+        issueId: row.id,
+        payload: { issue: refs.get(row.id), data: { ...data, sprintId: sprint.id, sprint: sprint.name, boardId: board.id, board: board.name } },
+      }),
+    );
+  }
+  return out;
 }

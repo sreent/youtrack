@@ -255,6 +255,8 @@ export function triageConsumer(runtime: Runtime): OutboxConsumer | null {
     types: ['issue.created'],
     async handle(event) {
       if (!aiService(runtime) || !event.issue || !event.project) return;
+      // An imported issue comes with its fields, from a tracker where it was triaged already.
+      if ((event.data as { imported?: unknown }).imported) return;
       const s = await runtime.schema.get();
       const project = s.projectsByKey.get(event.project);
       if (!project) return;

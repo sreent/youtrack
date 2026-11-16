@@ -3,7 +3,7 @@
  * duplicates and the planner. Demo people have no passwords, so a seeded public
  * instance can't be signed into with them; only the admin who ran setup can.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import { adminCtx, systemCtx } from '../app-services';
 import type { AppServices, UserRow } from '../context';
 import { addDays, todayISO } from '../lib/dates';
@@ -168,6 +168,10 @@ export async function seedDemo(app: AppServices, admin: UserRow): Promise<void> 
   const current = await createSprint(ctx, backBoard.id, { name: 'Sprint 14', goal: 'Fix SSO on Safari and ship rate limiting', startDate: addDays(today, -7), endDate: addDays(today, 6) });
   await createSprint(ctx, backBoard.id, { name: 'Sprint 15', goal: 'Key rotation', startDate: addDays(today, 7), endDate: addDays(today, 20) });
   await setSprintIssues(ctx, current.id, [ids.sso!, ids.rate!, ids.sessions!, ids.pagination!, ids.keys!, ids.slow!, ids.webhook!], false);
+  // The sprint's history, as its burndown reads it: planned the afternoon before it began, and the
+  // webhook retries fixed in its first week.
+  await backdateEvents(app, sql`${activities.type} = 'sprint.issue_added'`, `${addDays(today, -8)}T16:00:00`);
+  await backdateEvents(app, and(eq(activities.type, 'issue.updated'), eq(activities.issueId, await uidOf(app, ids.webhook!)))!, `${addDays(today, -4)}T11:00:00`);
   await createBoard(ctx, {
     name: 'Web kanban',
     projects: ['WEB'],
@@ -208,5 +212,21 @@ async function setResolvedAt(app: AppServices, readable: string, date: string) {
     .update(issues)
     .set({ resolvedAt: new Date(`${date}T17:00:00`) })
     .where(and(eq(issues.projectId, p.id), eq(issues.number, Number(num))));
+  // Its resolution in the history too, so reports read the same past as the plan.
+  await backdateEvents(app, and(eq(activities.type, 'issue.updated'), eq(activities.issueId, await uidOf(app, readable)))!, `${date}T17:00:00`);
+}
+
+/** The internal id of a readable one (BACK-12). */
+async function uidOf(app: AppServices, readable: string): Promise<string> {
+  const s = await app.schema.get();
+  const [key, num] = readable.split('-');
+  const p = s.projectsByKey.get(key!)!;
+  const [row] = await app.db.select({ id: issues.id }).from(issues).where(and(eq(issues.projectId, p.id), eq(issues.number, Number(num))));
+  return row!.id;
+}
+
+/** Place the events that match `where` at a time in the past (local time), as if they had happened then. */
+async function backdateEvents(app: AppServices, where: SQL, localTime: string) {
+  await app.db.update(activities).set({ createdAt: new Date(localTime) }).where(where);
 }
 
