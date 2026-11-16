@@ -14,10 +14,11 @@ A query is a list of terms; terms side by side must all match ("and").
 ## Attributes
 - \`project: BACK\` · \`issue id: BACK-12\` (or just type \`BACK-12\`)
 - \`summary: words\` · \`description: words\`
-- \`reporter: ben\` (also \`by:\`) · \`updated by: anna\` · \`commenter: chloe\`
+- \`reporter: ben\` (also \`by:\`) · \`updated by: anna\` · \`commenter: chloe\` · \`watcher: me\` (issues you watch; also \`watched by:\`)
 - \`created: 2026-01-01 .. 2026-01-31\` · \`updated: today\` · \`resolved date: {this week}\`
 - \`tag: regression\` · \`sprint: Sprint 14\` · \`spent time: 1d .. *\`
-- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`
+- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`, \`watchers\`, \`request\` (came in through a help desk)
+- Help desk: \`requester: jane@example.com\` (or a name) · \`sla: overdue\` (no first response, past the target), \`sla: due\` (none yet, within it), \`sla: met\`, \`sla: missed\`
 - Links: \`depends on: BACK-3\`, \`is required for: BACK-3\`, \`subtask of: BACK-1\`, \`parent for: BACK-5\`, \`duplicates: BACK-7\`, \`relates to: WEB-2\`, \`links: BACK-3\` (any link)
 
 ## Shortcuts
@@ -37,6 +38,8 @@ Other words search summaries, descriptions and comments, by prefix: \`login saf\
 - My open work, most important first: \`for: me #Unresolved sort by: Priority\`
 - Critical bugs reported this week: \`Type: Bug Priority: Show-stopper, Critical created: {this week}\`
 - Untriaged: \`State: Submitted has: -Assignee\`
+- What you follow that's still open: \`watcher: me #Unresolved sort by: updated desc\`
+- Help desk requests waiting too long: \`has: request sla: overdue\`
 - Blockers of BACK-3: \`is required for: BACK-3 #Unresolved\`
 `;
 

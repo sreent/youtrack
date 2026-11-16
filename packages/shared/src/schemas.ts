@@ -5,12 +5,17 @@
 import { z } from 'zod';
 import {
   CHANNELS,
+  COMMENT_VISIBILITIES,
+  EMAIL_LEVELS,
   EVENT_TYPES,
   FIELD_TYPES,
   LEVELING_MODES,
+  NOTIFICATION_KINDS,
   ROLES,
   SCOPES,
+  SLA_STATES,
   TRIAGE_MODES,
+  WATCH_REASONS,
 } from './constants';
 
 /**
@@ -171,10 +176,25 @@ export const PlanSettingsSchema = z
   .meta({ id: 'PlanSettings' });
 export type PlanSettings = z.infer<typeof PlanSettingsSchema>;
 
+export const HelpdeskSettingsSchema = z
+  .object({
+    enabled: z.boolean().describe('The public request form at /help/<KEY> takes requests; turning it off closes the form, and requests already filed keep their tracking pages'),
+    firstResponseHours: z
+      .number()
+      .min(0.25)
+      .max(24 * 60)
+      .nullable()
+      .describe('First-response target in hours, counted round the clock from when a request is filed; null for none'),
+    intro: z.string().max(2000).describe('Words above the public form, such as what to ask here'),
+  })
+  .meta({ id: 'HelpdeskSettings' });
+export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
+
 export const ProjectSettingsSchema = z
   .object({
     triageMode: z.enum(TRIAGE_MODES),
     plan: PlanSettingsSchema,
+    helpdesk: HelpdeskSettingsSchema,
   })
   .meta({ id: 'ProjectSettings' });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
@@ -218,6 +238,7 @@ export const UpdateProjectBody = z.object({
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
       plan: PlanSettingsSchema.partial().optional(),
+      helpdesk: HelpdeskSettingsSchema.partial().optional(),
     })
     .optional(),
 });
@@ -448,10 +469,23 @@ export const CommentSchema = z
     channel: z.enum(CHANNELS),
     createdAt: timestamp,
     updatedAt: timestamp,
+    visibility: z
+      .enum(COMMENT_VISIBILITIES)
+      .describe('internal: the team alone. public: also the requester of a help desk request, who is emailed it'),
+    requester: z
+      .object({ name: z.string() })
+      .nullable()
+      .describe('Set when the requester of a help desk request wrote it, on their tracking page'),
   })
   .meta({ id: 'Comment' });
 export type Comment = z.infer<typeof CommentSchema>;
 export const CommentBody = z.object({ text: z.string().min(1).max(50_000) });
+export const NewCommentBody = CommentBody.extend({
+  visibility: z
+    .enum(COMMENT_VISIBILITIES)
+    .default('internal')
+    .describe('public sends it to the requester of a help desk request, by email and on their tracking page; only requests take it'),
+});
 
 export const LinkTypeSchema = z
   .object({
@@ -1163,3 +1197,178 @@ export type ChatStreamEvent =
   | { type: 'notice'; text: string }
   | { type: 'error'; message: string }
   | { type: 'done'; status: 'idle' | 'awaiting_approval' };
+
+// ---------------------------------------------------------------------------
+// Watchers and notifications
+// ---------------------------------------------------------------------------
+
+export const WatcherSchema = z
+  .object({
+    user: UserRefSchema,
+    reason: z.enum(WATCH_REASONS).describe('Why they watch: they chose to, or they reported it, were assigned, commented, were mentioned, or lead the project of a help desk request'),
+    since: timestamp,
+  })
+  .meta({ id: 'Watcher' });
+export type Watcher = z.infer<typeof WatcherSchema>;
+
+export const WatchersSchema = z
+  .object({
+    watching: z.boolean().describe('Whether you watch it'),
+    watchers: z.array(WatcherSchema),
+  })
+  .meta({ id: 'Watchers' });
+export type Watchers = z.infer<typeof WatchersSchema>;
+
+export const NotificationSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(NOTIFICATION_KINDS).describe('The strongest reason among its events: assigned, mentioned, request (a new help desk request), watching'),
+    title: z.string().describe('What happened, in words: "Anna Schmidt mentioned you"'),
+    issue: IssueRefSchema.describe('The issue as it was at its latest event'),
+    project: z.string().nullable(),
+    issueDeleted: z.boolean(),
+    events: z.array(EventSchema).describe('The changes and comments it folds together, oldest first (the last 20)'),
+    eventCount: z.number().int(),
+    firstAt: timestamp,
+    lastAt: timestamp,
+    readAt: timestamp.nullable(),
+  })
+  .meta({ id: 'Notification' });
+export type Notification = z.infer<typeof NotificationSchema>;
+
+export const NotificationListSchema = z
+  .object({
+    unread: z.number().int().describe('Your unread notifications, all of them'),
+    total: z.number().int().describe('How many match, before offset and limit'),
+    items: z.array(NotificationSchema).describe('Latest first'),
+  })
+  .meta({ id: 'NotificationList' });
+export type NotificationList = z.infer<typeof NotificationListSchema>;
+
+export const NotificationListQuery = z.object({
+  unread: z
+    .enum(['true', 'false'])
+    .optional()
+    .describe('true: unread ones only'),
+  issue: z.string().optional().describe("One issue's, by its readable id"),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const MarkReadBody = z.object({
+  ids: z.array(z.string()).min(1).max(500).optional().describe('These notifications'),
+  issue: z.string().optional().describe("An issue's, by its readable id"),
+  all: z.boolean().optional().describe('All of yours'),
+  until: z
+    .string()
+    .datetime({ offset: true })
+    .optional()
+    .describe('Only those whose latest event is no later than this, so what arrived after you looked stays unread'),
+  read: z.boolean().default(true).describe('false marks them unread again'),
+});
+
+export const MarkReadResultSchema = z
+  .object({ changed: z.number().int(), unread: z.number().int() })
+  .meta({ id: 'MarkReadResult' });
+
+export const NotificationSettingsSchema = z
+  .object({
+    email: z.enum(EMAIL_LEVELS).describe('all: every notification; direct: mentions, assignments and new help desk requests; none. In-app is always on'),
+    digest: z.boolean().describe("A daily email of what's still unread and wasn't emailed"),
+    address: z.string().nullable().describe('Where emails go: your email, from your profile'),
+    mailConfigured: z.boolean().describe('Whether this server sends email at all (SMTP_URL)'),
+  })
+  .meta({ id: 'NotificationSettings' });
+export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
+export const NotificationSettingsBody = z.object({
+  email: z.enum(EMAIL_LEVELS).optional(),
+  digest: z.boolean().optional(),
+});
+
+export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) });
+export const UnsubscribeSchema = z
+  .object({
+    what: z.string().describe('What the link stops, in words'),
+    done: z.boolean().describe('Whether it is stopped now'),
+  })
+  .meta({ id: 'Unsubscribe' });
+export type Unsubscribe = z.infer<typeof UnsubscribeSchema>;
+
+// ---------------------------------------------------------------------------
+// Help desk
+// ---------------------------------------------------------------------------
+
+export const SlaSchema = z
+  .object({
+    state: z.enum(SLA_STATES).describe('none: no target; due: waiting, within it; overdue: waiting, past it; met or missed: answered'),
+    dueAt: timestamp.nullable(),
+    respondedAt: timestamp.nullable().describe('The first public reply from the team'),
+  })
+  .meta({ id: 'Sla' });
+export type Sla = z.infer<typeof SlaSchema>;
+
+export const HelpdeskRequestSchema = z
+  .object({
+    issue: z.string(),
+    requester: z.object({ name: z.string(), email: z.string() }),
+    createdAt: timestamp,
+    firstResponse: SlaSchema,
+    emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
+  })
+  .meta({ id: 'HelpdeskRequest' });
+export type HelpdeskRequest = z.infer<typeof HelpdeskRequestSchema>;
+
+/** What the public form needs: whose help desk it is, its words, and a token against forged posts. */
+export const HelpFormSchema = z
+  .object({
+    project: z.object({ key: z.string(), name: z.string() }),
+    intro: z.string(),
+    csrf: z.string().describe('Send it back with the request'),
+    mail: z.boolean().describe('Whether a confirmation email goes out; without it, the tracking link is shown once'),
+  })
+  .meta({ id: 'HelpForm' });
+export type HelpForm = z.infer<typeof HelpFormSchema>;
+
+export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
+
+export const HelpRequestBody = z.object({
+  name: z.string().trim().min(1).max(HELP_LIMITS.name),
+  email: z.string().trim().max(HELP_LIMITS.email).email(),
+  summary: z.string().trim().min(3).max(HELP_LIMITS.summary),
+  description: z.string().max(HELP_LIMITS.description).default(''),
+  website: z.string().max(500).optional().describe('Leave it empty: it is a trap for bots, hidden from people'),
+  csrf: z.string().min(1).max(500),
+});
+
+export const HelpRequestReceivedSchema = z
+  .object({
+    received: z.literal(true),
+    email: z.string(),
+    tracking: z.string().nullable().describe('The tracking link, only when this server sends no email; shown once'),
+  })
+  .meta({ id: 'HelpRequestReceived' });
+export type HelpRequestReceived = z.infer<typeof HelpRequestReceivedSchema>;
+
+export const TrackedRequestSchema = z
+  .object({
+    project: z.object({ name: z.string() }),
+    summary: z.string(),
+    description: z.string(),
+    createdAt: timestamp,
+    state: z.object({ name: z.string().nullable(), resolved: z.boolean() }),
+    requester: z.object({ name: z.string(), email: z.string() }),
+    messages: z.array(
+      z.object({
+        id: z.string(),
+        from: z.enum(['you', 'team']),
+        name: z.string(),
+        text: z.string(),
+        at: timestamp,
+      }),
+    ),
+    emailMuted: z.boolean(),
+  })
+  .meta({ id: 'TrackedRequest' });
+export type TrackedRequest = z.infer<typeof TrackedRequestSchema>;
+
+export const HelpReplyBody = z.object({ text: z.string().trim().min(1).max(HELP_LIMITS.reply) });

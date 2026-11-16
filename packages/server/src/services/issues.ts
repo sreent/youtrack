@@ -1,5 +1,6 @@
 import {
   type Change,
+  type CommentVisibility,
   type CreateIssueInput,
   type FieldsInputT,
   type Issue,
@@ -38,6 +39,7 @@ import {
   type SchemaSnapshot,
 } from './schema-cache';
 import { ensureTags, tagDto } from './tags';
+import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds } from './watchers';
 import {
   fieldValueDto,
   presentValues,
@@ -283,6 +285,10 @@ export interface ChangeSpec {
   removeTags?: string[];
   links?: LinkSpec[];
   comment?: string;
+  /** Who the comment is for: 'public' also reaches the requester of a help desk request. */
+  commentVisibility?: CommentVisibility;
+  /** The requester of a help desk request wrote the comment, on their tracking page (services/helpdesk.ts). */
+  commentRequester?: { id: string; name: string };
   expectedVersion?: number;
   /** Said about the change in its activity, e.g. that it accepts what triage worked out. */
   data?: Record<string, unknown>;
@@ -468,13 +474,31 @@ export async function applyChanges(
   const states = await stateNames(tx, s, [issue.id]);
   const ref = issueRef(s, updated!, states.get(issue.id) ?? null);
 
+  // Who to tell, and who watches it now: a new assignee, people newly mentioned, whoever comments.
+  // Text from a help desk's requester mentions nobody: the public can't page the team.
+  const fromOutside = ctx.actor.channel === 'helpdesk';
+  const assigneeField = assigneeFieldOf(s);
+  const assigneeUpdate = assigneeField ? fieldUpdates.find((u) => u.field.id === assigneeField.id) : undefined;
+  const assigned = assigneeUpdate
+    ? loginsOf(s, assigneeUpdate.values).filter((l) => !loginsOf(s, current.get(assigneeField!.id)).includes(l))
+    : [];
+  const describedMentions = patch.description !== undefined && !fromOutside ? mentionsAdded(s, issue.description, patch.description) : [];
+  const commentMentions = comment && !fromOutside ? mentionsIn(s, comment) : [];
+  await addWatchers(tx, s, issue.id, [
+    ...assigned.map((login) => ({ login, reason: 'assignee' as const })),
+    ...(comment && !fromOutside ? [{ login: ctx.actor.user.login, reason: 'commenter' as const }] : []),
+    ...[...describedMentions, ...commentMentions].map((login) => ({ login, reason: 'mentioned' as const })),
+  ]);
+  const told = { ...(assigned.length ? { assigned } : {}), ...(describedMentions.length ? { mentions: describedMentions } : {}) };
+
   if (fieldOrMetaChanged) {
+    const data = spec.data || assigned.length || describedMentions.length ? { ...spec.data, ...told } : undefined;
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'issue.updated',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(spec.data ? { data: spec.data } : {}) },
+        payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(data ? { data } : {}) },
       }),
     );
   }
@@ -514,13 +538,31 @@ export async function applyChanges(
 
   if (comment) {
     const id = newId();
-    await tx.insert(comments).values({ id, issueId: issue.id, authorId: ctx.actor.user.id, text: comment, channel: ctx.actor.channel });
+    const visibility = spec.commentVisibility ?? 'internal';
+    await tx.insert(comments).values({
+      id,
+      issueId: issue.id,
+      authorId: ctx.actor.user.id,
+      text: comment,
+      channel: ctx.actor.channel,
+      visibility,
+      requesterId: spec.commentRequester?.id ?? null,
+    });
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'comment.created',
         projectId: issue.projectId,
         issueId: issue.id,
-        payload: { issue: ref, data: { commentId: id, text: excerpt(comment, 1000) } },
+        payload: {
+          issue: ref,
+          data: {
+            commentId: id,
+            text: excerpt(comment, 1000),
+            ...(visibility === 'public' ? { visibility } : {}),
+            ...(spec.commentRequester ? { requester: { name: spec.commentRequester.name } } : {}),
+            ...(commentMentions.length ? { mentions: commentMentions } : {}),
+          },
+        },
       }),
     );
   }
@@ -545,7 +587,14 @@ async function computeResolvedAt(
 // Create / update / delete
 // ---------------------------------------------------------------------------
 
-export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<IssueDetail> {
+export interface CreateOptions {
+  /** Said about it in its activity, e.g. that a help desk's requester asked for it. */
+  data?: Record<string, unknown>;
+  /** More to write in the creating transaction, once the issue exists (services/helpdesk.ts). */
+  inTransaction?: (tx: Db, row: IssueRow) => Promise<void>;
+}
+
+export async function createIssue(ctx: Ctx, input: CreateIssueInput, opts: CreateOptions = {}): Promise<IssueDetail> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const project = projectByKey(s, input.project);
@@ -618,6 +667,15 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
         .onConflictDoNothing();
     }
     const states = await stateNames(tx, s, [id]);
+    // The reporter, the assignee and the people mentioned watch it, and the last two are told.
+    const assigneeField = assigneeFieldOf(s);
+    const assigned = assigneeField ? loginsOf(s, values.get(assigneeField.id)) : [];
+    const mentions = ctx.actor.channel === 'helpdesk' ? [] : mentionsIn(s, input.description ?? '');
+    await addWatchers(tx, s, id, [
+      ...(ctx.actor.channel === 'helpdesk' ? [] : [{ login: ctx.actor.user.login, reason: 'reporter' as const }]),
+      ...assigned.map((login) => ({ login, reason: 'assignee' as const })),
+      ...mentions.map((login) => ({ login, reason: 'mentioned' as const })),
+    ]);
     activities.push(
       await recordActivity(tx, ctx, {
         type: 'issue.created',
@@ -633,10 +691,14 @@ export async function createIssue(ctx: Ctx, input: CreateIssueInput): Promise<Is
             explicitFields: specs.map((sp) => sp.field.name),
             tags: tagRows.map((t) => t.name),
             description: excerpt(input.description ?? '', 1000),
+            ...(assigned.length ? { assigned } : {}),
+            ...(mentions.length ? { mentions } : {}),
+            ...(opts.data ?? {}),
           },
         },
       }),
     );
+    await opts.inTransaction?.(tx, row!);
 
     const links: LinkSpec[] = linkTargets.map((l) => ({ phrase: l.phrase, target: l.target }));
     if (parent && subtaskPhrase) links.unshift({ phrase: subtaskPhrase, target: parent });
@@ -680,8 +742,15 @@ export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void>
   const ref: IssueRef = issueRef(s, issue, states.get(issue.id) ?? null);
   const activity = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
+    // Its watchers are told it's gone; their rows go with it, so the activity names them.
+    const watchers = (await watcherIds(tx, issue.id)).map((id) => s.users.get(id)?.login).filter((l): l is string => Boolean(l));
     await tx.delete(issues).where(eq(issues.id, issue.id));
-    return recordActivity(tx, ctx, { type: 'issue.deleted', projectId: issue.projectId, issueId: null, payload: { issue: ref } });
+    return recordActivity(tx, ctx, {
+      type: 'issue.deleted',
+      projectId: issue.projectId,
+      issueId: null,
+      payload: { issue: ref, ...(watchers.length ? { data: { watchers } } : {}) },
+    });
   });
   await publishActivities(ctx.app, [activity]);
 }

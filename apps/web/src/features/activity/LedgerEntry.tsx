@@ -26,6 +26,7 @@ function byLine(e: TrackerEvent): string {
     assistant: `through the assistant, for ${name}`,
     automation: 'on its own',
     system: "a4a's own",
+    helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
   };
   return [through[e.actor.channel], e.actor.channel === 'api' || e.actor.channel === 'mcp' ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
     .filter(Boolean)

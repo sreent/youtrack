@@ -19,6 +19,13 @@ export interface Started {
 /** Extra consumers (e.g. AI triage) register here before start. */
 export const consumerFactories: ((runtime: Runtime) => OutboxConsumer | null)[] = [];
 
+/** Other background work that starts and stops with the server (e.g. the mail sender). */
+export interface BackgroundWork {
+  start(): void;
+  stop(): Promise<void>;
+}
+export const backgroundFactories: ((runtime: Runtime) => BackgroundWork | null)[] = [];
+
 export async function startServer(overrides: Partial<Config> = {}): Promise<Started> {
   const config = loadConfig(overrides);
   const database = await openDatabase({ url: config.databaseUrl, dataDir: config.dataDir });
@@ -37,6 +44,9 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   const consumers = [webhookConsumer(runtime), ...consumerFactories.map((f) => f(runtime)).filter((c): c is OutboxConsumer => c !== null)];
   const worker = new OutboxWorker(runtime, consumers);
   worker.start();
+  const background = backgroundFactories.map((f) => f(runtime)).filter((b): b is BackgroundWork => b !== null);
+  for (const b of background) b.start();
+  const stopBackground = () => Promise.all(background.map((b) => b.stop().catch(() => {})));
 
   const app = createHttpApp(runtime);
   const server = await new Promise<Server>((resolve, reject) => {
@@ -47,6 +57,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   }).catch(async (err) => {
     runtime.live.stop();
     await worker.stop();
+    await stopBackground();
     await database.close();
     throw err;
   });
@@ -57,6 +68,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
       await new Promise<void>((r) => server.close(() => r()));
       runtime.live.stop();
       await worker.stop();
+      await stopBackground();
       await database.close();
     })());
 

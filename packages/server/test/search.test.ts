@@ -78,6 +78,21 @@ describe('query language', () => {
     expect(await found('has: comments')).toEqual([ids.sso]);
   });
 
+  it('finds what someone watches: watcher: me, watcher: ben, has: watchers', async () => {
+    // anna reported all five; ben was assigned "rate" and commented on "sso".
+    expect(await found('watcher: me')).toEqual(Object.values(ids).sort());
+    expect(await found('watcher: ben')).toEqual([ids.rate, ids.sso].sort());
+    expect(await found('watched by: ben -watcher: anna')).toEqual([]);
+    const asBen = (await searchIssues(w.as(w.ben), 'watcher: me', 0, 100)).items.map((i) => i.id).sort();
+    expect(asBen).toEqual([ids.rate, ids.sso].sort());
+    const r = await parseQueryForApi(w.as(w.anna), 'watcher: me #Unresolved');
+    expect(r).toMatchObject({ ok: true, explanation: 'Issues watched by you, unresolved' });
+    const bad = await parseQueryForApi(w.as(w.anna), 'watcher: nobody');
+    expect(bad.problems[0]).toMatchObject({ message: 'Unknown user "nobody"' });
+    const s = await w.app.schema.get();
+    expect(suggest(s, 'watch', 5).map((i) => i.label)).toContain('watcher:');
+  });
+
   it('searches free text across summary, description and comments, with prefixes', async () => {
     expect(await found('safari')).toEqual([ids.sso]);
     expect(await found('saf')).toEqual([ids.sso]);

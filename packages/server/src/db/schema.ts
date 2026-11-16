@@ -277,6 +277,10 @@ export const comments = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
     deletedAt: ts('deleted_at'),
     searchVector: tsvector('search_vector').generatedAlwaysAs(sql`to_tsvector('english', coalesce(text, ''))`),
+    /** 'internal' (the team alone) or 'public' (also the requester of a help desk request, who is emailed it). */
+    visibility: text('visibility').notNull().default('internal'),
+    /** Set when the requester of a help desk request wrote it, on their tracking page. */
+    requesterId: text('requester_id').references(() => requesters.id, { onDelete: 'set null' }),
   },
   (t) => [index('comments_issue').on(t.issueId, t.createdAt), index('comments_search').using('gin', t.searchVector)],
 );
@@ -555,3 +559,172 @@ export const outboxCursors = pgTable('outbox_cursors', {
   lastId: bigint('last_id', { mode: 'number' }).notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Watchers, notifications and mail
+// ---------------------------------------------------------------------------
+
+/** Who watches an issue, and why. Unwatching deletes the row; doing something on the issue again watches it again. */
+export const issueWatchers = pgTable(
+  'issue_watchers',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** WATCH_REASONS: 'explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'. */
+    reason: text('reason').notNull(),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.userId] }), index('issue_watchers_user').on(t.userId)],
+);
+
+/**
+ * One person's notification about one issue: one or more events folded together while they
+ * came within a short window, until it was read or its email went out (sealed).
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    /** NOTIFICATION_KINDS: the strongest reason among its events. */
+    kind: text('kind').notNull(),
+    /** The issue as it was at the latest event (an IssueRef), kept when the issue is deleted. */
+    issue: jsonb('issue').notNull(),
+    eventCount: integer('event_count').notNull().default(1),
+    firstEventAt: ts('first_event_at').notNull(),
+    lastEventAt: ts('last_event_at').notNull(),
+    createdAt: created(),
+    readAt: ts('read_at'),
+    /** Set when its email is rendered: it takes no more events, and a new one starts. */
+    sealedAt: ts('sealed_at'),
+    /** When its email went out, so the digest leaves it out. */
+    emailedAt: ts('emailed_at'),
+  },
+  (t) => [index('notifications_user_last').on(t.userId, t.lastEventAt), index('notifications_user_issue').on(t.userId, t.issueId)],
+);
+
+/**
+ * Which events reached whom, through which notification. The key makes delivery idempotent:
+ * an event the outbox hands over twice reaches a person once.
+ */
+export const notificationEvents = pgTable(
+  'notification_events',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eventId: bigint('event_id', { mode: 'number' })
+      .notNull()
+      .references(() => activities.id, { onDelete: 'cascade' }),
+    notificationId: text('notification_id')
+      .notNull()
+      .references(() => notifications.id, { onDelete: 'cascade' }),
+    /** Why this event reached them: a NOTIFICATION_KIND. */
+    reason: text('reason').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.eventId] }), index('notification_events_notification').on(t.notificationId)],
+);
+
+/** What a person wants by email. No row: the defaults (mentions and assignments, no digest). */
+export const notificationSettings = pgTable('notification_settings', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** EMAIL_LEVELS: 'all', 'direct' or 'none'. */
+  email: text('email').notNull().default('direct'),
+  digest: boolean('digest').notNull().default(false),
+  lastDigestAt: ts('last_digest_at'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * Mail to send, at least once, retried with backoff. `dedupe_key` makes enqueueing idempotent
+ * (one mail per notification, per digest day, per help desk event); the body is rendered when
+ * it is sent, from `payload`, so it says what is true then and holds no secret while it waits.
+ */
+export const mailOutbox = pgTable(
+  'mail_outbox',
+  {
+    id: text('id').primaryKey(),
+    dedupeKey: text('dedupe_key').notNull().unique(),
+    /** 'notification', 'digest', 'request-received', 'request-reply' or 'request-state'. */
+    kind: text('kind').notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    payload: jsonb('payload').notNull(),
+    /** 'pending', 'sent', 'failed' (gave up) or 'skipped' (nothing to send any more). */
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    sendAfter: ts('send_after').notNull().defaultNow(),
+    /** A sender's claim on it; after this, another may try. */
+    lockedUntil: ts('locked_until'),
+    /** Stable across retries, so a mail sent twice reads as one. */
+    messageId: text('message_id').notNull(),
+    toAddress: text('to_address'),
+    lastError: text('last_error'),
+    createdAt: created(),
+    sentAt: ts('sent_at'),
+  },
+  (t) => [index('mail_outbox_due').on(t.status, t.sendAfter)],
+);
+
+// ---------------------------------------------------------------------------
+// Help desk
+// ---------------------------------------------------------------------------
+
+/** Someone outside the team who asked for help. Not a user: they can't sign in, and aren't assignable. */
+export const requesters = pgTable(
+  'requesters',
+  {
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    name: text('name').notNull(),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('requesters_email_lower').on(sql`lower(${t.email})`)],
+);
+
+/** An issue that came in through a project's help desk: who asked, and the first-response target then in force. */
+export const helpdeskRequests = pgTable(
+  'helpdesk_requests',
+  {
+    issueId: text('issue_id')
+      .primaryKey()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+    firstResponseDueAt: ts('first_response_due_at'),
+    /** The requester stopped emails about it (one click, from any of them); the tracking page still works. */
+    emailMutedAt: ts('email_muted_at'),
+  },
+  (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId)],
+);
+
+/**
+ * Tracking tokens, stored as SHA-256 hashes. Each email to a requester carries a fresh one, minted
+ * as it is sent, so no token waits anywhere in plain text; every one stays valid for the request.
+ */
+export const helpdeskTokens = pgTable(
+  'helpdesk_tokens',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [index('helpdesk_tokens_issue').on(t.issueId)],
+);

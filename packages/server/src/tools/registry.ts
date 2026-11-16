@@ -24,6 +24,8 @@ import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
 import { planningTools } from './planning';
+import { notificationTools } from './notifications';
+import { requestOf } from '../services/helpdesk';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
 import { defineTool, type ToolDef } from './types';
@@ -175,6 +177,7 @@ const getIssueTool = defineTool({
   async run(ctx, input) {
     const i = await getIssue(ctx, input.issue);
     const comments = input.comments ? (await listComments(ctx, i.id)).slice(-input.comments) : [];
+    const request = await requestOf(ctx, i.id).catch(() => null);
     return {
       data: {
         id: i.id,
@@ -193,8 +196,17 @@ const getIssueTool = defineTool({
         subtasks: i.subtasks.map((s) => ({ id: s.id, summary: s.summary, state: s.state })),
         links: i.links.map((l) => ({ relation: l.phrase, id: l.issue.id, summary: l.issue.summary, state: l.issue.state })),
         spent: i.spentMinutes ? formatPeriod(i.spentMinutes) : null,
-        comments: comments.map((c) => ({ by: c.author?.login ?? null, at: c.createdAt.slice(0, 16), text: excerpt(c.text, 1500) })),
+        comments: comments.map((c) => ({
+          by: c.requester ? `${c.requester.name} (the requester)` : (c.author?.login ?? null),
+          at: c.createdAt.slice(0, 16),
+          public: c.visibility === 'public' || undefined,
+          text: excerpt(c.text, 1500),
+        })),
         pendingSuggestions: i.pendingSuggestions,
+        // A help desk request: who asked, and its first-response target. Public comments reach them.
+        request: request
+          ? { requester: request.requester, firstResponse: request.firstResponse.state, due: request.firstResponse.dueAt, emailMuted: request.emailMuted || undefined }
+          : undefined,
       },
       summary: `${i.id} ${i.summary}`,
     };
@@ -436,15 +448,22 @@ const applyCommandTool = defineTool({
 const addCommentTool = defineTool({
   name: 'add_comment',
   title: 'Comment',
-  description: 'Add a Markdown comment to an issue: progress notes, findings, questions for the team.',
-  input: z.object({ issue: z.string(), text: z.string().min(1).max(50_000) }),
+  description:
+    'Add a Markdown comment to an issue: progress notes, findings, questions for the team. "@login" mentions a person, who is told. On a help desk request (get_issue shows "request"), public: true also emails it to the requester and shows it on their page; leave it out for a note the team alone sees.',
+  input: z.object({
+    issue: z.string(),
+    text: z.string().min(1).max(50_000),
+    public: z.boolean().optional().describe('Help desk requests only: send it to the requester too. Internal unless true.'),
+  }),
   kind: 'changes',
   async preview(_ctx, input) {
-    return `Comment on ${input.issue.toUpperCase()}: "${excerpt(input.text, 160)}"`;
+    return input.public
+      ? `Reply to the requester of ${input.issue.toUpperCase()}, by email and on their page: "${excerpt(input.text, 160)}"`
+      : `Comment on ${input.issue.toUpperCase()}: "${excerpt(input.text, 160)}"`;
   },
   async run(ctx, input) {
-    const c = await addComment(ctx, input.issue, input.text);
-    return { data: { id: c.id, issue: c.issueId }, summary: `Commented on ${c.issueId}` };
+    const c = await addComment(ctx, input.issue, input.text, { visibility: input.public ? 'public' : 'internal' });
+    return { data: { id: c.id, issue: c.issueId, public: c.visibility === 'public' || undefined }, summary: `${input.public ? 'Replied publicly on' : 'Commented on'} ${c.issueId}` };
   },
 });
 
@@ -515,6 +534,7 @@ export const TOOLS: ToolDef[] = [
   unlinkIssuesTool,
   logWorkTool,
   ...planningTools,
+  ...notificationTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

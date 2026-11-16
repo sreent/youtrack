@@ -45,6 +45,9 @@ function node(n: QueryNode): string {
         return [set.length ? `with ${set.join(', ')} set` : '', unset.length ? `without ${unset.join(', ')}` : ''].filter(Boolean).join(' and ');
       }
       if (t.kind === 'assigneeAlias') return `assigned to ${values(n.values).replace(/\bme\b/g, 'you')}`;
+      if (t.kind === 'userAttr' && t.column === 'watcher') return `watched by ${values(n.values).replace(/\bme\b/g, 'you')}`;
+      if (t.kind === 'sla') return `whose first response is ${values(n.values)}`;
+      if (t.kind === 'requester') return `asked for by ${values(n.values)}`;
       if (t.kind === 'project') return `in project ${values(n.values)}`;
       if (t.kind === 'dateAttr') return `${name} ${values(n.values)}`;
       if (t.kind === 'linkPhrase') return `that ${name} ${values(n.values)}`;

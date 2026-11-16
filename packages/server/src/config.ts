@@ -12,6 +12,14 @@ export interface Config {
   webDist: string | undefined;
   sessionTtlDays: number;
   isDev: boolean;
+  /** SMTP server for email, e.g. smtp://user:pass@mail.example.com:587. Without it, no email is sent and nothing fails. */
+  smtpUrl: string | undefined;
+  /** Who email comes from, e.g. "a4a <a4a@example.com>". */
+  mailFrom: string;
+  /** Changes to one issue within this long fold into one notification (and one email). */
+  notifyWindowMs: number;
+  /** The hour (server time, 0-23) the daily digest goes out. */
+  digestHour: number;
 }
 
 function loadDotEnv() {
@@ -25,6 +33,14 @@ function loadDotEnv() {
       }
       return;
     }
+  }
+}
+
+function hostnameOf(url: string | undefined): string {
+  try {
+    return url ? new URL(url).hostname : 'localhost';
+  } catch {
+    return 'localhost';
   }
 }
 
@@ -49,6 +65,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     webDist: webDistCandidates.find((p) => existsSync(path.join(p, 'index.html'))),
     sessionTtlDays: Number(env.SESSION_TTL_DAYS ?? 30),
     isDev: env.NODE_ENV !== 'production',
+    smtpUrl: env.SMTP_URL || undefined,
+    mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
+    notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
+    digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
     ...overrides,
   };
 }

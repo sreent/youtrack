@@ -8,12 +8,14 @@ import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../se
 import { isEmptyWord } from '../services/values';
 import { fixValue } from './lexer';
 import type { ParsedQuery, QueryNode, SortItem, Span, ValueNode } from './parser';
-import { HAS_ATTRIBUTES, type TermDef } from './vocabulary';
+import { HAS_ATTRIBUTES, SLA_VALUES, type TermDef } from './vocabulary';
 
 export interface CompileContext {
   s: SchemaSnapshot;
   meId: string;
   today?: string;
+  /** The moment "sla: overdue" is judged at (tests). */
+  now?: Date;
 }
 
 export interface CompiledQuery {
@@ -371,6 +373,7 @@ class Compiler {
         }
         if (t.column === 'reporter') return sql`${issues.reporterId} = ${u.id}`;
         if (t.column === 'updatedBy') return sql`${issues.updatedById} = ${u.id}`;
+        if (t.column === 'watcher') return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id} AND w.user_id = ${u.id})`;
         return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.author_id = ${u.id})`;
       }
       case 'dateAttr': {
@@ -394,6 +397,14 @@ class Compiler {
       case 'has':
         if (!single) return this.rangeNotSupported(def, v);
         return this.hasCondition(single, v.span);
+      case 'sla':
+        if (!single) return this.rangeNotSupported(def, v);
+        return this.slaCondition(single, v.span);
+      case 'requester': {
+        if (!single) return this.rangeNotSupported(def, v);
+        const like = `%${single.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r JOIN requesters q ON q.id = r.requester_id WHERE r.issue_id = ${issues.id} AND (lower(q.email) = ${single.toLowerCase()} OR q.name ILIKE ${like}))`;
+      }
       case 'sprint':
         if (!single) return this.rangeNotSupported(def, v);
         return sql`EXISTS (SELECT 1 FROM sprint_issues si JOIN sprints sp ON sp.id = si.sprint_id WHERE si.issue_id = ${issues.id} AND lower(sp.name) = ${single.toLowerCase()})`;
@@ -469,10 +480,39 @@ class Compiler {
       case 'work':
       case 'spent time':
         return sql`EXISTS (SELECT 1 FROM work_items w WHERE w.issue_id = ${issues.id})`;
+      case 'watchers':
+      case 'watcher':
+        return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id})`;
+      case 'request':
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id})`;
     }
     const guess = didYouMean(raw, [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES]);
     this.problem(`Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
     return FALSE;
+  }
+
+  /**
+   * A help desk request against its first-response target (services/helpdesk.ts slaOf): the first
+   * public reply from the team answers it, and so does resolving it without one.
+   */
+  private slaCondition(raw: string, span: Span): SQL {
+    const lower = raw.toLowerCase();
+    if (!SLA_VALUES.includes(lower)) {
+      const guess = didYouMean(raw, SLA_VALUES);
+      this.problem(`Unknown value "${raw}" for sla`, span, guess ? `Did you mean "${guess}"?` : `Values: ${SLA_VALUES.join(', ')}`, guess);
+      return FALSE;
+    }
+    const answered = sql`coalesce((SELECT min(c.created_at) FROM comments c WHERE c.issue_id = ${issues.id} AND c.visibility = 'public' AND c.requester_id IS NULL), ${issues.resolvedAt})`;
+    const now = this.cc.now ?? new Date();
+    const cond =
+      lower === 'overdue'
+        ? sql`${answered} IS NULL AND r.first_response_due_at < ${now}`
+        : lower === 'due'
+          ? sql`${answered} IS NULL AND r.first_response_due_at >= ${now}`
+          : lower === 'met'
+            ? sql`${answered} <= r.first_response_due_at`
+            : sql`${answered} > r.first_response_due_at`;
+    return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id} AND r.first_response_due_at IS NOT NULL AND ${cond})`;
   }
 
   // -------------------------------------------------------------------------
