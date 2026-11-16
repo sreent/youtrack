@@ -5,6 +5,10 @@
  */
 import { fieldValue, unique, uniqueKey } from './support/api';
 import { expect, test } from './support/fixtures';
+import { THIRD_AUTH_FILE } from './support/env';
+
+// The third of the flows' administrators (support/env.ts says why).
+test.use({ storageState: THIRD_AUTH_FILE });
 
 test('a build from CI marks the resolved issue its commits name, and says so', async ({ page, api, playwright }) => {
   const key = uniqueKey('BU');

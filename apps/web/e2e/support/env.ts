@@ -22,6 +22,7 @@ export const DATA_DIR = path.join(RUN_DIR, 'data');
 export const AUTH_FILE = path.join(RUN_DIR, 'auth', 'admin.json');
 export const TOUR_AUTH_FILE = path.join(RUN_DIR, 'auth', 'tour.json');
 export const SECOND_AUTH_FILE = path.join(RUN_DIR, 'auth', 'second.json');
+export const THIRD_AUTH_FILE = path.join(RUN_DIR, 'auth', 'third.json');
 export const TOKEN_FILE = path.join(RUN_DIR, 'auth', 'token.json');
 
 /** The first administrator, made by the server itself from ADMIN_LOGIN and ADMIN_PASSWORD. */
@@ -39,6 +40,13 @@ export const GUIDE = { login: 'mira', name: 'Mira Patel', password: 'e2e-guide-p
  * reads what's personal to its page's person (saved searches, tokens) only through that person.
  */
 export const SECOND = { login: 'theo', name: 'Theo Ruiz', password: 'e2e-second-pass-1' } as const;
+/**
+ * A fourth administrator, for the flows that came with waves 1 and 2. A browser session counts as
+ * its person, so every spec file of one person's shares that person's 1200 a minute: on four
+ * workers, `admin`'s files passed it at 280 tests and pages began to log 429s. The files that
+ * don't need `admin` itself (whose name the API's changes carry) moved to Una.
+ */
+export const THIRD = { login: 'una', name: 'Una Byrne', password: 'e2e-third-pass-1' } as const;
 
 /**
  * Every page's clock reads this instant, the moment the run started, so "2 minutes ago" and

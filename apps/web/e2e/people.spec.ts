@@ -5,8 +5,11 @@
  */
 import type { Page } from '@playwright/test';
 import { unique } from './support/api';
-import { BASE_URL } from './support/env';
+import { BASE_URL, THIRD_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
+
+// The third of the flows' administrators (support/env.ts says why).
+test.use({ storageState: THIRD_AUTH_FILE });
 
 async function signIn(page: Page, login: string, password: string) {
   await page.goto('/login');

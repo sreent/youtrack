@@ -5,7 +5,7 @@
 import { unique } from './support/api';
 import { expect, test } from './support/fixtures';
 
-// The first of the flows' administrators, who has fewer tests (support/env.ts says why there are two).
+// The first of the flows' administrators: its issue is theirs, as the run's token made it (support/env.ts says why there are three).
 
 test('an issue is reacted to, moved with what does not carry over chosen, and cloned', async ({ page, api }) => {
   const summary = `Belongs on the web ${unique()}`;

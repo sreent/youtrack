@@ -1,11 +1,11 @@
 /**
  * Sign in once, as a person does, and keep the session for the specs (storageState): the
- * administrator for the flows, and a second administrator for the tour (env.ts says why). Also
+ * administrators for the flows, and another for the tour (env.ts says why). Also
  * make the API token the specs use to arrange their data and to change things behind a page's back.
  */
 import { writeFileSync } from 'node:fs';
 import { expect, test as setup, type Page } from '@playwright/test';
-import { ADMIN, AUTH_FILE, BASE_URL, GUIDE, SECOND, SECOND_AUTH_FILE, TOKEN_FILE, TOUR_AUTH_FILE } from './support/env';
+import { ADMIN, AUTH_FILE, BASE_URL, GUIDE, SECOND, SECOND_AUTH_FILE, THIRD, THIRD_AUTH_FILE, TOKEN_FILE, TOUR_AUTH_FILE } from './support/env';
 
 async function signIn(page: Page, who: { login: string; password: string }) {
   await page.goto('/login');
@@ -24,7 +24,7 @@ async function createToken(page: Page, name: string, scopes: string[]): Promise<
   return ((await created.json()) as { token: string }).token;
 }
 
-setup('sign in as the administrators: two for the flows, and the one who takes the tour', async ({ browser }) => {
+setup('sign in as the administrators: three for the flows, and the one who takes the tour', async ({ browser }) => {
   const admin = await browser.newPage();
   await signIn(admin, ADMIN);
   await admin.context().storageState({ path: AUTH_FILE });
@@ -32,7 +32,7 @@ setup('sign in as the administrators: two for the flows, and the one who takes t
   const token = await createToken(admin, 'e2e', ['read', 'write', 'admin']);
   writeFileSync(TOKEN_FILE, JSON.stringify({ token }));
 
-  for (const person of [GUIDE, SECOND]) {
+  for (const person of [GUIDE, SECOND, THIRD]) {
     const made = await admin.request.post('/api/v1/users', {
       data: { login: person.login, name: person.name, password: person.password, role: 'admin' },
       headers: { authorization: `Bearer ${token}` },
@@ -41,10 +41,15 @@ setup('sign in as the administrators: two for the flows, and the one who takes t
   }
   await admin.close();
 
-  const second = await browser.newPage();
-  await signIn(second, SECOND);
-  await second.context().storageState({ path: SECOND_AUTH_FILE });
-  await second.close();
+  for (const [person, file] of [
+    [SECOND, SECOND_AUTH_FILE],
+    [THIRD, THIRD_AUTH_FILE],
+  ] as const) {
+    const flows = await browser.newPage();
+    await signIn(flows, person);
+    await flows.context().storageState({ path: file });
+    await flows.close();
+  }
 
   const guide = await browser.newPage();
   await signIn(guide, GUIDE);

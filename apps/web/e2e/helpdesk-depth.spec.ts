@@ -9,7 +9,11 @@
 import type { HelpdeskMailSecret } from '@a4a/shared';
 import { unique, uniqueKey } from './support/api';
 import { expect, test } from './support/fixtures';
+import { THIRD_AUTH_FILE } from './support/env';
 import { deskTakingMail, message, postMail } from './support/helpdesk';
+
+// The third of the flows' administrators (support/env.ts says why).
+test.use({ storageState: THIRD_AUTH_FILE });
 
 test('a desk sets its SLA on its page, and a request shows its targets, paused while it waits', async ({ page, api }) => {
   const key = uniqueKey('SL');

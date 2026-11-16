@@ -5,7 +5,7 @@
 import { uniqueKey } from './support/api';
 import { expect, test } from './support/fixtures';
 
-// The first of the flows' administrators: the two had as many tests when this was written.
+// The first of the flows' administrators: the dashboard the run's token makes is theirs.
 
 test('issues per field and the matrix open their issues; age and time in state read the history', async ({ page, api }) => {
   const key = uniqueKey('RM');

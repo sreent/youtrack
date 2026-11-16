@@ -7,6 +7,10 @@ import type { Page } from '@playwright/test';
 import type { ProjectMember } from '@a4a/shared';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expect, test } from './support/fixtures';
+import { THIRD_AUTH_FILE } from './support/env';
+
+// The third of the flows' administrators (support/env.ts says why).
+test.use({ storageState: THIRD_AUTH_FILE });
 
 const PASSWORD = 'e2e-person-pass-1';
 
