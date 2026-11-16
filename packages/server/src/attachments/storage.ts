@@ -1,7 +1,7 @@
 /**
- * Where attachments' bytes live, behind one small interface. Local disk under
- * DATA_DIR/attachments is the store today; an S3-compatible one implements the same
- * three calls (docs/architecture.md, D18, says what that takes).
+ * Where attachments' bytes live, behind one small interface: local disk under
+ * DATA_DIR/attachments, or an S3-compatible bucket (s3.ts; docs/architecture.md, D18
+ * and D35).
  *
  * Keys are a4a's own (a random id, sharded by its first two characters), never a
  * file's name, so nothing a person uploads decides where it's written.
@@ -13,34 +13,15 @@ import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { AppServices } from '../context';
 import { newId } from '../lib/ids';
+import { BlobNotFound, KEY, type BlobStorage } from './blob';
+import { S3Storage } from './s3';
 
-export interface BlobStorage {
-  readonly kind: string;
-  /**
-   * Store the stream's bytes under `key`, reading it as it comes. Resolves once they're
-   * durable; if the stream fails or is cut short, nothing is left under the key.
-   */
-  write(key: string, source: Readable): Promise<void>;
-  /** The bytes under `key`, or those from `start` to `end`, both included. */
-  read(key: string, range?: { start: number; end: number }): Promise<Readable>;
-  /** Gone afterwards, whether or not it was there. */
-  remove(key: string): Promise<void>;
-  /** Clear what interrupted writes left behind, older than `olderThanMs`. Optional. */
-  sweepPartial?(olderThanMs: number): Promise<number>;
-}
-
-const KEY = /^[0-9a-z]{2}\/[0-9a-z]{24}$/;
+export { BlobNotFound, KEY, StorageUnavailable, type BlobStorage } from './blob';
 
 /** A new key: 24 random characters, under a folder named by the first two. */
 export function newBlobKey(): string {
   const id = newId(24);
   return `${id.slice(0, 2)}/${id}`;
-}
-
-export class BlobNotFound extends Error {
-  constructor(key: string) {
-    super(`No stored file under ${key}`);
-  }
 }
 
 /**
@@ -120,17 +101,32 @@ export class LocalDiskStorage implements BlobStorage {
 
 const stores = new WeakMap<AppServices, BlobStorage>();
 
-/** The store this server keeps attachments in. */
+/** The folder local disk keeps files in, which the copy to S3 reads from. */
+export function localAttachmentsDir(dataDir: string): string {
+  return path.join(dataDir, 'attachments');
+}
+
+/** The store this server keeps attachments in: ATTACHMENT_STORAGE's. */
 export function attachmentStorage(app: AppServices): BlobStorage {
   let store = stores.get(app);
   if (!store) {
-    store = new LocalDiskStorage(path.join(app.config.dataDir, 'attachments'));
+    const { attachmentStorage: kind, s3, dataDir } = app.config;
+    store = kind === 's3' && s3 ? new S3Storage(s3) : new LocalDiskStorage(localAttachmentsDir(dataDir));
     stores.set(app, store);
   }
   return store;
 }
 
-/** Use another store (tests, and the S3 store once there is one). */
+/** Use another store (tests). */
 export function setAttachmentStorage(app: AppServices, store: BlobStorage): void {
   stores.set(app, store);
+}
+
+/**
+ * Before the server takes requests: a bucket that can't be reached, or refuses a4a, stops it
+ * with what to check, rather than failing every upload later. Local disk needs nothing.
+ */
+export async function checkAttachmentStorage(app: AppServices): Promise<void> {
+  const store = attachmentStorage(app);
+  if (store instanceof S3Storage) await store.check();
 }

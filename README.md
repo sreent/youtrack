@@ -32,7 +32,9 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - people's days away, whole or half days: their work waits for them, levelling finds room on the days they're there, and the load grid shows them (over the days each person chooses), never why;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
-- **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
+- **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk or to an S3-compatible bucket (S3, MinIO, R2), with a size limit per file and a cap per issue.
+  - Text files (logs, code, CSV, JSON, Markdown, and HTML as its source) open in place, from their start or their end. Sound and video play in the browser's own player, served in ranges.
+  - `files:to-s3` moves the files on disk to a bucket, checking each copy against its checksum, and carries on where a run stopped.
 - **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
 - **Reports**, worked out from each issue's history:
   - a sprint's burndown, by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence (linked from the sprint board);
@@ -193,7 +195,13 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
 | `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
 | `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
-| `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`. Back it up with the database |
+| `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`; `s3`, in the bucket below. Back it up with the database |
+| `S3_BUCKET` | empty | The bucket files go in with `ATTACHMENT_STORAGE=s3`, and where `files:to-s3` copies them. a4a checks it as it starts |
+| `S3_ENDPOINT` | empty | A store other than AWS's: MinIO's, R2's or another's address, e.g. `http://minio:9000` |
+| `S3_REGION` | `us-east-1` | The bucket's region (else `AWS_REGION`); R2 takes `auto` |
+| `S3_PREFIX` | empty | Before every key, so a bucket can hold more than a4a's files, e.g. `a4a/` |
+| `S3_FORCE_PATH_STYLE` | `true` with an endpoint | The bucket in the path (`http://host/bucket/key`), as most stores other than AWS want |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | empty | The bucket's keys (`S3_SESSION_TOKEN` with temporary ones). Without them, the AWS chain gives them: its environment, a profile, or the machine's role |
 | `SMTP_URL` | empty | An SMTP server for email, e.g. `smtp://user:pass@mail.example.com:587` (`smtps://` for TLS from the start). Without it, a4a sends no email and nothing fails: the inbox still has everything |
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
@@ -236,9 +244,22 @@ What each instance needs:
 - the same `DATABASE_URL` and `PUBLIC_URL` (the address people open, at the proxy);
 - `TRUST_PROXY=1` behind one proxy, so sign-in limits count the client's address rather than the proxy's;
 - a `LISTEN` connection straight to Postgres (`DATABASE_LISTEN_URL` if `DATABASE_URL` goes through a pooler in transaction mode);
-- a proxy that doesn't buffer `text/event-stream`. Caddy doesn't, and nginx doesn't for a4a's streams, which send `X-Accel-Buffering: no`; their keep-alive every 25 seconds stays within nginx's default read timeout.
+- a proxy that doesn't buffer `text/event-stream`. Caddy doesn't, and nginx doesn't for a4a's streams, which send `X-Accel-Buffering: no`; their keep-alive every 25 seconds stays within nginx's default read timeout;
+- the same files: a bucket (`ATTACHMENT_STORAGE=s3`), or `DATA_DIR/attachments` on a volume they all mount.
 
 `GET /api/v1/health` names the instance that answered and whether it runs the background work (`"worker": "active"` on one, `"standby"` on the rest). How the instances agree, and what is per instance on purpose, is in [docs/architecture.md](docs/architecture.md) (D17).
+
+### Files in a bucket
+
+Set `ATTACHMENT_STORAGE=s3` and the `S3_*` settings above. A bucket that can't be reached, or refuses a4a, stops the server as it starts, saying what to check. Downloads still come through a4a, which checks who may see a file, so the bucket needs no public access.
+
+To move the files a server already keeps on disk, run the copy with the server's own settings. First run it while the server still runs on disk:
+
+```bash
+pnpm --filter @a4a/server files:to-s3
+```
+
+Then stop the server and run it again: it copies only what came since. It checks each copy against the checksum taken at upload, says what it couldn't copy and why, and carries on where a run stopped. Start the server with `ATTACHMENT_STORAGE=s3` once it has copied everything. From a build, it's `node packages/server/dist/files-to-s3.js`; `--dry-run` counts what it would copy. Nothing on disk is deleted. With the embedded database, stop the server before either run: one process at a time may open it.
 
 ## Development
 
@@ -267,6 +288,8 @@ env:
 ```
 
 Then `pnpm install --frozen-lockfile` and `pnpm test` as usual. Running the suite once without `TEST_DATABASE_URL` as well keeps PGlite covered.
+
+The S3 store's tests run against a fake S3 server they start themselves. `test/s3-live.test.ts` runs against a real one when `TEST_S3_ENDPOINT` names it, with `TEST_S3_BUCKET`, `TEST_S3_ACCESS_KEY_ID` and `TEST_S3_SECRET_ACCESS_KEY`; CI gives it MinIO. Without them it is skipped.
 
 ```bash
 pnpm typecheck

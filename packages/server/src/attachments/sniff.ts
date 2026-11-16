@@ -2,7 +2,7 @@
  * What a file is, read from its first bytes: never from its name, nor from what the
  * uploader said it is. And its name, made safe to show and to send back in a header.
  */
-import { INLINE_IMAGE_TYPES } from '@a4a/shared';
+import { INLINE_IMAGE_TYPES, PLAYABLE_AUDIO_TYPES, PLAYABLE_VIDEO_TYPES, type PlayKind } from '@a4a/shared';
 
 /** How much of a file's start is read to tell what it is. */
 export const SNIFF_BYTES = 8192;
@@ -33,13 +33,37 @@ const BINARY: [string, (b: Buffer) => boolean][] = [
   ['application/wasm', (b) => at(b, [0x00, 0x61, 0x73, 0x6d])],
   ['application/x-elf', (b) => at(b, [0x7f, 0x45, 0x4c, 0x46])],
   ['application/x-msdownload', (b) => ascii(b, 'MZ') && b.length >= 64],
-  ['video/webm', (b) => at(b, [0x1a, 0x45, 0xdf, 0xa3])],
+  // EBML: WebM says so in its header's DocType; any other is Matroska, which browsers don't all play.
+  ['video/webm', (b) => at(b, [0x1a, 0x45, 0xdf, 0xa3]) && b.toString('latin1', 4, 64).includes('webm')],
+  ['video/x-matroska', (b) => at(b, [0x1a, 0x45, 0xdf, 0xa3])],
   ['audio/ogg', (b) => ascii(b, 'OggS')],
   ['audio/flac', (b) => ascii(b, 'fLaC')],
   ['audio/mpeg', (b) => ascii(b, 'ID3')],
   ['audio/wav', (b) => ascii(b, 'RIFF') && ascii(b, 'WAVE', 8)],
   ['video/x-msvideo', (b) => ascii(b, 'RIFF') && ascii(b, 'AVI ', 8)],
+  ['audio/mpeg', mpegAudioFrame],
+  ['audio/aac', adtsFrame],
 ];
+
+/**
+ * An MP3 without an ID3 tag starts with a frame: 11 sync bits, a version that isn't reserved,
+ * layer III, a bitrate that isn't "free" or "bad", and a sample rate that isn't reserved. (No
+ * text starts with 0xFF, and the UTF-16 mark 0xFF 0xFE says layer I, so neither is taken for one.)
+ */
+function mpegAudioFrame(b: Buffer): boolean {
+  if (b.length < 4 || b[0] !== 0xff || (b[1]! & 0xe0) !== 0xe0) return false;
+  const version = (b[1]! >> 3) & 3;
+  const layer = (b[1]! >> 1) & 3;
+  const bitrate = b[2]! >> 4;
+  const rate = (b[2]! >> 2) & 3;
+  return version !== 1 && layer === 1 && bitrate !== 0 && bitrate !== 15 && rate !== 3;
+}
+
+/** AAC in ADTS frames, as .aac files are: 12 sync bits, layer 0, and a sample rate index in range. */
+function adtsFrame(b: Buffer): boolean {
+  if (b.length < 7 || b[0] !== 0xff || (b[1]! & 0xf6) !== 0xf0) return false;
+  return ((b[2]! >> 2) & 0xf) < 13;
+}
 
 /** ISO media files name their brand after "ftyp". */
 function isoMedia(b: Buffer): string | null {
@@ -118,6 +142,17 @@ export function baseType(contentType: string): string {
 /** A raster image a browser may show in place. */
 export function isInline(contentType: string): boolean {
   return (INLINE_IMAGE_TYPES as readonly string[]).includes(baseType(contentType));
+}
+
+/**
+ * Sound or video the page plays in its own player (D35): a format every current browser
+ * decodes. Served as it always is, with nosniff, so its bytes are taken for nothing else.
+ */
+export function playableAs(contentType: string): PlayKind | null {
+  const t = baseType(contentType);
+  if ((PLAYABLE_AUDIO_TYPES as readonly string[]).includes(t)) return 'audio';
+  if ((PLAYABLE_VIDEO_TYPES as readonly string[]).includes(t)) return 'video';
+  return null;
 }
 
 /** Text an agent or a script may read as text. */

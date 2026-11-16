@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import { serve } from '@hono/node-server';
 import { createRuntime, type Runtime } from './app-services';
+import { checkAttachmentStorage } from './attachments/storage';
 import { loadConfig, type Config } from './config';
 import { openDatabase } from './db/client';
 import { seedDemo } from './db/seed';
@@ -72,6 +73,11 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
   const config = loadConfig(overrides);
   const database = await openDatabase({ url: config.databaseUrl, dataDir: config.dataDir });
   const runtime = await createRuntime(config, database);
+  // A bucket a4a can't reach or isn't let into stops it here, saying what to check (D35).
+  await checkAttachmentStorage(runtime).catch(async (e: unknown) => {
+    await database.close();
+    throw e;
+  });
 
   // Optional unattended bootstrap (containers, CI): ADMIN_LOGIN + ADMIN_PASSWORD.
   // Exclusive, so replicas starting together create one administrator and seed once.

@@ -177,3 +177,12 @@ export const MAX_PAGE_SIZE = 200;
  * is served as a download, whatever its name says.
  */
 export const INLINE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+
+/**
+ * Sound and video the page plays in its own player, from their bytes' type (D35): formats every
+ * current browser decodes. QuickTime, AVI and Matroska aren't among them, so they download.
+ */
+export const PLAYABLE_AUDIO_TYPES = ['audio/mpeg', 'audio/aac', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/flac'] as const;
+export const PLAYABLE_VIDEO_TYPES = ['video/mp4', 'video/webm'] as const;
+export const PLAY_KINDS = ['audio', 'video'] as const;
+export type PlayKind = (typeof PLAY_KINDS)[number];

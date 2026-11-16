@@ -12,6 +12,7 @@ import {
   HELP_LIMITS,
   LEVELING_MODES,
   NOTIFICATION_KINDS,
+  PLAY_KINDS,
   PROJECT_ROLES,
   PROJECT_VISIBILITIES,
   PULL_REQUEST_STATES,
@@ -1330,6 +1331,10 @@ export const AttachmentSchema = z
     sha256: z.string().describe('SHA-256 of the bytes, in hex'),
     inline: z.boolean().describe('A raster image (PNG, JPEG, GIF or WebP) that browsers show in place; every other file downloads'),
     text: z.boolean().describe('Text, which GET /attachments/{id}/text and the MCP tool read_attachment can read'),
+    play: z
+      .enum(PLAY_KINDS)
+      .nullable()
+      .describe("Sound or video the web app plays in place (MP3, AAC, M4A, Ogg, WAV, FLAC; MP4, WebM), from the bytes' type; null for every other file"),
     issue: z.string().nullable().describe('The issue it belongs to, also for a file on one of its comments'),
     comment: z.string().nullable().describe('The comment it was attached to, if any'),
     article: z.string().nullable().describe('The article it belongs to, if any'),

@@ -15,8 +15,8 @@ import type { OutboxConsumer } from '../events/worker';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { Inspector, tooLarge } from '../attachments/receive';
-import { baseType, describeType, formatBytes, isInline, isText, safeFileName, sniffContentType } from '../attachments/sniff';
-import { attachmentStorage, BlobNotFound, newBlobKey } from '../attachments/storage';
+import { baseType, describeType, formatBytes, isInline, isText, playableAs, safeFileName, sniffContentType } from '../attachments/sniff';
+import { attachmentStorage, BlobNotFound, newBlobKey, StorageUnavailable } from '../attachments/storage';
 import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject } from './access';
 import { articleReadableId, articleRef, articleRefsById, resolveArticle, type ArticleRow } from './article-refs';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
@@ -54,6 +54,26 @@ export function contentUrl(app: AppServices, id: string): string {
   return `${app.config.publicUrl}/api/v1/attachments/${id}/content`;
 }
 
+/**
+ * The store failed (D35): its words go to the server's log, where whoever runs it can act on
+ * them; the person is told it isn't their doing, and to try again.
+ */
+function storeFailed(e: StorageUnavailable, doing: string): AppError {
+  console.error(`attachment storage, ${doing}: ${e.message}`);
+  return new AppError(503, 'storage_unavailable', "Files can't be reached right now", "Try again in a minute. If it goes on, the server's log says why.");
+}
+
+/** A file's bytes as storage gives them: missing ones say so, a failing store answers 503. */
+async function readBytes(app: AppServices, row: AttachmentRow, range?: { start: number; end: number }): Promise<Readable> {
+  try {
+    return await attachmentStorage(app).read(row.blobKey, range);
+  } catch (e) {
+    if (e instanceof BlobNotFound) throw new AppError(410, 'gone', `The file of ${row.name} is missing from storage`, 'Upload it again.');
+    if (e instanceof StorageUnavailable) throw storeFailed(e, `reading ${row.blobKey}`);
+    throw e;
+  }
+}
+
 async function toDtos(ctx: Ctx, rows: AttachmentRow[]): Promise<Attachment[]> {
   if (!rows.length) return [];
   const s = await ctx.app.schema.get();
@@ -70,6 +90,7 @@ async function toDtos(ctx: Ctx, rows: AttachmentRow[]): Promise<Attachment[]> {
       sha256: r.sha256,
       inline: isInline(r.contentType),
       text: isText(r.contentType),
+      play: playableAs(r.contentType),
       issue: r.issueId ? (issueRefs.get(r.issueId)?.id ?? null) : null,
       comment: r.commentId,
       article: r.articleId ? (articleRefs.get(r.articleId)?.id ?? null) : null,
@@ -135,13 +156,9 @@ export async function attachmentForDownload(ctx: Ctx, id: string): Promise<Attac
   return loadVisible(ctx, id);
 }
 
-export async function openAttachmentBytes(app: AppServices, row: AttachmentRow): Promise<Readable> {
-  try {
-    return await attachmentStorage(app).read(row.blobKey);
-  } catch (e) {
-    if (e instanceof BlobNotFound) throw new AppError(410, 'gone', `The file of ${row.name} is missing from storage`, 'Upload it again.');
-    throw e;
-  }
+/** Its bytes, or those from `start` to `end` (both included), for the content route. */
+export function openAttachmentBytes(app: AppServices, row: AttachmentRow, range?: { start: number; end: number }): Promise<Readable> {
+  return readBytes(app, row, range);
 }
 
 // ---------------------------------------------------------------------------
@@ -239,8 +256,13 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
   // Recorded before the first byte is written, so a crash mid-upload leaves something to sweep.
   await ctx.db.insert(attachmentBlobs).values({ key, state: 'uploading' });
   const cleanUp = async () => {
-    await storage.remove(key).catch(() => {});
-    await ctx.db.delete(attachmentBlobs).where(eq(attachmentBlobs.key, key)).catch(() => {});
+    // The record goes only with the bytes: one the store couldn't remove now stays for the
+    // sweeper, which tries again once the upload counts as abandoned.
+    const removed = await storage.remove(key).then(
+      () => true,
+      () => false,
+    );
+    if (removed) await ctx.db.delete(attachmentBlobs).where(eq(attachmentBlobs.key, key)).catch(() => {});
   };
 
   try {
@@ -251,6 +273,10 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
   } catch (e) {
     await cleanUp();
     if (e instanceof AppError) throw e;
+    if (e instanceof StorageUnavailable) {
+      source.abort?.();
+      throw storeFailed(e, `storing ${name}`);
+    }
     throw badRequest(`The upload of ${name} didn't finish: ${e instanceof Error ? e.message : String(e)}`, 'Try again.');
   }
 
@@ -365,13 +391,7 @@ export async function readAttachmentText(ctx: Ctx, id: string, opts: { offset?: 
   let from = opts.tail ? Math.max(0, row.size - max) : Math.min(Math.max(opts.offset ?? 0, 0), row.size);
   let to = Math.min(row.size, from + max);
   if (to <= from) return { id: row.id, name: row.name, size: row.size, from, to: from, truncated: from > 0, text: '' };
-  let stream: Readable;
-  try {
-    stream = await attachmentStorage(ctx.app).read(row.blobKey, { start: from, end: to - 1 });
-  } catch (e) {
-    if (e instanceof BlobNotFound) throw new AppError(410, 'gone', `The file of ${row.name} is missing from storage`, 'Upload it again.');
-    throw e;
-  }
+  const stream = await readBytes(ctx.app, row, { start: from, end: to - 1 });
   const buf = await collect(stream, to - from);
   const charset = /charset=([\w-]+)/i.exec(row.contentType)?.[1]?.toLowerCase() ?? 'utf-8';
   let text: string;
