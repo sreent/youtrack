@@ -110,7 +110,7 @@ export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: b
   });
   const broken = rule.problems.length > 0;
   return (
-    <li className={rule.enabled ? 'card rule' : 'card rule off'}>
+    <li className={rule.enabled ? 'card rule-card' : 'card rule-card off'}>
       <div className="rule-head">
         <h3 className="rule-name">{rule.name}</h3>
         <span className="badges">

@@ -93,7 +93,7 @@ export default function RulesPage() {
               const canManage = r.project === null ? isAdmin && scopes.includes('write') : manages;
               if (editing === r.id && canManage) {
                 return (
-                  <li key={r.id} className="card rule">
+                  <li key={r.id} className="card rule-card">
                     <h3 className="rule-name">Change “{r.name}”</h3>
                     <RuleForm
                       project={r.project}
