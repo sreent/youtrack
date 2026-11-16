@@ -5,6 +5,7 @@ import { del, get, post } from '../../api/client';
 import { ago } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
+import { CopyButton } from '../common/CopyButton';
 
 const scimKeys = { tokens: ['scim', 'tokens'] as const };
 
@@ -64,10 +65,30 @@ export function ProvisioningSection() {
         <p className="note">No identity provider provisions people here yet.</p>
       ) : null}
       {made ? (
-        <div className="stack">
-          <p className="note">Give {made.name} these now: the token isn’t shown again.</p>
-          <FormField label="Tenant URL">{(id) => <output id={id} className="mono">{made.baseUrl}</output>}</FormField>
-          <FormField label="Secret token">{(id) => <output id={id} className="mono tw:break-all">{made.token}</output>}</FormField>
+        <div className="secret">
+          <p>
+            <strong>Copy it now.</strong> Give {made.name} these: a4a shows the token only this once, and keeps a fingerprint of it.
+          </p>
+          <FormField label="Tenant URL">
+            {(id) => (
+              <output id={id}>
+                <code>{made.baseUrl}</code>
+              </output>
+            )}
+          </FormField>
+          <FormField label="Secret token">
+            {(id) => (
+              <output id={id}>
+                <code>{made.token}</code>
+              </output>
+            )}
+          </FormField>
+          <div className="cluster">
+            <CopyButton text={made.token} label="Copy the token" what="the token" />
+            <button type="button" className="link" onClick={() => setMade(null)}>
+              I've given it
+            </button>
+          </div>
         </div>
       ) : null}
       <form

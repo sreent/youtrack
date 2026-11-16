@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { get, post } from '../../api/client';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
+import { CopyButton } from '../common/CopyButton';
 
 export const twoFactorKeys = { mine: ['me', 'two-factor'] as const };
 
@@ -37,16 +38,19 @@ export function CodeField({ value, onChange, recovery, autoFocus }: { value: str
 /** Recovery codes, shown the once. */
 export function RecoveryCodeList({ codes }: { codes: string[] }) {
   return (
-    <div className="stack">
-      <p className="note">
-        Your recovery codes. Each signs you in once if you lose your phone. Keep them somewhere safe, such as your password manager: a4a doesn’t show them
-        again.
+    <div className="secret">
+      <p>
+        <strong>Keep these now.</strong> Your recovery codes: each signs you in once if you lose your phone. Keep them somewhere safe, such as your password
+        manager; a4a doesn’t show them again.
       </p>
-      <ul aria-label="Recovery codes" className="mono tw:grid tw:grid-cols-2 tw:gap-x-6 tw:gap-y-1 tw:list-none tw:p-0">
+      <ul aria-label="Recovery codes" className="plain mono">
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}
       </ul>
+      <div className="cluster">
+        <CopyButton text={codes.join('\n')} label="Copy the codes" what="the recovery codes" />
+      </div>
     </div>
   );
 }
@@ -64,7 +68,7 @@ export function Enrol({ enrolment, confirm, onDone }: { enrolment: TwoFactorEnro
       }}
     >
       <p className="note">Scan this with an authenticator app, such as 1Password, Google Authenticator or Microsoft Authenticator.</p>
-      <img src={enrolment.qrUrl} width={184} height={184} alt="QR code for your authenticator app" className="tw:rounded" />
+      <img src={enrolment.qrUrl} width={184} height={184} alt="QR code for your authenticator app" />
       <p className="note">
         Or type this key into it: <span className="mono">{enrolment.secret}</span>
       </p>

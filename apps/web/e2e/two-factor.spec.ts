@@ -47,7 +47,7 @@ test.describe('signed in with a password', () => {
     const secret = key.replace(/ /g, '');
     await card.getByLabel('Code from the app').fill(totp(secret));
     await card.getByRole('button', { name: 'Turn it on' }).click();
-    await expect(card.getByRole('status')).toHaveText('Two-factor sign-in is on: from now on a4a asks for a code after your password.');
+    await expect(card.getByRole('status').filter({ hasText: /^Two-factor sign-in is on/ })).toHaveText('Two-factor sign-in is on: from now on a4a asks for a code after your password.');
     const codes = card.getByRole('list', { name: 'Recovery codes' }).getByRole('listitem');
     await expect(codes).toHaveCount(10);
     const recovery = (await codes.first().textContent())!;
@@ -94,7 +94,7 @@ test('an administrator resets someone’s two-factor sign-in, and makes a SCIM t
   const name = `Entra ${unique()}`;
   await provisioning.getByLabel('A token for').fill(name);
   await provisioning.getByRole('button', { name: 'Make a SCIM token' }).click();
-  await expect(provisioning.getByText(`Give ${name} these now: the token isn’t shown again.`)).toBeVisible();
+  await expect(provisioning.getByText(`Give ${name} these: a4a shows the token only this once, and keeps a fingerprint of it.`)).toBeVisible();
   await expect(provisioning.getByLabel('Tenant URL')).toHaveText(/\/scim\/v2$/);
   const token = (await provisioning.getByLabel('Secret token').textContent())!;
   expect(token).toMatch(/^a4s_/);
