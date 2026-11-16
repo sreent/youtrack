@@ -69,7 +69,7 @@ async function teamSummary(db: Db, projectId: string, assigneeFieldId: string | 
     .join('; ');
 }
 
-/** Ask Claude for a triage of one issue and store it as a pending suggestion. */
+/** Ask the AI for a triage of one issue and store it as a pending suggestion. */
 export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();

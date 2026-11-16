@@ -106,7 +106,8 @@ async function buildSpec(ctx: Ctx, issue: IssueRow, ops: CommandOp[], comment?: 
     }
   }
   if (comment?.trim()) comments.push(comment.trim());
-  return { fields, links, addTags, removeTags, comment: comments.join('\n\n') || undefined };
+  // The same words given both ways (in the command and as its comment) are one comment.
+  return { fields, links, addTags, removeTags, comment: [...new Set(comments)].join('\n\n') || undefined };
 }
 
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {

@@ -1,10 +1,12 @@
-import type { NLCommandResult, NLQueryResult, SimilarIssue } from '@a4a/shared';
+import type { NLCommandResult, NLQueryResult, QueryProblem, SimilarIssue } from '@a4a/shared';
 import { z } from 'zod';
 import { runCommand } from '../commands/executor';
+import { parseCommand } from '../commands/parser';
 import { requireScope, type Ctx } from '../context';
 import { badRequest } from '../lib/errors';
 import { excerpt } from '../lib/text';
 import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../search/reference';
+import { withFixes } from '../search/lexer';
 import { prepareQuery } from '../search/service';
 import { listComments } from '../services/comments';
 import { getIssue, issueDtos, resolveIssue } from '../services/issues';
@@ -15,6 +17,13 @@ import { schemaSummary } from './prompt-context';
 import { findSimilar } from './similar';
 
 const VOICE = 'Write plainly and briefly, from the reader\'s side. No emoji, no exclamation marks.';
+
+/** What the parser said about a query or command the model wrote, and the text with its fixes, when it has them. */
+function repairNote(kind: 'query' | 'command', text: string, problems: QueryProblem[]): string {
+  const said = problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
+  const fixed = withFixes(text, problems);
+  return `Your ${kind} "${text}" is invalid: ${said}.${fixed !== null ? ` With the parser's fixes it reads: ${fixed.trim()}` : ''} Reply with a corrected ${kind}.`;
+}
 
 // ---------------------------------------------------------------------------
 // Words → query
@@ -36,11 +45,10 @@ ${QUERY_LANGUAGE_GUIDE}`;
   let { output } = await structured(ctx.app, { system, prompt: `${context}\n\nRequest: ${text}`, schema: QueryOut });
   let prepared = await prepareQuery(ctx, output.query);
   if (prepared.compiled.problems.length) {
-    // One repair round, with the parser's own words.
-    const problems = prepared.compiled.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
+    // One repair round, with the parser's own words and its fixes.
     ({ output } = await structured(ctx.app, {
       system,
-      prompt: `${context}\n\nRequest: ${text}\n\nYour query "${output.query}" is invalid: ${problems}. Reply with a corrected query.`,
+      prompt: `${context}\n\nRequest: ${text}\n\n${repairNote('query', output.query, prepared.compiled.problems)}`,
       schema: QueryOut,
     }));
     prepared = await prepareQuery(ctx, output.query);
@@ -54,7 +62,10 @@ ${QUERY_LANGUAGE_GUIDE}`;
 
 const CommandOut = z.object({
   command: z.string().describe('The a4a command, without any comment text'),
-  comment: z.string().nullable().describe('A comment to post with the change, only if the request asks for one'),
+  comment: z
+    .string()
+    .nullable()
+    .describe('A comment to post with the change, only when the instruction asks to comment, note, reply or tell people something; a reason given for the change is not one. Otherwise null'),
   explanation: z.string().describe('One short sentence saying what will change'),
 });
 
@@ -66,24 +77,36 @@ export async function wordsToCommand(ctx: Ctx, text: string, issueIds: string[])
   const issuesText = dtos
     .map((i) => `- ${i.id} "${i.summary}": ${i.fields.map((f) => `${f.name}=${presentField(f) ?? '—'}`).join(', ')}${i.tags.length ? `; tags ${i.tags.map((t) => t.name).join(', ')}` : ''}`)
     .join('\n');
-  const system = `You turn an instruction in plain words into one a4a command that changes the given issues. Use only fields, values, people and link phrases that exist. If the instruction cannot be expressed as a command, return an empty command and explain why. ${VOICE}
+  const system = `You turn an instruction in plain words into one a4a command that changes the given issues. Use only fields, values, people and link phrases that exist.
+- The command applies to the given issues already, so never name them in it. Another issue only follows a link phrase, as in "duplicates BACK-7".
+- A comment goes in the comment field, never in the command, and only when the instruction asks to comment, note, reply or tell people something. Write it as the person would say it, in their words. Otherwise the comment is null.
+- Issues can't be deleted. Asked to delete one, return an empty command and say it can be closed with a resolved state, such as Obsolete or Duplicate.
+- If the instruction can't be expressed as a command at all, return an empty command and say why.
+${VOICE}
 
 ${COMMAND_GUIDE}`;
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
   const context = `${await schemaSummary(ctx, { projectId: projectIds.length === 1 ? projectIds[0] : undefined })}\n\nThe issues:\n${issuesText}`;
-  let { output } = await structured(ctx.app, { system, prompt: `${context}\n\nInstruction: ${text}`, schema: CommandOut });
+  const s2 = await ctx.app.schema.get();
+  const answer = async (prompt: string) => liftComment((await structured(ctx.app, { system, prompt, schema: CommandOut })).output, s2, projectIds);
+  let output = await answer(`${context}\n\nInstruction: ${text}`);
   let preview = await runCommand(ctx, { issues: issueIds, command: output.command, comment: output.comment ?? undefined, dryRun: true });
   if (preview.problems.length && output.command.trim()) {
-    const problems = preview.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
-    ({ output } = await structured(ctx.app, {
-      system,
-      prompt: `${context}\n\nInstruction: ${text}\n\nYour command "${output.command}" is invalid: ${problems}. Reply with a corrected command.`,
-      schema: CommandOut,
-    }));
+    output = await answer(`${context}\n\nInstruction: ${text}\n\n${repairNote('command', output.command, preview.problems)}`);
     preview = await runCommand(ctx, { issues: issueIds, command: output.command, comment: output.comment ?? undefined, dryRun: true });
   }
   const { description: _description, ...result } = preview;
   return { command: output.command, comment: output.comment, explanation: output.explanation, preview: result };
+}
+
+/**
+ * A comment the model wrote into the command itself goes in the comment field, where its
+ * schema puts it, so it is posted once. When both are given, the field's comment stands.
+ */
+function liftComment(out: z.infer<typeof CommandOut>, s: Awaited<ReturnType<Ctx['app']['schema']['get']>>, projectIds: string[]): z.infer<typeof CommandOut> {
+  const inline = parseCommand(out.command, s, projectIds).ops.find((op) => op.kind === 'comment');
+  if (!inline) return out;
+  return { ...out, command: out.command.slice(0, inline.at).trim(), comment: out.comment?.trim() ? out.comment : inline.text || null };
 }
 
 // ---------------------------------------------------------------------------

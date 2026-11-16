@@ -235,13 +235,13 @@ An agent or integration can react to changes instead of polling.
 
 ## 7. AI endpoints
 
-These are powered by Claude (`claude-opus-5-5`) and enabled when `ANTHROPIC_API_KEY` is set. Without a key they return `503 ai_disabled`, and the non-AI parts keep working (lexical similar-issue search included).
+These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on DeepSeek, Qwen or another service that speaks Anthropic's Messages API, chosen with `AI_PROVIDER` (see the README). `GET /ai/status` says who serves the model, which model, and why the AI is off when it is. Without a key they return `503 ai_disabled`, and the non-AI parts keep working (lexical similar-issue search included).
 
 | Endpoint | What it does |
 |---|---|
 | `POST /ai/query` | Natural language → query. *"critical bugs assigned to me updated this week"* → `Type: Bug Priority: Critical for: me updated: {this week}`. The query is validated by the real parser; on a parse error the model gets the error and retries once |
 | `POST /ai/command` | Natural language → command for the selected issues, returned with a dry-run preview. *"close as duplicate of BACK-7 and assign to anna"* |
-| `POST /ai/similar` | Duplicate check while typing. Lexical candidates (Postgres full-text + trigram) are returned instantly; with `judge: true` Claude labels each as *duplicate*, *related* or *different*, with a reason |
+| `POST /ai/similar` | Duplicate check while typing. Lexical candidates (Postgres full-text + trigram) are returned instantly; with `judge: true` the AI labels each as *duplicate*, *related* or *different*, with a reason |
 | `POST /issues/{id}/triage` | Suggests Type, Priority, Subsystem, Assignee and tags, plus possible duplicates, with confidence and rationale. Runs automatically on new issues when the project's triage mode is `suggest` or `auto`. `auto` fills only empty fields, attributed to the *AI Assistant* bot |
 | `GET /issues/{id}/suggestions`, `POST /suggestions/{id}/apply \| dismiss` | Review triage suggestions: apply all, apply some, or dismiss |
 | `GET /ai/suggestions?project=` | Everything agents propose that waits on a person, across issues (the Decide page) |

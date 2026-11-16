@@ -18,9 +18,9 @@ import { newId } from '../../lib/ids';
 import { excerpt } from '../../lib/text';
 import { projectByKey } from '../../services/schema-cache';
 import { toolByName, toolErrorText } from '../../tools/registry';
-import { FALLBACK_BETA, requireAI, THINKING_UPDATES_BETA, toAppError } from '../client';
+import { aiService, FALLBACK_BETA, requireAI, THINKING_UPDATES_BETA, toAppError, type AIService } from '../client';
 import { schemaSummary } from '../prompt-context';
-import { AGENT_VERSION, ANTHROPIC_TOOLS, SYSTEM_PROMPT } from './prompt';
+import { ANTHROPIC_TOOLS, historyVersion, SYSTEM_PROMPT } from './prompt';
 
 type Block = Anthropic.Beta.BetaContentBlockParam;
 type ConversationRow = typeof aiConversations.$inferSelect;
@@ -112,7 +112,7 @@ export async function createConversation(ctx: Ctx, input: { title?: string; proj
       projectId: project?.id ?? null,
       status: 'idle',
       context: frozen,
-      agentVersion: AGENT_VERSION,
+      agentVersion: historyVersion(aiService(ctx.app)),
     })
     .returning();
   return conversationDto(s, row!);
@@ -152,12 +152,14 @@ export function renderMessages(rows: MessageRow[], pending: Pending | null): Cha
   const out: ChatMessage[] = [];
   for (const row of rows) {
     const parts: ChatPart[] = [];
+    // Another service's thinking is its raw reasoning, not notes written to be read.
+    const raw = (row.meta as { reasoning?: string } | null)?.reasoning === 'raw';
     for (const b of row.content as Block[]) {
       if (b.type === 'text') {
         if (row.role === 'user' && b.text.startsWith(PAGE_PREFIX)) continue;
         if (b.text.trim()) parts.push({ type: 'text', text: b.text });
       } else if (b.type === 'thinking') {
-        if (b.thinking.trim()) parts.push({ type: 'progress', text: b.thinking });
+        if (b.thinking.trim() && !raw) parts.push({ type: 'progress', text: b.thinking });
       } else if (b.type === 'tool_use') {
         const r = results.get(b.id);
         const tool = toolByName(b.name);
@@ -200,11 +202,12 @@ function stripThinking(content: Block[]): Block[] {
   return content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
 }
 
-async function history(ctx: Ctx, conv: ConversationRow): Promise<Anthropic.Beta.BetaMessageParam[]> {
+async function history(ctx: Ctx, conv: ConversationRow, ai: AIService): Promise<Anthropic.Beta.BetaMessageParam[]> {
   const rows = await ctx.db.select().from(aiMessages).where(eq(aiMessages.conversationId, conv.id)).orderBy(asc(aiMessages.id));
-  if (conv.agentVersion !== AGENT_VERSION) {
-    // The prompt or tools changed since these turns: their thinking blocks are bound
-    // to the old prefix, so drop them once (persistently) and carry on.
+  const version = historyVersion(ai);
+  if (conv.agentVersion !== version) {
+    // The prompt, the tools or the model changed since these turns: their thinking blocks
+    // are bound to the old prefix and model, so drop them once (persistently) and carry on.
     for (const r of rows) {
       if (r.role !== 'assistant') continue;
       const stripped = stripThinking(r.content as Block[]);
@@ -213,8 +216,8 @@ async function history(ctx: Ctx, conv: ConversationRow): Promise<Anthropic.Beta.
         r.content = stripped;
       }
     }
-    await ctx.db.update(aiConversations).set({ agentVersion: AGENT_VERSION }).where(eq(aiConversations.id, conv.id));
-    conv.agentVersion = AGENT_VERSION;
+    await ctx.db.update(aiConversations).set({ agentVersion: version }).where(eq(aiConversations.id, conv.id));
+    conv.agentVersion = version;
   }
   return rows.map((r) => ({ role: r.role as 'user' | 'assistant', content: r.content as Block[] })) as Anthropic.Beta.BetaMessageParam[];
 }
@@ -257,46 +260,55 @@ async function runTool(ctx: Ctx, name: string, input: unknown): Promise<{ block:
 /** Run assistant steps until the turn ends, a write needs approval, or a limit is hit. */
 async function loop(ctx: Ctx, conv: ConversationRow, emit: Emit, approvalMode: 'ask' | 'auto'): Promise<void> {
   const ai = requireAI(ctx.app);
+  const claude = ai.provider.claudeFeatures;
   const frozen = conv.context as FrozenContext;
   let jsonRetries = 0;
   for (let step = 0; step < MAX_STEPS; step++) {
-    const messages = await history(ctx, conv);
+    const messages = await history(ctx, conv, ai);
     emit({ type: 'message_start', messageId: `step-${step}` });
     let message: Anthropic.Beta.BetaMessage;
     try {
-      const stream = ai.client.beta.messages.stream({
+      const base = {
         model: ai.model,
         max_tokens: 64000,
-        betas: [FALLBACK_BETA, THINKING_UPDATES_BETA],
-        fallbacks: 'default',
-        thinking: { type: 'adaptive', display: 'updates' },
-        output_config: { effort: 'medium' },
-        cache_control: { type: 'ephemeral' },
+        output_config: { effort: 'medium' as const },
         system: [
-          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: frozen.intro },
+          { type: 'text' as const, text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' as const } },
+          { type: 'text' as const, text: frozen.intro },
         ],
         tools: ANTHROPIC_TOOLS,
         messages,
-      });
+      };
+      // Claude gets its own features; any other service, the portable subset of the request.
+      const stream = claude
+        ? ai.client.beta.messages.stream({
+            ...base,
+            betas: [FALLBACK_BETA, THINKING_UPDATES_BETA],
+            fallbacks: 'default',
+            thinking: { type: 'adaptive', display: 'updates' },
+            cache_control: { type: 'ephemeral' },
+          })
+        : ai.client.beta.messages.stream({ ...base, thinking: { type: 'adaptive' } });
       for await (const event of stream) {
         if (event.type === 'content_block_delta') {
           if (event.delta.type === 'text_delta') emit({ type: 'text_delta', text: event.delta.text });
-          else if (event.delta.type === 'thinking_delta' && event.delta.thinking) emit({ type: 'progress', text: event.delta.thinking });
+          // Claude's thinking comes as short progress notes, written to be read. Another
+          // service's is its raw reasoning: it is kept, to send back, but not shown.
+          else if (claude && event.delta.type === 'thinking_delta' && event.delta.thinking) emit({ type: 'progress', text: event.delta.thinking });
         }
       }
       message = await stream.finalMessage();
       jsonRetries = 0;
     } catch (e) {
       // Only a tool input the SDK could not parse at all is retried; API errors are not.
-      if (e instanceof Anthropic.APIError || jsonRetries++ >= 2) throw toAppError(e);
+      if (e instanceof Anthropic.APIError || jsonRetries++ >= 2) throw toAppError(e, ai);
       emit({ type: 'notice', text: 'Retrying a step whose tool input was malformed' });
       continue;
     }
 
     const content = sanitizeFallback(message.content as Block[]);
     const toolUses = content.filter((b): b is Anthropic.Beta.BetaToolUseBlockParam => b.type === 'tool_use');
-    await append(ctx, conv.id, 'assistant', content, { usage: message.usage });
+    await append(ctx, conv.id, 'assistant', content, { usage: message.usage, meta: claude ? undefined : { reasoning: 'raw' } });
     if (content.some((b) => b.type === 'fallback')) {
       emit({ type: 'notice', text: `Answered by ${message.model}` });
     }

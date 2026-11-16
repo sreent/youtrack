@@ -19,7 +19,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
-- **AI with Claude**:
+- **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
   - Search and commands in plain words.
@@ -55,6 +55,12 @@ To turn on the AI features, set a Claude API key before `pnpm dev`:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-…
+```
+
+They also run on DeepSeek or Qwen, which speak the same API. What differs is in [D14](docs/architecture.md#d14-other-models-get-the-portable-subset). The AI sends issue text to whoever serves it, so the provider is named, never guessed from the keys that are set:
+
+```bash
+export AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-…
 ```
 
 ## Connect an agent (MCP)
@@ -99,8 +105,11 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check |
 | `DATABASE_URL` | empty | A Postgres URL. When empty, the embedded PGlite database in `DATA_DIR` is used, which is for one process only |
 | `DATA_DIR` | `./data` | Where the embedded database lives |
-| `ANTHROPIC_API_KEY` | empty | Turns on the AI features |
-| `AI_MODEL` | `claude-opus-5-5` | The Claude model used |
+| `AI_PROVIDER` | `anthropic` | Who serves the model: `anthropic`, `deepseek`, `qwen`, or `compatible` for another service that speaks Anthropic's Messages API. Issue text the AI reads goes to them |
+| `ANTHROPIC_API_KEY` | empty | Anthropic's key. A provider's key turns the AI features on |
+| `DEEPSEEK_API_KEY`, `QWEN_API_KEY` (or `DASHSCOPE_API_KEY`), `AI_API_KEY` | empty | The key for DeepSeek, Qwen or a `compatible` service |
+| `AI_BASE_URL` | the provider's | Where requests go. Needed for `compatible`; for Qwen in mainland China, `https://dashscope.aliyuncs.com/apps/anthropic` |
+| `AI_MODEL` | `claude-opus-5-5`, `deepseek-v4-pro` or `qwen3.8-max` | The model used |
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
@@ -140,6 +149,14 @@ TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm test
 ```bash
 pnpm typecheck
 ```
+
+The AI's tests use a scripted model. To run every AI feature against a real one, on the demo data, with the provider's key set as above (it costs a little):
+
+```bash
+pnpm --filter @a4a/server test:live
+```
+
+CI runs these on `main` for each provider whose key is a repository secret (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY`), and skips the rest.
 
 | Path | What |
 | --- | --- |

@@ -983,7 +983,12 @@ export const BaselineBody = z.object({
 // ---------------------------------------------------------------------------
 
 export const AIStatusSchema = z
-  .object({ enabled: z.boolean(), model: z.string(), reason: z.string().nullable() })
+  .object({
+    enabled: z.boolean(),
+    provider: z.string().describe('Who serves the model, such as Anthropic or DeepSeek: issue text the AI reads goes to them'),
+    model: z.string(),
+    reason: z.string().nullable().describe('Why the AI is off, when it is'),
+  })
   .meta({ id: 'AIStatus' });
 export type AIStatus = z.infer<typeof AIStatusSchema>;
 
@@ -1021,7 +1026,7 @@ export const SimilarBody = z.object({
   project: z.string().optional(),
   excludeIssue: z.string().optional(),
   limit: z.number().int().min(1).max(20).default(5),
-  judge: z.boolean().default(false).describe('Ask Claude to label each candidate (duplicate / related / different)'),
+  judge: z.boolean().default(false).describe('Ask the AI to label each candidate (duplicate / related / different)'),
 });
 export const SimilarIssueSchema = z
   .object({

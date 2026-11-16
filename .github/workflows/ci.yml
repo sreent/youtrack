@@ -5,6 +5,7 @@ on:
   push:
     branches: [main, 'claude/**']
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -63,3 +64,29 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @a4a/server test
+
+  live-ai:
+    name: AI against ${{ matrix.provider }}, live
+    # Real models cost a little, so on main and on request only; pull requests can't read secrets anyway.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [anthropic, deepseek, qwen]
+    env:
+      AI_PROVIDER: ${{ matrix.provider }}
+      # Each job gets its own provider's key only. Without that repository secret, its tests skip and say why.
+      ANTHROPIC_API_KEY: ${{ matrix.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY || '' }}
+      DEEPSEEK_API_KEY: ${{ matrix.provider == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
+      QWEN_API_KEY: ${{ matrix.provider == 'qwen' && secrets.QWEN_API_KEY || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @a4a/server test:live

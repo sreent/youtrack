@@ -120,18 +120,18 @@ The transport is stateless Streamable HTTP: a new `McpServer` per request, authe
 
 There are no deletes over MCP. Bulk commands are capped at 50 issues and have `dry_run`.
 
-### D9. AI: Claude, guarded
+### D9. AI: Claude first, guarded
 
 All AI calls go through `ai/client.ts`.
 
 **Model and SDK**
 
-- The model is `claude-opus-5-5` (override with `AI_MODEL`), via the official `@anthropic-ai/sdk`.
+- The model is `claude-opus-5-5` (override with `AI_MODEL`), via the official `@anthropic-ai/sdk`. Other services that speak the same API get the portable subset of each request (D14).
 - Calls use the beta Messages API with server-side refusal fallbacks (`fallbacks: "default"`), so a false-positive classifier decline doesn't become an outage.
 
 **Structured features (triage, query from words, command from words)**
 
-- They use structured outputs, with schemas built per project, so enum values are exactly the project's own.
+- They use structured outputs (elsewhere, a forced tool call: D14), with schemas built per project, so enum values are exactly the project's own.
 - The query and command are then checked by the real parser. A failure is sent back to the model once to repair.
 - Effort is `low`, because these are classifications.
 
@@ -202,6 +202,28 @@ A query or command problem names its span and, when there is a likely fix, the t
 - The UI offers the fix as one click ("Did you mean Fixed?"), with no parsing of hint text.
 - Agents over MCP or the API can apply it the same way.
 - A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
+
+### D14. Other models get the portable subset
+
+a4a is built for Claude and gets every feature from it. It also runs on services that speak Anthropic's Messages API: DeepSeek, Qwen, or another with `AI_PROVIDER=compatible`. They go through the same SDK and the same code; the provider changes the request, not the features.
+
+- **One path.** Triage, the assistant and the rest use one client and one tool loop whoever serves them, so a live run on any provider exercises the code Claude runs. A second SDK would have been a second path that no Claude test touches.
+- **What's left out elsewhere:** Claude's own request features, namely refusal fallbacks, thinking shown as progress notes, automatic caching and structured outputs. The rest is the portable API: tools, streaming, adaptive thinking and effort.
+- **Structured answers come by tool.** DeepSeek accepts structured outputs and ignores them, answering in prose. So elsewhere, the answer is the input of a tool the model must call.
+  - It is checked against the same zod schema, with one repair round in plain words ("reason: missing").
+  - Thinking is off for these calls: DeepSeek refuses a forced tool while thinking, and they are classifications.
+  - Qwen leaves out a key whose answer is null. The schema requires the key and allows null, so the null is put back before checking.
+- **Raw reasoning stays out of sight.** Another service's thinking is its raw reasoning, not notes written to be read. It is stored, to send back on the next turn, and never shown.
+- **Thinking is bound to its model.** A conversation records the provider and model its thinking came from. When either changes, the stored thinking is dropped once, as when the prompt changes.
+- **Chosen, never inferred.** The AI sends issue text to whoever serves it.
+  - `AI_PROVIDER` names the provider, whatever keys are set.
+  - A mistake there turns the AI off and says why (`GET /ai/status`); the tracker keeps working.
+  - A key is passed only to its own service. The SDK then reads no Anthropic key from the environment, so none is sent elsewhere (tested).
+  - The assistant's facts show who it runs on.
+- **Tested live.** `pnpm --filter @a4a/server test:live` runs every AI feature against the configured provider, on the demo data, and checks what must hold whatever the wording. CI runs it on `main` for each provider whose key is a repository secret. On DeepSeek V4 Pro and Qwen 3.8 Max it found the faults above, and three in a4a itself:
+  - a command that repeated its own comment posted it twice;
+  - an issue id in a command got a generic problem with no fix (now named, with a fix that takes it out, D13);
+  - the command guide's inline `comment` clause invited the model to put the comment in both places (an inline comment now moves to the comment field).
 
 ## Consistency and concurrency
 

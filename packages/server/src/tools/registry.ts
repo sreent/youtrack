@@ -428,7 +428,11 @@ const applyCommandTool = defineTool({
     const changed = res.results.filter((r) => r.changes.length).length;
     return {
       data: { applied: res.applied, dryRun: input.dry_run, results: res.results },
-      summary: input.dry_run ? `Previewed "${input.command}" on ${count(input.issues.length, 'issue')}` : `Applied "${input.command}" to ${count(changed, 'issue')}`,
+      summary: input.dry_run
+        ? `Previewed "${input.command}" on ${count(input.issues.length, 'issue')}`
+        : changed
+          ? `Applied "${input.command}" to ${count(changed, 'issue')}`
+          : `Nothing to change: ${input.issues.length === 1 ? 'the issue already had' : 'the issues already had'} "${input.command}"`,
     };
   },
 });
