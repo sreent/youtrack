@@ -1226,3 +1226,108 @@ export const helpThrottle = pgTable(
   },
   (t) => [index('help_throttle_ends').on(t.windowEnds)],
 );
+
+// ---------------------------------------------------------------------------
+// OAuth for remote MCP (docs/architecture.md, D28)
+// ---------------------------------------------------------------------------
+
+/**
+ * An app that registered itself (RFC 7591) to ask people for access to /mcp. Public clients only:
+ * it gets an id, never a secret. Its name is its own word for itself, and proves nothing.
+ */
+export const oauthClients = pgTable(
+  'oauth_clients',
+  {
+    id: text('id').primaryKey(),
+    name: text('name'),
+    redirectUris: text('redirect_uris').array().notNull(),
+    /** authorization_code, and refresh_token if it renews its tokens. */
+    grantTypes: text('grant_types').array().notNull(),
+    /** What it said it would ask for; what it gets is decided at consent. */
+    scope: text('scope'),
+    softwareId: text('software_id'),
+    softwareVersion: text('software_version'),
+    createdAt: created(),
+    lastUsedAt: ts('last_used_at'),
+  },
+  (t) => [index('oauth_clients_created').on(t.createdAt)],
+);
+
+/**
+ * What a person allowed one app: its scopes and projects, as a token's (D15). One live grant per
+ * person and app, which is how consent is remembered; a revoked one is kept a while, then pruned.
+ */
+export const oauthGrants = pgTable(
+  'oauth_grants',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id')
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    scopes: text('scopes').array().notNull(),
+    /** What the app asked for when the person decided: while it asks no more, it isn't asked again. */
+    asked: text('asked').array().notNull(),
+    /** The only projects it reaches (ids), or null for every project its person can see. */
+    projectIds: text('project_ids').array(),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+    lastUsedAt: ts('last_used_at'),
+    revokedAt: ts('revoked_at'),
+  },
+  (t) => [
+    index('oauth_grants_user').on(t.userId),
+    uniqueIndex('oauth_grants_live').on(t.clientId, t.userId).where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
+
+/**
+ * An authorization code, by its SHA-256: short-lived and single-use, bound to the redirect it was
+ * sent to, the PKCE challenge and the resource. Once used it keeps the family of the tokens it
+ * gave, so a code that comes back revokes them.
+ */
+export const oauthCodes = pgTable(
+  'oauth_codes',
+  {
+    id: text('id').primaryKey(),
+    grantId: text('grant_id')
+      .notNull()
+      .references(() => oauthGrants.id, { onDelete: 'cascade' }),
+    redirectUri: text('redirect_uri').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    resource: text('resource').notNull(),
+    scopes: text('scopes').array().notNull(),
+    createdAt: created(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    familyId: text('family_id'),
+  },
+  (t) => [index('oauth_codes_grant').on(t.grantId)],
+);
+
+/**
+ * Access and refresh tokens, by their SHA-256. A family is every token since one code, through each
+ * refresh; a refresh token used twice revokes its family. An access token works only for its
+ * resource, this server's /mcp.
+ */
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    grantId: text('grant_id')
+      .notNull()
+      .references(() => oauthGrants.id, { onDelete: 'cascade' }),
+    familyId: text('family_id').notNull(),
+    resource: text('resource').notNull(),
+    scopes: text('scopes').array().notNull(),
+    createdAt: created(),
+    expiresAt: ts('expires_at').notNull(),
+    /** A refresh token, once exchanged for the next one. */
+    usedAt: ts('used_at'),
+    revokedAt: ts('revoked_at'),
+  },
+  (t) => [index('oauth_tokens_family').on(t.familyId), index('oauth_tokens_grant').on(t.grantId), index('oauth_tokens_expires').on(t.expiresAt)],
+);

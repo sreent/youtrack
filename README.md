@@ -64,7 +64,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 37 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them.
+- **For agents**: an MCP server at `/mcp` with 37 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start
@@ -100,6 +100,16 @@ export AI_PROVIDER=deepseek DEEPSEEK_API_KEY=sk-…
 ```
 
 ## Connect an agent (MCP)
+
+**Clients that sign in by themselves** (Claude, Claude Code, and others that speak MCP's OAuth) need only the address. They send you to a4a, which shows who asks and lets you choose what it may do and where, and they appear under **Agents and tokens**, where you can revoke them.
+
+```bash
+claude mcp add --transport http a4a http://localhost:3000/mcp
+```
+
+Then `/mcp` in Claude Code signs it in. In Claude, add a custom connector with your a4a's https address and `/mcp`: Claude reaches it from the internet, so it has to be reachable from there. With a `PUBLIC_URL` that isn't https (or this computer), use a token instead.
+
+**With a token**, for any other client:
 
 1. Create a token: **Agents and tokens** in the app, or `POST /api/v1/me/tokens`.
    - A read-only token is the safe way to let an agent explore.
@@ -144,6 +154,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
 | `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
 | `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
+| `MCP_OAUTH` | `true` | Let MCP clients sign in with OAuth 2.1, so they need no token (docs/architecture.md, D28). It works only when `PUBLIC_URL` is https, or on this computer; elsewhere, or with `false`, clients use API tokens |
 | `DATA_DIR` | `./data` | Where the embedded database and attached files live |
 | `AI_PROVIDER` | `anthropic` | Who serves the model: `anthropic`, `deepseek`, `qwen`, or `compatible` for another service that speaks Anthropic's Messages API. Issue text the AI reads goes to them |
 | `ANTHROPIC_API_KEY` | empty | Anthropic's key. A provider's key turns the AI features on |

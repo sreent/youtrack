@@ -11,6 +11,7 @@ import { CopyButton } from '../features/common/CopyButton';
 import { dateRead } from '../features/common/format';
 import { Hint } from '../features/common/Hint';
 import { useAITools, type AITool } from '../features/common/queries';
+import { AllowedApps, SignInInstead } from '../features/agents/OAuthApps';
 
 type Created = ApiToken & { token: string };
 type Client = 'claude-code' | 'http' | 'desktop';
@@ -160,6 +161,7 @@ export default function AgentsPage() {
         <div className="stack">
           <section className="card" aria-labelledby="connect">
             <h2 id="connect">Connect an agent</h2>
+            <SignInInstead />
             <ol className="steps">
               <li>
                 <h3>Create a token for it</h3>
@@ -362,6 +364,8 @@ export default function AgentsPage() {
               </Scroll>
             ) : null}
           </section>
+
+          <AllowedApps />
 
           <section className="card" aria-labelledby="what-agents-get">
             <div className="section-head">

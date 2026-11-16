@@ -9,6 +9,8 @@ import type { Ctx } from '../context';
 import { idempotencyKeys } from '../db/schema';
 import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { ACCESS_PREFIX, mcpChallenge } from '../oauth/common';
+import { actorFromOAuthToken } from '../oauth/tokens';
 import { actorFromSession, actorFromToken, SESSION_COOKIE } from '../services/auth';
 import type { HttpEnv } from './env';
 
@@ -40,8 +42,16 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
     const header = c.req.header('authorization');
     const isMcp = c.req.path === '/mcp' || c.req.path.startsWith('/mcp/');
     if (header?.toLowerCase().startsWith('bearer ')) {
-      const actor = await actorFromToken(runtime.db, header.slice(7).trim(), isMcp ? 'mcp' : 'api');
+      const bearer = header.slice(7).trim();
+      // An app's token (OAuth, D28) is for /mcp alone: its audience. Elsewhere it's refused unread.
+      const oauth = bearer.startsWith(ACCESS_PREFIX);
+      if (oauth && !isMcp) {
+        return c.json(errorBody('unauthorized', 'This token is an app’s, for MCP: it works at /mcp only', 'For the REST API, create an API token in Profile → API tokens.'), 401);
+      }
+      const actor = oauth ? await actorFromOAuthToken(runtime, bearer) : await actorFromToken(runtime.db, bearer, isMcp ? 'mcp' : 'api');
       if (!actor) {
+        // At /mcp the challenge says where to sign in again, so a client can renew what expired.
+        if (isMcp) c.header('www-authenticate', mcpChallenge(runtime.config, { code: 'invalid_token', description: 'The token is unknown, expired or revoked' }));
         return c.json(errorBody('unauthorized', 'The token is unknown, expired or revoked', 'Create a new token in Profile → API tokens.'), 401);
       }
       ctx = { app: runtime, db: runtime.db, actor };

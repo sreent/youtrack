@@ -27,6 +27,7 @@ import { getCookie } from 'hono/cookie';
 import type { HttpEnv } from '../env';
 import { clientIp, errorBody } from '../middleware';
 import { route } from '../route';
+import { oauthOn } from '../../oauth/common';
 
 export async function meDto(ctx: Ctx): Promise<Me> {
   const view = await projectAccess(ctx);
@@ -51,6 +52,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       needsSetup: await needsSetup(runtime.db),
       instanceName: ((await getSetting(runtime.db, 'instanceName')) as string | undefined) ?? APP_NAME,
       signIn: { password: runtime.config.passwordLogin, sso: sso ? { name: sso.name, url: '/api/v1/auth/oidc/start' } : null },
+      mcpOAuth: oauthOn(runtime.config),
     };
   });
 

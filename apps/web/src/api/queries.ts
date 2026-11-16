@@ -13,6 +13,7 @@ import type {
   IssueList,
   LinkType,
   Me,
+  OAuthGrant,
   Project,
   ProjectField,
   ProjectMember,
@@ -50,6 +51,7 @@ export const keys = {
   conversations: ['ai', 'conversations'] as const,
   conversation: (id: string) => ['ai', 'conversations', id] as const,
   tokens: ['me', 'tokens'] as const,
+  oauthGrants: ['me', 'oauth-grants'] as const,
   webhooks: ['webhooks'] as const,
   settings: ['settings'] as const,
   events: (q: string) => ['events', q] as const,
@@ -95,6 +97,7 @@ export const useConversations = () => useQuery({ queryKey: keys.conversations, q
 export const useConversation = (id: string | undefined) =>
   useQuery({ queryKey: keys.conversation(id ?? ''), queryFn: () => get<ConversationDetail>(`/ai/conversations/${id}`), enabled: Boolean(id) });
 export const useTokens = () => useQuery({ queryKey: keys.tokens, queryFn: () => get<ApiToken[]>('/me/tokens') });
+export const useOAuthGrants = () => useQuery({ queryKey: keys.oauthGrants, queryFn: () => get<OAuthGrant[]>('/me/oauth-grants') });
 export const useWebhooks = () => useQuery({ queryKey: keys.webhooks, queryFn: () => get<Webhook[]>('/webhooks') });
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: () => get<Settings>('/settings') });
 export const useEvents = (params: { project?: string; since?: string; limit?: number }) =>

@@ -30,6 +30,7 @@ import { importRoutes } from './routes/imports';
 import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
 import { workflowRoutes } from './routes/workflow';
+import { mountOAuth, oauthRoutes } from '../oauth/routes';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -78,6 +79,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
+  oauthRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;
@@ -135,6 +137,7 @@ export function createHttpApp(runtime: Runtime) {
   root.get('/api/docs', Scalar({ url: '/api/v1/openapi.json', pageTitle: `${APP_NAME} API`, cdn: '/api/docs/scalar.js', theme: 'default' }));
 
   root.all('/mcp', (c) => handleMcp(c));
+  mountOAuth(root, runtime);
 
   root.all('/api/*', (c) => c.json(errorBody('not_found', `No endpoint ${c.req.method} ${c.req.path}`, 'See /api/docs'), 404));
 
