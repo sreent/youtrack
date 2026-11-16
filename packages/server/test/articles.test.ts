@@ -86,6 +86,8 @@ describe('ids', () => {
     expect(parseReadableId('BACK-A-3')).toBeNull();
     // "A" can't be a project key (keys have two characters at least), so no issue hides inside.
     expect(findRefs('BACK-A-3').map((r) => r.id)).toEqual(['BACK-A-3']);
+    // An id in an address is part of the address.
+    expect(findRefs('https://ci.example.com/BACK-12/log?issue=BACK-13 and #BACK-14, or BACK-15.').map((r) => r.id)).toEqual(['BACK-15']);
   });
 
   it("are no issue ids to the query and command languages", async () => {
@@ -361,7 +363,7 @@ describe('REST and MCP', () => {
     });
     const c = new Client({ name: 'test', version: '1.0.0' });
     await c.connect(transport);
-    const data = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
+    const data = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0]!.text);
     const { tools } = await c.listTools();
     expect(tools.find((t) => t.name === 'update_article')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(tools.find((t) => t.name === 'search_articles')!.annotations).toMatchObject({ readOnlyHint: true });

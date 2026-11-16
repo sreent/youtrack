@@ -59,7 +59,7 @@ let other: string;
 async function call(method: string, url: string, opts: { as?: string; body?: unknown; form?: FormData; headers?: Record<string, string> } = {}) {
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (opts.as !== 'nobody') headers.authorization = `Bearer ${tokens[opts.as ?? 'anna']}`;
-  let body: BodyInit | undefined;
+  let body: RequestInit['body'];
   if (opts.form) body = opts.form;
   else if (opts.body !== undefined) {
     headers['content-type'] = 'application/json';
@@ -389,8 +389,8 @@ describe('MCP', () => {
     await c.connect(transport);
     return c;
   }
-  const json = (r: { content: unknown }) => JSON.parse((r.content as { text: string }[])[0]!.text);
-  const text = (r: { content: unknown }) => (r.content as { text: string }[])[0]!.text;
+  const json = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0]!.text);
+  const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
 
   it('lists files on get_issue, reads a log and attaches a small file', async () => {
     const c = await client(tokens.anna!);

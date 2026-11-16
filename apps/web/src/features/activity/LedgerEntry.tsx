@@ -11,6 +11,22 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
 }
 
+/** An article by its id, then its title; a deleted one isn't a link any more. */
+function ArticleLink({ id, title, gone }: { id: string; title: string; gone?: boolean }) {
+  return (
+    <>
+      {gone ? (
+        <span className="issue-id">{id}</span>
+      ) : (
+        <Link className="issue-id" to={`/articles/${id}`}>
+          {id}
+        </Link>
+      )}{' '}
+      <span>{title}</span>
+    </>
+  );
+}
+
 function targetOf(e: TrackerEvent): { id: string; summary: string } | null {
   const t = e.data.target as { id?: string; summary?: string } | undefined;
   return t?.id ? { id: t.id, summary: t.summary ?? '' } : null;
@@ -106,6 +122,28 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           </span>
         ),
       };
+    case 'attachment.added':
+    case 'attachment.removed': {
+      const file = e.data.attachment as { name?: string; size?: number } | undefined;
+      const article = e.data.article as { id: string; title: string } | undefined;
+      const on = article ? <ArticleLink id={article.id} title={article.title} /> : issue;
+      return e.type === 'attachment.added'
+        ? { text: <>attached <span className="mono">{str(file?.name)}</span> to {on}</>, badge: ['changes', 'attaches a file'] }
+        : { text: <>removed <span className="mono">{str(file?.name)}</span> from {on}</>, badge: ['changes', 'removes a file'] };
+    }
+    case 'article.created':
+    case 'article.updated':
+    case 'article.deleted': {
+      const article = e.data.article as { id: string; title: string } | undefined;
+      const named = article ? <ArticleLink id={article.id} title={article.title} gone={e.type === 'article.deleted'} /> : 'an article';
+      if (e.type === 'article.created') return { text: <>wrote {named}</>, badge: ['changes', 'writes an article'] };
+      if (e.type === 'article.deleted') return { text: <>deleted {named}</>, badge: ['changes', 'deletes an article'] };
+      return {
+        text: e.data.moved && e.changes.every((c) => c.field === 'Parent' || c.field === 'Position') ? <>moved {named}</> : <>changed {named}</>,
+        badge: ['changes', e.changes.some((c) => c.field === 'Content' || c.field === 'Title') ? 'saves a version' : 'moves an article'],
+        more: <ChangeLines changes={e.changes} />,
+      };
+    }
     case 'baseline.created':
       return {
         text: (

@@ -19,8 +19,11 @@ export interface TextRef {
   end: number;
 }
 
-/** Keys as projects have them (2 to 10 characters), written in capitals, as ids are quoted. */
-const REF = /\b([A-Z][A-Z0-9]{1,9})-(A-)?(\d{1,9})\b/g;
+/**
+ * Keys as projects have them (2 to 10 characters), written in capitals, as ids are quoted. An id
+ * inside an address (after a slash, an equals sign, a ?, &, # or @) is part of the address.
+ */
+const REF = /(?<![/=?&#@])\b([A-Z][A-Z0-9]{1,9})-(A-)?(\d{1,9})\b/g;
 /** Fenced blocks and inline code: what's in them is code, not a mention. */
 const CODE = /```[\s\S]*?```|`[^`\n]*`/g;
 

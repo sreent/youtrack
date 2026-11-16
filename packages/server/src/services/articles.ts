@@ -479,6 +479,25 @@ export async function restoreArticleVersion(ctx: Ctx, id: string, version: numbe
 const MARK_ON = '\u0001';
 const MARK_OFF = '\u0002';
 
+/**
+ * Markdown as it reads, for a snippet: no heading, quote or list marks at the start of a line,
+ * no code ticks or bold marks, and a link as its words.
+ */
+function asRead(markdown: string): string {
+  return markdown
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s*(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/, '')
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/`+/g, '')
+        .replace(/(\*\*|__)/g, ''),
+    )
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function snippetParts(text: string): { text: string; match: boolean }[] {
   const parts: { text: string; match: boolean }[] = [];
   for (const piece of text.split(MARK_ON)) {
@@ -551,7 +570,7 @@ export async function searchArticles(ctx: Ctx, opts: { query?: string; project?:
   return {
     total,
     items: rows.map((r) => {
-      const snippet = (r.snippet ?? '').replace(/\s+/g, ' ').trim();
+      const snippet = asRead(r.snippet ?? '');
       return {
         ...articleRef(s, { projectId: r.project_id, number: Number(r.number), title: r.title }),
         path: pathOf(r.parent_id),

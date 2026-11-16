@@ -203,6 +203,71 @@ A query or command problem names its span and, when there is a likely fix, the t
 - Agents over MCP or the API can apply it the same way.
 - A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
 
+### D14. Files stream to a small store, and come back as downloads
+
+Files sit on issues, on comments (the author's own) and on knowledge base articles.
+
+**Uploading.** An upload is `multipart/form-data`, read as a stream (busboy) and never held whole in memory:
+
+1. Who may put a file there is settled before a byte of it is read.
+2. A record of the storage key is written (`attachment_blobs`, "uploading") before the first byte, so a crash mid-upload leaves something to sweep.
+3. The file streams through a transform that counts it, hashes it (SHA-256) and keeps its first 8 KB, and on to storage. Past the limit it stops at once and reading the request stops with it: the limit is the smaller of `ATTACHMENT_MAX_MB` (20) and the room left in the owner's cap (`ATTACHMENTS_PER_ISSUE_MB`, 100, for an issue with its comments, or an article).
+4. The type is read from those first bytes (magic numbers, then text and what kind: HTML, SVG, XML), never from the name or the request. The name is made safe: no folders, no control or direction-changing characters, nothing file systems reserve, 200 characters at most. Storage never uses it.
+5. One transaction locks the owner's row, checks the cap again (two uploads at once can't both squeeze in), writes the row, marks the blob "stored", touches the issue's `updatedAt` (not its `version`: a file doesn't conflict with an edit to a field) and records `attachment.added`.
+
+If anything fails after the bytes are stored, they're removed; what a crash leaves, the sweeper removes.
+
+**The store** is three calls, `write(key, stream)`, `read(key, range?)` and `remove(key)`, behind `BlobStorage`. Local disk (`DATA_DIR/attachments`) writes to a part file, syncs it, and renames it into place, so a key never holds half a file. Keys are random and sharded by their first two characters.
+
+An S3-compatible store (S3, MinIO, R2) would be one class:
+
+- `write` with `@aws-sdk/lib-storage`'s `Upload`, which streams a body of unknown length as a multipart upload, so memory stays at a few parts; a bucket lifecycle rule aborts multipart uploads left incomplete.
+- `read` with `GetObject` and its `Range`; `remove` with `DeleteObject`.
+- Config: `ATTACHMENT_STORAGE=s3`, a bucket, an endpoint and a region, credentials from the usual AWS chain.
+
+Downloads would keep coming through a4a, so the access check and the headers stay ours; presigned URLs, with `response-content-disposition` and `response-content-type` set by a4a, are the step after, for large files. The sweeper needs nothing new.
+
+**Serving.** `GET /attachments/{id}/content` reads the project through `services/access.ts`; a hidden one looks like a missing file.
+
+- PNG, JPEG, GIF and WebP come `inline`, so they show in place. Everything else, SVG and HTML included, is an `attachment`, whatever its name says: an HTML page named `cat.png` downloads as `cat.png`, typed `text/html`.
+- Every file comes with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. The page middleware no longer puts the app's own policy over a response that brings one, so an HTML file keeps its sandbox.
+- `Cache-Control: private, max-age=86400`, with the SHA-256 as the ETag (`If-None-Match` gets 304): a file's bytes never change under its id, but who may see them can, so only the browser keeps them.
+
+**Cleaning up.** Rows go with their issue, comment, article or project, by cascade or by the sweeper, but bytes don't. The sweeper removes blobs nothing points at: "stored" ones whose row is gone, and "uploading" ones older than six hours. It also removes a deleted comment's files, and part files a crash left. It runs as an outbox consumer after the events that can leave files behind (`attachment.removed`, `issue.deleted`, `comment.deleted`, `article.deleted`), and once when the server starts. It's safe to run anywhere and more than once at a time.
+
+**Retries.** An upload sent again with the same `Idempotency-Key` is replayed. Its body isn't read twice, so the key is matched on the request's length rather than a hash of the body.
+
+- **Costs:** a project's deletion leaves its files until the next sweep. Thumbnails are the images themselves, scaled by the browser.
+- **Revisit when:** files are large or many. Make server-side thumbnails then, and serve through presigned URLs.
+
+### D15. The knowledge base: articles per project, ids no issue can have, whole versions, mentions from the outbox
+
+**Per project, no global space.** An article belongs to a project, and the project's access is the article's: when per-project permissions land in `services/access.ts`, the knowledge base follows with no change. A global space would need a second policy of its own (who reads it, who writes it) and a second kind of id. A team that wants documents beyond one project makes a project for them, which costs nothing.
+
+**Ids.** `BACK-A-3`, as YouTrack writes them: numbered per project from a counter row, gap-free and never reused, so a link to an article never comes to mean another.
+
+An article's id can't be read as an issue's, and the reverse:
+
+- Issue ids have no third part, and a project key is at least two characters, so the `A-3` inside `BACK-A-3` is no issue.
+- One reading of ids in text, `findRefs` in `@a4a/shared`, serves the web app's links and the server's mentions, so what links is what counts. It leaves out ids in code and in addresses.
+- The query and command languages' issue-id parsing refuses `BACK-A-3`; as free text it's a search.
+
+**The tree.** Each article has a parent (or none) and a dense position among its siblings. Changes to a project's tree (creating, moving, deleting) take that project's counter row as a lock, and moving under a descendant is refused by walking up from the new parent. Two moves at once can't make a cycle between them. An article with articles under it can't be deleted: they're moved first.
+
+**Versions.** Every save that changes the title or body writes the whole text as a new version, with who, when, the channel and the token. Diffs are worked out when read (Myers' algorithm, line by line), so a version is never wrong because a diff was. `expectedVersion` gives 409 instead of overwriting a newer save; bringing an old version back saves it as a new one.
+
+**Search.** As for issues: a generated `tsvector` (title weighted A, body B) with prefix matching, and trigram word similarity on titles for near misses, with `ts_headline` snippets whose matches are marked.
+
+**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), since readable ids are permanent; a mention of an article written before the article exists counts once it does.
+
+- An article's mentions are written in the transaction that saves it.
+- An issue's description and its comments are read by an outbox consumer, from the events their write path already records. So `applyChanges` needs to know nothing of the knowledge base.
+- The consumer reads the text as it is when it runs, so running twice, or late, lands in the same place.
+- A deleted comment's mentions stop counting at once, at read time, before the consumer removes them.
+
+- **Costs:** an issue's new mention of an article shows on the article a few seconds later, after the outbox settles. Issue text from before the knowledge base existed isn't indexed until it's next edited. Versions keep whole texts, which is more space than diffs.
+- **Revisit when:** articles are long and edited often. Store diffs between occasional whole versions then.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -210,6 +275,9 @@ A query or command problem names its span and, when there is a likely fix, the t
 | Two people edit one issue | Changes serialise on the issue row. With `expectedVersion`, the second gets 409 and the current version. The web app always sends it and re-reads the issue on 409 |
 | Levelling while the plan changes | `expect` (the proposal's starts) makes applying conditional: 409 instead of a different plan than the one agreed |
 | Issue numbers | `UPDATE projects SET next_number = next_number + 1 … RETURNING` inside the creating transaction: gap-free per project, safe under concurrency |
+| Article numbers and the tree | The project's row in `article_counters`, upserted in the transaction: gap-free numbers, and one change to a project's tree at a time, so no two moves make a cycle |
+| Two uploads to a full issue | The issue's (or article's) row is locked while the cap is checked again with the file's real size: one of them gets 413 |
+| Files whose rows are gone | A blob record is written before the first byte; the sweeper removes stored bytes nothing points at, and uploads older than six hours that never finished |
 | A history entry without its change, or the reverse | Impossible: same transaction |
 | Webhooks and triage | At least once, from the outbox, by one worker at a time |
 | Retried `POST` | `Idempotency-Key`: the key is claimed before the work, the stored response is replayed, and a key reused with a different body gets 422 |
@@ -223,6 +291,7 @@ A query or command problem names its span and, when there is a likely fix, the t
 - **API tokens:** `a4a_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
 - **Login:** throttled per IP and login.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
+- **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
@@ -237,6 +306,7 @@ A query or command problem names its span and, when there is a likely fix, the t
 - **Rate limits** are per instance, in memory.
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
+- **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D14); back it up with the database.
 
 ## Not yet
 
@@ -244,8 +314,6 @@ Planned, with the seams already in place:
 
 - per-project roles, and tokens limited to projects (`services/access.ts`);
 - OAuth 2.1 for remote MCP;
-- attachments;
-- a knowledge base;
 - notifications;
 - a VCS integration (`BACK-12 #Fixed` in commits);
 - `LISTEN/NOTIFY` for multi-instance live events;

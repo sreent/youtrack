@@ -75,6 +75,7 @@ async function toDtos(ctx: Ctx, rows: AttachmentRow[]): Promise<Attachment[]> {
       article: r.articleId ? (articleRefs.get(r.articleId)?.id ?? null) : null,
       uploadedBy: by ? userRefDto(by) : null,
       channel: r.channel as Attachment['channel'],
+      token: r.tokenName,
       createdAt: r.createdAt.toISOString(),
       url: contentUrl(ctx.app, r.id),
     };

@@ -1182,6 +1182,7 @@ export const AttachmentSchema = z
     article: z.string().nullable().describe('The article it belongs to, if any'),
     uploadedBy: UserRefSchema.nullable(),
     channel: z.enum(CHANNELS),
+    token: z.string().nullable().describe('The token it came with, for an agent or a script'),
     createdAt: timestamp,
     url: z.string().describe('Its bytes: GET it with the same credentials'),
   })

@@ -17,6 +17,8 @@ import { isOption, isPeriod, isUser } from '../features/issues/fields';
 import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
+import { IssueFiles } from '../features/attachments/IssueFiles';
+import { IssueArticles } from '../features/articles/IssueArticles';
 import { FormField } from '../components/Form';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
@@ -284,11 +286,13 @@ export default function IssuePage() {
       <div className="split">
         <div className="stack">
           <Description issue={data} />
+          <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
           {openSuggestions.map((s) => (
             <SuggestionCard key={s.id} suggestion={s} compact />
           ))}
           <IssueLinks issue={data} />
+          <IssueArticles issueId={data.id} />
           <IssueHistory issue={data} me={me.data} />
           <WorkLog issue={data} me={me.data} />
         </div>

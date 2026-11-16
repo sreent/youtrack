@@ -19,6 +19,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - resource load and levelling, which is proposed first and applies exactly what was proposed, or nothing if the plan changed meanwhile;
   - cost tracking against a budget;
   - baselines with earned value (CPI, SPI, EAC).
+- **Files** on issues, comments and articles: dropped or chosen, with progress; images shown in place, everything else (SVG and HTML included) downloaded, whatever its name says. Each file's type is read from its bytes and its SHA-256 kept; uploads stream to disk, with a size limit per file and a cap per issue.
+- **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
 - **AI with Claude**:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
@@ -29,7 +31,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 22 tools, 4 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients.
+- **For agents**: an MCP server at `/mcp` with 28 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first.
 
 ## Quick start
 
@@ -98,12 +100,15 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `PORT` | `3000` | API, MCP and (in production) the web UI |
 | `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check |
 | `DATABASE_URL` | empty | A Postgres URL. When empty, the embedded PGlite database in `DATA_DIR` is used, which is for one process only |
-| `DATA_DIR` | `./data` | Where the embedded database lives |
+| `DATA_DIR` | `./data` | Where the embedded database and attached files live |
 | `ANTHROPIC_API_KEY` | empty | Turns on the AI features |
 | `AI_MODEL` | `claude-opus-5-5` | The Claude model used |
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
 | `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
+| `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
+| `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
+| `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`. Back it up with the database |
 
 ## Production
 
