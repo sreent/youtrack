@@ -1367,7 +1367,7 @@
   "issues.issueHistory.wasnTAttached": "{name} n’a pas été joint : {errorText}",
   "issues.issueHistory.whereItWasReported": ", où il a été signalé {when}{v}",
   "issues.issueHistory.whoSeesThisComment": "Qui voit ce commentaire",
-  "issues.issueHistory.workedOutForAPerson": "a déterminé {n} {v, select, value {valeur} other {valeurs}}, qu’une personne doit accepter",
+  "issues.issueHistory.workedOutForAPerson": "a déterminé {n} {v, select, field {champ} other {champs}}, qu’une personne doit accepter",
   "issues.issueHistory.youSManagersAndAdministrators": "Vous, les gestionnaires de {key} et les admins le voyez aussi.",
   "issues.issueLinks.aLinkFrom": "Un lien depuis {id}",
   "issues.issueLinks.addLink": "Ajouter un lien",

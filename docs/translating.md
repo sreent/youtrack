@@ -107,3 +107,74 @@ French, Spanish and Japanese come next, each a catalog:
 5. Write its voice and its terms here, then run the checks above. A copy of `e2e/german.spec.ts` with the language's words checks it in a browser.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
+
+## French
+
+French (`fr.json`) is complete, written for France and Canada alike: no word only one of them uses ("e-mail", read in both, rather than "courriel" or "mail").
+
+- **Vous**, always: "Enregistrez d'abord", "Votre profil". Never "tu".
+- **Buttons are infinitives**: "Enregistrer", "Annuler", "Supprimer le champ". A status line is a past participle or a short sentence: "Enregistré.", "Enregistrement…".
+- **Gender**: a4a never guesses a person's, and nothing agrees with the reader or the actor: "{who} vous mentionne" (not "vous a mentionné·e"), "Commenté par {them}", "vos abonnements" (not "vous êtes abonné"), "en accès invité" (not "en tant qu'invité"). A person is "la personne", "qui…", "toute personne qui…"; no "·e" endings, which screen readers read badly. The built-in roles are words for anyone: **Admin**, **Gestionnaire**, **Membre**, **Lecture seule**.
+- **Typography, as France sets it**: a no-break space (U+00A0) before ":", a narrow one (U+202F) before ";", "?" and "!" and inside « », and ’ for the apostrophe. The catalog holds those characters, so edit it with them. A plain ' before "{" would quote the brace in ICU; ’ never does.
+- **Accents on capitals**: État, À, Échec.
+- **What a page loads**: the words after "Chargement" carry their "de" ("des agents", "de vos abonnements"), so "Chargement{v}…" reads "Chargement des agents…".
+- **Data stays as named**, field names included where English gives them as examples: "State et Assignee seulement", "Won't fix exige un commentaire". Examples of the query and command languages stay as they are; examples of plain words for the assistant to read are French ("mettez-les en revue et assignez-les à anna").
+- **The code hosts' own settings** are named as those products show them: Settings, Webhooks, Add webhook.
+
+| English | French |
+|---|---|
+| issue | ticket |
+| project | projet |
+| board | tableau |
+| sprint | sprint |
+| backlog | backlog |
+| help desk | centre d'assistance; after "à", "l'assistance de {project}" |
+| request (help desk) | demande |
+| requester | la personne qui a fait la demande; "Demandé par" in a table |
+| reporter | la personne qui l'a signalé; "Signalé par" in a table |
+| assignee | responsable |
+| lead (of a project) | responsable du projet |
+| agent | agent |
+| workflow | workflow |
+| rule | règle |
+| state machine | machine à états |
+| transition | transition |
+| knowledge base | base de connaissances |
+| article | article |
+| inbox | boîte de réception |
+| notification | notification |
+| digest | récapitulatif |
+| subscription, subscribe | abonnement, s'abonner |
+| watch, watcher | suivre, "Suivi par" |
+| timesheet | feuille de temps |
+| work logged, log time | temps saisi, saisir du temps |
+| estimate | estimation |
+| days away, away | absences, indisponible |
+| levelling | nivellement |
+| slack (in a plan) | marge |
+| critical path | chemin critique |
+| baseline | référence |
+| earned value | valeur acquise |
+| what-if | simulation |
+| milestone | jalon |
+| triage | tri |
+| suggestion | suggestion |
+| tag | étiquette |
+| token | jeton |
+| two-factor sign-in | authentification à deux facteurs |
+| sign in, sign out | se connecter, se déconnecter |
+| login (the name) | identifiant |
+| identity provider | fournisseur d'identité |
+| single sign-on | authentification unique |
+| webhook, delivery | webhook, envoi |
+| secret | secret |
+| commit, pull request, branch | commit, pull request, branche |
+| field, value | champ, valeur |
+| link (between issues) | lien |
+| resolve, resolved | résoudre, résolu |
+| dashboard, widget | tableau de bord, widget |
+| report | rapport |
+| app | application |
+| handler (of an app) | gestionnaire |
+
+**Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
