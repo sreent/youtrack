@@ -658,7 +658,7 @@ export const ruleRuns = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Version control: GitHub and GitLab send pushes and pull requests here
+// Version control: GitHub, GitLab, Bitbucket, Gitea and Forgejo send pushes and pull requests here
 // ---------------------------------------------------------------------------
 
 export const vcsIntegrations = pgTable('vcs_integrations', {
@@ -738,7 +738,7 @@ export const vcsLinks = pgTable(
     authorName: text('author_name'),
     authorLogin: text('author_login'),
     authorEmail: text('author_email'),
-    /** The person in a4a the author was matched to, by their verified email. */
+    /** The person in a4a the author was matched to: by a confirmed email, or a login the provider vouches for (D33). */
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
     /** The command a commit gave this issue ("BACK-12 #Fixed"), whether it was applied, and why not. */
     command: text('command'),

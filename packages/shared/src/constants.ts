@@ -158,7 +158,7 @@ export const VCS_PROVIDER_NAMES: Record<VcsProvider, string> = {
 };
 export const PULL_REQUEST_STATES = ['open', 'merged', 'closed'] as const;
 export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
-/** How a delivery from GitHub or GitLab went. */
+/** How a delivery from version control went. */
 export const VCS_DELIVERY_OUTCOMES = ['received', 'processed', 'ignored', 'refused', 'duplicate', 'failed'] as const;
 export type VcsDeliveryOutcome = (typeof VCS_DELIVERY_OUTCOMES)[number];
 export const MAX_PAGE_SIZE = 200;

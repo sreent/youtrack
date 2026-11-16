@@ -29,22 +29,22 @@ const Id = z.object({ id: z.string() });
 
 export function vcsRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Version control'];
-  route(app, { method: 'get', path: '/vcs/integrations', tags, summary: 'GitHub and GitLab integrations (admin)', response: z.array(VcsIntegrationSchema) }, ({ ctx }) => listIntegrations(ctx));
+  route(app, { method: 'get', path: '/vcs/integrations', tags, summary: 'Version control integrations (admin)', response: z.array(VcsIntegrationSchema) }, ({ ctx }) => listIntegrations(ctx));
   route(
     app,
     {
       method: 'post',
       path: '/vcs/integrations',
       tags,
-      summary: 'Add a GitHub or GitLab integration (admin)',
+      summary: 'Add a GitHub, GitLab, Bitbucket, Gitea or Forgejo integration (admin)',
       description:
-        'Returns the webhook URL to give the provider, and a secret, shown only once: in GitHub it is the webhook\'s secret, in GitLab its secret token. Send pushes and pull (merge) requests. A commit message that mentions `BACK-12` links the commit to it; `BACK-12 #Fixed` also applies the command after `#`, as the a4a person whose verified email wrote the commit, if they can change the project\'s issues.',
+        'Returns the webhook URL to give the provider, and a secret, shown only once: the webhook\'s secret (in GitLab, its secret token). Send pushes and pull (merge) requests. A commit message that mentions `BACK-12` links the commit to it; `BACK-12 #Fixed` also applies the command after `#`, as the commit\'s author in a4a (known by a confirmed email, or a login the provider vouches for), if they can change the project\'s issues. Bitbucket Data Center needs `baseUrl`; either Bitbucket takes an `accessToken` to read the commits a delivery leaves out.',
       body: VcsIntegrationBody,
       response: VcsIntegrationCreatedSchema,
     },
     ({ ctx, body }) => createIntegration(ctx, body),
   );
-  route(app, { method: 'patch', path: '/vcs/integrations/{id}', tags, summary: 'Rename, re-scope or pause an integration (admin)', params: Id, body: UpdateVcsIntegrationBody, response: VcsIntegrationSchema }, ({ ctx, params, body }) =>
+  route(app, { method: 'patch', path: '/vcs/integrations/{id}', tags, summary: 'Rename, re-scope or pause an integration, or change its Bitbucket address or token (admin)', params: Id, body: UpdateVcsIntegrationBody, response: VcsIntegrationSchema }, ({ ctx, params, body }) =>
     updateIntegration(ctx, params.id, body),
   );
   route(app, { method: 'delete', path: '/vcs/integrations/{id}', tags, summary: 'Remove an integration (admin); its links stay on their issues', params: Id, status: 204 }, async ({ ctx, params }) => {
@@ -76,7 +76,8 @@ export function vcsRoutes(app: OpenAPIHono<HttpEnv>) {
       path: '/vcs/integrations/{id}/test',
       tags,
       summary: 'Send a test delivery (admin)',
-      description: 'a4a sends itself a delivery as the provider would, and handles it as any other: for GitHub a signed ping; for GitLab a push with no commits.',
+      description:
+        'a4a sends itself a delivery as the provider would, and handles it as any other, signed with the secret where the provider signs: a ping for GitHub and Bitbucket Data Center, a push with no commits for the others.',
       params: Id,
       response: VcsTestResultSchema,
       status: 200,
@@ -92,9 +93,9 @@ export function vcsRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'post',
       path: '/vcs/hooks/{id}',
       tags,
-      summary: 'Where GitHub and GitLab send deliveries',
+      summary: 'Where version control sends deliveries',
       description:
-        'Checked with `X-Hub-Signature-256` (GitHub, an HMAC-SHA256 of the raw body) or `X-Gitlab-Token` (GitLab), in constant time. Each delivery id (`X-GitHub-Delivery`; GitLab\'s `Idempotency-Key`, else `X-Gitlab-Event-UUID`) is handled once: one sent again is answered as a duplicate. Rate-limited per integration.',
+        'Checked in constant time: an HMAC-SHA256 of the raw body (GitHub\'s `X-Hub-Signature-256`, Bitbucket\'s `X-Hub-Signature`, Gitea\'s `X-Gitea-Signature`, Forgejo\'s `X-Forgejo-Signature`), or GitLab\'s `X-Gitlab-Token`. Each delivery id (`X-GitHub-Delivery`; GitLab\'s `Idempotency-Key`, else `X-Gitlab-Event-UUID`; Bitbucket\'s `X-Request-UUID` or `X-Request-Id`; `X-Gitea-Delivery`) is handled once: one sent again is answered as a duplicate. Rate-limited per integration.',
       params: Id,
       auth: 'none',
       status: 200,
