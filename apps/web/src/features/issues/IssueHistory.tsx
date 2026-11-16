@@ -96,7 +96,7 @@ function eventEntry(e: TrackerEvent): Entry | null {
         const on = imported.createdAt ? `, where it was reported ${when(imported.createdAt)}${imported.reporter ? ` by ${imported.reporter}` : ''}` : '';
         return { ...base, did: `imported it from ${from} (${imported.key ?? 'its key there'})${on}` };
       }
-      return { ...base, did: data.requester ? 'asked for help' : 'reported it' };
+      return { ...base, did: data.requester ? (data.via === 'email' ? 'asked for help by email' : 'asked for help') : 'reported it' };
     }
     case 'sprint.issue_added':
     case 'sprint.issue_removed':

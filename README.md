@@ -47,6 +47,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - An inbox under Work, by issue, its unread count live in the sidebar. Changes close together on one issue are one notification, and nobody hears of their own changes.
   - Email if you want it: everything, mentions and assignments only, or never, and a daily digest. Each email stops its kind in one click.
 - **A help desk** per project: a public form at `/help/<KEY>` for people who aren't users, a page of their own for each request, where they follow the public replies and answer them, and a first-response target (`sla: overdue`). Comments stay internal unless the team makes one public.
+  - **By email:** a desk with an address takes requests by mail, and the requester can answer the team's emails. Mail arrives from your provider's webhook (SendGrid, Mailgun, Postmark, a Cloudflare Email Worker) or a shared IMAP mailbox. Quoted history and signatures are cut, files kept, and auto-replies, bounces and lists set aside.
+  - **A proof of work** the form can ask for: the sender's browser works a moment on a signed challenge, with no puzzle and nothing from another site.
 - **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
@@ -168,6 +170,10 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `MAIL_FROM` | `a4a <a4a@your host>` | Who email comes from |
 | `NOTIFY_WINDOW_SECONDS` | `120` | Changes to one issue within this long are one notification, and one email |
 | `DIGEST_HOUR` | `8` | The hour, in the server's time zone, the daily digest goes out |
+| `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
+| `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
+| `HELPDESK_MAIL_MAX_MB` | `25` | The largest message a help desk takes, attachments included |
+| `HELPDESK_CAPTCHA_MAX_NUMBER` | `100000` | How hard a help desk form's proof of work is: the most numbers a browser may have to try (half that on average, about a second) |
 
 ## Production
 

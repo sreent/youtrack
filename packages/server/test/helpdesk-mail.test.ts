@@ -336,7 +336,7 @@ describe("a desk's address and webhook", () => {
     expect(made.url).toBe(`http://a4a:${made.secret}@desk.test/api/v1/mail/inbound/BACK`);
     expect((await deskMail(w.adminCtx, 'BACK')).inbound.secretPrefix).toBe(made.secret.slice(0, 8));
 
-    const post = (key: string, auth: string | null, body: BodyInit, type = 'message/rfc822', ip = '10.9.0.1') =>
+    const post = async (key: string, auth: string | null, body: string | Uint8Array, type = 'message/rfc822', ip = '10.9.0.1') =>
       http.request(`/api/v1/mail/inbound/${key}`, { method: 'POST', headers: { 'content-type': type, 'x-forwarded-for': ip, ...(auth ? { authorization: auth } : {}) }, body });
     const basic = (secret: string) => `Basic ${Buffer.from(`a4a:${secret}`).toString('base64')}`;
     const raw = simple({ from: 'Ira <ira@example.com>', subject: 'The API returns 500 on /orders', body: 'Since this morning.' });
@@ -352,7 +352,8 @@ describe("a desk's address and webhook", () => {
 
     const ok = await post('BACK', basic(made.secret), raw);
     expect([ok.status, await ok.json()]).toEqual([200, { outcome: 'request', reason: 'a new request' }]);
-    expect((await post('BACK', basic(made.secret), raw).then((r) => r.json())) as unknown).toEqual({ outcome: 'duplicate', reason: 'it came in before' });
+    const again = await post('BACK', basic(made.secret), raw);
+    expect(await again.json()).toEqual({ outcome: 'duplicate', reason: 'it came in before' });
 
     // As SendGrid (a form's "email") and Postmark (JSON's "RawEmail") send it.
     const form = new FormData();

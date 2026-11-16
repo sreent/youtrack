@@ -15,6 +15,7 @@ import { PeopleAndAccess, yourRole } from '../features/projects/PeopleAndAccess'
 import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
+import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
 
 function Details({ project, canEdit }: { project: Project; canEdit: boolean }) {
@@ -278,6 +279,15 @@ export default function ProjectPage() {
         </div>
         <HelpdeskSettings project={p} canEdit={canEdit} />
       </section>
+      {canEdit ? (
+        <section className="card" aria-labelledby="helpdesk-mail">
+          <div className="section-head">
+            <h2 id="helpdesk-mail">Help desk by email</h2>
+            <span className="note">An address people write to, and where their mail comes in.</span>
+          </div>
+          <HelpdeskMail project={p} />
+        </section>
+      ) : null}
       <section className="card" aria-labelledby="plan">
         <div className="section-head">
           <h2 id="plan">Plan settings</h2>

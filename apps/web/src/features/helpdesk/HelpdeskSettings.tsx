@@ -10,7 +10,7 @@ import { CopyButton } from '../common/CopyButton';
 export function HelpdeskSettings({ project, canEdit }: { project: Project; canEdit: boolean }) {
   const qc = useQueryClient();
   const h = project.settings.helpdesk;
-  const initial = { enabled: h.enabled, hours: h.firstResponseHours === null ? '' : String(h.firstResponseHours), intro: h.intro };
+  const initial = { enabled: h.enabled, hours: h.firstResponseHours === null ? '' : String(h.firstResponseHours), intro: h.intro, captcha: h.captcha };
   const savedKey = JSON.stringify(initial);
   const [form, setForm] = useState(initial);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -19,7 +19,8 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
   const hours = form.hours.trim() === '' ? null : Number(form.hours);
   const badHours = hours !== null && (!Number.isFinite(hours) || hours < 0.25 || hours > 1440);
   const save = useMutation({
-    mutationFn: () => patch<Project>(`/projects/${project.key}`, { settings: { helpdesk: { enabled: form.enabled, firstResponseHours: hours, intro: form.intro.trim() } } }),
+    mutationFn: () =>
+      patch<Project>(`/projects/${project.key}`, { settings: { helpdesk: { enabled: form.enabled, firstResponseHours: hours, intro: form.intro.trim(), captcha: form.captcha } } }),
     onSuccess: (p) => {
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
@@ -73,6 +74,16 @@ export function HelpdeskSettings({ project, canEdit }: { project: Project; canEd
             <textarea id={id} rows={3} maxLength={2000} value={form.intro} aria-describedby={help} onChange={(e) => setForm((f) => ({ ...f, intro: e.target.value }))} />
           )}
         </FormField>
+        <label className="choice">
+          <input type="checkbox" checked={form.captcha} onChange={(e) => setForm((f) => ({ ...f, captcha: e.target.checked }))} />
+          <span>
+            Make sure a person sent it
+            <small className="field-help">
+              The sender's browser works a moment on a small sum before the form sends: no puzzle for them, and nothing from another site. Bots pay for each request
+              they send. Turn it on if the desk gets spam.
+            </small>
+          </span>
+        </label>
       </fieldset>
       {h.enabled ? (
         <div className="cluster">

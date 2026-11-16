@@ -495,8 +495,8 @@ A project can open a help desk: a public form at `/help/<KEY>` that files an iss
 - **Public routes reveal nothing beyond the one request,** and answer alike whether a project, request or token is missing or just not theirs. The form's posts need an `Origin` of this server and a signed form token tied to a `SameSite=Strict` cookie; anything anonymous may post is small (body limits), limited per address, per email and per help desk, and a hidden field catches bots. Turning the help desk off closes the form; requests already filed keep their pages.
 - **Who does what.** A project's managers set its help desk up, like its other settings. A public reply answers the requester for the project and counts as the first response, so it takes someone who may change the project's issues; a viewer's comments on a request stay internal. On a members-only project the form shows the project's name and intro to anyone with its address; that is what opening it means, and the settings say so.
 - **Limits are shared** by every instance, in Postgres (`help_throttle`, fixed windows, emails and tokens counted by their hash), as the sign-in throttle is, so a spammer behind a load balancer gets what one instance would give.
-- **Costs:** no captcha, no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
-- **Revisit when:** a desk gets spam a honeypot doesn't stop (add a captcha), or requesters want to reply by email (inbound mail into the same reply path).
+- **Costs:** no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
+- **Since:** requests and replies by email, and a proof of work a desk can ask its form for, are D30.
 ### D25. Workflow rules: an outbox consumer that acts, and guards inside the write path
 
 A rule belongs to a project (or, for administrators, to every project) and is one of three kinds. All three are the query language for *which issues* and the command language for *what to change*, so a rule is checked, previewed and explained the way a query or a command is.
@@ -548,6 +548,31 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D30. The help desk by email: one path for every message, threaded by what only the requester has
+
+A desk can have an address, and then people write to it as well as fill in its form, and answer the team's emails as well as their request's page. Mail reaches a4a two ways, and both go down one path (`helpdesk/inbound.ts`):
+
+- **A mail provider posts it** (SendGrid, Mailgun, Postmark, a Cloudflare Email Worker, a script) to `/api/v1/mail/inbound/<KEY>`, raw: as the body, as a form's `email` or `body-mime`, or as JSON's `RawEmail`. The desk's secret is HTTP Basic's password, the place providers put a URL's credentials, so it stays out of addresses servers log. It's random, kept as a hash, shown once, and compared in constant time; a desk that doesn't exist, takes no mail, or has another secret answers the same 401, limited per address.
+- **The server reads a shared mailbox** (`HELPDESK_IMAP_URL`) as one of the worker's chores, so only the lease holder does (D17). A poll runs in the background, so the outbox never waits on a mail server, and checks the lease between messages. How far it has read is kept by UID within the folder's UIDVALIDITY, in Postgres, so a new holder carries on where the last stopped. The first time it sees a mailbox, or a renumbered one, it starts after the newest message: mail from before a4a read it isn't anyone's request now. Each message goes to the desk whose address it was sent to (To, Cc and the delivery headers); if it names two desks, the first. Credentials never cross the network in the clear: `imap://` must upgrade with STARTTLS, except on loopback.
+
+**What a message becomes.**
+
+- **Once.** A message is known by its Message-ID within its desk, and claimed in the log before the work. One posted again, or read twice, is a duplicate. One whose work failed, or died (ten minutes on), may be handled again. A failure of a4a's own answers the provider 5xx, so it tries again, and ends a poll there, so the next tries it again; a message a4a can't take for a reason in it (unreadable, too large) is logged and passed.
+- **A reply** is the requester's when it comes from their address and either goes to a reply address whose token is the request's (`support+<token>@…`, each email to them minting one, kept as a hash, as tracking tokens are), or answers an email a4a sent them about it (In-Reply-To or References). Help desk mail now has random Message-IDs (`replyable` in the outbox), so citing one shows the email was had; older ones could be guessed and don't count. A reply becomes the requester's public comment, by the `helpdesk` agent, the same path as a reply on their page.
+- **A new request** is anything else to the desk's plain address, while the desk is open: the subject is its summary, the words its description, the sender its requester, their message the root its emails thread under (and the first answers it as "Re:").
+- **Words.** A reply's are what's above its quoted history and signature, cut as Gmail, Outlook, Apple Mail and a few languages write them ("On … wrote:", Outlook's header block and reply div, a cited blockquote, "-- ", "Sent from my iPhone"); answers written between quotes stay. HTML-only mail is read as words, its quoted parts dropped first; none of its markup survives, as none of anyone's does anywhere in a4a. A new request keeps its quoted history (a forwarded message is often the request) and loses its signature.
+- **Files** go through the usual checks (the type read from the bytes, the per-file and per-issue limits), on the request or on the reply's comment; signatures, Outlook's wrappers and small inline pictures (a signature's logo) are left out, and at most 20 come from one message. The original goes with them as `original-message.eml` when what's shown isn't all of it: words read from HTML, or cut for length.
+
+**What never becomes anything.** Mail no person wrote: `Auto-Submitted` other than `no` (RFC 3834), the auto-reply headers, `Precedence: bulk`, list headers, delivery reports, a null return path, `mailer-daemon`, and no-reply senders. Mail from a4a's own address or a desk's. Every email a4a sends says `Auto-Submitted: auto-generated`, so an out-of-office answering one is set aside too, and nothing loops. A message whose receiving server says it failed DMARC is refused: only the topmost `Authentication-Results` counts, being that server's own. A reply from anyone but the requester is refused, even with the token, since it would speak in their name. Nobody is ever told of what's set aside or refused, so a forged sender gets no mail.
+
+**Limits:** 5 new requests per sender an hour, 30 replies per request, 300 messages per desk, in the help desk's shared throttle; 25 MB a message (`HELPDESK_MAIL_MAX_MB`). The log keeps 30 days, for the desk's managers: when, from whom, the subject, and what became of it, in words.
+
+**A proof of work, when a desk asks for one.** The form comes with a challenge the server signed (ALTCHA's scheme): find the number up to `maxnumber` whose SHA-256 with the salt is the challenge. The browser finds it with WebCrypto in a worker, a file of the site's own, so the page's policy lets it run; it starts when the form loads, so it's usually done before the person is. The salt says which desk and until when (30 minutes), the signature that the server made it, so the server keeps nothing until an answer comes; then it takes the answer once, counted in the shared throttle. No puzzle, no third party, nothing loaded from outside. It doesn't stop a determined bot; it makes each request cost one a moment, with the honeypot, the form token and the limits beside it.
+
+**Costs.** The desk's mail server must deliver plus addresses to the same mailbox (Google's, Microsoft's and most others do); without them, replies thread by what they answer alone. A sender can still be forged where DMARC isn't checked: the request is filed, and its confirmation goes to the real owner of the address, as with the form. One mailbox serves every desk.
+
+**Revisit when:** a desk wants a mailbox of its own (`HELPDESK_IMAP_URL` per desk, its password kept encrypted), people other than the requester should answer by email (as the request's CCs), or a determined bot gets past the proof of work (raise `HELPDESK_CAPTCHA_MAX_NUMBER`, or a challenge per address).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -576,6 +601,8 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 | A rule acting on a replayed event, or a loop of rules | Once per (rule, issue, change that started the chain), claimed in the rule's own transaction; chains stop three rules deep |
 | A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
 | A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
+| A message to a help desk posted twice, or read twice | Known by its Message-ID within its desk, claimed in the log before the work; a failed claim, or one ten minutes stale, may be handled again (D30) |
+| The shared help desk mailbox, read by a new lease holder | Its place is a UID within its UIDVALIDITY, in Postgres, and only ever moves on; a message read twice is a duplicate by its Message-ID |
 
 ## Security
 
@@ -592,6 +619,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
 - **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email is confirmed, and only where they can change issues (D26). Links from a payload are shown only if they are http(s).
+- **Mail into a help desk:** a provider's post needs the desk's secret (HTTP Basic, hashed, constant time), and refusals are limited per address. A reply speaks for the requester only from their address and with what only they had (a reply address's token, or an email's random Message-ID). Nothing set aside or refused is answered, so forged senders get no mail; a receiving server's DMARC failure is refused. Mail's HTML is read as words, never shown (D30).
 - **Agents:**
   - Issue text is untrusted, so the assistant asks before writes.
   - MCP writes are annotated, so clients can ask too.
@@ -613,6 +641,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 - **Files are on one disk.** Several instances need `DATA_DIR/attachments` on a shared volume until there's an S3 store (D18); back it up with the database.
+- **One shared help desk mailbox,** read once a minute by default; desks are told apart by the address mail was sent to, and a desk's replies need its mail server to deliver plus addresses (D30).
 
 ## Not yet
 
@@ -621,7 +650,6 @@ Planned, with the seams already in place:
 - groups of people with a role in a project (D15);
 - OAuth 2.1 for remote MCP (what it takes is in D16);
 - an importer that reads YouTrack's REST API, and Jira's (the CSV importer's rows are the seam);
-- the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
 - an S3-compatible store for files, so several instances need no shared volume (D18);
 - rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);

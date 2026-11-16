@@ -1,7 +1,7 @@
-import type { HelpForm, HelpRequestReceived } from '@a4a/shared';
+import type { CaptchaChallenge, CaptchaSolution, HelpForm, HelpRequestReceived } from '@a4a/shared';
 import { HELP_LIMITS } from '@a4a/shared/constants';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ApiError, get, post } from '../api/client';
 import { Lone } from '../app/Auth';
@@ -9,6 +9,7 @@ import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
 import { FormField } from '../features/common/bits';
 import { CopyButton } from '../features/common/CopyButton';
+import { solveCaptcha } from '../features/helpdesk/pow';
 
 function Received({ r, project }: { r: HelpRequestReceived; project: string }) {
   return (
@@ -33,14 +34,34 @@ function Received({ r, project }: { r: HelpRequestReceived; project: string }) {
   );
 }
 
+/**
+ * The form's proof of work, when its desk asks for one (D30): solved in the background from the
+ * moment the form loads, so it's usually ready before the person is. A new challenge starts anew.
+ */
+function useCaptcha(challenge: CaptchaChallenge | null | undefined) {
+  const pending = useRef<Promise<CaptchaSolution> | null>(null);
+  useEffect(() => {
+    if (!challenge) {
+      pending.current = null;
+      return;
+    }
+    const run = solveCaptcha(challenge);
+    pending.current = run.done;
+    run.done.catch(() => {}); // asked for when the form is sent, and said there
+    return () => run.stop();
+  }, [challenge?.signature]); // the signature names the challenge: a new one starts anew
+  return () => pending.current;
+}
+
 /** A project's help desk: a public form, for anyone, without signing in (Ocean's HelpDesk). */
 export default function HelpPage() {
   const { key = '' } = useParams();
   const form = useQuery({ queryKey: ['help', key], queryFn: () => get<HelpForm>(`/help/${encodeURIComponent(key)}`), retry: false, refetchOnWindowFocus: false });
   const [fields, setFields] = useState({ name: '', email: '', summary: '', description: '', website: '' });
   const [error, setError] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | 'checking' | 'sending'>(false);
   const [received, setReceived] = useState<HelpRequestReceived | null>(null);
+  const captcha = useCaptcha(form.data?.captcha);
   useEffect(() => {
     if (form.data) document.title = `Ask ${form.data.project.name} for help`;
   }, [form.data]);
@@ -72,14 +93,20 @@ export default function HelpPage() {
   const set = (k: keyof typeof fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setFields((x) => ({ ...x, [k]: e.target.value }));
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
     setError(null);
     try {
-      setReceived(await post<HelpRequestReceived>(`/help/${encodeURIComponent(f.project.key)}/requests`, { ...fields, csrf: f.csrf }));
+      let solved: CaptchaSolution | undefined;
+      const pending = captcha();
+      if (pending) {
+        setBusy('checking');
+        solved = await pending;
+      }
+      setBusy('sending');
+      setReceived(await post<HelpRequestReceived>(`/help/${encodeURIComponent(f.project.key)}/requests`, { ...fields, csrf: f.csrf, ...(solved ? { captcha: solved } : {}) }));
     } catch (err) {
       setError(err);
-      // An expired form gets a fresh token; what was typed stays.
-      if (err instanceof ApiError && err.code === 'form_expired') void form.refetch();
+      // An expired form, or a check that's spent, gets a fresh one; what was typed stays.
+      if (err instanceof ApiError && ['form_expired', 'captcha_expired', 'captcha_failed'].includes(err.code)) void form.refetch();
     } finally {
       setBusy(false);
     }
@@ -88,7 +115,15 @@ export default function HelpPage() {
     <Lone wide>
       <p className="label">{f.project.name} · help desk</p>
       <h1>Ask {f.project.name} for help</h1>
-      {f.intro.trim() ? <Markdown text={f.intro} outside /> : <p className="note">Say what's wrong or what you need. The team will reply on your request's own page.</p>}
+      {f.intro.trim() ? <Markdown text={f.intro} outside /> : null}
+      <p className="note">
+        {f.intro.trim() ? null : "Say what's wrong or what you need. The team will reply on your request's own page. "}
+        {f.email ? (
+          <>
+            Or write to <a href={`mailto:${f.email}`}>{f.email}</a>, and answer the team's emails.
+          </>
+        ) : null}
+      </p>
       <form className="form" onSubmit={send}>
         <div className="form-fields">
           <FormField label="Your name">{(id) => <input id={id} value={fields.name} onChange={set('name')} required maxLength={HELP_LIMITS.name} autoComplete="name" />}</FormField>
@@ -111,7 +146,12 @@ export default function HelpPage() {
         </div>
         {error ? <ErrorNote error={error} /> : null}
         <div className="cluster end">
-          <button type="submit" className="primary" disabled={busy}>
+          {busy === 'checking' ? (
+            <p className="note" role="status">
+              Making sure a person sent it: a moment.
+            </p>
+          ) : null}
+          <button type="submit" className="primary" disabled={busy !== false}>
             {busy ? 'Sending…' : 'Send the request'}
           </button>
         </div>

@@ -16,6 +16,27 @@ import { unique, uniqueKey, type Api } from './support/api';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { TOUR_AUTH_FILE } from './support/env';
 import { expect, holdLiveEvents, settled, test } from './support/fixtures';
+import { deskTakingMail, message, postMail } from './support/helpdesk';
+
+/** A project of the tour's own whose help desk takes mail, with what came in: a request, and an auto-reply set aside. */
+const deskWithMail = async (api: Api) => {
+  const key = uniqueKey('TM');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const address = `support-${unique()}@desk.example`;
+  const made = await deskTakingMail(api, key, address);
+  await postMail(made.url, message({ from: 'Jane Doe <jane@example.com>', to: address, subject: 'Invoices show the wrong VAT', body: 'Since Monday.' }));
+  await postMail(made.url, message({ from: 'jane@example.com', to: address, subject: 'Automatic reply', body: 'Away.', headers: ['Auto-Submitted: auto-replied'] }));
+  return `/projects/${key}`;
+};
+
+/** A help desk of the tour's own that takes mail and asks its form for a proof of work. */
+const checkedForm = async (api: Api) => {
+  const key = uniqueKey('TC');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await deskTakingMail(api, key, `help-${unique()}@desk.example`);
+  await api.patch(`/projects/${key}`, { settings: { helpdesk: { captcha: true, intro: 'Tell us what went wrong.' } } });
+  return `/help/${key}`;
+};
 
 interface Stop {
   name: string;
@@ -97,6 +118,8 @@ const STOPS: Stop[] = [
     },
     ready: (p) => p.getByRole('heading', { name: /^Ask .+ for help$/ }),
   },
+  { name: 'a help desk by email', path: deskWithMail, ready: (p) => p.getByRole('region', { name: 'Table of what came in by email' }) },
+  { name: "a help desk's form that checks for a person", path: checkedForm, ready: (p) => p.getByRole('heading', { name: /^Ask .+ for help$/ }) },
   { name: 'the knowledge base', path: '/articles?project=BACK', ready: (p) => p.getByRole('link', { name: 'Database failover' }).first() },
   { name: 'an article', path: '/articles/BACK-A-2', ready: (p) => p.getByRole('article', { name: 'Database failover' }) },
   { name: "an article's versions", path: '/articles/BACK-A-2/history', ready: (p) => p.getByRole('heading', { name: /^Version \d+$/ }) },
