@@ -151,7 +151,7 @@ export default function ProfilePage() {
   const status = useSetupStatus();
   if (!me.data) return <Loading what="your profile" />;
   const m = me.data;
-  const sso = status.data?.signIn.sso ?? null;
+  const sso = status.data?.signIn.sso ?? status.data?.signIn.saml ?? null;
   const passwords = status.data?.signIn.password ?? true;
   return (
     <>

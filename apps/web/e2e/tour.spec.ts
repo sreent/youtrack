@@ -53,6 +53,18 @@ const withIntegration = async (api: Api) => {
   return '/integrations';
 };
 
+/** A group of the tour's own: someone in it, and a role in a project of its own. */
+const withGroup = async (api: Api) => {
+  const key = uniqueKey('TG');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const group = await api.post<{ id: string }>('/groups', { name: `Tour group ${unique()}`, description: 'People the tour shows' });
+  const login = `tara.${unique()}`;
+  await api.createUser({ login, name: 'Tara Tour', password: 'e2e-person-pass-1', role: 'member' });
+  await api.post(`/groups/${group.id}/members`, { user: login });
+  await api.post(`/projects/${key}/groups`, { group: group.id, role: 'viewer' });
+  return `/groups/${group.id}`;
+};
+
 const board = (name: string) => async (api: Api) => {
   const found = (await api.boards()).find((b) => b.name === name);
   if (!found) throw new Error(`The demo data has no board "${name}"`);
@@ -107,6 +119,7 @@ const STOPS: Stop[] = [
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
   { name: 'workflow rules', path: withRules, ready: (p) => p.getByRole('heading', { name: "Won't fix says why" }) },
   { name: 'version control', path: withIntegration, ready: (p) => p.getByRole('heading', { name: 'Where they come from' }) },
+  { name: 'a group', path: withGroup, ready: (p) => p.getByRole('region', { name: 'Its roles in projects' }).getByRole('row').nth(1) },
 ];
 
 const MODES = [

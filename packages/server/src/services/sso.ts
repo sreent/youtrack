@@ -34,7 +34,7 @@ export const SSO_STATE_TTL_MS = 10 * 60_000;
 export const SSO_STATE_COOKIE = 'a4a_sso';
 
 /** Why a sign-in didn't work, as a code the sign-in page turns into words. */
-export type SsoFailure = 'cancelled' | 'expired' | 'failed' | 'unverified' | 'domain' | 'no_account' | 'unconfirmed' | 'ambiguous' | 'refused';
+export type SsoFailure = 'cancelled' | 'expired' | 'failed' | 'unverified' | 'domain' | 'no_account' | 'unconfirmed' | 'ambiguous' | 'refused' | 'unlinked';
 
 export class SsoError extends AppError {
   constructor(
@@ -268,7 +268,7 @@ export async function personFromProvider(app: AppServices, p: ProviderPolicy, wh
     }
     // An email the provider doesn't vouch for links nothing, and gives nobody a second account with it.
     if (!verified && matches.length) {
-      throw new SsoError('unverified', `${p.name} doesn't vouch for your email, and an a4a account already has it: an administrator can link them`);
+      throw new SsoError('unlinked', `${p.name} doesn't vouch for your email, and an a4a account already has it`);
     }
     if (!p.createUsers) throw new SsoError('no_account', `There's no a4a account for ${email ?? 'you'}`);
     const created = await app.db.transaction(async (txRaw) => {

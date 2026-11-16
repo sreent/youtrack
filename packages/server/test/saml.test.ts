@@ -152,8 +152,8 @@ describe('signing in with SAML', () => {
     const [row] = await database.db.select().from(users).where(eq(users.login, 'nia'));
     expect(row!.emailVerified).toBe(false);
     // Administrators see how they sign in.
-    const people = await (await app.request('/api/v1/users', { headers: { cookie: adminCookie } })).json();
-    expect(people.find((u: { login: string }) => u.login === 'nia').signIn).toMatchObject({ emailConfirmed: false, identities: [{ provider: 'Corp SAML', email: 'nia@corp.com' }] });
+    const people = (await (await app.request('/api/v1/users', { headers: { cookie: adminCookie } })).json()) as { login: string; signIn?: unknown }[];
+    expect(people.find((u) => u.login === 'nia')!.signIn).toMatchObject({ emailConfirmed: false, identities: [{ provider: 'Corp SAML', email: 'nia@corp.com' }] });
   });
 
   it('finds them by their NameID the next time, whatever their email says', async () => {
@@ -179,7 +179,7 @@ describe('signing in with SAML', () => {
     await make('quinn', 'quinn@corp.com', true);
     await make('ravi', 'ravi@corp.com', false);
     // Not trusted: an email links nothing, and gives nobody a second account with it.
-    expect((await signIn(person('quinn'))).location).toBe('/login?sso=unverified');
+    expect((await signIn(person('quinn'))).location).toBe('/login?sso=unlinked');
     runtime.config.saml = saml({ trustEmail: true });
     const linked = await signIn(person('quinn'));
     expect((await me(linked.session)).body.login).toBe('quinn');

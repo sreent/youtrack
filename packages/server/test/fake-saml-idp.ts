@@ -13,7 +13,7 @@ import { inflateRawSync } from 'node:zlib';
 import * as x509 from '@peculiar/x509';
 import { SignedXml } from 'xml-crypto';
 
-x509.cryptoProvider.set(webcrypto as unknown as Crypto);
+x509.cryptoProvider.set(webcrypto as unknown as Parameters<typeof x509.cryptoProvider.set>[0]);
 
 export interface SamlPerson {
   nameId: string;
@@ -53,7 +53,7 @@ const id = () => `_${randomBytes(16).toString('hex')}`;
 
 async function makeKeyPair(name: string): Promise<KeyPair> {
   const alg = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256', publicExponent: new Uint8Array([1, 0, 1]), modulusLength: 2048 };
-  const keys = (await webcrypto.subtle.generateKey(alg, true, ['sign', 'verify'])) as CryptoKeyPair;
+  const keys = (await webcrypto.subtle.generateKey(alg, true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
   const cert = await x509.X509CertificateGenerator.createSelfSigned({
     serialNumber: randomBytes(8).toString('hex'),
     name: `CN=${name}`,

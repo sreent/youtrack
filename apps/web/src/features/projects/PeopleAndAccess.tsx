@@ -8,10 +8,11 @@ import { ErrorNote, Loading } from '../../components/States';
 import { Avatar } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { ProjectGroups } from '../groups/ProjectGroups';
 
 export const ROLE_NAMES: Record<ProjectRole, string> = { viewer: 'Viewer', member: 'Member', manager: 'Manager' };
 
-const ROLE_WORDS: Record<ProjectRole, string> = {
+export const ROLE_WORDS: Record<ProjectRole, string> = {
   viewer: 'reads its issues and comments on them',
   member: 'also changes its issues',
   manager: 'also changes its settings, people, boards and baselines',
@@ -33,7 +34,14 @@ export function yourRole(project: Project): string {
   const a = project.access;
   if (a.via === 'admin') return 'As an administrator, you may change everything here.';
   const role = ROLE_NAMES[a.role].toLowerCase();
-  const why = a.via === 'lead' ? ', as its lead' : a.via === 'open' ? ', as everyone is in an open project' : '';
+  const why =
+    a.via === 'lead'
+      ? ', as its lead'
+      : a.via === 'open'
+        ? ', as everyone is in an open project'
+        : a.via === 'group'
+          ? `, as one of ${a.group ?? 'a group'}`
+          : '';
   if (!a.comment) return `You're a ${role} here${why}, but your account only reads.`;
   return `You're a ${role} here${why}: ${YOU_MAY[a.role]}.`;
 }
@@ -244,7 +252,11 @@ export function PeopleAndAccess({ project }: { project: Project }) {
       {members.isLoading ? <Loading what="its people" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (
-        <p className="note">{project.visibility === 'members' ? 'Nobody is listed yet, so only administrators see it.' : 'Nobody is listed yet: everyone is a member.'}</p>
+        <p className="note">
+          {project.visibility === 'members'
+            ? 'Nobody is listed by name: only administrators, and the groups below, see it.'
+            : 'Nobody is listed by name: everyone is a member, unless a group below gives them another role.'}
+        </p>
       ) : null}
       {list.length ? (
         <Scroll label={`People in ${project.key}`}>
@@ -267,6 +279,7 @@ export function PeopleAndAccess({ project }: { project: Project }) {
         </Scroll>
       ) : null}
       {canEdit && users.data ? <AddMember project={project} people={users.data} listed={new Set(list.map((m) => m.user.id))} /> : null}
+      <ProjectGroups project={project} />
     </div>
   );
 }

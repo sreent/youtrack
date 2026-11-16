@@ -29,6 +29,7 @@ import {
 import { createIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { createProject, listProjects } from '../src/services/projects';
+import { toolByName } from '../src/tools/registry';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -119,6 +120,18 @@ describe('a group with a role in a project', () => {
     expect(await canUserReadProject(admin.db, w.viewer.id, secretId)).toBe(true);
     await removeProjectGroup(admin, 'SECRET', auditors.id);
     expect((await failure(() => requireProject(vera, 'SECRET'))).status).toBe(404);
+  });
+
+  it('tells an agent who is in the groups with a role, so it assigns only to people who can see the project', async () => {
+    const tool = toolByName('list_project_members')!;
+    const team = await createGroup(admin, { name: 'Agents may read this' });
+    await addGroupMember(admin, team.id, 'ben');
+    await addProjectGroup(admin, 'SECRET', { group: team.id, role: 'viewer' });
+    const out = await tool.run(w.as(w.ben), tool.input.parse({ project: 'SECRET' }) as never);
+    const data = out.data as { you: Record<string, unknown>; groups: { name: string; role: string; people: string[] }[] };
+    expect(data.you).toMatchObject({ role: 'viewer', through: 'the group Agents may read this' });
+    expect(data.groups).toContainEqual({ name: 'Agents may read this', role: 'viewer', people: ['ben'] });
+    await removeProjectGroup(admin, 'SECRET', team.id);
   });
 
   it("lets a members-only project's issues be assigned to a group's people, and to nobody else", async () => {
