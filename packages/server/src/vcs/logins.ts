@@ -33,7 +33,14 @@ const SHAPES: Record<VcsProvider, { ok: (login: string) => boolean; hint: string
 
 function dto(s: SchemaSnapshot, row: LoginRow): ProviderLogin {
   const by = row.addedById ? s.users.get(row.addedById) : undefined;
-  return { id: row.id, provider: row.provider as VcsProvider, login: row.login, addedBy: by ? userRefDto(by) : null, createdAt: row.createdAt.toISOString() };
+  return {
+    id: row.id,
+    provider: row.provider as VcsProvider,
+    login: row.login,
+    addedBy: by ? userRefDto(by) : null,
+    connected: Boolean(row.providerUserId),
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
 async function person(ctx: Ctx, idOrLogin: string): Promise<{ s: SchemaSnapshot; u: UserRow }> {
@@ -79,13 +86,16 @@ export async function addProviderLogin(ctx: Ctx, idOrLogin: string, input: { pro
   return dto(s, row);
 }
 
-/** Forget a person's login at a provider (administrators). */
+/**
+ * Forget a person's login at a provider: administrators, or the person themselves for an account
+ * they connected (D46), which is theirs to disconnect.
+ */
 export async function removeProviderLogin(ctx: Ctx, idOrLogin: string, id: string): Promise<void> {
-  requireScope(ctx, 'admin');
+  requireScope(ctx, 'write');
   const { u } = await person(ctx, idOrLogin);
-  const deleted = await ctx.db
-    .delete(providerLogins)
-    .where(and(eq(providerLogins.id, id), eq(providerLogins.userId, u.id)))
-    .returning({ id: providerLogins.id });
-  if (!deleted.length) throw notFound('Login');
+  const [row] = await ctx.db.select().from(providerLogins).where(and(eq(providerLogins.id, id), eq(providerLogins.userId, u.id)));
+  const own = u.id === ctx.actor.user.id && Boolean(row?.providerUserId);
+  if (!own) requireScope(ctx, 'admin');
+  if (!row) throw notFound('Login');
+  await ctx.db.delete(providerLogins).where(eq(providerLogins.id, row.id));
 }

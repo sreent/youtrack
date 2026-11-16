@@ -20,6 +20,7 @@ import { projectByKey, type SchemaSnapshot } from '../services/schema-cache';
 import { checkBaseUrl } from './commits';
 import type { IntegrationRow } from './links';
 import { receive } from './receive';
+import { sealToken } from './tokens';
 
 export function webhookUrl(app: AppServices, id: string): string {
   return `${app.config.publicUrl}/api/v1/vcs/hooks/${id}`;
@@ -59,24 +60,28 @@ function secretFor(provider: VcsProvider): { secret: string; kept: Pick<Integrat
 }
 
 /**
- * Bitbucket's address and access token, as an integration keeps them. Data Center must have an
- * address; Bitbucket Cloud may name another for its API (a proxy). The others take neither.
+ * The address and access token an integration keeps, for those that read from their provider:
+ * Bitbucket (the commits a delivery leaves out, D33) and GitHub (which commits a build holds, D46).
+ * Data Center must have an address; Bitbucket Cloud may name another for its API (a proxy), and
+ * GitHub Enterprise Server its API's. The others take neither. A token is kept sealed.
  */
-function bitbucketFields(
+function providerFields(
+  app: AppServices,
   provider: VcsProvider,
   input: { baseUrl?: string | null; accessToken?: string | null },
   now: Pick<IntegrationRow, 'baseUrl' | 'accessToken'> | null,
 ): Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> {
-  const bitbucket = provider === 'bitbucket' || provider === 'bitbucket-dc';
-  if (!bitbucket) {
+  const reads = provider === 'bitbucket' || provider === 'bitbucket-dc' || provider === 'github';
+  if (!reads) {
     if (input.baseUrl || input.accessToken) {
       throw badRequest(`${VCS_PROVIDER_NAMES[provider]} integrations take no address or access token`, 'Its deliveries carry what a4a reads.');
     }
     return {};
   }
+  const at = provider === 'github' ? { name: 'GitHub Enterprise Server’s API', example: 'https://github.acme.example/api/v3' } : undefined;
   const out: Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> = {};
-  if (input.baseUrl !== undefined) out.baseUrl = input.baseUrl === null || !input.baseUrl.trim() ? null : checkBaseUrl(input.baseUrl);
-  if (input.accessToken !== undefined) out.accessToken = input.accessToken?.trim() || null;
+  if (input.baseUrl !== undefined) out.baseUrl = input.baseUrl === null || !input.baseUrl.trim() ? null : checkBaseUrl(input.baseUrl, at);
+  if (input.accessToken !== undefined) out.accessToken = input.accessToken?.trim() ? sealToken(app, input.accessToken.trim()) : null;
   const baseUrl = out.baseUrl !== undefined ? out.baseUrl : (now?.baseUrl ?? null);
   if (provider === 'bitbucket-dc' && !baseUrl) {
     throw badRequest('Give Bitbucket Data Center’s address', 'The address people open it at, e.g. https://bitbucket.acme.example: a4a reads the commits a push moved there.');
@@ -105,7 +110,7 @@ export async function createIntegration(
   const s = await ctx.app.schema.get();
   const name = input.name.trim();
   if (!name) throw badRequest('Give it a name, such as its repository', 'e.g. acme/backend');
-  const bitbucket = bitbucketFields(input.provider, input, null);
+  const bitbucket = providerFields(ctx.app, input.provider, input, null);
   const { secret, kept } = secretFor(input.provider);
   const [row] = await ctx.db
     .insert(vcsIntegrations)
@@ -132,7 +137,7 @@ export async function updateIntegration(
   const s = await ctx.app.schema.get();
   const row = await load(ctx, id);
   if (input.name !== undefined && !input.name.trim()) throw badRequest('Give it a name, such as its repository');
-  const bitbucket = bitbucketFields(row.provider as VcsProvider, input, row);
+  const bitbucket = providerFields(ctx.app, row.provider as VcsProvider, input, row);
   const [updated] = await ctx.db
     .update(vcsIntegrations)
     .set({

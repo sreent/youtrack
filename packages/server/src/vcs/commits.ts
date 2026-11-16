@@ -21,15 +21,15 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 const underTest = () => Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
 
 /** An address an administrator gave, as a4a will use it: https, without a path's trailing slash. */
-export function checkBaseUrl(raw: string): string {
+export function checkBaseUrl(raw: string, at: { name: string; example: string } = { name: 'Bitbucket', example: 'https://bitbucket.acme.example' }): string {
   let url: URL;
   try {
     url = new URL(raw.trim());
   } catch {
-    throw badRequest('That isn’t an address', 'Give the address people open Bitbucket at, e.g. https://bitbucket.acme.example');
+    throw badRequest('That isn’t an address', `Give ${at.name}’s address, e.g. ${at.example}`);
   }
   const loopbackHttp = url.protocol === 'http:' && LOOPBACK.has(url.hostname) && underTest();
-  if (url.protocol !== 'https:' && !loopbackHttp) throw badRequest('Bitbucket’s address must be https', `e.g. https://${url.host || 'bitbucket.acme.example'}`);
+  if (url.protocol !== 'https:' && !loopbackHttp) throw badRequest(`${at.name}’s address must be https`, `e.g. https://${url.host || new URL(at.example).host}`);
   if (url.username || url.password) throw badRequest('Give the address without a name or password in it', 'The access token is how a4a signs in.');
   if (url.search || url.hash) throw badRequest('Give the address alone, without ? or #', `e.g. ${url.origin}${url.pathname.replace(/\/+$/, '')}`);
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
@@ -37,7 +37,8 @@ export function checkBaseUrl(raw: string): string {
 
 export class ReadError extends Error {}
 
-async function getJson(url: string, token: string): Promise<unknown> {
+/** JSON from a provider's API, with a token, no redirects followed (D33; D46 reads GitHub's compare with it). */
+export async function getJson(url: string, token: string): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch(url, {

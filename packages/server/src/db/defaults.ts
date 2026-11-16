@@ -10,6 +10,8 @@ import { newId } from '../lib/ids';
 export const TRIAGE_BOT = 'triage';
 /** The agent that applies workflow rules. */
 export const WORKFLOW_BOT = 'workflow';
+/** The agent builds act as, through their build source (D46). */
+export const BUILDS_BOT = 'builds';
 /** The link type a clone links back to its original with (D41). */
 export const CLONE_LINK = { name: 'Clone', outward: 'clones', inward: 'is cloned by' } as const;
 
@@ -100,5 +102,9 @@ export async function ensureDefaults(db: Db): Promise<void> {
   const [workflow] = await db.select().from(users).where(eq(users.login, WORKFLOW_BOT));
   if (!workflow) {
     await insertUser(db, { login: WORKFLOW_BOT, name: WORKFLOW_BOT, role: 'member', isBot: true, capacityHoursPerDay: 0 });
+  }
+  const [builds] = await db.select().from(users).where(eq(users.login, BUILDS_BOT));
+  if (!builds) {
+    await insertUser(db, { login: BUILDS_BOT, name: BUILDS_BOT, role: 'member', isBot: true, capacityHoursPerDay: 0 });
   }
 }

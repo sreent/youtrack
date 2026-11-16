@@ -27,11 +27,13 @@ import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { findIssue } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
+import { buildsFromRun } from '../ci/builds';
 import { authorOf } from './authors';
 import { moreCommits } from './commits';
 import { linkCommit, syncPullRequest, type IntegrationRow } from './links';
 import { mentions } from './mentions';
 import { readDelivery, type Delivery } from './payloads';
+import { tokenOf } from './tokens';
 
 export const MAX_BODY = 5 * 1024 * 1024;
 /** Commits read from one push; GitHub sends up to 2048. */
@@ -218,7 +220,12 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
     case 'ping':
       return { outcome: 'processed', message: `${provider} can reach a4a, and the signature is right.`, linked: 0, applied: 0 };
     case 'other':
-      return { outcome: 'ignored', message: `a4a reads pushes and pull requests; this was "${delivery.event}".`, linked: 0, applied: 0 };
+      return { outcome: 'ignored', message: `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
+    case 'workflow_run': {
+      // A finished run a build source takes is a build (D46): which issues it marks is the log's.
+      const r = await buildsFromRun(app, integration, delivery);
+      return { outcome: r.outcome, message: r.message, reply: r.reply, linked: 0, applied: r.marked };
+    }
     case 'push': {
       const branches = delivery.refs.filter((r) => !r.deleted && r.branch);
       if (!branches.length) {
@@ -237,7 +244,7 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
         if (budget <= 0) break;
         offered += ref.more ? 0 : ref.commits.length;
         // What the delivery left out (Bitbucket) is read from the provider, within what one push may read.
-        const { commits, problem } = await moreCommits(integration, delivery.repository, ref, budget);
+        const { commits, problem } = await moreCommits({ ...integration, accessToken: tokenOf(app, integration.accessToken) }, delivery.repository, ref, budget);
         if (problem) problems.push(problem);
         budget -= commits.length;
         where.push(`${count(commits.length, 'commit')} on ${ref.branch}`);

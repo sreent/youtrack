@@ -31,6 +31,7 @@ import { dashboardRoutes } from './routes/dashboards';
 import { importRoutes } from './routes/imports';
 import { reportRoutes } from './routes/reports';
 import { vcsRoutes } from './routes/vcs';
+import { buildRoutes } from './routes/builds';
 import { emailRoutes } from './routes/emails';
 import { workflowRoutes } from './routes/workflow';
 import { mountOAuth, oauthRoutes } from '../oauth/routes';
@@ -91,6 +92,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskMailRoutes(api);
   workflowRoutes(api);
   vcsRoutes(api);
+  buildRoutes(api);
   oauthRoutes(api);
   absenceRoutes(api);
   groupRoutes(api);

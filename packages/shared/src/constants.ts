@@ -41,15 +41,15 @@ export const SCOPES = ['read', 'write', 'admin'] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** The channel a change came through. Recorded on every activity entry. */
-export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs'] as const;
+export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'ci'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /**
- * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk),
+ * a4a's own agents, by login: they act for a4a itself (triage, workflow rules, the help desk, builds),
  * and take no tokens and no work. Any other bot account is an agent an administrator added, which
  * holds tokens of its own and can be assigned issues (docs/architecture.md, D34).
  */
-export const OWN_AGENTS = ['triage', 'workflow', 'helpdesk'] as const;
+export const OWN_AGENTS = ['triage', 'workflow', 'helpdesk', 'builds'] as const;
 
 export function isOwnAgent(user: { isBot: boolean; login: string }): boolean {
   return user.isBot && (OWN_AGENTS as readonly string[]).includes(user.login.toLowerCase());
@@ -124,6 +124,7 @@ export const EVENT_TYPES = [
   'project.group.changed',
   'project.group.removed',
   'issue.moved',
+  'build.recorded',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

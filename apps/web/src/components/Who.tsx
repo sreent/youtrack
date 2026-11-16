@@ -82,6 +82,9 @@ export function actorWho(actor: TrackerEvent['actor'], data?: TrackerEvent['data
     case 'vcs':
       // A commit's author a4a knows, through the integration; or the integration itself.
       return actor.id ? { kind: 'person', name, about: `from ${actor.token ?? 'version control'}` } : { kind: 'service', name: actor.token ?? 'version control', about: 'from version control' };
+    case 'ci':
+      // A build CI reported, through its build source (D46).
+      return { kind: 'service', name: actor.token ?? 'CI', about: 'from a build' };
     case 'system':
       return { kind: 'own', name: 'a4a', about: '' };
     default:

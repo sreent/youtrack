@@ -60,6 +60,26 @@ export type Delivery =
       author: Person;
       at: Date | null;
     }
+  | {
+      /** A GitHub Actions run, which a build source may take as a build (D46). */
+      kind: 'workflow_run';
+      event: string;
+      action: string;
+      repository: string;
+      /** The run's id and its attempt: a re-run is the same run again. */
+      runId: string;
+      workflow: string | null;
+      /** The workflow's file, e.g. .github/workflows/ci.yml. */
+      path: string | null;
+      number: number | null;
+      branch: string | null;
+      headSha: string;
+      headAt: Date | null;
+      headMessage: string;
+      conclusion: string | null;
+      url: string | null;
+      at: Date | null;
+    }
   | { kind: 'other'; event: string };
 
 const text = z.string().nullish();
@@ -120,6 +140,24 @@ const GithubPullRequest = z.object({
   }),
 });
 
+const GithubWorkflowRun = z.object({
+  action: z.string(),
+  repository: z.object({ full_name: z.string() }),
+  workflow_run: z.object({
+    id: z.number().int(),
+    run_attempt: z.number().int().nullish(),
+    run_number: z.number().int().nullish(),
+    name: text,
+    path: text,
+    head_branch: text,
+    head_sha: z.string().min(4).max(64),
+    conclusion: text,
+    html_url: text,
+    updated_at: text,
+    head_commit: z.object({ message: text, timestamp: text }).nullish(),
+  }),
+});
+
 function github(event: string, body: unknown): Delivery {
   switch (event) {
     case 'ping':
@@ -166,6 +204,27 @@ function github(event: string, body: unknown): Delivery {
         // The account that opened it, signed in at the provider.
         author: { name: null, email: null, login: pr.user?.login ?? null, match: present(pr.user?.login) },
         at: when(pr.updated_at),
+      };
+    }
+    case 'workflow_run': {
+      const p = GithubWorkflowRun.parse(body);
+      const run = p.workflow_run;
+      return {
+        kind: 'workflow_run',
+        event,
+        action: p.action,
+        repository: p.repository.full_name,
+        runId: `${run.id}.${run.run_attempt ?? 1}`,
+        workflow: run.name ?? null,
+        path: run.path ?? null,
+        number: run.run_number ?? null,
+        branch: run.head_branch ?? null,
+        headSha: run.head_sha,
+        headAt: when(run.head_commit?.timestamp),
+        headMessage: run.head_commit?.message ?? '',
+        conclusion: run.conclusion ?? null,
+        url: link(run.html_url),
+        at: when(run.updated_at),
       };
     }
     default:

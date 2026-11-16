@@ -52,8 +52,9 @@ function byLine(e: TrackerEvent): string {
     system: "a4a's own",
     helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
     vcs: `from ${e.actor.token ?? 'version control'}`,
+    ci: `from a build of ${e.actor.token ?? 'CI'}`,
   };
-  const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs');
+  const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs' || e.actor.channel === 'ci');
   return [through[e.actor.channel], ruleOf(e) ? `the rule “${ruleOf(e)}”` : null, tokenNamed ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
     .filter(Boolean)
     .join(' · ');

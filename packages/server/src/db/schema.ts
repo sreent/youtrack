@@ -1743,6 +1743,11 @@ export const providerLogins = pgTable(
     /** The login as matched: lower case, and for Bitbucket Cloud a UUID without its braces. */
     matchKey: text('match_key').notNull(),
     addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * The provider's own id for the account, when the person connected it themselves by signing in
+     * there (D46): proof the account is theirs, which an administrator's record isn't. Null otherwise.
+     */
+    providerUserId: text('provider_user_id'),
     createdAt: created(),
   },
   (t) => [uniqueIndex('provider_logins_once').on(t.provider, t.matchKey), index('provider_logins_user').on(t.userId)],
@@ -1982,4 +1987,105 @@ export const scimGroups = pgTable('scim_groups', {
   externalId: text('external_id'),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Integrations (package: docs/architecture.md, D46): CI builds, and code-host accounts people connect
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a project's builds come from: a GitHub integration's workflow runs (`github`), or any CI
+ * that posts them with a token of its own (`generic`), kept as a hash and shown once.
+ */
+export const buildSources = pgTable('build_sources', {
+  id: text('id').primaryKey(),
+  /** 'github' or 'generic'. */
+  kind: text('kind').notNull(),
+  name: text('name').notNull(),
+  projectId: text('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  /** The build field its builds go in; null: the project's "Fixed in build", or its one build field. */
+  fieldId: text('field_id').references(() => fields.id, { onDelete: 'set null' }),
+  /** github: the integration whose workflow_run deliveries it takes. */
+  vcsIntegrationId: text('vcs_integration_id').references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+  /** github: the branch whose runs are builds; null: any. */
+  branch: text('branch'),
+  /** github: the workflow, by its name or its file (.github/workflows/ci.yml); null: any. */
+  workflow: text('workflow'),
+  /** generic: the token's SHA-256. */
+  tokenHash: text('token_hash'),
+  tokenPrefix: text('token_prefix'),
+  active: boolean('active').notNull().default(true),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: created(),
+  lastBuildAt: ts('last_build_at'),
+});
+
+/** A build a CI reported: one per name in a project, reported again as often as the CI likes. */
+export const builds = pgTable(
+  'builds',
+  {
+    id: text('id').primaryKey(),
+    sourceId: text('source_id').references(() => buildSources.id, { onDelete: 'set null' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    fieldId: text('field_id').references(() => fields.id, { onDelete: 'set null' }),
+    /** The build field's value it became, once it succeeded. */
+    valueId: text('value_id').references(() => fieldValues.id, { onDelete: 'set null' }),
+    /** Its number or name, as the build field's value reads. */
+    name: text('name').notNull(),
+    /** 'success', 'failure' or 'cancelled'. */
+    status: text('status').notNull(),
+    url: text('url'),
+    repository: text('repository'),
+    branch: text('branch'),
+    /** The commit it built, and when that was made: where the next build's commits start. */
+    headSha: text('head_sha'),
+    headAt: ts('head_at'),
+    /** The commits it holds, as far as a4a knows them. */
+    commits: text('commits').array().notNull().default(sql`'{}'::text[]`),
+    /** The issues it marked as fixed in it. */
+    marked: integer('marked').notNull().default(0),
+    finishedAt: ts('finished_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('builds_once').on(t.projectId, t.name), index('builds_recent').on(t.projectId, t.createdAt), index('builds_source').on(t.sourceId, t.branch, t.createdAt)],
+);
+
+/** What a build did to each issue its commits name: marked it, found it marked already, or left it and why. */
+export const buildIssues = pgTable(
+  'build_issues',
+  {
+    buildId: text('build_id')
+      .notNull()
+      .references(() => builds.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    /** 'marked', 'already' (it named a build already), 'open' (not resolved, so left) or 'refused' (note says why). */
+    outcome: text('outcome').notNull(),
+    note: text('note'),
+    /** The commit that tied the issue to the build. */
+    commit: text('commit'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.buildId, t.issueId] }), index('build_issues_issue').on(t.issueId)],
+);
+
+/**
+ * A person connecting their account at a code host (D46): the sign-in there they've started, known
+ * by the state it carries (kept as a hash), with its PKCE verifier, for ten minutes.
+ */
+export const providerLinkStates = pgTable('provider_link_states', {
+  stateHash: text('state_hash').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  verifier: text('verifier').notNull(),
+  createdAt: created(),
+  expiresAt: ts('expires_at').notNull(),
 });
