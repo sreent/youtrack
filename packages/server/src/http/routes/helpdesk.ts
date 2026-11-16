@@ -9,10 +9,12 @@ import { HelpdeskRequestSchema, HelpFormSchema, HelpReplyBody, HelpRequestBody, 
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
+import { checkCaptcha } from '../../helpdesk/captcha';
 import { randomToken } from '../../lib/crypto';
 import { AppError, badRequest } from '../../lib/errors';
 import { helpHit, type HelpLimit } from '../../services/help-throttle';
 import { deskProject, fileRequest, formTokenValid, helpForm, replyToRequest, requestOf, trackRequest } from '../../services/helpdesk';
+import { projectSettings } from '../../services/projects';
 import { waitInWords } from '../../services/login-throttle';
 import type { HttpEnv } from '../env';
 import { clientIp } from '../middleware';
@@ -23,7 +25,7 @@ export const HELP_COOKIE = 'a4a_help';
 export const TRACKING_HEADER = 'x-tracking-token';
 
 /** Count a hit on each limit (shared by every instance) and refuse with 429 when one is over. */
-async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: string): Promise<void> {
+export async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: string): Promise<void> {
   const wait = await helpHit(c.get('runtime').db, hits);
   if (wait) {
     c.header('retry-after', String(wait));
@@ -32,7 +34,7 @@ async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: stri
 }
 
 /** The caller's address, through the proxies TRUST_PROXY says are in front. */
-function ip(c: Context<HttpEnv>): string {
+export function ip(c: Context<HttpEnv>): string {
   return clientIp(c, c.get('runtime').config.trustProxy);
 }
 
@@ -112,6 +114,11 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       await hit(c, [['submitIp', ip(c)]], 'Too many requests from your address');
       // A bot filled the field people can't see: say it went, and do nothing.
       if (body.website?.trim()) return { received: true as const, email: body.email, tracking: null };
+      if (projectSettings(project).helpdesk.captcha) {
+        const verdict = await checkCaptcha(runtime, project.key, body.captcha);
+        if (verdict === 'expired') throw new AppError(400, 'captcha_expired', 'The check that you’re not a bot has expired', 'It runs again by itself: send the request once more.');
+        if (verdict !== 'ok') throw new AppError(400, 'captcha_failed', 'The check that you’re not a bot didn’t pass', 'Reload the page and send it again: what you wrote is still there.');
+      }
       await hit(c, [['submitEmail', body.email]], 'Too many requests from this email address');
       await hit(c, [['submitDesk', project.id]], 'This help desk is taking too many requests just now');
       return fileRequest(runtime, project.key, body);

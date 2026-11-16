@@ -30,7 +30,7 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '' };
+export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false };
 
 export function projectSettings(row: ProjectRow): ProjectSettings {
   const raw = (row.settings ?? {}) as Partial<ProjectSettings>;

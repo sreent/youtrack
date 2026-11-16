@@ -17,12 +17,13 @@ import { and, asc, eq, isNull, min, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
-import { publishActivities } from '../events/activity';
+import { comments, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
+import { publishActivities, type ActivityRow } from '../events/activity';
+import { captchaChallenge } from '../helpdesk/captcha';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { enqueueMail, kickMail } from '../mail/outbox';
+import { enqueueMail, kickMail, mailHost } from '../mail/outbox';
 import { mailConfigured, sign, verify } from '../notify/state';
 import { issueRef, readableId, stateNames } from './issue-refs';
 import { applyChanges, createIssue, resolveIssue } from './issues';
@@ -69,10 +70,21 @@ export async function helpdeskBot(app: AppServices): Promise<UserRow> {
  * The help desk acts for the requester with an elevated system context that reaches one project
  * only: the request's. So it files and replies in a members-only project, and nowhere else.
  */
-async function botCtx(app: AppServices, projectId: string): Promise<Ctx> {
+export async function botCtx(app: AppServices, projectId: string): Promise<Ctx> {
   const ctx = adminCtx(app, await helpdeskBot(app), 'helpdesk');
   ctx.actor.projectIds = [projectId];
   return ctx;
+}
+
+/** A request, its issue and who asked, by the issue's id; null when the issue is no request. */
+export async function requestWithRequester(db: Db, issueId: string) {
+  const [row] = await db
+    .select({ request: helpdeskRequests, requester: requesters, issue: issues })
+    .from(helpdeskRequests)
+    .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
+    .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
+    .where(eq(helpdeskRequests.issueId, issueId));
+  return row ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +110,30 @@ export async function helpForm(app: AppServices, key: string, nonce: string): Pr
   const s = await app.schema.get();
   const p = openDesk(s, key);
   if (!p) throw nothingHere();
-  return { project: { key: p.key, name: p.name }, intro: projectSettings(p).helpdesk.intro, csrf: await formToken(app, p.key, nonce), mail: mailConfigured(app) };
+  const settings = projectSettings(p).helpdesk;
+  return {
+    project: { key: p.key, name: p.name },
+    intro: settings.intro,
+    csrf: await formToken(app, p.key, nonce),
+    mail: mailConfigured(app),
+    captcha: settings.captcha ? await captchaChallenge(app, p.key) : null,
+    email: await deskAddress(app.db, p.id),
+  };
+}
+
+/** The address a desk takes mail at, or null when it takes none (D30). */
+export async function deskAddress(db: Db, projectId: string): Promise<string | null> {
+  const [row] = await db.select({ address: helpdeskMailboxes.address }).from(helpdeskMailboxes).where(eq(helpdeskMailboxes.projectId, projectId));
+  return row?.address ?? null;
+}
+
+/**
+ * A Message-ID for mail to a requester: random, so knowing one is proof of having had the email
+ * (an answer that cites it is threaded to its request, D30), and stable across retries, being kept
+ * in the outbox. The local part, without the host, as the outbox takes it.
+ */
+export function requestMessageId(kind: string): string {
+  return `${kind}.${randomToken('', 12)}`;
 }
 
 /** The project of an open help desk, or a 404 that says nothing more. */
@@ -128,9 +163,23 @@ export function trackingUrl(app: AppServices, token: string): string {
   return `${app.config.publicUrl}/request#${token}`;
 }
 
-/** File a request from the public form, as an issue in the project. */
-export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string }): Promise<HelpRequestReceived> {
-  const project = await deskProject(app, key);
+export interface NewRequest {
+  name: string;
+  email: string;
+  summary: string;
+  description: string;
+  /** The public form, or an email to the desk (D30). */
+  via: 'form' | 'email';
+  /** The requester's own Message-ID, when they wrote in: the conversation threads under it. */
+  threadId?: string | null;
+}
+
+/**
+ * Open a request in a desk's project, as the help desk's agent: the issue, reported for whoever
+ * asked; its request row; the lead watching; and the email that says it came in, all in one
+ * transaction. The form and email both come here.
+ */
+export async function openRequest(app: AppServices, project: ProjectRow, input: NewRequest) {
   const settings = projectSettings(project).helpdesk;
   const ctx = await botCtx(app, project.id);
   const email = input.email.trim();
@@ -138,24 +187,34 @@ export async function fileRequest(app: AppServices, key: string, input: { name: 
   const requesterId = await requesterFor(app.db, email, name);
   const s = await app.schema.get();
   const lead = project.leadId ? s.users.get(project.leadId) : undefined;
+  const received = requestMessageId('request-received');
+  // What later emails thread under: the requester's message, else the first one a4a sends them.
+  const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
     {
-      data: { requester: { name } },
+      data: { requester: { name }, ...(input.via === 'email' ? { via: 'email' } : {}) },
       inTransaction: async (tx, row) => {
         const due = settings.firstResponseHours ? new Date(row.createdAt.getTime() + settings.firstResponseHours * 3_600_000) : null;
-        await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due });
+        await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId });
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
-        await enqueueMail(tx, app, { kind: 'request-received', dedupeKey: `request:${row.id}:received`, payload: { issueId: row.id }, messageId: `request-${row.id}` });
+        // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
+        await enqueueMail(tx, app, { kind: 'request-received', dedupeKey: `request:${row.id}:received`, payload: { issueId: row.id, replyable: true }, messageId: received });
       },
     },
   );
-  if (mailConfigured(app)) {
-    kickMail(app);
-    return { received: true, email, tracking: null };
-  }
+  kickMail(app);
+  return issue;
+}
+
+/** File a request from the public form, as an issue in the project. */
+export async function fileRequest(app: AppServices, key: string, input: { name: string; email: string; summary: string; description: string }): Promise<HelpRequestReceived> {
+  const project = await deskProject(app, key);
+  const issue = await openRequest(app, project, { ...input, via: 'form' });
+  const email = input.email.trim();
+  if (mailConfigured(app)) return { received: true, email, tracking: null };
   // No email will carry a link, so the page shows this one, once.
   return { received: true, email, tracking: trackingUrl(app, await mintTrackingToken(app.db, issue.uid)) };
 }
@@ -210,18 +269,36 @@ export async function trackRequest(app: AppServices, token: string | undefined):
   };
 }
 
-/** The requester replies on their tracking page: a public comment, theirs, that tells the issue's watchers. */
-export async function replyToRequest(app: AppServices, token: string | undefined, text: string): Promise<TrackedRequest> {
-  const { requester, issue } = await requestByToken(app, token);
+/**
+ * The requester's own reply, from their tracking page or by email: a public comment by the help
+ * desk's agent in their name, which tells the issue's watchers. Says which comment it made.
+ */
+export async function postRequesterReply(
+  app: AppServices,
+  issue: typeof issues.$inferSelect,
+  requester: { id: string; name: string },
+  text: string,
+  via: 'page' | 'email',
+): Promise<{ commentId: string | null; activities: ActivityRow[] }> {
   const ctx = await botCtx(app, issue.projectId);
   const result = await app.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, issue, {
       comment: text,
       commentVisibility: 'public',
-      commentRequester: { id: requester.id, name: requester.name },
+      commentRequester: requester,
+      ...(via === 'email' ? { data: { via: 'email' } } : {}),
     }),
   );
   await publishActivities(app, result.activities);
+  const created = result.activities.find((a) => a.type === 'comment.created');
+  const commentId = (created?.payload as { data?: { commentId?: unknown } } | undefined)?.data?.commentId;
+  return { commentId: typeof commentId === 'string' ? commentId : null, activities: result.activities };
+}
+
+/** The requester replies on their tracking page: a public comment, theirs, that tells the issue's watchers. */
+export async function replyToRequest(app: AppServices, token: string | undefined, text: string): Promise<TrackedRequest> {
+  const { requester, issue } = await requestByToken(app, token);
+  await postRequesterReply(app, issue, { id: requester.id, name: requester.name }, text, 'page');
   return trackRequest(app, token);
 }
 
@@ -265,6 +342,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     createdAt: row.request.createdAt.toISOString(),
     firstResponse: slaOf(row.request.firstResponseDueAt, responded ?? issue.resolvedAt, responded),
     emailMuted: row.request.emailMutedAt !== null,
+    via: row.request.via === 'email' ? 'email' : 'form',
   };
 }
 

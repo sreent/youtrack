@@ -1,0 +1,13 @@
+From: Jane Doe <{{FROM}}>
+To: {{TO}}
+Subject: Automatic reply: Password reset email never arrives
+Date: Mon, 16 Nov 2026 12:10:00 +0000
+Message-ID: <{{ID}}@EXAMPLE.prod.outlook.com>
+In-Reply-To: {{IN_REPLY_TO}}
+References: {{REFERENCES}}
+Auto-Submitted: auto-replied
+X-Auto-Response-Suppress: All
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+I'm out of the office until Monday 23 November, with no access to email.

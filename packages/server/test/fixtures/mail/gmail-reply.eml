@@ -1,0 +1,31 @@
+From: Jane Doe <{{FROM}}>
+To: Backend's help desk <{{TO}}>
+Subject: Re: Password reset email never arrives
+Date: Mon, 16 Nov 2026 12:05:00 +0000
+Message-ID: <{{ID}}@mail.gmail.com>
+In-Reply-To: {{IN_REPLY_TO}}
+References: {{REFERENCES}}
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3"
+
+--000000000000a1b2c3
+Content-Type: text/plain; charset="UTF-8"
+
+It came through now, thank you! The link worked.
+
+On Mon, 16 Nov 2026 at 11:40, Backend's help desk <
+a4a@desk.test> wrote:
+
+> anna replied to your request.
+>
+> > Could you try again? We fixed the mail queue.
+>
+> See your request and reply: http://desk.test/request#hdt_xxx
+>
+
+--000000000000a1b2c3
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">It came through now, thank you! The link worked.</div><br><div class="gmail_quote"><div dir="ltr" class="gmail_attr">On Mon, 16 Nov 2026 at 11:40, Backend's help desk &lt;<a href="mailto:a4a@desk.test">a4a@desk.test</a>&gt; wrote:<br></div><blockquote class="gmail_quote">anna replied to your request.</blockquote></div>
+
+--000000000000a1b2c3--

@@ -1,0 +1,27 @@
+Return-Path: <jane@example.com>
+Delivered-To: {{DESK}}
+Received: from mail.example.com (mail.example.com [192.0.2.10])
+	by mx.desk.test with ESMTPS id 4F2A9
+	for <{{DESK}}>; Mon, 16 Nov 2026 09:58:02 +0000
+Authentication-Results: mx.desk.test; spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass header.from=example.com
+From: Jane Doe <jane@example.com>
+To: Backend Support <{{DESK}}>
+Subject: Password reset email never arrives
+Date: Mon, 16 Nov 2026 09:58:00 +0000
+Message-ID: <{{ID}}@mail.example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Hello,
+
+I asked for a password reset twice this morning and nothing came, not even =
+in spam. My account is jane@example.com.
+
+Thanks,
+Jane
+
+--=20
+Jane Doe
+Head of Finance, Example Ltd
++44 20 7946 0000

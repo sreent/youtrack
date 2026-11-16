@@ -1,0 +1,18 @@
+From: "Omar Haddad" <omar@example.org>
+To: {{DESK}}
+Subject: Export to CSV cuts off long names
+Date: Mon, 16 Nov 2026 10:20:00 +0000
+Message-ID: <{{ID}}@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<html><head><style>p { color: red; }</style></head><body>
+<p>Hi team,</p>
+<p>When I export the <b>customer list</b> to CSV, names longer than 30 characters are cut off.</p>
+<ul><li>Open Customers</li><li>Choose <i>Export</i></li></ul>
+<p>See <a href="https://example.org/screens/42">the screenshot</a> and https://example.org/docs.</p>
+<img src="https://tracker.example.org/pixel.gif" width="1" height="1">
+<script>alert(1)</script>
+<div class="gmail_signature">-- <br>Omar Haddad<br>Example Org</div>
+</body></html>

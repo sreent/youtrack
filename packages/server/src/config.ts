@@ -65,6 +65,17 @@ export interface Config {
   notifyWindowMs: number;
   /** The hour (server time, 0-23) the daily digest goes out. */
   digestHour: number;
+  /**
+   * A mailbox the help desks read their mail from, e.g. imaps://support%40acme.example:pass@imap.acme.example/INBOX
+   * (HELPDESK_IMAP_URL). Each message goes to the desk whose address it was sent to (D30).
+   */
+  helpdeskImapUrl: string | undefined;
+  /** How often that mailbox is read (HELPDESK_IMAP_POLL_SECONDS, default 60). */
+  helpdeskImapPollMs: number;
+  /** The largest message a help desk takes by email, attachments included (HELPDESK_MAIL_MAX_MB, default 25). */
+  helpdeskMailMaxBytes: number;
+  /** How hard a help desk's proof of work is: the most numbers a browser may have to try (HELPDESK_CAPTCHA_MAX_NUMBER). */
+  helpdeskCaptchaMaxNumber: number;
 }
 
 const truthy = (v: string | undefined, fallback: boolean) => (v === undefined || v.trim() === '' ? fallback : /^(1|true|yes|on)$/i.test(v.trim()));
@@ -178,6 +189,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
+    helpdeskImapUrl: env.HELPDESK_IMAP_URL?.trim() || undefined,
+    helpdeskImapPollMs: intEnv(env.HELPDESK_IMAP_POLL_SECONDS, 60, 10) * 1000,
+    helpdeskMailMaxBytes: megabytes(env.HELPDESK_MAIL_MAX_MB, 25),
+    helpdeskCaptchaMaxNumber: intEnv(env.HELPDESK_CAPTCHA_MAX_NUMBER, 100_000, 100),
     ...overrides,
   };
 }
