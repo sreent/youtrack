@@ -4,7 +4,7 @@ import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { sessions, users } from '../db/schema';
 import { hashPassword, verifyPassword } from '../lib/crypto';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { colorFor, newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { findUser, type UserRow } from './schema-cache';
@@ -66,7 +66,8 @@ export interface NewUser {
 
 export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
   const existing = await db.select().from(users).where(sql`lower(${users.login}) = ${input.login.toLowerCase()}`);
-  if (existing.length) throw badRequest(`Login "${input.login}" is already taken`);
+  // Its own code, so a caller racing another for the same login can tell and try another.
+  if (existing.length) throw new AppError(400, 'login_taken', `Login "${input.login}" is already taken`);
   const [row] = await db
     .insert(users)
     .values({
