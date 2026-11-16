@@ -5,7 +5,7 @@ This is how a4a is put together, and why. Each decision says what it costs and w
 ## The system
 
 ```text
-                 ┌────────────────────────────── one Node process ──────────────────────────────┐
+                 ┌──────────── each instance (one, or several behind a proxy: D17) ─────────────┐
   browser ──────▶│ /            web UI (React SPA, Ocean)            static files, strict CSP   │
   scripts ──────▶│ /api/v1/*    REST + OpenAPI (Hono, zod)  ─┐                                   │
   MCP clients ──▶│ /mcp         MCP, Streamable HTTP          ├─▶ services ──▶ Postgres / PGlite│
@@ -35,7 +35,7 @@ The API, the MCP server, the UI and the agents all describe the same objects. Th
 
 There is one SQL dialect, with Postgres full-text search and `pg_trgm` for similarity. Without `DATABASE_URL`, the server runs embedded PGlite (Postgres compiled to WASM) in `DATA_DIR`, so `pnpm dev` needs nothing installed. Production sets `DATABASE_URL` to real Postgres. The same Drizzle schema and migrations run on both, and the test suite runs against both.
 
-- **Costs:** PGlite has one connection and runs in-process, so it is for development, demos and a single team, not for load.
+- **Costs:** PGlite has one connection and runs in-process, so it is for development, demos and a single team, not for load. It is also one process: a lock file stops a second one from opening its directory. Several instances need Postgres (D17).
 - **Revisit when:** never for production. Use Postgres.
 
 ### D3. Custom fields as typed rows, not JSON
@@ -72,14 +72,15 @@ Commands, dry runs and the AI's previews are this function with `dryRun`. So a p
 
 The worker:
 
-- takes a Postgres advisory lock, so exactly one instance delivers webhooks and runs triage;
-- keeps a cursor per consumer in `settings`, and advances it only after it handled the rows;
-- is woken immediately after local commits and polls every few seconds otherwise, for changes made by other instances.
+- holds a lease in `worker_leases`, so exactly one instance delivers webhooks and runs triage (D17 says how the lease stays single);
+- keeps a cursor per consumer in `outbox_cursors`, and advances it only after it handled the rows;
+- reads the log in id order, never past a row that may still commit (D17);
+- is woken by a commit on any instance (the in-process bus here, `NOTIFY` from the others), and polls every 2 seconds otherwise.
 
 Delivery is **at least once**. Webhook receivers dedupe on the event `id` in the payload and the `X-A4A-Event-Id` header.
 
-- **Costs:** live events can lag by up to the poll interval across instances.
-- **Revisit when:** multiple instances need sub-second fan-out. Use `LISTEN/NOTIFY` then.
+- **Costs:** a webhook can arrive twice when the lease changes hands mid-event: the old holder's last event, handled again by the new one from the saved cursor.
+- **Revisit when:** one instance can't keep up with the consumers. Then split them by consumer, each with its own lease.
 
 ### D6. The query and command languages compile to parameterised SQL
 
@@ -103,7 +104,7 @@ effective scopes = role scopes ∩ token scopes
 
 Every service function checks the scope it needs (`requireScope`), so a REST route, an MCP tool and the assistant can't drift apart: there is no route-level permission logic to forget.
 
-All project visibility goes through one module (`services/access.ts`). v1 makes every project visible to every user. Per-project roles, and tokens restricted to certain projects, change that module alone.
+All project visibility goes through one module (`services/access.ts`): see D15 for what it decides.
 
 ### D8. MCP is a curated tool layer, shared with the assistant
 
@@ -120,18 +121,18 @@ The transport is stateless Streamable HTTP: a new `McpServer` per request, authe
 
 There are no deletes over MCP. Bulk commands are capped at 50 issues and have `dry_run`.
 
-### D9. AI: Claude, guarded
+### D9. AI: Claude first, guarded
 
 All AI calls go through `ai/client.ts`.
 
 **Model and SDK**
 
-- The model is `claude-opus-5-5` (override with `AI_MODEL`), via the official `@anthropic-ai/sdk`.
+- The model is `claude-opus-5-5` (override with `AI_MODEL`), via the official `@anthropic-ai/sdk`. Other services that speak the same API get the portable subset of each request (D14).
 - Calls use the beta Messages API with server-side refusal fallbacks (`fallbacks: "default"`), so a false-positive classifier decline doesn't become an outage.
 
 **Structured features (triage, query from words, command from words)**
 
-- They use structured outputs, with schemas built per project, so enum values are exactly the project's own.
+- They use structured outputs (elsewhere, a forced tool call: D14), with schemas built per project, so enum values are exactly the project's own.
 - The query and command are then checked by the real parser. A failure is sent back to the model once to repair.
 - Effort is `low`, because these are classifications.
 
@@ -203,7 +204,130 @@ A query or command problem names its span and, when there is a likely fix, the t
 - Agents over MCP or the API can apply it the same way.
 - A misspelt value of several words ("State: In Progres") is read as one value with one fix, rather than an unknown word and some loose text. Suggestions replace all of a value of several words, from its first word.
 
-### D14. End-to-end tests run the production build, with the AI stood in for in the browser
+### D14. Other models get the portable subset
+
+a4a is built for Claude and gets every feature from it. It also runs on services that speak Anthropic's Messages API: DeepSeek, Qwen, or another with `AI_PROVIDER=compatible`. They go through the same SDK and the same code; the provider changes the request, not the features.
+
+- **One path.** Triage, the assistant and the rest use one client and one tool loop whoever serves them, so a live run on any provider exercises the code Claude runs. A second SDK would have been a second path that no Claude test touches.
+- **What's left out elsewhere:** Claude's own request features, namely refusal fallbacks, thinking shown as progress notes, automatic caching and structured outputs. The rest is the portable API: tools, streaming, adaptive thinking and effort.
+- **Structured answers come by tool.** DeepSeek accepts structured outputs and ignores them, answering in prose. So elsewhere, the answer is the input of a tool the model must call.
+  - It is checked against the same zod schema, with one repair round in plain words ("reason: missing").
+  - Thinking is off for these calls: DeepSeek refuses a forced tool while thinking, and they are classifications.
+  - Qwen leaves out a key whose answer is null. The schema requires the key and allows null, so the null is put back before checking.
+- **Raw reasoning stays out of sight.** Another service's thinking is its raw reasoning, not notes written to be read. It is stored, to send back on the next turn, and never shown.
+- **Thinking is bound to its model.** A conversation records the provider and model its thinking came from. When either changes, the stored thinking is dropped once, as when the prompt changes.
+- **Chosen, never inferred.** The AI sends issue text to whoever serves it.
+  - `AI_PROVIDER` names the provider, whatever keys are set.
+  - A mistake there turns the AI off and says why (`GET /ai/status`); the tracker keeps working.
+  - A key is passed only to its own service. The SDK then reads no Anthropic key from the environment, so none is sent elsewhere (tested).
+  - The assistant's facts show who it runs on.
+- **Tested live.** `pnpm --filter @a4a/server test:live` runs every AI feature against the configured provider, on the demo data, and checks what must hold whatever the wording. CI runs it on `main` for each provider whose key is a repository secret. On DeepSeek V4 Pro and Qwen 3.8 Max it found the faults above, and three in a4a itself:
+  - a command that repeated its own comment posted it twice;
+  - an issue id in a command got a generic problem with no fix (now named, with a fix that takes it out, D13);
+  - the command guide's inline `comment` clause invited the model to put the comment in both places (an inline comment now moves to the comment field).
+### D15. Projects have their own people; what you can't see doesn't exist
+
+Every project is **open** (everyone works in it) or **members only** (only its people and administrators see it at all). Its people have roles:
+
+| Role | May |
+| --- | --- |
+| viewer | read its issues, and comment |
+| member | also change its issues: fields, links, work, sprints, levelling |
+| manager | also change its settings, fields, people, visibility, boards and baselines |
+
+- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the role the project gives them; otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out.
+- **Scopes still cap it.** Reading needs `read`; commenting, changing issues and managing need `write`. A read-only account or token never writes, whatever its role in a project.
+- **Commenting counts as a write** for scopes (it changes the record, notifies, fires webhooks), but a viewer's role is enough for it. A manager may change or delete anyone's comment in their project.
+- **A link needs write access to both ends**, because it shows on both issues and changes both histories. Its other end must be visible to be named at all.
+- **People set in a user field** (an assignee) of a members-only project must be able to see it.
+- **Boards span projects.** A board is visible when one of its projects is, and shows only the issues and values of the projects the viewer can see. Changing a board or its sprints is for managers of all its projects; putting an issue in a sprint is work on the issue (a member).
+- **Tokens can be limited to projects.** Their access is the person's access to those projects only. A limited token can't hold the admin scope (administration reaches every project), and can only make tokens as limited as itself, with no more scopes.
+
+**Not found, not forbidden.** A project, issue, comment, link, board, sprint, baseline or suggestion the caller can't see answers 404 in the very words used for one that doesn't exist; the query language calls a hidden project an unknown word, as it does a misspelt one, and offers no "did you mean". Only what the caller can see but may not change answers 403, and says who can.
+
+**How it is enforced.** Services ask the seam; no route or tool decides:
+
+- `projectAccess(ctx)` works out, in one query, the caller's role in every project. A request keeps it for two seconds at most, or until something on this instance changes it (`accessChanged`), so a long-lived context (an SSE stream, the worker) sees changes, and someone taken off a project loses it at once.
+- `assertCanReadProject` / `assertCanCommentProject` / `assertCanWriteProject` / `assertCanManageProject`, `requireProject(ctx, key, need)`, and `visibleProjectIds` for searches.
+- `visibleSchema(ctx)` is the reference data as the caller sees it: the query language, completion and every prompt to Claude are built from it, so a hidden project's name and its own values never reach them.
+- The event feed and issue history filter in SQL (`eventsVisibleSql`), so pages stay full and a consumer's cursor never stalls behind events it can't see. Link events are dropped when their other end is hidden. SSE checks each event as it is sent.
+- Triage offers Claude possible duplicates only from projects every reader of the issue can see (its own, and open ones), and every suggestion is filtered again as it is read, because visibility can change after it was made.
+- `projectRolesOf(db, projectId, userIds)` answers who can see a project, for whoever decides whom to tell or assign.
+
+- **Costs:** one small query per request; every list that names other issues (links, events, suggestions, boards) filters as it reads.
+- **Not done:** groups (a project's people are individuals); tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers everything (only administrators make them).
+- **Revisit when:** teams want groups. A `project_group_roles` table joins the same query, and the rest stays as it is.
+
+### D16. Single sign-on with OpenID Connect, through openid-client
+
+People can sign in with their organisation's identity provider: the authorization code flow with PKCE (S256), a state and a nonce, configured from `OIDC_*` in the environment.
+
+**The choice: `openid-client` (v6), not `jose` and our own code.** Both are by the same author; `jose` would do the cryptography well, but the protocol around it would be ours: discovery and its issuer check, building the request, the token request and client authentication, RFC 9207's `iss`, the order and meaning of every claim check. openid-client is certified by the OpenID Foundation for the relying-party profiles, and turns the flow into a few calls that each check what the specification says. What is left to a4a (about 300 lines, with its routes) is mostly deciding who someone is. One default had to change: for an ID token received straight from the token endpoint, openid-client relies on TLS and doesn't check the signature; a4a turns that check on (`enableNonRepudiationChecks`), so the token's signature is verified against the provider's keys, as well as its issuer, audience, expiry and nonce. The tests sign tokens with `jose` in a provider made for them.
+
+- **The redirect URI** is `PUBLIC_URL/api/v1/auth/oidc/callback`, sent the same at both steps; nothing in a request chooses it, and the URL handed to the library is built from it, not from the request's Host.
+- **The state** is bound to the browser that started (an HttpOnly cookie) and stored with the PKCE verifier and nonce, keyed by its hash, for ten minutes. The callback takes the row (a `DELETE … RETURNING`), so a state works once.
+- **Who someone is:** found by the provider's issuer and subject (`user_identities`). The first time, by email only when the provider says `email_verified: true`, and only to an account whose own email an administrator set or a provider verified (`users.email_verified`). An email people type for themselves never links: otherwise anyone could claim an address before its owner first signs in. An account already linked to another subject at the same provider isn't taken over by a second one with the same email (a reused address).
+- **Optionally:** allowed email domains, accounts made on first sign-in, and password sign-in turned off (only while single sign-on is on).
+- **Each sign-in starts a new session**, and ends the one the browser had.
+
+- **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout and SCIM are not done: an account removed at the provider keeps its a4a sessions until they expire, or until an administrator bans it.
+- **Revisit when:** several providers are needed (the table already keys identities by provider), or remote MCP needs OAuth (below).
+
+**OAuth for remote MCP (not done).** What it would take: a4a as an OAuth 2.1 authorization server for `/mcp`, as the MCP authorization specification asks. Protected-resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource`, and `WWW-Authenticate` with `resource_metadata` on a 401 from `/mcp`; authorization-server metadata (RFC 8414); dynamic client registration (RFC 7591), since MCP clients register themselves; the authorization code flow with PKCE, signing the person in with a password or this single sign-on, and a consent page that names the client and lets the person choose scopes and projects, which become exactly a token limited to projects (D15); short-lived access tokens bound to the `/mcp` resource (RFC 8707) with refresh tokens, revocable from Agents and tokens; and rate limits on registration. The bearer tokens of today stay, for clients that don't speak OAuth.
+
+### D17. Several instances on one Postgres behave as one
+
+a4a runs as one process or as several behind a load balancer, on one Postgres, and behaves the same either way. Nothing is sticky: any instance can serve any request. What was per process is now shared, or is per process on purpose:
+
+| What | How |
+| --- | --- |
+| Live events (SSE) | Each instance reads the activity log in id order and hands every event to its streams once. After commit, the writer sends `NOTIFY a4a_events` with the new ids (ids, never data), so the others read within milliseconds |
+| The reference-data cache | `NOTIFY a4a_schema` after a change. A change inside a transaction (a tag created with an issue) is sent in it, so it arrives on commit and never on rollback. The 60-second reload stays as the safety net |
+| The sign-in throttle | One table, `login_throttle`: a row per IP and per login, one upsert per attempt |
+| The outbox worker | One lease row, on the database's clock |
+| Sessions, tokens, idempotency keys, webhook deliveries | Already rows in Postgres; checked below |
+| General rate limits | Per instance, on purpose; below |
+| Migrations, defaults, the first administrator | Under an advisory lock, one instance at a time, so replicas starting together on an empty database don't race |
+
+**Reading the log in order.** Ids come from a sequence at insert, but transactions commit in their own order: 41 can become visible after 42, and an id taken by a transaction that rolls back never appears. A reader that moved past 41 when it saw 42 would never send it, and a client resuming "after 42" would miss it. Before, the worker and the tail took only rows older than 3 seconds and moved past anything missing, so a transaction that took longer lost its events for good. Now the live feed and the worker stop at a missing id, and pass it once it can no longer appear: every transaction that was writing to the log when the gap was seen has ended.
+
+- Postgres's lock table says which those are: an insert holds a lock on `activities` from before it takes its id (the lock comes with parsing, the id with executing) until its transaction ends. Unrelated work, even a session left open, doesn't count.
+- `pg_current_snapshot()` would not do: its list of running transactions leaves out one whose id is newer than every finished one, which is just the one that took the missing id last.
+- A rolled-back id holds live events for about a tenth of a second, until the next read.
+- A gap held for a minute is passed with a warning, so a transaction left open after writing to the log can't stall it. Its event stays in `GET /events`.
+
+**Signals are doorbells.** A notification only says "look"; every reader works from the log and its own cursor. That is also the dedupe: an event is sent only when it is the next id after the cursor, so the bus, `NOTIFY`, a reconnect and the backstop can all wake the feed without anything being sent twice. And it makes a lost notification cheap, which matters, since `NOTIFY` is not durable:
+
+- Each instance listens on a connection of its own. After a reconnect it tells every reader to catch up from the log.
+- That connection pings itself every 30 seconds, and reconnects when its own notification doesn't come back: a network path that died without an error, or a pooler in transaction mode, which drops `LISTEN` (point `DATABASE_LISTEN_URL` past it).
+- **The polling tail stays, as a backstop**, every 10 seconds instead of 3. It covers what the two above don't: a process that died between its commit and its `NOTIFY`, or a write path that forgot to publish. It costs one indexed read per instance every 10 seconds that usually finds nothing, and it bounds the worst case at 10 seconds instead of "until the next event".
+
+**Resuming a stream.** Each frame's `id` is its event's id. Since every instance sends events in id order, it is a true watermark: everything up to it was sent, or never existed. A client that reconnects, to any instance, sends it back (`Last-Event-ID`, which browsers send by themselves, or `?after=`), and the stream replays the log after it before going live. Past 1000 missed events it sends `resync` instead, with the id to go on from: re-read, or page through `GET /events`. An instance that shuts down ends its streams, so their clients reconnect elsewhere and resume.
+
+**The worker lease.** One row in `worker_leases`, taken with one upsert that succeeds for the holder, or for anyone once the lease has expired.
+
+- Its times are the database's (`now()`), never an instance's, so instances whose clocks disagree can't both believe they hold it. Before, each side compared its own clock.
+- The holder renews it on every pass, and every 10 seconds while a consumer is busy. Before, a webhook with its retries (up to 35 seconds) outlived the 30-second lease, and a second instance started the same work.
+- The holder stops handing out events once its own deadline passes without a renewal, and a cursor moves only while the lease is still the holder's in the database. So a holder that stalled can't move its successor's cursor.
+- A holder that stops cleanly releases the lease, after at most 5 seconds for the event in hand, and the next instance takes it at its next poll. One that dies is replaced within the lease (30 seconds) plus one poll (2 seconds).
+- Periodic upkeep (expired sessions, sign-in windows that have passed) runs on the holder, so it runs once.
+
+**The sign-in throttle.** Failures count per IP (50 per 15 minutes) and per login (10), in a fixed window, with one upsert for both rows.
+
+- An attempt is counted before the password is checked, so parallel guesses on several instances can't slip past the limit between a check and a write. A correct password takes its count back.
+- A fixed window lets twice the limit straddle a window's edge. The average holds, and a sliding window would need a second count per row for little gain.
+- The price of a per-login limit: someone who knows a login can keep it locked by failing ten times a window. Its owner waits for the window, as the 429 says.
+
+**General rate limits stay per instance.** A shared limit would add a write, to a hot row per caller, to every request. That would be the most frequent write in the system, to guard capacity that is per instance anyway: a runaway script exhausts the instance it hits, not the cluster. These limits are not a security boundary; the sign-in throttle, which guards accounts, is shared. Behind N instances a client gets between one and N times the limit (`API_RATE_LIMIT`, 1200 a minute; `MCP_RATE_LIMIT`, 600). Set them to each instance's share, or limit at the proxy when one number must hold.
+
+**Client addresses.** Behind a proxy, every request comes from the proxy, and `X-Forwarded-For` is whatever the client sent plus what the proxies added. `TRUST_PROXY` says how many proxies append to it; the client is the entry the outermost one added. With 0, the default, the header is ignored. Before, its first entry was trusted, so a client could choose its own address and walk around the per-IP limits.
+
+**Checked, and right already.** Sessions and tokens are rows: a session made on one instance works on all, and signing out ends it everywhere. An `Idempotency-Key` is claimed by inserting its primary key, so two instances can't both run it, and a retry on the other instance replays the answer. One gap was there: a claim left by an instance that died mid-request answered 409 for a day; it can now be claimed again after 5 minutes. Webhooks are delivered by the lease holder only.
+
+- **Costs:** each instance holds its pool plus one `LISTEN` connection, and reads the log once per write anywhere (one indexed read). A rolled-back id holds live events for about a tenth of a second, and an event waits for a slower, concurrent commit before it: ordered delivery is what makes resuming exact.
+- **Revisit when:** writes reach hundreds a second, where every instance reading every write adds up; fan out from one reader then. Or when one number must limit every request: use the proxy's limiter or a shared store.
+
+### D18. End-to-end tests run the production build, with the AI stood in for in the browser
 
 `apps/web/e2e` drives Chromium against what ships: the built server serving the built UI, under its real CSP, on a fresh embedded database with the demo data. A dev server would hide what only the build does (the CSP over every page, the bundled assets, the server serving them).
 
@@ -223,9 +347,14 @@ A query or command problem names its span and, when there is a likely fix, the t
 | Levelling while the plan changes | `expect` (the proposal's starts) makes applying conditional: 409 instead of a different plan than the one agreed |
 | Issue numbers | `UPDATE projects SET next_number = next_number + 1 … RETURNING` inside the creating transaction: gap-free per project, safe under concurrency |
 | A history entry without its change, or the reverse | Impossible: same transaction |
-| Webhooks and triage | At least once, from the outbox, by one worker at a time |
-| Retried `POST` | `Idempotency-Key`: the key is claimed before the work, the stored response is replayed, and a key reused with a different body gets 422 |
-| Reference data (fields, values, users) | Cached in memory per instance and invalidated after local writes. A generation counter stops a slow reload from overwriting a newer invalidation. Other instances see changes within 60s |
+| Webhooks and triage | At least once, in id order, from the outbox, by the one instance that holds the lease. The lease runs on the database's clock and is renewed while a consumer is busy; a cursor moves only while its lease holds |
+| Retried `POST` | `Idempotency-Key`: the key is claimed before the work, on any instance; the stored response is replayed, and a key reused with a different body gets 422. A claim left by an instance that died mid-request can be claimed again after 5 minutes |
+| Reference data (fields, values, users) | Cached in memory per instance, and reloaded on every instance after a change on any (`NOTIFY`; a change made inside a transaction is sent on its commit). A generation counter stops a slow reload from overwriting a newer invalidation. The 60s reload remains, for a notification that was lost |
+| Live events, several instances | Every instance sends every event once, in id order, within about a second of its commit. A stream resumes from its last event id on any instance, missing and repeating nothing. A missed `NOTIFY` (a dropped `LISTEN` connection, a crash before sending it) is caught up from the log: on reconnect, or by the 10-second backstop |
+| An id that commits late, or never | Readers of the log stop at a missing id until it appears, or until no transaction that was writing to the log when it went missing is running; one held for a minute is passed with a warning |
+| Sign-in throttle | Shared in Postgres, per IP and per login, and kept across restarts. An attempt is counted before its password is checked, so parallel guesses can't pass the limit |
+| Sessions | Rows in Postgres: valid on every instance; signing out ends a session everywhere |
+| Instances starting together | Migrations, defaults and the unattended first administrator run under an advisory lock: one instance at a time. So does `POST /auth/setup` |
 
 ## Security
 
@@ -233,7 +362,9 @@ A query or command problem names its span and, when there is a likely fix, the t
 - **Sessions:** random 256-bit tokens, stored as SHA-256 hashes. The cookie is `HttpOnly; SameSite=Lax`, plus `Secure` behind HTTPS.
 - **CSRF:** cookie-authenticated unsafe requests must come from the server's own origin (Origin/Referer check). Bearer-token requests are not CSRF-able.
 - **API tokens:** `a4a_` plus 256 random bits, stored as SHA-256 hashes, shown once. Each has scopes, an optional expiry, a last-used time, and can be revoked.
-- **Login:** throttled per IP and login.
+- **Login:** failed sign-ins are counted in Postgres per IP (50) and per login (10) in 15-minute windows, shared by every instance and kept across restarts. Starting a single sign-on is throttled per IP too, on each instance. The address comes from `X-Forwarded-For` only through the `TRUST_PROXY` proxies in front; otherwise the header is ignored, since clients can send it.
+- **Single sign-on:** see D16.
+- **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
 - **Agents:**
@@ -244,9 +375,14 @@ A query or command problem names its span and, when there is a likely fix, the t
 
 ## Limits and assumptions
 
-- **Teams, not internet scale.** Users, tags, fields and values are held in memory per instance (thousands of each is fine).
+- **Teams, not internet scale.** Users, tags, fields and values are held in memory per instance (thousands of each is fine), and every instance reloads them after any change to them.
+- **Several instances need Postgres**, a `LISTEN` connection each beside the pool (not through a pooler in transaction mode: set `DATABASE_LISTEN_URL`), and a proxy that passes `text/event-stream` through unbuffered. `docker-compose.cluster.yml` runs two behind Caddy.
+- **A live stream replays up to 1000 missed events** on reconnect; past that it sends `resync` and the client re-reads.
+- **An event whose transaction stays open for more than a minute** is passed over by live streams and consumers, with a warning; it stays in `GET /events`.
 - **Pagination.** Search results use offset pagination (sortable by any field); the event feed uses a cursor (`after`).
-- **Rate limits** are per instance, in memory.
+- **General rate limits are per instance**, in memory (D17): behind N instances a client gets up to N × 1200 API requests a minute and N × 600 MCP requests. `API_RATE_LIMIT` and `MCP_RATE_LIMIT` set each instance's share. The sign-in throttle is shared.
+- **A token's last-used time** is written at most once a minute per instance.
+- **An assistant conversation whose instance dies mid-answer** stays "running", so it can't take another message; a new conversation can. Fixing it belongs to the assistant (a claim that expires, as idempotency keys now have).
 - **Time zone.** Dates in queries ("today", "{this week}") use the server's time zone. Per-user time zones are future work.
 - **Readable ids** (`BACK-12`) are permanent because project keys can't be renamed. Renaming would need an alias table, as YouTrack keeps.
 
@@ -254,13 +390,12 @@ A query or command problem names its span and, when there is a likely fix, the t
 
 Planned, with the seams already in place:
 
-- per-project roles, and tokens limited to projects (`services/access.ts`);
-- OAuth 2.1 for remote MCP;
+- groups of people with a role in a project (D15);
+- OAuth 2.1 for remote MCP (what it takes is in D16);
 - attachments;
 - a knowledge base;
 - notifications;
 - a VCS integration (`BACK-12 #Fixed` in commits);
-- `LISTEN/NOTIFY` for multi-instance live events;
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);
 - in the web app: column heads that stay in view on boards with lanes, a chosen window for the load grid, and absences (today a day off is a day of zero capacity).

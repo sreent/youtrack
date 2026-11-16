@@ -15,8 +15,10 @@ import type {
   Me,
   Project,
   ProjectField,
+  ProjectMember,
   SavedSearch,
   Settings,
+  SetupStatus,
   Suggestion,
   Tag,
   TrackerEvent,
@@ -33,6 +35,7 @@ export const keys = {
   projects: ['projects'] as const,
   project: (key: string) => ['projects', key] as const,
   projectFields: (key: string) => ['projects', key, 'fields'] as const,
+  members: (key: string) => ['projects', key, 'members'] as const,
   issues: (query: string, offset: number, limit: number) => ['issues', 'list', query, offset, limit] as const,
   issue: (id: string) => ['issues', 'one', id] as const,
   issueSub: (id: string, what: string) => ['issues', 'one', id, what] as const,
@@ -52,11 +55,13 @@ export const keys = {
   events: (q: string) => ['events', q] as const,
 };
 
-export const useSetupStatus = () => useQuery({ queryKey: keys.setup, queryFn: () => get<{ needsSetup: boolean; instanceName: string }>('/auth/setup') });
+export const useSetupStatus = () => useQuery({ queryKey: keys.setup, queryFn: () => get<SetupStatus>('/auth/setup') });
 export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => get<Me>('/me'), retry: false, staleTime: 60_000 });
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: () => get<Project[]>('/projects'), staleTime: 30_000 });
 export const useProject = (key: string | undefined) =>
   useQuery({ queryKey: keys.project(key ?? ''), queryFn: () => get<Project>(`/projects/${key}`), enabled: Boolean(key) });
+export const useMembers = (key: string | undefined) =>
+  useQuery({ queryKey: keys.members(key ?? ''), queryFn: () => get<ProjectMember[]>(`/projects/${key}/members`), enabled: Boolean(key), staleTime: 30_000 });
 export const useProjectFields = (key: string | undefined) =>
   useQuery({ queryKey: keys.projectFields(key ?? ''), queryFn: () => get<ProjectField[]>(`/projects/${key}/fields`), enabled: Boolean(key), staleTime: 30_000 });
 

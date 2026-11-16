@@ -5,6 +5,7 @@ import type { Db } from '../db/client';
 import { fields, fieldValues, issueFieldValues, projectFields } from '../db/schema';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { requireProject, visibleSchema } from './access';
 import { allowedValues, fieldByName, projectByKey, type FieldRow, type FieldValueRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf } from './values';
 
@@ -51,9 +52,10 @@ export function projectFieldDtos(s: SchemaSnapshot, projectId: string): ProjectF
   return out;
 }
 
+/** Every field, with the values the caller may see: a project's own values only where they see the project. */
 export async function listFields(ctx: Ctx): Promise<Field[]> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   return [...s.fields.values()].map((f) => fieldDto(s, f));
 }
 
@@ -215,10 +217,9 @@ export async function attachField(
   fieldId: string,
   input: { required?: boolean; ordinal?: number; defaultValue?: unknown },
 ): Promise<ProjectField[]> {
-  requireScope(ctx, 'admin');
+  // Which fields a project has is its managers' to say; the catalogue of fields is the administrators'.
+  const project = await requireProject(ctx, projectKey, 'manage');
   const s = await ctx.app.schema.get();
-  const project = projectByKey(s, projectKey);
-  if (!project) throw notFound(`Project ${projectKey}`);
   const field = s.fields.get(fieldId) ?? fieldByName(s, fieldId);
   if (!field) throw notFound('Field');
   const existing = (s.projectFields.get(project.id) ?? []).length;
@@ -244,10 +245,7 @@ export async function attachField(
 }
 
 export async function detachField(ctx: Ctx, projectKey: string, fieldId: string): Promise<void> {
-  requireScope(ctx, 'admin');
-  const s = await ctx.app.schema.get();
-  const project = projectByKey(s, projectKey);
-  if (!project) throw notFound(`Project ${projectKey}`);
+  const project = await requireProject(ctx, projectKey, 'manage');
   await ctx.db.delete(projectFields).where(and(eq(projectFields.projectId, project.id), eq(projectFields.fieldId, fieldId)));
   ctx.app.schema.invalidate();
 }

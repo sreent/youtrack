@@ -8,7 +8,8 @@ export type CommandOp =
   | { kind: 'field'; field: FieldRow; mode: 'set' | 'add' | 'remove'; raw: string[]; display: string }
   | { kind: 'tag'; mode: 'add' | 'remove'; name: string }
   | { kind: 'link'; mode: 'add' | 'remove'; phrase: LinkPhrase; targets: string[] }
-  | { kind: 'comment'; text: string };
+  /** `at`: where the comment clause starts in the command, so it can be taken out. */
+  | { kind: 'comment'; text: string; at: number };
 
 export interface ParsedCommand {
   ops: CommandOp[];
@@ -147,7 +148,7 @@ class CommandParser {
     }
     if (w2 === 'comment') {
       const start = this.peek()!.end;
-      this.ops.push({ kind: 'comment', text: this.input.slice(start).trim() });
+      this.ops.push({ kind: 'comment', text: this.input.slice(start).trim(), at: this.peek()!.start });
       this.pos = this.tokens.length;
       return;
     }
@@ -214,6 +215,19 @@ class CommandParser {
     // Unknown word
     const tok = this.peek()!;
     this.pos++;
+    if (ISSUE_ID.test(tok.value)) {
+      // The command already applies to the chosen issues; another issue only follows a link phrase.
+      let end = tok.end;
+      while (end < this.input.length && /\s/.test(this.input[end]!)) end++;
+      this.problems.push({
+        message: `"${tok.value}" is an issue id, not a command`,
+        start: tok.start,
+        end,
+        hint: `A command applies to the chosen issues, so leave it out. To link to ${tok.value}, say how, e.g. "relates to ${tok.value}".`,
+        fix: '',
+      });
+      return;
+    }
     const vocabulary = [
       ...this.fieldsInScope.map((f) => f.name),
       ...this.valuePhrases.map((v) => v.item.value),

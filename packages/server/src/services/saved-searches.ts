@@ -25,6 +25,11 @@ async function validate(ctx: Ctx, query: string) {
   }
 }
 
+/**
+ * Your saved searches, and the shared ones that make sense to you. Running one finds only what
+ * you can see, as every search does; a shared one that names a project or value you can't see
+ * isn't listed at all, so its words don't give that project away.
+ */
 export async function listSavedSearches(ctx: Ctx): Promise<SavedSearch[]> {
   requireScope(ctx, 'read');
   const rows = await ctx.db
@@ -32,7 +37,12 @@ export async function listSavedSearches(ctx: Ctx): Promise<SavedSearch[]> {
     .from(savedSearches)
     .where(or(eq(savedSearches.ownerId, ctx.actor.user.id), eq(savedSearches.shared, true)))
     .orderBy(asc(savedSearches.ordinal), asc(savedSearches.name));
-  return Promise.all(rows.map((r) => dto(ctx, r)));
+  const out: SavedSearch[] = [];
+  for (const r of rows) {
+    if (r.ownerId !== ctx.actor.user.id && (await prepareQuery(ctx, r.query)).compiled.problems.length) continue;
+    out.push(await dto(ctx, r));
+  }
+  return out;
 }
 
 export async function createSavedSearch(ctx: Ctx, input: { name: string; query: string; shared: boolean }): Promise<SavedSearch> {
@@ -47,7 +57,7 @@ export async function createSavedSearch(ctx: Ctx, input: { name: string; query: 
 
 async function loadOwned(ctx: Ctx, id: string): Promise<Row> {
   const [row] = await ctx.db.select().from(savedSearches).where(and(eq(savedSearches.id, id)));
-  if (!row) throw notFound('Saved search');
+  if (!row || (row.ownerId !== ctx.actor.user.id && !row.shared && !isAdmin(ctx))) throw notFound('Saved search');
   if (row.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can change a saved search');
   return row;
 }

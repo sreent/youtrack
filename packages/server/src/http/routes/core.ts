@@ -40,7 +40,7 @@ import { projectByKey } from '../../services/schema-cache';
 import { getSettings, updateSettings } from '../../services/settings';
 import { createTag, deleteTag, listTags, updateTag } from '../../services/tags';
 import { createUser, deleteUser, getUser, listUsers, updateUser } from '../../services/users';
-import { assertCanReadProject } from '../../services/access';
+import { requireProject } from '../../services/access';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -64,20 +64,17 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
   route(app, { method: 'get', path: '/projects', tags: projects, summary: 'List projects', response: z.array(ProjectSchema) }, ({ ctx }) => listProjects(ctx));
   route(app, { method: 'post', path: '/projects', tags: projects, summary: 'Create a project from a template (admin)', body: CreateProjectBody, response: ProjectSchema }, ({ ctx, body }) => createProject(ctx, body));
   route(app, { method: 'get', path: '/projects/{key}', tags: projects, summary: 'Get a project', params: Key, response: ProjectSchema }, ({ ctx, params }) => getProject(ctx, params.key));
-  route(app, { method: 'patch', path: '/projects/{key}', tags: projects, summary: 'Update a project, its triage mode or its plan settings (admin)', params: Key, body: UpdateProjectBody, response: ProjectSchema }, ({ ctx, params, body }) => updateProject(ctx, params.key, body));
+  route(app, { method: 'patch', path: '/projects/{key}', tags: projects, summary: 'Update a project: its details, who sees it (visibility), its triage mode or its plan settings (its managers)', params: Key, body: UpdateProjectBody, response: ProjectSchema }, ({ ctx, params, body }) => updateProject(ctx, params.key, body));
   route(app, { method: 'delete', path: '/projects/{key}', tags: projects, summary: 'Delete a project and all its issues (admin)', params: Key, status: 204 }, async ({ ctx, params }) => {
     await deleteProject(ctx, params.key);
     return null;
   });
   route(app, { method: 'get', path: '/projects/{key}/fields', tags: projects, summary: "A project's fields and their allowed values", params: Key, response: z.array(ProjectFieldSchema) }, async ({ ctx, params }) => {
-    const s = await ctx.app.schema.get();
-    const p = projectByKey(s, params.key);
-    if (!p) throw notFound(`Project ${params.key}`);
-    await assertCanReadProject(ctx, p.id);
-    return projectFieldDtos(s, p.id);
+    const p = await requireProject(ctx, params.key);
+    return projectFieldDtos(await ctx.app.schema.get(), p.id);
   });
-  route(app, { method: 'put', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Attach or configure a field in a project (admin)', params: z.object({ key: z.string(), fieldId: z.string() }), body: AttachFieldBody, response: z.array(ProjectFieldSchema) }, ({ ctx, params, body }) => attachField(ctx, params.key, params.fieldId, body));
-  route(app, { method: 'delete', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Detach a field from a project (admin)', params: z.object({ key: z.string(), fieldId: z.string() }), status: 204 }, async ({ ctx, params }) => {
+  route(app, { method: 'put', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Attach or configure a field in a project (its managers)', params: z.object({ key: z.string(), fieldId: z.string() }), body: AttachFieldBody, response: z.array(ProjectFieldSchema) }, ({ ctx, params, body }) => attachField(ctx, params.key, params.fieldId, body));
+  route(app, { method: 'delete', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Detach a field from a project (its managers)', params: z.object({ key: z.string(), fieldId: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await detachField(ctx, params.key, params.fieldId);
     return null;
   });
