@@ -45,10 +45,11 @@ export function ProvisioningSection() {
         An identity provider such as Microsoft Entra ID can add people and groups here, change them, and ban those it deactivates. Give it the tenant URL and a
         token: it acts as you while you’re an administrator. Groups it provisions follow it, as those the sign-in’s groups fill.
       </p>
+      <div className="stack">
       {tokens.isLoading ? <Loading what="SCIM tokens" /> : null}
       {tokens.error ? <ErrorNote error={tokens.error} /> : null}
       {tokens.data?.length ? (
-        <ul className="stack" aria-label="SCIM tokens">
+        <ul className="plain" aria-label="SCIM tokens">
           {tokens.data.map((t) => (
             <li key={t.id} className="cluster">
               <span>
@@ -108,6 +109,7 @@ export function ProvisioningSection() {
         </div>
       </form>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      </div>
     </section>
   );
 }
