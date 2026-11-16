@@ -1185,6 +1185,8 @@ export const notificationSettings = pgTable('notification_settings', {
     .references(() => users.id, { onDelete: 'cascade' }),
   /** EMAIL_LEVELS: 'all', 'direct' or 'none'. */
   email: text('email').notNull().default('direct'),
+  /** The same levels, for push notifications to the person's devices (D47). */
+  push: text('push').notNull().default('direct'),
   digest: boolean('digest').notNull().default(false),
   lastDigestAt: ts('last_digest_at'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -1985,3 +1987,63 @@ export const scimGroups = pgTable('scim_groups', {
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Mobile: push notifications to people's devices (docs/architecture.md, D47)
+// ---------------------------------------------------------------------------
+
+/**
+ * A device a person turned push on for: its browser's push subscription, kept while the sign-in
+ * that made it lasts. Signing out there ends it, as does the push service saying it's gone.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The sign-in on that device: when it ends (signing out, a new password, an administrator), so does this. */
+    sessionId: text('session_id').references(() => sessions.id, { onDelete: 'cascade' }),
+    /** The push service's address for the device: someone else's, so only the known services' hosts. */
+    endpoint: text('endpoint').notNull().unique(),
+    /** The device's public key and authentication secret, which each message is encrypted to (RFC 8291). */
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    /** What the device is, for the person's list: "Chrome on Android". */
+    label: text('label').notNull(),
+    createdAt: created(),
+    lastSentAt: ts('last_sent_at'),
+    /** Refusals in a row that weren't the service saying it's gone; at five, it's ended. */
+    failures: integer('failures').notNull().default(0),
+    lastError: text('last_error'),
+  },
+  (t) => [index('push_subscriptions_user').on(t.userId)],
+);
+
+/**
+ * A push to send to one device, at least once, as mail is: written in the notifier's transaction,
+ * sent after, retried with backoff. What it says is worked out when it's sent, from what's true then.
+ */
+export const pushOutbox = pgTable(
+  'push_outbox',
+  {
+    id: text('id').primaryKey(),
+    /** One push per notification, device and the reason it reached (a mention folding into a change pushes again). */
+    dedupeKey: text('dedupe_key').notNull().unique(),
+    subscriptionId: text('subscription_id')
+      .notNull()
+      .references(() => pushSubscriptions.id, { onDelete: 'cascade' }),
+    notificationId: text('notification_id')
+      .notNull()
+      .references(() => notifications.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('pending'), // pending | sent | skipped | failed
+    attempts: integer('attempts').notNull().default(0),
+    sendAfter: ts('send_after').notNull().defaultNow(),
+    lockedUntil: ts('locked_until'),
+    lastError: text('last_error'),
+    createdAt: created(),
+    sentAt: ts('sent_at'),
+  },
+  (t) => [index('push_outbox_due').on(t.status, t.sendAfter)],
+);

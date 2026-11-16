@@ -646,9 +646,9 @@ export function eventVisible(view: AccessView, s: SchemaSnapshot, e: Pick<Tracke
 /** An event's issue and comment, as who-sees-what needs them; kept a moment, since every open stream asks. */
 const factsCache = new Map<number, { at: number; facts: Promise<{ issue: IssueLimits | null; comment: CommentLimits | null; target: IssueLimits | null }> }>();
 
-function eventFacts(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'issue' | 'data'>) {
+function eventFacts(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'issue' | 'data'>, fresh = false) {
   const hit = factsCache.get(e.id);
-  if (hit && Date.now() - hit.at < 10_000) return hit.facts;
+  if (!fresh && hit && Date.now() - hit.at < 10_000) return hit.facts;
   const facts = (async () => {
     const issueOf = async (readable: unknown): Promise<IssueLimits | null> => {
       const key = keyOfReadableId(readable);
@@ -679,10 +679,17 @@ function eventFacts(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'typ
 }
 
 /** Whether the caller sees an event: `eventVisible`, and its issue, comment and link's other end aren't limited away from them (D37). */
-export async function eventSeen(view: AccessView, db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
+export async function eventSeen(
+  view: AccessView,
+  db: Db,
+  s: SchemaSnapshot,
+  e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>,
+  /** Read the issue's and comment's limits now, not as they were a moment ago: before sending something on (a push, D47). */
+  opts: { fresh?: boolean } = {},
+): Promise<boolean> {
   if (!eventVisible(view, s, e)) return false;
   if (view.admin || !e.issue) return true;
-  const { issue, comment, target } = await eventFacts(db, s, e);
+  const { issue, comment, target } = await eventFacts(db, s, e, opts.fresh);
   // A limited issue that's gone (its deletion, or what it was before): only who saw all of its project.
   if (!issue && (e.data as { limited?: unknown } | undefined)?.limited === true) {
     const p = s.projectsByKey.get(keyOfReadableId(e.issue.id) ?? '');

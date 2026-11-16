@@ -1667,6 +1667,7 @@ export const MarkReadResultSchema = z
 export const NotificationSettingsSchema = z
   .object({
     email: z.enum(EMAIL_LEVELS).describe('all: every notification; direct: mentions, assignments and new help desk requests; none. In-app is always on'),
+    push: z.enum(EMAIL_LEVELS).describe('The same levels, for push notifications to the devices you turned them on for (D47)'),
     digest: z.boolean().describe("A daily email of what's still unread and wasn't emailed"),
     address: z.string().nullable().describe('Where emails go: your email, from your profile'),
     mailConfigured: z.boolean().describe('Whether this server sends email at all (SMTP_URL)'),
@@ -1677,6 +1678,7 @@ export const NotificationSettingsSchema = z
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export const NotificationSettingsBody = z.object({
   email: z.enum(EMAIL_LEVELS).optional(),
+  push: z.enum(EMAIL_LEVELS).optional(),
   digest: z.boolean().optional(),
 });
 
@@ -2819,3 +2821,50 @@ export const UpdateCommentBody = CommentBody.extend({
   expectedVersion: z.number().int().optional().describe('The version you read; without it, the edit is written whatever happened meanwhile'),
 });
 export type UpdateCommentInput = z.input<typeof UpdateCommentBody>;
+
+// ---------------------------------------------------------------------------
+// Mobile: push notifications to people's devices (docs/architecture.md, D47)
+// ---------------------------------------------------------------------------
+
+export const PushKeySchema = z
+  .object({
+    enabled: z.boolean().describe('Whether this server sends push notifications (PUSH)'),
+    publicKey: z.string().nullable().describe("The server's VAPID public key, base64url: the applicationServerKey a browser subscribes with"),
+  })
+  .meta({ id: 'PushKey' });
+export type PushKey = z.infer<typeof PushKeySchema>;
+
+export const PushDeviceSchema = z
+  .object({
+    id: z.string(),
+    label: z.string().describe('What the device is, from its browser: "Chrome on Android"'),
+    service: z.string().describe("The push service's host, e.g. fcm.googleapis.com"),
+    createdAt: timestamp,
+    lastSentAt: timestamp.nullable(),
+    lastError: z.string().nullable().describe('What the push service last refused, while it hasn’t sent since'),
+    current: z.boolean().describe('Whether it is the device that asked (the endpoint given in ?endpoint=)'),
+  })
+  .meta({ id: 'PushDevice' });
+export type PushDevice = z.infer<typeof PushDeviceSchema>;
+
+/** A browser's PushSubscription, as its toJSON() gives it. */
+export const PushSubscriptionBody = z.object({
+  endpoint: z.string().url().max(2000).describe("The push service's address for this device"),
+  expirationTime: z.number().nullable().optional(),
+  keys: z.object({
+    p256dh: z.string().min(80).max(100).describe("The device's P-256 public key, base64url"),
+    auth: z.string().min(16).max(32).describe("The device's authentication secret, base64url"),
+  }),
+  /** The address it had before, when the browser renewed it (pushsubscriptionchange). */
+  oldEndpoint: z.string().url().max(2000).optional(),
+});
+export type PushSubscriptionInput = z.infer<typeof PushSubscriptionBody>;
+
+export const PushTestResultSchema = z
+  .object({
+    sent: z.number().int().describe('Devices the push services took it for'),
+    failed: z.array(z.object({ device: z.string(), error: z.string() })),
+    ended: z.number().int().describe('Devices the push service said are gone, now forgotten'),
+  })
+  .meta({ id: 'PushTestResult' });
+export type PushTestResult = z.infer<typeof PushTestResultSchema>;
