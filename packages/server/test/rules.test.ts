@@ -516,27 +516,29 @@ describe('a members-only project, through rules', () => {
     const ben = w.as(w.ben);
     const rule = await createRule(w.as(w.anna), { project: 'SECRET', name: 'Diligence is urgent', kind: 'change', trigger: 'created', query: 'Subsystem: Diligence', command: 'tag urgent' });
     const sneak = { project: 'SECRET', name: 'x', kind: 'change' as const, trigger: 'created' as const, query: '', command: 'tag x' };
-    const alike = async (hidden: Promise<unknown>, missing: Promise<unknown>, word: string, other: string) => {
-      const [a, b] = [await failure(hidden, word), await failure(missing, other)];
+    // One at a time: the second call starts once the first has failed, so no failure goes unheard.
+    const alike = async (hidden: () => Promise<unknown>, missing: () => Promise<unknown>, word: string, other: string) => {
+      const a = await failure(hidden(), word);
+      const b = await failure(missing(), other);
       expect(a).toEqual(b);
       expect(a.status).toBe(404);
     };
-    await alike(listRules(ben, { project: 'SECRET' }), listRules(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
-    await alike(getRule(ben, rule.id), getRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
-    await alike(listRuleRuns(ben, { rule: rule.id }), listRuleRuns(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
-    await alike(listRuleRuns(ben, { project: 'SECRET' }), listRuleRuns(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
-    await alike(updateRule(ben, rule.id, { enabled: false }), updateRule(ben, 'no-such-rule', { enabled: false }), rule.id, 'no-such-rule');
-    await alike(deleteRule(ben, rule.id), deleteRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
-    await alike(createRule(ben, sneak), createRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
-    await alike(previewRule(ben, sneak), previewRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(() => listRules(ben, { project: 'SECRET' }), () => listRules(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(() => getRule(ben, rule.id), () => getRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
+    await alike(() => listRuleRuns(ben, { rule: rule.id }), () => listRuleRuns(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
+    await alike(() => listRuleRuns(ben, { project: 'SECRET' }), () => listRuleRuns(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(() => updateRule(ben, rule.id, { enabled: false }), () => updateRule(ben, 'no-such-rule', { enabled: false }), rule.id, 'no-such-rule');
+    await alike(() => deleteRule(ben, rule.id), () => deleteRule(ben, 'no-such-rule'), rule.id, 'no-such-rule');
+    await alike(() => createRule(ben, sneak), () => createRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(() => previewRule(ben, sneak), () => previewRule(ben, { ...sneak, project: 'SECRAT' }), 'SECRET', 'SECRAT');
     await alike(
-      checkRulePart(ben, { project: 'SECRET', kind: 'change', part: 'query', text: '' }),
-      checkRulePart(ben, { project: 'SECRAT', kind: 'change', part: 'query', text: '' }),
+      () => checkRulePart(ben, { project: 'SECRET', kind: 'change', part: 'query', text: '' }),
+      () => checkRulePart(ben, { project: 'SECRAT', kind: 'change', part: 'query', text: '' }),
       'SECRET',
       'SECRAT',
     );
-    await alike(toolByName('list_rules')!.run(ben, { project: 'SECRET' }), toolByName('list_rules')!.run(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
-    await alike(toolByName('preview_rule')!.run(ben, { rule: rule.id }), toolByName('preview_rule')!.run(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
+    await alike(() => toolByName('list_rules')!.run(ben, { project: 'SECRET' }), () => toolByName('list_rules')!.run(ben, { project: 'SECRAT' }), 'SECRET', 'SECRAT');
+    await alike(() => toolByName('preview_rule')!.run(ben, { rule: rule.id }), () => toolByName('preview_rule')!.run(ben, { rule: 'no-such-rule' }), rule.id, 'no-such-rule');
     expect((await listRules(ben)).map((r) => r.id)).not.toContain(rule.id);
     expect((await listRules(w.as(w.anna))).map((r) => r.id)).toContain(rule.id);
     // Over REST too.
