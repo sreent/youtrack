@@ -660,7 +660,7 @@ function History() {
     }
   };
   const d = detail.data;
-  const who = d ? actorWho({ id: d.author?.id ?? null, login: d.author?.login ?? null, name: d.author?.name ?? null, channel: d.channel, token: d.token }) : null;
+  const who = d ? actorWho({ id: d.author?.id ?? null, login: d.author?.login ?? null, name: d.author?.name ?? null, channel: d.channel, token: d.token, isBot: d.author?.isBot ?? false }) : null;
   return (
     <>
       <PageHead
@@ -676,7 +676,7 @@ function History() {
             <h2>{versions.data?.length === 1 ? '1 version' : `${versions.data?.length ?? 0} versions`}</h2>
             <ul className="nav-list scrolls">
               {(versions.data ?? []).map((v) => {
-                const by = actorWho({ id: v.author?.id ?? null, login: v.author?.login ?? null, name: v.author?.name ?? null, channel: v.channel, token: v.token });
+                const by = actorWho({ id: v.author?.id ?? null, login: v.author?.login ?? null, name: v.author?.name ?? null, channel: v.channel, token: v.token, isBot: v.author?.isBot ?? false });
                 return (
                   <li key={v.version}>
                     <Link to={`/articles/${a.id}/history?v=${v.version}`} aria-current={v.version === chosen ? 'page' : undefined}>

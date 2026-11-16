@@ -48,6 +48,7 @@ import {
 import { ensureTags, tagDto } from './tags';
 import { addWatchers, assigneeFieldOf, loginsOf, mentionsAdded, mentionsIn, watcherIds, whoSees } from './watchers';
 import { enforceGuards, guardChecks, guardsHeld } from '../workflow/guards';
+import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
 import {
   fieldValueDto,
   presentValues,
@@ -489,8 +490,10 @@ export async function applyChanges(
       await tx.insert(issueFieldValues).values(u.values.map((v) => ({ issueId: issue.id, fieldId: u.field.id, ...v })));
     }
   }
+  let addedTags: string[] = [];
   if (toAdd.length) {
     const rows = await ensureTags(tx, ctx, toAdd);
+    addedTags = rows.map((t) => t.name);
     await tx
       .insert(issueTags)
       .values(rows.map((t) => ({ issueId: issue.id, tagId: t.id })))
@@ -525,6 +528,8 @@ export async function applyChanges(
   const fromOutside = ctx.actor.channel === 'helpdesk';
   // An import brings history, not news: who wrote its text there makes nobody here watch.
   const imported = Boolean((spec.data as { imported?: unknown } | undefined)?.imported);
+  // A change an agent made on its own keeps what undoing it puts back (D34).
+  const keep = !imported && actsAsAgent(ctx);
   const assigneeField = assigneeFieldOf(s);
   const assigneeUpdate = assigneeField ? fieldUpdates.find((u) => u.field.id === assigneeField.id) : undefined;
   const assigned = assigneeUpdate
@@ -560,6 +565,16 @@ export async function applyChanges(
         payload: { issue: ref, changes: changes.filter((c) => c.field !== 'Links' && c.field !== 'Comment'), ...(data ? { data } : {}) },
       }),
     );
+    if (keep) {
+      const undo: FieldsUndo = {
+        kind: 'fields',
+        fields: fieldUpdates.map((u) => ({ fieldId: u.field.id, name: u.field.name, before: current.get(u.field.id) ?? [], after: u.values })),
+        ...(patch.summary !== undefined ? { summary: { before: issue.summary, after: patch.summary } } : {}),
+        ...(patch.description !== undefined ? { description: { before: issue.description, afterHash: textHash(patch.description) } } : {}),
+        ...(toAdd.length || toRemove.length ? { tags: { added: addedTags, removed: toRemove.map((t) => t.name) } } : {}),
+      };
+      await keepAgentChange(tx, ctx, { issueId: issue.id, activityId: activities[activities.length - 1]!.id, undo });
+    }
   }
 
   for (const op of linkOps) {
@@ -577,22 +592,27 @@ export async function applyChanges(
     }
     const inverse = op.spec.phrase.direction === 'outward' ? op.spec.phrase.type.inward : op.spec.phrase.type.outward;
     const type = op.spec.remove ? 'link.deleted' : 'link.created';
-    activities.push(
-      await recordActivity(tx, ctx, {
-        type,
-        projectId: issue.projectId,
+    const here = await recordActivity(tx, ctx, {
+      type,
+      projectId: issue.projectId,
+      issueId: issue.id,
+      payload: { issue: ref, data: { ...spec.data, phrase: op.spec.phrase.display, target: targetRef } },
+    });
+    const there = await recordActivity(tx, ctx, {
+      type,
+      projectId: op.spec.target.projectId,
+      issueId: op.spec.target.id,
+      payload: { issue: targetRef, data: { ...spec.data, phrase: inverse, target: ref } },
+    });
+    activities.push(here, there);
+    if (keep) {
+      await keepAgentChange(tx, ctx, {
         issueId: issue.id,
-        payload: { issue: ref, data: { ...spec.data, phrase: op.spec.phrase.display, target: targetRef } },
-      }),
-    );
-    activities.push(
-      await recordActivity(tx, ctx, {
-        type,
-        projectId: op.spec.target.projectId,
-        issueId: op.spec.target.id,
-        payload: { issue: targetRef, data: { ...spec.data, phrase: inverse, target: ref } },
-      }),
-    );
+        activityId: here.id,
+        pairActivityId: there.id,
+        undo: { kind: 'link', typeId: op.spec.phrase.type.id, sourceId: op.endpoints.sourceId, targetId: op.endpoints.targetId, created: !op.spec.remove },
+      });
+    }
   }
 
   if (comment) {

@@ -41,17 +41,19 @@ function ruleOf(e: TrackerEvent): string | null {
 /** Through what, for whom, and where, in the ledger's words. */
 function byLine(e: TrackerEvent): string {
   const name = e.actor.name ?? e.actor.login ?? 'someone';
+  // An agent with a token of its own acts as itself (D34); its token is named, as a person's isn't.
+  const itself = e.actor.isBot && (e.actor.channel === 'api' || e.actor.channel === 'mcp');
   const through: Record<TrackerEvent['actor']['channel'], string> = {
     web: 'through the web',
-    api: `through the API, as ${name}`,
-    mcp: `over MCP, for ${name}`,
+    api: itself ? 'through the API, as itself' : `through the API, as ${name}`,
+    mcp: itself ? 'over MCP, as itself' : `over MCP, for ${name}`,
     assistant: `through the assistant, for ${name}`,
     automation: 'on its own',
     system: "a4a's own",
     helpdesk: `through the help desk, for ${str((e.data.requester as { name?: string } | undefined)?.name) || 'a requester'}`,
     vcs: `from ${e.actor.token ?? 'version control'}`,
   };
-  const tokenNamed = e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs';
+  const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs');
   return [through[e.actor.channel], ruleOf(e) ? `the rule “${ruleOf(e)}”` : null, tokenNamed ? null : e.actor.token ? `token ${e.actor.token}` : null, e.project]
     .filter(Boolean)
     .join(' · ');
@@ -74,6 +76,12 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'sprint.issue_removed':
       return { text: <>took {issue} out of {str(e.data.sprint)}</>, badge: ['changes', 'changes a sprint'] };
     case 'issue.updated':
+      if (e.data.undoes !== undefined)
+        return {
+          text: <>undid an agent’s change to {issue}</>,
+          badge: ['changes', 'undoes a change'],
+          more: <ChangeLines changes={e.changes} />,
+        };
       if (accepted)
         return {
           text: <>accepted what triage worked out for {issue}</>,
@@ -105,6 +113,11 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
           {e.issue ? <IssueLink id={e.issue.id} /> : null} {str(e.data.phrase)} {t ? <IssueLink id={t.id} /> : null}
         </>
       );
+      if (e.data.undoes !== undefined) {
+        return e.type === 'link.created'
+          ? { text: <>linked {linked} again, undoing an agent</>, badge: ['changes', 'undoes a change'] }
+          : { text: <>unlinked {linked}, undoing an agent</>, badge: ['changes', 'undoes a change'] };
+      }
       return e.type === 'link.created'
         ? { text: <>linked {linked}</>, badge: ['changes', 'links'] }
         : { text: <>unlinked {linked}</>, badge: ['changes', 'unlinks'] };

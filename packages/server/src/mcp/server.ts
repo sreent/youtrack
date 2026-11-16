@@ -13,7 +13,7 @@ import { getArticle, searchArticles } from '../services/articles';
 import { issueVcs } from '../vcs/links';
 import { presentField, TOOLS, toolErrorText, type ToolDef } from '../tools/registry';
 
-export const MCP_INSTRUCTIONS = `a4a is an issue tracker. You act as the person who owns your token, and every change you make is recorded with your token's name.
+export const MCP_INSTRUCTIONS = `a4a is an issue tracker. You act as the person who owns your token, and every change you make is recorded with your token's name. A token an administrator issued to an agent's own account makes you that agent: your changes are your own, under its name, "me" is you, and issues assigned to you are your work ("for: me #Unresolved"). get_current_user says which.
 - Find work with search_issues and the query language (resource a4a://guide/query-language), e.g. "project: BACK #Unresolved for: me".
 - Before creating or updating, call get_project for valid field names and values; before filing, call find_similar_issues.
 - Change several issues at once with apply_command (resource a4a://guide/commands); use dry_run to preview.

@@ -28,6 +28,7 @@ import {
   SCOPES,
   SLA_STATES,
   TRIAGE_MODES,
+  UNDO_STATES,
   WATCH_REASONS,
   VCS_DELIVERY_OUTCOMES,
   VCS_PROVIDERS,
@@ -652,6 +653,9 @@ export const ActorSchema = z
     name: z.string().nullable(),
     channel: z.enum(CHANNELS),
     token: z.string().nullable(),
+    isBot: z
+      .boolean()
+      .describe("An agent's account, acting as itself (a4a's own, such as triage, or one an administrator added and gave a token), not a person"),
   })
   .meta({ id: 'Actor' });
 
@@ -665,6 +669,13 @@ export const EventSchema = z
     issue: IssueRefSchema.nullable(),
     changes: z.array(ChangeSchema),
     data: z.record(z.string(), z.unknown()),
+    undo: z
+      .object({
+        state: z.enum(UNDO_STATES),
+        note: z.string().describe('What changed since, or who undid it and when; empty when it can be undone'),
+      })
+      .optional()
+      .describe("Only in an issue's history, on a change an agent made on its own: whether a person can still undo it (POST /events/{id}/undo)"),
   })
   .meta({ id: 'Event' });
 export type TrackerEvent = z.infer<typeof EventSchema>;
@@ -2267,3 +2278,25 @@ export const HelpdeskInboundAnswerSchema = z
   .object({ outcome: z.enum(HELPDESK_INBOUND_OUTCOMES).or(z.literal('duplicate')), reason: z.string() })
   .meta({ id: 'HelpdeskInboundAnswer' });
 export type HelpdeskInboundAnswer = z.infer<typeof HelpdeskInboundAnswerSchema>;
+
+// Agents acting as themselves (D34): accounts of their own with tokens issued to them, assignable,
+// and what they changed on their own undone by a person.
+// ---------------------------------------------------------------------------
+
+export const AgentAccountSchema = z
+  .object({
+    agent: UserSchema,
+    tokens: z.array(ApiTokenSchema).describe('Its tokens that still work: each lets an agent act as it, never beyond its role'),
+  })
+  .meta({ id: 'AgentAccount' });
+export type AgentAccount = z.infer<typeof AgentAccountSchema>;
+
+export const UndoResultSchema = z
+  .object({
+    undoes: z.number().int().describe('The event that was undone'),
+    issue: IssueRefSchema,
+    changes: z.array(ChangeSchema).describe('What the undo put back'),
+    events: z.array(EventSchema).describe("The undo's own events, each saying which it undoes (data.undoes)"),
+  })
+  .meta({ id: 'UndoResult' });
+export type UndoResult = z.infer<typeof UndoResultSchema>;

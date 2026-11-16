@@ -1,4 +1,4 @@
-import type { Role, User } from '@a4a/shared';
+import { OWN_AGENTS, type Role, type User } from '@a4a/shared';
 import { eq, sql } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -89,6 +89,10 @@ export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
 
 export async function createUser(ctx: Ctx, input: NewUser): Promise<User> {
   requireScope(ctx, 'admin');
+  // a4a makes its own agents' accounts itself (the help desk's, the first time a request comes in).
+  if ((OWN_AGENTS as readonly string[]).includes(input.login.trim().toLowerCase())) {
+    throw new AppError(400, 'login_taken', `Login "${input.login}" belongs to a4a's own agent`, 'Choose another login: a4a makes that account itself.');
+  }
   // An email an administrator gives is one single sign-on may find the person by.
   const row = await insertUser(ctx.db, { ...input, emailVerified: Boolean(input.email) });
   ctx.app.schema.invalidate();

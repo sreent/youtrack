@@ -35,6 +35,7 @@ import { mountOAuth, oauthRoutes } from '../oauth/routes';
 import { absenceRoutes } from './routes/absences';
 import { groupRoutes } from './routes/groups';
 import { samlRoutes } from './routes/saml';
+import { agentRoutes } from './routes/agents';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
@@ -88,6 +89,7 @@ export function createHttpApp(runtime: Runtime) {
   absenceRoutes(api);
   groupRoutes(api);
   samlRoutes(api);
+  agentRoutes(api);
 
   api.get('/health', async (c) => {
     let db = true;

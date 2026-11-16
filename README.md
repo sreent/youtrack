@@ -74,6 +74,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
 - **For agents**: an MCP server at `/mcp` with 37 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
+- **Agents of their own**: an administrator adds an agent (a bot account) and issues it tokens on the Agents page.
+  - With one, an agent over MCP or the API acts as itself: its changes show under its name, for no one, and `me` is the agent.
+  - Issues can be assigned to it, as to a person; `for: me #Unresolved` over its token is its work. a4a's own agents (triage, workflow, the help desk) take no work.
+  - What an agent changes on its own (as itself, for a person over MCP, through the assistant, or by a rule), anyone who may change the issue can undo from its history: fields, summary, description, tags and links go back as they were, all or nothing. If someone has changed any of it since, nothing is undone, and a4a says what changed.
 - **One process or several**: on Postgres, any number of instances behind a load balancer behave as one. Live events reach every instance within about a second, cached fields and values update everywhere at once, sign-in limits are shared, and exactly one instance runs the background work, with another taking over if it dies.
 
 ## Quick start

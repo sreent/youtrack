@@ -52,6 +52,7 @@ export function toEventDto(s: SchemaSnapshot, row: ActivityRow): TrackerEvent {
       name: actor?.name ?? null,
       channel: row.channel as TrackerEvent['actor']['channel'],
       token: row.tokenName,
+      isBot: actor?.isBot ?? false,
     },
     project: project?.key ?? null,
     issue: payload.issue ?? null,

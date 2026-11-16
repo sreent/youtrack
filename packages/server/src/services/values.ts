@@ -1,4 +1,4 @@
-import { formatPeriod, parsePeriod, TONES, type IssueFieldValue, type OptionValue, type Tone, type UserRef } from '@a4a/shared';
+import { formatPeriod, isOwnAgent, parsePeriod, TONES, type IssueFieldValue, type OptionValue, type Tone, type UserRef } from '@a4a/shared';
 import type { issueFieldValues } from '../db/schema';
 import { parseDateInput } from '../lib/dates';
 import { badRequest } from '../lib/errors';
@@ -84,6 +84,8 @@ function resolveOne(
         throw badRequest(`Unknown user "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : 'Use a login, a full name, or "me".');
       }
       if (u.banned) throw badRequest(`User "${u.login}" is banned`);
+      // a4a's own agents act for a4a itself and take no work; an agent an administrator added does (D34).
+      if (isOwnAgent(u)) throw badRequest(`${u.login} is a4a's own agent, and takes no work`, `Give ${field.name} a person, or an agent an administrator added.`);
       return { userId: u.id };
     }
     case 'string':

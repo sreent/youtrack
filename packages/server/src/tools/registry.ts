@@ -3,7 +3,7 @@
  * external agents, and to Claude by the in-app assistant. Tools are task-shaped,
  * take readable ids and names, and answer with compact JSON.
  */
-import { formatPeriod, MAX_BULK_ISSUES, type IssueField } from '@a4a/shared';
+import { formatPeriod, isOwnAgent, MAX_BULK_ISSUES, type IssueField } from '@a4a/shared';
 import { z } from 'zod';
 import { findSimilar } from '../ai/similar';
 import { runCommand } from '../commands/executor';
@@ -92,9 +92,11 @@ const getCurrentUser = defineTool({
     // A token limited to projects says which, by the keys the agent can use.
     const view = await projectAccess(ctx);
     const projects = ctx.actor.projectIds ? ctx.actor.projectIds.filter((id) => view.canRead(id)).map((id) => view.keyOf(id)) : null;
+    // A token issued to an agent's own account: the agent acts as itself, and "me" is the agent (D34).
+    const agent = u.isBot || undefined;
     return {
-      data: { login: u.login, name: u.name, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName, onlyProjects: projects ?? undefined },
-      summary: `Acting as ${u.name}`,
+      data: { login: u.login, name: u.name, agent, role: u.role, scopes: ctx.actor.scopes, via: ctx.actor.channel, token: ctx.actor.tokenName, onlyProjects: projects ?? undefined },
+      summary: agent ? `Acting as ${u.login}, an agent, as itself` : `Acting as ${u.name}`,
     };
   },
 });
@@ -326,12 +328,13 @@ const findSimilarTool = defineTool({
 const listUsersTool = defineTool({
   name: 'list_users',
   title: 'Find people',
-  description: 'People (and bots) by name or login, to assign issues. Pass part of a name to filter.',
+  description: 'People, and agents an administrator added (bot: true), by name or login, to assign issues. Pass part of a name to filter.',
   input: z.object({ search: z.string().optional() }),
   kind: 'reads',
   async run(ctx, input) {
-    const users = await listUsers(ctx, input.search);
-    return { data: users.filter((u) => !u.banned).map((u) => ({ login: u.login, name: u.name, bot: u.isBot || undefined })), summary: `${users.length} people` };
+    // a4a's own agents (triage, workflow, helpdesk) take no work, so they aren't offered (D34).
+    const users = (await listUsers(ctx, input.search)).filter((u) => !u.banned && !isOwnAgent(u));
+    return { data: users.map((u) => ({ login: u.login, name: u.name, bot: u.isBot || undefined })), summary: `${users.length} people and agents` };
   },
 });
 

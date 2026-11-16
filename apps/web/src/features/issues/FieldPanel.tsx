@@ -1,4 +1,5 @@
 import type { FieldValue, IssueDetail, IssueField, ProjectField, User } from '@a4a/shared';
+import { isOwnAgent } from '@a4a/shared/constants';
 import { formatPeriod } from '@a4a/shared/periods';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, PriorityMeter } from '../../components/Badges';
@@ -291,7 +292,8 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
     }
   };
 
-  const people = users.filter((u) => !u.banned);
+  // People, and agents an administrator added; a4a's own agents take no work (D34).
+  const people = users.filter((u) => !u.banned && !isOwnAgent(u));
   const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal);
 
   return (

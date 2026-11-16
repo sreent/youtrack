@@ -1538,3 +1538,36 @@ export const helpdeskImapState = pgTable('helpdesk_imap_state', {
   lastUid: bigint('last_uid', { mode: 'number' }).notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+// Agents acting as themselves (docs/architecture.md, D34)
+// ---------------------------------------------------------------------------
+
+/**
+ * A change an agent made on its own, kept with what undoing it puts back. Written in the change's
+ * own transaction. `activityId` is the change's event on its issue; a link's change has a second
+ * event, on the other issue (`pairActivityId`), so undoing it from either history finds it. Undoing
+ * claims the row (`undoneActivityId`), conditionally, so a change is undone once.
+ */
+export const agentChanges = pgTable(
+  'agent_changes',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    activityId: bigint('activity_id', { mode: 'number' }).notNull(),
+    pairActivityId: bigint('pair_activity_id', { mode: 'number' }),
+    /** What undoing it puts back, and what it left, to tell whether that changed since (AgentUndo in services/agents.ts). */
+    undo: jsonb('undo').notNull(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    undoneActivityId: bigint('undone_activity_id', { mode: 'number' }),
+    undoneById: text('undone_by_id').references(() => users.id, { onDelete: 'set null' }),
+    undoneAt: ts('undone_at'),
+  },
+  (t) => [
+    uniqueIndex('agent_changes_activity').on(t.activityId),
+    uniqueIndex('agent_changes_pair').on(t.pairActivityId),
+    index('agent_changes_issue').on(t.issueId),
+  ],
+);

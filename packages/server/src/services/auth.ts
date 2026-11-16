@@ -94,7 +94,7 @@ export async function actorFromToken(db: Db, bearer: string, channel: 'api' | 'm
 }
 
 /** A token as its owner sees it: its projects by key, leaving out any they can no longer see. */
-function tokenDto(t: typeof apiTokens.$inferSelect, keyOf: (projectId: string) => string | undefined): ApiToken {
+export function tokenDto(t: typeof apiTokens.$inferSelect, keyOf: (projectId: string) => string | undefined): ApiToken {
   return {
     id: t.id,
     name: t.name,
@@ -107,7 +107,7 @@ function tokenDto(t: typeof apiTokens.$inferSelect, keyOf: (projectId: string) =
   };
 }
 
-async function keysFor(ctx: Ctx): Promise<(projectId: string) => string | undefined> {
+export async function keysFor(ctx: Ctx): Promise<(projectId: string) => string | undefined> {
   const view = await projectAccess(ctx);
   return (id) => (view.canRead(id) ? view.keyOf(id) : undefined);
 }
@@ -132,7 +132,7 @@ async function tokenProjects(ctx: Ctx, keys: string[] | null | undefined, scopes
 }
 
 /** A token's scopes never exceed what creates it: a token can make only a token that may do as much as it, or less. */
-function tokenScopes(ctx: Ctx, scopes: Scope[]): Scope[] {
+export function tokenScopes(ctx: Ctx, scopes: Scope[]): Scope[] {
   const unique = [...new Set(scopes)];
   if (ctx.actor.authMethod === 'token') {
     const more = unique.filter((sc) => !ctx.actor.scopes.includes(sc));
@@ -170,6 +170,10 @@ export async function createToken(
   // Scopes are always capped by the person's role, and by the token that asks, if a token asks.
   requireScope(ctx, 'read');
   if (ctx.actor.authMethod === 'token') requireScope(ctx, 'write');
+  // An agent's tokens are its administrators' to issue (D34): one leaked can't make itself another.
+  if (ctx.actor.user.isBot) {
+    throw forbidden('An agent can’t make its own tokens', 'An administrator issues its tokens, under Agents and tokens.');
+  }
   const scopes = tokenScopes(ctx, input.scopes);
   const projectIds = await tokenProjects(ctx, input.projects, scopes);
   const { token, ...row } = await issueTokenFor(ctx.db, ctx.actor.user.id, { ...input, scopes, projectIds });

@@ -16,8 +16,20 @@ export class Api {
     return new Api(await request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { authorization: `Bearer ${token}` } }));
   }
 
+  /** The API as another token has it: an agent's own, say (D34). Dispose of it when done. */
+  static async withToken(token: string): Promise<Api> {
+    return new Api(await request.newContext({ baseURL: BASE_URL, extraHTTPHeaders: { authorization: `Bearer ${token}` } }));
+  }
+
   async dispose(): Promise<void> {
     await this.context.dispose();
+  }
+
+  /** An agent of its own, and a token issued to it to act as it (D34). */
+  async createAgent(login: string): Promise<{ agent: User; token: string }> {
+    const agent = await this.post<User>('/users', { login, name: login, isBot: true, role: 'member' });
+    const { token } = await this.post<{ token: string }>(`/users/${agent.id}/tokens`, { name: 'e2e', scopes: ['read', 'write'] });
+    return { agent, token };
   }
 
   private async json<T>(res: APIResponse, what: string): Promise<T> {

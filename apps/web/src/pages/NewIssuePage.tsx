@@ -1,4 +1,5 @@
 import type { IssueDetail, ProjectField, SimilarIssue } from '@a4a/shared';
+import { isOwnAgent } from '@a4a/shared/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -105,11 +106,12 @@ function FieldInput({ field, value, onChange }: { field: ProjectField; value: st
         {(id) => (
           <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
             <option value="">Unassigned</option>
+            {/* People, and agents an administrator added; a4a's own agents take no work (D34). */}
             {(users.data ?? [])
-              .filter((u) => !u.banned && !u.isBot)
+              .filter((u) => !u.banned && !isOwnAgent(u))
               .map((u) => (
                 <option key={u.id} value={u.login}>
-                  {u.name}
+                  {u.isBot ? `${u.login} (agent)` : u.name}
                 </option>
               ))}
           </select>

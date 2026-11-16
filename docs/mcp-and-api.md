@@ -98,6 +98,7 @@ remove tag needs-info duplicates BACK-7
 | Single sign-on | `GET /auth/oidc/start?next=`, `GET /auth/oidc/callback` | OpenID Connect, for browsers: the authorization code flow with PKCE, state and nonce; a new session on success |
 | SAML sign-in | `GET /auth/saml/start?next=`, `POST /auth/saml/acs`, `GET /auth/saml/metadata` | SAML 2.0, for browsers (D27): an AuthnRequest by redirect, the signed response posted back, a new session on success; and a4a's service-provider metadata, for the identity provider |
 | API tokens | `GET/POST /me/tokens`, `PATCH/DELETE /me/tokens/{id}` | Personal tokens with scopes, expiry and, optionally, the only projects they reach (`projects`); the secret is shown once and stored hashed; last-used time is tracked |
+| Agents | `GET /agents`, `POST /users/{agent}/tokens`, `DELETE /users/{agent}/tokens/{id}` | Agents of their own (bot accounts administrators add), with their tokens, issued and revoked by administrators: with one, an agent acts as itself. An agent never makes its own; a person's are their own (D34) |
 | Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}` | Admin user management, roles (`admin`, `member`, `viewer`), bot users; administrators also see how each person signs in (`signIn`) |
 | Projects | `GET/POST /projects`, `GET/PATCH/DELETE /projects/{key}` | Projects with short keys (`BACK`), leads, who sees them (`visibility`: `open` or `members`), AI triage mode; each says what you may do in it (`access`) |
 | Project people | `GET/POST /projects/{key}/members`, `PATCH/DELETE /projects/{key}/members/{login}` | Who is in a project and their role (`viewer`, `member`, `manager`). Anyone who sees the project sees its people; its managers change them |
@@ -117,7 +118,7 @@ remove tag needs-info duplicates BACK-7
 | Time tracking | `GET/POST /issues/{id}/work-items`, `DELETE /work-items/{id}` | Log work (`1h 30m`); spent time is rolled up on the issue |
 | Attachments | `GET/POST /issues/{id}/attachments`, `POST /comments/{id}/attachments`, `GET/POST /articles/{id}/attachments`, `GET/DELETE /attachments/{id}`, `GET /attachments/{id}/content`, `GET /attachments/{id}/text`, `GET /attachments/limits` | Files on issues, comments (the author's own) and articles. Upload as `multipart/form-data` with the file in a part named `file` (`curl -F file=@build.log`), streamed, one per request: up to `ATTACHMENT_MAX_MB` (20) each and `ATTACHMENTS_PER_ISSUE_MB` (100) for an issue with its comments, or an article; 413 otherwise. The type is read from the bytes, never from the name or the request; the name is made safe; the SHA-256 is kept and is the ETag. `content` serves PNG, JPEG, GIF and WebP `inline` and everything else as an `attachment`, with `nosniff` and `Content-Security-Policy: sandbox`; `?download=1` downloads images too. It answers one byte range (`Range: bytes=…`) with 206 and `Content-Range`, 416 past the end, and honours `If-Range`; several ranges get the whole file. `text` reads a text file in slices of up to 128 KB, from an offset or its end (`tail=true`). A file says `text` when it can be read so, and `play` (`audio` or `video`) when the web app plays it in place. Who added a file may delete it, and so may anyone who may change its project. When the store of files (a bucket, `ATTACHMENT_STORAGE=s3`) fails, uploads and downloads answer 503 `storage_unavailable` |
 | Knowledge base | `GET/POST /articles`, `GET/PATCH/DELETE /articles/{id}`, `GET /projects/{key}/articles`, `GET /articles/{id}/versions[/{version}]`, `POST /articles/{id}/versions/{version}/restore`, `GET /issues/{id}/articles` | Articles per project, by readable id (`BACK-A-3`), in a tree: `parent` and `position` place them, and a move under one of its own descendants is refused. Markdown, saved as a new version each time (with `expectedVersion` for 409 on a newer save); a version comes with its diff against the one before, and an old one can be brought back as a new one. `GET /articles?query=` searches titles and bodies (full text, prefixes, near misses on titles), with snippets. Ids written in articles, descriptions and comments are mentions: an article lists the issues and articles that mention it, and `GET /issues/{id}/articles` the articles that mention an issue. An article with articles under it can't be deleted |
-| Activity | `GET /issues/{id}/activity` | Full change history with actor and channel |
+| Activity | `GET /issues/{id}/activity`, `POST /events/{id}/undo` | Full change history with actor and channel. A change an agent made on its own says whether a person can still undo it (`undo`: `possible`, `changed_since` with what, `undone` by whom); undoing it puts its fields, summary, description, tags or link back as the person asking, all or nothing, once (409 `changed_since`, `already_undone`) |
 | Search helpers | `POST /search/parse`, `GET /search/suggest`, `POST /search/count` | Validate and explain a query, autocomplete, and counts grouped by any field (dashboards, reports) |
 | Commands | `POST /commands`, `POST /commands/parse` | Apply or preview a command on up to 50 issues |
 | Saved searches | `GET/POST /saved-searches`, `PATCH/DELETE /saved-searches/{id}` | Personal and shared saved queries |
@@ -167,7 +168,7 @@ remove tag needs-info duplicates BACK-7
 
 | Tool | What it does | Kind |
 |---|---|---|
-| `get_current_user` | Who the agent is acting as: role, token scopes, and the projects a limited token reaches | read |
+| `get_current_user` | Who the agent is acting as: role, token scopes, and the projects a limited token reaches; `agent: true` when its token was issued to an agent's own account, which acts as itself | read |
 | `list_projects` | Projects with key, name, description, open-issue counts | read |
 | `get_project` | A project's fields and allowed values (states marked resolved/unresolved), link types, tags, people | read |
 | `search_issues` | Run a query. Returns total + compact rows (id, summary, state, priority, type, assignee, updated). Invalid queries return the error position and a suggestion | read |
@@ -175,7 +176,7 @@ remove tag needs-info duplicates BACK-7
 | `count_issues` | Count issues matching a query, optionally grouped by a field ("open bugs by priority") | read |
 | `get_activity` | Recent changes: who changed what and when, filtered by issue, project, query or time ("what happened since yesterday?") | read |
 | `find_similar_issues` | Rank existing issues by similarity to some text. Use before filing an issue to avoid duplicates | read |
-| `list_users` | Find people by name or login, for assignment | read |
+| `list_users` | Find people, and agents of their own (`bot: true`), by name or login, for assignment; a4a's own agents aren't offered | read |
 | `get_board` | Board columns with their cards for a sprint: a status overview | read |
 | `create_issue` | Create an issue with fields, tags, parent and links. The result includes likely duplicates so the agent can link or close | write |
 | `update_issue` | Change summary, description or fields; add or remove tags | write (idempotent) |
@@ -205,7 +206,7 @@ remove tag needs-info duplicates BACK-7
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
-Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, integrations, a help desk's settings, email preferences (they're the person's own, in the web app), and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
+Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, integrations, a help desk's settings, email preferences (they're the person's own, in the web app), undoing an agent's change (a person decides that, D34), and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
 
 `get_issue` says when an issue is a help desk request (who asked, whether by the form or by email, and its first-response target) and which comments are public, so an agent knows what the requester has seen.
 
@@ -305,13 +306,15 @@ What notifications need is in `data`, as logins: `assigned` (new assignees) and 
 
 A change a workflow rule made carries `data.automation`: the rule's id and name, and how many rules deep in a chain it is.
 
+An event's `actor.isBot` says an agent's account acted as itself (a4a's own, such as triage, or an agent of its own with a token issued to it). A person's undo of an agent's change is `issue.updated` (or `link.created`, `link.deleted`) with `data.undoes`: the event it undoes (D34).
+
 Every consumer sees only the events of projects it can see: `GET /events` and `GET /events/stream` filter by the caller's access, and leave out a link whose other end it can't see. Webhooks (made by administrators) get every event.
 
 **Payload**
 
 ```json
 { "id": 1042, "type": "issue.updated", "occurredAt": "2026-11-15T10:12:00Z",
-  "actor": { "login": "anna", "channel": "mcp", "token": "claude-code" },
+  "actor": { "login": "anna", "channel": "mcp", "token": "claude-code", "isBot": false },
   "project": "BACK", "issue": { "id": "BACK-12", "summary": "…", "url": "…" },
   "changes": [ { "field": "State", "from": "Open", "to": "In Progress" } ] }
 ```
