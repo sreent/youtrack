@@ -105,7 +105,7 @@ test.describe('in another time zone', () => {
     await expect(zone).toHaveValue('Asia/Tokyo');
     await you.getByRole('button', { name: 'Save the changes' }).click();
     await expect(you.getByRole('status')).toHaveText('Saved.');
-    await expect(page.getByRole('region', { name: 'Notifications' })).toContainText('at 08:00 your time (Asia/Tokyo)');
+    await expect(page.getByRole('region', { name: 'Notifications', exact: true })).toContainText('at 08:00 your time (Asia/Tokyo)');
 
     await page.reload();
     await expect(you.getByRole('combobox', { name: 'Time zone' })).toHaveValue('Asia/Tokyo');
