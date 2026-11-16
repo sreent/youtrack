@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router';
 import { ApiError, get, post, qs } from '../api/client';
 import { Lone } from '../app/Auth';
 import { ErrorNote, Loading } from '../components/States';
-import { t, tr } from '../i18n';
+import { t, tr, inSentence } from '../i18n';
 import type { ReactNode } from 'react';
 
 /**
@@ -51,7 +51,7 @@ export default function UnsubscribePage() {
   return (
     <Lone>
       <h1>{d.done ? t('page.unsubscribe.stopped') : t('page.unsubscribe.stopTheseEmails')}</h1>
-      <p>{d.done ? t('page.unsubscribe.noMoreOfThese', { toLowerCase: d.what.charAt(0).toLowerCase(), slice: d.what.slice(1) }) : d.what}</p>
+      <p>{d.done ? t('page.unsubscribe.noMoreOfThese', { what: inSentence(d.what) }) : d.what}</p>
       {error ? <ErrorNote error={error} /> : null}
       {d.done ? (
         d.kind === 'request' ? (

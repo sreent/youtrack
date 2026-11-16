@@ -7,7 +7,6 @@
  */
 import type { Schedule, ScheduleTask } from '@a4a/shared';
 import { addDays, diffDays, maxDate, minDate, mondayOf, sundayOf, type WorkCalendar } from './dates';
-import { t } from '../../i18n';
 
 export const HEAD = 40;
 export const ROW = 32;
@@ -132,7 +131,7 @@ export function linkPath(sx: number, sy: number, tx: number, ty: number, targetT
   const end = tx - 5;
   const dir = ty > sy ? 1 : -1;
   if (end >= e1 + R) {
-    return t('plan.gantt.mHQVQ', { n: n(sx), sy: sy, n2: n(e1 - R), n3: n(e1), sy2: sy, n4: n(e1), v: sy + R * dir, v2: ty - R * dir, n5: n(e1), ty: ty, n6: n(e1 + R), ty2: ty, n7: n(end) });
+    return `M${n(sx)} ${sy}H${n(e1 - R)}Q${n(e1)} ${sy} ${n(e1)} ${sy + R * dir}V${ty - R * dir}Q${n(e1)} ${ty} ${n(e1 + R)} ${ty}H${n(end)}`;
   }
   const run = dir > 0 ? targetTop + 2 : targetTop + ROW - 2;
   const e2 = end - R;
@@ -142,7 +141,7 @@ export function linkPath(sx: number, sy: number, tx: number, ty: number, targetT
   );
 }
 
-export const linkHead = (tx: number, ty: number) => t('plan.gantt.mL635v7z', { n: n(tx), ty: ty });
+export const linkHead = (tx: number, ty: number) => `M${n(tx)} ${ty}l-6 -3.5v7z`;
 
 /** Runs of days the plan doesn't work (weekends, holidays), as [first, count]. */
 export function restDays(s: Scale, cal: WorkCalendar): [string, number][] {

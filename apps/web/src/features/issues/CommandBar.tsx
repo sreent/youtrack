@@ -204,7 +204,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
           <p className="query-read">
             <Who kind="agent" name="assistant" small />
             <span>{t('issues.commandBar.interpretedAs')}</span>
-            <code>{read.command || 'no change'}</code>
+            <code>{read.command || t('issues.commandBar.noChange')}</code>
             {words ? (
               <button
                 type="button"

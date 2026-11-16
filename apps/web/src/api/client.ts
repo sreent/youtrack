@@ -11,6 +11,9 @@ export class ApiError extends Error {
     message: string,
     public readonly hint?: string,
     public readonly details?: unknown,
+    /** The problem's key under problem.* and its values, when the server gave them (D49). */
+    public readonly key?: string,
+    public readonly values?: Record<string, string | number>,
   ) {
     super(message);
   }
@@ -24,8 +27,8 @@ export class ApiError extends Error {
 
 async function toError(res: Response): Promise<ApiError> {
   try {
-    const body = (await res.json()) as { error?: { code: string; message: string; hint?: string; details?: unknown } };
-    if (body.error) return new ApiError(res.status, body.error.code, body.error.message, body.error.hint, body.error.details);
+    const body = (await res.json()) as { error?: { code: string; message: string; hint?: string; details?: unknown; key?: string; values?: Record<string, string | number> } };
+    if (body.error) return new ApiError(res.status, body.error.code, body.error.message, body.error.hint, body.error.details, body.error.key, body.error.values);
   } catch {
     // not JSON
   }

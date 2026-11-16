@@ -17,14 +17,20 @@ import { emailKeys, YourEmails } from '../features/vcs/People';
 import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
 import { ChatAccounts } from '../features/chat/Chat';
-import { t, tr } from '../i18n';
+import { t, tr, useLocaleNow } from '../i18n';
+import { isLocale, LOCALE_NAMES, LOCALES, matchLocale, type Locale } from '@a4a/shared/i18n';
 import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
-  admin: 'an administrator: you may change everything',
-  member: 'a member: you read and change issues',
-  viewer: 'a viewer: you read',
+  admin: t('page.profile.roleAdmin'),
+  member: t('page.profile.roleMember'),
+  viewer: t('page.profile.roleViewer'),
 };
+
+/** The language the browser asks for, as a4a would choose it with nothing on the profile. */
+function browserLocale(serverDefault: Locale): Locale {
+  return matchLocale(navigator.languages?.length ? navigator.languages : [navigator.language], serverDefault);
+}
 
 /** Every time zone the browser knows, with the browser's own and the one already chosen among them. */
 function zoneNames(...also: (string | null)[]): string[] {
@@ -45,17 +51,20 @@ function You({ me }: { me: Me }) {
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email ?? '');
   const [zone, setZone] = useState(me.timeZone ?? '');
+  const [language, setLanguage] = useState<string>(me.locale ?? '');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   useEffect(() => {
     setName(me.name);
     setEmail(me.email ?? '');
     setZone(me.timeZone ?? '');
-  }, [me.name, me.email, me.timeZone]);
+    setLanguage(me.locale ?? '');
+  }, [me.name, me.email, me.timeZone, me.locale]);
   const browser = useMemo(browserZone, []);
+  const browserLanguage = useMemo(() => browserLocale(me.defaultLocale), [me.defaultLocale]);
   const zones = useMemo(() => zoneNames(browser, me.timeZone, me.serverTimeZone), [browser, me.timeZone, me.serverTimeZone]);
-  const dirty = name !== me.name || email !== (me.email ?? '') || zone !== (me.timeZone ?? '');
+  const dirty = name !== me.name || email !== (me.email ?? '') || zone !== (me.timeZone ?? '') || language !== (me.locale ?? '');
   const save = useMutation({
-    mutationFn: () => patch<Me>('/me', { name: name.trim(), email: email.trim() || null, timeZone: zone || null }),
+    mutationFn: () => patch<Me>('/me', { name: name.trim(), email: email.trim() || null, timeZone: zone || null, locale: isLocale(language) ? language : null }),
     onSuccess: (m) => {
       qc.setQueryData(keys.me, m);
       void qc.invalidateQueries({ queryKey: keys.users });
@@ -63,6 +72,8 @@ function You({ me }: { me: Me }) {
       void qc.invalidateQueries({ queryKey: ['notifications', 'settings'] });
       void qc.invalidateQueries({ queryKey: emailKeys.mine });
       setSaid({ text: m.name !== me.name ? t('page.profile.savedPeopleSeeYourNew') : t('page.profile.saved') });
+      // Another language: the page says itself again in it (a reload, D49).
+      useLocaleNow(m.locale);
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -98,6 +109,19 @@ function You({ me }: { me: Me }) {
               {zones.map((z) => (
                 <option key={z} value={z}>
                   {z.replaceAll('_', ' ')}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+        <FormField label={t('page.profile.language')} help={t('page.profile.languageHelp')}>
+          {(id, help) => (
+            <select id={id} aria-describedby={help} value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <option value="">{t('page.profile.yourBrowsersLanguage', { name: LOCALE_NAMES[browserLanguage] })}</option>
+              {LOCALES.map((l) => (
+                // Each language by its own name, so whoever can't read this page still finds theirs.
+                <option key={l} value={l} lang={l}>
+                  {LOCALE_NAMES[l]}
                 </option>
               ))}
             </select>

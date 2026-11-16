@@ -65,6 +65,17 @@ export function tr(key: string, values?: MessageValues): ReactNode {
   return createElement(Fragment, null, ...parts.map((part, i) => createElement(Fragment, { key: i }, part)));
 }
 
+/**
+ * A problem from the server in the page's language, by its key; null when it has none, or no words
+ * here (D49). In English the server's own words stand, as they always did: they're the source.
+ */
+export function problemWords(e: unknown): string | null {
+  if (translator.locale === DEFAULT_LOCALE || !e || typeof e !== 'object') return null;
+  const { key, values } = e as { key?: unknown; values?: unknown };
+  if (typeof key !== 'string' || !translator.has(`problem.${key}`)) return null;
+  return translator.t(`problem.${key}`, values && typeof values === 'object' ? (values as MessageValues) : undefined);
+}
+
 /** The language the page is in. */
 export function getLocale(): Locale {
   return translator.locale;
@@ -75,6 +86,14 @@ export function intlLocale(): string {
   return translator.locale === 'en' ? 'en-GB' : translator.locale;
 }
 
+/** Languages whose nouns keep their capital inside a sentence. */
+const CAPITAL_NOUNS: ReadonlySet<Locale> = new Set<Locale>(['de']);
+
+/** A label set inside a sentence ("Time logged, by person"): lower-cased at its start, unless the page's language capitalises its nouns. */
+export function inSentence(label: string): string {
+  return CAPITAL_NOUNS.has(translator.locale) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+}
+
 /**
  * What the server says of the person's language: their choice (null: none) and its default. When
  * the page isn't in the language that makes, it's kept and the page reloads into it.
@@ -82,14 +101,19 @@ export function intlLocale(): string {
 export function keepLocale(theirs: string | null | undefined, serverDefault?: string | null): void {
   if (isLocale(serverDefault)) store(SERVER_DEFAULT, serverDefault);
   store(CHOSEN, isLocale(theirs) ? theirs : '');
-  const wanted = wantedLocale();
-  if (wanted !== translator.locale) location.reload();
+  reloadIfAnother();
 }
 
 /** After the person chooses a language on their profile: show it now. */
 export function useLocaleNow(locale: Locale | null): void {
   store(CHOSEN, locale ?? '');
-  if (wantedLocale() !== translator.locale) location.reload();
+  reloadIfAnother();
+}
+
+/** Reload into the language wanted, if it isn't this page's and a catalog for it is there (no loop). */
+function reloadIfAnother(): void {
+  const wanted = wantedLocale();
+  if (wanted !== translator.locale && catalogOf(wanted)) location.reload();
 }
 
 // Intl's formats, in the page's language. A date's time zone is the person's, where it matters (D31).

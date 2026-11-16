@@ -12,7 +12,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { t, tr } from '../../i18n';
+import { t, tr, inSentence } from '../../i18n';
 import type { ReactNode } from 'react';
 
 export const chatKeys = {
@@ -73,7 +73,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     onSuccess: (u) => {
       refresh();
       setEditing(false);
-      onSaid({ text: t('chat.chat.hearsOf', { name: u.channel.name, toLowerCase: u.about.charAt(0).toLowerCase(), slice: u.about.slice(1) }) });
+      onSaid({ text: t('chat.chat.hearsOf', { name: u.channel.name, what: inSentence(u.about) }) });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -205,7 +205,7 @@ function AddChannel({ project }: { project: Project }) {
     onSuccess: (s) => {
       void qc.invalidateQueries({ queryKey: chatKeys.all });
       setChannel('');
-      setSaid({ text: t('chat.chat.hearsOf', { name: s.channel.name, toLowerCase: s.about.charAt(0).toLowerCase(), slice: s.about.slice(1) }) });
+      setSaid({ text: t('chat.chat.hearsOf', { name: s.channel.name, what: inSentence(s.about) }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });

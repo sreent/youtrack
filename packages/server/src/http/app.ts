@@ -158,7 +158,7 @@ export function createHttpApp(runtime: Runtime) {
   root.use('/scim/*', rateLimit(new RateLimiter(runtime.config.apiRateLimit, 60_000), runtime.config.trustProxy));
   // What anyone may post without signing in is small: a help desk request, a reply, an unsubscribe.
   const small = (maxSize: number) =>
-    bodyLimit({ maxSize, onError: (c) => c.json(errorBody('too_large', 'The request is too large', `Send at most ${Math.round(maxSize / 1024)} KB.`), 413) });
+    bodyLimit({ maxSize, onError: (c) => c.json(errorBody('too_large', 'The request is too large', `Send at most ${Math.round(maxSize / 1024)} KB.`, undefined, { key: 'tooLarge', values: { kb: Math.round(maxSize / 1024) } }), 413) });
   root.use('/api/v1/help/*', small(48 * 1024));
   root.use('/api/v1/unsubscribe', small(4 * 1024));
   root.use('/scim/*', small(1024 * 1024));

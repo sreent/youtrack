@@ -81,6 +81,8 @@ export const ErrorSchema = z
       message: z.string(),
       hint: z.string().optional(),
       details: z.unknown().optional(),
+      key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
+      values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
     }),
   })
   .meta({ id: 'Error' });

@@ -3,7 +3,7 @@ import { useMe } from '../../api/queries';
 import { IssueLink } from '../../components/Badges';
 import { ErrorLine, PageHead } from '../../components/States';
 import { ISSUE_ID } from './format';
-import { t } from '../../i18n';
+import { problemWords, t } from '../../i18n';
 
 /** Plain text with its issue ids linked ("Created BACK-14 …"). */
 export function Linked({ text }: { text: string }) {
@@ -80,6 +80,9 @@ export function AdminOnly({ title, children }: { title: string; children: React.
 
 /** An error in a sentence, with the server's hint on how to fix it. */
 export function errorText(e: unknown): string {
+  // A problem with a key says itself in the page's language; without one, or a catalog that lacks it, in the server's English (D49).
+  const said = problemWords(e);
+  if (said) return said;
   if (e && typeof e === 'object' && 'message' in e) {
     const hint = (e as { hint?: string }).hint;
     const msg = String((e as { message: string }).message).replace(/[.\s]+$/, '');

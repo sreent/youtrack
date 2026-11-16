@@ -106,7 +106,7 @@ function Bracket({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
   return <path className="gantt-summary" d={`M${x1} ${top + 21}V${top + 12}H${x2}V${top + 21}`} data-task={t.id} />;
 }
 
-const diamond = (cx: number, top: number) => tw_('plan.gantt.mL8888', { cx: cx, v: top + 6 });
+const diamond = (cx: number, top: number) => `M${cx} ${top + 6}l8 8 -8 8 -8 -8z`;
 
 function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
   const cls = ['gantt-task', t.critical ? 'critical' : '', t.late ? 'late' : ''].filter(Boolean).join(' ');

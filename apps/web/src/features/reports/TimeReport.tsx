@@ -12,7 +12,7 @@ import { Who } from '../../components/Who';
 import { dayMonth, spanWords } from '../plan/dates';
 import { plural } from '../plan/format';
 import { hoursOf } from './chart';
-import { t as tx, tr } from '../../i18n';
+import { t as tx, tr, inSentence } from '../../i18n';
 
 type Group = 'person' | 'project' | 'week';
 const GROUPS: { id: Group; label: string }[] = [
@@ -97,7 +97,7 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
               ))}
             </div>
           ) : null}
-          <Bars t={t} group={compact ? 'person' : group} label={tx('reports.timeReport.timeLogged', { toLowerCase: GROUPS.find((g) => g.id === (compact ? 'person' : group))!.label.toLowerCase() })} />
+          <Bars t={t} group={compact ? 'person' : group} label={tx('reports.timeReport.timeLogged', { what: inSentence(GROUPS.find((g) => g.id === (compact ? 'person' : group))!.label) })} />
           <div className="figures-scroll" tabIndex={0} role="group" aria-label={tx('reports.timeReport.timeAgainstEstimatesByIssue')}>
             <table className="figures chart-figures">
               <caption>{compact ? tx('reports.timeReport.whereTheMostTimeWent') : tx('reports.timeReport.eachIssueTimeLoggedHere')}</caption>

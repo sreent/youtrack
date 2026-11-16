@@ -30,6 +30,7 @@ import type {
 } from '@a4a/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { get, qs } from './client';
+import { keepLocale } from '../i18n';
 
 export const keys = {
   me: ['me'] as const,
@@ -60,7 +61,18 @@ export const keys = {
 };
 
 export const useSetupStatus = () => useQuery({ queryKey: keys.setup, queryFn: () => get<SetupStatus>('/auth/setup') });
-export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => get<Me>('/me'), retry: false, staleTime: 60_000 });
+export const useMe = () =>
+  useQuery({
+    queryKey: keys.me,
+    queryFn: async () => {
+      const me = await get<Me>('/me');
+      // The language on their profile, or the server's default: the page follows it (D49).
+      keepLocale(me.locale, me.defaultLocale);
+      return me;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
 export const useProjects = () => useQuery({ queryKey: keys.projects, queryFn: () => get<Project[]>('/projects'), staleTime: 30_000 });
 export const useProject = (key: string | undefined) =>
   useQuery({ queryKey: keys.project(key ?? ''), queryFn: () => get<Project>(`/projects/${key}`), enabled: Boolean(key) });
