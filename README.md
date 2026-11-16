@@ -57,7 +57,10 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **Reports**, worked out from each issue's history:
   - a sprint's burndown, by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence (linked from the sprint board);
   - cumulative flow, created against resolved, and cycle time with its percentiles;
-  - time logged by person, issue, project and week, against estimates.
+  - time logged by person, issue, project and week, against estimates;
+  - issues per field, by any field, and a matrix of two fields against each other, as issues are now, each count opening its issues;
+  - average age, and time in each state (or a board's columns) with its median and 85th percentile, each day as it stood.
+  - A moved issue counts once, in the project it was in each day.
   - Each chart has its figures as a table beside it, and the tables download as CSV.
 - **Dashboards**: a page of your own reports, saved searches and notes, private or shared. Each viewer sees what they may.
 - **Importing from Jira or YouTrack**, from a CSV export or straight from their APIs, for a project's managers:

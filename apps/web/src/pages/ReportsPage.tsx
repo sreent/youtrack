@@ -1,7 +1,7 @@
 import type { ReportKind } from '@a4a/shared';
 import { useEffect, useId, useState } from 'react';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
-import { useBoards, useBoardView, useProjects, useUsers } from '../api/queries';
+import { useBoards, useBoardView, useFields, useProjects, useUsers } from '../api/queries';
 import { PageHead } from '../components/States';
 import { addDays, localToday, span } from '../features/plan/dates';
 import { csvHref, type ReportParams } from '../features/reports/api';
@@ -12,7 +12,7 @@ const WINDOWS = [7, 14, 30, 90, 365] as const;
 /** The window the page shows: a number of days up to today, or dates someone chose. */
 function windowOf(params: URLSearchParams, kind: ReportKind): { days: number | null; from: string; to: string } {
   const today = localToday();
-  const fallback = kind === 'cycle-time' ? 90 : kind === 'time' ? 30 : 30;
+  const fallback = kind === 'cycle-time' || kind === 'time-in-state' ? 90 : 30;
   if (params.get('from') || params.get('to')) {
     const to = params.get('to') || today;
     return { days: null, from: params.get('from') || addDays(to, -(fallback - 1)), to };
@@ -74,9 +74,63 @@ function BurndownControls({ params, set }: { params: URLSearchParams; set: (k: s
   );
 }
 
+/** A field to count or follow by: any field, or Project. */
+function FieldSelect({ label, name, params, set, fallback }: { label: string; name: string; params: URLSearchParams; set: (k: string, v: string | null) => void; fallback: string }) {
+  const fields = useFields().data ?? [];
+  const value = params.get(name) ?? fallback;
+  const names = ['Project', ...fields.map((f) => f.name).sort((a, b) => a.localeCompare(b))];
+  return (
+    <InlineSelect label={label} value={value} onChange={(v) => set(name, v || null)}>
+      {fallback === '' ? <option value="">None</option> : null}
+      {value && !names.includes(value) ? <option value={value}>{value}</option> : null}
+      {names.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+    </InlineSelect>
+  );
+}
+
+/** What the reports D44 adds take beyond a scope: fields, a board, how dates group. */
+function MoreControls({ kind, params, set }: { kind: ReportKind; params: URLSearchParams; set: (k: string, v: string | null) => void }) {
+  const boards = useBoards().data ?? [];
+  return (
+    <>
+      {kind === 'issues-per-field' ? <FieldSelect label="Field" name="field" params={params} set={set} fallback="Priority" /> : null}
+      {kind === 'matrix' ? (
+        <>
+          <FieldSelect label="Rows" name="rows" params={params} set={set} fallback="Priority" />
+          <FieldSelect label="Columns" name="columns" params={params} set={set} fallback="State" />
+        </>
+      ) : null}
+      {kind === 'issues-per-field' || kind === 'matrix' ? (
+        <InlineSelect label="Dates by" value={params.get('interval') ?? ''} onChange={(v) => set('interval', v || null)}>
+          <option value="">Day, week or month, by their spread</option>
+          <option value="day">Day</option>
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+        </InlineSelect>
+      ) : null}
+      {kind === 'average-age' ? <FieldSelect label="By" name="field" params={params} set={set} fallback="" /> : null}
+      {kind === 'time-in-state' ? (
+        <InlineSelect label="Columns of" value={params.get('board') ?? ''} onChange={(v) => set('board', v || null)}>
+          <option value="">No board: states</option>
+          {boards.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </InlineSelect>
+      ) : null}
+    </>
+  );
+}
+
 function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSearchParams; set: (k: string, v: string | null) => void }) {
   const projects = useProjects().data ?? [];
   const users = (useUsers().data ?? []).filter((u) => !u.banned);
+  const now = kind === 'issues-per-field' || kind === 'matrix';
   const queryId = useId();
   const startId = useId();
   const [query, setQuery] = useState(params.get('query') ?? '');
@@ -96,6 +150,7 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
             </option>
           ))}
       </InlineSelect>
+      {now ? null : (
       <InlineSelect
         label="Days"
         value={choosing ? 'dates' : String(w.days)}
@@ -118,7 +173,9 @@ function ScopeControls({ kind, params, set }: { kind: ReportKind; params: URLSea
         ))}
         <option value="dates">Dates I choose</option>
       </InlineSelect>
-      {choosing ? (
+      )}
+      <MoreControls kind={kind} params={params} set={set} />
+      {choosing && !now ? (
         <>
           <span className="form-field inline">
             <label htmlFor={`${queryId}-from`}>From</label>
@@ -196,6 +253,14 @@ export default function ReportsPage() {
   if (kind === 'burndown') {
     query = { board: params.get('board') ?? undefined, sprint: params.get('sprint') ?? undefined, by: params.get('by') ?? undefined };
     ready = Boolean(query.board || query.sprint);
+  } else if (kind === 'issues-per-field' || kind === 'matrix') {
+    // Issues as they are now: no window of days.
+    query = {
+      project: params.get('project') ?? undefined,
+      query: params.get('query') ?? undefined,
+      interval: params.get('interval') ?? undefined,
+      ...(kind === 'matrix' ? { rows: params.get('rows') || 'Priority', columns: params.get('columns') || 'State' } : { field: params.get('field') || 'Priority' }),
+    };
   } else {
     const w = windowOf(params, kind);
     query = {
@@ -206,6 +271,8 @@ export default function ReportsPage() {
       ...(kind === 'created-resolved' ? { interval: params.get('interval') ?? undefined } : {}),
       ...(kind === 'cycle-time' ? { start: params.get('start') ?? undefined } : {}),
       ...(kind === 'time' ? { author: params.get('author') ?? undefined } : {}),
+      ...(kind === 'average-age' ? { field: params.get('field') ?? undefined } : {}),
+      ...(kind === 'time-in-state' ? { board: params.get('board') ?? undefined } : {}),
     };
   }
 

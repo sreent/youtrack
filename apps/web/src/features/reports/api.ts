@@ -2,7 +2,7 @@
  * Reports and dashboards over the API. Report keys start with 'reports', which the live-events
  * handler invalidates whenever anything changes, so a chart is read again as its issues move.
  */
-import type { Burndown, CreatedResolved, CycleTime, Dashboard, Flow, ReportKind, TimeReport, Widget } from '@a4a/shared';
+import type { AverageAge, Burndown, CreatedResolved, CycleTime, Dashboard, Flow, IssuesPerField, Matrix, ReportKind, TimeInState, TimeReport, Widget } from '@a4a/shared';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { api, get, qs } from '../../api/client';
 
@@ -23,7 +23,15 @@ export type ReportOf<K extends ReportKind> = K extends 'burndown'
       ? CreatedResolved
       : K extends 'cycle-time'
         ? CycleTime
-        : TimeReport;
+        : K extends 'issues-per-field'
+          ? IssuesPerField
+          : K extends 'matrix'
+            ? Matrix
+            : K extends 'average-age'
+              ? AverageAge
+              : K extends 'time-in-state'
+                ? TimeInState
+                : TimeReport;
 
 export type ReportParams = Record<string, string | number | undefined>;
 

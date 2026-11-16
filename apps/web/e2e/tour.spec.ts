@@ -86,6 +86,18 @@ const moved = async (api: Api) => {
   return `/issues/${issue.id}`;
 };
 
+/** A project of its own with issues across priorities and types, one fixed, for the reports D44 adds. */
+const reportsOfItsOwn = (to: (key: string) => string) => async (api: Api) => {
+  const key = uniqueKey('TQ');
+  await api.createProject({ key, name: `Tour ${key}`, template: 'software' });
+  await api.createIssue({ project: key, summary: 'Checkout fails on Safari', fields: { Priority: 'Critical', Type: 'Bug' } });
+  await api.createIssue({ project: key, summary: 'Export to CSV', fields: { Priority: 'Major', Type: 'Feature', State: 'In Progress' } });
+  await api.createIssue({ project: key, summary: 'Typo on the pricing page', fields: { Priority: 'Minor', Type: 'Bug' } });
+  const fixed = await api.createIssue({ project: key, summary: 'Slow search on large projects', fields: { Priority: 'Major', Type: 'Bug', State: 'In Progress' } });
+  await api.updateIssue(fixed.id, { fields: { State: 'Fixed' } });
+  return to(key);
+};
+
 const withDaysAway = async (api: Api) => {
   const key = uniqueKey('TA');
   await api.createProject({ key, name: `Tour ${key}`, template: 'waterfall' });
@@ -329,6 +341,10 @@ const STOPS: Stop[] = [
   { name: 'writing an article', path: '/articles/BACK-A-2/edit', ready: (p) => p.getByRole('form', { name: 'Editing BACK-A-2' }).getByRole('textbox', { name: 'What it says' }) },
   { name: 'cumulative flow', path: '/reports/flow', ready: (p) => p.getByRole('group', { name: 'Issues in each state, day by day' }) },
   { name: 'cycle time', path: '/reports/cycle-time', ready: (p) => p.getByRole('group', { name: 'Issues by how long they took' }) },
+  { name: 'issues per field', path: reportsOfItsOwn((k) => `/reports/issues-per-field?project=${k}&field=Priority`), ready: (p) => p.getByRole('group', { name: 'Issues by Priority, as figures' }) },
+  { name: 'a matrix', path: reportsOfItsOwn((k) => `/reports/matrix?project=${k}&rows=Priority&columns=Type`), ready: (p) => p.getByRole('group', { name: 'Priority by Type, as figures' }) },
+  { name: 'average age', path: reportsOfItsOwn((k) => `/reports/average-age?project=${k}&field=Priority`), ready: (p) => p.getByRole('group', { name: /^Average age by Priority on / }) },
+  { name: 'time in state', path: reportsOfItsOwn((k) => `/reports/time-in-state?project=${k}`), ready: (p) => p.getByRole('group', { name: 'Days each resolved issue spent in each state' }) },
   { name: 'your dashboard', path: '/dashboard', ready: (p) => p.getByRole('heading', { name: 'How long work takes, the last 90 days' }) },
   { name: 'importing', path: '/import', ready: (p) => p.getByRole('heading', { name: 'Upload an export' }) },
   { name: 'an import from YouTrack', path: fromYouTrack, ready: (p) => p.getByRole('heading', { name: 'Its columns' }) },

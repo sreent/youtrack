@@ -18,6 +18,7 @@ import { createBoard, boardView, createSprint, setSprintIssues } from '../src/se
 import { mentionsConsumer, mentionsOf } from '../src/services/mentions';
 import { getSchedule } from '../src/services/planning';
 import { createdResolvedReport, timeReport } from '../src/services/reports';
+import { averageAgeReport, issuesPerFieldReport, matrixReport } from '../src/services/more-reports';
 import { logWork, listWorkItems } from '../src/services/workitems';
 import { recipientsFor } from '../src/workflow/tell';
 import { eventLimited } from '../src/services/access';
@@ -212,6 +213,14 @@ describe('everything else that reads issues', () => {
     expect(await counted(chloe)).toBe(2);
     const created = async (ctx: Ctx) => (await createdResolvedReport(ctx, { project: 'BACK' })).buckets.reduce((n, b) => n + b.created, 0);
     expect(await created(chloe)).toBeGreaterThan(await created(ben));
+    // And the reports of D44: limited issues count for their readers alone, as search finds them.
+    const found = async (ctx: Ctx, q: string) => (await countIssues(ctx, q)).total;
+    for (const who of [ben, chloe]) {
+      expect((await issuesPerFieldReport(who, { project: 'BACK', field: 'Priority' })).total).toBe(await found(who, 'project: BACK'));
+      expect((await matrixReport(who, { project: 'BACK', rows: 'Priority', columns: 'State' })).total).toBe(await found(who, 'project: BACK'));
+      expect((await averageAgeReport(who, { project: 'BACK' })).days.at(-1)!.open).toBe(await found(who, 'project: BACK #Unresolved'));
+    }
+    expect(await found(chloe, 'project: BACK')).toBeGreaterThan(await found(ben, 'project: BACK'));
   });
 
   it('tells a rule\'s message only to who sees the issue', async () => {

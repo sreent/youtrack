@@ -5,6 +5,8 @@
  */
 import { formatPeriod } from '@a4a/shared';
 import { z } from 'zod';
+import { badRequest } from '../lib/errors';
+import { averageAgeReport, issuesPerFieldReport, matrixReport, timeInStateReport } from '../services/more-reports';
 import { burndownReport, createdResolvedReport, cycleTimeReport, flowReport, timeReport } from '../services/reports';
 import { defineTool, type ToolDef } from './types';
 
@@ -20,11 +22,17 @@ const getReportTool = defineTool({
     '- cycle_time: days from first In Progress to resolved, with percentiles (p50, p85), for issues resolved in the window.',
     '- created_resolved: issues created against resolved, by day, week or month.',
     '- time: work logged by person, issue, project and week, with each issue\'s estimate against what was spent.',
-    'Windows default to the last 30 days (90 for cycle time, 28 for time); dates are YYYY-MM-DD.',
+    '- issues_per_field: how many issues (as they are now) have each value of field (any field, or Project), each with the query that finds them.',
+    '- matrix: field against by_field, issues in each pair of values, with totals.',
+    '- average_age: each day, the open issues and how old they were on average; with field, by its value as it stood.',
+    '- time_in_state: for issues resolved in the window, the median and 85th percentile of days spent in each state (or a board\'s columns, with board); and who has waited longest where.',
+    'Windows default to the last 30 days (90 for cycle time and time in state, 28 for time); dates are YYYY-MM-DD.',
   ].join('\n'),
   input: z.object({
-    report: z.enum(['burndown', 'flow', 'cycle_time', 'created_resolved', 'time']),
-    board: z.string().optional().describe('burndown: board name or id (its current sprint)'),
+    report: z.enum(['burndown', 'flow', 'cycle_time', 'created_resolved', 'time', 'issues_per_field', 'matrix', 'average_age', 'time_in_state']),
+    field: z.string().optional().describe('issues_per_field, matrix (rows), average_age: a field by name, or Project'),
+    by_field: z.string().optional().describe('matrix: the field across the columns'),
+    board: z.string().optional().describe('burndown: board name or id (its current sprint); time_in_state: its columns'),
     sprint: z.string().optional().describe('burndown: sprint id, or its name with board'),
     by: z.enum(['estimate', 'count']).optional().describe('burndown: by estimate (default) or by issue count'),
     project: z.string().optional().describe('Project key'),
@@ -120,8 +128,65 @@ const getReportTool = defineTool({
           summary: `${formatPeriod(t.totalMinutes)} logged from ${t.from} to ${t.to}`,
         };
       }
+      case 'issues_per_field': {
+        const r = await issuesPerFieldReport(ctx, { project: input.project, query: input.query, field: needs(input.field, 'field'), interval: input.interval, timeZone: tz });
+        const top = r.values.filter((v) => v.key !== '').slice(0, 3);
+        return {
+          data: { field: r.field.name, issues: r.total, values: r.values.map((v) => ({ value: v.label, issues: v.count, query: v.query ?? undefined })) },
+          summary: `${r.total} issues by ${r.field.name}: ${[...top.map((v) => `${v.count} ${v.label}`), ...(r.noValue ? [`${r.noValue} with none`] : [])].join(', ') || 'none'}`,
+        };
+      }
+      case 'matrix': {
+        const m = await matrixReport(ctx, { project: input.project, query: input.query, rows: needs(input.field, 'field'), columns: needs(input.by_field, 'by_field'), interval: input.interval, timeZone: tz });
+        return {
+          data: {
+            rows: m.rows.field.name,
+            columns: m.columns.field.name,
+            columnValues: m.columns.values.map((c) => c.label),
+            table: m.rows.values.map((r, i) => ({ [m.rows.field.name]: r.label, counts: m.cells[i]!.map((c) => c.count), total: r.count })),
+            columnTotals: m.columns.values.map((c) => c.count),
+            issues: m.total,
+          },
+          summary: `${m.total} issues by ${m.rows.field.name} (${m.rows.values.length} rows) against ${m.columns.field.name} (${m.columns.values.length} columns)`,
+        };
+      }
+      case 'average_age': {
+        const a = await averageAgeReport(ctx, { project: input.project, query: input.query, from: input.from, to: input.to, field: input.field, timeZone: tz });
+        const last = a.days.at(-1);
+        return {
+          data: {
+            from: a.scope.from,
+            to: a.scope.to,
+            days: a.days.map((d) => ({ date: d.date, open: d.open, averageDays: d.averageDays })),
+            byValue: a.values.length ? a.values.map((v) => ({ value: v.label, open: v.open, averageDays: v.averageDays, oldestDays: v.oldestDays })) : undefined,
+            oldest: a.oldest.map((o) => ({ issue: o.issue, days: o.days })),
+          },
+          summary: last ? `On ${last.date}: ${last.open} open, ${last.averageDays ?? 0} days old on average (median ${last.medianDays ?? 0})` : 'No days to show',
+        };
+      }
+      case 'time_in_state': {
+        const t = await timeInStateReport(ctx, { project: input.project, query: input.query, from: input.from, to: input.to, board: input.board, timeZone: tz });
+        const slow = [...t.states].filter((x) => x.p85 !== null && !x.resolved).sort((a, b) => (b.p85 ?? 0) - (a.p85 ?? 0))[0];
+        return {
+          data: {
+            from: t.scope.from,
+            to: t.scope.to,
+            by: t.by,
+            board: t.board?.name,
+            resolvedIssues: t.issues.length,
+            states: t.states.map((x) => ({ [t.by]: x.name, issues: x.issues, medianDays: x.p50, p85Days: x.p85, openNow: x.now })),
+            longestWaiting: t.ongoing.slice(0, 10).map((o) => ({ issue: o.issue, [t.by]: o.state, days: o.daysInState })),
+          },
+          summary: slow ? `${t.issues.length} issues resolved; the longest stay is in ${slow.name}: half spent ${slow.p50} days or less there, 85% ${slow.p85} or less` : `${t.issues.length} issues resolved in the window`,
+        };
+      }
     }
   },
 });
+
+function needs(v: string | undefined, name: string): string {
+  if (!v?.trim()) throw badRequest(`This report needs ${name}`, name === 'by_field' ? 'Give by_field: the field across the columns, e.g. State.' : 'Give field: a field\'s name, e.g. Priority, or Project.');
+  return v;
+}
 
 export const reportTools: ToolDef[] = [getReportTool] as unknown as ToolDef[];

@@ -12,8 +12,19 @@ import {
   TimeReportQuery,
   TimeReportSchema,
 } from '@a4a/shared';
-import { formatPeriod } from '@a4a/shared';
+import {
+  AverageAgeQuery,
+  AverageAgeSchema,
+  formatPeriod,
+  IssuesPerFieldQuery,
+  IssuesPerFieldSchema,
+  MatrixQuery,
+  MatrixSchema,
+  TimeInStateQuery,
+  TimeInStateSchema,
+} from '@a4a/shared';
 import { csvResponse, toCsv } from '../../reports/csv';
+import { averageAgeReport, issuesPerFieldReport, matrixReport, timeInStateReport } from '../../services/more-reports';
 import { burndownReport, createdResolvedReport, cycleTimeReport, flowReport, timeEntries, timeReport } from '../../services/reports';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
@@ -175,4 +186,101 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
       );
     },
   );
+
+  // More reports (D44) ------------------------------------------------------
+
+  const now = 'The issues a query finds as they are now (a project\'s, or all you can see, without one).';
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/reports/issues-per-field',
+      tags,
+      summary: "Issues per field: how many have each of a field's values",
+      description: `${now} Any field, of any type, or Project; dates by day, week or month. Each value carries the query that finds its issues; a multi-valued field counts an issue under each of its values.`,
+      query: IssuesPerFieldQuery,
+      response: IssuesPerFieldSchema,
+    },
+    ({ ctx, query }) => issuesPerFieldReport(ctx, query),
+  );
+  route(app, { method: 'get', path: '/reports/issues-per-field.csv', tags, summary: 'Issues per field as CSV', description: csv, query: IssuesPerFieldQuery }, async ({ ctx, query }) => {
+    const r = await issuesPerFieldReport(ctx, query);
+    return csvResponse(toCsv([r.field.name, 'Issues'], [...r.values.map((v) => [v.label, v.count]), ['Total issues', r.total]], new Set([0])), `issues-per-${r.field.name}-${scopeName(query)}.csv`);
+  });
+
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/reports/matrix',
+      tags,
+      summary: 'Matrix: two fields against each other, with the issues in each pair of values',
+      description: `${now} Rows and columns are any two fields (or Project); each cell, row and column carries the query that finds its issues, with totals.`,
+      query: MatrixQuery,
+      response: MatrixSchema,
+    },
+    ({ ctx, query }) => matrixReport(ctx, query),
+  );
+  route(app, { method: 'get', path: '/reports/matrix.csv', tags, summary: 'Matrix as CSV', description: csv, query: MatrixQuery }, async ({ ctx, query }) => {
+    const m = await matrixReport(ctx, query);
+    return csvResponse(
+      toCsv(
+        [`${m.rows.field.name} \\ ${m.columns.field.name}`, ...m.columns.values.map((c) => c.label), 'Total'],
+        [...m.rows.values.map((r, i) => [r.label, ...m.cells[i]!.map((c) => c.count), r.count]), ['Total', ...m.columns.values.map((c) => c.count), m.total]],
+        new Set([0]),
+      ),
+      `matrix-${m.rows.field.name}-${m.columns.field.name}-${scopeName(query)}.csv`,
+    );
+  });
+
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/reports/average-age',
+      tags,
+      summary: 'Average age: how long open issues had been open, each day as it stood',
+      description:
+        'From the activity log: each day, the issues unresolved at its end and their average and median age (days since each was created). With a field, also by its value as it stood that day. A moved issue counts in the project it was in.',
+      query: AverageAgeQuery,
+      response: AverageAgeSchema,
+    },
+    ({ ctx, query }) => averageAgeReport(ctx, query),
+  );
+  route(app, { method: 'get', path: '/reports/average-age.csv', tags, summary: 'Average age, day by day, as CSV', description: csv, query: AverageAgeQuery }, async ({ ctx, query }) => {
+    const a = await averageAgeReport(ctx, query);
+    return csvResponse(
+      toCsv(
+        ['Date', 'Open', 'Average age (days)', 'Median age (days)', ...a.values.map((v) => `${v.label} (days)`)],
+        a.days.map((d, i) => [d.date, d.open, d.averageDays, d.medianDays, ...a.values.map((v) => v.days[i] ?? null)]),
+      ),
+      `average-age-${scopeName(query)}-${a.scope.from}-${a.scope.to}.csv`,
+    );
+  });
+
+  route(
+    app,
+    {
+      method: 'get',
+      path: '/reports/time-in-state',
+      tags,
+      summary: 'Time in state: how long issues spend in each state, or in each of a board\'s columns',
+      description:
+        "From the activity log: for issues resolved in the window, the days each spent in each state until then, and per state the median and 85th percentile; and how long each open issue has been where it is. With a board, its columns over its projects and query.",
+      query: TimeInStateQuery,
+      response: TimeInStateSchema,
+    },
+    ({ ctx, query }) => timeInStateReport(ctx, query),
+  );
+  route(app, { method: 'get', path: '/reports/time-in-state.csv', tags, summary: 'Time in state, issue by issue, as CSV', description: csv, query: TimeInStateQuery }, async ({ ctx, query }) => {
+    const t = await timeInStateReport(ctx, query);
+    return csvResponse(
+      toCsv(
+        ['Issue', 'Summary', 'Resolved', ...t.states.map((s) => `${s.name} (days)`), 'Total (days)'],
+        t.issues.map((i) => [i.issue, i.summary, i.resolved, ...i.days, i.totalDays]),
+        new Set([1]),
+      ),
+      `time-in-${t.by}-${t.board ? t.board.name : scopeName(query)}-${t.scope.from}-${t.scope.to}.csv`,
+    );
+  });
 }

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ApiError, del } from '../api/client';
-import { useBoards, useMe, useProjects, useSavedSearches } from '../api/queries';
+import { useBoards, useFields, useMe, useProjects, useSavedSearches } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Confirm } from '../features/common/Confirm';
 import { Said } from '../features/common/bits';
@@ -30,6 +30,13 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [width, setWidth] = useState<'half' | 'full'>('half');
+  // The reports D44 adds: a field (or two), or a board's columns.
+  const fieldNames = ['Project', ...(useFields().data ?? []).map((f) => f.name).sort((a, b) => a.localeCompare(b))];
+  const allBoards = useBoards().data ?? [];
+  const [field, setField] = useState('');
+  const [rows, setRows] = useState('Priority');
+  const [columns, setColumns] = useState('State');
+  const [columnsOf, setColumnsOf] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
 
   const build = (): Widget | string => {
@@ -41,7 +48,17 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
     }
     if (report === 'burndown') return board ? { ...base, kind: 'report', params: { report: 'burndown', board, by: 'estimate' } } : 'Choose the board whose current sprint it shows.';
     const scope = { ...(project ? { project } : {}), ...(query.trim() ? { query: query.trim() } : {}), days };
-    return { ...base, kind: 'report', params: { report, ...scope } as ReportWidgetParams };
+    const extra =
+      report === 'issues-per-field'
+        ? { field: field || 'Priority' }
+        : report === 'matrix'
+          ? { rows, columns }
+          : report === 'average-age'
+            ? field ? { field } : {}
+            : report === 'time-in-state' && columnsOf
+              ? { board: columnsOf }
+              : {};
+    return { ...base, kind: 'report', params: { report, ...scope, ...extra } as ReportWidgetParams };
   };
 
   return (
@@ -116,6 +133,60 @@ function AddWidget({ onAdd }: { onAdd: (w: Widget) => void }) {
                 {[7, 14, 30, 90, 365].map((d) => (
                   <option key={d} value={d}>
                     The last {d} days
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+        {kind === 'report' && (report === 'issues-per-field' || report === 'average-age') ? (
+          <div className="form-fields">
+            <div className="form-field">
+              <label htmlFor={`${id}-field`}>{report === 'average-age' ? 'By field' : 'Field'}</label>
+              <select id={`${id}-field`} value={field || (report === 'average-age' ? '' : 'Priority')} onChange={(e) => setField(e.target.value)}>
+                {report === 'average-age' ? <option value="">None: the average only</option> : null}
+                {fieldNames.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+        {kind === 'report' && report === 'matrix' ? (
+          <div className="form-fields">
+            <div className="form-field">
+              <label htmlFor={`${id}-rows`}>Rows</label>
+              <select id={`${id}-rows`} value={rows} onChange={(e) => setRows(e.target.value)}>
+                {fieldNames.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-field">
+              <label htmlFor={`${id}-columns`}>Columns</label>
+              <select id={`${id}-columns`} value={columns} onChange={(e) => setColumns(e.target.value)}>
+                {fieldNames.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+        {kind === 'report' && report === 'time-in-state' ? (
+          <div className="form-fields">
+            <div className="form-field">
+              <label htmlFor={`${id}-columns-of`}>Columns of</label>
+              <select id={`${id}-columns-of`} value={columnsOf} onChange={(e) => setColumnsOf(e.target.value)}>
+                <option value="">No board: states</option>
+                {allBoards.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
                   </option>
                 ))}
               </select>
