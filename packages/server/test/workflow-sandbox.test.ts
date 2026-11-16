@@ -39,7 +39,9 @@ describe('the sandbox', () => {
     const loop = await runScript('while (true) {}', input, { timeMs: 40 });
     expect(loop.error).toMatchObject({ kind: 'time' });
     expect(loop.ms).toBeLessThan(1000);
-    const hog = await runScript('const xs = []; for (let i = 0; ; i++) xs.push("x".repeat(1000000) + i);', input, { timeMs: 5000 });
+    // Many small allocations reach the limit in well under a second. (One built-in that allocates
+    // megabytes at once runs to its end before the limits are looked at: D40, "What it costs".)
+    const hog = await runScript('const xs = []; for (let i = 0; ; i++) xs.push({ i, s: "a" + i });', input, { timeMs: 10_000 });
     expect(hog.error).toMatchObject({ kind: 'memory' });
   });
 

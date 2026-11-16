@@ -977,8 +977,9 @@ D25's rules say what they do in the query and command languages. Some workflows 
 - A project with no scripted guards pays nothing on the write path: the guards come from the schema snapshot in memory, and a filter finds none.
 - A change to a governed field checks its machine's transitions and one condition, in the transaction.
 - The module is loaded once per process.
+- The time limit is looked at between a script's steps, and a built-in runs to its end. One that allocates megabytes at once (a string of a million characters, an array of a hundred thousand elements), over and over until it reaches the memory limit, can take seconds before it's stopped (measured: 4 to 15 s, whatever the limit). Ordinary code, loops included, stops at its limit (a loop of small allocations, within 15 ms of 60 ms). Only administrators write scripts, and a script that does this is stopped, refuses nothing and is written in its run log; running each script in a worker thread that's killed at its limit would make the limit hard.
 
-**Revisit when:** scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
+**Revisit when:** scripts come from less trusted hands than administrators', which wants each run in a worker thread killed at its limit; scripts need to call out (a webhook from a script, which would go through D32's signed call, never a raw `fetch`), share code between them (a library per project), or run longer than a request should wait, which wants a queue and a worker of their own.
 
 ## Consistency and concurrency
 
