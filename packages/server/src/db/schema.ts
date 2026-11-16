@@ -335,6 +335,8 @@ export const comments = pgTable(
     channel: text('channel').notNull().default('web'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
+    /** Raised by every edit, so one made against an older version is refused (a ticked checklist item, say: D39). */
+    version: integer('version').notNull().default(1),
     deletedAt: ts('deleted_at'),
     searchVector: tsvector('search_vector').generatedAlwaysAs(sql`to_tsvector('english', coalesce(text, ''))`),
     /** 'internal' (the team alone) or 'public' (also the requester of a help desk request, who is emailed it). */

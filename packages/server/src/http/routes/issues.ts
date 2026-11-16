@@ -2,7 +2,6 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import {
   CommandBody,
   CommandResultSchema,
-  CommentBody,
   CommentSchema,
   CountBody,
   CountResultSchema,
@@ -19,6 +18,7 @@ import {
   SavedSearchSchema,
   QueryProblemSchema,
   SuggestItemSchema,
+  UpdateCommentBody,
   UpdateIssueBody,
   WorkItemBody,
   WorkItemSchema,
@@ -96,7 +96,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility }),
   );
-  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment', params: z.object({ id: z.string() }), body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text));
+  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment, against the version you read', params: z.object({ id: z.string() }), body: UpdateCommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text, body.expectedVersion));
   route(app, { method: 'delete', path: '/comments/{id}', tags: ['Comments'], summary: 'Delete your comment', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteComment(ctx, params.id);
     return null;
