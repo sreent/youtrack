@@ -279,7 +279,9 @@ describe('groups from the identity provider', () => {
     expect((await call('POST', '/groups', benToken, { name: 'Nope' })).status).toBe(403);
     expect((await call('GET', '/groups', benToken)).body.map((g: { name: string }) => g.name)).toContain('Over HTTP');
     expect((await call('POST', '/projects/OPEN/groups', adminToken, { group: 'Over HTTP', role: 'viewer' })).body).toMatchObject({ group: { name: 'Over HTTP' }, role: 'viewer' });
-    expect((await call('GET', '/projects/OPEN/groups', benToken)).body.map((g: { group: { name: string } }) => g.group.name)).toContain('Over HTTP');
+    const listed = (await call('GET', '/projects/OPEN/groups', benToken)).body as { group: { name: string }; people: { login: string }[] }[];
+    // Anyone who sees the project sees who is in it, through its groups too.
+    expect(listed.find((g) => g.group.name === 'Over HTTP')!.people.map((p) => p.login)).toEqual(['ben']);
     const hidden = await call('GET', '/projects/SECRET/groups', benToken);
     const missing = await call('GET', '/projects/NOPE/groups', benToken);
     expect(hidden.status).toBe(404);

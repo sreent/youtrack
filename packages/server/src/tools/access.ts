@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getGroup, listProjectGroups } from '../services/groups';
+import { listProjectGroups } from '../services/groups';
 import { listMembers } from '../services/members';
 import { getProject } from '../services/projects';
 import { defineTool, type ToolDef } from './types';
@@ -15,11 +15,12 @@ const listProjectMembers = defineTool({
   kind: 'reads',
   async run(ctx, input) {
     const [project, members, groupRoles] = [await getProject(ctx, input.project), await listMembers(ctx, input.project), await listProjectGroups(ctx, input.project)];
-    const groups = [];
-    for (const g of groupRoles) {
-      const detail = await getGroup(ctx, g.group.id);
-      groups.push({ name: g.group.name, role: g.role, people: detail.members.map((m) => m.user.login), fromIdentityProvider: g.group.providerName ? true : undefined });
-    }
+    const groups = groupRoles.map((g) => ({
+      name: g.group.name,
+      role: g.role,
+      people: g.people.map((u) => u.login),
+      fromIdentityProvider: g.group.providerName ? true : undefined,
+    }));
     return {
       data: {
         project: project.key,

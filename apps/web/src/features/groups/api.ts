@@ -13,7 +13,8 @@ export const useGroups = () => useQuery({ queryKey: groupKeys.all, queryFn: () =
 
 export const useGroup = (id: string) => useQuery({ queryKey: groupKeys.one(id), queryFn: () => get<GroupDetail>(`/groups/${encodeURIComponent(id)}`) });
 
-export const useProjectGroups = (key: string) => useQuery({ queryKey: groupKeys.project(key), queryFn: () => get<ProjectGroup[]>(`/projects/${key}/groups`) });
+export const useProjectGroups = (key: string, enabled = true) =>
+  useQuery({ queryKey: groupKeys.project(key), queryFn: () => get<ProjectGroup[]>(`/projects/${key}/groups`), enabled: enabled && Boolean(key) });
 
 /** Where a group's people come from, in words. */
 export function comesFrom(g: { providerName: string | null }, provider: string | null): string {

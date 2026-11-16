@@ -273,16 +273,21 @@ export async function listProjectGroups(ctx: Ctx, key: string): Promise<ProjectG
     .from(projectGroupRoles)
     .innerJoin(groups, eq(groups.id, projectGroupRoles.groupId))
     .where(eq(projectGroupRoles.projectId, project.id));
-  const n = await sizes(
-    ctx.db,
-    rows.map((r) => r.group.id),
-  );
+  // Who is in each, in one read: anyone who sees a project sees who is in it, through a group too.
+  const ids = rows.map((r) => r.group.id);
+  const inThem = ids.length ? await ctx.db.select().from(groupMembers).where(inArray(groupMembers.groupId, ids)) : [];
   const order: Record<ProjectRole, number> = { manager: 0, member: 1, viewer: 2 };
   return rows
     .filter((r) => isProjectRole(r.role.role))
     .map((r) => {
       const by = r.role.addedById ? s.users.get(r.role.addedById) : undefined;
-      return { group: refDto(r.group, n.get(r.group.id) ?? 0), role: r.role.role as ProjectRole, addedAt: r.role.createdAt.toISOString(), addedBy: by ? userRefDto(by) : null };
+      const people = inThem
+        .filter((m) => m.groupId === r.group.id)
+        .map((m) => s.users.get(m.userId))
+        .filter((u): u is UserRow => Boolean(u))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(userRefDto);
+      return { group: refDto(r.group, people.length), role: r.role.role as ProjectRole, people, addedAt: r.role.createdAt.toISOString(), addedBy: by ? userRefDto(by) : null };
     })
     .sort((a, b) => order[a.role] - order[b.role] || a.group.name.localeCompare(b.group.name));
 }

@@ -1926,6 +1926,7 @@ export const ProjectGroupSchema = z
   .object({
     group: GroupRefSchema,
     role: z.enum(PROJECT_ROLES),
+    people: z.array(UserRefSchema).describe("Who is in it: as anyone who sees a project sees who is in it, so a members-only project's issues go only to them"),
     addedAt: timestamp,
     addedBy: UserRefSchema.nullable(),
   })

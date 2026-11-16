@@ -63,7 +63,19 @@ test('an administrator makes a group and puts someone in it, and a project gives
   await role.selectOption('member');
   await expect(table.getByRole('status').filter({ hasText: `Everyone in ${name} is at least a member now.` })).toBeVisible();
   const saved = await api.get<ProjectGroup[]>(`/projects/${key}/groups`);
-  expect(saved.map((g) => [g.group.name, g.role])).toEqual([[name, 'member']]);
+  expect(saved.map((g) => [g.group.name, g.role, g.people.map((p) => p.login)])).toEqual([[name, 'member', [ines.login]]]);
+
+  // A members-only project's issues go to people who see it: the group's people among them, nobody else.
+  const outsider = await person(api, 'Pavel Novak');
+  const issue = await api.createIssue({ project: key, summary: 'Close the quarter', fields: { Type: 'Task' } });
+  await page.goto(`/issues/${issue.id}`);
+  const fields = page.getByRole('complementary', { name: `Fields of ${issue.id}` });
+  await fields.getByRole('button', { name: /^Assignee / }).click();
+  const choices = fields.getByRole('listbox', { name: 'Assignee' });
+  await expect(choices.getByRole('option', { name: new RegExp(ines.name) })).toBeVisible();
+  await expect(choices.getByRole('option', { name: new RegExp(outsider.name) })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.goto(`/projects/${key}`);
 
   // The group's page says where it has a role.
   await table.getByRole('link', { name }).click();
