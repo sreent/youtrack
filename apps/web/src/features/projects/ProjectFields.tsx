@@ -9,20 +9,20 @@ import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 export const TYPE_WORDS: Record<FieldType, string> = {
-  enum: 'a choice from a list',
-  state: 'a state, resolved or not',
-  user: 'a person',
+  enum: t('projects.projectFields.aChoiceFromAList2'),
+  state: t('projects.projectFields.aStateResolvedOrNot'),
+  user: t('projects.projectFields.aPerson'),
   version: 'versions',
-  string: 'a line of text',
+  string: t('projects.projectFields.aLineOfText'),
   text: 'text',
-  integer: 'a whole number',
-  float: 'a number',
-  date: 'a date',
-  period: 'a duration, such as 2d 4h',
-  group: 'a group of people',
-  build: 'a build, from a list CI adds to',
-  owned: 'a choice from a list, each with an owner',
-  datetime: 'a date and a time',
+  integer: t('projects.projectFields.aWholeNumber'),
+  float: t('projects.projectFields.aNumber'),
+  date: t('projects.projectFields.aDate'),
+  period: t('projects.projectFields.aDurationSuchAs2d'),
+  group: t('projects.projectFields.aGroupOfPeople'),
+  build: t('projects.projectFields.aBuildFromAList'),
+  owned: t('projects.projectFields.aChoiceFromAList'),
+  datetime: t('projects.projectFields.aDateAndATime'),
 };
 
 const OPTION_TYPES: FieldType[] = ['enum', 'state', 'version'];

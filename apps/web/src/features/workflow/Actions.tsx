@@ -119,7 +119,7 @@ function ActionCard({ action, manages, isAdmin, onEdit }: { action: WorkflowActi
       </div>
       <p className="rule-sentence">{tr('workflow.actions.whenSomeoneRunsItThen', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, v: action.condition ? (
           <>{tr('workflow.actions.onAnIssueThatMatches', { code: <code>{action.condition}</code> })}</>
-        ) : null, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, v2: action.script ? 'run its script' : <>{tr('workflow.actions.apply', { code: <code>{action.command}</code> })}</> })}</p>
+        ) : null, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, v2: action.script ? t('workflow.actions.runItsScript') : <>{tr('workflow.actions.apply', { code: <code>{action.command}</code> })}</> })}</p>
       {action.script ? (
         <details>
           <summary>{t('workflow.actions.itsScript')}</summary>

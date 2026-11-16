@@ -172,9 +172,9 @@ export function FromApiForm() {
           <legend>{t('imports.fromApi.withEachIssue')}</legend>
           {(
             [
-              ['comments', 'Its comments'],
+              ['comments', t('imports.fromApi.itsComments')],
               ['work', source === 'youtrack' ? t('imports.fromApi.itsWorkItems') : source === 'redmine' ? t('imports.fromApi.itsTimeEntries') : t('imports.fromApi.itsWorklogs')],
-              ['files', 'Its files'],
+              ['files', t('imports.fromApi.itsFiles')],
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="choice">

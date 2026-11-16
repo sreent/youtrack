@@ -32,8 +32,8 @@ function Stands({ email }: { email: UserEmail }) {
 
 /** What's known of an email, under it: primary, and who confirmed it. */
 function about(email: UserEmail, meId: string | undefined): string {
-  const parts = [email.primary ? 'primary: where a4a writes' : null];
-  if (email.confirmed && email.confirmedBy) parts.push(`confirmed by ${email.confirmedBy.id === meId ? 'you' : email.confirmedBy.name}`);
+  const parts = [email.primary ? t('vcs.people.primaryWhereA4aWrites') : null];
+  if (email.confirmed && email.confirmedBy) parts.push(t('vcs.people.confirmedBy', { v: email.confirmedBy.id === meId ? 'you' : email.confirmedBy.name }));
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -63,12 +63,12 @@ export function YourEmails() {
   });
   const send = useMutation({
     mutationFn: (e: string) => post<PersonEmails>('/me/emails/send', { email: e }),
-    onSuccess: (data, e) => done(data, `A new link went to ${e}.`),
+    onSuccess: (data, e) => done(data, t('vcs.people.aNewLinkWentTo', { e: e })),
     onError: failed,
   });
   const primary = useMutation({
     mutationFn: (e: string) => post<PersonEmails>('/me/emails/primary', { email: e }),
-    onSuccess: (data, e) => done(data, `${e} is your primary email now.`),
+    onSuccess: (data, e) => done(data, t('vcs.people.isYourPrimaryEmailNow', { e: e })),
     onError: failed,
   });
   const remove = useMutation({

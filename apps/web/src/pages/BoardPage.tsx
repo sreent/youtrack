@@ -95,13 +95,13 @@ export default function BoardPage() {
   const projects = v.board.projects.map((p) => p.name).join(', ');
   const kind = v.board.sprintsEnabled ? t('page.board.aSprintBoard') : t('page.board.aKanbanBoard');
   const total = v.columns.reduce((n, c) => n + c.count, 0);
-  const points = v.points !== null ? ` ${v.sprint ? v.sprint.name : 'It'} holds ${v.points} story points.` : '';
+  const points = v.points !== null ? t('page.board.holdsStoryPoints', { v: v.sprint ? v.sprint.name : t('page.board.it'), points: v.points }) : '';
   return (
     <>
       <PageHead
         title={v.board.name}
         crumbs={crumbs}
-        about={t('page.board.forInColumnsBy', { kind: kind, v: projects || 'no project', columnField: v.board.columnField, v2: v.board.swimlaneField ? ` and lanes by ${v.board.swimlaneField}` : '', points: points })}
+        about={t('page.board.forInColumnsBy', { kind: kind, v: projects || t('page.board.noProject'), columnField: v.board.columnField, v2: v.board.swimlaneField ? t('page.board.andLanesBy', { swimlaneField: v.board.swimlaneField }) : '', points: points })}
         actions={
           <>
             {v.sprints.length > 1 ? (

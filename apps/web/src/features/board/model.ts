@@ -208,5 +208,5 @@ export function parseCellId(id: string | number): { lane: number; column: number
 export function columnLoad(count: number, limit: number | null): { text: string; over: boolean } {
   if (limit === null || limit === undefined) return { text: String(count), over: false };
   if (count > limit) return { text: t('board.model.ofOverTheLimit', { count: count, limit: limit, v: count - limit }), over: true };
-  return { text: `${count} of ${limit}`, over: false };
+  return { text: t('board.model.of', { count: count, limit: limit }), over: false };
 }

@@ -128,7 +128,7 @@ function AddGroup({ project, listed }: { project: Project; listed: Set<string> }
               </select>
             )}
           </FormField>
-          <FormField label={t('groups.projectGroups.itsRole')} help={roleHelp(roles, role, 'Everyone in it')}>
+          <FormField label={t('groups.projectGroups.itsRole')} help={roleHelp(roles, role, t('groups.projectGroups.everyoneInIt'))}>
             {(id, help) => (
               <select id={id} value={role} onChange={(e) => setRole(e.target.value)} aria-describedby={help}>
                 {roles.map((r) => (

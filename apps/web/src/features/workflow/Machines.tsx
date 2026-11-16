@@ -8,7 +8,7 @@ import { ErrorLine, ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useMachines, workflowKeys } from './api';
-import { t, tr } from '../../i18n';
+import { t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 interface Row {
@@ -36,7 +36,7 @@ const EMPTY_ROW: Row = { name: '', from: '', to: '', condition: '', command: '' 
 function Words({ t }: { t: StateTransition }) {
   return (
     <li>
-      <strong>{t.name}</strong>: {t.from.join(', ').replace('*', 'any state')} → {t.to}
+      <strong>{t.name}</strong>: {t.from.join(', ').replace('*', tx('workflow.machines.anyState'))} → {t.to}
       {t.condition ? (
         <>{tr('workflow.machines.ifItMatches', { code: <code>{t.condition}</code> })}</>
       ) : null}
@@ -48,7 +48,7 @@ function Words({ t }: { t: StateTransition }) {
 }
 
 function problemWords(p: WorkflowProblem): string {
-  return `${p.transition !== null && p.transition !== undefined ? `Transition ${p.transition + 1}: ` : ''}${p.message}${p.hint ? `. ${p.hint}` : ''}`;
+  return `${p.transition !== null && p.transition !== undefined ? t('workflow.machines.transition', { v: p.transition + 1 }) : ''}${p.message}${p.hint ? `. ${p.hint}` : ''}`;
 }
 
 /** The form for one machine: which field, and its transitions, a row each. */

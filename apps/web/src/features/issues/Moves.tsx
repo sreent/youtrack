@@ -56,7 +56,7 @@ export function VoteToggle({ issue, mine }: { issue: IssueDetail; mine: boolean 
         <span>{t('issues.moves.vote')}</span>
         <span className="watch-count">
           <span aria-hidden="true">{issue.votes}</span>
-          <span className="hidden">, {issue.votes === 1 ? t('issues.moves.n1Vote') : `${issue.votes} votes`}</span>
+          <span className="hidden">, {issue.votes === 1 ? t('issues.moves.n1Vote') : t('issues.moves.votes', { votes: issue.votes })}</span>
         </span>
       </button>
       {error ? <ErrorLine>{error}</ErrorLine> : null}

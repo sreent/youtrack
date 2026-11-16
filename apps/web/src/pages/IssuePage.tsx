@@ -154,7 +154,7 @@ function Summary({ issue }: { issue: IssueDetail }) {
       const r = await post<{ summary: string }>(`/issues/${issue.id}/summarize`);
       setState({ text: r.summary });
     } catch (e) {
-      setState({ error: errorText(e, 'The assistant couldn’t summarise this issue.') });
+      setState({ error: errorText(e, t('page.issue.theAssistantCouldnTSummarise')) });
     }
   };
   if (state === null)
@@ -330,7 +330,7 @@ export default function IssuePage() {
         meta={
           <>
             <span>
-              {request.data ? t('page.issue.askedByThroughTheHelp', { name: request.data.requester.name }) : t('page.issue.reportedBy', { v: data.reporter?.name ?? 'someone' })}{' '}
+              {request.data ? t('page.issue.askedByThroughTheHelp', { name: request.data.requester.name }) : t('page.issue.reportedBy', { v: data.reporter?.name ?? t('page.issue.someone') })}{' '}
               <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</time>
             </span>
             {data.tags.length ? (

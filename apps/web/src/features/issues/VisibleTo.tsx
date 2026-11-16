@@ -12,7 +12,7 @@ import { t, tr } from '../../i18n';
 /** Who besides the few who always see it, as people's and groups' names: "Erin Hall, Security". */
 export function audience(v: VisibleToDto): string {
   const names = [...v.users.map((u) => u.name), ...v.groups.map((g) => g.name)];
-  return names.length ? names.join(', ') : 'nobody else';
+  return names.length ? names.join(', ') : t('issues.visibleTo.nobodyElse');
 }
 
 /** What a limit asks for: logins and group ids. */

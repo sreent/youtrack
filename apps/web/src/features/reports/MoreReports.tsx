@@ -8,11 +8,11 @@ import type { AverageAge, IssuesPerField, Matrix, TimeInState, ValueCount } from
 import { useId } from 'react';
 import { Link } from 'react-router';
 import { labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, daysOf, type Frame } from './chart';
-import { t as tx, tr } from '../../i18n';
+import { t as tx, tr, monthNames } from '../../i18n';
 
 const issuesHref = (query: string) => `/issues?q=${encodeURIComponent(query)}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = monthNames();
 const dayMonth = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
 const fixed1 = (n: number | null) => (n === null ? '—' : String(Math.round(n * 10) / 10));
 
@@ -21,7 +21,7 @@ function Count({ n, query, shaded }: { n: number; query: string | null; shaded?:
   if (!n || query === null) return <>{n}</>;
   return (
     // On a shaded cell, the figure keeps the shade's own ink, as the load grid's figures do.
-    <Link to={issuesHref(query)} title={tx('reports.moreReports.open', { v: n === 1 ? 'this issue' : `these ${n} issues` })} style={shaded ? { color: 'inherit' } : undefined}>
+    <Link to={issuesHref(query)} title={tx('reports.moreReports.open', { v: n === 1 ? tx('reports.moreReports.thisIssue') : tx('reports.moreReports.theseIssues', { n: n }) })} style={shaded ? { color: 'inherit' } : undefined}>
       {n}
     </Link>
   );
@@ -63,7 +63,7 @@ function FiguresTable({ label, children }: { label: string; children: React.Reac
 
 export function IssuesPerFieldView({ r, compact }: { r: IssuesPerField; compact?: boolean }) {
   if (!r.total) return <p className="note">{tx('reports.moreReports.noIssuesToCountNothing')}</p>;
-  const by = r.interval ? ` by ${r.interval}` : '';
+  const by = r.interval ? tx('reports.moreReports.by', { interval: r.interval }) : '';
   return (
     <div className="stack">
       <p className="note">{tr('reports.moreReports.byEachCountOpensIts', { plural: plural(r.total, 'issue'), name: r.field.name, by: by, v: r.field.multi ? tx('reports.moreReports.anIssueWithSeveralValues') : '' })}</p>
@@ -102,7 +102,7 @@ const shade = (n: number, max: number) => (n === 0 ? 0 : n * 2 <= max ? 1 : 2);
 export function MatrixView({ m }: { m: Matrix; compact?: boolean }) {
   if (!m.total) return <p className="note">{tx('reports.moreReports.noIssuesToCountNothing')}</p>;
   const max = Math.max(1, ...m.cells.flat().map((c) => c.count));
-  const corner = `${m.rows.field.name} by ${m.columns.field.name}`;
+  const corner = tx('reports.moreReports.by2', { name: m.rows.field.name, name2: m.columns.field.name });
   return (
     <div className="stack">
       <p className="note">{tr('reports.moreReports.downAcrossEachCountOpens', { plural: plural(m.total, 'issue'), name: m.rows.field.name, name2: m.columns.field.name })}</p>
@@ -179,7 +179,7 @@ function AgeChart({ a, compact }: { a: AverageAge; compact?: boolean }) {
   return (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{tx('reports.moreReports.theAverageAndMedianAge', { v: compact ? ' under it' : ' beside it' })}</title>
+        <title id={titleId}>{tx('reports.moreReports.theAverageAndMedianAge', { v: compact ? tx('reports.moreReports.underIt') : tx('reports.moreReports.besideIt') })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
@@ -224,7 +224,7 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
   if (!last) return <p className="note">{tx('reports.moreReports.noDaysToShowYet')}</p>;
   return (
     <div className="stack">
-      <p className="note">{tr('reports.moreReports.ageCountsFromWhenEach', { v: last.open ? tx('reports.moreReports.openOn', { plural: plural(last.open, 'issue'), dayMonth: dayMonth(last.date), v: last.averageDays === null ? '' : `${daysOf(last.averageDays)} old on average` }) : tx('reports.moreReports.nothingOpenOn', { dayMonth: dayMonth(last.date) }) })}</p>
+      <p className="note">{tr('reports.moreReports.ageCountsFromWhenEach', { v: last.open ? tx('reports.moreReports.openOn', { plural: plural(last.open, 'issue'), dayMonth: dayMonth(last.date), v: last.averageDays === null ? '' : tx('reports.moreReports.oldOnAverage', { daysOf: daysOf(last.averageDays) }) }) : tx('reports.moreReports.nothingOpenOn', { dayMonth: dayMonth(last.date) }) })}</p>
       <div className={compact ? 'stack' : 'chart-box'}>
         <AgeChart a={a} compact={compact} />
         {compact ? null : (
@@ -309,8 +309,8 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
     <div className="stack">
       <p className="note">
         {t.issues.length
-          ? tx('reports.moreReports.resolvedFromToTheBar', { plural: plural(t.issues.length, 'issue'), v: t.board ? `on ${t.board.name} ` : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to), word: word })
-          : tx('reports.moreReports.nothingWasResolvedFromTo', { v: t.board ? `on ${t.board.name} ` : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to) })}
+          ? tx('reports.moreReports.resolvedFromToTheBar', { plural: plural(t.issues.length, 'issue'), v: t.board ? tx('reports.moreReports.on', { name: t.board.name }) : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to), word: word })
+          : tx('reports.moreReports.nothingWasResolvedFromTo', { v: t.board ? tx('reports.moreReports.on', { name: t.board.name }) : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to) })}
       </p>
       <dl className="time-bars" aria-label={tx('reports.moreReports.daysInEach85thPercentile', { word: word })}>
         {t.states.map((s) => {

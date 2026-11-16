@@ -14,9 +14,9 @@ import { currentSubscription, pushKeys, pushSupport, turnPushOff, turnPushOn, us
 import { t, tr } from '../../i18n';
 
 const LEVELS: { value: EmailLevel; name: string; about: string }[] = [
-  { value: 'all', name: 'Everything', about: t('notifications.pushSettings.mentionsAndAssignmentsChangesOn') },
-  { value: 'direct', name: 'Mentions and assignments', about: t('notifications.pushSettings.whenYouReMentionedOr') },
-  { value: 'none', name: 'Never', about: t('notifications.pushSettings.nothingToYourDevicesYour') },
+  { value: 'all', name: t('notifications.pushSettings.everything'), about: t('notifications.pushSettings.mentionsAndAssignmentsChangesOn') },
+  { value: 'direct', name: t('notifications.pushSettings.mentionsAndAssignments'), about: t('notifications.pushSettings.whenYouReMentionedOr') },
+  { value: 'none', name: t('notifications.pushSettings.never'), about: t('notifications.pushSettings.nothingToYourDevicesYour') },
 ];
 
 function failureText(e: unknown): string {
@@ -136,7 +136,7 @@ export function PushSettings({ me }: { me: Me }) {
                 <strong>{d.label}</strong>
                 {d.current ? <span className="badge">{t('notifications.pushSettings.thisDevice')}</span> : null}{' '}
                 <span className="note">
-                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? `last sent ${ago(d.lastSentAt)}` : `added ${ago(d.createdAt)}`}
+                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: ago(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: ago(d.createdAt) })}
                 </span>
               </span>
               <button
@@ -144,7 +144,7 @@ export function PushSettings({ me }: { me: Me }) {
                 className="small"
                 onClick={() => remove.mutate(d.id, { onSuccess: () => (d.current ? void turnPushOff(undefined).then(() => setEndpoint(null)) : undefined) })}
                 disabled={remove.isPending}
-                aria-label={t('notifications.pushSettings.stopPushNotificationsTo', { label: d.label, v: d.current ? ' (this device)' : '' })}
+                aria-label={t('notifications.pushSettings.stopPushNotificationsTo', { label: d.label, v: d.current ? t('notifications.pushSettings.thisDevice2') : '' })}
               >{t('notifications.pushSettings.remove')}</button>
             </li>
           ))}

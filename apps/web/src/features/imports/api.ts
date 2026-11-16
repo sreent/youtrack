@@ -2,6 +2,7 @@
 import type { ApiImportSource, Import, ImportBring, ImportCheck, ImportCredentials, ImportRow, ImportUndo } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError, get, post, qs } from '../../api/client';
+import { t } from '../../i18n';
 
 export const importKeys = {
   all: ['imports'] as const,
@@ -36,7 +37,7 @@ export async function uploadFile(file: File, project: string, source?: string): 
     body: file,
   });
   const body = (await res.json().catch(() => null)) as (Import & { error?: { code: string; message: string; hint?: string } }) | null;
-  if (!res.ok) throw new ApiError(res.status, body?.error?.code ?? 'http_error', body?.error?.message ?? `The upload failed (${res.status})`, body?.error?.hint);
+  if (!res.ok) throw new ApiError(res.status, body?.error?.code ?? 'http_error', body?.error?.message ?? t('imports.api.theUploadFailed', { status: res.status }), body?.error?.hint);
   return body as Import;
 }
 

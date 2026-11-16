@@ -127,7 +127,7 @@ export function AttachmentList({
       if (row.stop.signal.aborted) {
         drop(row.key);
         setSaid(t('attachments.attachmentList.wasnTAttached', { name: row.file.name }));
-      } else update(row.key, { error: errorText(e, `${row.file.name} wasn't attached.`) });
+      } else update(row.key, { error: errorText(e, t('attachments.attachmentList.wasnTAttached', { name: row.file.name })) });
     }
   };
 
@@ -180,8 +180,8 @@ export function AttachmentList({
         <h2 id={titleId}>{label}</h2>
         {files.length ? (
           <p className="note">
-            {files.length === 1 ? t('attachments.attachmentList.n1File') : `${files.length} files`}, {formatBytes(used)}
-            {limits ? ` of ${formatBytes(limits.perIssueMaxBytes)}` : ''}
+            {files.length === 1 ? t('attachments.attachmentList.n1File') : t('attachments.attachmentList.files', { length: files.length })}, {formatBytes(used)}
+            {limits ? t('attachments.attachmentList.of', { formatBytes: formatBytes(limits.perIssueMaxBytes) }) : ''}
           </p>
         ) : null}
       </div>
@@ -250,7 +250,7 @@ export function AttachmentList({
                     {Math.round((u.sent / (u.total || 1)) * 100)}%
                   </progress>
                 )}
-                <span className="attachment-about">{u.error ? formatBytes(u.file.size) : `${formatBytes(u.sent)} of ${formatBytes(u.total)}`}</span>
+                <span className="attachment-about">{u.error ? formatBytes(u.file.size) : t('attachments.attachmentList.of2', { formatBytes: formatBytes(u.sent), formatBytes2: formatBytes(u.total) })}</span>
               </div>
               <div className="attachment-actions">
                 {u.error ? (

@@ -117,7 +117,7 @@ export function AppFrame({ ext, place }: { ext: AppExtension; place: AppPlace })
         {said}
       </p>
       {ask ? (
-        <div className="app-frame-ask" role="group" aria-label={`${ext.appTitle} asks`}>
+        <div className="app-frame-ask" role="group" aria-label={t('apps.appFrame.asks', { appTitle: ext.appTitle })}>
           <p>{tr('apps.appFrame.asksToOpen', { appTitle: ext.appTitle, ask: ask, t0: (c: ReactNode) => <strong>{c}</strong> })}</p>
           <div className="cluster">
             <button

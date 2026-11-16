@@ -1,4 +1,4 @@
-import { intlLocale } from '../../i18n';
+import { intlLocale, t } from '../../i18n';
 /** Figures in words, as Ocean writes them: "1 task", "3 days", "$46,000", "6h". */
 
 export function plural(n: number, one: string, many = `${one}s`): string {
@@ -10,7 +10,7 @@ export const days = (n: number) => plural(n, 'day');
 
 /** "2 days later", "1 day earlier"; "as it was" for none. */
 export function shift(n: number): string {
-  if (n === 0) return 'as it was';
+  if (n === 0) return t('plan.format.asItWas');
   return `${days(Math.abs(n))} ${n > 0 ? 'later' : 'earlier'}`;
 }
 
@@ -51,5 +51,5 @@ export function effort(minutes: number, hoursPerDay = 8): string {
 /** "BACK-12, BACK-15 and BACK-19" */
 export function andList(items: string[]): string {
   if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return t('plan.format.and', { join: items.slice(0, -1).join(', '), v: items[items.length - 1] });
 }

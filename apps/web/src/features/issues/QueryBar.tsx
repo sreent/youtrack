@@ -35,7 +35,7 @@ interface Props {
 }
 
 /** Ocean's QueryBar: the query language with its problems and suggestions, or plain words for an agent to read. */
-export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = 'Search issues', autoFocus }: Props) {
+export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t('issues.queryBar.searchIssues'), autoFocus }: Props) {
   const [text, setText] = useState(value);
   const [words, setWords] = useState(false);
   const [read, setRead] = useState<NLQueryResult | null>(null);

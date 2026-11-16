@@ -24,7 +24,7 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "you're" or "Anna Schmidt is", "your" or "Anna Schmidt's": a sentence names the person. */
 function whose(person: Person, you: boolean) {
-  return { is: you ? 'you’re' : `${person.name} is`, own: you ? 'your' : `${person.name}’s` };
+  return { is: you ? 'you’re' : t('away.daysAway.is', { name: person.name }), own: you ? 'your' : `${person.name}’s` };
 }
 
 function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Person; you: boolean; editing: Absence | null; onDone: (text: string) => void; onCancel?: () => void }) {
@@ -61,7 +61,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       const saved = editing
         ? await change.mutateAsync({ id: editing.id, from, to: to || from, half, ...why, expectedVersion: editing.version })
         : await add.mutateAsync({ user: you ? undefined : person.login, from, to: to || from, half, kind, note: note.trim() || undefined });
-      onDone(`${editing ? t('away.daysAway.changed') : t('away.daysAway.added')}: ${w.is} away ${whenWords(saved)}. Plans skip ${oneDay ? 'it' : 'those days'} for ${w.own} work.`);
+      onDone(t('away.daysAway.awayPlansSkipForWork', { v: editing ? t('away.daysAway.changed') : t('away.daysAway.added'), is: w.is, whenWords: whenWords(saved), v2: oneDay ? 'it' : 'those days', own: w.own }));
     } catch (err) {
       setError(errorText(err));
     }
@@ -96,9 +96,9 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
           <legend>{t('away.daysAway.howMuchOfTheDay')}</legend>
           {(
             [
-              ['day', 'All of it'],
-              ['morning', 'The morning'],
-              ['afternoon', 'The afternoon'],
+              ['day', t('away.daysAway.allOfIt')],
+              ['morning', t('away.daysAway.theMorning')],
+              ['afternoon', t('away.daysAway.theAfternoon')],
             ] as const
           ).map(([value, words]) => (
             <label key={value} className="choice">
@@ -217,7 +217,7 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
           </table>
         </Scroll>
       ) : (
-        <p className="note">{tr('away.daysAway.fromAMonthAgoOn', { v: you ? t('away.daysAway.youHaveNoDaysAway') : `${person.name} has no days away entered` })}</p>
+        <p className="note">{tr('away.daysAway.fromAMonthAgoOn', { v: you ? t('away.daysAway.youHaveNoDaysAway') : t('away.daysAway.hasNoDaysAwayEntered', { name: person.name }) })}</p>
       )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {canEnter ? (

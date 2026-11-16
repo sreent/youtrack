@@ -30,7 +30,7 @@ const isBitbucket = (p: VcsProvider) => p === 'bitbucket' || p === 'bitbucket-dc
 const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
   processed: { tone: 'good', word: 'handled' },
   ignored: { tone: 'idle', word: 'ignored' },
-  duplicate: { tone: 'idle', word: 'had it already' },
+  duplicate: { tone: 'idle', word: t('page.integrations.hadItAlready') },
   received: { tone: 'warn', word: 'being handled' },
   refused: { tone: 'bad', word: 'refused' },
   failed: { tone: 'bad', word: 'failed' },
@@ -110,7 +110,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
               </td>
               <td>
                 <span className="mono">{d.event}</span>
-                <span className="item-about">{d.test ? 'a test' : d.deliveryId ? <span className="mono">{d.deliveryId.slice(0, 13)}</span> : null}</span>
+                <span className="item-about">{d.test ? t('page.integrations.aTest') : d.deliveryId ? <span className="mono">{d.deliveryId.slice(0, 13)}</span> : null}</span>
               </td>
               <td>
                 <Badge tone={OUTCOME[d.outcome].tone}>
@@ -257,7 +257,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
     onSuccess: refresh,
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const where = integration.projects.length ? `issues of ${integration.projects.map((k) => projectNames.get(k) ?? k).join(', ')}` : 'issues of every project';
+  const where = integration.projects.length ? t('page.integrations.issuesOf', { join: integration.projects.map((k) => projectNames.get(k) ?? k).join(', ') }) : t('page.integrations.issuesOfEveryProject');
   const bitbucket = isBitbucket(integration.provider);
   return (
     <li className="card hook">

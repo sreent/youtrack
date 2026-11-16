@@ -110,7 +110,7 @@ function ValueRow({
           <span>{t('page.fields.archived')}</span>
         </label>
         {value.projectId ? (
-          <span className="chip mono" title={t('page.fields.onlyInThisProject')}>{tr('page.fields.only', { v: projects.get(value.projectId) ?? 'one project' })}</span>
+          <span className="chip mono" title={t('page.fields.onlyInThisProject')}>{tr('page.fields.only', { v: projects.get(value.projectId) ?? t('page.fields.oneProject') })}</span>
         ) : null}
         <span className="cluster">
           <button type="button" className="small" disabled={!dirty || !form.name.trim() || save.isPending} onClick={() => save.mutate()}>

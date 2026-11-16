@@ -20,5 +20,5 @@ export const useProjectGroups = (key: string, enabled = true) =>
 /** Where a group's people come from, in words. */
 export function comesFrom(g: { providerName: string | null }, provider: string | null): string {
   if (!g.providerName) return t('groups.api.keptByHand');
-  return `${provider ?? 'The identity provider'}, as “${g.providerName}”`;
+  return t('groups.api.as', { v: provider ?? t('groups.api.theIdentityProvider'), providerName: g.providerName });
 }

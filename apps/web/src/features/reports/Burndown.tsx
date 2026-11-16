@@ -17,9 +17,9 @@ const FRAME: Frame = { width: 640, height: 250, left: 46, right: 76, top: 18, bo
 
 const VERDICT: Record<Burndown['status']['verdict'], { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
   on_track: { tone: 'good', word: t('reports.burndown.onTrack') },
-  ahead: { tone: 'good', word: 'Ahead' },
-  done: { tone: 'good', word: 'Done' },
-  behind: { tone: 'warn', word: 'Behind' },
+  ahead: { tone: 'good', word: t('reports.burndown.ahead') },
+  done: { tone: 'good', word: t('reports.burndown.done') },
+  behind: { tone: 'warn', word: t('reports.burndown.behind') },
   ended: { tone: 'bad', word: t('reports.burndown.endedWithWorkLeft') },
   not_started: { tone: 'idle', word: t('reports.burndown.notStarted') },
   empty: { tone: 'idle', word: t('reports.burndown.nothingInIt') },
@@ -68,7 +68,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
   const todayIndex = b.days.findIndex((d) => d.date === b.today);
   const showToday = todayIndex >= 0 && b.status.verdict !== 'ended';
   const xLabels = labelled(n, labelRoom(f));
-  const title = t('reports.burndown.whatSLeftOfAt', { name: b.sprint.name, v: compact ? ' under it' : ' beside it' });
+  const title = t('reports.burndown.whatSLeftOfAt', { name: b.sprint.name, v: compact ? t('reports.burndown.underIt') : t('reports.burndown.besideIt') });
   // Columns with nothing in them on any day are left out, so the table fits beside the chart.
   const has = {
     done: b.days.some((d) => d.completed),
@@ -156,7 +156,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
   const table = (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.burndown.dayByDay', { name: b.sprint.name })}>
       <table className="figures chart-figures">
-        <caption>{tr('reports.burndown.dayByDay2', { v: b.by === 'count' ? 'in issues' : 'in hours of estimate' })}</caption>
+        <caption>{tr('reports.burndown.dayByDay2', { v: b.by === 'count' ? t('reports.burndown.inIssues') : t('reports.burndown.inHoursOfEstimate') })}</caption>
         <thead>
           <tr>
             <th scope="col">{t('reports.burndown.day')}</th>
@@ -187,7 +187,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
             {has.spent ? <td className="num" /> : null}
           </tr>
           {b.days.map((d) => (
-            <tr key={d.date} className={d.date === b.today ? 'today' : undefined}>
+            <tr key={d.date} className={d.date === b.today ? t('reports.burndown.today3') : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
                 {d.date === b.today ? t('reports.burndown.today2') : ''}

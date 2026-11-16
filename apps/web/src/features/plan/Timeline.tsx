@@ -47,7 +47,7 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
       </li>
       {tight ? (
         <li>
-          <Badge tone="warn">{tr('plan.timeline.hasToSpareBeforeIt', { id: tight.t.issue.id, v: tight.spare === 0 ? 'no day' : days(tight.spare), dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
+          <Badge tone="warn">{tr('plan.timeline.hasToSpareBeforeIt', { id: tight.t.issue.id, v: tight.spare === 0 ? t('plan.timeline.noDay') : days(tight.spare), dayMonth: dayMonth(tight.t.deadline!) })}</Badge>
         </li>
       ) : null}
     </ul>
@@ -76,7 +76,7 @@ function describe(change: WhatIfChange, task: ScheduleTask | undefined, people: 
   if (change.delayDays !== undefined) return t('plan.timeline.ifStartsLater', { id: id, days: days(change.delayDays) });
   if (change.estimate !== undefined) return t('plan.timeline.ifIsEstimatedAt', { id: id, estimate: change.estimate });
   if (change.assignee === null) return t('plan.timeline.ifNobodyIsAssigned', { id: id });
-  if (change.assignee !== undefined) return t('plan.timeline.ifDoes', { v: people.get(change.assignee) ?? change.assignee, id: id, v2: task?.assignee ? ` instead of ${task.assignee.name}` : '' });
+  if (change.assignee !== undefined) return t('plan.timeline.ifDoes', { v: people.get(change.assignee) ?? change.assignee, id: id, v2: task?.assignee ? t('plan.timeline.insteadOf', { name: task.assignee.name }) : '' });
   return t('plan.timeline.ifChanges', { id: id });
 }
 
@@ -121,7 +121,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
       ) : null}
       {moved.length ? (
         <>
-          <h3>{moved.length === 1 ? t('plan.timeline.n1TaskWouldMove') : `${moved.length} tasks would move`}</h3>
+          <h3>{moved.length === 1 ? t('plan.timeline.n1TaskWouldMove') : t('plan.timeline.tasksWouldMove', { length: moved.length })}</h3>
           <ul className="levelling-list">
             {moved.map((i) => {
               const b = was.get(i.issue);
@@ -139,7 +139,7 @@ function WhatIfResultView({ result, before, change, people, onClear }: { result:
                   ) : (
                     <span />
                   )}
-                  <span className="levelling-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : `starts ${shift(i.startDeltaDays)}`}</span>
+                  <span className="levelling-by">{i.finishDeltaDays !== 0 ? shift(i.finishDeltaDays) : t('plan.timeline.starts', { shift: shift(i.startDeltaDays) })}</span>
                 </li>
               );
             })}

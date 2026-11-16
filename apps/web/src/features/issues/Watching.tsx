@@ -7,11 +7,11 @@ import { errorText } from './api';
 import { t } from '../../i18n';
 
 const WHY: Record<WatchReason, string> = {
-  explicit: 'chose to',
-  reporter: 'reported it',
-  assignee: 'was assigned it',
+  explicit: t('issues.watching.choseTo'),
+  reporter: t('issues.watching.reportedIt'),
+  assignee: t('issues.watching.wasAssignedIt'),
   commenter: 'commented',
-  mentioned: 'was mentioned',
+  mentioned: t('issues.watching.wasMentioned'),
   lead: t('issues.watching.leadsTheProject'),
 };
 

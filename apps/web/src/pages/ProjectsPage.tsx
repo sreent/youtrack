@@ -13,9 +13,9 @@ import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const TEMPLATES: { id: 'software' | 'waterfall' | 'blank'; name: string; about: string }[] = [
-  { id: 'software', name: 'Software', about: t('page.projects.statePriorityTypeAssigneeSubsystem') },
-  { id: 'waterfall', name: 'Waterfall', about: t('page.projects.theSameWithoutFixVersions') },
-  { id: 'blank', name: 'Blank', about: t('page.projects.stateAndAssigneeOnlyYou') },
+  { id: 'software', name: t('page.projects.software'), about: t('page.projects.statePriorityTypeAssigneeSubsystem') },
+  { id: 'waterfall', name: t('page.projects.waterfall'), about: t('page.projects.theSameWithoutFixVersions') },
+  { id: 'blank', name: t('page.projects.blank'), about: t('page.projects.stateAndAssigneeOnlyYou') },
 ];
 
 function CreateProject() {

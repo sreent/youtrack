@@ -19,8 +19,8 @@ const mailKeys = {
 /** What became of a message, with its shape: filed or answered went well; set aside stood still; refused or failed, a cross. */
 const OUTCOME: Record<HelpdeskInboundOutcome, { tone?: 'good' | 'idle' | 'bad' | 'warn'; word: string }> = {
   received: { tone: 'warn', word: 'being handled' },
-  request: { tone: 'good', word: 'a new request' },
-  reply: { tone: 'good', word: 'a reply' },
+  request: { tone: 'good', word: t('helpdesk.helpdeskMail.aNewRequest') },
+  reply: { tone: 'good', word: t('helpdesk.helpdeskMail.aReply') },
   ignored: { tone: 'idle', word: 'set aside' },
   refused: { tone: 'bad', word: 'refused' },
   failed: { tone: 'bad', word: 'failed' },
@@ -71,7 +71,7 @@ function Log({ projectKey }: { projectKey: string }) {
               </td>
               <td>
                 {m.subject || <span className="note">{t('helpdesk.helpdeskMail.noSubject')}</span>}
-                <span className="item-about">{tr('helpdesk.helpdeskMail.from', { v: m.sender || 'nobody', t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: m.via === 'imap' ? 'read from the mailbox' : 'posted by the provider' })}</span>
+                <span className="item-about">{tr('helpdesk.helpdeskMail.from', { v: m.sender || t('helpdesk.helpdeskMail.nobody'), t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: m.via === 'imap' ? t('helpdesk.helpdeskMail.readFromTheMailbox') : t('helpdesk.helpdeskMail.postedByTheProvider') })}</span>
               </td>
               <td>
                 <Badge tone={OUTCOME[m.outcome].tone}>{OUTCOME[m.outcome].word}</Badge> {m.issue ? <IssueLink id={m.issue} /> : null}

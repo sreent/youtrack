@@ -15,15 +15,15 @@ import type { ReactNode } from 'react';
 type Choice = SubscriptionEvents | 'none';
 
 const PROJECT_CHOICES: { value: Choice; name: string; about: string }[] = [
-  { value: 'none', name: 'Nothing more', about: t('notifications.subscriptions.whatCallsOnYouAnd') },
-  { value: 'new', name: 'New issues', about: t('notifications.subscriptions.eachIssueReportedInIt') },
-  { value: 'all', name: 'Every change', about: t('notifications.subscriptions.newIssuesAndTheChanges') },
+  { value: 'none', name: t('notifications.subscriptions.nothingMore'), about: t('notifications.subscriptions.whatCallsOnYouAnd') },
+  { value: 'new', name: t('notifications.subscriptions.newIssues'), about: t('notifications.subscriptions.eachIssueReportedInIt') },
+  { value: 'all', name: t('notifications.subscriptions.everyChange'), about: t('notifications.subscriptions.newIssuesAndTheChanges') },
 ];
 
 const SEARCH_CHOICES: { value: Choice; name: string }[] = [
-  { value: 'none', name: 'Not subscribed' },
-  { value: 'new', name: 'Tell me when an issue comes into it' },
-  { value: 'all', name: 'Tell me of any change to one in it' },
+  { value: 'none', name: t('notifications.subscriptions.notSubscribed') },
+  { value: 'new', name: t('notifications.subscriptions.tellMeWhenAnIssue') },
+  { value: 'all', name: t('notifications.subscriptions.tellMeOfAnyChange') },
 ];
 
 function useSaid() {
@@ -54,7 +54,7 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
             text:
               events === 'none'
                 ? t('notifications.subscriptions.youReNoLongerSubscribed', { name: project.name })
-                : t('notifications.subscriptions.youReToldOf', { v: events === 'all' ? 'every change in' : 'new issues in', name: project.name, v2: withEmail ? t('notifications.subscriptions.byEmailToo2') : t('notifications.subscriptions.inYourInbox') }),
+                : t('notifications.subscriptions.youReToldOf', { v: events === 'all' ? t('notifications.subscriptions.everyChangeIn') : t('notifications.subscriptions.newIssuesIn'), name: project.name, v2: withEmail ? t('notifications.subscriptions.byEmailToo2') : t('notifications.subscriptions.inYourInbox') }),
           }),
         onError: (e) => {
           setChoice(null);
@@ -183,12 +183,12 @@ function SubscriptionRow({
   useEffect(() => setEmail(s.email), [s.email]);
   const choices = s.project
     ? [
-        { value: 'new', name: 'New issues' },
-        { value: 'all', name: 'Every change' },
+        { value: 'new', name: t('notifications.subscriptions.newIssues') },
+        { value: 'all', name: t('notifications.subscriptions.everyChange') },
       ]
     : [
-        { value: 'new', name: 'Issues coming in' },
-        { value: 'all', name: 'Any change to one in it' },
+        { value: 'new', name: t('notifications.subscriptions.issuesComingIn') },
+        { value: 'all', name: t('notifications.subscriptions.anyChangeToOneIn') },
       ];
   return (
     <tr>

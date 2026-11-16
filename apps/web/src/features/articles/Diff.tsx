@@ -83,8 +83,8 @@ export function diffWords(lines: DiffLine[]): string {
   const added = lines.filter((l) => l.op === 'add').length;
   const removed = lines.filter((l) => l.op === 'del').length;
   const n = (k: number, what: string) => `${k} ${k === 1 ? 'line' : 'lines'} ${what}`;
-  if (added && removed) return `${n(added, 'added')}, ${removed} removed`;
+  if (added && removed) return t('articles.diff.removed2', { n: n(added, 'added'), removed: removed });
   if (added) return n(added, 'added');
   if (removed) return n(removed, 'removed');
-  return 'no lines changed';
+  return t('articles.diff.noLinesChanged');
 }

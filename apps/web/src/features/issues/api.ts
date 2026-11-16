@@ -30,7 +30,7 @@ export function useUpdateIssue(issue: IssueDetail | undefined) {
 }
 
 /** "Someone else changed BACK-12 …" or the server's words, for a line beside the control. */
-export function errorText(e: unknown, fallback = 'That didn’t work.'): string {
+export function errorText(e: unknown, fallback = t('issues.api.thatDidnTWork')): string {
   if (e instanceof ApiError) {
     if (e.status === 409) return t('issues.api.someoneChangedThisIssueJust');
     return e.hint ? `${e.message}. ${e.hint}` : e.message;

@@ -29,7 +29,7 @@ function present(f: IssueField): string | null {
 /** What was there before an agent's value, as the history says it. */
 function before(field: string, value: string | null): string {
   if (value) return value;
-  return field.toLowerCase() === 'assignee' ? 'Unassigned' : tx('decide.suggestionCard.notSet');
+  return field.toLowerCase() === 'assignee' ? tx('decide.suggestionCard.unassigned') : tx('decide.suggestionCard.notSet');
 }
 
 const CONFIDENCE: Record<'low' | 'medium' | 'high', string> = { low: 'unsure', medium: 'fairly sure', high: 'sure' };
@@ -131,9 +131,9 @@ export function SuggestionCard({
       const n = picked.length;
       setAnswer(next);
       setUnticked(new Set());
-      if (compact) setSaid(tx('decide.suggestionCard.youAdded', { v: n === 1 ? 'the tag' : `${n} tags` }));
+      if (compact) setSaid(tx('decide.suggestionCard.youAdded', { v: n === 1 ? tx('decide.suggestionCard.theTag') : tx('decide.suggestionCard.tags2', { n: n }) }));
       else if (next.status === 'applied')
-        setSaid(n === items.length && !accepted ? tx('decide.suggestionCard.youAppliedIt') : tx('decide.suggestionCard.youApplied', { v: n === 1 ? 'the last of it' : 'the rest' }));
+        setSaid(n === items.length && !accepted ? tx('decide.suggestionCard.youAppliedIt') : tx('decide.suggestionCard.youApplied', { v: n === 1 ? tx('decide.suggestionCard.theLastOfIt') : tx('decide.suggestionCard.theRest') }));
       else setSaid(tx('decide.suggestionCard.youAppliedTheRestStays', { n: n }));
       refresh();
       if (next.status === 'applied') onDone?.();
@@ -153,24 +153,24 @@ export function SuggestionCard({
 
   if (compact && !open && !said && !p.duplicates.length && !p.tags.length) return null;
 
-  const tagWords = openTags.length === 1 ? 'a tag' : 'tags';
-  const likeWords = `${p.duplicates.length === 1 ? 'an issue' : 'issues'} like this one`;
+  const tagWords = openTags.length === 1 ? tx('decide.suggestionCard.aTag') : 'tags';
+  const likeWords = tx('decide.suggestionCard.likeThisOne', { v: p.duplicates.length === 1 ? tx('decide.suggestionCard.anIssue') : 'issues' });
   const title = compact
     ? openTags.length && p.duplicates.length
-      ? `triage suggests ${tagWords}, and found ${likeWords}`
+      ? tx('decide.suggestionCard.triageSuggestsAndFound', { tagWords: tagWords, likeWords: likeWords })
       : openTags.length
-        ? `triage suggests ${tagWords}`
+        ? tx('decide.suggestionCard.triageSuggests', { tagWords: tagWords })
         : p.duplicates.length
-          ? `triage found ${likeWords}`
+          ? tx('decide.suggestionCard.triageFound', { likeWords: likeWords })
           : 'triage suggests changes'
     : null;
-  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? `${accepted} of ${fields.length + tags.length} accepted` : null]
+  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? tx('decide.suggestionCard.ofAccepted', { accepted: accepted, v: fields.length + tags.length }) : null]
     .filter(Boolean)
     .join(' · ');
 
   let resolved: string | null = null;
   if (!said && !open) {
-    const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? 'You' : s.resolvedBy.name) : 'Someone';
+    const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? tx('decide.suggestionCard.you') : s.resolvedBy.name) : tx('decide.suggestionCard.someone');
     const when = s.resolvedAt ? ` ${ago(s.resolvedAt)}` : '';
     resolved = s.status === 'dismissed' ? t('decide.suggestionCard.dismissedIt', { who: who, when: when }) : t('decide.suggestionCard.appliedIt', { who: who, when: when });
   }
@@ -198,7 +198,7 @@ export function SuggestionCard({
           <span>
             <Heading className="approval-title" id={titleId}>
               {title ?? (
-                <>{tr('decide.suggestionCard.triage', { v: fields.length || tags.length ? 'suggests changes to' : 'found issues like', el: <IssueLink id={s.issueId} /> })}</>
+                <>{tr('decide.suggestionCard.triage', { v: fields.length || tags.length ? tx('decide.suggestionCard.suggestsChangesTo') : 'found issues like', el: <IssueLink id={s.issueId} /> })}</>
               )}
             </Heading>
             <span className="who-about">{about}</span>
@@ -252,7 +252,7 @@ export function SuggestionCard({
                       <span key={key} className="approval-tag">
                         {t.open ? (
                           <>
-                            {pick(key, <ins className="proposed">{t.name}</ins>, `Tag ${t.name}`)} <span className="approval-state">{tx('decide.suggestionCard.toAdd')}</span>
+                            {pick(key, <ins className="proposed">{t.name}</ins>, tx('decide.suggestionCard.tag2', { name: t.name }))} <span className="approval-state">{tx('decide.suggestionCard.toAdd')}</span>
                           </>
                         ) : (
                           <>

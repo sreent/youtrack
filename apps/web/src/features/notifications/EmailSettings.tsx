@@ -10,11 +10,11 @@ import type { ReactNode } from 'react';
 const LEVELS: { value: EmailLevel; name: string; about: string }[] = [
   {
     value: 'all',
-    name: 'Everything',
+    name: t('notifications.emailSettings.everything'),
     about: t('notifications.emailSettings.mentionsAndAssignmentsAndChanges'),
   },
-  { value: 'direct', name: 'Mentions and assignments', about: t('notifications.emailSettings.whenYouReMentionedOr') },
-  { value: 'none', name: 'Never', about: t('notifications.emailSettings.nothingByEmailWhatYou') },
+  { value: 'direct', name: t('notifications.emailSettings.mentionsAndAssignments'), about: t('notifications.emailSettings.whenYouReMentionedOr') },
+  { value: 'none', name: t('notifications.emailSettings.never'), about: t('notifications.emailSettings.nothingByEmailWhatYou') },
 ];
 
 /** What a4a emails you. Your inbox in a4a always has everything; this is only what also comes by email. */

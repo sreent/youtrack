@@ -122,7 +122,7 @@ export default function TimesheetPage() {
     <>
       <PageHead
         title={tx('page.timesheet.timesheet')}
-        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: formatPeriod(total) || 'nothing', hoursText: hoursText(planned) })}
+        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: formatPeriod(total) || tx('page.timesheet.nothing'), hoursText: hoursText(planned) })}
         actions={
           <div className="cluster">
             <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>

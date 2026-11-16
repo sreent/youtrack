@@ -20,7 +20,7 @@ type View = (typeof VIEWS)[number]['id'];
 
 function planFacts(p: Project): string {
   const plan = p.settings.plan;
-  const parts = [plan.startDate ? t('page.plan.starts', { dayMonth: dayMonth(plan.startDate) }) : t('page.plan.noStartDateSet'), plan.budget !== null ? `budget ${money(plan.budget, plan.currency)}` : 'no budget set'];
+  const parts = [plan.startDate ? t('page.plan.starts', { dayMonth: dayMonth(plan.startDate) }) : t('page.plan.noStartDateSet'), plan.budget !== null ? t('page.plan.budget', { money: money(plan.budget, plan.currency) }) : t('page.plan.noBudgetSet')];
   return `${parts.join(', ')} · ${plural(p.openIssueCount, 'open issue')}`;
 }
 

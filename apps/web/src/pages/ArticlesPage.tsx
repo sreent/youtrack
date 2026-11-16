@@ -374,7 +374,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
           <Confirm
             label={t('page.articles.deleteIt')}
             title={t('page.articles.delete', { id: a.id, title: a.title })}
-            about={t('page.articles.itsAndItsFilesGo', { v: a.version === 1 ? 'version' : `${a.version} versions`, v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
+            about={t('page.articles.itsAndItsFilesGo', { v: a.version === 1 ? 'version' : t('page.articles.versions', { version: a.version }), v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
             confirm={t('page.articles.deleteIt')}
             onConfirm={() => void remove()}
           />
@@ -410,13 +410,13 @@ function ArticleView() {
       const saved = await patch<ArticleDetail>(`/articles/${a.id}`, { body: next, expectedVersion: a.version });
       qc.setQueryData(articleKeys.one(saved.id), saved);
     } catch (e) {
-      setTickSaid(e instanceof ApiError && e.status === 409 ? 'Someone saved a newer version just now. It’s been reloaded: check it and tick again.' : errorText(e));
+      setTickSaid(e instanceof ApiError && e.status === 409 ? t('page.articles.someoneSavedANewerVersion2') : errorText(e));
     } finally {
       await qc.invalidateQueries({ queryKey: articleKeys.all });
       setTicked(null);
     }
   };
-  const by = a.updatedBy?.name ?? 'someone';
+  const by = a.updatedBy?.name ?? t('page.articles.someone');
   return (
     <>
       <PageHead
@@ -542,7 +542,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
       if (e instanceof ApiError && e.status === 409) {
         const current = (e.details as { currentVersion?: number } | undefined)?.currentVersion ?? null;
         setStale(current);
-        setError(t('page.articles.someoneSavedVersionOfWhile', { v: current ?? 'a newer version', id: id }));
+        setError(t('page.articles.someoneSavedVersionOfWhile', { v: current ?? t('page.articles.aNewerVersion'), id: id }));
       } else setError(errorText(e));
     } finally {
       setBusy(false);
@@ -681,7 +681,7 @@ function History() {
         {versions.error ? <ErrorNote error={versions.error} /> : null}
         <div className="tw:grid tw:grid-cols-[17rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">
           <nav className="card side-card nav-card" aria-label={t('page.articles.versionsOf', { title: a.title })}>
-            <h2>{versions.data?.length === 1 ? t('page.articles.n1Version') : `${versions.data?.length ?? 0} versions`}</h2>
+            <h2>{versions.data?.length === 1 ? t('page.articles.n1Version') : t('page.articles.versions2', { v: versions.data?.length ?? 0 })}</h2>
             <ul className="nav-list scrolls">
               {(versions.data ?? []).map((v) => {
                 const by = actorWho({ id: v.author?.id ?? null, login: v.author?.login ?? null, name: v.author?.name ?? null, channel: v.channel, token: v.token, isBot: v.author?.isBot ?? false });
@@ -717,7 +717,7 @@ function History() {
                   <time dateTime={d.createdAt} title={new Date(d.createdAt).toLocaleString(intlLocale())}>
                     {whenRead(d.createdAt)}
                   </time>
-                  <span>{d.against ? `${diffWords(d.diff)} against version ${d.against}` : t('page.articles.theFirstVersion')}</span>
+                  <span>{d.against ? t('page.articles.againstVersion', { diffWords: diffWords(d.diff), against: d.against }) : t('page.articles.theFirstVersion')}</span>
                 </p>
                 {d.titleBefore !== null && d.titleBefore !== d.title ? (
                   <ul className="change-lines">

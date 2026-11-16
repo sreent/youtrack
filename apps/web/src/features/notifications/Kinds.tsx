@@ -9,7 +9,7 @@ import { t, tr } from '../../i18n';
 const WORDS: Record<NotifyKind, string> = {
   created: t('notifications.kinds.created'),
   commented: t('notifications.kinds.commentedOn'),
-  state: 'State changed',
+  state: t('notifications.kinds.stateChanged'),
   assigned: t('notifications.kinds.assignedToSomeone'),
   fields: t('notifications.kinds.otherFieldsChanged'),
   linked: t('notifications.kinds.linked'),

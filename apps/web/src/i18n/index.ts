@@ -122,5 +122,20 @@ export const formatDate = (d: Date | string | number, options?: Intl.DateTimeFor
 export const formatDateTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleString(intlLocale(), options);
 export const formatTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleTimeString(intlLocale(), options);
 export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => new Intl.ListFormat(intlLocale(), { style: 'long', type }).format(items);
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
+/** The months' short names, January first, in the page's language (English keeps its three letters). */
+export function monthNames(): string[] {
+  if (translator.locale === 'en') return EN_MONTHS;
+  const f = new Intl.DateTimeFormat(intlLocale(), { month: 'short', timeZone: 'UTC' });
+  return Array.from({ length: 12 }, (_, m) => f.format(Date.UTC(2021, m, 1)));
+}
+/** The weekdays' names, Sunday first, as getDay() counts them, in the page's language. */
+export function weekdayNames(width: 'short' | 'long' = 'short'): string[] {
+  if (translator.locale === 'en') return EN_DAYS[width];
+  const f = new Intl.DateTimeFormat(intlLocale(), { weekday: width, timeZone: 'UTC' });
+  // 3 January 2021 was a Sunday.
+  return Array.from({ length: 7 }, (_, d) => f.format(Date.UTC(2021, 0, 3 + d)));
+}
 /** "5 minutes ago", "in 2 days": numbers always, so English reads as it did ("1 day ago", not "yesterday"). */
 export const formatRelative = (value: number, unit: Intl.RelativeTimeFormatUnit) => new Intl.RelativeTimeFormat(intlLocale(), { numeric: 'always' }).format(value, unit);

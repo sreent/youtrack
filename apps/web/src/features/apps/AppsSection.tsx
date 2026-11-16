@@ -17,12 +17,12 @@ import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 const EXTENSION_WORDS: Record<string, string> = {
-  'issue-panel': "an issue's side panel",
-  'issue-below-summary': "below an issue's summary",
-  'project-settings': "a project's page",
-  'main-menu': 'a page of its own, from the menu',
+  'issue-panel': t('apps.appsSection.anIssueSSidePanel'),
+  'issue-below-summary': t('apps.appsSection.belowAnIssueSSummary'),
+  'project-settings': t('apps.appsSection.aProjectSPage'),
+  'main-menu': t('apps.appsSection.aPageOfItsOwn'),
   dashboard: 'dashboards',
-  'article-panel': "an article's side",
+  'article-panel': t('apps.appsSection.anArticleSSide'),
 };
 
 type Source = { kind: 'upload'; package: string } | { kind: 'catalog'; catalog: string; name: string; version: string };
@@ -50,11 +50,11 @@ function Asks({ p }: { p: AppPackagePreview }) {
       ) : (
         <p className="note">{t('apps.appsSection.nothingOfA4aSIt')}</p>
       )}
-      {more ? <p className="approval-note">{tr('apps.appsSection.itAsksForMoreThan', { join: [...more.read.map((r) => `reading ${r}`), ...more.write.map((r) => `writing ${r}`)].join(', ') })}</p> : null}
+      {more ? <p className="approval-note">{tr('apps.appsSection.itAsksForMoreThan', { join: [...more.read.map((r) => t('apps.appsSection.reading', { r: r })), ...more.write.map((r) => t('apps.appsSection.writing', { r: r }))].join(', ') })}</p> : null}
       <p className="note">{tr('apps.appsSection.itAddsFilesKbSha', { join: [
           ...p.widgets.map((w) => t('apps.appsSection.on', { title: w.title, v: EXTENSION_WORDS[w.at] ?? w.at })),
-          ...p.handlers.map((h) => `a handler, “${h.title}”`),
-          ...p.rules.map((r) => `a rule, “${r.title}”, acting as its own agent`),
+          ...p.handlers.map((h) => t('apps.appsSection.aHandler', { title: h.title })),
+          ...p.rules.map((r) => t('apps.appsSection.aRuleActingAsIts', { title: r.title })),
         ].join('; '), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, toFixed: (p.bytes / 1024).toFixed(0), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
     </div>
   );
@@ -265,7 +265,7 @@ function InstalledApp({ app }: { app: App }) {
       setSaid({ text: errorText(e), bad: true });
     }
   };
-  const where = app.allProjects ? 'every project' : app.projects.filter((p) => p.enabled).map((p) => p.key).join(', ') || 'no project yet';
+  const where = app.allProjects ? t('apps.appsSection.everyProject') : app.projects.filter((p) => p.enabled).map((p) => p.key).join(', ') || t('apps.appsSection.noProjectYet');
   const r = removal.data;
   return (
     <li className="card app-card" aria-labelledby={titleId}>
@@ -286,7 +286,7 @@ function InstalledApp({ app }: { app: App }) {
           <li key={w}>{w}</li>
         ))}
       </ul>
-      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: ago(app.installedAt), v2: app.installedBy ? ` by ${app.installedBy.name}` : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
+      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: ago(app.installedAt), v2: app.installedBy ? t('apps.appsSection.by', { name: app.installedBy.name }) : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
       <div className="cluster">
         <button type="button" className="small" onClick={() => change.mutate({ enabled: !app.enabled })} disabled={change.isPending}>
           {app.enabled ? t('apps.appsSection.turnItOff') : t('apps.appsSection.turnItOn')}

@@ -37,7 +37,7 @@ function tasksTitle(day: Day): string | undefined {
   return day.tasks.length ? day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`).join(', ') : undefined;
 }
 
-const AWAY_WORDS = { morning: 'away in the morning', afternoon: 'away in the afternoon' } as const;
+const AWAY_WORDS = { morning: t('plan.resources.awayInTheMorning'), afternoon: t('plan.resources.awayInTheAfternoon') } as const;
 
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   const ws = weekStart ? ' week-start' : '';
@@ -258,12 +258,12 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     : [];
   const unresolved = r?.unresolved ?? [];
 
-  let title = 'Levelling';
+  let title = t('plan.resources.levelling2');
   let about: React.ReactNode = null;
   if (r) {
     if (r.overallocatedDaysBefore === 0 && !r.changes.length) {
-      title = 'Nobody is booked over their day';
-      about = 'Levelling has nothing to move.';
+      title = t('plan.resources.nobodyIsBookedOverTheir');
+      about = t('plan.resources.levellingHasNothingToMove');
     } else if (!moved.length) {
       title = mode === 'within_slack' ? t('plan.resources.levellingCanTFixThis') : t('plan.resources.levellingCanTFindRoom');
       about =
@@ -271,11 +271,11 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           ? t('plan.resources.allowDelayToSeeWhat', { v: unresolved.length ? t('plan.resources.canTMoveWithoutMoving', { named: named(unresolved), dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.noTaskCanMoveWithin') })
           : t('plan.resources.nothingMoves', { v: unresolved.length ? t('plan.resources.canTFindADay', { named: named(unresolved) }) : t('plan.resources.noTaskCanMove') });
     } else {
-      title = `Levelling would move ${plural(moved.length, 'task')}`;
+      title = t('plan.resources.levellingWouldMove', { plural: plural(moved.length, 'task') });
       const outcome = r.overallocatedDaysAfter === 0 ? t('plan.resources.soNobodyIsBookedOver') : t('plan.resources.soFewerDaysAreOver', { overallocatedDaysAfter: r.overallocatedDaysAfter, overallocatedDaysBefore: r.overallocatedDaysBefore });
       const finish =
         mode === 'within_slack' || !finishMoves ? t('plan.resources.thePlanStillEndsOn', { dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.thePlanWouldEndOn', { dayMonth: dayMonth(r.finishAfter), dayMonth2: dayMonth(r.finishBefore) });
-      about = `${outcome} ${finish} Nothing moves until you level ${moved.length === 1 ? 'it' : 'them'}.`;
+      about = t('plan.resources.nothingMovesUntilYouLevel', { outcome: outcome, finish: finish, v: moved.length === 1 ? 'it' : 'them' });
     }
   }
 
@@ -352,7 +352,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
         </div>
       ) : null}
       {r && moved.length && unresolved.length ? (
-        <p className="note">{tr('plan.resources.canTBeLevelledSo', { named: named(unresolved), v: mode === 'within_slack' ? 'within slack' : 'at all', v2: unresolved.length === 1 ? 'it stays' : 'they stay', v3: unresolved.length === 1 ? 'it is' : 'they are' })}</p>
+        <p className="note">{tr('plan.resources.canTBeLevelledSo', { named: named(unresolved), v: mode === 'within_slack' ? 'within slack' : t('plan.resources.atAll'), v2: unresolved.length === 1 ? t('plan.resources.itStays') : 'they stay', v3: unresolved.length === 1 ? t('plan.resources.itIs') : t('plan.resources.theyAre') })}</p>
       ) : null}
       {r && moved.length ? (
         <div className="levelling-actions">
@@ -361,7 +361,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           </button>
           <p className="note">
             {mode === 'within_slack'
-              ? t('plan.resources.withinSlackAndHistorySays', { v: moved.length === 1 ? t('plan.resources.itMoves') : t('plan.resources.eachMoves'), v2: moved.length === 1 ? 'its' : 'its', v3: moved.length === 1 ? 'its' : 'each one’s' })
+              ? t('plan.resources.withinSlackAndHistorySays', { v: moved.length === 1 ? t('plan.resources.itMoves') : t('plan.resources.eachMoves'), v2: moved.length === 1 ? 'its' : 'its', v3: moved.length === 1 ? 'its' : t('plan.resources.eachOneS') })
               : t('plan.resources.andTheHistorySaysLevelling', { v: moved.length === 1 ? t('plan.resources.itsStartDateChanges') : t('plan.resources.theirStartDatesChange'), v2: moved.length === 1 ? 'it' : 'them', v3: moved.length === 1 ? 'it' : 'them' })}
           </p>
         </div>

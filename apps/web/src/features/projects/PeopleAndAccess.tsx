@@ -13,14 +13,14 @@ import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
-  { id: 'open', name: 'Open', about: t('projects.peopleAndAccess.everyoneSeesItAndWorks') },
-  { id: 'members', name: 'Members only', about: t('projects.peopleAndAccess.onlyThePeopleBelowAnd') },
+  { id: 'open', name: t('projects.peopleAndAccess.open'), about: t('projects.peopleAndAccess.everyoneSeesItAndWorks') },
+  { id: 'members', name: t('projects.peopleAndAccess.membersOnly'), about: t('projects.peopleAndAccess.onlyThePeopleBelowAnd') },
 ];
 
 const YOU_MAY = {
-  viewer: 'you read its issues and comment on them',
-  member: 'you read, comment on and change its issues',
-  manager: 'you change its issues, settings, people, boards and baselines',
+  viewer: t('projects.peopleAndAccess.youReadItsIssuesAnd'),
+  member: t('projects.peopleAndAccess.youReadCommentOnAnd'),
+  manager: t('projects.peopleAndAccess.youChangeItsIssuesSettings'),
 };
 
 /** Your own place in the project, in a sentence. */
@@ -30,13 +30,13 @@ export function yourRole(project: Project): string {
   const role = aRole(a.roleName, isBuiltinRole(a.role));
   const why =
     a.via === 'lead'
-      ? ', as its lead'
+      ? t('projects.peopleAndAccess.asItsLead')
       : a.via === 'guest'
-        ? ', as a guest: the project is open to anyone, signed in or not'
+        ? t('projects.peopleAndAccess.asAGuestTheProject')
         : a.via === 'open'
-        ? ', as everyone is in an open project'
+        ? t('projects.peopleAndAccess.asEveryoneIsInAn')
         : a.via === 'group'
-          ? `, as one of ${a.group ?? 'a group'}`
+          ? t('projects.peopleAndAccess.asOneOf', { v: a.group ?? t('projects.peopleAndAccess.aGroup') })
           : '';
   if (a.via === 'guest') return t('projects.peopleAndAccess.youReReadingAsA', { key: project.key });
   if (!isBuiltinRole(a.role)) return t('projects.peopleAndAccess.youReHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) });
@@ -278,7 +278,7 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => `${aRole(r.name, r.builtin)} may ${permissionWords(r.permissions)}`).join('; ') })}</p>
+      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => t('projects.peopleAndAccess.may', { aRole: aRole(r.name, r.builtin), permissionWords: permissionWords(r.permissions) })).join('; ') })}</p>
       {members.isLoading ? <Loading what={t('projects.peopleAndAccess.itsPeople')} /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (

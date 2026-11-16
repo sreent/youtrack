@@ -7,11 +7,11 @@ import { t } from '../../i18n';
  * triage then reads nothing on its own, and works only when someone asks on an issue.
  */
 export const TRIAGE_RUNGS: Rung<TriageMode>[] = [
-  { value: 'off', name: 'Off', lvl: 'off', about: t('projects.triage.onlyWhenSomeoneAsksOn') },
-  { value: 'suggest', name: 'Suggests', lvl: 'suggest', about: t('projects.triage.readsEachNewIssueAnd') },
+  { value: 'off', name: t('projects.triage.off'), lvl: 'off', about: t('projects.triage.onlyWhenSomeoneAsksOn') },
+  { value: 'suggest', name: t('projects.triage.suggests'), lvl: 'suggest', about: t('projects.triage.readsEachNewIssueAnd') },
   {
     value: 'auto',
-    name: 'Acts',
+    name: t('projects.triage.acts'),
     lvl: 'auto',
     about: t('projects.triage.fillsANewIssueS'),
   },

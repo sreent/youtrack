@@ -17,34 +17,34 @@ import { t, tr } from '../../i18n';
 /** What sets a rule off, as the form's first word says it. Each choice is one kind of rule. */
 type When = 'created' | 'updated' | 'commented' | 'hour' | 'day' | 'weekday' | 'guard';
 const WHEN: { value: When; words: string; kind: RuleKind }[] = [
-  { value: 'created', words: 'an issue is created', kind: 'change' },
-  { value: 'updated', words: 'an issue changes', kind: 'change' },
-  { value: 'commented', words: 'an issue gets a comment', kind: 'change' },
-  { value: 'hour', words: 'every hour', kind: 'schedule' },
-  { value: 'day', words: 'every day', kind: 'schedule' },
-  { value: 'weekday', words: 'every weekday', kind: 'schedule' },
-  { value: 'guard', words: 'a change would make an issue match', kind: 'guard' },
+  { value: 'created', words: t('rules.ruleForm.anIssueIsCreated'), kind: 'change' },
+  { value: 'updated', words: t('rules.ruleForm.anIssueChanges'), kind: 'change' },
+  { value: 'commented', words: t('rules.ruleForm.anIssueGetsAComment'), kind: 'change' },
+  { value: 'hour', words: t('rules.ruleForm.everyHour'), kind: 'schedule' },
+  { value: 'day', words: t('rules.ruleForm.everyDay'), kind: 'schedule' },
+  { value: 'weekday', words: t('rules.ruleForm.everyWeekday'), kind: 'schedule' },
+  { value: 'guard', words: t('rules.ruleForm.aChangeWouldMakeAn'), kind: 'guard' },
 ];
 const kindOf = (w: When): RuleKind => WHEN.find((x) => x.value === w)!.kind;
 
 /** A further condition, as the form's "and" says it: on which related issues, and all of them or any. */
 type And = '' | 'parent' | 'subtasks-all' | 'subtasks-any' | 'siblings-all' | 'siblings-any' | 'linked-all' | 'linked-any';
 const AND: { value: And; words: string }[] = [
-  { value: '', words: 'nothing more' },
-  { value: 'parent', words: 'its parent matches' },
-  { value: 'subtasks-all', words: 'all of its subtasks match' },
-  { value: 'subtasks-any', words: 'any of its subtasks matches' },
-  { value: 'siblings-all', words: "all of its parent's subtasks match" },
-  { value: 'siblings-any', words: "any of its parent's subtasks matches" },
-  { value: 'linked-all', words: 'all the issues it … match' },
-  { value: 'linked-any', words: 'any issue it … matches' },
+  { value: '', words: t('rules.ruleForm.nothingMore') },
+  { value: 'parent', words: t('rules.ruleForm.itsParentMatches') },
+  { value: 'subtasks-all', words: t('rules.ruleForm.allOfItsSubtasksMatch') },
+  { value: 'subtasks-any', words: t('rules.ruleForm.anyOfItsSubtasksMatches') },
+  { value: 'siblings-all', words: t('rules.ruleForm.allOfItsParentS') },
+  { value: 'siblings-any', words: t('rules.ruleForm.anyOfItsParentS') },
+  { value: 'linked-all', words: t('rules.ruleForm.allTheIssuesItMatch') },
+  { value: 'linked-any', words: t('rules.ruleForm.anyIssueItMatches') },
 ];
 
 const TO: { value: RuleTargetKind; words: string }[] = [
-  { value: 'issue', words: 'the issue itself' },
-  { value: 'parent', words: 'its parent' },
-  { value: 'subtasks', words: 'its subtasks' },
-  { value: 'linked', words: 'the issues it …' },
+  { value: 'issue', words: t('rules.ruleForm.theIssueItself') },
+  { value: 'parent', words: t('rules.ruleForm.itsParent') },
+  { value: 'subtasks', words: t('rules.ruleForm.itsSubtasks') },
+  { value: 'linked', words: t('rules.ruleForm.theIssuesIt') },
 ];
 
 const TELL: { value: RuleTell; words: string }[] = [
@@ -119,21 +119,21 @@ if (fixing && !issue.comments.length) refuse('Say how it was fixed in a comment 
 export const EXAMPLES: { label: string; draft: Draft }[] = [
   {
     label: t('rules.ruleForm.criticalBugsGoToSomeone'),
-    draft: { ...EMPTY, name: 'Critical bugs go to Anna', when: 'created', query: 'Type: Bug Priority: Critical', command: t('rules.ruleForm.assigneeAnnaTagUrgent') },
+    draft: { ...EMPTY, name: t('rules.ruleForm.criticalBugsGoToAnna'), when: 'created', query: 'Type: Bug Priority: Critical', command: t('rules.ruleForm.assigneeAnnaTagUrgent') },
   },
   {
     label: t('rules.ruleForm.overdueIssuesGetTaggedDaily'),
-    draft: { ...EMPTY, name: 'Overdue issues get tagged', when: 'day', at: '09:00', query: '#Unresolved Due date: Overdue', command: 'tag overdue' },
+    draft: { ...EMPTY, name: t('rules.ruleForm.overdueIssuesGetTagged'), when: 'day', at: '09:00', query: '#Unresolved Due date: Overdue', command: 'tag overdue' },
   },
   {
     label: t('rules.ruleForm.wonTFixNeedsA'),
-    draft: { ...EMPTY, name: "Won't fix says why", when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: t('rules.ruleForm.sayInACommentWhy') },
+    draft: { ...EMPTY, name: t('rules.ruleForm.wonTFixSaysWhy'), when: 'guard', query: "State: {Won't fix}", requires: 'has: comments', message: t('rules.ruleForm.sayInACommentWhy') },
   },
   {
     label: t('rules.ruleForm.doneSubtasksFixTheirParent'),
     draft: {
       ...EMPTY,
-      name: 'Done subtasks fix their parent',
+      name: t('rules.ruleForm.doneSubtasksFixTheirParent'),
       when: 'updated',
       field: 'State',
       query: '#Resolved',
@@ -147,7 +147,7 @@ export const EXAMPLES: { label: string; draft: Draft }[] = [
     label: t('rules.ruleForm.criticalBugsAreNews'),
     draft: {
       ...EMPTY,
-      name: 'Critical bugs are news',
+      name: t('rules.ruleForm.criticalBugsAreNews'),
       when: 'created',
       query: 'Priority: Critical',
       tell: ['assignee', 'managers'],
@@ -367,7 +367,7 @@ export function RuleForm({
       return;
     }
     const timer = setTimeout(() => {
-      previewRule({ ...input, name: input.name || 'A rule' })
+      previewRule({ ...input, name: input.name || t('rules.ruleForm.aRule') })
         .then((p) => current && setPreviewed({ key, preview: p }))
         .catch(() => current && setPreviewed(null));
     }, 450);
@@ -421,7 +421,7 @@ export function RuleForm({
     setTestError(null);
     try {
       const issue = testOn.trim().toUpperCase();
-      setTested({ issue, run: await testRule({ ...input, name: input.name || 'A rule', issue }) });
+      setTested({ issue, run: await testRule({ ...input, name: input.name || t('rules.ruleForm.aRule'), issue }) });
     } catch (e) {
       setTested(null);
       setTestError(errorText(e));

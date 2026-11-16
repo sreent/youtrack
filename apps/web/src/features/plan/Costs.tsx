@@ -60,7 +60,7 @@ function spiWords(evm: Evm, behind: number | null): string {
   if (evm.spi === null) return t('plan.costs.nothingWasPlannedToBe');
   if (behind === null) return evm.spi < 1 ? t('plan.costs.behindThePlan') : evm.spi > 1 ? t('plan.costs.aheadOfThePlan') : t('plan.costs.onSchedule');
   if (behind === 0) return t('plan.costs.onSchedule');
-  return behind > 0 ? `${days(behind)} behind.` : `${days(-behind)} ahead.`;
+  return behind > 0 ? t('plan.costs.behind', { days: days(behind) }) : t('plan.costs.ahead', { days: days(-behind) });
 }
 
 // ---------------------------------------------------------------------------
@@ -110,17 +110,17 @@ function Bars({ id, label, bars, max, currency }: { id: string; label: string; b
 function EvmTable({ evm, currency, baselineName }: { evm: Evm; currency: string; baselineName: string }) {
   const m = (n: number | null) => (n === null ? '–' : money(n, currency));
   const rows: [string, string, string][] = [
-    ['Budget at completion (BAC)', m(evm.bac), `What ${baselineName} planned the work to cost`],
-    ['Planned value (PV)', m(evm.pv), `What ${baselineName} planned to be done by ${dayMonth(evm.asOf)}`],
-    ['Earned value (EV)', m(evm.ev), "What's done, at what it was planned to cost"],
-    ['Actual cost (AC)', m(evm.ac), 'What the work has cost so far'],
-    ['Cost variance (CV)', m(evm.cv), evm.cv < 0 ? t('plan.costs.evAcTheWorkDone') : t('plan.costs.evAcTheWorkDone2')],
-    ['Schedule variance (SV)', m(evm.sv), evm.sv < 0 ? t('plan.costs.evPvLessIsDone') : t('plan.costs.evPvAsMuchOr')],
-    ['Cost performance (CPI)', evm.cpi === null ? '–' : evm.cpi.toFixed(2), 'EV ÷ AC'],
-    ['Schedule performance (SPI)', evm.spi === null ? '–' : evm.spi.toFixed(2), 'EV ÷ PV'],
-    ['Estimate at completion (EAC)', m(evm.eac), 'BAC ÷ CPI: what it will cost if the work goes on costing as it has'],
-    ['Estimate to complete (ETC)', m(evm.etc), 'EAC − AC: what the rest will cost'],
-    ['Variance at completion (VAC)', m(evm.vac), 'BAC − EAC: under the plan if positive, over it if negative'],
+    [t('plan.costs.budgetAtCompletionBac'), m(evm.bac), t('plan.costs.whatPlannedTheWorkTo', { baselineName: baselineName })],
+    [t('plan.costs.plannedValuePv'), m(evm.pv), t('plan.costs.whatPlannedToBeDone', { baselineName: baselineName, when: dayMonth(evm.asOf) })],
+    [t('plan.costs.earnedValueEv'), m(evm.ev), t('plan.costs.whatSDoneAtWhat')],
+    [t('plan.costs.actualCostAc'), m(evm.ac), t('plan.costs.whatTheWorkHasCost')],
+    [t('plan.costs.costVarianceCv'), m(evm.cv), evm.cv < 0 ? t('plan.costs.evAcTheWorkDone') : t('plan.costs.evAcTheWorkDone2')],
+    [t('plan.costs.scheduleVarianceSv'), m(evm.sv), evm.sv < 0 ? t('plan.costs.evPvLessIsDone') : t('plan.costs.evPvAsMuchOr')],
+    [t('plan.costs.costPerformanceCpi2'), evm.cpi === null ? '–' : evm.cpi.toFixed(2), 'EV ÷ AC'],
+    [t('plan.costs.schedulePerformanceSpi2'), evm.spi === null ? '–' : evm.spi.toFixed(2), 'EV ÷ PV'],
+    [t('plan.costs.estimateAtCompletionEac'), m(evm.eac), t('plan.costs.bacCpiWhatItWill')],
+    [t('plan.costs.estimateToCompleteEtc'), m(evm.etc), t('plan.costs.eacAcWhatTheRest')],
+    [t('plan.costs.varianceAtCompletionVac'), m(evm.vac), t('plan.costs.bacEacUnderThePlan')],
   ];
   return (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('plan.costs.earnedValueAgainst', { baselineName: baselineName })}>
@@ -266,15 +266,15 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
 
   const toDate: Bar[] = evm
     ? [
-        { name: 'Planned', value: evm.pv, series: 's1' },
-        { name: 'Earned', value: evm.ev, series: 's2' },
-        { name: 'Actual', value: c.actualCost, series: 's3' },
+        { name: t('plan.costs.planned'), value: evm.pv, series: 's1' },
+        { name: t('plan.costs.earned'), value: evm.ev, series: 's2' },
+        { name: t('plan.costs.actual'), value: c.actualCost, series: 's3' },
       ]
-    : [{ name: 'Actual', value: c.actualCost, series: 's3' }];
+    : [{ name: t('plan.costs.actual'), value: c.actualCost, series: 's3' }];
   const atEnd: Bar[] = [
-    ...(c.budget !== null ? [{ name: 'Budget', value: c.budget, series: 's1' as const }] : []),
-    { name: 'Planned', value: c.plannedCost, series: 's1' },
-    { name: 'Forecast', value: c.forecastCost, series: 'forecast' },
+    ...(c.budget !== null ? [{ name: t('plan.costs.budget'), value: c.budget, series: 's1' as const }] : []),
+    { name: t('plan.costs.planned'), value: c.plannedCost, series: 's1' },
+    { name: t('plan.costs.forecast'), value: c.forecastCost, series: 'forecast' },
   ];
   const max = Math.max(1, ...toDate.map((b) => b.value), ...atEnd.map((b) => b.value));
   const over = c.budget !== null ? c.forecastCost - c.budget : null;

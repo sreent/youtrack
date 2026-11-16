@@ -9,20 +9,20 @@ import { plural } from '../plan/format';
 import { t, tr } from '../../i18n';
 
 const FIXED: [string, string][] = [
-  ['ignore', 'Leave it out'],
-  ['key', "Its key there (the import's way to find it again)"],
-  ['external-id', 'Its numeric id there'],
-  ['summary', 'Summary'],
-  ['description', 'Description'],
-  ['parent', 'Parent, by key or id'],
-  ['created', 'Created'],
-  ['updated', 'Updated'],
-  ['resolved', 'Resolved'],
-  ['reporter', 'Reporter'],
-  ['tags', 'Tags'],
-  ['comment', 'A comment'],
-  ['spent', 'Time spent'],
-  ['sprint', 'Sprint'],
+  ['ignore', t('imports.mappingTable.leaveItOut')],
+  ['key', t('imports.mappingTable.itsKeyThereTheImport')],
+  ['external-id', t('imports.mappingTable.itsNumericIdThere')],
+  ['summary', t('imports.mappingTable.summary')],
+  ['description', t('imports.mappingTable.description')],
+  ['parent', t('imports.mappingTable.parentByKeyOrId')],
+  ['created', t('imports.mappingTable.created')],
+  ['updated', t('imports.mappingTable.updated')],
+  ['resolved', t('imports.mappingTable.resolved')],
+  ['reporter', t('imports.mappingTable.reporter')],
+  ['tags', t('imports.mappingTable.tags')],
+  ['comment', t('imports.mappingTable.aComment')],
+  ['spent', t('imports.mappingTable.timeSpent')],
+  ['sprint', t('imports.mappingTable.sprint')],
 ];
 
 export function targetWords(target: string): string {
@@ -34,7 +34,7 @@ export function targetWords(target: string): string {
 }
 
 /** Where an import's issues come from, in words: the file, or the tracker its API is. */
-export const whereFrom = (imp: Import) => (imp.origin ? (imp.origin.kind === 'youtrack' ? 'YouTrack' : 'Jira') : 'the file');
+export const whereFrom = (imp: Import) => (imp.origin ? (imp.origin.kind === 'youtrack' ? 'YouTrack' : t('imports.mappingTable.jira')) : t('imports.mappingTable.theFile'));
 
 export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp: Import; fields: ProjectField[]; phrases: string[]; onTarget: (index: number, target: string) => void; disabled?: boolean }) {
   const from = whereFrom(imp);
@@ -54,7 +54,7 @@ export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp
             <tr key={c.index}>
               <th scope="row">
                 <span className="mapping-name">{c.name || t('imports.mappingTable.column', { v: c.index + 1 })}</span>
-                <span className="mapping-samples">{c.filled ? `${c.samples.join(' · ')}${c.filled > c.samples.length ? ` · ${plural(c.filled, 'row')} with a value` : ''}` : t('imports.mappingTable.emptyInEveryRow')}</span>
+                <span className="mapping-samples">{c.filled ? `${c.samples.join(' · ')}${c.filled > c.samples.length ? t('imports.mappingTable.withAValue', { plural: plural(c.filled, 'row') }) : ''}` : t('imports.mappingTable.emptyInEveryRow')}</span>
               </th>
               <td>
                 <select aria-label={t('imports.mappingTable.whatBecomes', { name: c.name })} value={c.target} disabled={disabled} onChange={(e) => onTarget(c.index, e.target.value)}>
@@ -88,7 +88,7 @@ export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp
   );
 }
 
-export function ValuesTable({ map, onValue, disabled, from = 'the file' }: { map: ImportValueMap; onValue: (value: string, to: string | null) => void; disabled?: boolean; from?: string }) {
+export function ValuesTable({ map, onValue, disabled, from = t('imports.mappingTable.theFile') }: { map: ImportValueMap; onValue: (value: string, to: string | null) => void; disabled?: boolean; from?: string }) {
   return (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('imports.mappingTable.itsValues', { label: map.label })}>
       <table className="figures mapping">
@@ -170,14 +170,14 @@ export function Tally({
   const items: [string, number][] = [
     [planned ? t('imports.mappingTable.toCreate') : t('imports.mappingTable.created'), counts.created],
     [planned ? t('imports.mappingTable.toUpdate') : t('imports.mappingTable.updated'), counts.updated],
-    ['Unchanged', counts.unchanged],
-    ['Skipped', counts.skipped],
+    [t('imports.mappingTable.unchanged'), counts.unchanged],
+    [t('imports.mappingTable.skipped'), counts.skipped],
     [planned ? t('imports.mappingTable.wouldFail') : t('imports.mappingTable.notImported'), counts.failed],
-    ['Comments', counts.comments],
+    [t('imports.mappingTable.comments'), counts.comments],
     // An import from an API brings these one by one; a file's spent time comes as one total.
-    ...(counts.work !== undefined ? ([['Work items', counts.work]] as [string, number][]) : []),
-    ...(counts.files !== undefined ? ([['Files', counts.files]] as [string, number][]) : []),
-    ['Links and parents', counts.links],
+    ...(counts.work !== undefined ? ([[t('imports.mappingTable.workItems'), counts.work]] as [string, number][]) : []),
+    ...(counts.files !== undefined ? ([[t('imports.mappingTable.files'), counts.files]] as [string, number][]) : []),
+    [t('imports.mappingTable.linksAndParents'), counts.links],
   ];
   return (
     <dl className="import-tally" aria-label={label}>

@@ -46,7 +46,7 @@ export function eventVerb(tr: Translator, e: TrackerEvent): string {
     case 'comment.updated':
       return t('server.notify.verb.editedComment');
     case 'link.created':
-      return t('server.notify.verb.linked', { phrase: String(data.phrase ?? 'relates to'), target: (data.target as { id?: string } | undefined)?.id ?? '' }).trim();
+      return t('server.notify.verb.linked', { phrase: String(data.phrase ?? 'relates to' /* not words: a link type's phrase is data */), target: (data.target as { id?: string } | undefined)?.id ?? '' }).trim();
     case 'link.deleted':
       return t('server.notify.verb.unlinked', { target: (data.target as { id?: string } | undefined)?.id ?? t('server.notify.anIssue') });
     case 'attachment.added':

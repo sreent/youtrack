@@ -7,10 +7,10 @@ import { keys } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { errorText, FormField, Said } from '../common/bits';
 import { span } from './RequestCard';
-import { intlLocale, t, tr } from '../../i18n';
+import { intlLocale, t, tr, weekdayNames } from '../../i18n';
 
 const TARGET = { first_response: t('helpdesk.sla.firstResponse'), resolution: t('helpdesk.sla.resolution') } as const;
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS = weekdayNames();
 
 /** One target as it stands, in Ocean's grammar: counting (plain), at risk (warn), past (bad), met (good), paused (idle). */
 export function ClockLine({ c, now = Date.now() }: { c: SlaClock; now?: number }) {
@@ -18,7 +18,7 @@ export function ClockLine({ c, now = Date.now() }: { c: SlaClock; now?: number }
   const name = TARGET[c.target];
   switch (c.state) {
     case 'running':
-      return <Badge title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.dueIn', { name: name, v: due ? span(due - now) : `${formatPeriod(c.leftMinutes)} of working time` })}</Badge>;
+      return <Badge title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.dueIn', { name: name, v: due ? span(due - now) : t('helpdesk.sla.ofWorkingTime', { formatPeriod: formatPeriod(c.leftMinutes) }) })}</Badge>;
     case 'at_risk':
       return <Badge tone="warn" title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.atRiskDueIn', { name: name, v: due ? span(due - now) : formatPeriod(c.leftMinutes) })}</Badge>;
     case 'paused':
@@ -197,7 +197,7 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
             {policies.data.map((x) => (
               <li key={x.id} className="stack tight">
                 <strong>{x.name}</strong>
-                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? `first response in ${formatPeriod(x.firstResponseMinutes)}` : 'no first-response target', v3: x.resolutionMinutes ? `resolved in ${formatPeriod(x.resolutionMinutes)}` : 'no resolution target', v4: formatPeriod(x.warnMinutes || 0) || 'never' })}</p>
+                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? t('helpdesk.sla.firstResponseIn', { formatPeriod: formatPeriod(x.firstResponseMinutes) }) : 'no first-response target', v3: x.resolutionMinutes ? t('helpdesk.sla.resolvedIn', { formatPeriod: formatPeriod(x.resolutionMinutes) }) : t('helpdesk.sla.noResolutionTarget'), v4: formatPeriod(x.warnMinutes || 0) || 'never' })}</p>
                 {canEdit ? (
                   <button type="button" className="link" onClick={() => remove.mutate(x.id)} aria-label={t('helpdesk.sla.deleteThePolicy', { name: x.name })}>{t('helpdesk.sla.delete')}</button>
                 ) : null}
@@ -289,7 +289,7 @@ export function DeskMailboxSettings({ project }: { project: Project }) {
   return (
     <div className="stack" aria-label={t('helpdesk.sla.itsOwnMailbox')}>
       <p className="note">
-        {m?.imap ? t('helpdesk.sla.readsAt', { user: m.imap.user, host: m.imap.host, folder: m.imap.folder, v: m.lastReadAt ? `, last read ${new Date(m.lastReadAt).toLocaleString(intlLocale())}` : '' }) : t('helpdesk.sla.readsNoMailboxOfIts')}
+        {m?.imap ? t('helpdesk.sla.readsAt', { user: m.imap.user, host: m.imap.host, folder: m.imap.folder, v: m.lastReadAt ? t('helpdesk.sla.lastRead', { toLocaleString: new Date(m.lastReadAt).toLocaleString(intlLocale()) }) : '' }) : t('helpdesk.sla.readsNoMailboxOfIts')}
         {m?.lastError ? t('helpdesk.sla.theLastReadFailed', { lastError: m.lastError }) : ''}
       </p>
       <form

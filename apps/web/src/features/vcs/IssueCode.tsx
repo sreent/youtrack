@@ -34,7 +34,7 @@ function Ref({ href, children, className }: { href: string | null; children: Rea
 }
 
 function author(c: Pick<VcsCommit, 'author'>): string {
-  return c.author.user?.name ?? c.author.name ?? c.author.login ?? 'someone';
+  return c.author.user?.name ?? c.author.name ?? c.author.login ?? t('vcs.issueCode.someone');
 }
 
 function Command({ commit }: { commit: VcsCommit }) {

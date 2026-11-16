@@ -323,7 +323,7 @@ export default function DashboardPage() {
 
   if (list.isLoading) return <Loading what={t('page.dashboard.yourDashboards')} />;
   if (list.error) return <ErrorNote error={list.error} />;
-  if (id && !chosen) return <ErrorNote error={new ApiError(404, 'not_found', 'Dashboard not found', 'It may have been deleted, or it is someone else\'s and not shared.')} />;
+  if (id && !chosen) return <ErrorNote error={new ApiError(404, 'not_found', t('page.dashboard.dashboardNotFound'), t('page.dashboard.itMayHaveBeenDeleted'))} />;
   const d = chosen ?? fallback.data;
   if (!d) return fallback.error ? <ErrorNote error={fallback.error} /> : <Loading what={t('page.dashboard.yourDashboard')} />;
 
@@ -367,7 +367,7 @@ export default function DashboardPage() {
           {shared.length ? (
             <optgroup label={t('page.dashboard.shared')}>
               {shared.map((x) => (
-                <option key={x.id} value={x.id!}>{tr('page.dashboard.s', { name: x.name, v: x.owner?.name ?? 'someone' })}</option>
+                <option key={x.id} value={x.id!}>{tr('page.dashboard.s', { name: x.name, v: x.owner?.name ?? t('page.dashboard.someone2') })}</option>
               ))}
             </optgroup>
           ) : null}
@@ -386,16 +386,16 @@ export default function DashboardPage() {
               ? d.shared
                 ? t('page.dashboard.yoursAndSharedEveryoneCan')
                 : t('page.dashboard.yoursAlone')
-              : t('page.dashboard.sSharedWithEveryoneEach', { v: d.owner?.name ?? 'Someone' })
+              : t('page.dashboard.sSharedWithEveryoneEach', { v: d.owner?.name ?? t('page.dashboard.someone') })
         }
         actions={
           <>
             {picker}
             {!d.id && canWrite ? (
-              <button type="button" className="primary" onClick={() => makeOwn(d, 'Your dashboard')}>{t('page.dashboard.makeItYours')}</button>
+              <button type="button" className="primary" onClick={() => makeOwn(d, t('page.dashboard.yourDashboard2'))}>{t('page.dashboard.makeItYours')}</button>
             ) : null}
             {d.id && !d.mine && canWrite ? (
-              <button type="button" onClick={() => makeOwn(d, `${d.name}, your copy`)}>{t('page.dashboard.copyIt')}</button>
+              <button type="button" onClick={() => makeOwn(d, t('page.dashboard.yourCopy', { name: d.name }))}>{t('page.dashboard.copyIt')}</button>
             ) : null}
             {d.canEdit ? (
               <button type="button" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
@@ -404,7 +404,7 @@ export default function DashboardPage() {
             ) : null}
             {canWrite && d.id ? (
               <button type="button" onClick={async () => {
-                const made = await createDashboard({ name: 'New dashboard' });
+                const made = await createDashboard({ name: t('page.dashboard.newDashboard') });
                 await refresh();
                 navigate(`/dashboard/${made.id}`);
                 setEditing(true);

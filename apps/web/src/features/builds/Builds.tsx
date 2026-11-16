@@ -36,10 +36,10 @@ export const STATUS: Record<BuildStatus, { tone: 'good' | 'bad' | 'idle'; word: 
 
 /** What a build did to an issue. */
 export const OUTCOME: Record<BuildIssueOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
-  marked: { tone: 'good', word: 'fixed in it' },
-  already: { tone: 'idle', word: 'in an earlier build' },
-  open: { tone: 'warn', word: 'not resolved yet' },
-  refused: { tone: 'bad', word: 'not marked' },
+  marked: { tone: 'good', word: t('builds.builds.fixedInIt2') },
+  already: { tone: 'idle', word: t('builds.builds.inAnEarlierBuild') },
+  open: { tone: 'warn', word: t('builds.builds.notResolvedYet') },
+  refused: { tone: 'bad', word: t('builds.builds.notMarked') },
 };
 
 const safe = (url: string | null): string | null => (url && /^https?:\/\//i.test(url) ? url : null);
@@ -86,14 +86,14 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
   const remove = useMutation({ mutationFn: () => del(`/build-sources/${source.id}`), onSuccess: refresh, onError: (e) => onSaid({ text: errorText(e), bad: true }) });
   const from =
     source.kind === 'github'
-      ? `${source.integration?.name ?? 'a GitHub integration'}'s runs of ${source.workflow ?? 'any workflow'} on ${source.branch ?? 'any branch'}`
-      : `any CI, with its token (it begins ${source.tokenPrefix ?? '…'})`;
+      ? t('builds.builds.sRunsOfOn', { v: source.integration?.name ?? t('builds.builds.aGithubIntegration'), v2: source.workflow ?? t('builds.builds.anyWorkflow'), v3: source.branch ?? t('builds.builds.anyBranch') })
+      : t('builds.builds.anyCiWithItsToken', { v: source.tokenPrefix ?? '…' });
   return (
     <li className="card hook">
       <div className="hook-head">
         <div className="hook-what">
           <span className="hook-url">{source.name}</span>
-          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? 'no build field yet', v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: ago(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
+          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? t('builds.builds.noBuildFieldYet'), v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: ago(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
         </div>
         {source.active ? <Badge tone="good">{t('builds.builds.takesBuilds')}</Badge> : <Badge tone="idle">{t('builds.builds.paused')}</Badge>}
       </div>
@@ -340,7 +340,7 @@ const CONNECT_SAID: Record<string, string> = {
   denied: t('builds.builds.youSaidNoThereSo'),
   taken: t('builds.builds.thatAccountIsSomeoneElse'),
   refused: t('builds.builds.theProviderDidnTSay'),
-  unreachable: "a4a couldn't reach the provider. Try again later.",
+  unreachable: t('builds.builds.a4aCouldnTReachThe'),
   failed: t('builds.builds.somethingWentWrongTryAgain'),
 };
 

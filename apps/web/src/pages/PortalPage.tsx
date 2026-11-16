@@ -209,7 +209,7 @@ export default function PortalPage() {
   const desks = useQuery({ queryKey: ['portal', 'desks'], queryFn: () => get<PortalDesk[]>('/portal/desks'), enabled: signedIn });
   const [name, setName] = useState('');
   useEffect(() => {
-    document.title = 'Your requests';
+    document.title = t('page.portal.yourRequests');
   }, []);
 
   if (redeemError) {

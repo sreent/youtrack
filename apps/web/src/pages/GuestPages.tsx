@@ -135,7 +135,7 @@ export function GuestIssue() {
       ) : null}
       {d ? (
         <article className="stack">
-          <p className="note">{tr('page.guestPages.reported', { id: d.id, name: d.project.name, when: ago(d.createdAt), v: d.reporter ? ` by ${d.reporter.name}` : '' })}</p>
+          <p className="note">{tr('page.guestPages.reported', { id: d.id, name: d.project.name, when: ago(d.createdAt), v: d.reporter ? t('page.guestPages.by', { name: d.reporter.name }) : '' })}</p>
           <h1>{d.summary}</h1>
           <dl className="fields-list">
             {d.fields

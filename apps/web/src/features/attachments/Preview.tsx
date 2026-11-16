@@ -49,7 +49,7 @@ function TextPreview({ file, id }: { file: Attachment; id: string }) {
   if (part.error || !part.data) {
     return (
       <div className="attachment-preview" id={id}>
-        <ErrorLine>{errorText(part.error, `${file.name} can't be shown here.`)}</ErrorLine>
+        <ErrorLine>{errorText(part.error, tx('attachments.preview.canTBeShownHere', { name: file.name }))}</ErrorLine>
         <p className="attachment-preview-about">{download}</p>
       </div>
     );

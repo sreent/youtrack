@@ -29,15 +29,15 @@ export const useChatSubscriptions = (project?: string) =>
 const useChatAccounts = () => useQuery({ queryKey: chatKeys.accounts, queryFn: () => get<ChatAccount[]>('/chat/accounts') });
 
 export const KIND_NAMES: Record<ChatChangeKind, { name: string; about: string }> = {
-  created: { name: 'New issues', about: t('chat.chat.eachIssueReportedInIt') },
-  state: { name: 'State changes', about: t('chat.chat.movedToAnotherState') },
-  assigned: { name: 'Assignments', about: t('chat.chat.whoItSAssignedTo') },
-  commented: { name: 'Comments', about: t('chat.chat.whatPeopleSayOnIt') },
-  fields: { name: 'Other changes', about: t('chat.chat.itsOtherFieldsItsSummary') },
+  created: { name: t('chat.chat.newIssues'), about: t('chat.chat.eachIssueReportedInIt') },
+  state: { name: t('chat.chat.stateChanges'), about: t('chat.chat.movedToAnotherState') },
+  assigned: { name: t('chat.chat.assignments'), about: t('chat.chat.whoItSAssignedTo') },
+  commented: { name: t('chat.chat.comments'), about: t('chat.chat.whatPeopleSayOnIt') },
+  fields: { name: t('chat.chat.otherChanges'), about: t('chat.chat.itsOtherFieldsItsSummary') },
 };
 
 /** "#eng, Acme on Slack". */
-export const channelName = (c: ChatChannel) => `${c.name}, ${c.workspace} on ${CHAT_PLATFORM_NAMES[c.platform]}`;
+export const channelName = (c: ChatChannel) => t('chat.chat.on2', { name: c.name, workspace: c.workspace, v: CHAT_PLATFORM_NAMES[c.platform] });
 
 function KindChoices({ value, onChange, legend, disabled }: { value: ChatChangeKind[]; onChange: (v: ChatChangeKind[]) => void; legend: string; disabled?: boolean }) {
   return (
@@ -85,7 +85,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
-  const target = s.project?.name ?? `“${s.search?.name ?? 'a saved search'}”`;
+  const target = s.project?.name ?? `“${s.search?.name ?? t('chat.chat.aSavedSearch2')}”`;
   return (
     <tr className={s.ended ? 'muted' : undefined}>
       <th scope="row" className="row-head">

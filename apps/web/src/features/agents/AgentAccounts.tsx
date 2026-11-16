@@ -149,7 +149,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
       <div className="hook-head">
         <div className="hook-what">
           <Who kind="agent" name={agent.login} about={agent.name !== agent.login ? agent.name : undefined} />
-          <span className="item-about">{tr('agents.agentAccounts.aAdded', { role: agent.role, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : `${tokens.length} tokens` })}</span>
+          <span className="item-about">{tr('agents.agentAccounts.aAdded', { role: agent.role, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : tx('agents.agentAccounts.tokens', { length: tokens.length }) })}</span>
         </div>
         {agent.banned ? <Badge tone="bad">{tx('agents.agentAccounts.banned')}</Badge> : <Badge tone="good">{tx('agents.agentAccounts.actsAsItself')}</Badge>}
       </div>

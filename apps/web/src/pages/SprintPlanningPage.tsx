@@ -49,7 +49,7 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
     try {
       await post(`/sprints/${sprint.id}/issues`, { issues: [issue] });
       await refresh();
-      onMoved(`Moved ${issue} into ${sprint.name}.`);
+      onMoved(t('page.sprintPlanning.movedInto', { issue: issue, name: sprint.name }));
     } catch (e) {
       setError(errorText(e));
     }
@@ -58,8 +58,8 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
     if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
     const issue = items[i]!;
-    if (e.key === 'ArrowUp' && i > 0) void rank(issue.id, { before: items[i - 1]!.id }, `Moved ${issue.id} above ${items[i - 1]!.id}.`);
-    if (e.key === 'ArrowDown' && i < items.length - 1) void rank(issue.id, { after: items[i + 1]!.id }, `Moved ${issue.id} below ${items[i + 1]!.id}.`);
+    if (e.key === 'ArrowUp' && i > 0) void rank(issue.id, { before: items[i - 1]!.id }, t('page.sprintPlanning.movedAbove', { id: issue.id, id2: items[i - 1]!.id }));
+    if (e.key === 'ArrowDown' && i < items.length - 1) void rank(issue.id, { after: items[i + 1]!.id }, t('page.sprintPlanning.movedBelow', { id: issue.id, id2: items[i + 1]!.id }));
   };
 
   return (
@@ -99,7 +99,7 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
                   const place = over?.after ? { after: issue.id } : { before: issue.id };
                   setDragged(null);
                   setOver(null);
-                  if (moving && moving !== issue.id) void rank(moving, place, `Moved ${moving} ${over?.after ? 'below' : 'above'} ${issue.id}.`);
+                  if (moving && moving !== issue.id) void rank(moving, place, t('page.sprintPlanning.moved', { moving: moving, v: over?.after ? 'below' : 'above', id: issue.id }));
                 }}
               >
                 <button type="button" className="backlog-handle" aria-label={t('page.sprintPlanning.move', { id: issue.id })} aria-describedby="backlog-keys" onKeyDown={(e) => keyMove(e, i)}>
@@ -180,7 +180,7 @@ function SprintLoad({ plan }: { plan: SprintPlan }) {
         </thead>
         <tbody>
           {plan.people.map((p) => (
-            <tr key={p.user?.id ?? 'nobody'}>
+            <tr key={p.user?.id ?? t('page.sprintPlanning.nobody')}>
               <th scope="row" className="row-head">
                 {p.user ? p.user.name : <span className="muted">{t('page.sprintPlanning.nobodyYet')}</span>}
               </th>
@@ -219,7 +219,7 @@ function VelocityChart({ v }: { v: Velocity }) {
   const titleId = useId();
   if (!v.sprints.length) return <p className="note">{t('page.sprintPlanning.noSprintHasBegunYet')}</p>;
   if (v.sprints.every((s) => s.committed === 0 && s.done === 0)) {
-    return <p className="note">{tr('page.sprintPlanning.nothingWasCommittedToOr', { v: v.sprints.length === 1 ? v.sprints[0]!.name : 'its sprints', unit: v.unit })}</p>;
+    return <p className="note">{tr('page.sprintPlanning.nothingWasCommittedToOr', { v: v.sprints.length === 1 ? v.sprints[0]!.name : t('page.sprintPlanning.itsSprints'), unit: v.unit })}</p>;
   }
   const top = Math.max(1, ...v.sprints.map((s) => Math.max(s.committed, s.done)));
   const H = 140;

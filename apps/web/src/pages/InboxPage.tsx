@@ -72,7 +72,7 @@ function NotificationEntry({ n }: { n: Notification }) {
         ))}
         {files.map((e) => (
           <p key={e.id} className="note">
-            {e.type === 'attachment.added' ? t('page.inbox.attached') : t('page.inbox.removed')}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? 'a file')}
+            {e.type === 'attachment.added' ? t('page.inbox.attached') : t('page.inbox.removed')}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? t('page.inbox.aFile'))}
           </p>
         ))}
         {said.map((e) => (

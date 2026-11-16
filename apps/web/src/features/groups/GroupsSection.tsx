@@ -45,7 +45,7 @@ function AddGroup({ provider }: { provider: string | null }) {
           <FormField label={t('groups.groupsSection.whatItSFor')}>{(id) => <input id={id} value={form.description} onChange={set('description')} maxLength={500} />}</FormField>
           <FormField
             label={t('groups.groupsSection.itsNameAtTheIdentity')}
-            help={t('groups.groupsSection.optionalWithItSaysWho', { v: provider ?? 'the identity provider' })}
+            help={t('groups.groupsSection.optionalWithItSaysWho', { v: provider ?? t('groups.groupsSection.theIdentityProvider') })}
           >
             {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder={t('groups.groupsSection.none')} />}
           </FormField>

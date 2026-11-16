@@ -28,22 +28,22 @@ import { whenRead } from '../features/common/format';
 import { plural } from '../features/plan/format';
 import { t, tr } from '../i18n';
 
-const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'a CSV file', github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk' };
+const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: t('page.import.aCsvFile'), github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk' };
 const FIRST = {
-  start: { name: 'Bring the issues', about: t('page.import.jiraSOrYoutrackS') },
-  file: { name: 'Upload the export', about: t('page.import.jiraSOrYoutrackS2') },
-  api: { name: 'Read the issues', about: t('page.import.fromTheOtherTrackerS') },
+  start: { name: t('page.import.bringTheIssues'), about: t('page.import.jiraSOrYoutrackS') },
+  file: { name: t('page.import.uploadTheExport'), about: t('page.import.jiraSOrYoutrackS2') },
+  api: { name: t('page.import.readTheIssues'), about: t('page.import.fromTheOtherTrackerS') },
 };
 const STAGES = [
   FIRST.file,
-  { name: 'Map it', about: t('page.import.itsColumnsToTheProject') },
-  { name: 'Check it', about: t('page.import.whatItWouldCreateAnd') },
-  { name: 'Import it', about: t('page.import.asAJobYouCan') },
-  { name: 'Read what it did', about: t('page.import.whatItMadeWhatIt') },
+  { name: t('page.import.mapIt'), about: t('page.import.itsColumnsToTheProject') },
+  { name: t('page.import.checkIt'), about: t('page.import.whatItWouldCreateAnd') },
+  { name: t('page.import.importIt'), about: t('page.import.asAJobYouCan') },
+  { name: t('page.import.readWhatItDid'), about: t('page.import.whatItMadeWhatIt') },
 ];
 
 /** Where an import's issues come from, in the list: a file, or a tracker's API. */
-const fromWords = (i: Import) => (i.origin ? `${SOURCE_NAME[i.origin.kind]}'s API` : SOURCES[i.source]);
+const fromWords = (i: Import) => (i.origin ? t('page.import.sApi', { v: SOURCE_NAME[i.origin.kind] }) : SOURCES[i.source]);
 
 /** Ocean's JourneyPath: the stages of an import, each done, now or later. */
 function Stages({ now, first = 'file' }: { now: number; first?: keyof typeof FIRST }) {
@@ -202,7 +202,7 @@ function Report({ imp }: { imp: Import }) {
         </div>
         <Tally counts={r} label={t('page.import.whatItDid')} />
         {r.linksMissing ? (
-          <p className="note">{tr('page.import.namedIssuesNeitherNorImported', { plural: plural(r.linksMissing, 'link'), v: imp.origin ? 'among those read' : 'in the file' })}</p>
+          <p className="note">{tr('page.import.namedIssuesNeitherNorImported', { plural: plural(r.linksMissing, 'link'), v: imp.origin ? 'among those read' : t('page.import.inTheFile') })}</p>
         ) : null}
         {created.data?.items.length ? (
           <p className="note">{tr('page.import.itMade', { map: created.data.items.slice(0, 12).map((row, i) => (
@@ -253,7 +253,7 @@ function Report({ imp }: { imp: Import }) {
                   try {
                     const done = await undoImport(imp.id, false);
                     setUndo(done);
-                    setSaid({ text: t('page.import.takenAway', { plural: plural(done.remove.length, 'issue'), v: done.keep.length ? `; ${done.keep.length} stayed` : '' }) });
+                    setSaid({ text: t('page.import.takenAway', { plural: plural(done.remove.length, 'issue'), v: done.keep.length ? t('page.import.stayed', { length: done.keep.length }) : '' }) });
                     await qc.invalidateQueries({ queryKey: importKeys.all });
                     await qc.invalidateQueries({ queryKey: ['issues'] });
                   } catch (e) {

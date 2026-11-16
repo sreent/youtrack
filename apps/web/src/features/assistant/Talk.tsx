@@ -169,7 +169,7 @@ export function Talk(props: TalkProps) {
   const placeholder = !aiOn
     ? t('assistant.talk.theAssistantIsOffOn2')
     : running || detail?.status === 'running'
-      ? 'assistant is answering…'
+      ? t('assistant.talk.assistantIsAnswering')
       : awaiting
         ? t('assistant.talk.decideOnTheChangeAbove')
         : t('assistant.talk.askAboutYourIssuesBoards');
@@ -218,8 +218,8 @@ export function Talk(props: TalkProps) {
   const changes = [...tools.values()].filter((t) => t.kind === 'changes');
   const empty = !rows.length && !approvals.length;
   const quick = context.issue
-    ? [`What is ${context.issue} about, and how does it stand?`, `What blocks ${context.issue}?`, `Find issues like ${context.issue}`]
-    : ['What changed since yesterday?', 'Which open issues are critical?', 'Who has the most open work?'];
+    ? [t('assistant.talk.whatIsAboutAndHow', { issue: context.issue }), t('assistant.talk.whatBlocks', { issue: context.issue }), t('assistant.talk.findIssuesLike', { issue: context.issue })]
+    : [t('assistant.talk.whatChangedSinceYesterday'), t('assistant.talk.whichOpenIssuesAreCritical'), t('assistant.talk.whoHasTheMostOpen')];
 
   const row = (r: Row) => (
     <Fragment key={r.key}>

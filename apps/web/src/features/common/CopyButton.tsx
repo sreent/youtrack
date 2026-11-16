@@ -25,7 +25,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** Copies a value, and says so where a screen reader hears it. */
-export function CopyButton({ text, label = 'Copy', what }: { text: string; label?: string; what: string }) {
+export function CopyButton({ text, label = t('common.copyButton.copy'), what }: { text: string; label?: string; what: string }) {
   const [said, setSaid] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -43,10 +43,10 @@ export function CopyButton({ text, label = 'Copy', what }: { text: string; label
   return (
     <span className="copy">
       <button type="button" onClick={copy}>
-        {said.startsWith('Copied') ? t('common.copyButton.copied2') : label}
+        {said.startsWith(t('common.copyButton.copied2')) ? t('common.copyButton.copied2') : label}
       </button>
       <span role="status" className="copy-said">
-        {said && !said.startsWith('Copied') ? said : <span className="hidden">{said}</span>}
+        {said && !said.startsWith(t('common.copyButton.copied2')) ? said : <span className="hidden">{said}</span>}
       </span>
     </span>
   );

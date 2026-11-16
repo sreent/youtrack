@@ -1,5 +1,5 @@
 import type { QueryProblem } from '@a4a/shared';
-import { getLocale } from '../i18n';
+import { getLocale, t as tx } from '../i18n';
 
 const BASE = '/api/v1';
 
@@ -32,7 +32,7 @@ async function toError(res: Response): Promise<ApiError> {
   } catch {
     // not JSON
   }
-  return new ApiError(res.status, 'http_error', res.statusText || `Request failed (${res.status})`);
+  return new ApiError(res.status, 'http_error', res.statusText || tx('api.client.requestFailed', { status: res.status }));
 }
 
 export interface RequestOptions {

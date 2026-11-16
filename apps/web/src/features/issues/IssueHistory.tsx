@@ -36,41 +36,41 @@ interface Who {
 
 /** Who acted, for whom and through what, in Ocean's grammar. A requester, through the help desk, by the name they gave. */
 export function whoOf(actor: Actor, requester?: string | null): Who {
-  const person = actor.name ?? actor.login ?? 'someone';
+  const person = actor.name ?? actor.login ?? t('issues.issueHistory.someone');
   // An agent with a token of its own acts as itself, not for a person (D34).
   if (actor.isBot && (actor.channel === 'mcp' || actor.channel === 'api')) {
-    return { kind: 'agent', name: actor.login ?? 'an agent', via: actor.channel === 'mcp' ? t('issues.issueHistory.viaMcp') : t('issues.issueHistory.viaTheApi') };
+    return { kind: 'agent', name: actor.login ?? t('issues.issueHistory.anAgent'), via: actor.channel === 'mcp' ? t('issues.issueHistory.viaMcp') : t('issues.issueHistory.viaTheApi') };
   }
   switch (actor.channel) {
     case 'helpdesk':
-      return { kind: 'person', name: requester ?? 'The requester', via: 'via the help desk' };
+      return { kind: 'person', name: requester ?? t('issues.issueHistory.theRequester'), via: t('issues.issueHistory.viaTheHelpDesk') };
     case 'web':
-      return { kind: 'person', name: person, via: 'via the web' };
+      return { kind: 'person', name: person, via: t('issues.issueHistory.viaTheWeb') };
     case 'chat':
-      return { kind: 'person', name: person, via: `via ${actor.token ?? 'chat'}` };
+      return { kind: 'person', name: person, via: t('issues.issueHistory.via', { v: actor.token ?? 'chat' }) };
     case 'api':
-      return { kind: 'service', name: actor.token ?? 'a script', forWhom: person, via: 'via the API' };
+      return { kind: 'service', name: actor.token ?? t('issues.issueHistory.aScript'), forWhom: person, via: t('issues.issueHistory.viaTheApi') };
     case 'mcp':
-      return { kind: 'agent', name: actor.token ?? 'an agent', forWhom: person, via: 'via MCP' };
+      return { kind: 'agent', name: actor.token ?? t('issues.issueHistory.anAgent'), forWhom: person, via: t('issues.issueHistory.viaMcp') };
     case 'assistant':
-      return { kind: 'agent', name: 'assistant', forWhom: person, via: 'asked in words' };
+      return { kind: 'agent', name: 'assistant', forWhom: person, via: t('issues.issueHistory.askedInWords') };
     case 'automation':
-      return { kind: 'agent', name: actor.login ?? 'automation', via: 'on its own' };
+      return { kind: 'agent', name: actor.login ?? 'automation', via: t('issues.issueHistory.onItsOwn') };
     case 'email':
-      return { kind: 'person', name: person, via: 'by email' };
+      return { kind: 'person', name: person, via: t('issues.issueHistory.byEmail') };
     case 'app':
       // An app's agent acting as itself (its rules), or a person through an app's widget or handler (D48).
       return actor.isBot
-        ? { kind: 'agent', name: actor.name ?? actor.token ?? 'an app', via: 'an app, on its own' }
-        : { kind: 'person', name: person, via: `via the ${actor.token ?? 'an'} app` };
+        ? { kind: 'agent', name: actor.name ?? actor.token ?? t('issues.issueHistory.anApp'), via: t('issues.issueHistory.anAppOnItsOwn') }
+        : { kind: 'person', name: person, via: t('issues.issueHistory.viaTheApp', { v: actor.token ?? 'an' }) };
     case 'vcs':
       // A commit's author, known by a confirmed email or their login at the provider, or the integration itself.
       return actor.id
-        ? { kind: 'person', name: person, via: `from ${actor.token ?? 'version control'}` }
-        : { kind: 'service', name: actor.token ?? 'version control', via: 'from version control' };
+        ? { kind: 'person', name: person, via: t('issues.issueHistory.from', { v: actor.token ?? 'version control' }) }
+        : { kind: 'service', name: actor.token ?? 'version control', via: t('issues.issueHistory.fromVersionControl') };
     case 'ci':
       // A build CI reported, through its build source (D46).
-      return { kind: 'service', name: actor.token ?? 'CI', via: 'from a build' };
+      return { kind: 'service', name: actor.token ?? 'CI', via: t('issues.issueHistory.fromABuild') };
     default:
       return { kind: 'own', name: 'a4a', via: '' };
   }
@@ -79,7 +79,7 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
 /** "applied the rule “Critical bugs go to Anna”", when a workflow rule made the change. */
 function byRule(data: Record<string, unknown>): string | undefined {
   const name = (data.automation as { name?: unknown } | undefined)?.name;
-  return typeof name === 'string' ? `applied the rule “${name}”` : undefined;
+  return typeof name === 'string' ? t('issues.issueHistory.appliedTheRule', { name: name }) : undefined;
 }
 
 /** Today's time alone; older ones with their day, as people read them. */
@@ -118,7 +118,7 @@ interface Entry {
 function undid(e: TrackerEvent, byId: Map<number, TrackerEvent>, what: string): string | undefined {
   if (typeof e.data.undoes !== 'number') return undefined;
   const original = byId.get(e.data.undoes);
-  return `undid ${original ? t('issues.issueHistory.s', { name: whoOf(original.actor).name }) : t('issues.issueHistory.anAgentS')} ${what}`;
+  return t('issues.issueHistory.undid', { v: original ? t('issues.issueHistory.s', { name: whoOf(original.actor).name }) : t('issues.issueHistory.anAgentS'), what: what });
 }
 
 function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | null {
@@ -135,14 +135,14 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       const imported = data.imported as { source?: string; key?: string; createdAt?: string; reporter?: string } | undefined;
       if (imported) {
         const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : 'another tracker';
-        const on = imported.createdAt ? `, where it was reported ${when(imported.createdAt)}${imported.reporter ? ` by ${imported.reporter}` : ''}` : '';
-        return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? 'its key there', on: on }) };
+        const on = imported.createdAt ? t('issues.issueHistory.whereItWasReported', { when: when(imported.createdAt), v: imported.reporter ? t('issues.issueHistory.by', { reporter: imported.reporter }) : '' }) : '';
+        return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? t('issues.issueHistory.itsKeyThere'), on: on }) };
       }
       return { ...base, did: data.requester ? (data.via === 'email' ? t('issues.issueHistory.askedForHelpByEmail') : t('issues.issueHistory.askedForHelp')) : t('issues.issueHistory.reportedIt') };
     }
     case 'sprint.issue_added':
     case 'sprint.issue_removed':
-      return { ...base, did: `${e.type === 'sprint.issue_added' ? t('issues.issueHistory.putItIn') : t('issues.issueHistory.tookItOutOf')} ${String(data.sprint ?? 'a sprint')}${data.board ? ` on ${String(data.board)}` : ''}` };
+      return { ...base, did: `${e.type === 'sprint.issue_added' ? t('issues.issueHistory.putItIn') : t('issues.issueHistory.tookItOutOf')} ${String(data.sprint ?? t('issues.issueHistory.aSprint'))}${data.board ? t('issues.issueHistory.on2', { String: String(data.board) }) : ''}` };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {
@@ -170,7 +170,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
             {command ? (
               <li className="same">
                 #{command}
-                {data.applied ? `: ${String(data.note ?? 'applied')}` : t('issues.issueHistory.notApplied', { v: String(data.note ?? '').replace(/^Not applied:\s*/i, '') || 'see the commit' })}
+                {data.applied ? `: ${String(data.note ?? 'applied')}` : t('issues.issueHistory.notApplied', { v: String(data.note ?? '').replace(/^Not applied:\s*/i, '') || t('issues.issueHistory.seeTheCommit') })}
               </li>
             ) : null}
           </ul>
@@ -195,7 +195,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Moved to another project (D41): the id it had, the one it has, and what its fields became.
       return {
         ...base,
-        did: t('issues.issueHistory.movedItFromTo', { String: String(data.from ?? 'another project'), String2: String(data.to ?? 'this project') }),
+        did: t('issues.issueHistory.movedItFromTo', { String: String(data.from ?? 'another project'), String2: String(data.to ?? t('issues.issueHistory.thisProject')) }),
         body: (
           <ul className="change-lines">
             {e.changes.map((c) => (
@@ -209,7 +209,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     case 'link.created':
     case 'link.deleted': {
       const target = data.target as { id: string; summary: string } | undefined;
-      const phrase = String(data.phrase ?? 'links to');
+      const phrase = String(data.phrase ?? t('issues.issueHistory.linksTo'));
       return {
         ...base,
         did: undid(e, byId, 'link'),
@@ -264,15 +264,15 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       const n = Number(data.fields ?? 0);
       const dups = Number(data.duplicates ?? 0);
       const parts = [n ? t('issues.issueHistory.workedOutForAPerson', { n: n, v: n === 1 ? 'field' : 'fields' }) : t('issues.issueHistory.lookedAtItAndSuggested')];
-      if (dups) parts.push(`found ${dups} possible ${dups === 1 ? 'duplicate' : 'duplicates'}`);
-      return { ...base, did: parts.join(', and ') };
+      if (dups) parts.push(t('issues.issueHistory.foundPossible', { dups: dups, v: dups === 1 ? 'duplicate' : 'duplicates' }));
+      return { ...base, did: parts.join(t('issues.issueHistory.and')) };
     }
     case 'rule.notified': {
       const people = Array.isArray(data.people) ? (data.people as unknown[]).map((p) => `@${String(p)}`) : [];
-      const told = people.length <= 1 ? (people[0] ?? 'nobody') : `${people.slice(0, -1).join(', ')} and ${people[people.length - 1]}`;
+      const told = people.length <= 1 ? (people[0] ?? t('issues.issueHistory.nobody')) : t('issues.issueHistory.and2', { join: people.slice(0, -1).join(', '), v: people[people.length - 1] });
       return {
         ...base,
-        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? 'applied a rule', told: told }),
+        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told }),
         body: (
           <ul className="change-lines">
             <li>“{String(data.message ?? '')}”</li>
@@ -281,7 +281,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       };
     }
     case 'rule.called':
-      return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? 'applied a rule' }) };
+      return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? t('issues.issueHistory.appliedARule') }) };
     case 'sla.warning':
     case 'sla.breached': {
       // What time alone brought to a request's targets (D45), said by the help desk's agent.
@@ -290,7 +290,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       const due = typeof data.dueAt === 'string' ? new Date(data.dueAt).toLocaleString(intlLocale()) : null;
       return {
         ...base,
-        did: e.type === 'sla.warning' ? t('issues.issueHistory.saidItsTargetIsAt', { target: target, policy: policy, v: due ? `: due ${due}` : '' }) : t('issues.issueHistory.saidItWentPastIts', { target: target, policy: policy, v: due ? `, due ${due}` : '' }),
+        did: e.type === 'sla.warning' ? t('issues.issueHistory.saidItsTargetIsAt', { target: target, policy: policy, v: due ? t('issues.issueHistory.due', { due: due }) : '' }) : t('issues.issueHistory.saidItWentPastIts', { target: target, policy: policy, v: due ? t('issues.issueHistory.due2', { due: due }) : '' }),
       };
     }
     default:
@@ -325,7 +325,7 @@ function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: Rea
   return (
     <p className="history-head">
       <strong className="who-name">{who.name}</strong>
-      {who.forWhom ? ` for ${who.forWhom}` : ''}
+      {who.forWhom ? t('issues.issueHistory.for', { forWhom: who.forWhom }) : ''}
       {did ? <> {did}</> : null}
       {who.via ? ` · ${who.via}` : ''} ·{' '}
       <time dateTime={at} title={new Date(at).toLocaleString(intlLocale())}>
@@ -422,8 +422,8 @@ export function IssueHistory({
     setUndoSaid(null);
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
-      const what = done.changes.map((c) => (c.field === 'Links' ? 'the link' : c.field));
-      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? what.join(', ') : 'its change' }) });
+      const what = done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field));
+      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? what.join(', ') : t('issues.issueHistory.itsChange') }) });
       await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.
@@ -456,7 +456,7 @@ export function IssueHistory({
   const mayTick = (c: Comment | undefined): c is Comment => Boolean(c && canComment && (canManage || (me && c.author?.id === me.id)));
 
   const used = (files.data ?? []).reduce((n, f) => n + f.size, 0);
-  const fieldLabel = `${requester && canReply && visibility === 'public' ? t('issues.issueHistory.aReplyTo', { requester: requester }) : t('issues.issueHistory.aComment')}${me ? `, as ${me.name}` : ''}`;
+  const fieldLabel = `${requester && canReply && visibility === 'public' ? t('issues.issueHistory.aReplyTo', { requester: requester }) : t('issues.issueHistory.aComment')}${me ? t('issues.issueHistory.as', { name: me.name }) : ''}`;
   const pick = (list: File[]) => setPicked((current) => [...current, ...list.filter((f) => !current.some((c) => c.name === f.name && c.size === f.size))]);
 
   const send = async () => {
@@ -489,11 +489,11 @@ export function IssueHistory({
         try {
           await uploadFile(`/comments/${comment.id}/attachments`, f, (sent, total) => setProgress(t('issues.issueHistory.attaching', { name: f.name, round: Math.round((sent / (total || 1)) * 100) })));
         } catch (e) {
-          failed.push(`${f.name} wasn't attached: ${errorText(e)}`);
+          failed.push(t('issues.issueHistory.wasnTAttached', { name: f.name, errorText: errorText(e) }));
         }
       }
       setNotAttached(failed);
-      setProgress(picked.length && !failed.length ? t('issues.issueHistory.commentedWith', { v: picked.length === 1 ? 'its file' : `its ${picked.length} files` }) : t('issues.issueHistory.commented'));
+      setProgress(picked.length && !failed.length ? t('issues.issueHistory.commentedWith', { v: picked.length === 1 ? t('issues.issueHistory.itsFile') : t('issues.issueHistory.itsFiles', { length: picked.length }) }) : t('issues.issueHistory.commented'));
       setPicked([]);
       await Promise.all([
         qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') }),
@@ -523,7 +523,7 @@ export function IssueHistory({
                 did={e.did}
                 badge={
                   e.public === 'reply' ? (
-                    <Badge grammar="outside">{tr('issues.issueHistory.publicSentTo', { v: requester ?? 'the requester' })}</Badge>
+                    <Badge grammar="outside">{tr('issues.issueHistory.publicSentTo', { v: requester ?? t('issues.issueHistory.theRequester2') })}</Badge>
                   ) : e.public === 'theirs' ? (
                     <Badge grammar="outside">{t('issues.issueHistory.publicTheRequesterWroteIt')}</Badge>
                   ) : e.limited ? (

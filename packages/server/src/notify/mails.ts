@@ -112,7 +112,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
       ...AUTOMATIC,
       ...unsubscribeHeaders(l.oneClick(token)),
       ...(n.issueId ? threadHeaders(`<issue-${n.issueId}@${mailHost(app)}>`) : {}),
-      ...(replyTo ? { 'Reply-To': replyTo } : {}),
+      ...(replyTo ? { 'Reply-To': replyTo /* not words: a header */ } : {}),
     },
     onFailed: async () => forgetTeamReplyAddress(app.db, replyTo, app),
     onSent: async () => {

@@ -90,7 +90,9 @@ function walkDir(dir, out = []) {
 
 const NON_TEXT_ATTR = new Set(['className', 'id', 'type', 'role', 'href', 'to', 'key', 'name', 'value', 'defaultValue', 'htmlFor', 'rel', 'target', 'method', 'action', 'autoComplete', 'inputMode', 'pattern', 'src', 'tone', 'kind', 'variant', 'size', 'icon', 'mode', 'path', 'aria-live', 'aria-current', 'aria-haspopup', 'aria-controls', 'aria-labelledby', 'aria-describedby', 'aria-owns', 'aria-activedescendant', 'aria-autocomplete', 'aria-sort', 'aria-orientation', 'aria-checked', 'aria-pressed', 'aria-expanded', 'aria-hidden', 'aria-invalid', 'aria-required', 'aria-disabled', 'aria-selected', 'loading', 'decoding', 'dir', 'lang', 'form', 'list', 'accept', 'capture', 'enterKeyHint', 'spellCheck', 'wrap', 'step', 'min', 'max', 'scope', 'colSpan', 'rowSpan', 'headers', 'dateTime', 'download', 'referrerPolicy', 'sandbox', 'allow', 'queryKey', 'tab', 'status', 'section', 'at', 'state', 'field', 'by', 'unit', 'format', 'describedBy', 'labelledBy', 'uploadTo', 'endpoint', 'url', 'route', 'param', 'query', 'search', 'sort', 'order', 'align', 'side', 'placement', 'as', 'level', 'width', 'height', 'color', 'scheme', 'theme', 'layout', 'login', 'project', 'issue', 'board', 'point', 'slot', 'when', 'shape', 'mark', 'columns', 'grow', 'gap', 'dataKey', 'storageKey', 'focusKey', 'testId', 'nonce', 'accessKey', 'tabIndex', 'xmlns', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'points', 'x', 'y', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'x2', 'y1', 'y2', 'strokeWidth', 'strokeLinecap', 'strokeLinejoin', 'fillRule', 'clipRule', 'preserveAspectRatio', 'textAnchor', 'dominantBaseline', 'fontSize', 'offset', 'stopColor', 'gradientUnits', 'markerEnd', 'filter', 'mask', 'clipPath', 'patternUnits', 'vectorEffect']);
 const VERBATIM = new Set(['code', 'pre', 'kbd', 'samp', 'var', 'script', 'style']);
-const UI_PROPS = new Set(['text', 'label', 'title', 'help', 'hint', 'placeholder', 'message', 'description', 'heading', 'confirm', 'empty', 'emptyText', 'legend', 'tooltip', 'caption', 'note', 'okLabel', 'cancelLabel', 'busyLabel']);
+const UI_PROPS = new Set(['text', 'label', 'title', 'help', 'hint', 'placeholder', 'message', 'description', 'heading', 'confirm', 'empty', 'emptyText', 'legend', 'tooltip', 'caption', 'note', 'okLabel', 'cancelLabel', 'busyLabel', 'about', 'word', 'words', 'group', 'why', 'did', 'verb', 'sub', 'long', 'short']);
+// What the server sends people: emails, push and chat messages say every word through a translator.
+const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/cards)\.ts$/;
 const UI_CALLS = new Set(['setSaid', 'onSaid', 'setError', 'setStatus', 'setMessage', 'setNote', 'setProgress', 'setWarning', 'toast', 'alert', 'confirm']);
 const letters = (s) => /[A-Za-zÀ-ÿ]/.test(s);
 const looksLikeCode = (s) => {
@@ -110,7 +112,7 @@ function checkFile(file, { web }) {
   const lines = src.split('\n');
   const allowed = (node) => {
     const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line;
-    return /\/\/ not words|\/\* not words \*\//.test(lines[line] ?? '') || /\/\/ not words/.test(lines[line - 1] ?? '');
+    return /\/[/*] not words/.test(lines[line] ?? '') || /\/\/ not words/.test(lines[line - 1] ?? '');
   };
   const at = (node) => `${rel}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
   const visit = (node, verbatim) => {
@@ -121,6 +123,9 @@ function checkFile(file, { web }) {
       }
     }
     if (!web) {
+      if (SENDS_PEOPLE.test(rel.replace(/\\/g, '/')) && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && wordsLike(node.text) && !KEY.test(node.text) && !allowed(node) && !ts.isImportDeclaration(node.parent) && !ts.isExportDeclaration(node.parent) && !ts.isLiteralTypeNode(node.parent) && !(ts.isBinaryExpression(node.parent) && /^(===|!==)$/.test(node.parent.operatorToken.getText(sf))) && !ts.isCaseClause(node.parent)) {
+        say(at(node), `words sent to people: '${node.text.slice(0, 60)}'`);
+      }
       ts.forEachChild(node, (c) => visit(c, verbatim));
       return;
     }

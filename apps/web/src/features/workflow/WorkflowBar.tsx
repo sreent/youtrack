@@ -56,7 +56,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
             className="move"
             disabled={!m.allowed || busy !== null}
             aria-describedby={!m.allowed && m.why ? `${id}-why-${i}` : undefined}
-            onClick={() => void run(m.name, () => runTransition(issue.id, m.name, m.field), `${m.name}: ${m.field} is ${m.to} now.`)}
+            onClick={() => void run(m.name, () => runTransition(issue.id, m.name, m.field), t('workflow.workflowBar.isNow', { name: m.name, field: m.field, to: m.to }))}
           >
             {busy === m.name ? `${m.name}…` : m.name}
             <Icon name="chevron" />
@@ -64,7 +64,7 @@ export function WorkflowBar({ issue, canEdit }: { issue: IssueDetail; canEdit: b
           </button>
         ))}
         {actions.map((a) => (
-          <button key={a.id} type="button" disabled={busy !== null} onClick={() => void run(a.name, () => runAction(issue.id, a.id), `“${a.name}” is done.`)}>
+          <button key={a.id} type="button" disabled={busy !== null} onClick={() => void run(a.name, () => runAction(issue.id, a.id), t('workflow.workflowBar.isDone', { name: a.name }))}>
             {busy === a.name ? `${a.name}…` : a.name}
           </button>
         ))}

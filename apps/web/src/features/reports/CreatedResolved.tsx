@@ -8,15 +8,15 @@ import type { CreatedResolved } from '@a4a/shared';
 import { useId } from 'react';
 import { dayMonth } from '../plan/dates';
 import { column, labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
-import { t, tr } from '../../i18n';
+import { t, tr, monthNames } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 230, left: 40, right: 16, top: 14, bottom: 34 };
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = monthNames();
 
 function bucketName(r: CreatedResolved, from: string, to: string): string {
   if (r.interval === 'day') return dayMonth(from);
   if (r.interval === 'month') return `${MONTHS[Number(from.slice(5, 7)) - 1]} ${from.slice(0, 4)}`;
-  return from === to ? dayMonth(from) : `${dayMonth(from)} to ${dayMonth(to)}`;
+  return from === to ? dayMonth(from) : t('reports.createdResolved.to', { when: dayMonth(from), when2: dayMonth(to) });
 }
 
 export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compact?: boolean }) {
@@ -136,7 +136,7 @@ export function CreatedResolvedReport({ r, compact }: { r: CreatedResolved; comp
           <dd>
             {open}{' '}
             {!compact && first ? (
-              <small>{tr('reports.createdResolved.atTheStart', { v: open > before ? `${open - before} more than` : open < before ? `${before - open} fewer than` : 'as many as' })}</small>
+              <small>{tr('reports.createdResolved.atTheStart', { v: open > before ? t('reports.createdResolved.moreThan', { v: open - before }) : open < before ? t('reports.createdResolved.fewerThan', { v: before - open }) : t('reports.createdResolved.asManyAs') })}</small>
             ) : null}
           </dd>
         </div>

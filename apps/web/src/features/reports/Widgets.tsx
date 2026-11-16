@@ -66,9 +66,9 @@ function SearchWidget({ w }: { w: Extract<Widget, { kind: 'search' }> }) {
 /** A widget's title: its own, or what it shows. */
 export function widgetTitle(w: Widget, saved?: SavedSearch[]): string {
   if (w.title) return w.title;
-  if (w.kind === 'note') return 'Note';
+  if (w.kind === 'note') return t('reports.widgets.note');
   if (w.kind === 'search') return (w.savedSearch && saved?.find((s) => s.id === w.savedSearch)?.name) || w.query || t('reports.widgets.aSearch');
-  return REPORTS.find((r) => r.kind === w.params.report)?.label ?? 'Report';
+  return REPORTS.find((r) => r.kind === w.params.report)?.label ?? t('reports.widgets.report');
 }
 
 export function WidgetBody({ w }: { w: Widget }) {

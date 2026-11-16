@@ -25,9 +25,9 @@ function nextWords(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
-  if (days === 0) return `today at ${time}`;
-  if (days === 1) return `tomorrow at ${time}`;
-  return `${d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')} at ${time}`;
+  if (days === 0) return t('rules.ruleCard.todayAt', { time: time });
+  if (days === 1) return t('rules.ruleCard.tomorrowAt', { time: time });
+  return t('rules.ruleCard.at', { replace: d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', ''), time: time });
 }
 
 /** What it did last, or when it next runs, in a line. */
@@ -42,7 +42,7 @@ function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
   switch (run.outcome) {
     case 'refused':
       what = (
-        <>{tr('rules.ruleCard.lastRefusedAChange', { v: run.by ? ` by ${run.by.name}` : '', when: when, on: on })}</>
+        <>{tr('rules.ruleCard.lastRefusedAChange', { v: run.by ? t('rules.ruleCard.by', { name: run.by.name }) : '', when: when, on: on })}</>
       );
       break;
     case 'applied':

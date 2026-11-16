@@ -8,10 +8,10 @@ import { patch } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from '../issues/api';
-import { t } from '../../i18n';
+import { t, weekdayNames } from '../../i18n';
 
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
-const NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const NAMES = weekdayNames('long');
 
 export function WorkWeek({ week, capacity, canChange }: { week: number[] | null; capacity: number; canChange: boolean }) {
   const id = useId();

@@ -6,17 +6,12 @@ import { keys } from '../../api/queries';
 import { Icon } from '../../components/Icon';
 import { errorText, FormField, Said } from '../common/bits';
 import { dateRead } from '../common/format';
-import { t } from '../../i18n';
+import { t, weekdayNames } from '../../i18n';
 
-const DAYS: { n: number; name: string; short: string }[] = [
-  { n: 1, name: 'Monday', short: 'Mon' },
-  { n: 2, name: 'Tuesday', short: 'Tue' },
-  { n: 3, name: 'Wednesday', short: 'Wed' },
-  { n: 4, name: 'Thursday', short: 'Thu' },
-  { n: 5, name: 'Friday', short: 'Fri' },
-  { n: 6, name: 'Saturday', short: 'Sat' },
-  { n: 0, name: 'Sunday', short: 'Sun' },
-];
+const LONG = weekdayNames('long');
+const SHORT = weekdayNames();
+/** Monday first, as a working week reads; n as getDay() counts. */
+const DAYS: { n: number; name: string; short: string }[] = [1, 2, 3, 4, 5, 6, 0].map((n) => ({ n, name: LONG[n]!, short: SHORT[n]! }));
 
 interface Form {
   startDate: string;

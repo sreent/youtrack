@@ -87,7 +87,7 @@ function People({ group, admin, provider }: { group: GroupDetail; admin: boolean
                     </th>
                     <td>
                       {ago(m.addedAt)}
-                      <span className="item-about">{m.addedBy ? t('page.group.addedBy', { v: m.addedBy.isBot ? m.addedBy.login : m.addedBy.name }) : `from ${provider ?? 'the identity provider'}`}</span>
+                      <span className="item-about">{m.addedBy ? t('page.group.addedBy', { v: m.addedBy.isBot ? m.addedBy.login : m.addedBy.name }) : t('page.group.from', { v: provider ?? t('page.group.theIdentityProvider2') })}</span>
                     </td>
                     {admin && byHand ? (
                       <td className="fit">
@@ -230,10 +230,10 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
           label={t('page.group.itsNameAtTheIdentity')}
           help={
             startsFromProvider
-              ? t('page.group.savingEmptiesTheGroupFrom', { v: provider ?? 'the identity provider' })
+              ? t('page.group.savingEmptiesTheGroupFrom', { v: provider ?? t('page.group.theIdentityProvider2') })
               : group.providerName
                 ? t('page.group.clearItToKeepThe')
-                : t('page.group.optionalWithItSaysWho', { v: provider ?? 'the identity provider' })
+                : t('page.group.optionalWithItSaysWho', { v: provider ?? t('page.group.theIdentityProvider2') })
           }
         >
           {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder={t('page.group.none')} />}
@@ -284,7 +284,7 @@ export default function GroupPage() {
         title={g.name}
         crumbs={crumbs}
         about={g.description || t('page.group.aGroupOfPeopleA')}
-        badges={g.providerName ? <span className="chip">{tr('page.group.from', { v: provider ?? 'the identity provider' })}</span> : null}
+        badges={g.providerName ? <span className="chip">{tr('page.group.from', { v: provider ?? t('page.group.theIdentityProvider2') })}</span> : null}
       />
       <People group={g} admin={admin} provider={provider} />
       <Roles group={g} />

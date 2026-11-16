@@ -25,7 +25,7 @@ interface NavItem {
 
 const NAV: { group: string; items: NavItem[] }[] = [
   {
-    group: 'Work',
+    group: t('app.shell.work'),
     items: [
       { to: '/dashboard', label: t('app.shell.dashboard'), icon: 'dashboard' },
       { to: '/inbox', label: t('app.shell.inbox'), icon: 'bell', count: 'unread' },
@@ -38,9 +38,9 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/assistant', label: t('app.shell.assistant'), icon: 'agent' },
     ],
   },
-  { group: 'Decide', items: [{ to: '/suggestions', label: t('app.shell.suggestions'), icon: 'decide' }] },
+  { group: t('app.shell.decide'), items: [{ to: '/suggestions', label: t('app.shell.suggestions'), icon: 'decide' }] },
   {
-    group: 'Build',
+    group: t('app.shell.build'),
     items: [
       { to: '/projects', label: t('app.shell.projects'), icon: 'list' },
       { to: '/rules', label: t('app.shell.rules'), icon: 'sync' },
@@ -49,7 +49,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     ],
   },
   {
-    group: 'Oversee',
+    group: t('app.shell.oversee'),
     items: [
       { to: '/activity', label: t('app.shell.activity'), icon: 'audit' },
       { to: '/agents', label: t('app.shell.agentsAndTokens'), icon: 'key' },

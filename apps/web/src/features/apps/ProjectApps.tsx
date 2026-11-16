@@ -78,7 +78,7 @@ export function ProjectApps({ project }: { project: string }) {
               <span>
                 <strong>{a.title}</strong> <span className="note">{a.version} · {a.enabled ? 'runs here' : 'off here'}</span>
               </span>
-              <button type="button" className="small" onClick={() => toggle.mutate(a)} disabled={toggle.isPending} aria-label={`${a.enabled ? t('apps.projectApps.turnOff') : t('apps.projectApps.turnOn')} ${a.title} in ${project}`}>
+              <button type="button" className="small" onClick={() => toggle.mutate(a)} disabled={toggle.isPending} aria-label={t('apps.projectApps.in', { v: a.enabled ? t('apps.projectApps.turnOff') : t('apps.projectApps.turnOn'), title: a.title, project: project })}>
                 {a.enabled ? t('apps.projectApps.turnItOffHere') : t('apps.projectApps.turnItOnHere')}
               </button>
             </div>

@@ -199,7 +199,7 @@ const ownImages = imageSchema.extendSchema((prev) => (ctx) => {
     toDOM: (node) => {
       const { src, alt, title } = node.attrs as { src: string; alt: string; title: string };
       if (imageAttachment(src)) return ['img', { src, alt: alt || '', title: title || null, loading: 'lazy' }];
-      return ['span', { class: 'image-elsewhere', 'data-src': src, 'data-alt': alt }, alt || src || 'A picture'];
+      return ['span', { class: 'image-elsewhere', 'data-src': src, 'data-alt': alt }, alt || src || t('editor.visualEditor.aPicture')];
     },
   };
 });
@@ -250,7 +250,7 @@ class ListItemView implements NodeView {
     this.dom.dataset.itemType = 'task';
     this.dom.dataset.checked = String(Boolean(checked));
     this.box.checked = Boolean(checked);
-    this.box.setAttribute('aria-label', `Done: ${this.node.textContent.trim().slice(0, 80) || 'this item'}`);
+    this.box.setAttribute('aria-label', t('editor.visualEditor.done', { v: this.node.textContent.trim().slice(0, 80) || t('editor.visualEditor.thisItem') }));
   }
 
   update(node: PMNode) {
@@ -365,7 +365,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
     const others = onOtherFiles ? files.filter((f) => !RASTER.includes(f.type)) : [];
     if (others.length) onOtherFiles!(others);
     for (const file of files.filter((f) => !others.includes(f))) {
-      if (!place) return onStatus('Save it first: then pictures and files can go in it.', true);
+      if (!place) return onStatus(t('editor.visualEditor.saveItFirstThenPictures'), true);
       const placed = await place(file);
       if (!placed) continue;
       const { schema } = view.state;
@@ -461,7 +461,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
             continue;
           }
           if (!live.current.place) {
-            live.current.onStatus('Save it first: then pictures and files can go in it.', true);
+            live.current.onStatus(t('editor.visualEditor.saveItFirstThenPictures'), true);
             continue;
           }
           const placed = await live.current.place(file);
@@ -470,7 +470,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           else nodes.push(schema.text(placed.name, [schema.marks.link!.create({ href: placed.href })]));
         }
       } catch {
-        live.current.onStatus('That didn’t go in: try again.', true);
+        live.current.onStatus(t('editor.visualEditor.thatDidnTGoIn'), true);
       }
       if (others.length) live.current.onOtherFiles?.(others);
       return nodes;
@@ -499,7 +499,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           uploadWidgetFactory: (pos, spec) => {
             const el = document.createElement('span');
             el.className = 'editor-uploading';
-            el.textContent = 'Uploading…';
+            el.textContent = t('editor.visualEditor.uploading');
             return Decoration.widget(pos, el, spec);
           },
         }));

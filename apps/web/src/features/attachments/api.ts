@@ -1,6 +1,7 @@
 import type { Attachment, AttachmentLimits, TrackerEvent } from '@a4a/shared';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, get } from '../../api/client';
+import { t } from '../../i18n';
 
 export const attachmentKeys = {
   limits: ['attachments', 'limits'] as const,
@@ -88,10 +89,10 @@ export function uploadFile(path: string, file: File, onProgress: (sent: number, 
         return;
       }
       const e = (body as { error?: { code: string; message: string; hint?: string } } | null)?.error;
-      reject(new ApiError(xhr.status, e?.code ?? 'http_error', e?.message ?? `The upload failed (${xhr.status})`, e?.hint));
+      reject(new ApiError(xhr.status, e?.code ?? 'http_error', e?.message ?? t('attachments.api.theUploadFailed', { status: xhr.status }), e?.hint));
     };
-    xhr.onerror = () => reject(new ApiError(0, 'network', `${file.name} didn't arrive: the connection was cut`, 'Try again.'));
-    xhr.onabort = () => reject(new ApiError(0, 'aborted', 'Stopped'));
+    xhr.onerror = () => reject(new ApiError(0, 'network', t('attachments.api.didnTArriveTheConnection', { name: file.name }), t('attachments.api.tryAgain')));
+    xhr.onabort = () => reject(new ApiError(0, 'aborted', t('attachments.api.stopped')));
     signal?.addEventListener('abort', () => xhr.abort());
     const form = new FormData();
     form.append('file', file, file.name);
@@ -105,8 +106,8 @@ export function uploadFile(path: string, file: File, onProgress: (sent: number, 
  */
 export function refusal(file: File, limits: AttachmentLimits | undefined, used: number): string | null {
   if (!limits) return null;
-  if (file.size > limits.maxBytes) return `${file.name} is larger than ${formatBytes(limits.maxBytes)}, the most one file may be. Compress it, or split it into parts.`;
+  if (file.size > limits.maxBytes) return t('attachments.api.isLargerThanTheMost', { name: file.name, formatBytes: formatBytes(limits.maxBytes) });
   const room = limits.perIssueMaxBytes - used;
-  if (file.size > room) return `${file.name} doesn't fit: ${formatBytes(Math.max(room, 0))} is left of ${formatBytes(limits.perIssueMaxBytes)} for files. Remove some first.`;
+  if (file.size > room) return t('attachments.api.doesnTFitIsLeft', { name: file.name, formatBytes: formatBytes(Math.max(room, 0)), formatBytes2: formatBytes(limits.perIssueMaxBytes) });
   return null;
 }

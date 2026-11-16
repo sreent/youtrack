@@ -16,8 +16,8 @@ import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const RUNGS: Rung<'ask' | 'auto'>[] = [
-  { value: 'ask', name: 'Asks', lvl: 'ask', about: t('page.assistant.eachChangeWaitsForYour') },
-  { value: 'auto', name: 'Acts', lvl: 'auto', about: t('page.assistant.changesWhatYouAskOn') },
+  { value: 'ask', name: t('page.assistant.asks'), lvl: 'ask', about: t('page.assistant.eachChangeWaitsForYour') },
+  { value: 'auto', name: t('page.assistant.acts'), lvl: 'auto', about: t('page.assistant.changesWhatYouAskOn') },
 ];
 
 /** The in-app agent, "assistant": your conversations beside the one you're in. */

@@ -33,7 +33,7 @@ function aboutInput(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
   const o = input as Record<string, unknown>;
   const ids = Array.isArray(o.issues) ? (o.issues as unknown[]).map(String).join(', ') : '';
-  if (typeof o.command === 'string') return `“${o.command}”${ids ? ` on ${ids}` : ''}`;
+  if (typeof o.command === 'string') return `“${o.command}”${ids ? t('assistant.toolRun.on', { ids: ids }) : ''}`;
   if (typeof o.query === 'string' && o.query) return `“${excerpt(o.query, 80)}”`;
   if (typeof o.issue === 'string') return typeof o.other === 'string' ? `${o.issue} ${String(o.relation ?? '')} ${o.other}` : o.issue;
   if (typeof o.summary === 'string') return `“${excerpt(o.summary, 80)}”`;
@@ -52,7 +52,7 @@ export function ToolRun({
   steps,
   tools,
   onAskFirst,
-  label = 'What it did',
+  label = t('assistant.toolRun.whatItDid'),
 }: {
   steps: RunStep[];
   tools?: Map<string, AITool>;
@@ -90,7 +90,7 @@ export function ToolRun({
                     {s.status === 'rejected' ? <Badge tone="idle">{t('assistant.toolRun.youDeclinedIt')}</Badge> : null}
                     {s.status === 'done' && s.onItsOwn ? <span>{t('assistant.toolRun.onItsOwnAsYou')}</span> : null}
                     {s.status === 'done' && s.ms !== undefined && s.ms > 0 ? (
-                      <span className="step-took">{s.ms < 1000 ? `${s.ms} ms` : `${(s.ms / 1000).toFixed(1)} s`}</span>
+                      <span className="step-took">{s.ms < 1000 ? t('assistant.toolRun.ms', { ms: s.ms }) : `${(s.ms / 1000).toFixed(1)} s`}</span>
                     ) : null}
                     {tool?.destructive && s.status !== 'done' ? <span className="chip">{t('assistant.toolRun.canOverwrite')}</span> : null}
                   </span>

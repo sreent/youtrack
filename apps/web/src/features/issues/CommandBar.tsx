@@ -227,7 +227,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
               <li key={r.issue}>
                 <span className="issue-id">{r.issue}</span>
                 <span className="command-summary">{summaries.get(r.issue) ?? ''}</span>
-                {r.changes.length ? <ChangeLines changes={r.changes} /> : <ChangeLines changes={[]} same={['Nothing changes']} />}
+                {r.changes.length ? <ChangeLines changes={r.changes} /> : <ChangeLines changes={[]} same={[t('issues.commandBar.nothingChanges')]} />}
                 {r.errors.map((e) => (
                   <ErrorLine key={e}>{e}</ErrorLine>
                 ))}

@@ -53,7 +53,7 @@ export function ProvisioningSection() {
             <li key={t.id} className="cluster">
               <span>
                 <strong>{t.name}</strong> <span className="mono">{t.prefix}…</span>{' '}
-                <span className="note">{t.lastUsedAt ? `used ${ago(t.lastUsedAt)}` : tx('identity.provisioning.notUsedYet')}</span>
+                <span className="note">{t.lastUsedAt ? tx('identity.provisioning.used', { when: ago(t.lastUsedAt) }) : tx('identity.provisioning.notUsedYet')}</span>
               </span>
               <button type="button" className="small" onClick={() => revoke.mutate(t)} disabled={revoke.isPending} aria-label={tx('identity.provisioning.revokeSToken', { name: t.name })}>{tx('identity.provisioning.revoke')}</button>
             </li>

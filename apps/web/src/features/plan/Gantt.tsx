@@ -29,13 +29,13 @@ interface Props {
 /** What the chart shows of a task, in words, for the list's screen-reader text. */
 function said(t: GanttTask, names: Map<string, string>, today: string): string {
   const parts: string[] = [];
-  if (t.kind === 'milestone') parts.push('a milestone');
-  if (t.critical) parts.push('on the critical path');
-  if (t.late) parts.push(`${days(t.late.days)} late: ${t.late.due < today ? 'it was' : "it's"} due ${dayMonth(t.late.due)}`);
-  if (t.slackTo) parts.push(`${days(t.slackDays)} of slack`);
-  if (t.after.length) parts.push(`after ${andList(t.after.map((id) => names.get(id) ?? id))}`);
-  if (t.baseline) parts.push(`planned for ${span(t.baseline.start, t.baseline.finish)}`);
-  if (t.whatIf) parts.push(`in the what-if, ${span(t.whatIf.start, t.whatIf.finish)}`);
+  if (t.kind === 'milestone') parts.push(tw_('plan.gantt.aMilestone2'));
+  if (t.critical) parts.push(tw_('plan.gantt.onTheCriticalPath'));
+  if (t.late) parts.push(tw_('plan.gantt.lateDue', { days: days(t.late.days), v: t.late.due < today ? tw_('plan.gantt.itWas') : "it's", when: dayMonth(t.late.due) }));
+  if (t.slackTo) parts.push(tw_('plan.gantt.ofSlack', { days: days(t.slackDays) }));
+  if (t.after.length) parts.push(tw_('plan.gantt.after', { andList: andList(t.after.map((id) => names.get(id) ?? id)) }));
+  if (t.baseline) parts.push(tw_('plan.gantt.plannedFor', { span: span(t.baseline.start, t.baseline.finish) }));
+  if (t.whatIf) parts.push(tw_('plan.gantt.inTheWhatIf', { span: span(t.whatIf.start, t.whatIf.finish) }));
   return parts.length ? `, ${parts.join(', ')}` : '';
 }
 

@@ -12,7 +12,7 @@ export function span(ms: number): string {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
   const days = Math.round(hours / 24);
-  return `${days} days`;
+  return t('helpdesk.requestCard.days', { days: days });
 }
 
 /**

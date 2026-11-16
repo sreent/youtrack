@@ -10,16 +10,16 @@ import { t } from '../../i18n';
 /** How a run went, with its shape: applied went well; nothing to change and skipped stood still; failed and refused, a cross. */
 const OUTCOME: Record<RuleOutcome, { tone: 'good' | 'idle' | 'bad'; word: string }> = {
   applied: { tone: 'good', word: 'applied' },
-  unchanged: { tone: 'idle', word: 'nothing to change' },
+  unchanged: { tone: 'idle', word: t('rules.ruleRuns.nothingToChange') },
   skipped: { tone: 'idle', word: 'skipped' },
   failed: { tone: 'bad', word: 'failed' },
   refused: { tone: 'bad', word: 'refused' },
 };
 
 function cause(run: RuleRun): string {
-  if (run.outcome === 'refused') return run.by ? `${run.by.name}’s change` : 'a change';
-  if (!run.issue) return 'on its schedule';
-  return run.by ? `set off by ${run.by.name}` : 'on its schedule';
+  if (run.outcome === 'refused') return run.by ? t('rules.ruleRuns.sChange', { name: run.by.name }) : t('rules.ruleRuns.aChange');
+  if (!run.issue) return t('rules.ruleRuns.onItsSchedule');
+  return run.by ? t('rules.ruleRuns.setOffBy', { name: run.by.name }) : t('rules.ruleRuns.onItsSchedule');
 }
 
 /** What rules did in a project, newest first: Ocean's table of runs (components/Rule). */

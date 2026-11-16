@@ -71,9 +71,9 @@ export function sprintLeft(start: string | null, end: string | null, today = loc
     const n = cal.inclusive(today, start) - (cal.isWorking(start) ? 1 : 0);
     return n <= 0 ? t('board.board.startsOnTheNextWorking') : t('board.board.startsIn', { plural: plural(n, 'working day') });
   }
-  if (today > end) return 'Ended';
+  if (today > end) return t('board.board.ended');
   const left = cal.inclusive(today, end);
-  return left === 0 ? t('board.board.endsToday') : `${plural(left, 'working day')} left`;
+  return left === 0 ? t('board.board.endsToday') : t('board.board.left', { plural: plural(left, 'working day') });
 }
 
 function SprintHead({ view, headingId }: { view: BoardView; headingId: string }) {
@@ -216,8 +216,8 @@ function LaneHead({ lane, id, count }: { lane: Lane; id: string; count: number }
 function laneWords(lane: Lane, kind: LaneKind, field: string, id: string, joined: boolean): string {
   const it = joined ? 'it' : id;
   const its = joined ? 'its' : `${id}'s`;
-  if (kind === 'user') return lane.value ? `give ${it} to ${lane.label}` : `leave ${it} with nobody assigned`;
-  return lane.value ? `set ${its} ${field} to ${lane.value}` : `clear ${its} ${field}`;
+  if (kind === 'user') return lane.value ? t('board.board.giveTo', { it: it, label: lane.label }) : t('board.board.leaveWithNobodyAssigned', { it: it });
+  return lane.value ? t('board.board.setTo', { its: its, field: field, value: lane.value }) : t('board.board.clear', { its: its, field: field });
 }
 
 function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts: number[], card: Placed, to: Target): string {
@@ -227,7 +227,7 @@ function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts
   const relanes = kind !== null && lanes.length > 0 && to.lane !== card.lane;
   const count = (counts[to.column] ?? 0) + (moves ? 1 : 0);
   const load = column.wipLimit !== null ? `: ${columnLoad(count, column.wipLimit).text}` : '';
-  const as = moves && column.values.length > 1 ? `, as ${column.values[0]}` : '';
+  const as = moves && column.values.length > 1 ? t('board.board.as', { v: column.values[0] }) : '';
   const field = view.board.swimlaneField ?? '';
   if (moves && relanes) return t('board.board.dropItToMoveTo', { id: id, name: column.name, as: as, laneWords: laneWords(lanes[to.lane]!, kind!, field, id, true), load: load });
   if (moves) return t('board.board.dropItToMoveTo2', { id: id, name: column.name, as: as, load: load });
@@ -315,7 +315,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
     (cardId: string, to: Target | null): string => {
       const card = cards.find((c) => c.issue.id === cardId);
       if (!card) return '';
-      if (!to) return `${cardId} isn't over a column.`;
+      if (!to) return t('board.board.isnTOverAColumn', { cardId: cardId });
       return dropWords(view, lanes, kind, counts, card, to);
     },
     [cards, view, lanes, kind, counts],
@@ -325,7 +325,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
     onDragOver: ({ active: a, over: o }) => wordsFor(String(a.id), targetOf(o?.id)),
     onDragEnd: ({ active: a, over: o }) => {
       const to = targetOf(o?.id);
-      return to ? `${wordsFor(String(a.id), to).replace(/^Drop it to /, 'Dropped: ')}.` : `${a.id} was put back.`;
+      return to ? `${wordsFor(String(a.id), to).replace(/^Drop it to /, 'Dropped: ')}.` : t('board.board.wasPutBack', { id: a.id });
     },
     onDragCancel: ({ active: a }) => t('board.board.movingWasCancelledItStayed', { id: a.id }),
   };
@@ -346,7 +346,7 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
   };
 
   const failedCard = failed ? view.columns.findIndex((c) => c.issues.some((i) => i.id === failed.move.issue)) : -1;
-  const failure = failed ? failureWords(failed, failedCard >= 0 ? `in ${view.columns[failedCard]!.name}` : 'where it was') : null;
+  const failure = failed ? failureWords(failed, failedCard >= 0 ? t('board.board.in', { name: view.columns[failedCard]!.name }) : t('board.board.whereItWas')) : null;
 
   /** The card as dropping it there would leave it: its lane's value, and resolved in a column that resolves it. */
   const landed = (card: Placed, to: Target): Placed => {

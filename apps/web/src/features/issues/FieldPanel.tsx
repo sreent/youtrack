@@ -8,7 +8,7 @@ import { ApiError } from '../../api/client';
 import { errorText, useUpdateIssue } from './api';
 import { isOption, isPeriod, isUser } from './fields';
 import { ErrorLine } from '../../components/States';
-import { intlLocale, t } from '../../i18n';
+import { formatList, intlLocale, t } from '../../i18n';
 
 /** A value triage worked out, waiting for a person. */
 export interface Proposal {
@@ -298,7 +298,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
       const need = e instanceof ApiError ? (e.details as { requiredField?: string } | undefined)?.requiredField : undefined;
       if (need && need !== name) {
         setWaiting({ fields, need });
-        setErrors((x) => ({ ...x, [need]: `${errorText(e)}: choose it, and ${Object.keys(fields).join(' and ')} change${Object.keys(fields).length > 1 ? '' : 's'} with it.` }));
+        setErrors((x) => ({ ...x, [need]: t('issues.fieldPanel.chooseItAndChangeWith', { errorText: errorText(e), join: formatList(Object.keys(fields)), n: Object.keys(fields).length }) }));
         return;
       }
       setErrors((x) => ({ ...x, [name]: errorText(e) }));
@@ -376,7 +376,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
                   ...values.map((v) => {
-                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : v.owner ? v.owner.name : undefined;
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? t('issues.fieldPanel.resolvesIt') : v.owner ? v.owner.name : undefined;
                     return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
                   }),
                 ]}

@@ -15,7 +15,7 @@ import { t, tr } from '../../i18n';
 const FRAME: Frame = { width: 640, height: 260, left: 40, right: 118, top: 12, bottom: 32 };
 
 export type Standing = 'done' | 'waiting' | 'failed' | 'open';
-const STANDING_WORDS: Record<Standing, string> = { done: t('reports.cumulativeFlow.resolved'), waiting: t('reports.cumulativeFlow.waitingOnSomeone'), failed: 'Failed', open: 'Open' };
+const STANDING_WORDS: Record<Standing, string> = { done: t('reports.cumulativeFlow.resolved'), waiting: t('reports.cumulativeFlow.waitingOnSomeone'), failed: t('reports.cumulativeFlow.failed'), open: t('reports.cumulativeFlow.open') };
 
 /** How a state stands, in Ocean's words for how things stood. */
 export function standingOf(s: FlowState): Standing {
@@ -64,7 +64,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{t('reports.cumulativeFlow.issuesInEachStateAt', { v: flow.days.length ? `, ${dayMonth(flow.days[0]!.date)} to ${dayMonth(flow.days.at(-1)!.date)}` : '' })}</title>
+        <title id={titleId}>{t('reports.cumulativeFlow.issuesInEachStateAt', { v: flow.days.length ? t('reports.cumulativeFlow.to', { when: dayMonth(flow.days[0]!.date), when2: dayMonth(flow.days.at(-1)!.date) }) : '' })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
@@ -125,7 +125,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
         </thead>
         <tbody>
           {[...flow.days].reverse().map((d) => (
-            <tr key={d.date} className={d.date === flow.scope.today ? 'today' : undefined}>
+            <tr key={d.date} className={d.date === flow.scope.today ? t('reports.cumulativeFlow.today2') : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
                 {d.date === flow.scope.today ? t('reports.cumulativeFlow.today') : ''}
@@ -188,7 +188,7 @@ export function CumulativeFlowReport({ flow, compact }: { flow: Flow; compact?: 
         ) : null}
       </dl>
       <CumulativeFlowChart flow={flow} compact={compact} />
-      {flow.noState ? <p className="note">{tr('reports.cumulativeFlow.noStateAndArenT', { plural: plural(flow.noState, 'issue has', 'issues have') })}</p> : null}
+      {flow.noState ? <p className="note">{tr('reports.cumulativeFlow.noStateAndArenT', { plural: plural(flow.noState, t('reports.cumulativeFlow.issueHas'), t('reports.cumulativeFlow.issuesHave')) })}</p> : null}
     </div>
   );
 }

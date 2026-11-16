@@ -19,9 +19,9 @@ import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Role, string> = {
-  admin: 'an administrator changes everything',
-  member: 'a member reads and changes issues',
-  viewer: 'a viewer reads',
+  admin: t('page.admin.anAdministratorChangesEverything'),
+  member: t('page.admin.aMemberReadsAndChanges'),
+  viewer: t('page.admin.aViewerReads'),
 };
 const ROLE_NAMES: Record<Role, string> = { admin: t('page.admin.administrator'), member: t('page.admin.member'), viewer: t('page.admin.viewer') };
 
@@ -37,10 +37,10 @@ type SignInWays = { sso: { name: string } | null; passwords: boolean };
 function signsInWith(user: User, ways: SignInWays): { words: string; about: string | null } {
   if (user.isBot) return { words: t('page.admin.tokensOnly'), about: null };
   const providers = [...new Set((user.signIn?.identities ?? []).map((i) => i.provider))];
-  const now = [...(user.signIn?.password && ways.passwords ? ['Password'] : []), ...providers];
+  const now = [...(user.signIn?.password && ways.passwords ? [t('page.admin.password')] : []), ...providers];
   const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
   // Two-factor and provisioning (D38) say how, beside where.
-  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? `last ${ago(last)}` : null].filter(Boolean);
+  const also = [user.signIn?.twoFactor ? 'with two-factor' : null, user.signIn?.provisioned ? 'provisioned' : null, last ? t('page.admin.last', { when: ago(last) }) : null].filter(Boolean);
   if (now.length) return { words: now.join(' and '), about: also.length ? also.join(' · ') : null };
   if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: t('page.admin.notYet'), about: t('page.admin.findsThemByEmail', { name: ways.sso.name }) };
   if (ways.sso && user.email) return { words: t('page.admin.notYet'), about: t('page.admin.onceTheirEmailIsConfirmed') };
@@ -80,7 +80,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const label = (what: string) => `${what} of ${user.name}`;
+  const label = (what: string) => t('page.admin.of', { what: what, name: user.name });
   const how = signsInWith(user, ways);
   // An email people set for themselves isn't one single sign-on may find them by, until an administrator confirms it.
   const unconfirmed = Boolean(user.email) && user.signIn !== undefined && !user.signIn.emailConfirmed && form.email.trim() === (user.email ?? '');
@@ -109,7 +109,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              aria-label={label('Name')}
+              aria-label={label(t('page.admin.name'))}
               maxLength={100}
               required
               className="tw:w-44"
@@ -132,7 +132,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           type="email"
           value={form.email}
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          aria-label={label('Email')}
+          aria-label={label(t('page.admin.email'))}
           placeholder={t('page.admin.none')}
           className="tw:w-48"
         />
@@ -150,7 +150,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
         </span>
       </td>
       <td>
-        <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label('Role')} disabled={isMe}>
+        <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))} aria-label={label(t('page.admin.role'))} disabled={isMe}>
           {ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
@@ -165,7 +165,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           step="any"
           value={form.hourlyRate}
           onChange={(e) => setForm((f) => ({ ...f, hourlyRate: e.target.value }))}
-          aria-label={label('Rate per hour')}
+          aria-label={label(t('page.admin.ratePerHour'))}
           placeholder={t('page.admin.none')}
           className="tw:w-26"
         />
@@ -178,7 +178,7 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           step={0.5}
           value={form.capacity}
           onChange={(e) => setForm((f) => ({ ...f, capacity: e.target.value }))}
-          aria-label={label('Hours a day')}
+          aria-label={label(t('page.admin.hoursADay'))}
           className="tw:w-26"
         />
       </td>
@@ -392,7 +392,7 @@ export default function AdminPage() {
         <div className="section-head">
           <h2 id="people">{t('page.admin.people')}</h2>
           <span className="note">
-            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? `${banned} banned` : null]
+            {[`${humans} ${humans === 1 ? 'person' : 'people'}`, bots ? `${bots} ${bots === 1 ? 'bot' : 'bots'}` : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
               .filter(Boolean)
               .join(', ')}
           </span>

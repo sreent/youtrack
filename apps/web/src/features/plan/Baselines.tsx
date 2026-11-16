@@ -46,7 +46,7 @@ export function useBaselineChoice(projectKey: string): BaselineChoice {
 
 const savedOn = (b: Baseline) => dayMonth(b.createdAt.slice(0, 10));
 
-export function BaselinePicker({ choice, label = 'Compare with' }: { choice: BaselineChoice; label?: string }) {
+export function BaselinePicker({ choice, label = t('plan.baselines.compareWith') }: { choice: BaselineChoice; label?: string }) {
   const id = useId();
   if (!choice.baselines.length) return null;
   return (
@@ -76,7 +76,7 @@ export function SaveBaselineDialog({ projectKey, open, onClose, onSaved }: { pro
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
-      setName(`Plan of ${dayMonth(localToday())}`);
+      setName(t('plan.baselines.planOf', { when: dayMonth(localToday()) }));
       setNote('');
       setError(null);
       d.showModal();

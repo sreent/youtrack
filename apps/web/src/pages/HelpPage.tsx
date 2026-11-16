@@ -62,7 +62,7 @@ export default function HelpPage() {
   const [received, setReceived] = useState<HelpRequestReceived | null>(null);
   const captcha = useCaptcha(form.data?.captcha);
   useEffect(() => {
-    if (form.data) document.title = `Ask ${form.data.project.name} for help`;
+    if (form.data) document.title = t('page.help.askForHelp', { name: form.data.project.name });
   }, [form.data]);
 
   if (form.isLoading) {

@@ -13,7 +13,7 @@ import { t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 240, left: 40, right: 24, top: 34, bottom: 34 };
 
-const bucketWords = (from: number, to: number) => (to <= 1 ? `${Math.round(from * 24)}–${Math.round(to * 24)}h` : `${from}–${to} days`);
+const bucketWords = (from: number, to: number) => (to <= 1 ? `${Math.round(from * 24)}–${Math.round(to * 24)}h` : t('reports.distribution.days', { from: from, to: to }));
 
 export function DistributionChart({ c, compact }: { c: CycleTime; compact?: boolean }) {
   const titleId = useId();
@@ -27,7 +27,7 @@ export function DistributionChart({ c, compact }: { c: CycleTime; compact?: bool
   const slot = c.buckets.length ? plotWidth(f) / c.buckets.length : 0;
   const w = Math.max(2, Math.min(24, slot - 4));
   const marks = [
-    { p: c.percentiles.p50, words: 'Half' },
+    { p: c.percentiles.p50, words: t('reports.distribution.half') },
     { p: c.percentiles.p85, words: '85%' },
   ].filter((m): m is { p: number; words: string } => m.p !== null);
   const edges = labelled(c.buckets.length + 1, labelRoom(f, 56));
@@ -36,7 +36,7 @@ export function DistributionChart({ c, compact }: { c: CycleTime; compact?: bool
   const placed: { words: string; label: string; px: number; end: boolean; lower: boolean; from: number; to: number }[] = [];
   for (const m of marks) {
     const px = xv(Math.min(m.p, span));
-    const label = `${m.words} by ${daysOf(m.p)}`;
+    const label = t('reports.distribution.by', { words: m.words, daysOf: daysOf(m.p) });
     const room = label.length * 6.5;
     const end = px + 5 + room > f.width;
     const from = end ? px - 5 - room : px + 5;
@@ -197,7 +197,7 @@ export function CycleTimeReport({ c, compact }: { c: CycleTime; compact?: boolea
         </div>
       ) : null}
       {c.notStarted.length ? (
-        <p className="note">{tr('reports.distribution.resolvedWithoutEverBeingSo', { plural: plural(c.notStarted.length, 'issue was', 'issues were'), join: c.startStates.join(' or '), v: c.notStarted.length === 1 ? 'it is' : 'they are', map: c.notStarted.slice(0, 8).map((i, k) => (
+        <p className="note">{tr('reports.distribution.resolvedWithoutEverBeingSo', { plural: plural(c.notStarted.length, t('reports.distribution.issueWas'), 'issues were'), join: c.startStates.join(' or '), v: c.notStarted.length === 1 ? t('reports.distribution.itIs') : t('reports.distribution.theyAre'), map: c.notStarted.slice(0, 8).map((i, k) => (
             <span key={i.issue}>
               {k ? ', ' : ''}
               <Link className="issue-id" to={`/issues/${i.issue}`}>
