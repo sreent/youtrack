@@ -105,6 +105,8 @@ export function imapClient(t: ImapTarget): MailboxClient {
       return (found || []).filter((n) => n > uid).sort((a, b) => a - b);
     },
     async newest() {
+      // "*" names nothing in an empty folder, and some servers say so with an error.
+      if (!client.mailbox || client.mailbox.exists === 0) return 0;
       const last = await client.fetchOne('*', { uid: true });
       return last ? last.uid : 0;
     },
