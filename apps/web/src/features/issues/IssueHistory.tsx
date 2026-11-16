@@ -213,6 +213,21 @@ function eventEntry(e: TrackerEvent): Entry | null {
       if (dups) parts.push(`found ${dups} possible ${dups === 1 ? 'duplicate' : 'duplicates'}`);
       return { ...base, did: parts.join(', and ') };
     }
+    case 'rule.notified': {
+      const people = Array.isArray(data.people) ? (data.people as unknown[]).map((p) => `@${String(p)}`) : [];
+      const told = people.length <= 1 ? (people[0] ?? 'nobody') : `${people.slice(0, -1).join(', ')} and ${people[people.length - 1]}`;
+      return {
+        ...base,
+        did: `${byRule(data) ?? 'applied a rule'}, and told ${told}`,
+        body: (
+          <ul className="change-lines">
+            <li>“{String(data.message ?? '')}”</li>
+          </ul>
+        ),
+      };
+    }
+    case 'rule.called':
+      return { ...base, did: `${byRule(data) ?? 'applied a rule'}, and called its webhook` };
     default:
       return null;
   }

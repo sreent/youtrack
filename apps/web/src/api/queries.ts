@@ -95,7 +95,8 @@ export const useConversations = () => useQuery({ queryKey: keys.conversations, q
 export const useConversation = (id: string | undefined) =>
   useQuery({ queryKey: keys.conversation(id ?? ''), queryFn: () => get<ConversationDetail>(`/ai/conversations/${id}`), enabled: Boolean(id) });
 export const useTokens = () => useQuery({ queryKey: keys.tokens, queryFn: () => get<ApiToken[]>('/me/tokens') });
-export const useWebhooks = () => useQuery({ queryKey: keys.webhooks, queryFn: () => get<Webhook[]>('/webhooks') });
+/** Administrators only: `enabled` false asks nothing of the server. */
+export const useWebhooks = (enabled = true) => useQuery({ queryKey: keys.webhooks, queryFn: () => get<Webhook[]>('/webhooks'), enabled });
 export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: () => get<Settings>('/settings') });
 export const useEvents = (params: { project?: string; since?: string; limit?: number }) =>
   useQuery({ queryKey: keys.events(JSON.stringify(params)), queryFn: () => get<TrackerEvent[]>(`/events${qs(params)}`) });

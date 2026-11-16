@@ -1681,7 +1681,7 @@ export const RuleNotifySchema = z
   .object({
     to: z.array(z.enum(RULE_TELL)).max(RULE_TELL.length).default([]).describe("Of each issue it acts on: its assignee, its reporter, its watchers, its project's managers"),
     people: z.array(z.string().max(40)).max(20).default([]).describe('People it tells besides, by login'),
-    message: z.string().trim().min(1).max(2000).describe("What they're told, in the rule's own words"),
+    message: z.string().trim().max(2000).describe("What they're told, in the rule's own words (a rule with none needs fixing)"),
   })
   .meta({ id: 'RuleNotify' });
 export type RuleNotify = z.infer<typeof RuleNotifySchema>;

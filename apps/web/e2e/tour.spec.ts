@@ -44,6 +44,18 @@ const withRules = async (api: Api) => {
     message: "Say in a comment why it won't be fixed.",
   });
   await api.post('/rules', { project: key, name: 'Overdue issues get tagged', kind: 'schedule', schedule: { every: 'day', at: '09:00' }, query: '#Unresolved', command: 'tag overdue', enabled: false });
+  await api.post('/rules', {
+    project: key,
+    name: 'Done subtasks fix their parent',
+    kind: 'change',
+    trigger: 'updated',
+    field: 'State',
+    query: '#Resolved',
+    related: { of: 'siblings', match: 'all', query: '#Resolved' },
+    target: { to: 'parent' },
+    command: 'State Fixed',
+    notify: { to: ['watchers'], people: [], message: 'All its subtasks are done.' },
+  });
   return `/rules/${key}`;
 };
 

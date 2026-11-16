@@ -39,7 +39,12 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'commit.linked': 'a commit mentions an issue',
   'pull_request.linked': 'a pull request mentions an issue',
   'pull_request.updated': 'a pull request is merged or closed',
+  'rule.notified': 'a workflow rule tells people',
+  'rule.called': 'a workflow rule calls it',
 };
+
+/** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
+const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called');
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -187,7 +192,7 @@ function AddHook() {
     mutationFn: () =>
       post<Webhook & { secret: string }>('/webhooks', {
         url: url.trim(),
-        events: all ? ['*'] : EVENT_TYPES.filter((e) => events.has(e)),
+        events: all ? ['*'] : SUBSCRIBABLE.filter((e) => events.has(e)),
         project: project || null,
         active: true,
       }),
@@ -246,7 +251,7 @@ function AddHook() {
             <span>Every change, including kinds added later</span>
           </label>
           {!all
-            ? EVENT_TYPES.map((t) => (
+            ? SUBSCRIBABLE.map((t) => (
                 <label key={t} className="choice">
                   <input
                     type="checkbox"

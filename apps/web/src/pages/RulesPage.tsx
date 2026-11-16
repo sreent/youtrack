@@ -30,6 +30,8 @@ export default function RulesPage() {
 
   const scopes = me.data?.auth.scopes ?? [];
   const isAdmin = scopes.includes('admin');
+  // Calling a webhook sends issues to an address an administrator chose: theirs to set (workflow/rules.ts).
+  const canCall = isAdmin && scopes.includes('write');
   // As the server decides it (services/access.ts): the project's managers make its rules.
   const manages = project?.access.manage ?? false;
 
@@ -99,6 +101,7 @@ export default function RulesPage() {
                       project={r.project}
                       fields={fields.data ?? []}
                       rule={r}
+                      canCall={canCall}
                       onCancel={() => setEditing(null)}
                       onDone={(saved) => {
                         setEditing(null);
@@ -108,7 +111,7 @@ export default function RulesPage() {
                   </li>
                 );
               }
-              return <RuleCard key={r.id} rule={r} canManage={canManage} onEdit={() => setEditing(r.id)} />;
+              return <RuleCard key={r.id} rule={r} canManage={canManage} canCall={canCall} onEdit={() => setEditing(r.id)} />;
             })}
           </ul>
         ) : null}
@@ -149,6 +152,7 @@ export default function RulesPage() {
             project={everywhere ? null : project.key}
             fields={fields.data ?? []}
             initial={start}
+            canCall={canCall}
             onDone={(saved) => {
               setStart(undefined);
               setFormKey((k) => k + 1);

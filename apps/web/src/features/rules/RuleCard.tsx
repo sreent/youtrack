@@ -5,15 +5,16 @@ import { del, patch } from '../../api/client';
 import { ago, Badge, IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { errorText, Said } from '../common/bits';
-import { ChangeLines } from '../common/ChangeLines';
 import { Confirm } from '../common/Confirm';
 
 import { previewRule, ruleKeys } from './api';
+import { SampleDetail } from './RuleForm';
 import { Sentence } from './words';
 
-function input(rule: Rule): RuleInput {
-  const { project, name, kind, trigger, field, schedule, query, command, comment, requires, message } = rule;
-  return { project, name, kind, trigger, field, schedule, query, command, comment, requires, message };
+/** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
+function input(rule: Rule, canCall: boolean): RuleInput {
+  const { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call } = rule;
+  return { project, name, kind, trigger, field, schedule, query, command, comment, requires, message, related, target, notify, call: canCall && call ? { webhook: call.webhook } : null };
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -84,8 +85,13 @@ function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
   );
 }
 
-/** Ocean's Rule: the rule as a sentence, what it does and how it stands, what it did last, and its actions. */
-export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: boolean; onEdit: () => void }) {
+/**
+ * Ocean's Rule: the rule as a sentence, what it does and how it stands, what it did last, and its actions.
+ * A rule that calls a webhook is an administrator's (`canCall`) to change or delete; its project's
+ * managers can still turn it off.
+ */
+export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: Rule; canManage: boolean; canCall?: boolean; onEdit: () => void }) {
+  const canChange = canManage && (!rule.call || canCall);
   const qc = useQueryClient();
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const [preview, setPreview] = useState<RulePreview | null>(null);
@@ -104,7 +110,7 @@ export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: b
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   const look = useMutation({
-    mutationFn: () => previewRule(input(rule)),
+    mutationFn: () => previewRule(input(rule, canCall)),
     onSuccess: setPreview,
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
@@ -115,7 +121,10 @@ export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: b
         <h3 className="rule-name">{rule.name}</h3>
         <span className="badges">
           {rule.project === null ? <span className="chip">every project</span> : null}
-          {rule.kind === 'guard' ? <Badge grammar="own">refuses changes</Badge> : <Badge grammar="changes">changes issues</Badge>}
+          {rule.kind === 'guard' ? <Badge grammar="own">refuses changes</Badge> : null}
+          {rule.kind !== 'guard' && (rule.command || rule.comment) ? <Badge grammar="changes">changes issues</Badge> : null}
+          {rule.notify ? <Badge>tells people</Badge> : null}
+          {rule.call ? <Badge grammar="outside">calls out</Badge> : null}
           {broken ? <Badge tone="bad">needs fixing</Badge> : rule.enabled ? <Badge tone="good">on</Badge> : <Badge tone="idle">off</Badge>}
         </span>
       </div>
@@ -140,15 +149,18 @@ export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: b
           {preview.sample.length ? (
             <ul className="command-issues">
               {preview.sample.map((x) => (
-                <li key={x.issue.id}>
+                <li key={`${x.via?.id ?? ''}-${x.issue.id}`}>
                   <IssueLink id={x.issue.id} />
-                  <span className="command-summary">{x.issue.summary}</span>
-                  {rule.kind === 'guard' ? null : x.changes.length ? <ChangeLines changes={x.changes} /> : <span className="note">Nothing to change: it is so already</span>}
-                  {x.errors.map((err) => (
-                    <span key={err} className="note">
-                      {err}
-                    </span>
-                  ))}
+                  <span className="command-summary">
+                    {x.issue.summary}
+                    {x.via ? (
+                      <>
+                        {' '}
+                        · for <IssueLink id={x.via.id} />
+                      </>
+                    ) : null}
+                  </span>
+                  <SampleDetail sample={x} guard={rule.kind === 'guard'} commands={Boolean(rule.command)} />
                 </li>
               ))}
             </ul>
@@ -161,22 +173,30 @@ export function RuleCard({ rule, canManage, onEdit }: { rule: Rule; canManage: b
         </button>
         {canManage ? (
           <>
-            <button type="button" onClick={onEdit}>
-              Edit it
-            </button>
-            <button type="button" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
-              {rule.enabled ? 'Turn it off' : 'Turn it back on'}
-            </button>
+            {canChange ? (
+              <button type="button" onClick={onEdit}>
+                Edit it
+              </button>
+            ) : null}
+            {canChange || rule.enabled ? (
+              <button type="button" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
+                {rule.enabled ? 'Turn it off' : 'Turn it back on'}
+              </button>
+            ) : null}
             <span className="grow" />
-            <Confirm
-              small
-              label="Delete it"
-              title={`Delete the rule “${rule.name}”?`}
-              about="It stops at once, and what it did goes from its log; what it changed on issues stays, in their history. Nobody can bring the rule back."
-              confirm="Delete it"
-              disabled={remove.isPending}
-              onConfirm={() => remove.mutate()}
-            />
+            {canChange ? (
+              <Confirm
+                small
+                label="Delete it"
+                title={`Delete the rule “${rule.name}”?`}
+                about="It stops at once, and what it did goes from its log; what it changed on issues stays, in their history. Nobody can bring the rule back."
+                confirm="Delete it"
+                disabled={remove.isPending}
+                onConfirm={() => remove.mutate()}
+              />
+            ) : (
+              <span className="note">It calls a webhook, so an administrator changes it.</span>
+            )}
           </>
         ) : null}
       </div>

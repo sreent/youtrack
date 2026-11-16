@@ -548,6 +548,44 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 **Revisit when:** people need several emails, or a mapping from provider logins; or a4a should fetch what a delivery leaves out (a push delivery carries at most 2,048 commits).
 
+### D32. Rules across issues, and rules that tell people or call out: the same sentence, the same once
+
+D25's rules read and changed one issue. The classic workflow needs more: "when the last subtask is resolved, fix the parent". So a change or scheduled rule now has three more parts. Each is a word in its sentence, not an expression language:
+
+> When an issue's State changes, if it matches `#Resolved` and all of its parent's subtasks match `#Resolved`, then apply `State Fixed` to its parent and tell its parent's watchers “All its subtasks are done.”
+
+- **A further condition** ("and …"): its parent, its subtasks, its parent's subtasks, or the issues linked to it by a phrase ("depends on", "is required for"), matching a query: all of them or any one. "All" needs at least one, so an issue without subtasks doesn't count as having them all resolved. The query is compiled by the query language's own compiler, inside a subquery over `issue_links` correlated to the issue the rule acts for (`workflow/match.ts`). So one SQL condition serves a change (one issue), a scheduled run (pages of issues) and a preview (a count). Subtask links are said as a parent and subtasks, never as a phrase.
+- **What it acts on** ("to its parent"): the issue itself, its parent, its subtasks, or the issues linked to it by a phrase, at most 200 per issue.
+- **What it does**, besides a command and a comment:
+  - **Tell people**: its assignee, its reporter, its watchers, the project's managers (its lead and members with the manager role, not every administrator), and people by login, in the rule's own words.
+  - **Call a webhook**: one of the webhooks an administrator made.
+
+**The guarantees are D25's, per issue acted on.** The run log's unique (rule, issue, change that started the chain) is claimed in the same transaction as everything the rule does to that issue: its command, its message and its call. If the claim loses, all of it is taken back. A replay therefore tells nobody twice and calls nothing twice, and a loop between linked issues stops at its second turn. The chain's depth carries through related issues, so a cascade up a hierarchy stops three rules deep. The run log then says so on the issue the rule would have changed, since the issue that set it off may already have been acted on in that chain.
+
+**Telling is an event, and the notifier delivers it.** The rule writes `rule.notified`, naming the people it worked out (`workflow/tell.ts`). The notifier tells exactly those, as for any event: in their inbox with a new reason, `rule`, ranked above watching; folded into that issue's burst; and by email at their level (`direct` sends it). The people are worked out after the command, so "its assignee" is whoever the rule just assigned. Two filters apply, by D15 and the notifier's own rule, at the rule and again at delivery:
+- whoever set the rule off is never told;
+- nor is anyone who can't see the issue as they would signing in.
+
+A project's rule that names someone who could never see the project is refused when it's saved.
+
+**Calling is an event, and the webhook sender sends it.** The rule writes `rule.called`, naming its webhook. The webhook consumer sends it to that one webhook, whatever the webhook listens for: signed with its secret, retried, and in its delivery log, like every other delivery. A webhook can't listen for `rule.called`, so no other one hears a rule's call.
+
+Three things keep a call deliberate:
+- Only administrators make, change or delete a rule that calls out, because a webhook's address and secret are theirs. A project's manager can still turn one off.
+- Only an https webhook is called, or plain http to this machine. The address is checked when the rule is saved, and again each time it acts, so a webhook moved to plain http is skipped with a note in the run.
+- A webhook a rule calls can't be deleted until the rule lets it go.
+
+A rule's sentence shows the webhook's origin, never its path, which can hold a secret.
+
+**A project's rule reads and acts only in its project** (D15, D25). Related issues in other projects aren't there for its further condition. It leaves related issues in other projects alone, and the run of the issue it acted for says it left them alone, without naming them or their project.
+
+**What it costs.**
+- Each issue a rule acts for adds a query for its targets, and each it acts on is its own transaction with its own run.
+- A rule that tells people writes one more event per issue.
+- The parts are fixed words, so a condition the sentence can't say isn't possible yet, such as "when its sprint ends" or "if two of its subtasks…".
+
+**Revisit when:** rules need conditions on other kinds of thing, such as a sprint, a board or a date, or counts ("more than three subtasks"). Then the related issues' query would gain a small expression language, still compiled by the query language. Revisit too when a call needs a body of its own, not the event.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -574,6 +612,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 | Two people arrange one dashboard | `expectedVersion`: the second gets 409 and the current version |
 | A guard and the change it checks | Same transaction: the change is checked after it's written and before commit, and refused all or nothing (D25) |
 | A rule acting on a replayed event, or a loop of rules | Once per (rule, issue, change that started the chain), claimed in the rule's own transaction; chains stop three rules deep |
+| A rule acting on related issues, telling people, calling a webhook | Each issue it acts on is its own transaction: the command, the message (`rule.notified`) and the call (`rule.called`) commit with the run's claim, or none of them do (D32) |
 | A scheduled rule's turn | Claimed by moving its next run on, conditionally, by the instance holding the worker's lease |
 | A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
 
@@ -588,7 +627,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Project access:** see D15. What can't be seen answers exactly as what doesn't exist.
 - **The browser:** strict Content-Security-Policy; no inline script or style; fonts are bundled, nothing loads from outside; Markdown is rendered without raw HTML.
 - **Uploaded files:** their type is read from their bytes; only raster images are shown in place; everything else is a download, served with `nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. Names are made safe, and storage keys are random, so no name reaches the file system.
-- **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call).
+- **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call). A workflow rule calls only a webhook an administrator chose for it, only over https (or to this machine), and only an administrator makes such a rule (D32).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
 - **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as a person whose email is confirmed, and only where they can change issues (D26). Links from a payload are shown only if they are http(s).
@@ -624,7 +663,6 @@ Planned, with the seams already in place:
 - the help desk by email (replies by mail), and a captcha for its form;
 - per-project subscriptions, and per-person time zones for the digest;
 - an S3-compatible store for files, so several instances need no shared volume (D18);
-- rules that read more than one issue (a parent's state, a sprint's), or that notify or call out rather than change (D25);
 - matching a commit's author by their provider login as well as by email, and Bitbucket beside GitHub and GitLab (D26);
 - agents as assignees, and tokens issued to a bot user, so an agent can act as itself rather than for a person;
 - undo for a change an agent made on its own (the assistant at Acts);

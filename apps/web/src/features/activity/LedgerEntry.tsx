@@ -221,6 +221,20 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         ),
         badge: ['changes', 'changes who sees it'],
       };
+    case 'rule.notified': {
+      const people = Array.isArray(e.data.people) ? (e.data.people as unknown[]).map(String) : [];
+      return {
+        text: (
+          <>
+            told {people.map((p) => `@${p}`).join(', ') || 'nobody'} of {issue}
+          </>
+        ),
+        badge: ['own', 'tells people'],
+        more: <span className="ledger-note">“{str(e.data.message)}”</span>,
+      };
+    }
+    case 'rule.called':
+      return { text: <>called a webhook about {issue}</>, badge: ['outside', 'calls out'] };
     default:
       return {
         text: (
