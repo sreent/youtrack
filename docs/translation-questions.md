@@ -156,6 +156,16 @@ From the read of wave 4's messages (D50 to D55):
 - `page.integrations.changeTheApp`, "Changer d’application", suggests another app, though the form also takes a new key for the same one. "Modifier l’application" is the alternative.
 - `builds.builds.byItsFileSuchAs`: "compté sur tous les workflows du dépôt", or "numéroté sur l’ensemble des workflows du dépôt".
 
+From the read of D56's and D57's messages (customer groups, and CCs on requests):
+
+- `helpdesk.groups.cantBeGiven` is "{name} : ne reçoit pas de demandes": "pour l’instant" was dropped so its badge fits a phone, leaving the badge's clock to say it's for now. Does it still read as "can't be given requests now"?
+- **A group's sharing** (`helpdesk.groups.sharingRead`, `sharingComment`, `sharingNone`: "Les membres lisent celles des autres", "Chaque personne voit les siennes"): in a group's summary line "celles" and "les siennes" have nothing to refer to, and at 390px the closed select cuts the longest option. "Non partagées / Partagées en lecture / Partagées en lecture et en réponse" is the alternative.
+- `page.portal.copiedByYou` and `copiedByTheTeam`, "par vous" and "par l’équipe", under the heading "En copie": clear enough?
+- `helpdesk.groups.byDomains`, "Par {domains}": "Domaines : {domains}" may read better.
+- `helpdesk.groups.domains`, "Domaines e-mail": or "Domaines de messagerie"?
+- `problem.customerGroups.unknownAgent`, "…l’identifiant d’un membre du projet": could "membre" be read as the Membre role?
+- `server.helpdesk.copiedOnIt`, "En copie de votre demande, et destinataires des réponses de l’équipe :", is correct but stiff.
+
 ## Japanese
 
 Terms:

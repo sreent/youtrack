@@ -10,7 +10,7 @@ import { ErrorNote, Loading } from '../components/States';
 import { Avatar, Who } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { whenRead } from '../features/common/format';
-import { intlLocale, t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
@@ -345,9 +345,9 @@ export default function PortalPage() {
         {tr('page.portal.signedInAs', {
           name: m.name,
           email: m.email,
-          v: m.groups.length
-            ? t('page.portal.youAlsoSeeGroups', { groups: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(m.groups.map((g) => t('page.portal.groupAtDesk', { group: g.name, desk: g.desk.name }))) })
-            : '.',
+          // Whether they also see a customer group's requests (D56): each language ends the sentence its own way.
+          hasGroups: m.groups.length ? 'yes' : 'no',
+          groups: formatList(m.groups.map((g) => t('page.portal.groupAtDesk', { group: g.name, desk: g.desk.name }))),
         })}
       </p>
       {open ? (
