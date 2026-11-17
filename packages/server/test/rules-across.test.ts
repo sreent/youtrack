@@ -307,6 +307,7 @@ describe('rules that tell people', () => {
     expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Informiert: Anna Schmidt und Vera Viewer.');
     expect(notesIn(translatorFor('ja'), run!.said, run!.message)).toBe('Anna Schmidt、Vera Viewerに通知しました。');
     expect(notesIn(translatorFor('zh'), run!.said, run!.message)).toBe('通知了 Anna Schmidt和Vera Viewer。');
+    expect(notesIn(translatorFor('ko'), run!.said, run!.message)).toBe('Anna Schmidt 및 Vera Viewer에게 알렸습니다.');
 
     // The issue's history says it.
     const history = await issueActivity(w.adminCtx, issue.id);

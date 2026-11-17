@@ -144,8 +144,8 @@ export function intlLocale(): string {
 /**
  * Languages that lower a label's first letter inside a sentence ("Time logged" in "…, time logged by
  * person"). Every other keeps it: German, whose nouns keep their capital, and the languages with no case
- * (Chinese, Japanese), where a capital can only begin a name ("Backend 中的新问题"). A new language
- * joins this list only if it lowers a common noun as these do.
+ * (Chinese, Japanese, Korean), where a capital can only begin a Latin word or a name ("CI", "Backend 中的新问题").
+ * A new language joins this list only if it lowers a common noun as these do.
  */
 const LOWERS_LABELS: ReadonlySet<Locale> = new Set<Locale>(['en', 'es', 'fr']);
 

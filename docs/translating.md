@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Simplified Chinese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French, Korean and Simplified Chinese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,7 +117,7 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese or Simplified Chinese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean or Simplified Chinese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
@@ -126,7 +126,7 @@ A language is a catalog, as Spanish, Japanese and French came:
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
 3. In `packages/server/src/i18n.ts`, import the catalog beside the others (the server's catalogs are imported, not globbed).
-4. If its nouns keep their capital, as German's do, or it has no capitals to lower, as Chinese hasn't, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`: a label set in its sentences then keeps its first letter, so a name there (a project's, an acronym) isn't lower-cased.
+4. If it lowers a common noun's capital inside a sentence, as English, Spanish and French do, add it to `LOWERS_LABELS` in `apps/web/src/i18n/index.ts`: a label set in its sentences then begins in lower case. Leave it out if its nouns keep their capital, as German's do, or it has no case, as Chinese, Japanese and Korean haven't: a name or an acronym that begins a label there keeps its capital.
 5. Write its voice and its terms here, in a section of its own, then run the checks above. A copy of `e2e/spanish.spec.ts` with the language's words checks it in a browser: it signs in a person of its own, not one of the suite's administrators, since German's spec changes Una's language.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
@@ -378,6 +378,129 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | handler (of an app) | gestionnaire |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
+## Korean
+
+`ko.json`, Korean as South Korea writes it, as Korean teams read a tracker. Where a tracker's Korean is settled, it's Jira's, which most Korean teams have worked in: 이슈, 담당자, 보고자, 요약, 해결, 전환, 하위 작업. Where Jira's Korean and what developers say part (GitHub's Korean says 끌어오기 요청 and 웹후크), the catalog takes what developers say: 풀 리퀘스트, 웹훅.
+
+- **합니다체 in sentences**: "저장했습니다.", "이 이슈를 볼 수 없습니다." What a sentence asks of the reader is "-세요", as Korean software asks it, beside 합니다체: "먼저 저장하세요.", "다시 시도하세요." "-십시오" reads as an official notice, and 해요체 ("저장했어요") as a chat app's.
+- **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A status line is a short sentence: "저장했습니다.", "저장하는 중…".
+- **A particle after a value** depends on how the value ends, which a4a can't know. So it's written both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필요합니다." This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
+- **No honorific after a name**: a name takes its particle directly ("{name}이(가) 할당했습니다"), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as "{name}님", as Korean customer mail does.
+- **Spacing**, as Korean writes it: words apart, a particle or an ending joined to its word, a counter joined to its digits ("3개", "이슈 3개"). A particle joins a value or a Latin word directly: "BACK-12을(를) 열기".
+- **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes, and straight ones only where they're code (a JSON key, a form part's name, a chat command's argument); the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
+- **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too.
+- **Pieces a page joins**:
+  - The activity ledger, an issue's history and notifications show who in bold, with their mark, then what was done. A name a page draws can't take a particle, so an action is a verb phrase in the polite past with no subject: "{issue}을(를) 변경했습니다", "보고했습니다". A badge is a noun: "이슈 삭제".
+  - A webhook's events are nouns, joined into "{join} 시" with " 또는 ": "이슈 생성 또는 댓글 추가 시". The same nouns label the form's checkboxes.
+  - A rule is one sentence, in Korean order: its trigger is a clause before the rule's word for when, its conditions a clause before its word for if, and its actions are nouns, as a rule's summary lists them; the rule's words in `<t0>` are those that join them. "이슈가 생성될 <t0>때</t0>, Type: Bug에 일치<t0>하면</t0> Assignee anna 적용."
+- **A loading line is a whole message**, one per thing (`loadingLine.*`): "계획을 불러오는 중…". It names the thing with 을(를) and no owner ("수신함을 불러오는 중…" for "Loading your inbox…"); a thing's own name or id reads "{name}을(를) 불러오는 중…", and nothing, "불러오는 중…".
+- **Selects and plurals the Korean doesn't need**: a message keeps every placeholder English has. Where Korean says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
+- **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Korean and every case stays, `other` keeping what else comes.
+- **Dates and numbers** come from Intl: "2026년 11월 16일", "1,234.5", "3분 전". Intl's `ko` writes them as `ko-KR` does.
+- **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." A guess it offers is "혹시 “{guess}”인가요?". Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
+- **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이 이슈를 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인이 아닌 {login}(으)로". 당신 is never said.
+- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다."
+
+| English | Korean |
+|---|---|
+| issue | 이슈 |
+| summary (an issue's title) | 요약 |
+| description | 설명 |
+| comment | 댓글 |
+| project | 프로젝트 |
+| lead (of a project) | 프로젝트 리더 |
+| board | 보드 |
+| sprint | 스프린트 |
+| committed (a sprint's commitment) | 확정 (커밋 is version control's) |
+| blocker | 블로커 |
+| backlog | 백로그 |
+| subtask, parent | 하위 작업, 상위 이슈 |
+| help desk | 헬프데스크 |
+| SLA at risk, breached | 위험, 위반 |
+| request (help desk) | 요청; asking for help is 문의 |
+| requester | 요청자 |
+| copied on a request (CC), copy, stop copying | 참조, 참조에 추가, 참조에서 제외 |
+| customer group, kept from the group | 고객 그룹, 그룹에 비공개 |
+| reporter | 보고자 |
+| report (an issue), reported | 보고, 보고함 |
+| assignee | 담당자 |
+| agent | 에이전트 |
+| assistant (its name), the assistant | assistant, 어시스턴트 |
+| conversation (with the assistant) | 대화 |
+| workflow | 워크플로 |
+| rule | 규칙 |
+| if (a rule's or a transition's condition) | 조건; in a rule's sentence, "-(으)면" |
+| state machine | 상태 머신 |
+| transition | 전환 |
+| state | 상태 |
+| knowledge base | 지식 베이스 |
+| article | 문서 |
+| inbox | 수신함 |
+| notification | 알림 |
+| digest | 요약 메일 |
+| subscription, subscribe | 구독, 구독하다 |
+| watch, watcher | 지켜보기, 지켜보는 사람 |
+| timesheet | 타임시트 |
+| work logged, log time | 작업 기록, 시간 기록 |
+| estimate | 추정치 |
+| rate (per hour) | 시간당 단가 |
+| days away, away | 부재일, 부재 중 |
+| levelling | 평준화 |
+| slack (in a plan) | 여유 시간 |
+| booked (in a plan) | 배정: "배정된 시간" |
+| critical path | 주 경로 |
+| what-if (in a plan) | 가상 계획 |
+| baseline | 기준선 |
+| milestone | 마일스톤 |
+| earned value, earned | 획득 가치(EV), 획득 |
+| cost and schedule performance (CPI, SPI) | 원가 성과(CPI), 일정 성과(SPI) |
+| triage | 트리아지 |
+| suggestion | 제안 |
+| tag | 태그 |
+| token, revoke | 토큰, 폐기 |
+| scope (of a token) | 범위 |
+| fingerprint (of a token) | 지문 |
+| not found | 찾을 수 없음: "이슈 {id}을(를) 찾을 수 없습니다." |
+| two-factor sign-in | 2단계 인증 |
+| sign in, sign out | 로그인, 로그아웃 |
+| login (a person's handle) | 로그인 ID |
+| identity provider | ID 공급자 |
+| single sign-on | SSO |
+| webhook, delivery | 웹훅, 전송 |
+| post (a4a or a provider sending to an address) | 보내다; 게시 is for chat messages and comments |
+| secret | 시크릿 |
+| commit, pull request, branch | 커밋, 풀 리퀘스트, 브랜치 |
+| merge, merged | 병합, 병합됨 |
+| CI, build | CI, 빌드 |
+| field, value | 필드, 값 |
+| link (between issues), unlink | 링크, 링크 해제 |
+| link, unlink (a chat account) | 연결, 연결 해제 |
+| duplicate | 중복 |
+| resolve, resolved, resolution | 해결, 해결됨, 해결 |
+| dashboard, widget | 대시보드, 위젯 |
+| report | 보고서 |
+| settings | 설정 |
+| app, allow (an app), apps you allowed | 앱, 승인, 승인한 앱; revoking one is 승인 취소 |
+| action (an issue's button) | 동작 |
+| handler (of an app) | 핸들러 |
+| person, people | 사용자; 사람 in a sentence |
+| role, permission | 역할, 권한 |
+| administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트 |
+
+**Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
+
+**Why 매니저 beside 관리자**: 관리자 is the administrator, as Korean software has it, so a project's manager is 매니저, as Google's and Slack's Korean give roles their loanwords (뷰어, 멤버).
+
+**Checking Korean**: the checks above, and `e2e/korean.spec.ts`. It signs a person of its own in, through the sign-in page of a Korean browser, and opens the issues, an issue, the inbox and the profile. It also shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`.
+
+A reader of Korean can then:
+
+- read those shots;
+- set a profile's language to 한국어 and walk the pages;
+- read the pieces of one prefix together, since a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`, `page.webhooks.*`.
+
+The shots in this repository's container use its only CJK font, WenQuanYi Zen Hei, a Chinese font with Hangul in it. Judge spacing and line breaks with Noto Sans KR, Apple SD Gothic Neo or Malgun Gothic.
+
 ## Simplified Chinese
 
 `zh.json` is Simplified Chinese as mainland China writes it, in the words Chinese teams read a tracker in. Where Jira's Simplified Chinese has a word for a tracker's thing, a4a takes it (问题, 经办人, 报告人, 冲刺, 看板, 待办事项, 仪表板, 转换), since most teams there met a tracker through it.
