@@ -7,7 +7,7 @@ import { fields, fieldValues, issueFieldValues, projectFields } from '../db/sche
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { assigneeFieldIdOf, requireProject, visibleSchema } from './access';
-import { checkFieldCondition } from './conditions';
+import { checkFieldCondition, conditionReads } from './conditions';
 import { allowedValues, fieldByName, findUser, projectByKey, type FieldRow, type FieldValueRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
 
@@ -278,6 +278,25 @@ export async function attachField(
   // issue, boards' columns and #Resolved. Kept from some, they'd still say what they hold (D50).
   if (input.private && (field.type === 'state' || field.id === assigneeFieldIdOf(s))) {
     throw badRequest(`${field.name} can't be private`, 'a4a reads it for everyone: whether an issue is resolved, and who has it. Make another field private instead.').said('fields.cantBePrivate', { name: field.name });
+  }
+  // A field everyone sees can't show and hide by a value only some see (D50): its condition reads no
+  // private field, and a field a public one's condition reads can't turn private.
+  const pfs = s.projectFields.get(project.id) ?? [];
+  const now = pfs.find((pf) => pf.fieldId === field.id);
+  const isPrivate = input.private ?? now?.private ?? false;
+  const reads = condition !== undefined ? condition : (now?.condition ?? null);
+  if (!isPrivate) {
+    const read = pfs.find((pf) => pf.private && pf.fieldId !== field.id && conditionReads(s, project.id, reads, new Set([pf.fieldId])));
+    const other = read ? s.fields.get(read.fieldId)?.name : undefined;
+    if (other) {
+      throw badRequest(`${field.name}'s condition reads ${other}, a private field, and everyone sees ${field.name}`, `Make ${field.name} private too, or write its condition with fields everyone sees.`).said('fields.conditionReadsPrivate', { name: field.name, other });
+    }
+  } else {
+    const by = pfs.find((pf) => !pf.private && pf.fieldId !== field.id && conditionReads(s, project.id, pf.condition, new Set([field.id])));
+    const other = by ? s.fields.get(by.fieldId)?.name : undefined;
+    if (other) {
+      throw badRequest(`${field.name} can't be private while ${other}'s condition reads it`, `Everyone sees ${other}, so it would show and hide by a value they can't see. Change that condition first, or make ${other} private too.`).said('fields.readByCondition', { name: field.name, other });
+    }
   }
   await ctx.db
     .insert(projectFields)

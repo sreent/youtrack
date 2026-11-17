@@ -109,6 +109,23 @@ describe('making a field private', () => {
     }
   });
 
+  it("keeps a field everyone sees from showing by a private one's value", async () => {
+    const note = await createField(admin, { name: 'Escalation note', type: 'string', multi: false, description: '', values: [] });
+    // Its condition reads Risk, private in BACK: refused while the note is public, taken once it's private too.
+    const e = await failure(() => attachField(chloe, 'BACK', note.id, { condition: 'Risk: High' }));
+    expect(e.words).toMatchObject({ key: 'fields.conditionReadsPrivate', values: { name: 'Escalation note', other: 'Risk' } });
+    await attachField(chloe, 'BACK', note.id, { condition: 'Risk: High', private: true });
+    expect((await failure(() => attachField(chloe, 'BACK', note.id, { private: false }))).words?.key).toBe('fields.conditionReadsPrivate');
+    // And a field a public field's condition reads can't turn private.
+    const plan = await createField(admin, { name: 'Rollout plan', type: 'string', multi: false, description: '', values: [] });
+    await attachField(chloe, 'BACK', customerId, { private: false });
+    await attachField(chloe, 'BACK', plan.id, { condition: 'Customer: Acme' });
+    const turned = await failure(() => attachField(chloe, 'BACK', customerId, { private: true }));
+    expect(turned.words).toMatchObject({ key: 'fields.readByCondition', values: { name: 'Customer', other: 'Rollout plan' } });
+    await attachField(chloe, 'BACK', plan.id, { condition: null });
+    await attachField(chloe, 'BACK', customerId, { private: true });
+  });
+
   it('leaves the field out of the project as anyone else reads it, its name too', async () => {
     const app = createHttpApp(w.app);
     const token = (await issueTokenFor(w.app.db, w.anna.id, { name: 'anna', scopes: ['read'] })).token;
