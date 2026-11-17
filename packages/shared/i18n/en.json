@@ -2190,6 +2190,7 @@
   "page.chat.downloadTheTeamsApp": "Download the Teams app",
   "page.chat.inNoTeamYetOnce": "In no team yet. Once the app is added to a team, its channels are listed here.",
   "page.chat.inTheTeam": "in the team",
+  "page.chat.issuesFromMessagesNeed": "To make issues of messages, it also needs {code}, {code2} and {code3}, and a shortcut on messages whose callback ID is {code4}.",
   "page.chat.itsChannelsSubscriptionsStopAnd": "Its channels’ subscriptions stop, and a4a forgets the token and the signing secret. Linked people stay linked, for when it’s connected again.",
   "page.chat.itsMessagingEndpoint": "Its messaging endpoint",
   "page.chat.messagingEndpoint": "Messaging endpoint",

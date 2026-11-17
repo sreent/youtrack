@@ -160,6 +160,7 @@ function Slack({ status }: { status: ChatStatus }) {
         ))}
       </dl>
       <p className="note">{tr('page.chat.theAppNeedsTheScopes', { code: <code>chat:write</code>, code2: <code>commands</code>, code3: <code>channels:read</code>, code4: <code>groups:read</code>, code5: <code>links:read</code>, code6: <code>links:write</code>, code7: <code>link_shared</code>, code8: <code>member_joined_channel</code>, code9: <code>channel_deleted</code>, code10: <code>channel_archive</code>, code11: <code>channel_rename</code>, code12: <code>app_uninstalled</code> })}</p>
+      <p className="note">{tr('page.chat.issuesFromMessagesNeed', { code: <code>channels:history</code>, code2: <code>groups:history</code>, code3: <code>users:read</code>, code4: <code>a4a_create_issue</code> })}</p>
     </div>
   );
 }

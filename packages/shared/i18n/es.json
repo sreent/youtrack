@@ -2190,6 +2190,7 @@
   "page.chat.downloadTheTeamsApp": "Descargar la aplicación de Teams",
   "page.chat.inNoTeamYetOnce": "Todavía no está en ningún equipo. Cuando se agregue la aplicación a un equipo, sus canales aparecerán aquí.",
   "page.chat.inTheTeam": "en el equipo",
+  "page.chat.issuesFromMessagesNeed": "Para crear incidencias a partir de mensajes, también necesita {code}, {code2} y {code3}, y un atajo en los mensajes cuyo ID de callback sea {code4}.",
   "page.chat.itsChannelsSubscriptionsStopAnd": "Las suscripciones de sus canales se detienen, y a4a olvida el token y el secreto de firma. Las personas vinculadas siguen vinculadas, para cuando se vuelva a conectar.",
   "page.chat.itsMessagingEndpoint": "Su endpoint de mensajería",
   "page.chat.messagingEndpoint": "Endpoint de mensajería",

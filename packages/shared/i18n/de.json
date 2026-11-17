@@ -2190,6 +2190,7 @@
   "page.chat.downloadTheTeamsApp": "Teams-App herunterladen",
   "page.chat.inNoTeamYetOnce": "Noch in keinem Team. Sobald die App einem Team hinzugefügt ist, stehen seine Kanäle hier.",
   "page.chat.inTheTeam": "im Team",
+  "page.chat.issuesFromMessagesNeed": "Um aus Nachrichten Vorgänge zu erstellen, braucht sie außerdem {code}, {code2} und {code3} sowie einen Shortcut für Nachrichten mit der Callback-ID {code4}.",
   "page.chat.itsChannelsSubscriptionsStopAnd": "Die Abonnements seiner Kanäle enden, und a4a vergisst das Token und das Signing Secret. Verknüpfte Personen bleiben verknüpft, für den Fall, dass er wieder verbunden wird.",
   "page.chat.itsMessagingEndpoint": "Sein Messaging-Endpunkt",
   "page.chat.messagingEndpoint": "Messaging-Endpunkt",

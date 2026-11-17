@@ -2190,6 +2190,7 @@
   "page.chat.downloadTheTeamsApp": "Teamsアプリをダウンロード",
   "page.chat.inNoTeamYetOnce": "まだどのチームにも入っていません。アプリをチームに追加すると、そのチャンネルがここに表示されます。",
   "page.chat.inTheTeam": "チーム内",
+  "page.chat.issuesFromMessagesNeed": "メッセージから課題を作成するには、{code}、{code2}、{code3}と、コールバックIDが{code4}のメッセージのショートカットも必要です。",
   "page.chat.itsChannelsSubscriptionsStopAnd": "チャンネルの購読は停止し、a4aはトークンと署名シークレットを破棄します。リンクしたユーザーは、再び接続したときのためにリンクされたままです。",
   "page.chat.itsMessagingEndpoint": "メッセージングエンドポイント",
   "page.chat.messagingEndpoint": "メッセージングエンドポイント",

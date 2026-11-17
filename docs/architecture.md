@@ -1637,6 +1637,68 @@ D30 let the requester alone answer by email, and named this as the next step: pe
 
 **Revisit when:** the requester wants to take off someone they copied (now the team's, and the CC's own); a desk wants its own cap; CCs should hear each other's and the requester's words (a4a would then relay outside words, and needs a sender it can trust, such as DMARC passing by a server it knows); or the Cc of a new request nobody vouches for should wait for the requester to confirm it.
 
+### D60. Issues from chat messages: a form on the message, made as the person, its source kept beside it
+
+People decide in Slack and Teams that something is an issue, and YouTrack's Slack app makes an issue draft of a message. a4a makes the issue itself, from the message, as whoever asks, through D42's bot, whose rules all hold: what Teams and Slack send is checked before anything in it is read; people act as their linked a4a account through the one write path; someone a4a doesn't know is told how to link, and nothing else; a channel is told only what every reader of the project may see (`chat/issues.ts`, `chat/markdown.ts`).
+
+**What people do.**
+
+- **In Slack,** a message shortcut, "Create an a4a issue" (callback ID `a4a_create_issue`), on any message. a4a answers at once, and opens a modal with the shortcut's trigger within Slack's three seconds: the projects the person may create in, and no other; a summary from the message's first line; the message as the description; and, for a message with replies, whether to add the replies after it. Sent, the modal is answered within Slack's three seconds too: closed once the issue is made, or with what was wrong under its field (`response_action: errors`).
+- **In Teams,** the same as a message action: a messaging extension whose `context` is `message` (`createIssue`, in the app package's manifest, its words in the server's language since the whole tenant reads one manifest). `composeExtension/fetchTask` opens a dialog, Ocean's `teams/cards/a4a-new-issue.json` with words from the catalogs; `composeExtension/submitAction` makes the issue, answered in the dialog with the issue's card (nothing to act on there), or with the form again and what was wrong above it.
+- **As them:** channel `chat`, "via Slack" or "via Teams" in the history, with their access and permissions. The project is checked again when the form is sent: one they may not create in, or can't see, is refused in the words of one that doesn't exist (`problem.issues.projectNotFound`), as the API refuses it. A project whose new issues need a field the form doesn't ask for refuses as it would anywhere, saying which, and the issue is made on the web.
+
+**The message as Markdown.** Slack's mrkdwn (bold, italic, struck, code, quotes, links, and its `<…>` people, channels, groups and dates) and Teams' HTML (read by html-to-text's parser: tags as Markdown's marks, `<at>` as people) become a4a's Markdown, reading as the message did. Nothing in it runs or reaches out:
+
+- no raw HTML: what looked like a tag is text (`\<script\>`);
+- links only to http, https and mailto, the rest their words;
+- scripts, styles, frames, objects, forms and handlers left out; pictures never fetched, their words (an emoji, an alt) kept;
+- what would make Markdown of itself (`*`, `_`, `[`, `` ` ``, a dash or a number starting a line) escaped, so it reads as typed.
+
+People are named as the chat names them (Slack's `users.info`), with a word joiner after the "@": a Slack "anna" isn't a4a's anna, so a4a mentions nobody, and nobody is told. The form holds 3,000 characters, Slack's most for a text input, and Teams' form the same: a longer message is cut there, at a line or a word, and the form says so under the field; the source keeps that it was cut.
+
+**A thread's replies,** in Slack, when asked for: read with `conversations.replies` as the form is sent, the first 20 after the message, each quoted under its author's name below a rule. a4a writes no words of its own into the description, so it reads the same in every language; the source counts the replies. Teams gives a bot a channel's replies only through Microsoft Graph, with a permission each team's owner consents to (`ChannelMessage.Read.Group`), and a token and a host a4a doesn't hold, so Teams' dialog takes the message alone.
+
+**Files are linked, not brought.** The message's first ten files are listed with the source, as links where the chat keeps them: Slack's permalink, SharePoint's address, https on the chat's own hosts, or no link at all; more are counted. Why:
+
+- a file in a private channel, copied into a project, reaches everyone who reads the project, a wider audience than the channel's; the person sees and edits the text they bring, and doesn't see the files go;
+- Teams' files are SharePoint's and its pictures Graph's, neither of which a4a's bot can read;
+- a download takes longer than Slack's three seconds, so it would be a second change to the issue after it's made.
+
+Linked, a file stays under the chat's own access. Bringing one is a drop on the issue's page, through the upload checks (D18, D35).
+
+**Where it came from** is kept as data, in `chat_issue_sources`, not in the description, so each reader's page says it in their language (D49): the chat, the workspace or team and the channel as they were named then, a link to the message (Slack's `chat.getPermalink`; Teams' `linkToMessage`, kept only on Teams' hosts), who sent it and when, its files, its replies, and whether it was cut. It's read with the issue (`issueDetail`), so it shows exactly where the issue does: `GET /issues/{id}` (`source`), MCP's `get_issue` (`source`) and the assistant, and the issue's page, in a side card: "From a Slack message in #eng". To someone the issue is limited away from, or in a project they can't see, it's missing with the issue.
+
+**Events.** `issue.created` from a message carries `data.chat`: the chat, the workspace, the channel, the link, the author and when, and nothing of the message beyond what the issue holds, for webhooks and rules.
+
+**Its author watches it,** when they're linked to an a4a account, or known by their Entra sign-in, that may see the issue (`whoSees`), with the reason `message`. The message is their report in all but name: watching tells them what becomes of it, through the notifications they've already chosen, and they stop it like any watching. They aren't told it was made, since being made a watcher isn't news. An agent's account or a banned one never watches.
+
+**Back in the chat.**
+
+- The person is told it's done, with the issue's id and link, where only they see it: Slack's ephemeral message; in Teams, the dialog's answer.
+- A link in the message's thread, for everyone, as a channel's post is: the issue's card, "Anna Schmidt made an issue of this message", in the server's language, with only what every reader of the project may see. It's posted only when the issue isn't limited to some people, and its maker may vouch for the channel's people for its project, as subscribing the channel would ask of them, and as unfurling a link does (`whyNotFor`): a project open to everyone, which they read; one open to its members alone, which they manage. Otherwise nothing is posted in the channel, ever, and only they are told.
+
+**A form makes one issue.** Opening a form writes its source as a draft, naming who opened it (their a4a account and their chat id), for an hour. Slack's `private_metadata` and the Teams card's data carry only its id; what's sent is checked against it, never trusted, and only its opener may send it. The issue claims the draft in the transaction that makes it, so a form sent twice, at once or after (an impatient Slack, a double click in Teams), makes one issue, and the second sending is told "BACK-12 was created from this message already".
+
+**Refused,** each in the person's language, as a modal, under a field, or in the dialog:
+
+- someone a4a doesn't know: the sign-in link, as D42 sends it (Slack: in a modal, which only they see; Teams: their personal chat, and the dialog says so);
+- a project they may not create in, or can't see: not offered, and missing if sent anyway;
+- a message too long: cut, saying so;
+- a channel a4a isn't in (Slack's `conversations.info`, or a private channel's `channel_not_found`; in Teams, a team a4a isn't in): it couldn't read the message again, its thread, or answer there, so it says to invite it. A direct message, or a group chat: only channels' messages, where someone vouches for who reads the answer;
+- a deleted message: Slack's tombstone, or a message gone from its thread when the form is sent; Teams' `deleted`;
+- too many issues too fast: `CHAT_ISSUE_LIMIT` (10) from chat per person in ten minutes, counted from the sources, so across Slack, Teams and every instance, and counted again under an advisory lock of theirs in the transaction that makes one, so two forms sent at once can't both pass;
+- a request replayed: a signed Slack request is taken once (its signature's hash, kept for its five minutes); a Teams activity once (its id, kept for its token's hour). Bot Framework's token doesn't sign the activity, so its id is what a4a can hold it to. A replay is refused as a forgery is, 401 with no words: nobody it came from reads them.
+
+**What it costs.**
+
+- Opening a form: three calls to Slack side by side, within its three seconds (the channel, the permalink, people's names), and a draft row. Sending one: one call for the thread, and names for its replies, then one transaction.
+- A row per form opened, pruned once an hour after it expires unsent; a row per Slack request and Teams activity, pruned once an hour after its window. The chat's prune runs hourly now, not daily.
+- The thread, and the files, are as the chat holds them when the form is sent: an edit after isn't followed.
+- Slack's modal lists 100 projects, by name: someone who may create in more sees the first 100. Teams' list filters as they type.
+- Slack's app needs three more scopes (`channels:history`, `groups:history` for the thread, `users:read` for names) and the shortcut; Teams' app package is uploaded again for the message action.
+
+**Revisit when:** Teams' replies are wanted (Graph, with the team's consent); people want files brought (downloaded after the issue is made, through the upload checks, as a change of its own); someone needs more than Slack's 100 projects (an external select, Slack's `block_suggestion`); or a project's required fields should be asked for, which wants the form to grow per project, or a draft opened on the web.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1696,6 +1758,7 @@ D30 let the requester alone answer by email, and named this as the next step: pe
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
 - **Reading as a GitHub App:** its private key is sealed with SECRET_KEY and never shown; the installation tokens it's traded for read contents only, last an hour, and live in memory alone (D54).
 - **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as their author in a4a, known by a confirmed email or a login an administrator recorded (D33), and only where they can change issues (D26). Bitbucket is read only on the address an administrator gave, following no redirects. Links from a payload are shown only if they are http(s).
+- **Chat:** what Teams and Slack send is checked before anything is read (Bot Framework's token; Slack's signature, within five minutes, in constant time), and taken once: a Slack request by its signature, a Teams activity by its id (D60). A message made an issue keeps no raw HTML and no link but http, https and mailto, fetches no picture, and mentions nobody in a4a; its files are linked, never fetched by the server.
 - **Confirming an email:** by a link whose token is kept as a hash, works once, for a day, and only for the person who added the email, signed in; at most five go an hour (D33). An API token can't change emails.
 - **Mail into a help desk:** a provider's post needs the desk's secret (HTTP Basic, hashed, constant time), and refusals are limited per address. A reply speaks for the requester only from their address and with what only they had (a reply address's token, or an email's random Message-ID). Nothing set aside or refused is answered, so forged senders get no mail; a receiving server's DMARC failure is refused. Mail's HTML is read as words, never shown (D30).
 - **Agents:**
@@ -1737,6 +1800,7 @@ Planned, with the seams already in place:
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
+- a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
 - a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - passwords or single sign-on for the requesters' portal (D45);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);

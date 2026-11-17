@@ -2190,6 +2190,7 @@
   "page.chat.downloadTheTeamsApp": "Télécharger l’application Teams",
   "page.chat.inNoTeamYetOnce": "Dans aucune équipe pour l’instant. Une fois l’application ajoutée à une équipe, ses canaux s’affichent ici.",
   "page.chat.inTheTeam": "dans l’équipe",
+  "page.chat.issuesFromMessagesNeed": "Pour créer des tickets à partir de messages, elle a aussi besoin de {code}, {code2} et {code3}, et d’un raccourci sur les messages dont l’ID de callback est {code4}.",
   "page.chat.itsChannelsSubscriptionsStopAnd": "Les abonnements de ses canaux s’arrêtent, et a4a oublie le jeton et le secret de signature. Les personnes liées le restent, pour quand il sera reconnecté.",
   "page.chat.itsMessagingEndpoint": "Son point de terminaison de messagerie",
   "page.chat.messagingEndpoint": "Point de terminaison de messagerie",
