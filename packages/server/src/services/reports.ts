@@ -27,7 +27,7 @@ import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, perce
 import { buildTimelines, insideDuring, leftSprint, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
-import { fieldSeenSql, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
+import { fieldSeenSql, goneEventsSql, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
 import { allowedValues, fieldByName, findUser, idWithKeyNow, keyNow, keysOfProject, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
@@ -104,14 +104,15 @@ export async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project
   const movedIn = sql`${activities.issueId} IN (SELECT a2.issue_id FROM activities a2 WHERE a2.type = 'issue.moved' AND ${inList(sql`a2.project_id`, ids)})`;
   const inProjects = sql`(${inList(activities.projectId, ids)} OR ${movedAway} OR ${movedIn})`;
   // Issues limited away from the caller (D37) count for nothing here, as in a search; a deleted
-  // issue's history still counts, as before.
+  // issue's history still counts, as before, unless it was limited when it was deleted.
   const view = await projectAccess(ctx);
   const seen = issueSeenSql(view, s, 'seen_ri');
   const issueSeen = issueSeenSql(view, s);
+  const gone = goneEventsSql(view);
   return {
     projects,
     query: null,
-    activityWhere: seen ? sql`(${inProjects} AND NOT EXISTS (SELECT 1 FROM issues seen_ri WHERE seen_ri.id = ${activities.issueId} AND NOT ${seen}))` : inProjects,
+    activityWhere: and(seen ? sql`(${inProjects} AND NOT EXISTS (SELECT 1 FROM issues seen_ri WHERE seen_ri.id = ${activities.issueId} AND NOT ${seen}))` : inProjects, gone)!,
     issueWhere: issueSeen ? sql`(${inList(sql`${issues.projectId}`, ids)} AND ${issueSeen})` : inList(sql`${issues.projectId}`, ids),
     includesDeleted: true,
     inScope: keySet(projects),
@@ -562,6 +563,8 @@ export async function sprintBurn(
         sql`${activities.payload}->'data'->>'sprintId' = ${sprint.id}`,
         sql`${activities.type} in ('sprint.issue_added', 'sprint.issue_removed')`,
         inList(activities.projectId, readable),
+        // Nor one deleted while it was limited (D37).
+        goneEventsSql(await projectAccess(ctx)),
       ),
     )
     .orderBy(asc(activities.id));

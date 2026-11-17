@@ -459,6 +459,8 @@ export const activities = pgTable(
     index('activities_article_gone')
       .on(t.projectId)
       .where(sql`${t.type} = 'article.deleted' and ${t.payload}->'data'->>'limited' = 'true'`),
+    // Issues' deletions (D37): what was limited on one stays hidden, so every feed and inbox asks of these rows.
+    index('activities_issue_gone').on(t.projectId).where(sql`${t.type} = 'issue.deleted'`),
   ],
 );
 

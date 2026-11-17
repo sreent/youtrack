@@ -33,6 +33,7 @@ import { addGroupMember, createGroup } from '../src/services/groups';
 import { createIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { mentionsConsumer } from '../src/services/mentions';
+import { createProject } from '../src/services/projects';
 import { insertUser } from '../src/services/users';
 import { createWorld, type TestWorld } from './helpers';
 import { openStream } from './sse-client';
@@ -295,6 +296,20 @@ describe('mentions of a limited article', () => {
     // Words an agent wrote name it only to those who see it, as hidden issues are.
     expect(await redactUnseenIds(ben, `See ${secret} and ${issue.id}`)).toBe(`See an article you can’t see and ${issue.id}`);
     expect(await redactUnseenIds(erin, `See ${secret}`)).toBe(`See ${secret}`);
+  });
+
+  it('says what it takes out in its reader’s language (D49)', async () => {
+    const hush = await createProject(admin, { key: 'HUSH', name: 'Hush', visibility: 'members' });
+    const elsewhere = await createIssue(admin, { project: hush.key, summary: 'In a project Ben can’t read' });
+    const limited = await createIssue(anna, { project: 'BACK', summary: 'Limited to Erin', visibleTo: { users: ['erin'] } });
+    const article = (await createArticle(anna, { project: 'BACK', title: 'Limited to Erin too', visibleTo: { users: ['erin'] } })).id;
+    const words = `Siehe ${elsewhere.id}, ${limited.id} und ${article}.`;
+    const inGerman = { ...ben, locale: 'de' as const };
+    expect(await redactUnseenIds(inGerman, words)).toBe(
+      'Siehe ein Vorgang, den Sie nicht sehen können, ein Vorgang, den Sie nicht sehen können und ein Artikel, den Sie nicht sehen können.',
+    );
+    expect(await redactUnseenIds(ben, `See ${limited.id} and ${article}.`)).toBe('See an issue you can’t see and an article you can’t see.');
+    expect(await redactUnseenIds({ ...erin, locale: 'de' as const }, `Siehe ${limited.id} und ${article}.`)).toBe(`Siehe ${limited.id} und ${article}.`);
   });
 });
 
