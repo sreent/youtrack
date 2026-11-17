@@ -2669,3 +2669,26 @@ export const appRuns = pgTable(
   },
   (t) => [index('app_runs_app').on(t.appId, t.id), index('app_runs_created').on(t.createdAt)],
 );
+
+// ---------------------------------------------------------------------------
+// Renaming a project's key (wave 4: docs/architecture.md, D52)
+// ---------------------------------------------------------------------------
+
+/**
+ * The keys a project had before it was renamed. Each stays the project's for good: OLD-12 finds
+ * NEW-12, `project: OLD` finds the project, and no other project can take OLD. Kept in upper case,
+ * as projects keep theirs. Renaming a project back to one of them takes it off this list.
+ */
+export const projectKeyAliases = pgTable(
+  'project_key_aliases',
+  {
+    key: text('key').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    renamedById: text('renamed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** When the project stopped going by it. */
+    renamedAt: created(),
+  },
+  (t) => [index('project_key_aliases_project').on(t.projectId)],
+);

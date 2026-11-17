@@ -36,14 +36,15 @@ async function streamFilter(ctx: Ctx, project: string | undefined, types: string
     const p = projectByKey(await visibleSchema(ctx), project);
     if (!p) throw badRequest(`Unknown project ${project}`).said('events.unknownProject', { project });
     projectIds = [p.id];
-    key = p.key.toUpperCase();
+    key = p.id;
   }
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   return {
     projectIds,
     types: typeList.length ? typeList : null,
     where: eventsVisibleSql(view, s),
-    matches: (e) => (!key || e.project?.toUpperCase() === key) && (!typeList.length || typeList.includes(e.type)),
+    // By the project, not its key: a stream open across a rename (D52) keeps it, since its keys, old and new, all find it.
+    matches: (e) => (!key || (e.project !== null && projectByKey(ctx.app.schema.peek() ?? s, e.project)?.id === key)) && (!typeList.length || typeList.includes(e.type)),
   };
 }
 

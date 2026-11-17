@@ -201,12 +201,13 @@ export async function moveIssue(ctx: Ctx, idOrReadable: string, input: MoveIssue
     if (p.plan.problems.length) {
       throw badRequest(`${p.plan.from} can't move to ${target.key} yet: ${problemList(p.plan.problems)}`, 'Give a value for each in fields, or null to leave it empty, and move it again.', p.plan).said('move.fieldsToGive', { issue: p.plan.from, project: target.key, problems: saidProblems(p.plan.problems) });
     }
-    const [{ number } = { number: 0 }] = await tx
+    const [{ number, key: targetKey } = { number: 0, key: target.key }] = await tx
       .update(projects)
       .set({ nextNumber: sql`${projects.nextNumber} + 1` })
       .where(eq(projects.id, target.id))
-      .returning({ number: sql<number>`${projects.nextNumber} - 1` });
-    const to = `${target.key}-${Number(number)}`;
+      .returning({ number: sql<number>`${projects.nextNumber} - 1`, key: projects.key });
+    // Its key as it is now, should the project have been renamed while this waited for its row (D52).
+    const to = `${targetKey}-${Number(number)}`;
     await tx.insert(issueAliases).values({ projectId: issue.projectId, number: issue.number, issueId: issue.id, movedById: ctx.actor.user.id });
     await tx.delete(issueFieldValues).where(eq(issueFieldValues.issueId, issue.id));
     const rows = [...p.values.entries()].flatMap(([fieldId, vals]) => vals.map((v) => ({ issueId: issue.id, fieldId, ...valueRow(v) })));
@@ -242,7 +243,7 @@ export async function moveIssue(ctx: Ctx, idOrReadable: string, input: MoveIssue
       payload: {
         issue: issueRef(s, moved!, states.get(issue.id) ?? null),
         changes: [{ field: 'Project', from: from.key, to: target.key }, ...changed, ...p.droppedValues.map((d) => ({ field: d.field, from: d.from, to: null }))],
-        data: { from: p.plan.from, to, fromProject: from.key, toProject: target.key, ...(p.plan.leftSprints.length ? { leftSprints: p.plan.leftSprints } : {}) },
+        data: { from: p.plan.from, to, fromProject: from.key, toProject: targetKey, ...(p.plan.leftSprints.length ? { leftSprints: p.plan.leftSprints } : {}) },
       },
     });
     return { plan: { ...p.plan, to, moved: true }, activity };

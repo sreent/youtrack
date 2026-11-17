@@ -2,7 +2,7 @@ import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { warmSandbox } from '../workflow/sandbox';
-import { appProjects, apps, fields, fieldValues, groups, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
+import { appProjects, apps, fields, fieldValues, groups, linkTypes, projectFields, projectKeyAliases, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -30,7 +30,10 @@ export interface SchemaSnapshot {
   values: Map<string, FieldValueRow>;
   valuesByField: Map<string, FieldValueRow[]>;
   projects: Map<string, ProjectRow>;
+  /** By upper-case key: each project's own, and the keys it had before it was renamed (D52), which still find it. */
   projectsByKey: Map<string, ProjectRow>;
+  /** A project's former keys, by its id, oldest first (D52). */
+  formerKeys: Map<string, string[]>;
   projectFields: Map<string, ProjectFieldRow[]>;
   tags: Map<string, TagRow>;
   tagsByName: Map<string, TagRow>;
@@ -115,6 +118,12 @@ export class SchemaCache {
     await this.broadcast?.(tx);
   }
 
+  /** The snapshot as it stands, without loading one: null while it's being reloaded, or when it's stale. */
+  peek(): SchemaSnapshot | null {
+    const snap = this.snapshot;
+    return snap && Date.now() - snap.loadedAt < TTL_MS ? snap : null;
+  }
+
   /** A change another instance made: reload here only. */
   drop(): void {
     this.generation++;
@@ -170,6 +179,7 @@ export class SchemaCache {
     const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
     const appRows = await db.select().from(apps).orderBy(asc(apps.name));
     const appProjectRows = await db.select().from(appProjects);
+    const keyAliasRows = await db.select().from(projectKeyAliases).orderBy(asc(projectKeyAliases.renamedAt), asc(projectKeyAliases.key));
     // Scripts run in the sandbox's worker threads (D40): start them now, so no run waits for one to load.
     if (ruleRows.some((r) => r.script) || actionRows.some((a) => a.script)) warmSandbox();
     const snap: SchemaSnapshot = {
@@ -179,6 +189,7 @@ export class SchemaCache {
       valuesByField: new Map(),
       projects: new Map(),
       projectsByKey: new Map(),
+      formerKeys: new Map(),
       projectFields: new Map(),
       tags: new Map(),
       tagsByName: new Map(),
@@ -224,6 +235,13 @@ export class SchemaCache {
       snap.projectsByKey.set(p.key.toUpperCase(), p);
       snap.projectFields.set(p.id, []);
     }
+    // A key a project had finds it still; a project's own key always wins (a project never has another's).
+    for (const a of keyAliasRows) {
+      const p = snap.projects.get(a.projectId);
+      if (!p || snap.projectsByKey.has(a.key)) continue;
+      snap.projectsByKey.set(a.key, p);
+      snap.formerKeys.set(p.id, [...(snap.formerKeys.get(p.id) ?? []), a.key]);
+    }
     for (const pf of pfRows) snap.projectFields.get(pf.projectId)?.push(pf);
     for (const t of tagRows) {
       snap.tags.set(t.id, t);
@@ -260,6 +278,29 @@ export function fieldByName(s: SchemaSnapshot, name: string): FieldRow | undefin
 
 export function projectByKey(s: SchemaSnapshot, key: string): ProjectRow | undefined {
   return s.projectsByKey.get(key.trim().toUpperCase());
+}
+
+/** Every key a project goes by, in upper case: its own first, then those it had before it was renamed (D52). */
+export function keysOfProject(s: SchemaSnapshot, projectId: string): string[] {
+  const p = s.projects.get(projectId);
+  return p ? [p.key.toUpperCase(), ...(s.formerKeys.get(projectId) ?? [])] : [];
+}
+
+/** A project key as it reads now: a key the project had before it was renamed reads as its key now (D52). */
+export function keyNow(s: SchemaSnapshot, key: string): string {
+  return s.projectsByKey.get(key.toUpperCase())?.key ?? key;
+}
+
+/**
+ * A readable id (an issue's, or an article's) with its project's key as it reads now: OLD-12 is
+ * NEW-12 once OLD is renamed NEW, and OLD-A-3 is NEW-A-3 (D52). Anything else stays as it is.
+ */
+export function idWithKeyNow(s: SchemaSnapshot, id: string): string {
+  const dash = id.indexOf('-');
+  if (dash < 1) return id;
+  const key = id.slice(0, dash).toUpperCase();
+  const p = s.projectsByKey.get(key);
+  return p && p.key.toUpperCase() !== key ? `${p.key}${id.slice(dash)}` : id;
 }
 
 /** Projects that have the field attached. */

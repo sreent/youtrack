@@ -40,6 +40,7 @@ import { buildTools } from './builds';
 import { requestOf } from '../services/helpdesk';
 import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
+import { projectKeyTools } from './project-keys';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -618,6 +619,7 @@ export const TOOLS: ToolDef[] = [
   ...chatTools,
   ...buildTools,
   ...appTools,
+  ...projectKeyTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

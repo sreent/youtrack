@@ -49,7 +49,7 @@ import { requireProject, seenIssueIds } from '../services/access';
 import { addFieldValue, attachField, createField } from '../services/fields';
 import { issueRefsById, type IssueRow } from '../services/issue-refs';
 import { applyChanges, fieldValuesOf, findIssue, resolveIssue } from '../services/issues';
-import { fieldByName, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
+import { fieldByName, type FieldRow, keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 import { getJson, ReadError } from '../vcs/commits';
 import { NOBODY, type IntegrationRow } from '../vcs/links';
 import { mentions } from '../vcs/mentions';
@@ -293,8 +293,7 @@ async function issuesNamed(db: Db, s: SchemaSnapshot, projectId: string, facts: 
     for (const r of rows) if (!out.has(r.issue.id)) out.set(r.issue.id, { issue: r.issue, commit: r.sha });
   }
   // Short shas (a CI may send seven characters): matched by prefix against what was linked.
-  const project = s.projects.get(projectId);
-  const keys = new Set(project ? [project.key.toUpperCase()] : []);
+  const keys = new Set(keysOfProject(s, projectId));
   for (const c of facts.commits) {
     if (!c.message) continue;
     for (const m of mentions(c.message, keys, false)) {

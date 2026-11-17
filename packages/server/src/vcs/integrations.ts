@@ -46,7 +46,8 @@ function projectIds(s: SchemaSnapshot, keys: string[]): string[] {
   const out: string[] = [];
   for (const key of keys) {
     const p = projectByKey(s, key);
-    if (!p) throw notFound(`Project ${key}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`).said('vcs.projectNotFound', { id: key, projects: [...s.projectsByKey.keys()].join(', ') });
+    const known = [...s.projects.values()].map((x) => x.key).join(', ');
+    if (!p) throw notFound(`Project ${key}`, `Projects: ${known}`).said('vcs.projectNotFound', { id: key, projects: known });
     if (!out.includes(p.id)) out.push(p.id);
   }
   return out;

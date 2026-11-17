@@ -26,7 +26,7 @@ import { RateLimiter } from '../http/middleware';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { findIssue } from '../services/issues';
-import type { SchemaSnapshot } from '../services/schema-cache';
+import { keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 import { buildsFromRun } from '../ci/builds';
 import { authorOf } from './authors';
 import { moreCommits } from './commits';
@@ -206,7 +206,8 @@ function replyWords(linked: number, applied: number): string {
 /** The projects whose issue ids this integration looks for, by key. */
 function keysFor(s: SchemaSnapshot, integration: IntegrationRow): Map<string, string> {
   const out = new Map<string, string>();
-  for (const p of s.projects.values()) if (!integration.projectIds.length || integration.projectIds.includes(p.id)) out.set(p.key.toUpperCase(), p.id);
+  // And the keys each had before it was renamed (D52): a commit that names OLD-12 finds NEW-12.
+  for (const p of s.projects.values()) if (!integration.projectIds.length || integration.projectIds.includes(p.id)) for (const k of keysOfProject(s, p.id)) out.set(k, p.id);
   return out;
 }
 

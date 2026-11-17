@@ -930,14 +930,22 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
 
 /** Write a prepared issue inside `tx`, with its activity. */
 async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptions): Promise<{ issue: IssueRow; activities: ActivityRow[] }> {
-  const { s, project, summary, values, specs } = p;
+  const { summary, values, specs } = p;
+  let { s, project } = p;
   const imported = opts.imported;
   const activities: ActivityRow[] = [];
-  const [{ number } = { number: 0 }] = await tx
+  const [{ number, key } = { number: 0, key: project.key }] = await tx
     .update(projects)
     .set({ nextNumber: sql`${projects.nextNumber} + 1` })
     .where(eq(projects.id, project.id))
-    .returning({ number: sql<number>`${projects.nextNumber} - 1` });
+    .returning({ number: sql<number>`${projects.nextNumber} - 1`, key: projects.key });
+  // The project was renamed while this waited for its row (D52): read its key as it is now, so the
+  // issue's own event names it as it is.
+  if (key !== project.key) {
+    ctx.app.schema.drop();
+    s = await ctx.app.schema.get(tx);
+    project = s.projects.get(project.id) ?? { ...project, key };
+  }
   const id = newId();
   const now = new Date();
   const [row] = await tx

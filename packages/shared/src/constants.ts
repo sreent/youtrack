@@ -142,6 +142,7 @@ export const EVENT_TYPES = [
   'build.recorded',
   'sla.warning',
   'sla.breached',
+  'project.key.changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
