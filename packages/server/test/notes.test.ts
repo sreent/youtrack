@@ -122,10 +122,10 @@ describe("a rule's preview", () => {
     );
     const broken = await previewRule(w.adminCtx, { ...scripted, script: 'nope(' });
     expect(broken.says.shows).toBe('fixScript');
-    expect(previewSays(broken)).toBe('2 Vorgänge entsprechen jetzt ihrer Abfrage. Korrigieren Sie ihr Skript, um zu sehen, was die Regel tun würde.');
+    expect(previewSays(broken)).toBe('2 Vorgänge entsprechen jetzt ihrer Abfrage. Korrigieren Sie das Skript, um zu sehen, was die Regel tun würde.');
     const unsaved = await previewRule(w.as(w.anna), { ...scripted, script: "apply('tag scripted')" });
     expect(unsaved.says.shows).toBe('adminOnly');
-    expect(previewSays(unsaved)).toBe('2 Vorgänge entsprechen jetzt ihrer Abfrage. Nur Administratoren führen ein Skript aus, das nicht gespeichert ist.');
+    expect(previewSays(unsaved)).toBe('2 Vorgänge entsprechen jetzt ihrer Abfrage. Nur Administratoren können ein nicht gespeichertes Skript ausführen.');
 
     const refusing = await previewRule(w.adminCtx, { ...scripted, script: "refuse('Nicht jetzt')" });
     previewSays(refusing);
