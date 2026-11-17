@@ -77,13 +77,13 @@ export function permissionWords(p: AppPermissions): string[] {
 function requirePerson(ctx: Ctx): void {
   requireScope(ctx, 'admin');
   if (ctx.actor.user.isBot || ctx.actor.authMethod === 'token' || ctx.actor.channel === 'mcp' || ctx.actor.app) {
-    throw forbidden('Installing, updating or removing an app is a person’s decision, made signed in', 'Sign in to a4a as an administrator, and do it under Administration → Apps.');
+    throw forbidden('Installing, updating or removing an app is a person’s decision, made signed in', 'Sign in to a4a as an administrator, and do it under Administration → Apps.').said('apps.personsDecision');
   }
 }
 
 const decode = (base64: string): Buffer => {
   const clean = base64.replace(/^data:[^,]*,/, '').trim();
-  if (!/^[A-Za-z0-9+/=\s_-]+$/.test(clean)) throw badRequest("The package isn't base64", 'Send the zip, base64-encoded, as "package".');
+  if (!/^[A-Za-z0-9+/=\s_-]+$/.test(clean)) throw badRequest("The package isn't base64", 'Send the zip, base64-encoded, as "package".').said('apps.notBase64');
   return Buffer.from(clean, 'base64');
 };
 
@@ -103,13 +103,13 @@ async function rowByName(db: Db, name: string): Promise<AppDbRow | undefined> {
 
 async function requireApp(ctx: Ctx, name: string): Promise<AppDbRow> {
   const row = await rowByName(ctx.db, name);
-  if (!row) throw notFound(`App ${name}`, 'See the apps installed under Administration → Apps.');
+  if (!row) throw notFound(`App ${name}`, 'See the apps installed under Administration → Apps.').said('apps.notInstalled', { name });
   return row;
 }
 
 function snapshotApp(s: SchemaSnapshot, id: string): AppRow {
   const a = s.apps.get(id);
-  if (!a) throw notFound('App');
+  if (!a) throw notFound('App').said('notFound.appUnnamed');
   return a;
 }
 
@@ -198,7 +198,7 @@ async function readChecked(app: AppServices, bytes: Buffer): Promise<ReadPackage
   for (const sc of scripts) {
     const source = pkg.files.find((f) => f.path === sc.file)!.content.toString('utf8');
     const problems = await checkScript(source);
-    if (problems.length) throw badRequest(`${sc.what}'s script doesn't compile: ${problems[0]!.message}`, `Fix ${sc.file}, and package the app again.`);
+    if (problems.length) throw badRequest(`${sc.what}'s script doesn't compile: ${problems[0]!.message}`, `Fix ${sc.file}, and package the app again.`).said('apps.scriptDoesNotCompile', { what: sc.what, message: problems[0]!.message, file: sc.file });
   }
   return pkg;
 }
@@ -259,14 +259,14 @@ function changed(app: AppServices): void {
 
 async function install(ctx: Ctx, pkg: ReadPackage, input: { accept: AppPermissions; allProjects?: boolean; projects?: string[] }, source: Record<string, unknown>): Promise<App> {
   const m = pkg.manifest;
-  if (await rowByName(ctx.db, m.name)) throw conflict(`${m.title} is installed already`, 'Update it instead: a4a asks again only for what the new version adds.');
+  if (await rowByName(ctx.db, m.name)) throw conflict(`${m.title} is installed already`, 'Update it instead: a4a asks again only for what the new version adds.').said('apps.installedAlready', { title: m.title });
   if (!samePermissions(input.accept, m.permissions)) {
-    throw badRequest("What you accept isn't what it asks for", `It asks for: ${describe(m.permissions).join('; ') || 'nothing'}. Accept exactly that, or don't install it.`);
+    throw badRequest("What you accept isn't what it asks for", `It asks for: ${describe(m.permissions).join('; ') || 'nothing'}. Accept exactly that, or don't install it.`).said('apps.acceptWhatItAsks', { asks: describe(m.permissions).join('; ') || 'nothing' });
   }
   const chosen = await projectIdsOf(ctx, input.projects);
   const login = `app-${m.name}`;
   const s = await ctx.app.schema.get();
-  if (s.usersByLogin.get(login)) throw conflict(`The login ${login} is taken, and it's what ${m.title}'s agent would be called`, `Rename the account called ${login}, then install it.`);
+  if (s.usersByLogin.get(login)) throw conflict(`The login ${login} is taken, and it's what ${m.title}'s agent would be called`, `Rename the account called ${login}, then install it.`).said('apps.agentLoginTaken', { login, title: m.title });
   const id = newId();
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -303,15 +303,15 @@ export async function installPackage(ctx: Ctx, input: { package: string; accept:
 
 async function update(ctx: Ctx, row: AppDbRow, pkg: ReadPackage, accept: AppPermissions | undefined, source: Record<string, unknown>): Promise<App> {
   const m = pkg.manifest;
-  if (m.name !== row.name) throw badRequest(`This package is ${m.name}, not ${row.name}`, `Update ${row.title} with a package of its own.`);
-  if (pkg.sha256 === row.sha256) throw conflict(`${row.title} ${row.version} is installed from this very package`, 'Nothing to update.');
-  if (!newerVersion(m.version, row.version)) throw badRequest(`${row.title} ${row.version} is installed, and this is ${m.version}`, 'Install a newer version, or remove it first to go back to an older one.');
+  if (m.name !== row.name) throw badRequest(`This package is ${m.name}, not ${row.name}`, `Update ${row.title} with a package of its own.`).said('apps.otherPackage', { name: m.name, name2: row.name, title: row.title });
+  if (pkg.sha256 === row.sha256) throw conflict(`${row.title} ${row.version} is installed from this very package`, 'Nothing to update.').said('apps.samePackage', { title: row.title, version: row.version });
+  if (!newerVersion(m.version, row.version)) throw badRequest(`${row.title} ${row.version} is installed, and this is ${m.version}`, 'Install a newer version, or remove it first to go back to an older one.').said('apps.olderVersion', { title: row.title, version: row.version, version2: m.version });
   const more = beyond(m.permissions, permissionsOf(row.granted));
   if (!isEmpty(more) && !(accept && samePermissions(accept, m.permissions))) {
     throw new AppError(409, 'consent_required', `${m.title} ${m.version} asks for more: ${describe(more).join('; ')}`, 'Accept all it asks for now, or keep the version installed.', {
       asks: m.permissions,
       more,
-    });
+    }).said('apps.asksForMore', { title: m.title, version: m.version, more: describe(more).join('; ') });
   }
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -381,7 +381,7 @@ async function fromCatalog(ctx: Ctx, pick: { catalog: string; name: string; vers
   const bytes = await downloadPackage(ctx.app.config, catalog, entry);
   const pkg = await readChecked(ctx.app, bytes);
   if (pkg.manifest.name !== entry.name || pkg.manifest.version !== entry.version) {
-    throw badRequest(`The catalog lists ${entry.name} ${entry.version}, and its package is ${pkg.manifest.name} ${pkg.manifest.version}`, 'Tell whoever keeps the catalog: install nothing from it until it agrees.');
+    throw badRequest(`The catalog lists ${entry.name} ${entry.version}, and its package is ${pkg.manifest.name} ${pkg.manifest.version}`, 'Tell whoever keeps the catalog: install nothing from it until it agrees.').said('apps.catalogDisagrees', { name: entry.name, version: entry.version, name2: pkg.manifest.name, version2: pkg.manifest.version });
   }
   return { pkg, signedBy, source: { kind: 'catalog', catalog: catalog.url, url: new URL(entry.url, catalog.url).href } };
 }
@@ -401,7 +401,7 @@ export async function installFromCatalog(
   const { pkg, source } = await fromCatalog(ctx, input);
   const row = await rowByName(ctx.db, pkg.manifest.name);
   if (row) return update(ctx, row, pkg, input.accept, source);
-  if (!input.accept) throw badRequest('Say what you accept', `It asks for: ${describe(pkg.manifest.permissions).join('; ') || 'nothing'}.`);
+  if (!input.accept) throw badRequest('Say what you accept', `It asks for: ${describe(pkg.manifest.permissions).join('; ') || 'nothing'}.`).said('apps.sayWhatYouAccept', { asks: describe(pkg.manifest.permissions).join('; ') || 'nothing' });
   return install(ctx, pkg, { accept: input.accept, allProjects: input.allProjects, projects: input.projects }, source);
 }
 
@@ -469,7 +469,7 @@ export async function setProjectApp(ctx: Ctx, key: string, name: string, on: boo
   const row = await requireApp(ctx, name);
   const s = await ctx.app.schema.get();
   const a = snapshotApp(s, row.id);
-  if (!a.enabled || !(a.allProjects || a.chosen.has(project.id))) throw notFound(`App ${name}`, `It isn't chosen for ${project.key}: an administrator chooses where an app runs.`);
+  if (!a.enabled || !(a.allProjects || a.chosen.has(project.id))) throw notFound(`App ${name}`, `It isn't chosen for ${project.key}: an administrator chooses where an app runs.`).said('apps.notChosenFor', { name, key: project.key });
   const [existing] = await ctx.db.select().from(appProjects).where(and(eq(appProjects.appId, row.id), eq(appProjects.projectId, project.id)));
   if (existing) await ctx.db.update(appProjects).set({ off: !on, updatedAt: new Date() }).where(and(eq(appProjects.appId, row.id), eq(appProjects.projectId, project.id)));
   else await ctx.db.insert(appProjects).values({ appId: row.id, projectId: project.id, chosen: false, off: !on });
@@ -569,7 +569,7 @@ async function settingsScope(ctx: Ctx, row: AppDbRow, project: string | null | u
   }
   const p = await requireProject(ctx, project, 'manage');
   const a = snapshotApp(await ctx.app.schema.get(), row.id);
-  if (!appEnabledIn(a, p.id) && !(a.allProjects || a.chosen.has(p.id))) throw notFound(`App ${row.name}`, `It isn't chosen for ${p.key}.`);
+  if (!appEnabledIn(a, p.id) && !(a.allProjects || a.chosen.has(p.id))) throw notFound(`App ${row.name}`, `It isn't chosen for ${p.key}.`).said('apps.notChosenForProject', { name: row.name, key: p.key });
   return p.id;
 }
 
@@ -599,16 +599,16 @@ export async function setAppSettings(ctx: Ctx, name: string, input: { project?: 
   const values = { ...((existing?.values ?? {}) as Record<string, unknown>) };
   for (const [k, v] of Object.entries(input.values)) {
     const d = defs.find((x) => x.name === k);
-    if (!d) throw badRequest(`${row.title} has no ${projectId ? "project's " : ''}setting called ${k}`, `Its settings here: ${defs.map((x) => x.name).join(', ') || 'none'}.`);
+    if (!d) throw badRequest(`${row.title} has no ${projectId ? "project's " : ''}setting called ${k}`, `Its settings here: ${defs.map((x) => x.name).join(', ') || 'none'}.`).said('apps.noSuchSetting', { title: row.title, scope: projectId ? 'project' : 'app', k, count: defs.length, names: defs.map((x) => x.name).join(', ') });
     if (v === null || v === '') {
       delete values[k];
       continue;
     }
-    if (d.type === 'number' && typeof v !== 'number') throw badRequest(`${d.title} is a number`, 'Give it as a number.');
-    if (d.type === 'boolean' && typeof v !== 'boolean') throw badRequest(`${d.title} is yes or no`, 'Give it as true or false.');
-    if ((d.type === 'text' || d.type === 'secret' || d.type === 'choice') && typeof v !== 'string') throw badRequest(`${d.title} is text`, 'Give it as text.');
-    if (d.type === 'choice' && !d.choices?.includes(v as string)) throw badRequest(`${d.title} is one of ${d.choices?.join(', ')}`, 'Pick one of them.');
-    if (typeof v === 'string' && v.length > 2000) throw badRequest(`${d.title} is too long`, 'Keep it to 2000 characters.');
+    if (d.type === 'number' && typeof v !== 'number') throw badRequest(`${d.title} is a number`, 'Give it as a number.').said('apps.settingIsNumber', { title: d.title });
+    if (d.type === 'boolean' && typeof v !== 'boolean') throw badRequest(`${d.title} is yes or no`, 'Give it as true or false.').said('apps.settingIsYesNo', { title: d.title });
+    if ((d.type === 'text' || d.type === 'secret' || d.type === 'choice') && typeof v !== 'string') throw badRequest(`${d.title} is text`, 'Give it as text.').said('apps.settingIsText', { title: d.title });
+    if (d.type === 'choice' && !d.choices?.includes(v as string)) throw badRequest(`${d.title} is one of ${d.choices?.join(', ')}`, 'Pick one of them.').said('apps.settingIsChoice', { title: d.title, choices: String(d.choices?.join(', ')) });
+    if (typeof v === 'string' && v.length > 2000) throw badRequest(`${d.title} is too long`, 'Keep it to 2000 characters.').said('apps.settingTooLong', { title: d.title });
     // A secret is kept sealed, and never sent back (D38's secret box).
     values[k] = d.type === 'secret' ? seal(keySource(ctx.app), v as string) : v;
   }
@@ -724,9 +724,9 @@ async function appForCall(ctx: Ctx, name: string, projectId: string | null): Pro
   const row = await rowByName(ctx.db, name);
   const s = await ctx.app.schema.get();
   const a = row ? s.apps.get(row.id) : undefined;
-  if (!row || !a || !a.enabled) throw notFound(`App ${name}`);
-  if (ctx.actor.app && ctx.actor.app.id !== row.id) throw forbidden(`The ${ctx.actor.app.title} app can't reach another app`, 'An app calls its own handlers and storage.');
-  if (projectId && !appEnabledIn(a, projectId)) throw notFound(`App ${name}`, 'It doesn’t run in this project.');
+  if (!row || !a || !a.enabled) throw notFound(`App ${name}`).said('notFound.app', { id: name });
+  if (ctx.actor.app && ctx.actor.app.id !== row.id) throw forbidden(`The ${ctx.actor.app.title} app can't reach another app`, 'An app calls its own handlers and storage.').said('apps.cantReachOtherApp', { title: ctx.actor.app.title });
+  if (projectId && !appEnabledIn(a, projectId)) throw notFound(`App ${name}`, 'It doesn’t run in this project.').said('apps.notInThisProject', { name });
   return { row, a, s };
 }
 
@@ -751,18 +751,18 @@ export async function getAppStorage(ctx: Ctx, name: string, project?: string): P
 
 async function store(db: Db, appId: string, projectId: string | null, key: string, value: unknown): Promise<void> {
   const k = key.trim();
-  if (!k || k.length > 200) throw badRequest('A key is 1 to 200 characters', 'Name what it keeps.');
+  if (!k || k.length > 200) throw badRequest('A key is 1 to 200 characters', 'Name what it keeps.').said('apps.keyLength');
   const where = and(eq(appStorage.appId, appId), projectId ? eq(appStorage.projectId, projectId) : isNull(appStorage.projectId), eq(appStorage.key, k));
   if (value === null || value === undefined) {
     await db.delete(appStorage).where(where);
     return;
   }
   const text = JSON.stringify(value);
-  if (text.length > STORAGE_VALUE_BYTES) throw badRequest(`A stored value is ${STORAGE_VALUE_BYTES / 1024} KB at most, as JSON`, 'Keep less under one key.');
+  if (text.length > STORAGE_VALUE_BYTES) throw badRequest(`A stored value is ${STORAGE_VALUE_BYTES / 1024} KB at most, as JSON`, 'Keep less under one key.').said('apps.valueTooBig', { kb: STORAGE_VALUE_BYTES / 1024 });
   const rows = await storageRows(db, appId, projectId);
   const others = rows.filter((r) => r.key !== k);
-  if (others.length >= STORAGE_KEYS) throw badRequest(`An app keeps ${STORAGE_KEYS} keys at most here`, 'Remove some first.');
-  if (others.reduce((n, r) => n + r.bytes, 0) + text.length > STORAGE_LIMIT_BYTES) throw badRequest(`An app keeps ${STORAGE_LIMIT_BYTES / 1024 / 1024} MB at most here`, 'Remove some first.');
+  if (others.length >= STORAGE_KEYS) throw badRequest(`An app keeps ${STORAGE_KEYS} keys at most here`, 'Remove some first.').said('apps.tooManyKeys', { STORAGE_KEYS });
+  if (others.reduce((n, r) => n + r.bytes, 0) + text.length > STORAGE_LIMIT_BYTES) throw badRequest(`An app keeps ${STORAGE_LIMIT_BYTES / 1024 / 1024} MB at most here`, 'Remove some first.').said('apps.storageFull', { mb: STORAGE_LIMIT_BYTES / 1024 / 1024 });
   if (rows.some((r) => r.key === k)) await db.update(appStorage).set({ value, bytes: text.length, updatedAt: new Date() }).where(where);
   else await db.insert(appStorage).values({ id: newId(), appId, projectId, key: k, value, bytes: text.length });
 }
@@ -810,13 +810,13 @@ async function issueForApp(db: Db, s: SchemaSnapshot, issue: IssueRow, uses: App
  */
 export async function callHandler(ctx: Ctx, name: string, handlerName: string, input: { issue?: string; project?: string; body?: unknown }, request: { method: string; query: Record<string, string> }): Promise<AppHandlerResult> {
   requireScope(ctx, 'read');
-  if (ctx.actor.guest) throw forbidden('Guests don’t call apps', 'Sign in.');
+  if (ctx.actor.guest) throw forbidden('Guests don’t call apps', 'Sign in.').said('apps.guestsDontCall');
   const row0 = await rowByName(ctx.db, name);
   const handler = row0 ? manifestOf(row0).handlers.find((h) => h.name === handlerName) : undefined;
-  if (!row0 || !handler) throw notFound(`Handler ${name}/${handlerName}`);
+  if (!row0 || !handler) throw notFound(`Handler ${name}/${handlerName}`).said('apps.handlerNotFound', { name, handlerName });
   const s0 = await ctx.app.schema.get();
   const a0 = s0.apps.get(row0.id);
-  if (!a0) throw notFound(`App ${name}`);
+  if (!a0) throw notFound(`App ${name}`).said('notFound.app', { id: name });
   // The caller through the app: within what it runs in and was granted.
   const via = ctx.actor.app ? ctx : throughApp(ctx, s0, a0);
   const issue = input.issue ? await resolveIssue(via, input.issue) : undefined;
@@ -827,7 +827,7 @@ export async function callHandler(ctx: Ctx, name: string, handlerName: string, i
     logRun(ctx.db, row, { handler: handlerName, actorId: ctx.actor.user.id, projectId: project?.id ?? null, issueKey: issue ? readableId(s, issue) : null, outcome, message: message.slice(0, 2000), ms: Date.now() - started });
   const uses = handler.uses;
   const source = (await ctx.db.select({ content: appFiles.content }).from(appFiles).where(and(eq(appFiles.appId, row.id), eq(appFiles.path, handler.file))))[0]?.content.toString('utf8');
-  if (!source) throw notFound(`Handler ${name}/${handlerName}`);
+  if (!source) throw notFound(`Handler ${name}/${handlerName}`).said('apps.handlerNotFound', { name, handlerName });
   const base = issue && uses.read.includes('issues') ? await issueForApp(ctx.db, s, issue, uses, ctx.actor.user) : null;
   const stored = await storageRows(ctx.db, row.id, project?.id ?? null);
   const out = await runScript(source, {
@@ -841,23 +841,23 @@ export async function callHandler(ctx: Ctx, name: string, handlerName: string, i
   });
   if (out.error) {
     await log('failed', out.error.message);
-    throw badRequest(`${row.title}'s handler ${handlerName} stopped: ${out.error.message}`, 'Tell whoever made the app; its run log says the same.');
+    throw badRequest(`${row.title}'s handler ${handlerName} stopped: ${out.error.message}`, 'Tell whoever made the app; its run log says the same.').said('apps.handlerStopped', { title: row.title, handlerName, message: out.error.message });
   }
   if (out.intents.refusal !== null) {
     await log('refused', out.intents.refusal);
-    throw badRequest(out.intents.refusal, `${row.title} said so.`);
+    throw badRequest(out.intents.refusal, `${row.title} said so.`).said('apps.handlerRefused', { refusal: /[.!?…:]["”’)]*$/.test(out.intents.refusal.trim()) ? out.intents.refusal.trim() : `${out.intents.refusal.trim()}.`, title: row.title });
   }
   // What it asks to change: only what it uses, as the caller through the app.
   const wants = { applies: out.intents.applies.length, comments: out.intents.comments.length };
   if (wants.applies && !uses.write.includes('issues')) {
     await log('refused', 'It tried to change an issue, which it doesn’t write');
-    throw forbidden(`${row.title}'s handler ${handlerName} tried to change an issue, and it doesn't write issues`, 'Tell whoever made the app.');
+    throw forbidden(`${row.title}'s handler ${handlerName} tried to change an issue, and it doesn't write issues`, 'Tell whoever made the app.').said('apps.handlerCantWriteIssues', { title: row.title, handlerName });
   }
   if (wants.comments && !uses.write.includes('comments')) {
     await log('refused', 'It tried to comment, which it doesn’t write');
-    throw forbidden(`${row.title}'s handler ${handlerName} tried to comment, and it doesn't write comments`, 'Tell whoever made the app.');
+    throw forbidden(`${row.title}'s handler ${handlerName} tried to comment, and it doesn't write comments`, 'Tell whoever made the app.').said('apps.handlerCantComment', { title: row.title, handlerName });
   }
-  if ((wants.applies || wants.comments) && !issue) throw badRequest(`${row.title}'s handler ${handlerName} changes an issue, and wasn't given one`, 'Call it with "issue".');
+  if ((wants.applies || wants.comments) && !issue) throw badRequest(`${row.title}'s handler ${handlerName} changes an issue, and wasn't given one`, 'Call it with "issue".').said('apps.handlerNeedsIssue', { title: row.title, handlerName });
   let applied = 0;
   let commented = 0;
   try {

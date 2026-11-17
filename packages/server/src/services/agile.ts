@@ -73,15 +73,15 @@ export async function rankIssue(ctx: Ctx, boardId: string, input: RankInput): Pr
   const board = await loadBoard(ctx, boardId);
   const onBoard = async (id: string) => {
     const row = await resolveIssue(ctx, id);
-    if (!board.projectIds.includes(row.projectId)) throw badRequest(`${id.toUpperCase()} isn't on this board`, 'Only issues of the board’s projects have a place on it.');
+    if (!board.projectIds.includes(row.projectId)) throw badRequest(`${id.toUpperCase()} isn't on this board`, 'Only issues of the board’s projects have a place on it.').said('agile.notOnBoard', { id: id.toUpperCase() });
     return row;
   };
-  if (input.after && input.before) throw badRequest('Say where with after or before, not both');
+  if (input.after && input.before) throw badRequest('Say where with after or before, not both').said('agile.afterOrBefore');
   const issue = await onBoard(input.issue);
   await assertCanWriteProject(ctx, issue.projectId);
   const anchorInput = input.after ?? input.before ?? null;
   const anchor = anchorInput ? await onBoard(anchorInput) : null;
-  if (anchor?.id === issue.id) throw badRequest('An issue can’t be placed next to itself');
+  if (anchor?.id === issue.id) throw badRequest('An issue can’t be placed next to itself').said('agile.nextToItself');
   const before = await ctx.db.select({ issueId: boardRanks.issueId }).from(boardRanks).where(and(eq(boardRanks.boardId, board.id), eq(boardRanks.issueId, anchor?.id ?? '')));
   // Read before the transaction: the search runs on its own connection (PGlite has one).
   const shown = anchor && !before.length ? (await backlogRows(ctx, board)).rows.map((r) => r.id) : null;
@@ -136,12 +136,12 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 export async function velocity(ctx: Ctx, boardId: string, by?: Velocity['by']): Promise<Velocity> {
   requireScope(ctx, 'read');
   const board = await loadBoard(ctx, boardId);
-  if (!board.sprintsEnabled) throw badRequest('This board does not use sprints', 'Enable sprints on the board first.');
+  if (!board.sprintsEnabled) throw badRequest('This board does not use sprints', 'Enable sprints on the board first.').said('agile.noSprints');
   const measureBy = by ?? (board.pointsFieldId ? 'points' : 'estimate');
   const s = await ctx.app.schema.get();
   const pointsName = board.pointsFieldId ? s.fields.get(board.pointsFieldId)?.name : undefined;
   if (measureBy === 'points' && !pointsName) {
-    throw badRequest('This board has no story points field', 'Choose one in the board’s settings, or ask for velocity by estimate or count.');
+    throw badRequest('This board has no story points field', 'Choose one in the board’s settings, or ask for velocity by estimate or count.').said('agile.noStoryPoints');
   }
   const view = await projectAccess(ctx);
   const projects = board.projectIds.filter((id) => view.canRead(id)).map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));

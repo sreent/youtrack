@@ -226,7 +226,7 @@ async function isUnder(tx: Db, candidate: string, ancestor: string): Promise<boo
 async function parentInProject(tx: Db, s: SchemaSnapshot, project: ProjectRow, parent: string): Promise<ArticleRow> {
   const row = await findArticle(tx, s, parent);
   if (!row || row.projectId !== project.id) {
-    throw badRequest(`${parent} is not an article in ${project.key}`, `An article sits under another article of its own project, such as ${project.key}-A-1.`);
+    throw badRequest(`${parent} is not an article in ${project.key}`, `An article sits under another article of its own project, such as ${project.key}-A-1.`).said('articles.parentNotInProject', { parent, key: project.key });
   }
   return row;
 }
@@ -237,7 +237,7 @@ async function parentInProject(tx: Db, s: SchemaSnapshot, project: ProjectRow, p
 
 function cleanTitle(title: string): string {
   const t = title.replace(/\s+/g, ' ').trim();
-  if (!t) throw badRequest('An article needs a title');
+  if (!t) throw badRequest('An article needs a title').said('articles.needsTitle');
   return t;
 }
 
@@ -249,7 +249,7 @@ export async function createArticle(ctx: Ctx, input: CreateArticleInput): Promis
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const project = await requireProject(ctx, input.project, 'write');
-  if (project.archived) throw badRequest(`Project ${project.key} is archived`);
+  if (project.archived) throw badRequest(`Project ${project.key} is archived`).said('articles.projectArchived', { key: project.key });
   const title = cleanTitle(input.title);
   const body = input.body ?? '';
   const { row, activity } = await ctx.db.transaction(async (txRaw) => {
@@ -305,12 +305,12 @@ export async function updateArticle(ctx: Ctx, id: string, input: UpdateArticleIn
     // The tree's lock first, then the row: every path that takes both takes them in this order.
     if (moving) await lockTree(tx, found.projectId);
     const [row] = await tx.select().from(articles).where(eq(articles.id, found.id)).for('update');
-    if (!row) throw notFound(`Article ${id}`, 'It was deleted just now.');
+    if (!row) throw notFound(`Article ${id}`, 'It was deleted just now.').said('articles.deletedJustNow', { id });
     const rid = articleReadableId(s, row);
     if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
       throw conflict(`${rid} was saved by someone else (version ${row.version}, you sent ${input.expectedVersion})`, 'Reload the article, then make your change again.', {
         currentVersion: row.version,
-      });
+      }).said('articles.savedBySomeoneElse', { rid, version: row.version, expectedVersion: input.expectedVersion });
     }
     const changes: Change[] = [];
     const title = input.title !== undefined ? cleanTitle(input.title) : row.title;
@@ -324,9 +324,9 @@ export async function updateArticle(ctx: Ctx, id: string, input: UpdateArticleIn
       if (input.parent === null) parentId = null;
       else if (input.parent !== undefined) {
         const parent = await parentInProject(tx, s, project, input.parent);
-        if (parent.id === row.id) throw badRequest(`${rid} can't sit under itself`);
+        if (parent.id === row.id) throw badRequest(`${rid} can't sit under itself`).said('articles.underItself', { rid });
         if (await isUnder(tx, parent.id, row.id)) {
-          throw badRequest(`${articleReadableId(s, parent)} sits under ${rid}, so ${rid} can't go under it`, `Move ${articleReadableId(s, parent)} out from under ${rid} first, or choose another place.`);
+          throw badRequest(`${articleReadableId(s, parent)} sits under ${rid}, so ${rid} can't go under it`, `Move ${articleReadableId(s, parent)} out from under ${rid} first, or choose another place.`).said('articles.underItsChild', { parent: articleReadableId(s, parent), rid });
         }
         parentId = parent.id;
       }
@@ -378,11 +378,11 @@ export async function deleteArticle(ctx: Ctx, id: string): Promise<void> {
     const tx = txRaw as unknown as Db;
     await lockTree(tx, found.projectId);
     const [row] = await tx.select().from(articles).where(eq(articles.id, found.id)).for('update');
-    if (!row) throw notFound(`Article ${id}`, 'It was deleted just now.');
+    if (!row) throw notFound(`Article ${id}`, 'It was deleted just now.').said('articles.deletedJustNow', { id });
     const rid = articleReadableId(s, row);
     const [{ n } = { n: 0 }] = await tx.select({ n: count() }).from(articles).where(eq(articles.parentId, row.id));
     if (Number(n) > 0) {
-      throw conflict(`${rid} has ${Number(n) === 1 ? 'an article' : `${n} articles`} under it`, 'Move them elsewhere, or delete them first.');
+      throw conflict(`${rid} has ${Number(n) === 1 ? 'an article' : `${n} articles`} under it`, 'Move them elsewhere, or delete them first.').said('articles.hasChildren', { rid, n: Number(n) });
     }
     await tx.delete(articles).where(eq(articles.id, row.id));
     await closeUp(tx, row.projectId, row.parentId);
@@ -441,7 +441,7 @@ export async function getArticleVersion(ctx: Ctx, id: string, version: number): 
     .from(articleVersions)
     .where(and(eq(articleVersions.articleId, article.id), inArray(articleVersions.version, [version, version - 1])));
   const cur = rows.find((r) => r.version === version);
-  if (!cur) throw notFound(`Version ${version} of ${articleReadableId(s, article)}`, `It has versions 1 to ${article.version}.`);
+  if (!cur) throw notFound(`Version ${version} of ${articleReadableId(s, article)}`, `It has versions 1 to ${article.version}.`).said('articles.versionNotFound', { version, article: articleReadableId(s, article), last: article.version });
   const prev = rows.find((r) => r.version === version - 1) ?? null;
   const u = cur.authorId ? s.users.get(cur.authorId) : undefined;
   return {

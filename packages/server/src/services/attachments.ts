@@ -16,6 +16,17 @@ import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { Inspector, tooLarge } from '../attachments/receive';
 import { baseType, describeType, formatBytes, isInline, isText, playableAs, safeFileName, sniffContentType } from '../attachments/sniff';
+
+/** describeType()'s kinds as codes, so a problem can say a file's kind in any language (D49); its English is the API's. */
+function typeKind(contentType: string): { kind: string; format: string } {
+  const t = baseType(contentType);
+  if (t.startsWith('image/')) return { kind: 'image', format: t.slice(6).toUpperCase() };
+  if (t.startsWith('video/')) return { kind: 'video', format: '' };
+  if (t.startsWith('audio/')) return { kind: 'audio', format: '' };
+  if (t === 'application/pdf') return { kind: 'pdf', format: '' };
+  if (/zip|gzip|bzip2|xz|zstd|7z|rar|tar/.test(t)) return { kind: 'archive', format: '' };
+  return { kind: 'binary', format: '' };
+}
 import { attachmentStorage, BlobNotFound, newBlobKey, StorageUnavailable } from '../attachments/storage';
 import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject, commentSeenSql, projectAccess, seesCommentRow } from './access';
 import { articleReadableId, articleRef, articleRefsById, resolveArticle, type ArticleRow } from './article-refs';
@@ -60,7 +71,7 @@ export function contentUrl(app: AppServices, id: string): string {
  */
 function storeFailed(e: StorageUnavailable, doing: string): AppError {
   console.error(`attachment storage, ${doing}: ${e.message}`);
-  return new AppError(503, 'storage_unavailable', "Files can't be reached right now", "Try again in a minute. If it goes on, the server's log says why.");
+  return new AppError(503, 'storage_unavailable', "Files can't be reached right now", "Try again in a minute. If it goes on, the server's log says why.").said('attachments.storageUnreachable');
 }
 
 /** A file's bytes as storage gives them: missing ones say so, a failing store answers 503. */
@@ -68,7 +79,7 @@ async function readBytes(app: AppServices, row: AttachmentRow, range?: { start: 
   try {
     return await attachmentStorage(app).read(row.blobKey, range);
   } catch (e) {
-    if (e instanceof BlobNotFound) throw new AppError(410, 'gone', `The file of ${row.name} is missing from storage`, 'Upload it again.');
+    if (e instanceof BlobNotFound) throw new AppError(410, 'gone', `The file of ${row.name} is missing from storage`, 'Upload it again.').said('attachments.fileMissing', { name: row.name });
     if (e instanceof StorageUnavailable) throw storeFailed(e, `reading ${row.blobKey}`);
     throw e;
   }
@@ -139,7 +150,7 @@ async function loadVisible(ctx: Ctx, id: string): Promise<AttachmentRow> {
     .from(attachments)
     .leftJoin(comments, eq(comments.id, attachments.commentId))
     .where(eq(attachments.id, id));
-  const missing = () => notFound('Attachment', 'List the files on the issue or article to find its id.');
+  const missing = () => notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
   if (!found || found.comment?.deletedAt) throw missing();
   // One the caller can't see answers in the very words of one that doesn't exist.
   await assertCanReadProject(ctx, found.a.projectId).catch(() => {
@@ -167,7 +178,7 @@ export async function attachmentForDownload(ctx: Ctx, id: string): Promise<Attac
  */
 export async function attachmentForImage(ctx: Ctx, id: string): Promise<AttachmentRow> {
   const row = await loadVisible(ctx, id);
-  if (!isInline(row.contentType)) throw notFound('Attachment', 'List the files on the issue or article to find its id.');
+  if (!isInline(row.contentType)) throw notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
   return row;
 }
 
@@ -191,12 +202,12 @@ export async function issueUploadTarget(ctx: Ctx, issueId: string): Promise<Uplo
 export async function commentUploadTarget(ctx: Ctx, commentId: string): Promise<UploadTarget> {
   requireScope(ctx, 'write');
   const [comment] = await ctx.db.select().from(comments).where(and(eq(comments.id, commentId), isNull(comments.deletedAt)));
-  if (!comment) throw notFound('Comment');
+  if (!comment) throw notFound('Comment').said('notFound.commentUnnamed');
   const issue = await resolveIssue(ctx, comment.issueId).catch(() => {
-    throw notFound('Comment');
+    throw notFound('Comment').said('notFound.commentUnnamed');
   });
   if (comment.authorId !== ctx.actor.user.id && !isAdmin(ctx)) {
-    throw forbidden('You can only attach files to your own comments', 'Attach it to the issue instead.');
+    throw forbidden('You can only attach files to your own comments', 'Attach it to the issue instead.').said('attachments.onlyOwnComments');
   }
   // As with its words: whoever may comment in the project, a viewer included.
   await assertCanCommentProject(ctx, issue.projectId);
@@ -268,13 +279,16 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
   const used = await usedBytes(ctx.db, target);
   const room = cap - used;
   if (room <= 0) {
-    throw refuse(tooLarge(`${owner} already holds ${formatBytes(used)} of files, as much as it may`, 'Remove files it no longer needs.'));
+    throw refuse(tooLarge(`${owner} already holds ${formatBytes(used)} of files, as much as it may`, 'Remove files it no longer needs.', { key: 'attachments.ownerFull', values: { owner, used: formatBytes(used) } }));
   }
   const max = Math.min(maxFile, room);
   const inspector = new Inspector(max, () =>
     max < maxFile
-      ? tooLarge(`${name} doesn't fit: ${owner} has ${formatBytes(room)} left of its ${formatBytes(cap)} for files`, 'Remove files it no longer needs, or attach this one elsewhere.')
-      : tooLarge(`${name} is larger than ${formatBytes(maxFile)}, the most one file may be`, 'Compress it, or split it into parts.'),
+      ? tooLarge(`${name} doesn't fit: ${owner} has ${formatBytes(room)} left of its ${formatBytes(cap)} for files`, 'Remove files it no longer needs, or attach this one elsewhere.', {
+          key: 'attachments.doesntFit',
+          values: { name, owner, room: formatBytes(room), cap: formatBytes(cap) },
+        })
+      : tooLarge(`${name} is larger than ${formatBytes(maxFile)}, the most one file may be`, 'Compress it, or split it into parts.', { key: 'attachments.fileLargerThan', values: { name, max: formatBytes(maxFile) } }),
   );
 
   const storage = attachmentStorage(ctx.app);
@@ -303,7 +317,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
       source.abort?.();
       throw storeFailed(e, `storing ${name}`);
     }
-    throw badRequest(`The upload of ${name} didn't finish: ${e instanceof Error ? e.message : String(e)}`, 'Try again.');
+    throw badRequest(`The upload of ${name} didn't finish: ${e instanceof Error ? e.message : String(e)}`, 'Try again.').said('attachments.uploadDidNotFinish', { name, reason: e instanceof Error ? e.message : String(e) });
   }
 
   const size = inspector.size;
@@ -318,20 +332,23 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
       let article: ArticleRef | undefined;
       if (target.kind === 'article') {
         const [locked] = await tx.select({ id: articles.id }).from(articles).where(eq(articles.id, target.article.id)).for('update');
-        if (!locked) throw notFound(`Article ${owner}`, 'It was deleted while the file was uploading.');
+        if (!locked) throw notFound(`Article ${owner}`, 'It was deleted while the file was uploading.').said('attachments.articleDeletedWhileUploading', { owner });
         article = articleRef(s, target.article);
       } else {
         const [locked] = await tx.select({ id: issues.id }).from(issues).where(eq(issues.id, target.issue.id)).for('update');
-        if (!locked) throw notFound(`Issue ${owner}`, 'It was deleted while the file was uploading.');
+        if (!locked) throw notFound(`Issue ${owner}`, 'It was deleted while the file was uploading.').said('attachments.issueDeletedWhileUploading', { owner });
         if (target.kind === 'comment') {
           const [c] = await tx.select({ deletedAt: comments.deletedAt }).from(comments).where(eq(comments.id, target.commentId));
-          if (!c || c.deletedAt) throw notFound('Comment', 'It was deleted while the file was uploading.');
+          if (!c || c.deletedAt) throw notFound('Comment', 'It was deleted while the file was uploading.').said('attachments.commentDeletedWhileUploading');
         }
         issueRef = (await issueRefsById(tx, s, [target.issue.id])).get(target.issue.id);
       }
       const usedNow = await usedBytes(tx, target);
       if (usedNow + size > cap) {
-        throw tooLarge(`${name} doesn't fit: ${owner} has ${formatBytes(Math.max(cap - usedNow, 0))} left of its ${formatBytes(cap)} for files`, 'Remove files it no longer needs.');
+        throw tooLarge(`${name} doesn't fit: ${owner} has ${formatBytes(Math.max(cap - usedNow, 0))} left of its ${formatBytes(cap)} for files`, 'Remove files it no longer needs.', {
+          key: 'attachments.doesntFitNow',
+          values: { name, owner, room: formatBytes(Math.max(cap - usedNow, 0)), cap: formatBytes(cap) },
+        });
       }
       await tx.update(attachmentBlobs).set({ state: 'stored' }).where(eq(attachmentBlobs.key, key));
       const [row] = await tx
@@ -413,7 +430,7 @@ function wholeUtf8End(b: Buffer): number {
 export async function readAttachmentText(ctx: Ctx, id: string, opts: { offset?: number; maxBytes?: number; tail?: boolean } = {}): Promise<AttachmentText> {
   const row = await loadVisible(ctx, id);
   if (!isText(row.contentType)) {
-    throw badRequest(`${row.name} is ${describeType(row.contentType)}, not text`, `Download it instead: ${contentUrl(ctx.app, row.id)}`);
+    throw badRequest(`${row.name} is ${describeType(row.contentType)}, not text`, `Download it instead: ${contentUrl(ctx.app, row.id)}`).said('attachments.notText', { name: row.name, ...typeKind(row.contentType), url: contentUrl(ctx.app, row.id) });
   }
   const max = Math.min(Math.max(opts.maxBytes ?? 32_768, 1), 131_072);
   let from = opts.tail ? Math.max(0, row.size - max) : Math.min(Math.max(opts.offset ?? 0, 0), row.size);
@@ -453,14 +470,14 @@ export async function deleteAttachment(ctx: Ctx, id: string): Promise<void> {
   if (row.uploadedById !== ctx.actor.user.id) {
     await assertCanWriteProject(ctx, row.projectId).catch((e) => {
       throw e instanceof AppError && e.status === 404
-        ? notFound('Attachment')
-        : forbidden('Only the person who added a file, or someone who may change the project, can delete it');
+        ? notFound('Attachment').said('notFound.attachmentUnnamed')
+        : forbidden('Only the person who added a file, or someone who may change the project, can delete it').said('attachments.onlyAdderDeletes');
     });
   }
   const activity = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const [gone] = await tx.delete(attachments).where(eq(attachments.id, id)).returning();
-    if (!gone) throw notFound('Attachment', 'It was deleted just now.');
+    if (!gone) throw notFound('Attachment', 'It was deleted just now.').said('attachments.deletedJustNow');
     let issueRef: IssueRef | undefined;
     let article: ArticleRef | undefined;
     if (gone.issueId) {

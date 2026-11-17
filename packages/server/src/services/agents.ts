@@ -32,14 +32,14 @@ import { presentValues, sameValues, type ResolvedValue } from './values';
 /** An agent an administrator added, by id or login. A person, or one of a4a's own, is refused with why. */
 function agentOf(s: SchemaSnapshot, idOrLogin: string): UserRow {
   const u = s.users.get(idOrLogin) ?? s.usersByLogin.get(idOrLogin.trim().toLowerCase());
-  if (!u) throw notFound(`User ${idOrLogin}`);
-  if (!u.isBot) throw badRequest(`${u.name} is a person, not an agent`, 'A person makes their own tokens while signed in, under Agents and tokens.');
+  if (!u) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
+  if (!u.isBot) throw badRequest(`${u.name} is a person, not an agent`, 'A person makes their own tokens while signed in, under Agents and tokens.').said('agents.isAPerson', { name: u.name });
   if (isOwnAgent(u)) {
-    throw badRequest(`${u.login} is a4a's own agent`, 'It acts for a4a itself and takes no tokens. Add an agent of your own for a tool to act as.');
+    throw badRequest(`${u.login} is a4a's own agent`, 'It acts for a4a itself and takes no tokens. Add an agent of your own for a tool to act as.').said('agents.isA4asOwn', { login: u.login });
   }
   // An app's agent acts for its app alone (D48), and takes no tokens.
   if ([...s.apps.values()].some((a) => a.agentId === u.id)) {
-    throw badRequest(`${u.login} is an app's agent`, 'It acts for its app alone, and takes no tokens. Add an agent of your own for a tool to act as.');
+    throw badRequest(`${u.login} is an app's agent`, 'It acts for its app alone, and takes no tokens. Add an agent of your own for a tool to act as.').said('agents.isAnAppsAgent', { login: u.login });
   }
   return u;
 }
@@ -78,25 +78,25 @@ export async function issueAgentToken(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const agent = agentOf(s, idOrLogin);
-  if (agent.banned) throw badRequest(`${agent.login} is banned`, 'Lift the ban under Administration first; its tokens work again then.');
+  if (agent.banned) throw badRequest(`${agent.login} is banned`, 'Lift the ban under Administration first; its tokens work again then.').said('agents.banned', { login: agent.login });
   const scopes = tokenScopes(ctx, input.scopes);
   const beyond = scopes.filter((sc) => !scopesForRole(agent.role).includes(sc));
   if (beyond.length) {
     throw badRequest(
       `${agent.login} is a ${agent.role}, so a token for it can't have the ${beyond.join(' or ')} scope`,
       `Leave out ${beyond.join(' and ')}, or change its role under Administration first.`,
-    );
+    ).said('agents.scopeBeyondRole', { login: agent.login, role: agent.role, scopes: beyond.join(' or '), scopesAnd: beyond.join(' and ') });
   }
   let projectIds: string[] | null = null;
   if (input.projects) {
     if (scopes.includes('admin')) {
-      throw badRequest('A token limited to projects can’t have the admin scope', 'Administration reaches every project: leave out the admin scope, or the projects.');
+      throw badRequest('A token limited to projects can’t have the admin scope', 'Administration reaches every project: leave out the admin scope, or the projects.').said('agents.adminScopeWithProjects');
     }
     const ids: string[] = [];
     for (const key of input.projects) {
       const project = await requireProject(ctx, key);
       if (!(await canUserReadProject(ctx.db, agent.id, project.id))) {
-        throw badRequest(`${agent.login} can't see ${project.key}`, `Add ${agent.login} to ${project.key}'s people first, or leave ${project.key} out.`);
+        throw badRequest(`${agent.login} can't see ${project.key}`, `Add ${agent.login} to ${project.key}'s people first, or leave ${project.key} out.`).said('agents.cantSeeProject', { login: agent.login, key: project.key });
       }
       ids.push(project.id);
     }
@@ -114,7 +114,7 @@ export async function revokeAgentToken(ctx: Ctx, idOrLogin: string, tokenId: str
     .set({ revokedAt: new Date() })
     .where(and(eq(apiTokens.id, tokenId), eq(apiTokens.userId, agent.id), isNull(apiTokens.revokedAt)))
     .returning({ id: apiTokens.id });
-  if (!res.length) throw notFound('Token');
+  if (!res.length) throw notFound('Token').said('notFound.tokenUnnamed');
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +272,7 @@ async function inverse(db: Db, s: SchemaSnapshot, rec: ChangeRow, issue: IssueRo
       s.linkPhrases.find((p) => p.type.id === undo.typeId && p.direction === (outward ? 'outward' : 'inward')) ??
       s.linkPhrases.find((p) => p.type.id === undo.typeId && p.direction === 'both');
     const [target] = await db.select().from(issues).where(eq(issues.id, otherId));
-    if (!phrase || !target) throw new AppError(409, 'changed_since', 'Nothing was undone: the link can no longer be put back');
+    if (!phrase || !target) throw new AppError(409, 'changed_since', 'Nothing was undone: the link can no longer be put back').said('agents.undoLinkGone');
     const link: LinkSpec = { phrase, target, remove: undo.created };
     return { links: [link] };
   }
@@ -298,12 +298,12 @@ function stored(v: ResolvedValue): ResolvedValue {
 export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoResult> {
   requireScope(ctx, 'write');
   if (actsAsAgent(ctx)) {
-    throw forbidden('An agent can’t undo a change', 'Undoing is for a person who may change the issue, from its history.');
+    throw forbidden('An agent can’t undo a change', 'Undoing is for a person who may change the issue, from its history.').said('agents.agentCantUndo');
   }
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(activities).where(eq(activities.id, eventId));
   // An event the caller can't see is answered exactly as one that doesn't exist.
-  if (!row || !(await eventSeen(await projectAccess(ctx), ctx.db, s, toEventDto(s, row)))) throw notFound(`Event ${eventId}`);
+  if (!row || !(await eventSeen(await projectAccess(ctx), ctx.db, s, toEventDto(s, row)))) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
   const [found] = await ctx.db
     .select()
     .from(agentChanges)
@@ -314,35 +314,35 @@ export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoRe
       'not_undoable',
       'Only a change an agent made on its own can be undone',
       'Change it back on the issue, as any change. (a4a keeps what undoing needs for changes agents make from now on.)',
-    );
+    ).said('agents.onlyAgentsOwnChange');
   }
 
   const result = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     // One undo at a time: the change's row first, then its issue, as the write path locks it.
     const [rec] = await tx.select().from(agentChanges).where(eq(agentChanges.id, found.id)).for('update');
-    if (!rec) throw notFound(`Event ${eventId}`);
+    if (!rec) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
     if (rec.undoneActivityId !== null) {
-      throw new AppError(409, 'already_undone', `${nameOf(s, rec.undoneById)} undid it already`, 'It is in the issue’s history, as the change after it.');
+      throw new AppError(409, 'already_undone', `${nameOf(s, rec.undoneById)} undid it already`, 'It is in the issue’s history, as the change after it.').said('agents.undoneAlreadyBy', { name: nameOf(s, rec.undoneById) });
     }
     const [issue] = await tx.select().from(issues).where(eq(issues.id, rec.issueId)).for('update');
-    if (!issue) throw notFound(`Event ${eventId}`);
+    if (!issue) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
     const now = await issueNow(tx, issue.id, rec.activityId);
     const stops = now ? await whatStops(tx, s, rec, now) : ['the issue is gone'];
     if (stops.length) {
-      throw new AppError(409, 'changed_since', `Nothing was undone: ${stops.join('; ')}`, 'Change it on the issue instead, if it should change.', { changedSince: stops });
+      throw new AppError(409, 'changed_since', `Nothing was undone: ${stops.join('; ')}`, 'Change it on the issue instead, if it should change.', { changedSince: stops }).said('agents.nothingUndone', { reasons: stops.join('; ') });
     }
     const spec = await inverse(tx, s, rec, issue);
     const applied = await applyChanges(tx, ctx, issue, { ...spec, data: { undoes: rec.activityId } });
     if (!applied.activities.length) {
-      throw new AppError(409, 'changed_since', 'Nothing was undone: it is as it was before the agent changed it');
+      throw new AppError(409, 'changed_since', 'Nothing was undone: it is as it was before the agent changed it').said('agents.alreadyAsBefore');
     }
     const marked = await tx
       .update(agentChanges)
       .set({ undoneActivityId: applied.activities[0]!.id, undoneById: ctx.actor.user.id, undoneAt: new Date() })
       .where(and(eq(agentChanges.id, rec.id), isNull(agentChanges.undoneActivityId)))
       .returning({ id: agentChanges.id });
-    if (!marked.length) throw new AppError(409, 'already_undone', 'Someone undid it already');
+    if (!marked.length) throw new AppError(409, 'already_undone', 'Someone undid it already').said('agents.undoneAlready');
     return { applied, activityId: rec.activityId };
   });
 

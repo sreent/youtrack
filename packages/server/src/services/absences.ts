@@ -84,7 +84,7 @@ async function personNamed(ctx: Ctx, login: string | undefined): Promise<UserRow
   const s = await ctx.app.schema.get();
   if (!login?.trim()) return ctx.actor.user;
   const u = findUser(s, login, ctx.actor.user.id);
-  if (!u) throw notFound(`User ${login.trim()}`, 'People are named by login, as in GET /users.');
+  if (!u) throw notFound(`User ${login.trim()}`, 'People are named by login, as in GET /users.').said('absences.userNotFound', { login: login.trim() });
   return u;
 }
 
@@ -107,15 +107,15 @@ interface Days {
 
 /** Dates in order, a year at most, and a half day only on one day: each refusal says how to put it right. */
 function checkDays(d: Days): void {
-  if (d.to < d.from) throw badRequest(`The last day away, ${d.to}, is before the first, ${d.from}`, `Give the first day as "from" and the last as "to": from ${d.to} to ${d.from}.`);
+  if (d.to < d.from) throw badRequest(`The last day away, ${d.to}, is before the first, ${d.from}`, `Give the first day as "from" and the last as "to": from ${d.to} to ${d.from}.`).said('absences.endsBeforeStart', { to: d.to, from: d.from });
   const days = diffDays(d.from, d.to) + 1;
   if (days > MAX_ABSENCE_DAYS) {
     throw badRequest(
       `An absence runs ${MAX_ABSENCE_DAYS} days at most, and this one runs ${days}`,
       `Enter it a year at a time: from ${d.from} to ${addDays(d.from, MAX_ABSENCE_DAYS - 1)} first.`,
-    );
+    ).said('absences.tooLong', { max: MAX_ABSENCE_DAYS, days, from: d.from, until: addDays(d.from, MAX_ABSENCE_DAYS - 1) });
   }
-  if (d.half && d.from !== d.to) throw badRequest('Half a day away is one day', `Give the same date as "from" and "to" (${d.from}), or leave out "half" for whole days.`);
+  if (d.half && d.from !== d.to) throw badRequest('Half a day away is one day', `Give the same date as "from" and "to" (${d.from}), or leave out "half" for whole days.`).said('absences.halfDayIsOneDay', { from: d.from });
 }
 
 /** Two absences share time unless they're the morning and the afternoon of one day. */
@@ -136,7 +136,7 @@ async function refuseOverlap(tx: Db, user: UserRow, d: Days, except?: string): P
     .where(and(eq(absences.userId, user.id), lte(absences.startDate, d.to), gte(absences.endDate, d.from), except ? ne(absences.id, except) : undefined));
   const clash = near.find((r) => overlap(d, { from: r.startDate, to: r.endDate, half: (r.half as AbsenceHalf | null) ?? null }));
   if (clash) {
-    throw conflict(`${user.name} is already away ${daysWords(clash.startDate, clash.endDate, clash.half)}`, 'Change that absence instead, or remove it first.', { absence: clash.id });
+    throw conflict(`${user.name} is already away ${daysWords(clash.startDate, clash.endDate, clash.half)}`, 'Change that absence instead, or remove it first.', { absence: clash.id }).said('absences.alreadyAway', { name: user.name, days: daysWords(clash.startDate, clash.endDate, clash.half) });
   }
 }
 
@@ -161,9 +161,9 @@ export async function listAbsences(ctx: Ctx, opts: { user?: string; from?: strin
 export async function createAbsence(ctx: Ctx, input: CreateAbsenceInput): Promise<Absence> {
   requireScope(ctx, 'write');
   const user = await personNamed(ctx, input.user);
-  if (user.isBot) throw badRequest(`${user.login} is an agent, and agents are never away`, 'Days away are for people.');
+  if (user.isBot) throw badRequest(`${user.login} is an agent, and agents are never away`, 'Days away are for people.').said('absences.agentNeverAway', { login: user.login });
   if (!(await mayEnterFor(ctx, user))) {
-    throw forbidden('You can enter days away for yourself, and for people who work in a project you manage', 'An administrator can enter them for anyone.');
+    throw forbidden('You can enter days away for yourself, and for people who work in a project you manage', 'An administrator can enter them for anyone.').said('absences.notYours');
   }
   const d: Days = { from: input.from, to: input.to ?? input.from, half: input.half ?? null };
   checkDays(d);
@@ -193,12 +193,12 @@ export async function createAbsence(ctx: Ctx, input: CreateAbsenceInput): Promis
 async function changeable(ctx: Ctx, id: string): Promise<{ row: AbsenceRow; user: UserRow }> {
   requireScope(ctx, 'write');
   const [row] = await ctx.db.select().from(absences).where(eq(absences.id, id));
-  if (!row) throw notFound('Absence');
+  if (!row) throw notFound('Absence').said('notFound.absenceUnnamed');
   const s = await ctx.app.schema.get();
   const user = s.users.get(row.userId);
-  if (!user) throw notFound('Absence');
+  if (!user) throw notFound('Absence').said('notFound.absenceUnnamed');
   if (!(await mayEnterFor(ctx, user))) {
-    throw forbidden(`You can't change ${user.name}'s days away`, 'They can, as can a manager of a project they work in, or an administrator.');
+    throw forbidden(`You can't change ${user.name}'s days away`, 'They can, as can a manager of a project they work in, or an administrator.').said('absences.cantChange', { name: user.name });
   }
   return { row, user };
 }
@@ -207,7 +207,7 @@ export async function updateAbsence(ctx: Ctx, id: string, input: UpdateAbsenceIn
   const { row, user } = await changeable(ctx, id);
   const s = await ctx.app.schema.get();
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
-    throw conflict('These days away changed since you read them', 'Look at them again, then change them.', { absence: toDto(ctx, s.users, row, true) });
+    throw conflict('These days away changed since you read them', 'Look at them again, then change them.', { absence: toDto(ctx, s.users, row, true) }).said('absences.changedSince');
   }
   const from = input.from ?? row.startDate;
   const to = input.to ?? (input.from && row.startDate === row.endDate ? input.from : row.endDate);
@@ -232,7 +232,7 @@ export async function updateAbsence(ctx: Ctx, id: string, input: UpdateAbsenceIn
       })
       .where(and(eq(absences.id, row.id), eq(absences.version, row.version)))
       .returning();
-    if (!next) throw conflict('These days away changed since you read them', 'Look at them again, then change them.');
+    if (!next) throw conflict('These days away changed since you read them', 'Look at them again, then change them.').said('absences.changedSince');
     return next;
   });
   return toDto(ctx, s.users, updated, true);
@@ -271,7 +271,7 @@ export async function getPreferences(ctx: Ctx): Promise<Preferences> {
 export async function updatePreferences(ctx: Ctx, input: { loadWindow?: LoadWindow | null }): Promise<Preferences> {
   requirePersonal(ctx);
   if (input.loadWindow && 'from' in input.loadWindow && input.loadWindow.to < input.loadWindow.from) {
-    throw badRequest(`The window ends, ${input.loadWindow.to}, before it starts, ${input.loadWindow.from}`, 'Give its first day as "from" and its last as "to".');
+    throw badRequest(`The window ends, ${input.loadWindow.to}, before it starts, ${input.loadWindow.from}`, 'Give its first day as "from" and its last as "to".').said('absences.windowEndsBeforeStart', { to: input.loadWindow.to, from: input.loadWindow.from });
   }
   const current = await getPreferences(ctx);
   const next: Preferences = { ...current, ...(input.loadWindow !== undefined ? { loadWindow: input.loadWindow } : {}) };

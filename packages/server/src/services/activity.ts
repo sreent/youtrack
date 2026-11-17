@@ -57,13 +57,13 @@ export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<Track
     const zone = zoneOf(ctx);
     const range = parseDateExpression(opts.since, todayIn(zone));
     const ts = range?.from ? new Date(startOfDay(range.from, zone)) : new Date(opts.since);
-    if (Number.isNaN(ts.getTime())) throw badRequest(`Invalid "since": ${opts.since}`, 'Use a date, a timestamp, or e.g. -7d');
+    if (Number.isNaN(ts.getTime())) throw badRequest(`Invalid "since": ${opts.since}`, 'Use a date, a timestamp, or e.g. -7d').said('activity.badSince', { since: opts.since });
     conds.push(gte(activities.createdAt, ts));
   }
   if (opts.project) {
     const p = projectByKey(s, opts.project);
     // A project the caller can't see is unknown, in the same words as one that doesn't exist.
-    if (!p || !view.canRead(p.id)) throw badRequest(`Unknown project ${opts.project}`);
+    if (!p || !view.canRead(p.id)) throw badRequest(`Unknown project ${opts.project}`).said('activity.unknownProject', { project: opts.project });
     conds.push(eq(activities.projectId, p.id));
   }
   if (opts.issue) {

@@ -29,10 +29,10 @@ export function valueDto(v: FieldValueRow, s?: SchemaSnapshot): FieldValue {
 /** An owned field's value's owner, by login or name; null clears it. */
 function ownerIdOf(s: SchemaSnapshot, field: FieldRow, owner: string | null | undefined): string | null | undefined {
   if (owner === undefined) return undefined;
-  if (owner !== null && field.type !== 'owned') throw badRequest(`${field.name} is not an owned field, so its values have no owners`, 'Make it owned first (PATCH the field with {"type": "owned"}).');
+  if (owner !== null && field.type !== 'owned') throw badRequest(`${field.name} is not an owned field, so its values have no owners`, 'Make it owned first (PATCH the field with {"type": "owned"}).').said('fields.notOwned', { name: field.name });
   if (owner === null || !owner.trim()) return null;
   const u = findUser(s, owner);
-  if (!u) throw badRequest(`Unknown user "${owner}"`, 'Give a login or a name.');
+  if (!u) throw badRequest(`Unknown user "${owner}"`, 'Give a login or a name.').said('fields.unknownOwner', { owner });
   return u.id;
 }
 
@@ -126,12 +126,12 @@ export async function createField(
 ): Promise<Field> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
-  if (fieldByName(s, input.name)) throw badRequest(`A field named "${input.name}" already exists`);
+  if (fieldByName(s, input.name)) throw badRequest(`A field named "${input.name}" already exists`).said('fields.nameTaken', { name: input.name });
   if (!isOptionType(input.type) && input.values.length) {
-    throw badRequest(`${input.type} fields do not take a list of values`);
+    throw badRequest(`${input.type} fields do not take a list of values`).said('fields.typeTakesNoValues', { type: input.type });
   }
   if (input.type !== 'state' && input.values.some((v) => v.isResolved)) {
-    throw badRequest('Only state fields have resolved values');
+    throw badRequest('Only state fields have resolved values').said('fields.onlyStateResolves');
   }
   const probe = { name: input.name, type: input.type } as FieldRow;
   const values = input.values.map(({ owner, ...v }) => ({ ...v, ownerId: ownerIdOf(s, probe, owner) ?? null }));
@@ -144,10 +144,10 @@ export async function createField(
 export async function updateField(ctx: Ctx, id: string, input: { name?: string; description?: string; type?: 'enum' | 'owned' }): Promise<Field> {
   requireScope(ctx, 'admin');
   const current = (await ctx.app.schema.get()).fields.get(id);
-  if (!current) throw notFound('Field');
+  if (!current) throw notFound('Field').said('notFound.fieldUnnamed');
   // An enum field and an owned one differ only in their values having owners: one turns into the other.
   if (input.type && input.type !== current.type) {
-    if (current.type !== 'enum' && current.type !== 'owned') throw badRequest(`${current.name} is a ${current.type} field`, 'Only an enum field becomes owned, and back.');
+    if (current.type !== 'enum' && current.type !== 'owned') throw badRequest(`${current.name} is a ${current.type} field`, 'Only an enum field becomes owned, and back.').said('fields.onlyEnumBecomesOwned', { name: current.name, type: current.type });
     if (input.type === 'enum') await ctx.db.update(fieldValues).set({ ownerId: null }).where(eq(fieldValues.fieldId, id));
   }
   const [row] = await ctx.db
@@ -159,7 +159,7 @@ export async function updateField(ctx: Ctx, id: string, input: { name?: string; 
     })
     .where(eq(fields.id, id))
     .returning();
-  if (!row) throw notFound('Field');
+  if (!row) throw notFound('Field').said('notFound.fieldUnnamed');
   ctx.app.schema.invalidate();
   const s = await ctx.app.schema.get();
   return fieldDto(s, s.fields.get(id)!);
@@ -168,7 +168,7 @@ export async function updateField(ctx: Ctx, id: string, input: { name?: string; 
 export async function deleteField(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'admin');
   const res = await ctx.db.delete(fields).where(eq(fields.id, id)).returning({ id: fields.id });
-  if (!res.length) throw notFound('Field');
+  if (!res.length) throw notFound('Field').said('notFound.fieldUnnamed');
   ctx.app.schema.invalidate();
 }
 
@@ -180,16 +180,16 @@ export async function addFieldValue(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const field = s.fields.get(fieldId);
-  if (!field) throw notFound('Field');
-  if (!isOptionType(field.type)) throw badRequest(`${field.name} does not have a list of values`);
+  if (!field) throw notFound('Field').said('notFound.fieldUnnamed');
+  if (!isOptionType(field.type)) throw badRequest(`${field.name} does not have a list of values`).said('fields.noListOfValues', { name: field.name });
   const project = input.project ? projectByKey(s, input.project) : undefined;
-  if (input.project && !project) throw notFound(`Project ${input.project}`);
+  if (input.project && !project) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
   const dup = (s.valuesByField.get(fieldId) ?? []).find(
     (v) => v.name.toLowerCase() === input.name.toLowerCase() && (v.projectId === null || v.projectId === (project?.id ?? null)),
   );
   // A build field takes the same build twice without complaint: CI reports each build it makes, maybe more than once (D41).
   if (dup && field.type === 'build') return valueDto(dup, s);
-  if (dup) throw badRequest(`${field.name} already has a value "${input.name}"`);
+  if (dup) throw badRequest(`${field.name} already has a value "${input.name}"`).said('fields.valueExists', { name: field.name, name2: input.name });
   const ownerId = ownerIdOf(s, field, input.owner);
   const maxOrd = Math.max(-1, ...(s.valuesByField.get(fieldId) ?? []).map((v) => v.ordinal));
   const [row] = await ctx.db
@@ -219,7 +219,7 @@ export async function updateFieldValue(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const field = s.fields.get(fieldId);
-  if (!field) throw notFound('Field');
+  if (!field) throw notFound('Field').said('notFound.fieldUnnamed');
   const ownerId = ownerIdOf(s, field, input.owner);
   const [row] = await ctx.db
     .update(fieldValues)
@@ -234,7 +234,7 @@ export async function updateFieldValue(
     })
     .where(and(eq(fieldValues.id, valueId), eq(fieldValues.fieldId, fieldId)))
     .returning();
-  if (!row) throw notFound('Field value');
+  if (!row) throw notFound('Field value').said('notFound.fieldValueUnnamed');
   ctx.app.schema.invalidate();
   return valueDto(row, s);
 }
@@ -246,13 +246,13 @@ export async function deleteFieldValue(ctx: Ctx, fieldId: string, valueId: strin
     .from(issueFieldValues)
     .where(eq(issueFieldValues.valueId, valueId));
   if (Number(n) > 0) {
-    throw badRequest(`This value is used by ${n} issue(s)`, 'Archive it instead (PATCH with {"archived": true}), or change those issues first.');
+    throw badRequest(`This value is used by ${n} issue(s)`, 'Archive it instead (PATCH with {"archived": true}), or change those issues first.').said('fields.valueInUse', { n });
   }
   const res = await ctx.db
     .delete(fieldValues)
     .where(and(eq(fieldValues.id, valueId), eq(fieldValues.fieldId, fieldId)))
     .returning({ id: fieldValues.id });
-  if (!res.length) throw notFound('Field value');
+  if (!res.length) throw notFound('Field value').said('notFound.fieldValueUnnamed');
   ctx.app.schema.invalidate();
 }
 
@@ -266,7 +266,7 @@ export async function attachField(
   const project = await requireProject(ctx, projectKey, 'manage');
   const s = await ctx.app.schema.get();
   const field = s.fields.get(fieldId) ?? fieldByName(s, fieldId);
-  if (!field) throw notFound('Field');
+  if (!field) throw notFound('Field').said('notFound.fieldUnnamed');
   const existing = (s.projectFields.get(project.id) ?? []).length;
   // A condition is a search in the project's words; one that doesn't read is refused now (D41).
   const condition = input.condition === undefined ? undefined : checkFieldCondition(s, project.id, input.condition);

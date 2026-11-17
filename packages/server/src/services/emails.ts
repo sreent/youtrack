@@ -39,7 +39,7 @@ const lower = (email: string) => email.trim().toLowerCase();
 async function target(ctx: Ctx, idOrLogin: string): Promise<UserRow> {
   const s = await ctx.app.schema.get();
   const u = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
-  if (!u) throw notFound(`User ${idOrLogin}`);
+  if (!u) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   return u;
 }
 
@@ -54,7 +54,7 @@ async function readable(ctx: Ctx, idOrLogin: string): Promise<UserRow> {
 /** Changing your own emails changes whose commits are yours: it's done signed in, never with a token. */
 function signedIn(ctx: Ctx): void {
   requireScope(ctx, 'write');
-  if (ctx.actor.authMethod === 'token') throw forbidden('Your emails are changed signed in, not with a token', 'Open your profile in a4a.');
+  if (ctx.actor.authMethod === 'token') throw forbidden('Your emails are changed signed in, not with a token', 'Open your profile in a4a.').said('emails.signedInNotToken');
 }
 
 /** When a4a last queued a link to each of a person's emails. */
@@ -122,14 +122,14 @@ async function queueLink(ctx: Ctx, db: Db, u: UserRow, email: string): Promise<b
     .select({ n: count() })
     .from(mailOutbox)
     .where(and(eq(mailOutbox.kind, 'email-confirm'), eq(mailOutbox.userId, u.id), gt(mailOutbox.createdAt, hourAgo)));
-  if (n >= LINKS_PER_HOUR) throw new AppError(429, 'rate_limited', 'a4a has sent you enough links for now', 'Try again in an hour, or ask an administrator to confirm the email.');
+  if (n >= LINKS_PER_HOUR) throw new AppError(429, 'rate_limited', 'a4a has sent you enough links for now', 'Try again in an hour, or ask an administrator to confirm the email.').said('emails.enoughLinks');
   const [last] = await db
     .select({ at: mailOutbox.createdAt })
     .from(mailOutbox)
     .where(and(eq(mailOutbox.kind, 'email-confirm'), eq(mailOutbox.userId, u.id), sql`lower(${mailOutbox.payload}->>'email') = ${lower(email)}`))
     .orderBy(desc(mailOutbox.createdAt))
     .limit(1);
-  if (last && Date.now() - last.at.getTime() < LINK_GAP_MS) throw new AppError(429, 'rate_limited', 'A link went to it a moment ago', 'Look for it, in spam too; a new one can go in a minute.');
+  if (last && Date.now() - last.at.getTime() < LINK_GAP_MS) throw new AppError(429, 'rate_limited', 'A link went to it a moment ago', 'Look for it, in spam too; a new one can go in a minute.').said('emails.linkJustSent');
   const id = newId();
   return enqueueMail(db, ctx.app, { kind: 'email-confirm', dedupeKey: `email-confirm:${id}`, userId: u.id, payload: { email }, messageId: `ec-${id}` });
 }
@@ -140,7 +140,7 @@ export async function addMyEmail(ctx: Ctx, email: string): Promise<PersonEmails>
   const u = await target(ctx, ctx.actor.user.id);
   const e = email.trim();
   if (u.email && lower(u.email) === lower(e)) {
-    if (u.emailVerified) throw badRequest('That’s your primary email, and it’s confirmed');
+    if (u.emailVerified) throw badRequest('That’s your primary email, and it’s confirmed').said('emails.primaryConfirmed');
     return sendEmailLink(ctx, e);
   }
   if (!u.email) {
@@ -156,8 +156,8 @@ export async function addMyEmail(ctx: Ctx, email: string): Promise<PersonEmails>
     return emailsOf(ctx, await target(ctx, u.id));
   }
   const mine = await others(ctx.db, u.id);
-  if (mine.some((o) => lower(o.email) === lower(e))) throw badRequest('You’ve added that email already', 'Send its link again from your list of emails.');
-  if (mine.length >= MAX_OTHER_EMAILS) throw badRequest(`You have ${MAX_OTHER_EMAILS} other emails already`, 'Remove one you no longer use first.');
+  if (mine.some((o) => lower(o.email) === lower(e))) throw badRequest('You’ve added that email already', 'Send its link again from your list of emails.').said('emails.addedAlready');
+  if (mine.length >= MAX_OTHER_EMAILS) throw badRequest(`You have ${MAX_OTHER_EMAILS} other emails already`, 'Remove one you no longer use first.').said('emails.tooManyOthers', { MAX_OTHER_EMAILS });
   let sent = false;
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -175,9 +175,9 @@ export async function sendEmailLink(ctx: Ctx, email: string): Promise<PersonEmai
   const e = lower(email);
   const isPrimary = Boolean(u.email && lower(u.email) === e);
   const other = isPrimary ? undefined : (await others(ctx.db, u.id)).find((o) => lower(o.email) === e);
-  if (!isPrimary && !other) throw notFound('That email among yours', 'Add it first.');
-  if (isPrimary ? u.emailVerified : other!.confirmedAt) throw badRequest('That email is confirmed already');
-  if (!mailConfigured(ctx.app)) throw badRequest('a4a can’t send email here', 'Ask an administrator to confirm the email.');
+  if (!isPrimary && !other) throw notFound('That email among yours', 'Add it first.').said('emails.notYoursAddFirst');
+  if (isPrimary ? u.emailVerified : other!.confirmedAt) throw badRequest('That email is confirmed already').said('emails.confirmedAlready');
+  if (!mailConfigured(ctx.app)) throw badRequest('a4a can’t send email here', 'Ask an administrator to confirm the email.').said('emails.cantSendHere');
   await ctx.db.transaction(async (txRaw) => {
     await queueLink(ctx, txRaw as unknown as Db, u, isPrimary ? u.email! : other!.email);
   });
@@ -185,14 +185,14 @@ export async function sendEmailLink(ctx: Ctx, email: string): Promise<PersonEmai
   return emailsOf(ctx, u);
 }
 
-const INVALID = (): AppError => new AppError(404, 'not_found', 'This link isn’t valid', 'It works once, for 24 hours: send a new one from your profile.');
+const INVALID = (): AppError => new AppError(404, 'not_found', 'This link isn’t valid', 'It works once, for 24 hours: send a new one from your profile.').said('emails.linkNotValid');
 
 /** A link's token, as the person it was minted for holds it: null when it's no link of theirs. */
 async function linkFor(ctx: Ctx, token: string): Promise<typeof emailConfirmations.$inferSelect> {
   const [row] = await ctx.db.select().from(emailConfirmations).where(eq(emailConfirmations.tokenHash, sha256(token)));
   if (!row || row.expiresAt.getTime() <= Date.now()) throw INVALID();
   // The link is for the account that asked; anyone else opening it changes nothing.
-  if (row.userId !== ctx.actor.user.id) throw new AppError(403, 'forbidden', 'This link is for another account in a4a', 'Sign in as the person who added the email, then open it again.');
+  if (row.userId !== ctx.actor.user.id) throw new AppError(403, 'forbidden', 'This link is for another account in a4a', 'Sign in as the person who added the email, then open it again.').said('emails.linkForOtherAccount');
   return row;
 }
 
@@ -216,7 +216,7 @@ export async function confirmEmail(ctx: Ctx, token: string): Promise<EmailLink> 
   const u = await target(ctx, ctx.actor.user.id);
   const e = lower(row.email);
   const taken = await confirmedElsewhere(ctx.db, s, u.id, row.email);
-  if (taken) throw new AppError(409, 'conflict', 'This email is confirmed for someone else in a4a', 'An administrator can move it to you.');
+  if (taken) throw new AppError(409, 'conflict', 'This email is confirmed for someone else in a4a', 'An administrator can move it to you.').said('emails.confirmedForSomeoneElse');
   let confirmed: string | null = null;
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -246,8 +246,8 @@ export async function makePrimary(ctx: Ctx, email: string): Promise<PersonEmails
   const e = lower(email);
   if (u.email && lower(u.email) === e) return emailsOf(ctx, u);
   const chosen = (await others(ctx.db, u.id)).find((o) => lower(o.email) === e);
-  if (!chosen) throw notFound('That email among yours');
-  if (!chosen.confirmedAt) throw badRequest('Confirm it first', 'Only a confirmed email can be your primary one.');
+  if (!chosen) throw notFound('That email among yours').said('emails.notYours');
+  if (!chosen.confirmedAt) throw badRequest('Confirm it first', 'Only a confirmed email can be your primary one.').said('emails.confirmFirst');
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     await tx.delete(userEmails).where(eq(userEmails.id, chosen.id));
@@ -267,7 +267,7 @@ export async function removeMyEmail(ctx: Ctx, id: string): Promise<void> {
 
 async function removeEmail(ctx: Ctx, userId: string, id: string): Promise<void> {
   const [row] = await ctx.db.select().from(userEmails).where(and(eq(userEmails.id, id), eq(userEmails.userId, userId)));
-  if (!row) throw notFound('Email');
+  if (!row) throw notFound('Email').said('notFound.emailUnnamed');
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     await tx.delete(userEmails).where(eq(userEmails.id, row.id));
@@ -282,7 +282,7 @@ export async function addEmailFor(ctx: Ctx, idOrLogin: string, email: string): P
   const u = await target(ctx, idOrLogin);
   const e = email.trim();
   const taken = await confirmedElsewhere(ctx.db, s, u.id, e);
-  if (taken) throw new AppError(409, 'conflict', `${taken.name} has this email confirmed already`, `Remove it from ${taken.name} first: a confirmed email is one person's.`);
+  if (taken) throw new AppError(409, 'conflict', `${taken.name} has this email confirmed already`, `Remove it from ${taken.name} first: a confirmed email is one person's.`).said('emails.takenBy', { name: taken.name });
   if (u.email && lower(u.email) === lower(e)) {
     if (!u.emailVerified) {
       await ctx.db.update(users).set({ emailVerified: true, updatedAt: new Date() }).where(eq(users.id, u.id));
@@ -295,7 +295,7 @@ export async function addEmailFor(ctx: Ctx, idOrLogin: string, email: string): P
   if (existing) {
     if (!existing.confirmedAt) await ctx.db.update(userEmails).set({ confirmedAt: new Date(), confirmedById: ctx.actor.user.id }).where(eq(userEmails.id, existing.id));
   } else {
-    if (mine.length >= MAX_OTHER_EMAILS) throw badRequest(`${u.name} has ${MAX_OTHER_EMAILS} other emails already`, 'Remove one first.');
+    if (mine.length >= MAX_OTHER_EMAILS) throw badRequest(`${u.name} has ${MAX_OTHER_EMAILS} other emails already`, 'Remove one first.').said('emails.tooManyOthersFor', { name: u.name, MAX_OTHER_EMAILS });
     await ctx.db.insert(userEmails).values({ id: newId(), userId: u.id, email: e, confirmedAt: new Date(), confirmedById: ctx.actor.user.id });
   }
   return emailsOf(ctx, u);

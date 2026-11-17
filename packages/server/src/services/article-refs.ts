@@ -40,10 +40,10 @@ export async function resolveArticle(ctx: Ctx, id: string, db: Db = ctx.db): Pro
   const s = await ctx.app.schema.get(db);
   const row = await findArticle(db, s, id);
   const hint = parseReadableId(id) ? `${id.trim()} is an issue's id; an article's has an A in it, like BACK-A-3.` : 'Use a readable id such as BACK-A-3.';
-  if (!row) throw notFound(`Article ${id}`, hint);
+  if (!row) throw notFound(`Article ${id}`, hint).said('articles.articleNotFound', { id, idTrim: id.trim(), issueId: parseReadableId(id) ? 'yes' : 'no' });
   // One the caller can't see answers in the very words of one that doesn't exist.
   await assertCanReadProject(ctx, row.projectId, db).catch(() => {
-    throw notFound(`Article ${id}`, hint);
+    throw notFound(`Article ${id}`, hint).said('articles.articleNotFound', { id, idTrim: id.trim(), issueId: parseReadableId(id) ? 'yes' : 'no' });
   });
   return row;
 }

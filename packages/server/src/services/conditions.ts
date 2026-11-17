@@ -17,8 +17,8 @@ export function checkFieldCondition(s: SchemaSnapshot, projectId: string, text: 
   if (!t) return null;
   const c = condition(ruleWorld(s, projectId), t, { meId: null });
   const p = c.problems[0];
-  if (p) throw badRequest(`The condition doesn't read: ${p.message}`, p.hint ?? 'Write it as a search, e.g. State: Fixed');
-  if (!c.where) throw badRequest("The condition doesn't say anything", 'Write it as a search, e.g. State: Fixed');
+  if (p) throw badRequest(`The condition doesn't read: ${p.message}`, p.hint ?? 'Write it as a search, e.g. State: Fixed').said('conditions.doesNotRead', { message: (/[.!?…:]["”’)]*$/.test(p.message.trim()) ? p.message.trim() : `${p.message.trim()}.`), hasHint: p.hint ? 'yes' : 'no', hint: p.hint ? (/[.!?…:]["”’)]*$/.test(p.hint.trim()) ? p.hint.trim() : `${p.hint.trim()}.`) : '' });
+  if (!c.where) throw badRequest("The condition doesn't say anything", 'Write it as a search, e.g. State: Fixed').said('conditions.saysNothing');
   return t;
 }
 
@@ -78,6 +78,6 @@ export async function enforceRequiredWhen(db: Db, issueId: string, checks: Requi
     throw badRequest(`${broken.name} is required when ${broken.condition}`, `Set ${broken.name} in the same change.`, {
       requiredField: broken.name,
       condition: broken.condition,
-    });
+    }).said('conditions.required', { name: broken.name, condition: broken.condition });
   }
 }

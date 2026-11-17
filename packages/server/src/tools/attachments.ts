@@ -67,6 +67,7 @@ function contentOf(input: z.infer<typeof AttachInput>): Buffer {
   }
   const bytes = input.text !== undefined ? Buffer.from(input.text, 'utf8') : Buffer.from(input.base64!, 'base64');
   if (bytes.length > AGENT_UPLOAD_MAX_BYTES) {
+    // api only: an MCP tool's, met by agents alone
     throw tooLarge(
       `${safeFileName(input.name)} is ${formatBytes(bytes.length)}; over MCP a file may be ${formatBytes(AGENT_UPLOAD_MAX_BYTES)} at most`,
       'Send a larger file to POST /api/v1/issues/{id}/attachments with the same token.',

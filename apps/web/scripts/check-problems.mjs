@@ -26,6 +26,8 @@ const en = JSON.parse(readFileSync(path.join(root, 'packages/shared/i18n/en.json
 /** The helpers that make an AppError (lib/errors.ts). Called with nothing, unauthorized() and forbidden() are keyed already. */
 const HELPERS = new Set(['badRequest', 'notFound', 'forbidden', 'conflict', 'unauthorized']);
 const KEYED_BARE = new Set(['unauthorized', 'forbidden']);
+/** tooLarge(message, hint, words) keys itself, but only by an English frame unless it's given its words. */
+const NEEDS_WORDS = new Map([['tooLarge', 3]]);
 
 const only = process.argv.slice(2).map((p) => p.replace(/^\.?\//, '').replace(/\/$/, ''));
 
@@ -60,6 +62,10 @@ for (const file of walk(server)) {
     const made =
       (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'AppError') ||
       (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && HELPERS.has(node.expression.text));
+    const framed = ts.isCallExpression(node) && ts.isIdentifier(node.expression) && NEEDS_WORDS.has(node.expression.text) && node.arguments.length < NEEDS_WORDS.get(node.expression.text) && !isSaid(node);
+    if (framed && !apiOnly(node)) {
+      unkeyed.push(`packages/server/src/${rel}:${lineOf(node) + 1}: ${node.expression.text}(…) without its words: a page in another language says it in English`);
+    } else if (framed) keyed++;
     if (made) {
       const name = node.expression.text;
       const bare = ts.isCallExpression(node) && KEYED_BARE.has(name) && node.arguments.length === 0;

@@ -51,7 +51,7 @@ export async function setDeskMailbox(ctx: Ctx, key: string, input: { imapUrl?: s
   requireScope(ctx, 'write');
   const project = await requireProject(ctx, key, 'manage');
   const [row] = await ctx.db.select().from(helpdeskMailboxes).where(eq(helpdeskMailboxes.projectId, project.id));
-  if (!row) throw badRequest('Give the desk an address first', 'Its mailbox is the one mail to that address reaches.');
+  if (!row) throw badRequest('Give the desk an address first', 'Its mailbox is the one mail to that address reaches.').said('deskMailbox.addressFirst');
   const set: Partial<Row> = { updatedAt: new Date() };
   if (input.imapUrl !== undefined) {
     // The server connects where this says: an administrator's to say, as HELPDESK_IMAP_URL is.
@@ -64,9 +64,9 @@ export async function setDeskMailbox(ctx: Ctx, key: string, input: { imapUrl?: s
       try {
         t = imapTarget(input.imapUrl);
       } catch {
-        throw badRequest('That is no IMAP address', 'Write it as imaps://user:password@host/INBOX; imap:// must upgrade with STARTTLS.');
+        throw badRequest('That is no IMAP address', 'Write it as imaps://user:password@host/INBOX; imap:// must upgrade with STARTTLS.').said('deskMailbox.notImap');
       }
-      if (!t.user || !t.pass) throw badRequest('The mailbox needs a user and a password', 'Write them in the address: imaps://user:password@host/INBOX.');
+      if (!t.user || !t.pass) throw badRequest('The mailbox needs a user and a password', 'Write them in the address: imaps://user:password@host/INBOX.').said('deskMailbox.needsUserAndPassword');
       set.imapUrlSealed = seal(keySource(ctx.app), input.imapUrl);
       set.imapError = null;
     }
