@@ -568,7 +568,7 @@ Terms:
 - **Subscribe is สมัครรับ** and **watch ติดตาม**, though YouTube's Thai says ติดตาม for subscribe.
 - **The inbox is กล่องจดหมาย**, Gmail's word, for an inbox of notifications.
 - **Days away are วันที่ไม่อยู่**, not วันลา (leave), since an absence may be a conference; is it natural?
-- **A login is ชื่อผู้ใช้** (a username); **undo is เลิกทำ**, Microsoft's; **dismissing a suggestion is ละเว้น**.
+- **A login is ชื่อผู้ใช้** (a username); **undo is เลิกทำ**, Microsoft's; **dismissing a suggestion is ปฏิเสธ**, Google Docs' word for rejecting a suggestion (it was ละเว้น, "abstain from", which stays where English means "ignore").
 - **Loanwords in Thai letters**: คอมมิต, แบรนช์, เมิร์จ, บิลด์, เว็บฮุก, สปรินต์, แบ็กล็อก, เฮลป์เดสก์, and the long พูลรีเควสต์. Thai developers often write these in Latin letters instead.
 - **The navigation's groups**: งาน (Work), แผนงาน (Plan), สร้าง (Build), กำกับดูแล (Oversee), ตัดสินใจ (Decide).
 - **Classifiers**: รายการ counts issues, requests and most things (“อิชชู 4 รายการ”); bots are “บอต # ตัว”; a count of zero says “อิชชู 0 รายการ” rather than ไม่มีอิชชู.
@@ -602,6 +602,25 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **A Slack thread is เธรด** (`server.chat.issue.thread`, `page.issue.source.replies`), and Slack's message shortcut is ทางลัดบนข้อความ beside its English Callback ID (`page.chat.issuesFromMessagesNeed`).
 - `issues.watching.wroteTheMessage` is “เป็นผู้เขียนข้อความต้นทาง”: ต้นทาง may read as technical.
 - **A count of none stays a count** where English says "no issues": “สร้างอิชชู 0 รายการ และลิงก์ 2 รายการ” (`activity.ledgerEntry.whiteboardConverted`, `page.whiteboard.said.converted`).
+
+Edited for natural phrasing:
+
+A second editor, also a model and not a native speaker, read the catalog on its pages rather than beside its English (sign-in, the frame, the profile, issues, boards, the inbox and its emails, the help desk, activity, query and command problems, projects, dashboards, articles, new issues, the timesheet, files, writing help, the assistant, sprint planning, rules and reports whole; the rest by pattern) and changed 811 messages that read as a translation. These are the choices that edit made and couldn't settle:
+
+- **Colons**: where English joins a statement to its reason or consequence with a colon, Thai now says เพราะ or จึง, or pauses with a space (about 180 messages, e.g. `workflow.actions.itSOffNobodyIs` “ปิดอยู่ จึงไม่มีใครเห็นปุ่มนี้”, `problem.emails.takenBy`, `problem.fields.cantBePrivate`). A colon stays before a list, a value, code, or “ว่างไว้: …”. Do the longer เพราะ sentences read as one thought, or run on?
+- **"In words"** (plain language for the assistant) is เป็นประโยค, not the calque เป็นคำพูด: “ถามเป็นประโยค” (`issues.languageField.askInWords`, `issues.queryBar.askInWords`), “บอกสิ่งที่ต้องทำเป็นประโยค” (`issues.commandBar.sayWhatToDoIn`); the button that hands them over is “ให้ผู้ช่วยอ่าน” (`issues.commandBar.readMyWords`), and the history's “asked in words” is “สั่งด้วยข้อความ” (`issues.issueHistory.askedInWords`). Would Thai teams say ภาษาพูด, or ภาษาธรรมชาติ?
+- **The team is ทีมงาน where customers read it** (`page.portal.*`, `page.help.*`, `page.track.*`, `server.helpdesk.*`), ทีม on the team's own pages (`helpdesk.*`). Is the split natural, or should one word serve both?
+- **Someone a4a can't name** is “ผู้ใช้ไม่ทราบชื่อ”, shown in bold as a name (`issues.issueHistory.someone`, `page.issue.someone`, `activity.ledgerEntry.someone`, `server.notify.someone`, `page.guestPages.someone`, `page.articles.someone`, `vcs.issueCode.someone`), where it was ใครบางคน.
+- **A notification names "this issue"**: “{who} มอบหมายอิชชูนี้ให้คุณ” (`server.notify.title.assigned`, `server.notify.title.reportedAndAssigned`), “รายงานอิชชูนี้” (`server.notify.verb.reported`, `issues.issueHistory.reportedIt`). An email's lead (`server.mail.lead`) then reads “Ada มอบหมายอิชชูนี้ให้คุณ ใน BACK-12: …”: is อิชชูนี้ redundant beside the id?
+- **Acting on its own**: an automation or an app is “โดยอัตโนมัติ” (`ui.who.onItsOwn`, `issues.issueHistory.onItsOwn`, `activity.ledgerEntry.onItsOwn`, `issues.issueHistory.anAppOnItsOwn`), the assistant “ลงมือเอง”, as its Acts mode is ลงมือ (`assistant.toolRun.assistantOnItsOwn`, `assistant.toolRun.onItsOwnAsYou`).
+- **The profile's role line** is one sentence with ซึ่ง: “คุณเป็นผู้ดูแลระบบ ซึ่งเปลี่ยนแปลงได้ทุกอย่าง” (`page.profile.youRe` with `page.profile.roleAdmin`, `page.profile.roleMember`, `page.profile.roleViewer`). Natural, or better as two?
+- **The profile's first section** is ข้อมูลส่วนตัว, not คุณ (`page.profile.you`), and the email settings point to it by that name (`notifications.emailSettings.youHaveNoEmailAddress`). It holds name, email, time zone and language: is ข้อมูลส่วนตัว too narrow?
+- **A status word after a value takes แล้ว**: “bug เพิ่มแล้ว”, “นำออกแล้ว” (`ui.changes.added`, `ui.changes.removed`, `common.changeLines.*`), “เวลาที่ใช้: 1h 30m บันทึกแล้ว” (`issues.issueHistory.logged`).
+- **Not found and unknown**: an unknown issue, project, user, tag, group or build is ไม่พบ, as the terms table says for not found (`problem.query.unknownProject`, `problem.command.unknownIssue` and siblings); an unknown field, value or command stays ไม่รู้จัก, as Thai tools say a word isn't recognised. Is the line drawn in the right place?
+- **The editor's Visual mode** is จัดรูปแบบ (`editor.richField.visual`), where it was ภาพ ("picture"). Which word do Thai teams know from their editors?
+- **Copies**: a shared dashboard's copy is named “สำเนาของ {name}”, as Google Drive names copies (`page.dashboard.yourCopy`), made with “ทำสำเนา” (`page.dashboard.copyIt`); the default dashboard's button is “สร้างแดชบอร์ดของฉัน” (`page.dashboard.makeItYours`).
+- **Time zones in parentheses**: “เขตเวลาของเซิร์ฟเวอร์ (Europe/Berlin)” and “ใช้เขตเวลาของเบราว์เซอร์ (Asia/Bangkok)” (`page.profile.theServerS`, `page.profile.useYourBrowserS`), where English has a comma.
+- **Waiting states**: “Waiting on someone” is “รอผู้อื่น” (`page.fields.waitingOnSomeone`, `reports.cumulativeFlow.waitingOnSomeone`).
 
 ## What a catalog can't say yet
 
