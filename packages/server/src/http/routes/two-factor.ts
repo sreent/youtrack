@@ -36,7 +36,7 @@ import { clientIp } from '../middleware';
 import { route } from '../route';
 import { startSessionFor } from './auth';
 
-const signInAgain = () => unauthorized('This sign-in timed out', 'Sign in again with your login and password.');
+const signInAgain = () => unauthorized('This sign-in timed out', 'Sign in again with your login and password.').said('signIn.timedOut');
 
 /** Who a ticket is for, if they may still sign in. */
 async function ticketUser(runtime: Runtime, userId: string): Promise<UserRow | null> {
@@ -71,10 +71,10 @@ async function enrolment(runtime: Runtime, user: UserRow): Promise<TwoFactorEnro
 /** Changing how someone signs in takes them, signed in, in a browser: a token can't. */
 function inBrowser(ctx: Ctx, runtime: Runtime): void {
   if (ctx.actor.authMethod !== 'session') {
-    throw forbidden('Two-factor sign-in is changed from a signed-in browser', 'Open Profile in a4a; a token can’t change how you sign in.');
+    throw forbidden('Two-factor sign-in is changed from a signed-in browser', 'Open Profile in a4a; a token can’t change how you sign in.').said('twoFactor.browserOnly');
   }
   if (!ctx.actor.user.passwordHash && !runtime.config.ldap) {
-    throw conflict('You don’t sign in with a password here', 'Your identity provider asks for any second factor when you sign in with it.');
+    throw conflict('You don’t sign in with a password here', 'Your identity provider asks for any second factor when you sign in with it.').said('twoFactor.noPassword');
   }
 }
 
@@ -248,7 +248,7 @@ export function twoFactorRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ ctx, params }) => {
       requireScope(ctx, 'admin');
       const [user] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, params.id));
-      if (!user) throw notFound('User');
+      if (!user) throw notFound('User').said('twoFactor.userNotFound');
       await removeTwoFactor(ctx.db, user.id);
       return null;
     },

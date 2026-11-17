@@ -91,9 +91,12 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       // Exclusive across instances: two setups at once must not make two first administrators.
       const admin = await runtime.database.exclusive(async () => {
-        if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator');
+        if (!(await needsSetup(runtime.db))) throw new AppError(409, 'already_set_up', 'This server already has an administrator').said('setup.alreadyDone');
         if (!runtime.config.passwordLogin && !body.email) {
-          throw badRequest('Give your email', `Passwords are off here: from now on you sign in with ${runtime.config.oidc?.name ?? runtime.config.saml?.name ?? 'single sign-on'}, which finds you by it.`);
+          const provider = runtime.config.oidc?.name ?? runtime.config.saml?.name;
+          throw provider
+            ? badRequest('Give your email', `Passwords are off here: from now on you sign in with ${provider}, which finds you by it.`).said('setup.emailNeeded', { provider })
+            : badRequest('Give your email', 'Passwords are off here: from now on you sign in with single sign-on, which finds you by it.').said('setup.emailNeededSso');
         }
         // The first administrator vouches for their own email: single sign-on may find them by it.
         const created = await insertUser(runtime.db, { login: body.login, name: body.name, email: body.email ?? null, emailVerified: true, password: body.password, role: 'admin' });
@@ -176,7 +179,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       response: ApiTokenCreatedSchema,
     },
     async ({ ctx, body }) => {
-      if (!body.scopes.length) throw badRequest('Choose at least one scope');
+      if (!body.scopes.length) throw badRequest('Choose at least one scope').said('tokens.scopeNeeded');
       return createToken(ctx, body);
     },
   );

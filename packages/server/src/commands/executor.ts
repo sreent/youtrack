@@ -4,7 +4,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
-import { AppError, badRequest } from '../lib/errors';
+import { AppError, asSentence, badRequest } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
 import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
@@ -33,7 +33,7 @@ export interface CommandRequest {
 export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<CommandResult & { description: string }> {
   requireScope(ctx, req.dryRun ? 'read' : 'write');
   if (req.issues.length > MAX_BULK_ISSUES) {
-    throw badRequest(`A command can change at most ${MAX_BULK_ISSUES} issues at once`, 'Split the list into smaller batches.');
+    throw badRequest(`A command can change at most ${MAX_BULK_ISSUES} issues at once`, 'Split the list into smaller batches.').said('command.tooManyIssues', { max: MAX_BULK_ISSUES });
   }
   const s = await ctx.app.schema.get();
   const rows: IssueRow[] = [];
@@ -44,7 +44,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
     if (row) rows.push(row);
     else missing.push(id);
   }
-  if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`);
+  if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing.join(', ') });
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
   const parsed = parseCommand(req.command, s, projectIds);
   const description = describeCommand(parsed.ops);
@@ -126,13 +126,12 @@ async function sprintMoves(ctx: Ctx, issue: IssueRow, ops: CommandOp[]): Promise
       .where(and(sql`lower(${sprints.name}) = ${op.name.toLowerCase()}`, eq(boards.sprintsEnabled, true), sql`${issue.projectId} = ANY(${boards.projectIds})`));
     const open = op.mode === 'add' ? found.filter((f) => !f.sprint.archived) : found;
     if (!open.length) {
-      throw badRequest(
-        found.length ? `${found[0]!.sprint.name} is archived` : `No board of this issue's project has a sprint called ${op.name}`,
-        found.length ? 'Choose a sprint that is still open.' : 'Name a sprint of one of its boards.',
-      );
+      throw found.length
+        ? badRequest(`${found[0]!.sprint.name} is archived`, 'Choose a sprint that is still open.').said('command.sprintArchived', { sprint: found[0]!.sprint.name })
+        : badRequest(`No board of this issue's project has a sprint called ${op.name}`, 'Name a sprint of one of its boards.').said('command.noSuchSprint', { name: op.name });
     }
     if (open.length > 1) {
-      throw badRequest(`${open.length} sprints are called ${op.name}: on ${open.map((f) => f.board.name).join(', ')}`, 'Rename one, or use PUT /sprints/{id}/issues.');
+      throw badRequest(`${open.length} sprints are called ${op.name}: on ${open.map((f) => f.board.name).join(', ')}`, 'Rename one, or use PUT /sprints/{id}/issues.').said('command.sprintAmbiguous', { count: open.length, name: op.name, boards: open.map((f) => f.board.name).join(', ') });
     }
     out.push({ sprint: open[0]!.sprint, board: open[0]!.board, remove: op.mode === 'remove' });
   }
@@ -181,46 +180,49 @@ export async function commandSpec(
           .flatMap((m) => transitionsOf(m).map((t) => ({ m, t })))
           .find((x) => x.t.name.toLowerCase() === op.name.toLowerCase());
         const field = found ? s.fields.get(found.m.fieldId) : undefined;
-        if (!found || !field || !attached.has(field.id)) throw badRequest(`${project.key} has no transition “${op.name}”`);
+        if (!found || !field || !attached.has(field.id)) throw badRequest(`${project.key} has no transition “${op.name}”`).said('command.noTransition', { project: project.key, name: op.name });
         // The write path checks that it goes from the state the issue is in, and its condition (D40).
         fields.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, found.t.to, meId, today) });
         transition = { fieldId: field.id, name: found.t.name };
         break;
       }
       case 'action': {
-        if (opts.inAction) throw badRequest(`The action “${opts.inAction}” runs another action, “${op.name}”, and an action can't`);
+        if (opts.inAction) throw badRequest(`The action “${opts.inAction}” runs another action, “${op.name}”, and an action can't`).said('command.actionRunsAction', { action: opts.inAction, other: op.name });
         const action = actionsFor(s, project.id).find((a) => a.enabled && a.name.toLowerCase() === op.name.toLowerCase());
-        if (!action) throw badRequest(`${project.key} has no action “${op.name}”`);
+        if (!action) throw badRequest(`${project.key} has no action “${op.name}”`).said('command.noAction', { project: project.key, name: op.name });
         const rid = `${project.key}-${issue.number}`;
         if (action.condition.trim()) {
           const when = condition(ruleWorld(s, project.id), action.condition, { meId });
-          if (when.problems.length) throw badRequest(`The action “${action.name}” no longer reads: ${when.problems.map((p) => p.message).join('; ')}`);
+          if (when.problems.length) throw badRequest(`The action “${action.name}” no longer reads: ${when.problems.map((p) => p.message).join('; ')}`).said('command.actionUnreadable', { action: action.name, problems: asSentence(when.problems.map((p) => p.message).join('; ')) });
           if (when.where && !(await meets(db, issue.id, [when.where]))[0]) {
-            throw badRequest(`“${action.name}” isn't offered for ${rid} now`, `It's for issues that match “${action.condition}”.`);
+            throw badRequest(`“${action.name}” isn't offered for ${rid} now`, `It's for issues that match “${action.condition}”.`).said('command.actionNotOffered', { action: action.name, issue: rid, condition: action.condition });
           }
         }
         if (action.script) {
-          if (opts.noScripts) throw badRequest(`“${action.name}” is a scripted action, and a script can't run another script`);
+          if (opts.noScripts) throw badRequest(`“${action.name}” is a scripted action, and a script can't run another script`).said('command.scriptRunsScript', { action: action.name });
           const out = await runScript(action.script, await scriptInput(db, s, issue, changeOf('action', s.users.get(ctx.actor.user.id), [], { action: action.name })));
-          if (out.error) throw badRequest(`The action “${action.name}” stopped: ${out.error.message}`);
-          if (out.intents.refusal !== null) throw new AppError(422, 'refused_by_action', out.intents.refusal, `The action “${action.name}” refuses it.`);
+          if (out.error) throw badRequest(`The action “${action.name}” stopped: ${out.error.message}`).said('command.actionStopped', { action: action.name, error: asSentence(out.error.message) });
+          if (out.intents.refusal !== null) {
+            // The script's own words, in the language it was written in.
+            throw new AppError(422, 'refused_by_action', out.intents.refusal, `The action “${action.name}” refuses it.`).said('command.actionRefused', { refusal: asSentence(out.intents.refusal), action: action.name });
+          }
           for (const a of out.intents.applies) {
             // Run as a command, a scripted action changes only its issue: its button reaches the rest.
-            if (a.to && a.to !== rid) throw badRequest(`Run as a command, “${action.name}” changes only ${rid}, not ${a.to}`, 'Use its button on the issue.');
+            if (a.to && a.to !== rid) throw badRequest(`Run as a command, “${action.name}” changes only ${rid}, not ${a.to}`, 'Use its button on the issue.').said('command.actionOtherIssue', { action: action.name, issue: rid, other: a.to });
             const parsed = parseCommand(a.command, s, [project.id]);
-            if (parsed.problems.length) throw badRequest(`The action “${action.name}” asks for “${a.command}”, which doesn't fit ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+            if (parsed.problems.length) throw badRequest(`The action “${action.name}” asks for “${a.command}”, which doesn't fit ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionCommandMisfit', { action: action.name, command: a.command, project: project.key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
             merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, noScripts: true, inAction: action.name }));
           }
           comments.push(...out.intents.comments);
         } else {
           const parsed = parseCommand(action.command, s, [project.id]);
-          if (parsed.problems.length) throw badRequest(`The action “${action.name}” no longer fits ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+          if (parsed.problems.length) throw badRequest(`The action “${action.name}” no longer fits ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionMisfit', { action: action.name, project: project.key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
           merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, inAction: action.name }));
         }
         break;
       }
       case 'field': {
-        if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`);
+        if (!attached.has(op.field.id)) throw badRequest(`${project.key} has no field ${op.field.name}`).said('command.noField', { project: project.key, field: op.field.name });
         const values = op.raw.flatMap((r) => resolveFieldInput(s, op.field, project.id, r, meId, today, zoneOf(ctx)));
         fields.push({ field: op.field, mode: op.mode, values });
         break;
@@ -232,7 +234,7 @@ export async function commandSpec(
         for (const t of op.targets) {
           // A target the actor can't see is unknown, exactly as one that doesn't exist.
           const target = await findVisibleIssue(ctx, t, db);
-          if (!target) throw badRequest(`Unknown issue ${t}`);
+          if (!target) throw badRequest(`Unknown issue ${t}`).said('command.unknownIssue', { id: t });
           links.push({ phrase: op.phrase, target, remove: op.mode === 'remove' });
         }
         break;
@@ -241,7 +243,7 @@ export async function commandSpec(
         break;
       case 'sprint':
         // Only a command run on issues moves them between sprints (runCommand does), not a rule's.
-        if (!opts.sprints) throw badRequest('Sprints are changed by a command run on issues', 'Leave the sprint clause out here.');
+        if (!opts.sprints) throw badRequest('Sprints are changed by a command run on issues', 'Leave the sprint clause out here.').said('command.sprintNotHere');
         break;
     }
   }

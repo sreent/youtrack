@@ -21,7 +21,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { stateMachines } from '../db/schema';
-import { AppError, badRequest, conflict, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { assertCanManageProject, assertCanWriteProject, canReadProject, requireProject } from '../services/access';
 import { readableId, type IssueRow } from '../services/issue-refs';
@@ -142,13 +142,13 @@ function tidyTransitions(list: StateTransition[]): StateTransition[] {
 
 function refuseProblems(problems: WorkflowProblem[]): never {
   const words = problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
-  throw badRequest(`The state machine needs fixing: ${words}`, 'Each problem says where it is.', { problems });
+  throw badRequest(`The state machine needs fixing: ${words}`, 'Each problem says where it is.', { problems }).said('workflow.machineNeedsFixing', { problems: asSentence(words) });
 }
 
 async function loadMachine(ctx: Ctx, id: string): Promise<MachineRow> {
   requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(stateMachines).where(eq(stateMachines.id, id));
-  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('State machine');
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('State machine').said('workflow.machineNotFound');
   return row;
 }
 
@@ -174,14 +174,14 @@ export async function createMachine(ctx: Ctx, input: StateMachineInput): Promise
   const problems = machineProblems(s, project.id, field, transitions);
   if (problems.length) refuseProblems(problems);
   if (machinesFor(s, project.id).some((m) => m.fieldId === field!.id)) {
-    throw conflict(`${project.key} has a state machine for ${field!.name} already`, 'Change that one instead.');
+    throw conflict(`${project.key} has a state machine for ${field!.name} already`, 'Change that one instead.').said('workflow.machineExists', { project: project.key, field: field!.name });
   }
   const [row] = await ctx.db
     .insert(stateMachines)
     .values({ id: newId(), projectId: project.id, fieldId: field!.id, transitions, enabled: input.enabled ?? true, createdById: ctx.actor.user.id, updatedById: ctx.actor.user.id })
     .onConflictDoNothing()
     .returning();
-  if (!row) throw conflict(`${project.key} has a state machine for ${field!.name} already`, 'Change that one instead.');
+  if (!row) throw conflict(`${project.key} has a state machine for ${field!.name} already`, 'Change that one instead.').said('workflow.machineExists', { project: project.key, field: field!.name });
   ctx.app.schema.invalidate();
   return dto(await ctx.app.schema.get(), row);
 }
@@ -191,7 +191,7 @@ export async function updateMachine(ctx: Ctx, id: string, input: { transitions?:
   const row = await loadMachine(ctx, id);
   await assertCanManageProject(ctx, row.projectId);
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
-    throw conflict('The state machine was changed by someone else', 'Reload it and make your change again.', { currentVersion: row.version });
+    throw conflict('The state machine was changed by someone else', 'Reload it and make your change again.', { currentVersion: row.version }).said('workflow.machineChangedMeanwhile');
   }
   const s = await ctx.app.schema.get();
   const transitions = input.transitions ? tidyTransitions(input.transitions) : transitionsOf(row);
@@ -206,7 +206,7 @@ export async function updateMachine(ctx: Ctx, id: string, input: { transitions?:
     .set({ transitions, enabled, version: sql`${stateMachines.version} + 1`, updatedById: ctx.actor.user.id, updatedAt: new Date() })
     .where(and(eq(stateMachines.id, row.id), eq(stateMachines.version, row.version)))
     .returning();
-  if (!updated) throw conflict('The state machine was changed by someone else', 'Reload it and make your change again.');
+  if (!updated) throw conflict('The state machine was changed by someone else', 'Reload it and make your change again.').said('workflow.machineChangedMeanwhile');
   ctx.app.schema.invalidate();
   return dto(await ctx.app.schema.get(), updated);
 }
@@ -230,8 +230,9 @@ export interface Move {
   to: string;
 }
 
-function refused(message: string, hint: string, details: Record<string, unknown>): AppError {
-  return new AppError(422, 'refused_by_state_machine', message, hint, details);
+/** A change a state machine refuses, keyed by the way it refuses it, for a page in another language (D49). */
+function refused(message: string, hint: string, details: Record<string, unknown>, key: string, values: Record<string, string | number>): AppError {
+  return new AppError(422, 'refused_by_state_machine', message, hint, details).said(key, values);
 }
 
 /** The project's machine for a field, if it is on and reads. */
@@ -247,9 +248,11 @@ function liveMachine(s: SchemaSnapshot, projectId: string, field: FieldRow): { m
 const named = (s: SchemaSnapshot, v: ResolvedValue[] | undefined) => (v?.[0]?.valueId ? (s.values.get(v[0].valueId)?.name ?? null) : null);
 
 /** Where a state can go, in words: "In Progress (Start work), Won't fix (Decline)". */
-function exits(transitions: StateTransition[], from: string): string {
+function exits(transitions: StateTransition[], from: string): { words: string; values: { exits: string; where: 'some' | 'nowhere' } } {
   const out = transitions.filter((t) => t.to.toLowerCase() !== from.toLowerCase() && (t.from.includes('*') || t.from.some((f) => f.toLowerCase() === from.toLowerCase())));
-  return out.length ? out.map((t) => `${t.to} (${t.name})`).join(', ') : 'nowhere: it is where its machine ends';
+  const list = out.map((t) => `${t.to} (${t.name})`).join(', ');
+  // The words the API says; a keyed problem says them in its catalog by the code (D49).
+  return out.length ? { words: list, values: { exits: list, where: 'some' } } : { words: 'nowhere: it is where its machine ends', values: { exits: '', where: 'nowhere' } };
 }
 
 /**
@@ -281,23 +284,44 @@ export async function machineMoves(
     let t: StateTransition | undefined;
     if (chosen && chosen.fieldId === u.field.id) {
       t = live.transitions.find((x) => x.name.toLowerCase() === chosen.name.toLowerCase());
-      if (!t) throw refused(`${u.field.name} has no transition “${chosen.name}”`, `From ${from} it can go to ${exits(live.transitions, from)}.`, { field: u.field.name, from, to });
+      const ways = exits(live.transitions, from);
+      if (!t) {
+        throw refused(`${u.field.name} has no transition “${chosen.name}”`, `From ${from} it can go to ${ways.words}.`, { field: u.field.name, from, to }, 'machine.noTransition', {
+          field: u.field.name,
+          transition: chosen.name,
+          from,
+          ...ways.values,
+        });
+      }
       if (!fits.includes(t)) {
-        throw refused(`“${t.name}” doesn't go from ${from}`, `${rid} is ${from}. From there it can go to ${exits(live.transitions, from)}.`, { field: u.field.name, from, to, transition: t.name });
+        throw refused(`“${t.name}” doesn't go from ${from}`, `${rid} is ${from}. From there it can go to ${ways.words}.`, { field: u.field.name, from, to, transition: t.name }, 'machine.wrongStart', {
+          transition: t.name,
+          from,
+          issue: rid,
+          ...ways.values,
+        });
       }
     } else t = fits[0];
     if (!t) {
-      throw refused(`${u.field.name} can't go from ${from} to ${to}`, `From ${from} it can go to ${exits(live.transitions, from)}.`, {
+      const ways = exits(live.transitions, from);
+      throw refused(`${u.field.name} can't go from ${from} to ${to}`, `From ${from} it can go to ${ways.words}.`, {
         field: u.field.name,
         from,
         to,
         transitions: live.transitions.filter((x) => x.from.includes('*') || x.from.some((f) => f.toLowerCase() === from.toLowerCase())).map((x) => ({ name: x.name, to: x.to })),
-      });
+      }, 'machine.cantMove', { field: u.field.name, from, to, ...ways.values });
     }
     if (t.condition) {
       const when = condition(ruleWorld(s, issue.projectId), t.condition, { meId: ctx.actor.user.id });
       if (when.where && !(await meets(tx, issue.id, [when.where]))[0]) {
-        throw refused(`“${t.name}” needs ${rid} to match “${t.condition}” first`, `It's what moving ${u.field.name} from ${from} to ${to} asks.`, { field: u.field.name, from, to, transition: t.name });
+        throw refused(`“${t.name}” needs ${rid} to match “${t.condition}” first`, `It's what moving ${u.field.name} from ${from} to ${to} asks.`, { field: u.field.name, from, to, transition: t.name }, 'machine.needsCondition', {
+          transition: t.name,
+          issue: rid,
+          condition: t.condition,
+          field: u.field.name,
+          from,
+          to,
+        });
       }
     }
     moves.push({ field: u.field, transition: t, from, to });
@@ -311,7 +335,7 @@ export async function transitionSpecs(tx: Db, ctx: Ctx, s: SchemaSnapshot, issue
   for (const m of moves) {
     if (!m.transition.command) continue;
     const parsed = parseCommand(m.transition.command, s, [issue.projectId]);
-    if (parsed.problems.length) throw badRequest(`The transition “${m.transition.name}” no longer fits: ${parsed.problems.map((p) => p.message).join('; ')}`);
+    if (parsed.problems.length) throw badRequest(`The transition “${m.transition.name}” no longer fits: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.transitionMisfit', { transition: m.transition.name, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
     out.push({ ...(await commandSpec(ctx, issue, parsed.ops, undefined, { db: tx })), data: { transition: m.transition.name } });
   }
   return out;

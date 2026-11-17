@@ -34,7 +34,7 @@ import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import type { Chore, OutboxConsumer } from '../events/worker';
-import { AppError } from '../lib/errors';
+import { AppError, asSentence } from '../lib/errors';
 import { issueRef, readableId, stateNames } from '../services/issue-refs';
 import { findIssue, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -329,7 +329,7 @@ export class RuleEngine {
         const parsed = parseCommand(rule.command, s, [issue.projectId]);
         if (parsed.problems.length) {
           const key = s.projects.get(issue.projectId)?.key ?? 'this project';
-          throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+          throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.commandMisfit', { project: key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
         }
         planned = [{ issue, spec: await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined }), command: rule.command }];
       } catch (e) {

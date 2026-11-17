@@ -85,7 +85,7 @@ export function route<P extends AnyObject | undefined, Q extends AnyObject | und
     async (c) => {
       const ctx = c.get('ctx');
       if (spec.auth !== 'none' && !ctx) {
-        throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.');
+        throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.').said('access.signInOrToken');
       }
       const req = c.req as unknown as { valid: (t: string) => unknown };
       const args = {

@@ -9,7 +9,7 @@ import type { TrackerEvent } from '@a4a/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import { chatWorkspaces } from '../db/schema';
-import { AppError, badRequest, conflict, notFound, unauthorized } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, notFound, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { findVisibleIssue } from '../services/issues';
 import type { Translator } from '@a4a/shared/i18n';
@@ -53,12 +53,13 @@ export async function slackWorkspace(app: AppServices): Promise<WorkspaceRow | u
 /** Check a request from Slack against the workspace's signing secret; the workspace, when it holds. */
 export async function verifySlackRequest(app: AppServices, header: (name: string) => string | undefined, raw: string): Promise<WorkspaceRow> {
   const ws = await slackWorkspace(app);
-  if (!ws) throw notFound('Slack connection', 'An administrator connects Slack on the Chat page.');
+  if (!ws) throw notFound('Slack connection', 'An administrator connects Slack on the Chat page.').said('chat.slackNotConnected');
   const secret = openSecret(app, ws.signingSecret);
   const ts = header('x-slack-request-timestamp') ?? '';
   const sig = header('x-slack-signature') ?? '';
   const refuse = (why: string) => {
     console.warn(`chat: a Slack request was refused: ${why}`);
+    // api only: Slack posts here, signed, never a page
     return unauthorized('This request isn’t from Slack');
   };
   if (!secret) throw refuse('no signing secret (SECRET_KEY changed?)');
@@ -116,12 +117,12 @@ export async function connectSlack(ctx: Ctx, input: { botToken: string; signingS
   try {
     auth = await slackCall(app, input.botToken, 'auth.test', {});
   } catch (e) {
-    throw badRequest(`Slack didn't take the token: ${e instanceof Error ? e.message : String(e)}`, "Copy the Bot User OAuth Token from OAuth & Permissions in the app's settings.");
+    throw badRequest(`Slack didn't take the token: ${e instanceof Error ? e.message : String(e)}`, "Copy the Bot User OAuth Token from OAuth & Permissions in the app's settings.").said('chat.slackTokenRefused', { error: asSentence(e instanceof Error ? e.message : String(e)) });
   }
   const teamId = String(auth.team_id ?? '');
-  if (!teamId) throw badRequest('Slack didn’t say which workspace the token is for');
+  if (!teamId) throw badRequest('Slack didn’t say which workspace the token is for').said('chat.slackNoWorkspace');
   const current = await slackWorkspace(app);
-  if (current && current.externalId !== teamId) throw conflict(`a4a is connected to ${current.name} already`, 'Disconnect it first: one Slack workspace per a4a.');
+  if (current && current.externalId !== teamId) throw conflict(`a4a is connected to ${current.name} already`, 'Disconnect it first: one Slack workspace per a4a.').said('chat.slackConnectedAlready', { workspace: current.name });
   const ws = await upsertWorkspace(ctx.db, { platform: 'slack', externalId: teamId, name: String(auth.team ?? teamId), connectedById: ctx.actor.user.id });
   await ctx.db
     .update(chatWorkspaces)
@@ -142,7 +143,7 @@ export async function connectSlack(ctx: Ctx, input: { botToken: string; signingS
 export async function disconnectSlack(ctx: Ctx): Promise<void> {
   requireScope(ctx, 'admin');
   const ws = await slackWorkspace(ctx.app);
-  if (!ws) throw notFound('Slack connection');
+  if (!ws) throw notFound('Slack connection').said('chat.slackConnectionNotFound');
   await markWorkspaceRemoved(ctx.db, ws.id, `Disconnected by ${ctx.actor.user.name}`, { forgetSecrets: true });
 }
 

@@ -143,6 +143,7 @@ export function chatRoutes(app: OpenAPIHono<HttpEnv>) {
       try {
         activity = JSON.parse(raw) as TeamsActivity;
       } catch {
+        // api only: Teams' Bot Framework posts here, never a page
         throw badRequest('Not an activity');
       }
       await verifyTeamsRequest(runtime, c.req.header('authorization'), { serviceUrl: activity.serviceUrl, channelId: activity.channelId });
