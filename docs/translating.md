@@ -378,3 +378,127 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | handler (of an app) | gestionnaire |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
+## Vietnamese
+
+`vi.json`, as teams in Vietnam read a tracker. Intl's `vi` writes dates, numbers and lists as `vi-VN` does, so the code passes `vi` as it is.
+
+- **"Bạn", always**, the help desk's emails and portal included: "Hãy lưu trước.", "Token của bạn". Vietnamese pronouns carry age and rank (anh, chị, em, quý khách); software for teams, Google's, Microsoft's and Trello's Vietnamese among them, says "bạn", which is polite to anyone and assumes neither. "Quý khách" is a bank's or a carrier's word to its customers: on the portal it would read as a form letter beside the pages. In emails to a requester the team speaks as "chúng tôi", and the chat bot, which says "I" in English, says "tôi".
+- **Sentences are plain and polite**, with no exclamation marks. A fix is an imperative softened by "hãy" ("Hãy kiểm tra mã vấn đề."); "vui lòng" (please) only where English asks something of someone.
+- **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does.
+- **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.".
+- **The passive** is "được" for what is neutral or welcome and "bị" for what befalls a thing: "một vấn đề được tạo", "bình luận bị xóa", "thay đổi bị từ chối".
+- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này".
+- **Roles** are words for anyone: "Quản trị viên", "Quản lý", "Thành viên", "Người xem", "Khách". In a sentence a role is bare and a page lower-cases it (`inSentence()`): "{name} giờ là thành viên của BACK".
+- **Typography**:
+  - Sentence case: only a sentence's first word and names take a capital ("Lưu thay đổi", "Hộp thư đến", never "Hộp Thư Đến"). "a4a" stays lower case, first in a sentence too.
+  - Quotation marks are “…”, and the ellipsis is one character (…). No space before a colon or a %.
+  - Letters are precomposed (NFC): ế is U+1EBF, not e with two combining marks. The catalog is NFC throughout; edit it with a Unicode keyboard (Telex or VNI typing in Unicode), never a legacy encoding.
+  - Tone marks sit the traditional way in oa, oe and uy: "xóa", "hủy", "hòa", "thủy", as Microsoft's and Google's Vietnamese write them, not "xoá", "huỷ".
+  - Fonts: Ocean draws Vietnamese in IBM Plex Sans's and Plex Mono's Vietnamese faces, from Ocean dd43c90 on. With an Ocean from before them, whose Plex files carry Latin-1 and no more, a page draws ă, đ, ĩ, ũ, ơ, ư and every letter with a dot below or a hook (ạ, ả, ế, ộ, ữ…) from the system's font, mid-word, while à, é, ê, ô and the plain letters stay Plex.
+- **Plurals**: Vietnamese doesn't inflect for number, so each plural keeps `other` alone: `{n, plural, other {# vấn đề}}`. A noun after a number takes no marker; "các" or "những" marks a plural where no number is said ("các vấn đề đã chọn"). Where English says one differently ("this issue", "One issue matches") and Vietnamese does too, the plural keeps `=1`: `{total, plural, =1 {Một vấn đề khớp.} other {# vấn đề khớp.}}`.
+- **Pieces a page joins**:
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done, so an action is a verb phrase with "đã" and no subject: "đã thay đổi {issue}", "đã bình luận về {issue}", "đã giao vấn đề này cho bạn". A badge is a short verb phrase in lower case, as English's is: "xóa vấn đề", "ghi thời gian". How it came is a phrase after it: "qua web", "qua MCP, thay cho {name}".
+  - A webhook's events are joined into "khi {join}" with "hoặc", so each is a clause in the passive: "một vấn đề được tạo", "một bình luận bị xóa".
+  - A rule is one sentence in English's order, which is Vietnamese's: its trigger and conditions are clauses, its actions bare verbs, and the words in `<t0>` are "Khi", "nếu" and "thì": "<t0>Khi</t0> một vấn đề được tạo, <t0>nếu</t0> vấn đề khớp Type: Bug, <t0>thì</t0> áp dụng Assignee anna."
+  - A loading line is a whole message, one per thing (`loadingLine.*`): "Đang tải kế hoạch…". "Của bạn" goes where it tells the reader's from someone's ("Đang tải ngày vắng mặt của bạn…", beside "… của {name}…") and is left out where it's plain ("Đang tải hộp thư đến…"); a thing's own name reads "Đang tải {name}…", and nothing, "Đang tải…".
+- **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Vietnamese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
+- **Selects on codes**: each case is worded in Vietnamese and every case stays: `{state, select, merged {đã hợp nhất} closed {đã đóng} other {đang mở}}`; a code no case names keeps the code in `other`.
+- **Dates and numbers** come from Intl: "16 thg 11, 2026", "Thứ Hai, 16 tháng 11", "1.234,5", "3 phút trước".
+- **Data stays as named**: field names, states and values ("State", "Fixed"), and examples of the query and command languages (`project: BACK #Unresolved`), as in every language.
+- **Problems** say what went wrong, then the fix, each a sentence: "Không tìm thấy vấn đề BACK-12." An error is "lỗi", never "vấn đề", which is an issue. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) stays where English puts it and brings its own punctuation, so no full stop follows it: "Dịch vụ AI báo lỗi: {error}". In the query, command and rule problems, keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
+- **You and your**: "của bạn" after the noun where a label must tell the reader's from someone else's ("Token của bạn", "Yêu cầu của bạn"), and nothing where the owner is plain ("Hồ sơ", "Hộp thư đến"). What the reader says on a button is "tôi": "Giao cho tôi".
+- **The help desk** is "bộ phận hỗ trợ", a request "yêu cầu" and its requester "người yêu cầu". Its emails and portal say "bạn" to the requester, and the team writes as "chúng tôi": "Chúng tôi đã nhận được yêu cầu của bạn, {name}."
+
+| English | Vietnamese |
+|---|---|
+| issue | vấn đề |
+| summary (an issue's title) | tiêu đề |
+| description | mô tả |
+| project | dự án |
+| lead (of a project) | trưởng dự án |
+| board, card | bảng, thẻ |
+| column, swimlane | cột, làn |
+| sprint | sprint |
+| committed (a sprint's commitment) | cam kết |
+| backlog | backlog |
+| help desk | bộ phận hỗ trợ |
+| SLA at risk, breached | sắp vi phạm, đã vi phạm |
+| request (help desk) | yêu cầu |
+| requester | người yêu cầu |
+| copied on a request (CC), copy, stop copying | được CC, CC, bỏ CC |
+| customer group, kept from the group | nhóm khách hàng, ẩn với nhóm |
+| reporter | người báo cáo |
+| report (an issue), reported | báo cáo, đã báo cáo |
+| assignee | người được giao |
+| assign | giao |
+| agent | tác nhân |
+| assistant (its name), the assistant | assistant, trợ lý |
+| conversation (with the assistant) | cuộc trò chuyện |
+| workflow | workflow |
+| rule | quy tắc |
+| if (a rule's or a transition's condition) | nếu, after the trigger's "Khi" |
+| state machine | máy trạng thái |
+| transition | bước chuyển |
+| state | trạng thái |
+| knowledge base | cơ sở kiến thức |
+| article | bài viết |
+| inbox | hộp thư đến |
+| notification | thông báo |
+| digest | bản tổng hợp |
+| subscription, subscribe | đăng ký, đăng ký nhận |
+| watch, watcher | theo dõi, người theo dõi |
+| comment | bình luận |
+| mention | nhắc đến |
+| tag | nhãn |
+| vote | bình chọn |
+| timesheet | bảng chấm công |
+| work logged, log time | thời gian đã ghi, ghi thời gian |
+| estimate | ước tính |
+| rate (per hour) | đơn giá theo giờ |
+| days away, away | ngày vắng mặt, vắng mặt |
+| levelling | cân bằng nguồn lực |
+| slack (in a plan) | thời gian dự trữ |
+| booked (in a plan) | đã phân bổ |
+| critical path | đường găng |
+| milestone | mốc |
+| baseline | đường cơ sở |
+| what-if | mô phỏng |
+| earned value, earned | giá trị thu được (EV), thu được |
+| cost and schedule performance (CPI, SPI) | hiệu suất chi phí, hiệu suất tiến độ |
+| triage | phân loại |
+| suggestion | gợi ý |
+| token, revoke | token, thu hồi |
+| scope (of a token) | phạm vi |
+| two-factor sign-in | xác thực hai yếu tố |
+| sign in, sign out | đăng nhập, đăng xuất |
+| login (a person's handle) | tên đăng nhập |
+| identity provider | nhà cung cấp danh tính |
+| single sign-on | đăng nhập một lần (SSO) |
+| webhook, delivery | webhook, lượt gửi |
+| secret | khóa bí mật |
+| commit, pull request, branch | commit, pull request, nhánh |
+| merge, merged | hợp nhất, đã hợp nhất |
+| build (CI) | bản build |
+| CI | CI |
+| repository | kho mã |
+| field, value | trường, giá trị |
+| link (between issues), unlink | liên kết, bỏ liên kết |
+| link, unlink (a chat account) | liên kết, hủy liên kết |
+| duplicate | trùng lặp |
+| resolve, resolved, resolution | giải quyết, đã giải quyết; an SLA's resolution: giải quyết |
+| not found | không tìm thấy |
+| dashboard, widget | bảng điều khiển, tiện ích |
+| report | báo cáo |
+| query, command, saved search | truy vấn, lệnh, tìm kiếm đã lưu |
+| attachment, file | tệp đính kèm, tệp |
+| settings | cài đặt |
+| app, handler (of an app) | ứng dụng, trình xử lý |
+| allow (an app) | cho phép |
+| person, people | người, mọi người; "người dùng" in administration |
+| role, permission | vai trò, quyền |
+| administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
+| problem (what went wrong) | lỗi |
+
+**Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. As far as this catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
+
+**Checking Vietnamese**: the checks above, and `e2e/vietnamese.spec.ts`. It signs a person of its own in, through the sign-in page of a Vietnamese browser, opens the issues, an issue, the inbox and the profile, and shows a problem on the sign-in page; each is shot in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`. A reader of Vietnamese then reads those shots, sets a profile's language to Tiếng Việt and walks the pages, and reads the pieces of one prefix together, as a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.
