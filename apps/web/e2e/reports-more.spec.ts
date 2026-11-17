@@ -34,7 +34,7 @@ test('issues per field and the matrix open their issues; age and time in state r
   const body = await (await page.request.get(csv!)).text();
   expect(body).toContain('Priority \\ Type');
   await matrix.getByRole('row', { name: /^Major/ }).getByRole('link', { name: '1', exact: true }).first().click();
-  await expect(page.getByRole('list', { name: '1 issues' }).or(page.getByRole('list', { name: '1 issue' }))).toBeVisible();
+  await expect(page.getByRole('list', { name: '1 issue' })).toBeVisible();
 
   // Average age, by Priority as it stood: today's open issues.
   await page.goto(`/reports/average-age?project=${key}&days=7`);

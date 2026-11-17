@@ -62,7 +62,7 @@ test('a query problem is underlined, fixed with one click, and suggestions come 
   await expect(query).toHaveValue(new RegExp(`^project: ${key} State: Fixed Priority: Critical\\s*$`));
 
   await query.press('Enter');
-  const found = page.getByRole('list', { name: '1 issues' });
+  const found = page.getByRole('list', { name: '1 issue' });
   await expect(found.getByRole('listitem')).toHaveCount(1);
   await expect(found.getByRole('link', { name: stale.summary })).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: /^1 issue/ })).toBeVisible();
@@ -162,6 +162,6 @@ test('words become a query, and the page shows the query it read (AI stood in fo
 
   await expect(page.getByText('Interpreted as:')).toBeVisible();
   await expect(page.getByRole('main').getByText(`project: ${key} Priority: Critical`, { exact: true })).toBeVisible();
-  await expect(page.getByRole('list', { name: '1 issues' }).getByRole('link', { name: stale.summary })).toBeVisible();
+  await expect(page.getByRole('list', { name: '1 issue' }).getByRole('link', { name: stale.summary })).toBeVisible();
   expect(ai.asked).toEqual([{ text: 'the critical ones', project: key }]);
 });
