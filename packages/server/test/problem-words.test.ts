@@ -54,8 +54,8 @@ function said(p: QueryProblem): { en: string; de: string } {
 /** Each query, and a problem it meets. */
 const QUERIES: [query: string, key: string, german: string][] = [
   ['summary: {Login fails', 'query.missingClosing', 'Das schließende } fehlt.'],
-  ['Login }', 'query.unexpectedBrace', 'Unerwartetes Zeichen }.'],
-  [')', 'query.unexpected', 'Unerwartetes „)“.'],
+  ['Login }', 'query.unexpectedBrace', 'Unerwartet: „}“.'],
+  [')', 'query.unexpected', 'Unerwartet: „)“.'],
   ['Login or', 'query.orNeedsMore', 'Nach „or“ fehlt etwas.'],
   ['(Login', 'query.missingParen', 'Die schließende ) fehlt.'],
   ['#', 'query.valueAfterHash', 'Nach # fehlt ein Wert.'],
@@ -65,10 +65,10 @@ const QUERIES: [query: string, key: string, german: string][] = [
   ['State: -..', 'query.valueAfterMinus', 'Nach „-“ fehlt ein Wert.'],
   ['created: 2026-01-01 ..', 'query.rangeEnd', 'Nach „..“ fehlt das Ende des Bereichs.'],
   ['sort by updated', 'query.sortColon', 'Nach „sort by“ fehlt „:“.'],
-  ['sort by: , updated', 'query.unexpectedInSort', 'Unerwartetes „,“ in „sort by“.'],
+  ['sort by: , updated', 'query.unexpectedInSort', 'Unerwartet in „sort by“: „,“.'],
   ['sort by: prority', 'query.cannotSortBy', 'Nach „prority“ kann nicht sortiert werden. Meinten Sie „priority“?'],
   ['sort by: zebra', 'query.cannotSortBy', 'Nach „zebra“ kann nicht sortiert werden.'],
-  ['sort by: updated desc desc', 'query.unexpectedAfterSort', 'Unerwartetes „desc“ nach „sort by“.'],
+  ['sort by: updated desc desc', 'query.unexpectedAfterSort', 'Unerwartet nach „sort by“: „desc“.'],
   ['sort by:', 'query.sortField', 'Nach „sort by:“ fehlt ein Feld.'],
   ['#Fixd', 'query.unknownHashValue', 'Unbekannter Wert „#Fixd“. Meinten Sie „#Fixed“?'],
   ['#Zebra', 'query.unknownHashValue', 'Unbekannter Wert „#Zebra“. Verwenden Sie #Unresolved, einen Feldwert wie #Critical oder ein Tag.'],
@@ -185,7 +185,7 @@ describe('a rule’s problems, in a person’s language (D49)', () => {
       expect(readAlike(words.en, pageWords(p.message, p.hint)), `${words.en} | ${pageWords(p.message, p.hint)}`).toBe(true);
       expect(words.de).not.toBe(words.en);
     }
-    expect(said(preview.problems.find((p) => p.key === 'rule.noOneCalled')!).de).toBe('Niemand heißt „qqqqqqqq“. Nennen Sie jemanden mit dem Login, z. B. anna.');
+    expect(said(preview.problems.find((p) => p.key === 'rule.noOneCalled')!).de).toBe('Niemand heißt „qqqqqqqq“. Nennen Sie Personen bei ihrem Login, z. B. anna.');
     const refused = await createRule(w.adminCtx, { ...draft, name: '' }).catch((e: unknown) => e);
     expect(refused).toBeInstanceOf(AppError);
     const e = refused as AppError;
