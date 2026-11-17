@@ -441,7 +441,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 
 ## Vietnamese
 
-Translated whole by one model, from English, the code and [translating.md](translating.md), with no second read yet and no native speaker.
+Translated whole by one model, from English, the code and [translating.md](translating.md), then edited by another for natural phrasing (the list at the end of this section), with no native speaker yet.
 
 Terms:
 
@@ -463,10 +463,10 @@ Phrasing:
 - **Dates** come from Intl's CLDR: "16 thg 11, 2026" for a short date. Some readers prefer "16/11/2026".
 - `problem.ai.error` adds a lead-in English doesn't have, "Dịch vụ AI báo lỗi: {error}", since what follows is another service's English.
 - `server.helpdesk.received` greets first ("Chào {name}, chúng tôi đã nhận được yêu cầu của bạn."), where English ends the sentence with the name.
-- **The ledger's bylines** say "với tư cách {name}" for "as {name}", "thay cho {name}" for "for {name}", and "với danh nghĩa riêng" for "as itself". `activity.ledgerEntry.made` is "đã để {v} {v2}" ("đã để BACK chỉ hiển thị với thành viên").
+- **The ledger's bylines** say "với tư cách {name}" for "as {name}", "thay mặt {name}" for "for {name}", and "với danh nghĩa riêng" for "as itself". `activity.ledgerEntry.made` is "đã để {v} {v2}" ("đã để BACK chỉ hiển thị với thành viên").
 - **Badges kept short for a phone**: `activity.ledgerEntry.changesWhoIsCopied` "đổi người được CC", `helpdesk.groups.cantBeGiven` "{name}: tạm không nhận yêu cầu", `helpdesk.requestCard.firstResponseDueIn` "phản hồi đầu tiên: còn {span}". Clear enough?
 - **The issue list's count line** puts the count first, as English does ("4 vấn đề trong dự án SPR, chưa giải quyết"), and its sort follows a comma (`server.query.sortedBy`, ", sắp xếp theo {sorts}").
-- **The parser's lines**: "Unexpected …" is "Không mong đợi “x” ở đây.", "Expected …" is "Cần … sau …", and "Unknown X" is "X không tồn tại".
+- **The parser's lines**: "Unexpected …" is "“x” không hợp lệ ở đây.", "Expected …" is "Thiếu … sau …", and "Unknown X" is "Không tìm thấy X" (see below).
 - `rules.preview.actsScheduled`: does "chạy cho từng vấn đề" against "tác động lên từng vấn đề" carry English's "for each of them" against "on each of them"?
 - **"Your address"** in the help desk's limits is "địa chỉ IP của bạn", since an email address sits beside it.
 - **Examples**: plain words for the assistant and the chat bot are Vietnamese ("comment BACK-12 Ổn rồi", "chuyển các vấn đề này sang review và giao cho anna"), and so are example rule names ("Báo tin lỗi nghiêm trọng"); states, fields and the query and command languages stay as typed ("Won't fix", "State Fixed").
@@ -487,6 +487,26 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **ClickUp's List stays "List"** (`imports.fromApi.whichTasksAList`, `problem.imports.source.notAClickupList`), as ClickUp names it, where "danh sách" is any list. A task is "công việc", as the plan's are, and "Personal token" stays English beside "Personal access token" (`imports.fromApi.personalToken`).
 - **A Slack thread is "chuỗi tin nhắn"** (`server.chat.issue.thread`, `page.issue.source.replies`), as Gmail's "chuỗi thư"; "luồng" or "thread" are the alternatives.
 - **Zero is "0 vấn đề"** in `page.whiteboard.said.converted` and `activity.ledgerEntry.whiteboardConverted` ("Đã tạo 0 vấn đề và 2 liên kết."), where English says "no issues".
+
+Edited for natural phrasing:
+
+A second read, again by a model, edited about 1,430 messages so they read as Vietnamese software rather than as English: the sign-in page, the frame and the profile, the issues, boards, the inbox and its emails, the help desk, the ledger, the query and command problems, projects, dashboards, articles, every other problem, and the plan, reports, rules, the assistant, chat and whiteboards read whole; the administration pages (agents, apps, builds, code hosts, groups, imports, integrations, webhooks) for their clearest tells only. What a native speaker should settle:
+
+- **A fix is a bare imperative.** 418 problems and 102 other messages opened their instruction with "Hãy" ("Hãy thử lại sau một phút."); they now give it bare, as Microsoft's and Google's Vietnamese do ("Thử lại sau một phút."), and keep "hãy" after a leading clause ("Nếu vẫn lỗi, hãy …"). Many Vietnamese apps (banks, shops) write "Vui lòng thử lại." Does a bare instruction read curt? `problem.ai.busy`, `problem.access.signInOrToken`, `app.auth.tryAgainIfItKeeps`, and the rest of `problem.*`.
+- **"Unknown X" is "Không tìm thấy X"** (`problem.query.unknownField`, `problem.query.unknownUser`, `problem.values.unknownValue`), and an unknown command "Không có lệnh “x”" (`problem.command.unknown`), where they read "X không tồn tại". "Expected …" is "Thiếu …" (`problem.query.valueAfterHash`), "Unexpected" is "“x” không hợp lệ ở đây" (`problem.query.unexpected`), and "Did you mean" is "Ý bạn là …?" (`issues.languageField.didYouMean`, `problem.query.unknownTag`).
+- **"For {name}" is "thay mặt {name}"** in every byline (`ui.who.for`, `issues.issueHistory.for`, `activity.ledgerEntry.throughTheAssistantFor`, `server.notify.agentFor`, `page.agents.nameItAfterTheAgentFor`), since "thay cho" says instead of. Does "e2e thay mặt admin đã báo cáo vấn đề" read right for an agent working with someone's token?
+- **A project's key is "mã dự án"** (`page.project.key`, `page.project.keyRename`, `problem.projectKeys.badKey`, `activity.ledgerEntry.renamesAKey`), where it was "khóa dự án", a calque of Jira's "project key". "Mã" now names both a project's key and an issue's id ("mã vấn đề"); "khóa" stays for cryptographic and stored keys.
+- **The sign-in card** says "Dùng tài khoản a4a của bạn.", as Google's says "Sử dụng Tài khoản Google của bạn": the form's name ("a4a login") is "tài khoản a4a" now, where it was "tên đăng nhập a4a" (`app.auth.a4aLogin`, `app.auth.a4aOrLogin`, `app.auth.login2`, `app.auth.useYour`).
+- **A person's name field is "Họ và tên"** (`app.auth.yourName`, `page.profile.name`, `page.portal.yourName`, `page.help.yourName`), as Vietnamese forms ask, and the profile's first section is "Thông tin cá nhân" (`page.profile.you`), where it was "Bạn". A display name may not be a full name.
+- **"You're offline" is "Không có kết nối mạng"** (`app.auth.youReOffline`, `app.shell.youReOfflineWhatS`), as Chrome says it, where it was "Bạn đang ngoại tuyến".
+- **Bylines put the person first**: "admin báo cáo ngày 17 thg 11, 2026" on the issue page (`page.issue.reportedBy`, `page.issue.askedByThroughTheHelp`), "vấn đề được Ada báo cáo" in the history (`issues.issueHistory.by`, `issues.issueHistory.whereItWasReported`), "Ada báo cáo 3 ngày trước" on the guest pages (`page.guestPages.by`, `page.guestPages.reported`), "Ada đã sửa …" on an article (`page.articles.by`), "do {name} thêm" for a login (`vcs.people.by`). "Bởi" is gone.
+- **Notification kinds are verb phrases** ("Tạo mới", "Bình luận mới", "Đổi trạng thái", "Giao cho ai đó", "Thêm tệp", `notifications.kinds.*`), and the email levels say when they tell ("Khi bạn được nhắc đến, được giao việc, …", `notifications.emailSettings.mentionsAndAssignmentsAndChanges`), with the option itself "Nhắc đến và giao việc".
+- **A saved search's issues "khớp" it** ("vấn đề mới khớp “{name}”", `server.mail.whySubscribed`, `page.inbox.becauseYouSubscribedTo`, `notifications.subscriptions.tellMeWhenAnIssue`), where they "mới vào" it.
+- **An email's first line** is "{title} ở {id}: {summary}" (`server.mail.lead`): "Ada đã bình luận ở BACK-12: …". "Ở" against "trên" or "tại"?
+- **The new issue's button is "Báo cáo vấn đề"** (`page.newIssue.reportIt`), since "Báo cáo" alone reads as Reports; its help says "Mô tả điều đã xảy ra …" where it said "Nói …" (`page.newIssue.sayWhatHappenedAndWhat`). Would "Tạo vấn đề" be better?
+- **The command bar's words mode**: "Mô tả việc cần làm" for "Say what to do, in words" and "Chuyển thành lệnh" for "Read my words" (`issues.commandBar.sayWhatToDoIn`, `issues.commandBar.readMyWords`); the query field's toggle stays "Hỏi bằng lời".
+- **Smaller choices**: a table's name for screen readers is "Danh sách …" (`page.admin.tableOfPeople` and the other `tableOf*`), since "bảng" is a board; "50%" for a report's "Half" (`reports.distribution.half`); "24/7" for "round the clock" (`helpdesk.sla.roundTheClock`); "Gom người yêu cầu" for grouping requesters (`helpdesk.groups.intro`); "Cần bạn xử lý" for "Waiting on you" (`page.suggestions.waitingOnYou`); "Tiêu đề" for the help desk form's "What it's about" (`page.help.whatItSAbout`); "Lưu ở dạng mã hóa" for "Kept sealed" (`page.chat.underBasicInformationA4aChecks`); and the time zone example "Asia/Ho_Chi_Minh" (`helpdesk.sla.anIanaNameSuchAs`).
+- **Not read whole yet**: `page.integrations`, `page.webhooks`, `page.agents`, `agents`, `apps`, `builds`, `vcs`, `imports`, `page.import`, `identity`, `roles`, `groups`, `page.group`, `page.admin`, `page.fields`, `projects`, `page.oAuthConsent` and `api` had only their "Hãy", "bởi", "thay cho", "Một …" and table names edited.
 
 ## Indonesian
 
