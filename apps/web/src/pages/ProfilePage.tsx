@@ -18,7 +18,7 @@ import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
 import { ChatAccounts } from '../features/chat/Chat';
 import { t, tr, useLocaleNow } from '../i18n';
-import { isLocale, LOCALE_NAMES, LOCALES, matchLocale, type Locale } from '@a4a/shared/i18n';
+import { isLocale, langTag, LOCALE_NAMES, LOCALES, matchLocale, type Locale } from '@a4a/shared/i18n';
 import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Me['role'], string> = {
@@ -120,7 +120,7 @@ function You({ me }: { me: Me }) {
               <option value="">{t('page.profile.yourBrowsersLanguage', { name: LOCALE_NAMES[browserLanguage] })}</option>
               {LOCALES.map((l) => (
                 // Each language by its own name, so whoever can't read this page still finds theirs.
-                <option key={l} value={l} lang={l}>
+                <option key={l} value={l} lang={langTag(l)}>
                   {LOCALE_NAMES[l]}
                 </option>
               ))}
