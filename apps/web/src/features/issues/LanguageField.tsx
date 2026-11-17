@@ -1,4 +1,4 @@
-import type { QueryProblem, SuggestItem } from '@a4a/shared';
+import type { QueryExplained, QueryProblem, SuggestItem } from '@a4a/shared';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar } from '../../components/Who';
 import { Icon } from '../../components/Icon';
@@ -11,6 +11,8 @@ import { problemSaid, t, tr } from '../../i18n';
 export interface Reading {
   problems: QueryProblem[];
   about: string;
+  /** A query's reading in pieces, for the line that counts what it found. */
+  explained?: QueryExplained;
   suggestions: SuggestItem[];
 }
 export type Checker = (text: string, caret: number) => Promise<Reading>;
@@ -51,6 +53,7 @@ export function useLanguage(check: Checker, text: string, enabled = true) {
   return {
     problems: current?.problems ?? [],
     about: current?.about ?? '',
+    explained: current?.explained ?? null,
     suggestions: current?.suggestions ?? [],
     checked: current !== null,
     setCaret,

@@ -858,13 +858,25 @@ export const QueryProblemSchema = z
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
 
+export const QueryExplainedSchema = z
+  .object({
+    body: z.string().describe('What the query asks: "in project BACK, unresolved". Empty when it asks nothing.'),
+    sort: z.string().describe('How it sorts, worded to follow body: " sorted by Priority". Empty when it doesn’t say.'),
+    zone: z.string().nullable().describe('The time zone its dates are read in, when it reads any.'),
+  })
+  .describe('The explanation in pieces, in its language, for a page that says how many issues it found: "4 issues in project BACK" (D49).')
+  .meta({ id: 'QueryExplained' });
+export type QueryExplained = z.infer<typeof QueryExplainedSchema>;
+
 export const ParseQueryResultSchema = z
   .object({
     ok: z.boolean(),
     problems: z.array(QueryProblemSchema),
     explanation: z.string().describe('Plain-English reading of the query'),
+    explained: QueryExplainedSchema,
   })
   .meta({ id: 'ParseQueryResult' });
+export type ParseQueryResult = z.infer<typeof ParseQueryResultSchema>;
 
 export const SuggestItemSchema = z
   .object({
@@ -1346,6 +1358,7 @@ export const NLQueryResultSchema = z
     explanation: z.string(),
     valid: z.boolean(),
     problems: z.array(QueryProblemSchema),
+    explained: QueryExplainedSchema.describe('How a4a itself reads the query, in pieces, as /search/parse gives them'),
   })
   .meta({ id: 'NLQueryResult' });
 export type NLQueryResult = z.infer<typeof NLQueryResultSchema>;
