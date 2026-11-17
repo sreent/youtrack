@@ -5004,7 +5004,7 @@
   "rules.run.nothingToChange": "바꿀 것이 없었습니다: 이미 그렇게 되어 있었습니다.",
   "rules.run.refusedNewIssue": "{hasMessage, select, yes {새 이슈를 거부했습니다. {message}} other {새 이슈를 거부했습니다.}}",
   "rules.run.refusesNothing": "고칠 때까지 아무것도 거부하지 않습니다.",
-  "rules.run.scheduled": "{checked, plural, other {이슈 #개를}} 확인하고 {changed}개를 변경했습니다{failed, plural, =0 {} other {, #개 실패}}{capped, select, yes {, {cap}개에서 멈췄습니다: 더 적게 일치하도록 쿼리를 좁히세요} other {}}{lost, select, yes {, 다른 인스턴스가 작업을 넘겨받아 멈췄습니다} other {}}.",
+  "rules.run.scheduled": "{checked, plural, other {이슈 #개를}} 확인하고 {changed}개를 변경했습니다{failed, plural, =0 {} other {(#개 실패)}}{capped, select, yes {. {cap}개에서 멈췄습니다: 더 적게 일치하도록 쿼리를 좁히세요} other {}}{lost, select, yes {. 다른 인스턴스가 작업을 넘겨받아 멈췄습니다} other {}}.",
   "rules.run.told": "{names}에게 알렸습니다.",
   "rules.run.toldNobody": "알릴 사람이 없었습니다: 규칙을 실행시킨 사람에게는 알리지 않고, 이슈를 볼 수 있는 사람에게만 알립니다.",
   "rules.run.toldOthers": "{more, plural, other {다른 #명}}",
