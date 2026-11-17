@@ -196,3 +196,25 @@ describe('a rule’s problems, in a person’s language (D49)', () => {
     expect(page).not.toContain('Give it a name');
   });
 });
+
+describe('why an agent’s change can’t be undone, in a person’s language (D49)', () => {
+  it('says each reason as a sentence of its own', () => {
+    const words: ProblemSaid = {
+      key: 'agents.nothingUndoneBecause',
+      values: {
+        reasons: [
+          { key: 'agents.stop.fieldChanged', values: { field: 'Priority', hasValue: 'yes', value: 'Major', hasBy: 'yes', by: 'Anna Schmidt' } },
+          { key: 'agents.stop.fieldChanged', values: { field: 'Assignee', hasValue: 'no', value: '', hasBy: 'no', by: '' } },
+          { key: 'agents.stop.tagsOff', values: { n: 2, tags: 'urgent, regression' } },
+          { key: 'agents.stop.summaryChanged', values: { hasBy: 'no', by: '' } },
+        ],
+      },
+    };
+    expect(sayProblem(en, words)).toBe(
+      'Nothing was undone. Priority is Major now: Anna Schmidt changed it since. Assignee is empty now. The tags urgent, regression were taken off since. The summary changed since. Change it on the issue instead, if it should change.',
+    );
+    expect(sayProblem(de, words)).toBe(
+      'Nichts wurde rückgängig gemacht. Priority ist jetzt Major: Anna Schmidt hat es inzwischen geändert. Assignee ist jetzt leer. Die Tags urgent, regression wurden inzwischen entfernt. Die Zusammenfassung hat sich inzwischen geändert. Ändern Sie es stattdessen am Vorgang, falls es sich ändern soll.',
+    );
+  });
+});
