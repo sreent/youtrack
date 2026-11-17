@@ -672,3 +672,8 @@ These need the code to change, not a catalog:
 - **Portuguese's contractions with a value**: a product's or a desk's name takes an article in Portuguese ("do GitHub", "na central de atendimento de X"). The catalog writes the article into the message, so it assumes a masculine product (identity providers, trackers, chat platforms) and leaves the desk's name without one (`server.helpdesk.deskOf`, `server.portal.deskOf`).
 - **An email's `lang`**: mail is composed with `<html lang="en">` whatever its language (`packages/server/src/mail/compose.ts`), so a screen reader reads a Portuguese email with an English voice.
 - **Indonesian times**: Intl writes them with a point, "14.05", as Indonesia does, and the issue's history shows that; but a time earlier today is written by the page's code as "14:05" (`whenRead` in the web's `format.ts`), so a page can show both.
+- **A time logged in an issue's history** (`issues.issueHistory.logged`) follows a duration it can't see, written as a4a's period ("2h"), so Portuguese can't make "registrado" agree with "2 horas".
+- **A board's story points** (`page.board.holdsStoryPoints`): `{v}` is a sprint's name or `page.board.it`, so Thai spaces it as a name either way.
+- **A commit in an issue's history** comes as an element, not words in a tag, so Korean can't choose the particle after its hash ("…을(를) 커밋했습니다").
+- **Working hours in a help desk problem** (`problem.helpdesk.hoursBackwards`) come from the server as "09:00", where Indonesian writes "09.00".
+- **A value that names three fields or more** (`problem.command.valueOfFields`, its `{fields}`) is joined by the server with English's "and".
