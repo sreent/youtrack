@@ -94,7 +94,7 @@ describe("renaming a project's key", () => {
     expect(await ids(ben, saved.query)).toEqual(['RNB-1']);
     expect(await ids(ben, 'project: RNB Priority: Critical')).toEqual(['RNB-1']);
     // A shared dashboard's widget named it by its old key: still shown to someone who sees the project.
-    expect((await getDashboard(ben, board.id)).widgets).toHaveLength(1);
+    expect((await getDashboard(ben, board.id!)).widgets).toHaveLength(1);
     // Mentions follow it: what named RNA-1 names RNB-1, and RNA-1 written later counts as RNB-1.
     expect((await mentionsOf(ben, 'RNB-1')).issues.map((i) => i.id)).toEqual([mentioning.id]);
     const since = await lastEventId();
@@ -259,7 +259,7 @@ describe("renaming a project's key", () => {
     expect(flow.scope.issues).toBe(2);
     expect(flow.days[flow.days.length - 1]!.total).toBe(2);
     const schedule = await getSchedule(admin, 'HSB', { baseline: baseline.id });
-    expect(schedule.tasks.find((t) => t.id === 'HSB-1')?.baseline).not.toBeNull();
+    expect(schedule.tasks.find((t) => t.issue.id === 'HSB-1')?.baseline).not.toBeNull();
   });
 
   it('keeps a link to a renamed project in the feed of someone who sees both ends', async () => {

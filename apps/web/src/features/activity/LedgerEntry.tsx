@@ -239,6 +239,11 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       if (e.type === 'project.group.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf3', { group: group, project: project })}</>, badge: ['changes', t('activity.ledgerEntry.takesARoleAway')] };
       return { text: <>{tr('activity.ledgerEntry.madeRoleOfNot2', { group: group, role: aRole(str(e.data.to), str(e.data.to)), project: project, before: aRole(str(e.data.from), str(e.data.from)) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
     }
+    case 'project.key.changed':
+      return {
+        text: <>{tr('activity.ledgerEntry.renamedKey', { from: str(e.data.from), to: <Link to={`/projects/${e.project ?? str(e.data.to)}`}>{str(e.data.to)}</Link> })}</>,
+        badge: ['changes', t('activity.ledgerEntry.renamesAKey')],
+      };
     case 'project.visibility.changed':
       return {
         text: (

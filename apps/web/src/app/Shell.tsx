@@ -85,8 +85,17 @@ function useLiveInvalidation() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const touched = new Set<string>();
     let articles = false;
+    let rekeyed = false;
     const flush = () => {
       timer = null;
+      // A project's key renamed (D52): every id on every page reads under its new key, so read them all again.
+      if (rekeyed) {
+        rekeyed = false;
+        touched.clear();
+        articles = false;
+        void qc.invalidateQueries();
+        return;
+      }
       qc.invalidateQueries({ queryKey: ['issues', 'list'] });
       qc.invalidateQueries({ queryKey: ['boards'] });
       qc.invalidateQueries({ queryKey: ['events'] });
@@ -98,6 +107,7 @@ function useLiveInvalidation() {
       articles = false;
     };
     return subscribeEvents((e) => {
+      if (e.type === 'project.key.changed') rekeyed = true;
       if (e.issue?.id) touched.add(e.issue.id);
       // An article's change, or a file on one; and mentions of articles come from issues' text.
       if (e.type.startsWith('article.') || (e.type.startsWith('attachment.') && !e.issue) || e.type.startsWith('comment.') || e.type === 'issue.updated') articles = true;
