@@ -285,7 +285,16 @@ function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; 
 /** The requesters' portal (D45): their requests, their customer group's where it shares them (D56), and a way to ask. */
 export default function PortalPage() {
   const qc = useQueryClient();
-  const [token] = useState(linkToken);
+  const [token, setToken] = useState(linkToken);
+  // A sign-in link opened where the portal already is changes only the address's hash: take it then too.
+  useEffect(() => {
+    const taken = () => {
+      const next = linkToken();
+      if (next) setToken(next);
+    };
+    window.addEventListener('hashchange', taken);
+    return () => window.removeEventListener('hashchange', taken);
+  }, []);
   const [redeemError, setRedeemError] = useState<unknown>(null);
   // An email to someone copied on a request links to it here (D57): opened once they're signed in.
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
