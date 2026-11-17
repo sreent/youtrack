@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "{from} 与 {to} 的关系",
   "whiteboards.convertDialog.title": "转为问题",
   "whiteboards.convertDialog.wouldLink": "将链接：{link}。",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "将链接其两端转成的问题：{relation}。",
   "whiteboards.convertDialog.wouldMake": "将转为问题：{summary}。",
   "whiteboards.dialog.add": "添加",
   "whiteboards.dialog.cancel": "取消",

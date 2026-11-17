@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "Wie {from} mit {to} zusammenhängt",
   "whiteboards.convertDialog.title": "Vorgänge anlegen",
   "whiteboards.convertDialog.wouldLink": "Würde verknüpfen: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Würde die Vorgänge verknüpfen, zu denen seine Enden werden: {relation}.",
   "whiteboards.convertDialog.wouldMake": "Würde zu einem Vorgang: {summary}.",
   "whiteboards.dialog.add": "Hinzufügen",
   "whiteboards.dialog.cancel": "Abbrechen",

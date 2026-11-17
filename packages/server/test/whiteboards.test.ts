@@ -250,14 +250,16 @@ describe('converting', () => {
     const before = (await w.app.db.select().from(issues)).length;
     const dry = await convertWhiteboard(anna, board.id, { project: 'BACK', notes: [login, sso, empty], links: [{ arrow: 'arrow-convert', relation: 'depends on' }], dryRun: true });
     expect(dry.notes.map((n) => n.ok)).toEqual([true, true, false]);
-    expect(dry.links[0]).toMatchObject({ ok: true });
+    // Its ends are notes, so the issues it would link have no ids yet: the dry run says only how they'd relate.
+    expect(dry.links[0]).toMatchObject({ ok: true, relation: 'depends on' });
+    expect(dry.links[0]!.link).toBeUndefined();
     expect((await w.app.db.select().from(issues)).length).toBe(before);
     expect((await getWhiteboard(anna, board.id)).elements.find((e) => e.id === login)?.kind).toBe('note');
 
     const r = await convertWhiteboard(anna, board.id, { project: 'BACK', notes: [login, sso, empty], links: [{ arrow: 'arrow-convert', relation: 'depends on' }] });
     expect(r.notes[2]).toMatchObject({ ok: false, problem: { said: { key: 'whiteboards.emptyNote' } } });
     const [a, b] = [r.notes[0]!.issue!, r.notes[1]!.issue!];
-    expect(r.links[0]).toMatchObject({ ok: true, made: true, link: `${a} depends on ${b}` });
+    expect(r.links[0]).toMatchObject({ ok: true, made: true, link: `${a} depends on ${b}`, relation: 'depends on' });
     const first = await getIssue(anna, a);
     expect(first.summary).toBe('Login is slow');
     expect(first.description).toBe('It takes 4 seconds on the mobile app.');

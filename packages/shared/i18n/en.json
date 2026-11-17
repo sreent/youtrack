@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "How {from} relates to {to}",
   "whiteboards.convertDialog.title": "Make issues",
   "whiteboards.convertDialog.wouldLink": "Would link: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Would link the issues its ends become: {relation}.",
   "whiteboards.convertDialog.wouldMake": "Would become an issue: {summary}.",
   "whiteboards.dialog.add": "Add",
   "whiteboards.dialog.cancel": "Cancel",

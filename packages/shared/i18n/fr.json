@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "Lien entre {from} et {to}",
   "whiteboards.convertDialog.title": "Créer des tickets",
   "whiteboards.convertDialog.wouldLink": "Serait lié : {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Les tickets que deviendront ses extrémités seraient liés : {relation}.",
   "whiteboards.convertDialog.wouldMake": "Deviendrait un ticket : {summary}.",
   "whiteboards.dialog.add": "Ajouter",
   "whiteboards.dialog.cancel": "Annuler",

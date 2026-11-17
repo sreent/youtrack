@@ -347,7 +347,7 @@ export function ConvertDialog({
         ...result.links.map((l) => ({
           id: l.element,
           ok: l.ok,
-          words: !l.ok ? said(l.problem!) : result.dryRun ? t('whiteboards.convertDialog.wouldLink', { link: l.link ?? '' }) : l.made === false ? t('whiteboards.convertDialog.linkedAlready', { link: l.link ?? '' }) : t('whiteboards.convertDialog.linked', { link: l.link ?? '' }),
+          words: !l.ok ? said(l.problem!) : result.dryRun ? (l.link ? t('whiteboards.convertDialog.wouldLink', { link: l.link }) : t('whiteboards.convertDialog.wouldLinkTheirIssues', { relation: l.relation ?? '' })) : l.made === false ? t('whiteboards.convertDialog.linkedAlready', { link: l.link ?? '' }) : t('whiteboards.convertDialog.linked', { link: l.link ?? '' }),
         })),
       ]
     : [];

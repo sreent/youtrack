@@ -472,7 +472,7 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
 
 /** A dry run's way out of its transaction, with what it would have made. */
 class DryRun extends Error {
-  constructor(readonly made: { summary?: string; link?: string; made?: boolean }) {
+  constructor(readonly made: { summary?: string; link?: string; relation?: string; made?: boolean }) {
     super('dry run');
   }
 }
@@ -530,9 +530,9 @@ export async function convertWhiteboard(ctx: Ctx, id: string, input: WhiteboardC
       const out = await linkArrow(ctx, board.id, l.arrow, l.relation, origin, body.dryRun, new Set(notes.filter((n) => n.ok && body.dryRun).map((n) => n.element)));
       if (out.seq) seq = out.seq;
       if (out.made) linked.push(out.made);
-      links.push({ element: l.arrow, ok: true, link: out.link, made: Boolean(out.made) });
+      links.push({ element: l.arrow, ok: true, link: out.link, relation: out.relation, made: Boolean(out.made) });
     } catch (e) {
-      if (e instanceof DryRun) links.push({ element: l.arrow, ok: true, ...(e.made.link ? { link: e.made.link } : {}), made: e.made.made ?? true });
+      if (e instanceof DryRun) links.push({ element: l.arrow, ok: true, ...(e.made.link ? { link: e.made.link } : {}), ...(e.made.relation ? { relation: e.made.relation } : {}), made: e.made.made ?? true });
       else links.push({ element: l.arrow, ok: false, problem: problemOf(e) });
     }
   }
@@ -605,7 +605,7 @@ async function linkArrow(ctx: Ctx, boardId: string, arrowId: string, relation: s
     const phrase = resolveLinkPhrase(s, relation);
     // In a dry run, a note this request would make an issue of counts as one.
     if (dryRun && from && to && [from, to].every((e) => e.kind === 'issue' || wouldBeIssues.has(e.id)) && [from, to].some((e) => e.kind !== 'issue')) {
-      throw new DryRun({ link: phrase.display });
+      throw new DryRun({ relation: phrase.display });
     }
     const ids = [from?.issueId, to?.issueId].filter((x): x is string => Boolean(x));
     const seen = await seenIssueIds(ctx, ids, tx);
@@ -618,7 +618,7 @@ async function linkArrow(ctx: Ctx, boardId: string, arrowId: string, relation: s
     const res = await applyChanges(tx, ctx, a!, { links: [{ phrase, target: b! }], data: { whiteboard: origin } }, { dryRun });
     const link = `${readableId(s, a!)} ${phrase.display} ${readableId(s, b!)}`;
     const made = res.changes.length ? { from: readableId(s, a!), to: readableId(s, b!), relation: phrase.display } : null;
-    if (dryRun) throw new DryRun({ link, made: Boolean(made) });
+    if (dryRun) throw new DryRun({ link, relation: phrase.display, made: Boolean(made) });
     let seq = 0;
     if (arrow.linked !== phrase.display) {
       seq = Number(board.seq) + 1;
@@ -629,7 +629,7 @@ async function linkArrow(ctx: Ctx, boardId: string, arrowId: string, relation: s
         .returning();
       await logChange(tx, ctx, s, board, seq, [row!], [], null);
     }
-    return { link, made, seq, activities: res.activities };
+    return { link, relation: phrase.display, made, seq, activities: res.activities };
   });
   if (out.activities.length) await publishActivities(ctx.app, out.activities);
   if (out.seq) whiteboardLive(ctx.app).changed([boardId], { look: false });

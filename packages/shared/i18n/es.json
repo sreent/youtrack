@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "Cómo se relaciona {from} con {to}",
   "whiteboards.convertDialog.title": "Crear incidencias",
   "whiteboards.convertDialog.wouldLink": "Se enlazaría: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Se enlazarían las incidencias en que se conviertan sus extremos: {relation}.",
   "whiteboards.convertDialog.wouldMake": "Se convertiría en incidencia: {summary}.",
   "whiteboards.dialog.add": "Agregar",
   "whiteboards.dialog.cancel": "Cancelar",

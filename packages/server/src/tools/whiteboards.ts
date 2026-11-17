@@ -239,7 +239,7 @@ const convertTool = defineTool({
     const lines = [
       ok.length ? `Make ${ok.length} issue${ok.length === 1 ? '' : 's'} in ${input.project?.toUpperCase()}: ${ok.map((n) => `“${n.summary}”`).join(', ')}.` : '',
       ...r.notes.filter((n) => n.already).map((n) => `${n.element} is an issue already${n.issue ? ` (${n.issue})` : ''}: nothing is made.`),
-      ...r.links.filter((l) => l.ok).map((l) => (l.made === false ? `${l.link}: linked already, nothing is made.` : `Link: ${l.link}.`)),
+      ...r.links.filter((l) => l.ok).map((l) => (l.made === false ? `${l.link}: linked already, nothing is made.` : l.link ? `Link: ${l.link}.` : `Link the issues ${l.element}'s ends become: ${l.relation}.`)),
       ...[...r.notes, ...r.links].filter((x) => !x.ok).map((x) => `${x.element} can't: ${x.problem?.message}${x.problem?.hint ? `. ${x.problem.hint}` : ''}`),
     ].filter(Boolean);
     return lines.join('\n') || 'Nothing to convert.';
@@ -253,7 +253,7 @@ const convertTool = defineTool({
     return {
       data: {
         notes: r.notes.map((n) => ({ element: n.element, ok: n.ok, ...(n.issue ? { issue: n.issue } : {}), ...(n.already ? { already: true } : {}), ...(n.problem ? { problem: n.problem.hint ? `${n.problem.message}. ${n.problem.hint}` : n.problem.message } : {}) })),
-        links: r.links.map((l) => ({ element: l.element, ok: l.ok, ...(l.link ? { link: l.link } : {}), ...(l.made !== undefined ? { made: l.made } : {}), ...(l.problem ? { problem: l.problem.hint ? `${l.problem.message}. ${l.problem.hint}` : l.problem.message } : {}) })),
+        links: r.links.map((l) => ({ element: l.element, ok: l.ok, ...(l.link ? { link: l.link } : {}), ...(l.relation ? { relation: l.relation } : {}), ...(l.made !== undefined ? { made: l.made } : {}), ...(l.problem ? { problem: l.problem.hint ? `${l.problem.message}. ${l.problem.hint}` : l.problem.message } : {}) })),
       },
       summary: r.dryRun
         ? 'Dry run: nothing changed'

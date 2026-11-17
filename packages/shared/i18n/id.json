@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "Hubungan {from} dengan {to}",
   "whiteboards.convertDialog.title": "Jadikan isu",
   "whiteboards.convertDialog.wouldLink": "Akan ditautkan: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Isu dari kedua ujungnya akan ditautkan: {relation}.",
   "whiteboards.convertDialog.wouldMake": "Akan menjadi isu: {summary}.",
   "whiteboards.dialog.add": "Tambahkan",
   "whiteboards.dialog.cancel": "Batal",

@@ -21,7 +21,7 @@ import { Canvas, MAX_SCALE, MIN_SCALE, type View } from '../features/whiteboards
 import { CardDialog, ConnectDialog, ConvertDialog, NoteDialog, TextDialog } from '../features/whiteboards/Dialogs';
 import { addStep, applyOps, bounds, contentsOf, editStep, mergeServer, moveStep, newElementId, removeStep, SIZES, KIND_KEY, TONE_KEY, type Step } from '../features/whiteboards/model';
 import { Outline } from '../features/whiteboards/Outline';
-import { formatNumber, problemWords, t } from '../i18n';
+import { formatItems, formatNumber, problemWords, t } from '../i18n';
 
 export default function WhiteboardPage() {
   const { id } = useParams();
@@ -218,7 +218,7 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
     if (e.kind === 'issue' || e.kind === 'article') {
       const card = cards.get(e.id);
       if (!card?.shown) return t('whiteboards.card.hidden');
-      return [card.summary, card.state?.name, card.assignee ? (card.assignee.isBot ? card.assignee.login : card.assignee.name) : null].filter(Boolean).join(', ');
+      return formatItems([card.summary, card.state?.name, card.assignee ? (card.assignee.isBot ? card.assignee.login : card.assignee.name) : null].filter((x): x is string => Boolean(x)));
     }
     const end = (id: string | null) => {
       const x = id ? shown.get(id) : undefined;
@@ -404,7 +404,7 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
 
   // ---- what the dialogs work on ----
   const chosenList = [...chosen].map((x) => shown.get(x)).filter((e): e is WhiteboardElement => Boolean(e));
-  const options = order.map((x) => shown.get(x)!).filter((e) => e.kind !== 'arrow').map((e) => ({ id: e.id, words: `${kindOf(e)}: ${wordsOf(e).split('\n')[0]!.slice(0, 80)}` }));
+  const options = order.map((x) => shown.get(x)!).filter((e) => e.kind !== 'arrow').map((e) => ({ id: e.id, words: t('whiteboards.element.label', { kind: kindOf(e), words: wordsOf(e).split('\n')[0]!.slice(0, 80) }) }));
   const connectFrom = chosenList.filter((e) => e.kind !== 'arrow').map((e) => e.id);
   const notesToConvert = (chosenList.length ? chosenList : current && shown.get(current) ? [shown.get(current)!] : []).filter((e) => e.kind === 'note');
   const convertible = new Set([...notesToConvert.map((n) => n.id), ...[...shown.values()].filter((e) => e.kind === 'issue' && cards.get(e.id)?.shown).map((e) => e.id)]);

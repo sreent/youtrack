@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "Como {from} se relaciona com {to}",
   "whiteboards.convertDialog.title": "Criar itens",
   "whiteboards.convertDialog.wouldLink": "Criaria o vínculo: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "Criaria o vínculo entre os itens que suas pontas virarem: {relation}.",
   "whiteboards.convertDialog.wouldMake": "Viraria um item: {summary}.",
   "whiteboards.dialog.add": "Adicionar",
   "whiteboards.dialog.cancel": "Cancelar",

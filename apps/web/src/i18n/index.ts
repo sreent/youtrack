@@ -181,6 +181,20 @@ export const formatDate = (d: Date | string | number, options?: Intl.DateTimeFor
 export const formatDateTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleString(intlLocale(), options);
 export const formatTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleTimeString(intlLocale(), options);
 export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => joinList(translator.locale, items, { type });
+/**
+ * Things said one after another with no "and" (a card's summary, its state, its assignee), with the
+ * comma the page's language puts between a list's first items: ", ", Japanese's and Chinese's "、",
+ * Thai's space or comma as `listParts` sets it beside a name.
+ */
+export function formatItems(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  // A list one longer has every one of these before its "and": keep it up to the last of them.
+  const parts = listParts(translator.locale, items.length + 1, (i) => items[Math.min(i, items.length - 1)]!);
+  return parts
+    .slice(0, parts.indexOf(items.length - 1) + 1)
+    .map((p) => (typeof p === 'number' ? items[p] : p))
+    .join('');
+}
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 /** The months' short names, January first, in the page's language (English keeps its three letters). */

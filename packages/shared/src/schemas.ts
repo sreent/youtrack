@@ -4432,7 +4432,8 @@ export const WhiteboardConvertResultSchema = z
       z.object({
         element: z.string(),
         ok: z.boolean(),
-        link: z.string().optional().describe('e.g. "BACK-12 depends on BACK-13"'),
+        link: z.string().optional().describe('e.g. "BACK-12 depends on BACK-13"; absent in a dry run whose ends are notes, as the issues they would become have no ids yet'),
+        relation: z.string().optional().describe('How the issue at its start relates to the one at its end, as the link type says it: "depends on"'),
         made: z.boolean().optional().describe('False when the link was there already: it is never made twice'),
         problem: ItemProblemSchema.optional(),
       }),

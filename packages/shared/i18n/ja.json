@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "{from}から見た{to}との関係",
   "whiteboards.convertDialog.title": "課題にする",
   "whiteboards.convertDialog.wouldLink": "リンクします：{link}",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "両端から作られる課題をリンクします：{relation}",
   "whiteboards.convertDialog.wouldMake": "課題になります：{summary}",
   "whiteboards.dialog.add": "追加",
   "whiteboards.dialog.cancel": "キャンセル",

@@ -5566,6 +5566,7 @@
   "whiteboards.convertDialog.relation": "{from}과(와) {to}의 관계",
   "whiteboards.convertDialog.title": "이슈로 만들기",
   "whiteboards.convertDialog.wouldLink": "링크됩니다: {link}.",
+  "whiteboards.convertDialog.wouldLinkTheirIssues": "양 끝에서 만들어질 이슈가 링크됩니다: {relation}.",
   "whiteboards.convertDialog.wouldMake": "이슈가 됩니다: {summary}.",
   "whiteboards.dialog.add": "추가",
   "whiteboards.dialog.cancel": "취소",
