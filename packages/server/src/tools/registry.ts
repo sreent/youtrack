@@ -41,6 +41,7 @@ import { requestOf } from '../services/helpdesk';
 import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
 import { projectKeyTools } from './project-keys';
+import { boardTools } from './boards';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -351,7 +352,7 @@ const listUsersTool = defineTool({
 const getBoardTool = defineTool({
   name: 'get_board',
   title: 'Board overview',
-  description: 'An agile board as columns of issues (for the current sprint, or a named one). Without a board, lists the boards.',
+  description: 'An agile board as columns of issues, each in the board’s order (for the current sprint, or a named one). Without a board, lists the boards. Rank a card, or move it into another column at a place, with rank_issue.',
   input: z.object({ board: z.string().optional().describe('Board name or id'), sprint: z.string().optional().describe('Sprint id') }),
   kind: 'reads',
   async run(ctx, input) {
@@ -622,6 +623,7 @@ export const TOOLS: ToolDef[] = [
   ...buildTools,
   ...appTools,
   ...projectKeyTools,
+  ...boardTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

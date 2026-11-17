@@ -8,7 +8,7 @@ import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { searchIssueRows } from '../search/service';
 import { assertCanProject, assertCanWriteProject, issueSeenSql, projectAccess, scopeFields, scopeSchema, type AccessView } from './access';
-import { issueRefsById } from './issue-refs';
+import { issueRefsById, type IssueRow } from './issue-refs';
 import { issueDtos } from './issues';
 import { resolveIssue } from './issues';
 import { allowedValues, fieldByName, projectByKey, type SchemaSnapshot } from './schema-cache';
@@ -304,30 +304,48 @@ export async function deleteBoard(ctx: Ctx, id: string): Promise<void> {
   if (!res.length) throw notFound('Board').said('notFound.boardUnnamed');
 }
 
+/**
+ * The sprint a board shows: the one asked for, else the one under way, else its latest that isn't
+ * archived; none on a board without sprints. One asked for that isn't the board's is not found.
+ */
+export function shownSprint<T extends Pick<SprintRow, 'id' | 'archived' | 'startDate' | 'endDate'>>(row: BoardRow, all: T[], sprintId?: string): T | null {
+  if (!row.sprintsEnabled) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const sprint =
+    (sprintId ? all.find((x) => x.id === sprintId) : undefined) ??
+    all.find((x) => !x.archived && (x.startDate ?? '') <= today && (x.endDate ?? '9999') >= today) ??
+    all.filter((x) => !x.archived).at(-1) ??
+    null;
+  if (sprintId && !sprint) throw notFound('Sprint').said('notFound.sprintUnnamed');
+  return sprint;
+}
+
+/** The board's sprints, in the order it lists them. */
+export function boardSprintRows(db: Db, boardId: string): Promise<SprintRow[]> {
+  return db.select().from(sprints).where(eq(sprints.boardId, boardId)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
+}
+
+/**
+ * The board's cards as rows, in the board's order (D43): its query, in the projects the caller
+ * reads and in the sprint shown, ranked first, then the rest in the query's order.
+ */
+export async function boardCardRows(ctx: Ctx, row: BoardRow, view: AccessView, sprintId: string | null): Promise<IssueRow[]> {
+  const readable = row.projectIds.filter((pid) => view.canRead(pid));
+  const extraWhere = sprintId ? sql`EXISTS (SELECT 1 FROM sprint_issues si WHERE si.issue_id = issues.id AND si.sprint_id = ${sprintId})` : undefined;
+  const found = await searchIssueRows(ctx, row.query ?? '', { projectIds: readable, extraWhere, limit: MAX_BOARD_ISSUES });
+  return (await rankRows(ctx.db, row.id, found.rows)).rows;
+}
+
 export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promise<BoardView> {
   requireScope(ctx, 'read');
   const row = await loadBoard(ctx, id);
   const { s, view } = await scoped(ctx);
   const board = boardDto(s, row);
   const readable = row.projectIds.filter((pid) => view.canRead(pid));
-  const sprintRows = await ctx.db.select().from(sprints).where(eq(sprints.boardId, id)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
-  const allSprints = await sprintDtos(ctx.db, view, sprintRows, s);
-  let sprint: Sprint | null = null;
-  if (row.sprintsEnabled) {
-    const today = new Date().toISOString().slice(0, 10);
-    sprint =
-      (sprintId ? allSprints.find((x) => x.id === sprintId) : undefined) ??
-      allSprints.find((x) => !x.archived && (x.startDate ?? '') <= today && (x.endDate ?? '9999') >= today) ??
-      allSprints.filter((x) => !x.archived).at(-1) ??
-      null;
-    if (sprintId && !sprint) throw notFound('Sprint').said('notFound.sprintUnnamed');
-  }
-  const extraWhere = sprint
-    ? sql`EXISTS (SELECT 1 FROM sprint_issues si WHERE si.issue_id = issues.id AND si.sprint_id = ${sprint.id})`
-    : undefined;
-  const found = await searchIssueRows(ctx, row.query ?? '', { projectIds: readable, extraWhere, limit: MAX_BOARD_ISSUES });
+  const allSprints = await sprintDtos(ctx.db, view, await boardSprintRows(ctx.db, id), s);
+  const sprint: Sprint | null = shownSprint(row, allSprints, sprintId);
   // Cards are in the board's rank, the backlog's (D43).
-  const { rows } = await rankRows(ctx.db, row.id, found.rows);
+  const rows = await boardCardRows(ctx, row, view, sprint?.id ?? null);
   const items = await issueDtos(ctx, rows);
   const stored = row.columns as StoredColumn[];
   const columns = board.columns.map((c, i) => {
@@ -359,7 +377,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
       swimlanes.push('No value');
     }
   }
-  return { board, sprint, sprints: allSprints, columns, swimlanes, points: sumPoints(items, row.pointsFieldId) };
+  return { board, sprint, sprints: allSprints, columns, swimlanes, points: sumPoints(items, row.pointsFieldId), order: items.map((i) => i.id) };
 }
 
 // Sprints ---------------------------------------------------------------------

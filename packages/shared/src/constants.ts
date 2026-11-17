@@ -147,6 +147,8 @@ export const EVENT_TYPES = [
   'sla.warning',
   'sla.breached',
   'project.key.changed',
+  // An issue's place in a board's order changed (D53): its backlog's and its columns' one order.
+  'board.issue_ranked',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
