@@ -179,7 +179,8 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | commit, pull request, branch | commit, pull request (la), rama |
 | build (CI) | compilación |
 | field, value | campo, valor |
-| link (between issues) | enlace |
+| link (between issues), unlink | enlace, enlazar; quitar el enlace (not *desenlazar*) |
+| link, unlink (a chat account) | vincular, desvincular |
 | resolve, resolved | resolver, resuelta |
 | dashboard, widget | panel, widget |
 | report | informe |
