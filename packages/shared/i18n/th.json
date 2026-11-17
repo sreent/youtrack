@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "เบราว์เซอร์นี้ไม่มี service worker สำหรับ a4a",
   "notifications.push.thisServerSendsNoPush": "เซิร์ฟเวอร์นี้ไม่ส่งการแจ้งเตือนแบบพุช",
   "notifications.pushSettings.added": "เพิ่มเมื่อ {when}",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "อุปกรณ์ที่รับการแจ้งเตือนแบบพุช",
   "notifications.pushSettings.everything": "ทุกอย่าง",
   "notifications.pushSettings.itsPushServiceRefusedThe": "บริการพุชปฏิเสธครั้งล่าสุด: {lastError}",

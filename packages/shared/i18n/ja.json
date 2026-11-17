@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "このブラウザーにはa4aのService Workerがありません。",
   "notifications.push.thisServerSendsNoPush": "このサーバーはプッシュ通知を送信しません。",
   "notifications.pushSettings.added": "{when}に追加",
+  "notifications.pushSettings.deviceRefused": "{device}：{error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "プッシュ通知を受け取るデバイス",
   "notifications.pushSettings.everything": "すべて",
   "notifications.pushSettings.itsPushServiceRefusedThe": "プッシュサービスが前回の通知を拒否しました：{lastError}",

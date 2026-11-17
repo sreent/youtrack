@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "Este navegador no tiene un service worker para a4a.",
   "notifications.push.thisServerSendsNoPush": "Este servidor no envía notificaciones push.",
   "notifications.pushSettings.added": "agregado {when}",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "Dispositivos a los que van las notificaciones push",
   "notifications.pushSettings.everything": "Todo",
   "notifications.pushSettings.itsPushServiceRefusedThe": "su servicio push rechazó la última: {lastError}",

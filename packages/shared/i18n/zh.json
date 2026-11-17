@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "此浏览器没有 a4a 的 Service Worker。",
   "notifications.push.thisServerSendsNoPush": "此服务器不发送推送通知。",
   "notifications.pushSettings.added": "添加于 {when}",
+  "notifications.pushSettings.deviceRefused": "{device}：{error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "接收推送通知的设备",
   "notifications.pushSettings.everything": "全部",
   "notifications.pushSettings.itsPushServiceRefusedThe": "它的推送服务拒绝了上一条：{lastError}",

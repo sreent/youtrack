@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "Browser ini tidak memiliki service worker untuk a4a.",
   "notifications.push.thisServerSendsNoPush": "Server ini tidak mengirim notifikasi push.",
   "notifications.pushSettings.added": "ditambahkan {when}",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "Perangkat tujuan notifikasi push",
   "notifications.pushSettings.everything": "Semuanya",
   "notifications.pushSettings.itsPushServiceRefusedThe": "layanan push-nya menolak kiriman terakhir: {lastError}",

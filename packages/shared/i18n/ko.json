@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "이 브라우저에 a4a의 서비스 워커가 없습니다.",
   "notifications.push.thisServerSendsNoPush": "이 서버는 푸시 알림을 보내지 않습니다.",
   "notifications.pushSettings.added": "{when} 추가",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "푸시 알림을 받는 기기",
   "notifications.pushSettings.everything": "모두",
   "notifications.pushSettings.itsPushServiceRefusedThe": "푸시 서비스가 마지막 알림을 거부했습니다: {lastError}",

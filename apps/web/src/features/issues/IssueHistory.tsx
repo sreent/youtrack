@@ -451,7 +451,7 @@ export function IssueHistory({
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
       const what = done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field));
-      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? what.join(', ') : t('issues.issueHistory.itsChange') }) });
+      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? formatList(what) : t('issues.issueHistory.itsChange') }) });
       await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.

@@ -194,7 +194,7 @@ export function LoginPage() {
   const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/issues';
   // OpenID Connect, SAML, or both (D16, D27).
   const providers = [status.data?.signIn.sso, status.data?.signIn.saml].filter((p): p is { name: string; url: string } => Boolean(p));
-  const sso = providers.length ? { name: providers.map((p) => p.name).join(' or ') } : null;
+  const sso = providers.length ? { name: formatList(providers.map((p) => p.name), 'disjunction') } : null;
   // a4a's own passwords, a directory's (LDAP, D38), or both: one form either way.
   const ldap = status.data?.signIn.ldap ?? null;
   const own = status.data?.signIn.password ?? true;

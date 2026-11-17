@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "Trình duyệt này không có service worker cho a4a.",
   "notifications.push.thisServerSendsNoPush": "Máy chủ này không gửi thông báo đẩy.",
   "notifications.pushSettings.added": "đã thêm {when}",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "Thiết bị nhận thông báo đẩy",
   "notifications.pushSettings.everything": "Tất cả",
   "notifications.pushSettings.itsPushServiceRefusedThe": "dịch vụ đẩy của thiết bị đã từ chối lần gửi gần nhất: {lastError}",

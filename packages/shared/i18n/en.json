@@ -1800,6 +1800,7 @@
   "notifications.push.thisBrowserHasNoService": "This browser has no service worker for a4a.",
   "notifications.push.thisServerSendsNoPush": "This server sends no push notifications.",
   "notifications.pushSettings.added": "added {when}",
+  "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "Devices push notifications go to",
   "notifications.pushSettings.everything": "Everything",
   "notifications.pushSettings.itsPushServiceRefusedThe": "its push service refused the last: {lastError}",
