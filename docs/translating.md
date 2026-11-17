@@ -110,6 +110,10 @@ German:
 | resolve, resolved, resolution | erledigen, erledigt, Erledigung (an SLA's: Erledigungsziel) |
 | dashboard, widget | Dashboard, Widget |
 | report | Bericht |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | Whiteboard (das), Notiz, Karte, Bereich, Pfeil, Beschriftung, Gliederung |
+| connect (draw an arrow), make issues (of notes) | verbinden; Vorgänge anlegen |
+| a note's tones: plain, idea, agreed, question, problem, parked | Neutral, Idee, Vereinbart, Frage, Problem, Zurückgestellt |
+| writing help; where an issue came from (a chat message) | Schreibhilfe; Herkunft |
 
 ## Checking a language
 
@@ -202,6 +206,10 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | dashboard, widget | panel, widget |
 | report | informe |
 | role: administrator, manager, member, viewer | administrador, gestor, miembro, lector |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | pizarra, nota, tarjeta, sección, flecha, etiqueta, esquema |
+| connect (draw an arrow), make issues (of notes) | conectar; crear incidencias |
+| a note's tones: plain, idea, agreed, question, problem, parked | Normal, Idea, Acordada, Pregunta, Problema, Aplazada |
+| writing help; where an issue came from (a chat message) | ayuda para escribir; de dónde viene |
 
 To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person of its own in through a Spanish browser and shoots the issues, an issue, the inbox, the profile and the sign-in page in light, in dark and at 390px; and a read of the pages in a browser that asks for Spanish.
 ## Japanese
@@ -286,6 +294,10 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | person, people | ユーザー |
 | role, permission | ロール, 権限 |
 | member, viewer, manager, administrator | メンバー, 閲覧者, マネージャー, 管理者 |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | ホワイトボード・付箋・カード・セクション・矢印・ラベル・アウトライン |
+| connect (draw an arrow), make issues (of notes) | 矢印でつなぐ; 課題にする |
+| a note's tones: plain, idea, agreed, question, problem, parked | 標準・アイデア・合意済み・質問・問題・保留 |
+| writing help; where an issue came from (a chat message) | 文章作成サポート; 作成元 |
 
 **Why 課題 for issue**: it's what Jira's and Backlog's Japanese say, so Japanese teams already read trackers in it. チケット (Redmine's) reads as a support ticket, and イシュー, GitHub's loanword, is stiff in a sentence.
 
@@ -377,6 +389,10 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | settings | paramètres |
 | app | application |
 | handler (of an app) | gestionnaire |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | tableau blanc, note, carte, section, flèche, libellé, sommaire |
+| connect (draw an arrow), make issues (of notes) | relier; créer des tickets |
+| a note's tones: plain, idea, agreed, question, problem, parked | Simple, Idée, Validée, Question, Problème, En attente |
+| writing help; where an issue came from (a chat message) | aide à la rédaction; provenance |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
 ## Brazilian Portuguese
@@ -485,6 +501,10 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | person, people | pessoa, pessoas |
 | role, permission | papel, permissão |
 | administrator, manager, member, viewer, guest | administrador, gerente, membro, leitor, convidado |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | quadro branco, never shortened, since *quadro* is a board; nota, cartão, seção, seta, rótulo, estrutura |
+| connect (draw an arrow), make issues (of notes) | conectar; criar itens |
+| a note's tones: plain, idea, agreed, question, problem, parked | Simples, Ideia, Combinada, Pergunta, Problema, Em espera |
+| writing help; where an issue came from (a chat message) | ajuda na escrita; origem |
 
 **Why *item* for issue**: it's what Jira's Brazilian Portuguese says ("Criar item", "Tipo de item"), so Brazilian teams already read trackers in it, and it's short enough for a badge. *Tarefa* is the Task type's word, *chamado* and *tíquete* read as a support desk's, and *issue*, said in many Brazilian teams, is English.
 
@@ -598,6 +618,10 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | person, people | 사용자; 사람 in a sentence |
 | role, permission | 역할, 권한 |
 | administrator, manager, member, viewer, guest | 관리자, 매니저, 멤버, 뷰어, 게스트 |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | 화이트보드, 메모, 카드, 섹션, 화살표, 레이블, 개요 |
+| connect (draw an arrow), make issues (of notes) | 연결; 이슈로 만들기 |
+| a note's tones: plain, idea, agreed, question, problem, parked | 기본, 아이디어, 합의됨, 질문, 문제, 보류 |
+| writing help; where an issue came from (a chat message) | 글쓰기 도움; 출처 |
 
 **Why 이슈 for issue**: it's what Jira's Korean and Korean developers say, so Korean teams already read trackers in it. 티켓 reads as a support ticket, and 과제 as homework or a funded project.
 
@@ -724,6 +748,10 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | person, people | 用户; 人 in a count |
 | role, permission | 角色, 权限 |
 | administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客 |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | 白板、便签、卡片、分区、箭头、标注、大纲 |
+| connect (draw an arrow), make issues (of notes) | 连接; 转为问题 |
+| a note's tones: plain, idea, agreed, question, problem, parked | 普通、想法、已商定、疑问、痛点、暂缓 |
+| writing help; where an issue came from (a chat message) | 写作辅助; 来源 |
 
 **Why 问题 for issue**: it's what Jira's Simplified Chinese says, so teams who have used a tracker read it already. 议题 (GitHub's and GitLab's) reads as a topic for discussion, 事项 and 工作项 (Feishu's, PingCode's) are less known to them, and 工单 is a help desk's ticket. 问题 also means "problem", so a4a's problems never use it for what went wrong.
 
@@ -862,6 +890,10 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | role, permission | vai trò, quyền |
 | administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
 | problem (what went wrong) | lỗi |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | bảng trắng, ghi chú, thẻ, khu vực, mũi tên, chú thích, dàn ý |
+| connect (draw an arrow), make issues (of notes) | nối; tạo vấn đề |
+| a note's tones: plain, idea, agreed, question, problem, parked | Thường, Ý tưởng, Đã thống nhất, Câu hỏi, Khó khăn, Tạm gác |
+| writing help; where an issue came from (a chat message) | hỗ trợ viết; nguồn gốc |
 
 **Why vấn đề for issue**: it's Redmine's Vietnamese, and the word Vietnamese-speaking teams use when they don't say "issue". "Phiếu" (ticket) reads as a form or a support desk's, "sự cố" as an incident, and "công việc" (task) leaves out bugs and requests. As far as this catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface, so the catalog leans on Redmine's and Trello's Vietnamese (bảng, thẻ and nhãn are Trello's), on Vietnamese project management's own terms (đường găng, đường cơ sở, giá trị thu được, thời gian dự trữ), and, where Vietnamese teams say the English word, on that: sprint, backlog, commit, pull request, webhook, token, workflow.
 
@@ -974,6 +1006,10 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | person, people | orang (counted: "3 orang"), pengguna (accounts) |
 | role, permission | peran, izin |
 | administrator, manager, member, viewer, guest | administrator, manajer, anggota, pelihat, tamu |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | papan tulis, catatan, kartu, bagian, panah, label, kerangka |
+| connect (draw an arrow), make issues (of notes) | hubungkan; jadikan isu |
+| a note's tones: plain, idea, agreed, question, problem, parked | Biasa, Ide, Disepakati, Pertanyaan, Masalah, Ditunda |
+| writing help; where an issue came from (a chat message) | bantuan menulis; asal isu |
 
 **Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
 
@@ -1090,6 +1126,10 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | person, people | ผู้ใช้; คน counts them |
 | role, permission | บทบาท, สิทธิ์ |
 | member, viewer, manager, administrator, guest | สมาชิก, ผู้ดู, ผู้จัดการ, ผู้ดูแลระบบ, ผู้เยี่ยมชม |
+| whiteboard; a note, card, section, arrow, an arrow's label, the outline | ไวต์บอร์ด, โน้ต, การ์ด, ส่วน, ลูกศร, ป้ายกำกับ, เค้าร่าง |
+| connect (draw an arrow), make issues (of notes) | เชื่อม; สร้างอิชชู |
+| a note's tones: plain, idea, agreed, question, problem, parked | ธรรมดา, ไอเดีย, ตกลงแล้ว, คำถาม, ปัญหา, พักไว้ |
+| writing help; where an issue came from (a chat message) | ช่วยเขียน; ที่มา |
 
 **Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does.
 
