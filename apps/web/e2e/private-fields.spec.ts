@@ -14,6 +14,8 @@ test.use({ storageState: THIRD_AUTH_FILE });
 const PASSWORD = 'e2e-person-pass-1';
 
 test('a manager makes a field private, and a viewer finds the issue without it', async ({ page, api, browser }) => {
+  // Two pages are looked at three ways each, axe included: more than a flow's usual time.
+  test.slow();
   const key = uniqueKey('PF');
   await api.createProject({ key, name: `Accounts ${key}` });
   const name = `Margin ${unique()}`;
