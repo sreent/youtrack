@@ -2,6 +2,7 @@ import type { Article } from '@a4a/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, NavLink } from 'react-router';
 import { Icon } from '../../components/Icon';
+import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { nest, useArticleTree, type TreeNode } from './api';
 import { t } from '../../i18n';
@@ -60,6 +61,7 @@ export function ArticleTree({ project, name, current, canWrite }: { project: str
             <span className="nav-list-name">{a.title}</span>
             <span className="nav-list-about">
               <span className="issue-id">{a.id}</span>
+              {a.limited ? <Badge tone="idle" title={t('articles.articleTree.onlySomeSeeIt')}>{t('articles.articleTree.limited')}</Badge> : null}
             </span>
           </NavLink>
         </div>

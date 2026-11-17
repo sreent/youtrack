@@ -24,10 +24,10 @@ export interface Limit {
 export const limitOf = (v: VisibleToDto | null): Limit | null => (v ? { users: v.users.map((u) => u.login), groups: v.groups.map((g) => g.id) } : null);
 
 /**
- * Whom to limit an issue or a comment to (D37): people and groups, chosen from lists. `always`
- * says who sees it whatever is chosen.
+ * Whom to limit an issue, a comment or an article to (D37, D51): people and groups, chosen from
+ * lists. `always` says who sees it whatever is chosen; `legend` names the choice, for what it limits.
  */
-export function LimitPicker({ value, onChange, always }: { value: Limit; onChange: (v: Limit) => void; always?: string }) {
+export function LimitPicker({ value, onChange, always, legend }: { value: Limit; onChange: (v: Limit) => void; always?: string; legend?: string }) {
   const users = useUsers();
   const groups = useGroups();
   const people = (users.data ?? []).filter((u) => !u.banned && !u.isBot);
@@ -35,7 +35,7 @@ export function LimitPicker({ value, onChange, always }: { value: Limit; onChang
   const size = (n: number) => Math.min(6, Math.max(3, n));
   return (
     <fieldset className="stack tight">
-      <legend>{t('issues.visibleTo.whoElseSeesIt')}</legend>
+      <legend>{legend ?? t('issues.visibleTo.whoElseSeesIt')}</legend>
       <div className="form-fields">
         <FormField label={t('issues.visibleTo.people')}>
           {(id) => (
