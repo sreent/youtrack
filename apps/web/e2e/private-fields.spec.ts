@@ -37,7 +37,8 @@ test('a manager makes a field private, and a viewer finds the issue without it',
   await api.patch<IssueDetail>(`/issues/${issue.id}`, { fields: { [name]: 'Thin, 4 percent' } });
   await page.goto(`/issues/${issue.id}`);
   const panel = page.getByRole('complementary', { name: `Fields of ${issue.id}` });
-  await expect(panel.getByText('Thin, 4 percent')).toBeVisible();
+  // Its label says it's private, and it's the manager's to change.
+  await expect(panel.getByRole('textbox', { name: `${name} Private` })).toHaveValue('Thin, 4 percent');
   await expect(panel.getByText('Private', { exact: true })).toBeVisible();
 
   // The viewer, signed in on their own: no such field, and its value nowhere.
