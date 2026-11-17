@@ -957,12 +957,14 @@ export function scopeFields(s: SchemaSnapshot, view: FieldReader): SchemaSnapsho
   for (const [projectId, pfs] of s.projectFields) for (const pf of pfs) if (!hidden.get(projectId)?.has(pf.fieldId)) seen.add(pf.fieldId);
   const gone = new Set<string>();
   for (const ids of hidden.values()) for (const id of ids) if (!seen.has(id)) gone.add(id);
+  // A value a project keeps for itself goes with the field there, too: its name is one of its values.
+  const keptValue = (v: { fieldId: string; projectId: string | null }) => gone.has(v.fieldId) || Boolean(v.projectId && hidden.get(v.projectId)?.has(v.fieldId));
   const out: SchemaSnapshot = {
     ...s,
     fields: new Map([...s.fields].filter(([id]) => !gone.has(id))),
     fieldsByName: new Map([...s.fieldsByName].filter(([, f]) => !gone.has(f.id))),
-    values: new Map([...s.values].filter(([, v]) => !gone.has(v.fieldId))),
-    valuesByField: new Map([...s.valuesByField].filter(([id]) => !gone.has(id))),
+    values: new Map([...s.values].filter(([, v]) => !keptValue(v))),
+    valuesByField: new Map([...s.valuesByField].filter(([id]) => !gone.has(id)).map(([id, list]) => [id, list.filter((v) => !keptValue(v))])),
     projectFields: new Map([...s.projectFields].map(([projectId, pfs]) => [projectId, hidden.has(projectId) ? pfs.filter((pf) => !hidden.get(projectId)!.has(pf.fieldId)) : pfs])),
   };
   if (view) {
