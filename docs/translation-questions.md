@@ -192,6 +192,19 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `problem.customerGroups.unknownAgent`, "…l’identifiant d’un membre du projet": could "membre" be read as the Membre role?
 - `server.helpdesk.copiedOnIt`, "En copie de votre demande, et destinataires des réponses de l’équipe :", is correct but stiff.
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- `whiteboards.tone.agreed` is "Validée" (and "Note, validée" in `whiteboards.kind.note`), where the developers wrote "Convenue". "Validée" can suggest that someone in charge approved it, not that the team agreed; "Actée" is the meeting room's word.
+- `whiteboards.tone.plain` is "Simple". "Neutre" may say better that the note has no tone.
+- `page.whiteboard.outline` and `whiteboards.outline.title` are "Sommaire", for a list of every element rather than of headings. "Plan", Word's word for an outline, sits close to the Planning page, and "Liste des éléments" is long for the toolbar.
+- `page.whiteboard.canvas`, a heading only screen readers hear, is "La zone de dessin", though nothing is drawn freehand. "Le canevas" is what design tools say.
+- **Choosing on the canvas** is "sélectionner" (`page.whiteboard.keys`, `page.whiteboard.said.chosen`, `whiteboards.convertDialog.none`), as for text, where the issue list's checkboxes say "Choisir".
+- `whiteboards.noteDialog.tone` is "Type" and `whiteboards.cardDialog.what` "Contenu", over their radio buttons, where English says "What it is" and "What it shows". Do they read right there?
+- `problem.ai.writing.lineNeeded` and `lineTooLong`: the line to draft from is "une ligne qui servira de base" and "le texte qui sert de base". "Consigne" is shorter, but reads as an order.
+- `page.whiteboards.about`: "réfléchit" is weaker than "brainstorms". "Fait du brainstorming" is what French offices say, but it's an anglicism.
+- `page.issue.source.from`, "Issu d’un message Slack dans #eng, Acme": or "Créé à partir d’un message…"?
+- **Asana's and ClickUp's settings** are named in English (`imports.fromApi.inAsanaMySettingsApps`, `inClickupSettingsApps`, and their cases in `problem.imports.source.tokenRefused`), as YouTrack's and Zendesk's are. Both products also come in French, whose labels their French readers see instead.
+
 ## Japanese
 
 Terms:
