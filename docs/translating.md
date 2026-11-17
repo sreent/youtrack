@@ -125,10 +125,10 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 - **Buttons are infinitives**: "Guardar", "Guardar los cambios", "Eliminar el campo". Instructions and help are the *tú* imperative: "Elige", "Escribe", "Pulsa".
 - **What just happened is the present perfect**: "Se ha guardado.", "Se ha creado {name}.". History and notifications, which carry their time, are the preterite: "la movió", "comentó", "te la asignó".
 - **An issue is *incidencia***, feminine, so what refers to one agrees with it: "la notificó", "Notificada por", "resuelta".
-- **Gender**: a4a doesn't guess a person's. It says "la persona", "quien…", "quienes la siguen", and takes nouns that don't change: *responsable* (assignee), *solicitante* (requester), *informante*, *agente*, *miembro*. Where a person's gender would show in an adjective, the sentence turns: "Ya no tienes suscripción a…", not "Ya no estás suscrito". Roles stay as their words, as German's do: *administrador*, *gestor*, *miembro*, *lector*.
+- **Gender**: a4a doesn't guess a person's. It says "la persona", "quien…", "quienes la siguen", and takes nouns that don't change: *responsable* (assignee), *solicitante* (requester), *informante*, *agente*, *miembro*. Where a person's gender would show in an adjective, the sentence turns: "Ya no tienes suscripción a…", not "Ya no estás suscrito". Roles stay as their words, as German's do: *administrador*, *gestor*, *miembro*, *lector*. A role's bare name follows a singular: "{name} es ahora {role}"; after a plural it is "tienen al menos el rol {role}". A guest is "con acceso de invitado", never "como invitado".
 - **Typography**: opening ¿ and ¡. Quotation marks are “…”, as English's are (« » is Spain's print habit, not Latin America's). A space before % and before a unit: "50 %", "30 s". The ellipsis is one character.
 - **Dates and numbers** come from Intl: "16 nov 2026", "1.234,5", "hace 3 minutos".
-- **English the page passes in.** Some messages are given an English word as a value ("is"/"are", "field"/"fields", "later"/"earlier", "it"/"them", a pull request's "merged"). The Spanish selects on it, `{v, select, is {…} other {…}}`, so it reads right; where nothing can be selected on, the English shows until the page passes a number or a key instead.
+- **English the page passes in.** Some messages are given an English word as a value ("is"/"are", "field"/"fields", "later"/"earlier", "it"/"them", a pull request's "merged"). The Spanish selects on it, `{v, select, is {…} other {…}}`, so it reads right; where nothing can be selected on, the English shows until the page passes a number or a key instead. Codes are selected on the same way, keeping the code as `other`: a report's `{interval}` (day, week, month) and `{word}` (state, column), a Gantt bar's `{part}` (morning, afternoon), a role's id in the ledger and on an agent (manager, member, viewer; admin), a pull request's state (open, merged, closed). A number the page passes bare ("{banned} banned") takes a plural of its own, so one reads "1 bloqueada".
 
 | English | Spanish |
 |---|---|
@@ -161,21 +161,26 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | days away | ausencias |
 | levelling | nivelación |
 | slack (in a plan) | holgura |
+| booked (in a plan) | asignado: "Horas asignadas", "quién tiene trabajo asignado" |
+| what-if | hipótesis; the button is "¿Y si…?" |
 | baseline | línea base |
 | earned value | valor ganado |
 | triage | clasificación |
 | suggestion | sugerencia |
 | token | token |
+| allow (an app), apps you allowed | autorizar, "Aplicaciones que autorizaste" (one doesn't *permitir* an app) |
 | two-factor sign-in | verificación en dos pasos |
 | sign in, sign out | iniciar sesión, cerrar sesión |
 | identity provider | proveedor de identidad |
 | single sign-on | inicio de sesión único |
 | webhook, delivery | webhook, entrega |
+| post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
 | secret | secreto |
 | commit, pull request, branch | commit, pull request (la), rama |
 | build (CI) | compilación |
 | field, value | campo, valor |
-| link (between issues) | enlace |
+| link (between issues), unlink | enlace, enlazar; quitar el enlace (not *desenlazar*) |
+| link, unlink (a chat account) | vincular, desvincular |
 | resolve, resolved | resolver, resuelta |
 | dashboard, widget | panel, widget |
 | report | informe |
