@@ -362,6 +362,23 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - `issues.watching.commented` and `wroteTheMessage` are 댓글 작성자 and 원본 메시지 작성자, nouns beside 보고자 and 담당자 under a watcher's name.
 - `page.whiteboard.you` is "{name}(나)" in the list of who's looking (`page.whiteboard.lookingNow`, 지금 보는 사람). Natural?
 
+Edited for natural phrasing:
+
+A second pass, by a model again, read the catalog as Korean software rather than as a translation: sign-in and the frame, the issues and an issue, boards, the inbox and its emails, the help desk, then the ledger, query problems, projects, dashboards and articles, and across the rest the patterns below. It changed about 600 messages. These are what it couldn't settle:
+
+- **The sign-in form's name** (`app.auth.a4aLogin`, `a4aOrLogin`, `login2`) is "a4a 계정", "a4a 또는 {name} 계정", "{name} 계정", as Google's Korean says "Google 계정 사용", so the page reads "a4a 계정을 사용하세요" and a4a chooses the particle. Is 계정 right for a directory's credentials ("Corp LDAP 계정")?
+- **"I've kept them: continue"** after recovery codes and a mailbox secret (`app.auth.iVeKeptThemContinue`, `helpdesk.helpdeskMail.iVeKeptIt`) is "보관 완료", as Korean apps say "입력 완료". Does it read as the reader's acknowledgment, not a status?
+- **Acting as the reader** is "내 계정으로" (`ui.who.throughTheApiAs`, `activity.ledgerEntry.fromAs`, `page.profile.teamsAndSlackAccountsThat`, `page.chatLink.*`, `agents.oAuthApps.*`), and as itself "자체 계정으로" (`ui.who.overMcpAsItself`, `activity.ledgerEntry.throughTheApiAsItself`). The catalog said "나로", which reads as the speaker. Is "내 계정으로" what Korean teams say, or "나 대신"?
+- **Two clauses** were joined with English's colon in about 180 messages; they're two sentences or one with a connective now (`rules.ruleCard.itSOffItDoes` "꺼져 있어 아무것도 하지 않습니다.", `problem.customerGroups.groupNotFound`, `builds.builds.*`, `page.integrations.*`). A status label keeps its colon ("꺼짐:", "일시 중지됨:", `identity.twoFactor.offYourPasswordAloneSigns`, `page.webhooks.itIsPausedNothingIs`). Is that where Korean draws the line?
+- **What the help desk asks of a customer** is "-어 주세요" on its form and request page (`page.help.aLineWhatYouWere`, `page.help.whatYouDidWhatYou`, `page.help.weVeEmailedALink`) and "-세요" elsewhere. Softer throughout the portal and its emails?
+- **An email's footer** is a sentence: `server.mail.why` "{because} 받는 메일입니다." with each `server.notify.because.*` a clause ("이슈를 지켜보고 있어서"), and `server.mail.whySubscribed`, `server.mail.digest.why` the same. Korean services often write "~하여 발송된 메일입니다". Which reads better in a team's tool?
+- **An issue's meta line** puts the date after the message, so `page.issue.reportedBy` and `page.issue.askedByThroughTheHelp` end in a comma: "보고자: Anna, 2026년 11월 16일", "헬프데스크 요청자: Anna, …". Natural, or should the code put the date first?
+- **Asking in words** is "자연어로 묻기" (`issues.queryBar.askInWords`, `issues.languageField.askInWords`), its field "할 일을 문장으로 입력" (`issues.commandBar.sayWhatToDoIn`), and the history's channel "자연어 요청으로" (`issues.issueHistory.askedInWords`). 자연어 is what Korean AI products say; does it read too technical beside "말로"?
+- **A name a4a can't show** is "알 수 없는 사용자" (`issues.issueHistory.someone`, `page.guestPages.someone`, `activity.ledgerEntry.someone`, `page.dashboard.someone`), where the catalog said 누군가. `server.notify.someone` keeps 누군가, since a notification's title reads "누군가가 변경했습니다".
+- **Paging on the guest pages** is "더 최근" and "더 이전" (`page.guestPages.newer`, `older`). Korean boards say 이전/다음 for pages; is newer/older better kept?
+- **An SLA policy's summary** reads "모든 요청: 첫 응답 1h 이내, 해결 8h 이내. 기한 2h 전부터 위험으로 표시합니다." (`helpdesk.sla.atRiskBefore`, `firstResponseIn`, `resolvedIn`). The durations are a4a's own short forms; is "1시간" expected there?
+- **Reading versus viewing**: access is "보다" in what this pass touched (`page.profile.roleViewer` "뷰어(보기만 가능)", `page.admin.aViewerReads`, `page.issue.youCanReadSIssues`), while a4a reading an API stays "읽다" (`page.integrations.*`, `imports.*`). One verb for access throughout?
+
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, and has had no second read. Everything below is open.

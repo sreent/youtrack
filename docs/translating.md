@@ -517,10 +517,11 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 
 - **합니다체 in sentences**: "저장했습니다.", "이 이슈를 볼 수 없습니다." What a sentence asks of the reader is "-세요", as Korean software asks it, beside 합니다체: "먼저 저장하세요.", "다시 시도하세요." "-십시오" reads as an official notice, and 해요체 ("저장했어요") as a chat app's.
 - **Buttons and labels** are short nouns or verb phrases, never sentences: "저장", "변경 사항 저장", "필드 삭제", "취소". A status line is a short sentence: "저장했습니다.", "저장하는 중…".
-- **A particle after a value** depends on how the value ends. So the catalog writes it both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필요합니다." a4a then chooses the one the value needs wherever it can hear the value's end: after Hangul, by its last syllable's final consonant, and after a digit, as Korean reads it ("BACK-12를", "민준이", "서울로", "이슈 3개를"; `koreanParticles`). After a Latin word ("Anna을(를)") both ways stay. After a4a's own words, whose end is known, write the one it needs: "a4a 로그인 ID를". This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
+- **A particle after a value** depends on how the value ends. So the catalog writes it both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필요합니다." a4a then chooses the one the value needs wherever it can hear the value's end: after Hangul, by its last syllable's final consonant, and after a digit, as Korean reads it ("BACK-12를", "민준이", "서울로", "이슈 3개를"; `koreanParticles`). After a Latin word ("Anna을(를)") both ways stay. After a4a's own words, whose end is known, write the one it needs: "a4a 로그인 ID를", "콜론(:)이", "닫는 괄호 “)”가". Where a value is itself a message of the catalog's (the sign-in form's name, "a4a 계정"), let it end in the catalog's Hangul, so a4a hears it: "a4a 계정을 사용하세요". A field set or cleared on a board is its value ("Priority 값을 지웁니다"), and a column is named with 열 ("Done 열로"), as Korean says them. This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
 - **No honorific after a name**: a name takes its particle directly ("{name}이(가) 할당했습니다"), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as "{name}님", as Korean customer mail does.
 - **Spacing**, as Korean writes it: words apart, a particle or an ending joined to its word, a counter joined to its digits ("3개", "이슈 3개"). A particle joins a value or a Latin word directly: "BACK-12을(를) 열기".
 - **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes, and straight ones only where they're code (a JSON key, a form part's name, a chat command's argument); the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
+- **Two clauses are two sentences, or one joined by a connective**, never English's colon: "꺼져 있어 아무것도 하지 않습니다.", "삭제되었을 수 있으니 헬프데스크 설정을 다시 불러오세요.", "연결을 해제했습니다. 이제부터 그 계정의 커밋은 내 것이 아닙니다." A colon follows a label or a status ("역할: 관리자", "꺼짐:", "일시 중지됨:"), an example ("예: acme.com") or the lead of a list, and comes before free text from elsewhere ("오류:"). A menu path is written with ">": "Asana의 My settings > Apps > Manage developer apps".
 - **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too.
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, with their mark, then what was done. A name a page draws can't take a particle, so an action is a verb phrase in the polite past with no subject: "{issue}을(를) 변경했습니다", "보고했습니다". A badge is a noun: "이슈 삭제".
@@ -531,8 +532,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Korean and every case stays, `other` keeping what else comes.
 - **Dates and numbers** come from Intl: "2026년 11월 16일", "1,234.5", "3분 전". Intl's `ko` writes them as `ko-KR` does.
 - **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." A guess it offers is "혹시 “{guess}”인가요?". Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
-- **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이 이슈를 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인이 아닌 {login}(으)로". 당신 is never said.
-- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다."
+- **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이 이슈를 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인이 아닌 {login}(으)로". 당신 is never said. Acting as the reader is "내 계정으로" ("내 계정으로 동작하는 Teams와 Slack 계정"), never "나로", which reads as the speaker; an agent or a token acting as itself is "자체 계정으로", and one acting for someone "{name} 대신". The chat bot says 본인, since its "I" is a4a: "본인에게 할당했습니다". A name a4a can't show is "알 수 없는 사용자", not 누군가.
+- **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다." What its form, portal and request page ask of a customer is "-어 주세요" where Korean support writes it ("한 줄로 적어 주세요", "스팸함을 확인해 주세요"), still a -세요; "What do you need?" is "어떤 도움이 필요하신가요?".
+- **An email's footer** says why it came as a sentence: each reason (`server.notify.because.*`) is a clause, and the footer ends it: "이슈를 지켜보고 있어서 받는 메일입니다." A stop link is "… 수신 중지".
 
 | English | Korean |
 |---|---|
@@ -567,7 +569,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | transition | 전환 |
 | state | 상태 |
 | knowledge base | 지식 베이스 |
-| article | 문서 |
+| article; bring a version back | 문서; 복원 |
 | inbox | 수신함 |
 | notification | 알림 |
 | digest | 요약 메일 |
@@ -597,6 +599,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | two-factor sign-in | 2단계 인증 |
 | sign in, sign out | 로그인, 로그아웃 |
 | login (a person's handle) | 로그인 ID |
+| a4a login, {name} login (the credentials a form takes) | a4a 계정, {name} 계정 |
 | identity provider | ID 공급자 |
 | single sign-on | SSO |
 | webhook, delivery | 웹훅, 전송 |
