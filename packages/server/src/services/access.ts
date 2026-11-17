@@ -41,7 +41,7 @@ import {
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, comments, groupMembers, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
+import { activities, comments, groupMembers, issueAliases, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { fieldByName, keysOfProject, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 
@@ -723,6 +723,7 @@ export async function eventSeen(
 ): Promise<boolean> {
   if (!eventVisible(view, s, e)) return false;
   if (!(await articleEventSeen(view, db, s, e, opts))) return false;
+  if (!(await goneEventSeen(view, db, s, e, opts))) return false;
   if (view.admin || !e.issue) return true;
   const { issue, comment, target } = await eventFacts(db, s, e, opts.fresh);
   // A limited issue that's gone (its deletion, or what it was before): only who saw all of its project.
@@ -743,6 +744,7 @@ export async function eventSeen(
 export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
   if ((e.data as { limited?: unknown } | undefined)?.limited === true) return true;
   if (await articleEventLimited(db, s, e)) return true;
+  if (await goneEventLimited(db, s, e)) return true;
   if (!e.issue) return false;
   const { issue, comment, target } = await eventFacts(db, s, e);
   return Boolean(issue?.limited || comment?.limited || target?.limited);
@@ -782,6 +784,9 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
   }
   const articleSeen = articleEventsSeenSql(view);
   if (articleSeen) parts.push(articleSeen);
+  // A limited issue deleted since, a link naming it, a comment limited on one: as hidden as it was.
+  const goneSeen = goneEventsSql(view);
+  if (goneSeen) parts.push(goneSeen);
   return sql`(${sql.join(parts, sql` AND `)})`;
 }
 
@@ -1309,4 +1314,126 @@ export async function redactUnseenArticleIds(ctx: Ctx, text: string): Promise<st
   const seen = await seenArticleIds(ctx, found.map((f) => f.id));
   for (const f of found) if (!seen.has(f.id)) hidden.add(f.readable);
   return hidden.size ? text.replace(ARTICLE_ID, (id) => (hidden.has(id.toUpperCase()) ? 'an article you can’t see' : id)) : text;
+}
+
+// ---------------------------------------------------------------------------
+// What stays hidden once a limited issue is deleted (D37)
+// ---------------------------------------------------------------------------
+
+/**
+ * What an issue's deletion keeps beside its event, so that what was limited stays hidden once the
+ * rows that said so are gone: if the issue was limited, every id it had (its own, and those from
+ * before it moved, D41, each under every key its project has had, D52); and its comments that were
+ * limited, deleted ones too. It goes in the deletion's payload, and never into an event a reader
+ * gets. Read in the deleting transaction, before the issue goes.
+ */
+export interface GoneLimits {
+  ids?: string[];
+  comments?: string[];
+}
+
+export async function goneLimitsOf(db: Db, s: SchemaSnapshot, issue: { id: string; projectId: string; number: number; limited: boolean }): Promise<GoneLimits | undefined> {
+  const limitedComments = await db.select({ id: comments.id }).from(comments).where(and(eq(comments.issueId, issue.id), eq(comments.limited, true)));
+  let ids: string[] = [];
+  if (issue.limited) {
+    const before = await db.select({ projectId: issueAliases.projectId, number: issueAliases.number }).from(issueAliases).where(eq(issueAliases.issueId, issue.id));
+    ids = [...new Set([issue, ...before].flatMap((at) => keysOfProject(s, at.projectId).map((k) => `${k.toUpperCase()}-${at.number}`)))];
+  }
+  if (!ids.length && !limitedComments.length) return undefined;
+  return { ...(ids.length ? { ids } : {}), ...(limitedComments.length ? { comments: limitedComments.map((c) => c.id) } : {}) };
+}
+
+/** The deletions that hide something from the viewer: all of them, but those in a project they see all of. */
+function goneDeletionsSql(view: AccessView): SQL {
+  const managed = view.managedIds();
+  return managed.length ? sql`gone.type = 'issue.deleted' AND (gone.project_id IS NULL OR gone.project_id NOT IN (${list(managed)}))` : sql`gone.type = 'issue.deleted'`;
+}
+const GONE_LIMITED = sql`gone.payload->'data'->>'limited' = 'true'`;
+
+/** Every id, in upper case, of an issue deleted while limited: those its deletion kept, or, deleted before they were kept, the one it had. */
+function goneIdsSql(view: AccessView): SQL {
+  return sql`SELECT upper(gone_id) FROM activities gone, jsonb_array_elements_text(coalesce(gone.payload->'gone'->'ids', '[]'::jsonb)) gone_id WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED}
+    UNION SELECT upper(gone.payload->'issue'->>'id') FROM activities gone WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED} AND gone.payload->'issue'->>'id' IS NOT NULL`;
+}
+
+/** Where each such issue was when it was deleted, as its project and number, so an event that names it by an older key still finds it (D52). */
+function gonePlacesSql(view: AccessView): SQL {
+  return sql`SELECT gone.project_id || ':' || split_part(gone.payload->'issue'->>'id', '-', 2) FROM activities gone
+    WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED} AND gone.project_id IS NOT NULL AND gone.payload->'issue'->>'id' IS NOT NULL`;
+}
+
+/** The comments that were limited on issues deleted since. */
+function goneCommentsSql(view: AccessView): SQL {
+  return sql`SELECT gone_c FROM activities gone, jsonb_array_elements_text(coalesce(gone.payload->'gone'->'comments', '[]'::jsonb)) gone_c WHERE ${goneDeletionsSql(view)}`;
+}
+
+/**
+ * SQL over an issue as a row names it, by a readable id and the project it was in (an event's, a
+ * notification's): whether it was deleted while it was limited, and the viewer doesn't see all of
+ * its project. Undefined for an administrator.
+ */
+export function goneIssueSql(view: AccessView, readable: SQL, projectId: SQL): SQL | undefined {
+  if (view.admin) return undefined;
+  return sql`(coalesce(upper(${readable}) IN (${goneIdsSql(view)}), FALSE) OR coalesce((${projectId} || ':' || split_part(${readable}, '-', 2)) IN (${gonePlacesSql(view)}), FALSE))`;
+}
+
+/**
+ * SQL over `activities`: an event of an issue deleted while it was limited, a link that names one,
+ * and an event of a comment limited on an issue deleted since, are left out for anyone who doesn't
+ * see all of its project, as the deletion itself is. Undefined for an administrator.
+ */
+export function goneEventsSql(view: AccessView): SQL | undefined {
+  const p = activities.payload;
+  const own = goneIssueSql(view, sql`${p}->'issue'->>'id'`, sql`${activities.projectId}`);
+  if (!own) return undefined;
+  return sql`NOT (
+    (${activities.issueId} IS NULL AND ${p}->'issue'->>'id' IS NOT NULL AND ${own})
+    OR (${activities.type} IN ('link.created', 'link.deleted') AND coalesce(upper(${p}->'data'->'target'->>'id') IN (${goneIdsSql(view)}), FALSE))
+    OR (${p}->'data'->>'commentId' IS NOT NULL AND coalesce(${p}->'data'->>'commentId' IN (${goneCommentsSql(view)}), FALSE)))`;
+}
+
+/** The deletions that hide an event, by the project each was in: kept a moment, as an event's facts are. */
+const goneCache = new Map<number, { at: number; hits: Promise<(string | null)[]> }>();
+
+function goneHitsOf(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>, fresh = false): Promise<(string | null)[]> {
+  const cached = goneCache.get(e.id);
+  if (!fresh && cached && Date.now() - cached.at < 10_000) return cached.hits;
+  const hits = (async () => {
+    const data = (e.data ?? {}) as { commentId?: unknown; target?: { id?: unknown } };
+    const targetId = LINK_EVENTS.includes(e.type) && typeof data.target?.id === 'string' ? data.target.id : null;
+    const commentId = typeof data.commentId === 'string' ? data.commentId : null;
+    if (!e.issue && !targetId && !commentId) return [];
+    // Only what's gone can have been deleted while limited: a row that stands answers for itself.
+    const facts = await eventFacts(db, s, e, fresh);
+    const rid = e.issue && !facts.issue ? e.issue.id.toUpperCase() : null;
+    const target = targetId && !facts.target ? targetId.toUpperCase() : null;
+    const comment = commentId && !facts.comment ? commentId : null;
+    if (!rid && !target && !comment) return [];
+    const named = (id: string) => sql`(gone.payload->'gone'->'ids' @> jsonb_build_array(${id}::text) OR upper(gone.payload->'issue'->>'id') = ${id})`;
+    const project = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+    const arms: SQL[] = [];
+    if (rid) arms.push(named(rid));
+    if (rid && project) arms.push(sql`(gone.project_id = ${project.id} AND split_part(gone.payload->'issue'->>'id', '-', 2) = ${rid.slice(rid.lastIndexOf('-') + 1)})`);
+    if (target) arms.push(named(target));
+    const limited = arms.length ? sql`(${GONE_LIMITED} AND (${sql.join(arms, sql` OR `)}))` : sql`FALSE`;
+    const res = await db.execute(sql`
+      SELECT gone.project_id AS "projectId" FROM activities gone
+      WHERE gone.type = 'issue.deleted' AND (${limited}${comment ? sql` OR gone.payload->'gone'->'comments' @> jsonb_build_array(${comment}::text)` : sql``})
+    `);
+    return (res as unknown as { rows: { projectId: string | null }[] }).rows.map((r) => r.projectId);
+  })();
+  if (goneCache.size > 2000) goneCache.clear();
+  goneCache.set(e.id, { at: Date.now(), hits });
+  return hits;
+}
+
+/** Whether the viewer sees an event as far as deleted issues go: none deleted while limited hides it, but in a project they see all of. */
+export async function goneEventSeen(view: AccessView, db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>, opts: { fresh?: boolean } = {}): Promise<boolean> {
+  if (view.admin) return true;
+  return (await goneHitsOf(db, s, e, opts.fresh)).every((projectId) => projectId !== null && view.seesAllIn(projectId));
+}
+
+/** Whether an event is of an issue deleted while limited, names one, or is of a comment limited on one deleted since: webhooks carry none. */
+export async function goneEventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
+  return (await goneHitsOf(db, s, e)).length > 0;
 }

@@ -21,7 +21,7 @@ import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
 import { inboxChanged, mailConfigured, sign, verify } from '../notify/state';
 import { notificationTitle } from '../notify/words';
-import { eventFor, eventSeen, issueSeenSql, projectAccess, visibleProjectIds } from './access';
+import { eventFor, eventSeen, goneIssueSql, issueSeenSql, projectAccess, visibleProjectIds } from './access';
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
@@ -108,6 +108,9 @@ async function mine(ctx: Ctx): Promise<SQL> {
   // Nor an issue limited away from you since (D37): it drops out as its project would.
   const seen = issueSeenSql(await projectAccess(ctx), await ctx.app.schema.get(), 'seen_ni');
   if (seen) conds.push(sql`NOT EXISTS (SELECT 1 FROM issues seen_ni WHERE seen_ni.id = ${notifications.issueId} AND NOT ${seen})`);
+  // Nor one deleted while it was limited, which stays as hidden once gone (D37).
+  const gone = goneIssueSql(await projectAccess(ctx), sql`${notifications.issue}->>'id'`, sql`${notifications.projectId}`);
+  if (gone) conds.push(sql`NOT (${notifications.issueId} IS NULL AND ${gone})`);
   return and(...conds)!;
 }
 

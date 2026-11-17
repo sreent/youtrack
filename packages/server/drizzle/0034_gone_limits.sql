@@ -1,0 +1,1 @@
+CREATE INDEX "activities_issue_gone" ON "activities" USING btree ("project_id") WHERE "activities"."type" = 'issue.deleted';

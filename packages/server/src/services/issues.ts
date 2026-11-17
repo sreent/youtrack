@@ -34,6 +34,7 @@ import {
   assertCanWriteProject,
   canReadProject,
   commentSeenSql,
+  goneLimitsOf,
   hiddenFields,
   privateFieldIds,
   projectAccess,
@@ -1146,13 +1147,19 @@ export async function deleteIssue(ctx: Ctx, idOrReadable: string): Promise<void>
     const tx = txRaw as unknown as Db;
     // Its watchers are told it's gone; their rows go with it, so the activity names them.
     const watchers = (await watcherIds(tx, issue.id)).map((id) => s.users.get(id)?.login).filter((l): l is string => Boolean(l));
+    // What was limited, kept before the rows that say so go, so its history stays as hidden (D37).
+    const gone = await goneLimitsOf(tx, s, issue);
     await tx.delete(issues).where(eq(issues.id, issue.id));
     return recordActivity(tx, ctx, {
       type: 'issue.deleted',
       projectId: issue.projectId,
       issueId: null,
       // Limited (D37), it stays as hidden once gone: only who saw all of its project see that it went.
-      payload: { issue: ref, ...(watchers.length || issue.limited ? { data: { ...(watchers.length ? { watchers } : {}), ...(issue.limited ? { limited: true } : {}) } } : {}) },
+      payload: {
+        issue: ref,
+        ...(watchers.length || issue.limited ? { data: { ...(watchers.length ? { watchers } : {}), ...(issue.limited ? { limited: true } : {}) } } : {}),
+        ...(gone ? { gone } : {}),
+      },
     });
   });
   await publishActivities(ctx.app, [activity]);
