@@ -3259,7 +3259,7 @@ export const ChatStatusSchema = z
       botId: z.string().nullable(),
       tenantId: z.string().nullable(),
       messagingEndpoint: z.string().describe("The bot's messaging endpoint, for Azure Bot Service"),
-      teams: z.array(z.object({ id: z.string(), name: z.string(), installedAt: timestamp, removed: z.string().nullable() })),
+      teams: z.array(z.object({ id: z.string(), name: z.string(), installedAt: timestamp, removed: z.string().nullable(), removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe('Why it stopped as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null while it runs, for a reason a chat service gave in its own code, and for one kept before a4a kept its words') })),
     }),
     slack: z.object({
       connected: z.boolean(),
@@ -3267,6 +3267,7 @@ export const ChatStatusSchema = z
       connectedBy: UserRefSchema.nullable(),
       connectedAt: timestamp.nullable(),
       removed: z.string().nullable().describe('Why it stopped: the app was removed, or its token revoked'),
+      removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe('Why it stopped as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null while it runs, for a reason a chat service gave in its own code, and for one kept before a4a kept its words'),
       requestUrls: z
         .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
         .describe("Where Slack sends what people do, for the app's settings"),

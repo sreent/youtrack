@@ -3,7 +3,7 @@
  * a push, the inbox or a chat says to them. The API's and MCP's own words stay English, as agents
  * and scripts read them; a problem shown on a page carries its key and values beside its English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, matchLocale, sayProblem, type Locale, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json';
 import en from '@a4a/shared/i18n/en.json';
 import es from '@a4a/shared/i18n/es.json';
@@ -56,7 +56,4 @@ export function listIn(locale: Locale | undefined, items: readonly string[], typ
   return new Intl.ListFormat(intlTag(locale ?? DEFAULT_LOCALE), { style: 'long', type: type === 'or' ? 'disjunction' : 'conjunction' }).format(items);
 }
 
-/** Intl's tag for a language: a4a's English writes dates the British way, as it always has. */
-export function intlTag(locale: Locale): string {
-  return locale === 'en' ? 'en-GB' : locale;
-}
+export { intlTag };

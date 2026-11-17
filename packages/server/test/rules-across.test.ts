@@ -5,6 +5,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { IssueDetail } from '@a4a/shared';
+import { notesIn } from '@a4a/shared/notes';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { activities, mailOutbox, notificationSettings, rules, users, webhookDeliveries, webhooks } from '../src/db/schema';
@@ -13,6 +14,7 @@ import { OutboxWorker } from '../src/events/worker';
 import { hmacSha256 } from '../src/lib/crypto';
 import { notifierConsumer } from '../src/notify/notifier';
 import { toEventDto } from '../src/events/activity';
+import { translatorFor } from '../src/i18n';
 import { issueActivity } from '../src/services/activity';
 import { addComment } from '../src/services/comments';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
@@ -301,6 +303,9 @@ describe('rules that tell people', () => {
     const [run] = await listRuleRuns(w.adminCtx, { rule: rule.id });
     expect(run).toMatchObject({ outcome: 'applied', issue: issue.id });
     expect(run!.message).toBe('Told Anna Schmidt and Vera Viewer');
+    // A page says it in its own language, the names joined as that language joins a list.
+    expect(notesIn(translatorFor('de'), run!.said, run!.message)).toBe('Informiert: Anna Schmidt und Vera Viewer.');
+    expect(notesIn(translatorFor('ja'), run!.said, run!.message)).toBe('Anna Schmidt、Vera Viewerに通知しました。');
 
     // The issue's history says it.
     const history = await issueActivity(w.adminCtx, issue.id);

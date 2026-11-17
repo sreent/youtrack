@@ -6,7 +6,7 @@
  */
 import type { RulePreview, ScriptRun } from '@a4a/shared';
 import { canSayProblem, sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
-import { previewNote, scriptRunNote } from '@a4a/shared/notes';
+import { notesIn, previewNote, scriptRunNote } from '@a4a/shared/notes';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { commandOutcome } from '../src/chat/service';
 import { runCommand } from '../src/commands/executor';
@@ -229,5 +229,19 @@ describe("a command's errors on each issue", () => {
     expect(german).not.toBe(failed.errors[0]);
     expect(german).not.toMatch(ENGLISH);
     expect(res.results.find((r) => r.issue === web)).toMatchObject({ errors: [], errorWords: [] });
+  });
+});
+
+describe("a rule run's kept notes", () => {
+  it('says whom it told as the language\'s list, with how many more as its last item', () => {
+    const said = [{ key: 'rules.run.told', values: { names: ['Anna Schmidt', 'Ben Okafor', { key: 'rules.run.toldOthers', values: { more: 3 } }] } }];
+    const english = 'Told Anna Schmidt, Ben Okafor and 3 others';
+    expect(notesIn(translatorFor('en'), said, english)).toBe('Told Anna Schmidt, Ben Okafor and 3 others.');
+    expect(notesIn(translatorFor('de'), said, english)).toBe('Informiert: Anna Schmidt, Ben Okafor und 3 weitere.');
+    expect(notesIn(translatorFor('ja'), said, english)).toBe('Anna Schmidt、Ben Okafor、ほか3人に通知しました。');
+    // Three names are a list of three: "and" before the last, in each language's way.
+    const three = [{ key: 'rules.run.told', values: { names: ['Anna', 'Ben', 'Carl'] } }];
+    expect(notesIn(translatorFor('en'), three, '')).toBe('Told Anna, Ben and Carl.');
+    expect(notesIn(translatorFor('fr'), three, '')).toBe('Elle a prévenu Anna, Ben et Carl.');
   });
 });

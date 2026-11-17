@@ -189,7 +189,7 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
       messagingEndpoint: `${base}/teams/messages`,
       teams: workspaces
         .filter((w) => w.platform === 'teams')
-        .map((w) => ({ id: w.id, name: w.name, installedAt: w.createdAt.toISOString(), removed: w.removedAt ? (w.removedReason ?? 'removed') : null })),
+        .map((w) => ({ id: w.id, name: w.name, installedAt: w.createdAt.toISOString(), removed: w.removedAt ? (w.removedReason ?? 'removed') : null, removedSaid: w.removedAt ? (w.removedSaid ?? null) : null })),
     },
     slack: {
       connected: Boolean(slack && !slack.removedAt),
@@ -197,6 +197,7 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
       connectedBy: by ? userRefDto(by) : null,
       connectedAt: slack ? slack.createdAt.toISOString() : null,
       removed: slack?.removedAt ? (slack.removedReason ?? 'removed') : null,
+      removedSaid: slack?.removedAt ? (slack.removedSaid ?? null) : null,
       requestUrls: { commands: `${base}/slack/commands`, interactivity: `${base}/slack/interactions`, events: `${base}/slack/events` },
     },
     channels: [...all.values()].map((r) => channelDto(r.channel, r.workspace)),

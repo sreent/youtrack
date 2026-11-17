@@ -134,6 +134,11 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
 
 /** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
+/** Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has. */
+export function intlTag(locale: Locale): string {
+  return locale === 'en' ? 'en-GB' : locale;
+}
+
 export function joinSentences(tr: Translator, sentences: readonly string[]): string {
   return sentences.filter(Boolean).join(SENTENCE_GAP[tr.locale]);
 }

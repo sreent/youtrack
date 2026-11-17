@@ -3,7 +3,7 @@
  * sends what its note says as data (`says`), and a page words it here, from the catalogs; the API's
  * `note` says the same in English. The server's tests hold the catalog's English to the API's.
  */
-import { canSayProblem, DEFAULT_LOCALE, joinSentences, sayProblem, type ProblemSaid, type Translator } from './i18n';
+import { canSayProblem, DEFAULT_LOCALE, intlTag, joinSentences, sayProblem, type ProblemSaid, type Translator } from './i18n';
 import type { RuleTrigger } from './constants';
 import type { NoteSaid, RulePreview, RuleSchedule, RuleTarget, ScriptRun } from './schemas';
 
@@ -78,7 +78,20 @@ function keptIn(tr: Translator, n: Kept): string | null {
     const words: ProblemSaid = { key: n.key.slice('problem.'.length), ...(n.values ? { values: n.values as ProblemSaid['values'] } : {}) };
     return canSayProblem(tr, words) ? sayProblem(tr, words) : null;
   }
-  return tr.has(n.key) ? tr.t(n.key, n.values as Record<string, string | number>) : null;
+  if (!tr.has(n.key)) return null;
+  // A list among its values (whom a rule told) is said as the language's list, "Anna, Ben and Carl",
+  // "Anna、Ben、Carl"; an item may be a note of its own, such as how many more there were.
+  const values: Record<string, string | number> = {};
+  for (const [name, v] of Object.entries(n.values ?? {})) {
+    if (!Array.isArray(v)) {
+      values[name] = v as string | number;
+      continue;
+    }
+    const items = v.map((x) => (typeof x === 'string' ? x : x && typeof x === 'object' && typeof (x as Kept).key === 'string' ? keptIn(tr, x as Kept) : String(x)));
+    if (items.some((x) => x === null)) return null;
+    values[name] = new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(items as string[]);
+  }
+  return tr.t(n.key, values);
 }
 
 /**

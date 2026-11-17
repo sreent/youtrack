@@ -11,7 +11,7 @@ import { translatorFor } from '../src/i18n';
 import { checkProblemWords, type AppError } from '../src/lib/errors';
 import { chatConsumer, ChatWorker, queueChatPosts } from '../src/chat/outbox';
 import { teamsAppPackage } from '../src/chat/package';
-import { acceptChatLink, chatLinkInfo, createChatSubscription, listChatChannels, listChatSubscriptions, myChatAccounts } from '../src/chat/service';
+import { acceptChatLink, chatLinkInfo, chatStatus, createChatSubscription, listChatChannels, listChatSubscriptions, myChatAccounts } from '../src/chat/service';
 import type { Ctx, UserRow } from '../src/context';
 import { cardIssue } from '../src/chat/cards';
 import { teamsChannelPost } from '../src/chat/teams';
@@ -501,6 +501,10 @@ describe('Slack', () => {
     const subs = (await listChatSubscriptions(w.adminCtx)).filter((s) => s.channel.platform === 'slack');
     expect(subs.every((s) => s.ended?.reason === 'The app was removed from Slack')).toBe(true);
     expect(subs.every((s) => s.ended?.said?.key === 'chat.stop.slackAppRemoved')).toBe(true);
+    // The chat page says why the workspace stopped in its own language: the status carries the words.
+    const { slack: status } = await chatStatus(w.adminCtx);
+    expect(status).toMatchObject({ connected: false, removed: expect.any(String), removedSaid: { key: 'chat.stop.slackAppRemoved' } });
+    expect(sayProblem(translatorFor('de'), status.removedSaid as ProblemSaid)).toBe('Die App wurde aus Slack entfernt.');
     // A channel there can't be subscribed again: the reason is said inside the problem, in a page's language.
     const channel = subs[0]!.channel;
     const refused = (await createChatSubscription(w.adminCtx, { channel: channel!.id, project: 'BACK' }).catch((e: AppError) => e)) as AppError;

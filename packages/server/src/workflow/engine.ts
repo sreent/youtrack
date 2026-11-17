@@ -163,11 +163,15 @@ function people(users: UserRow[]): string {
   return names.length <= 3 ? listWords(names) : `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`;
 }
 
-/** Whom it told, for a page: up to three names, or two and how many more. */
+/**
+ * Whom it told, for a page: up to three names, or two and how many more, as a list the page says as
+ * its language's ("Anna, Ben and 3 others", "Anna、Ben、ほか3人"), the more a note of its own.
+ */
 function toldSaid(users: UserRow[]): NoteSaid {
   const names = users.map((u) => u.name);
   const shown = names.length <= 3 ? names : names.slice(0, 2);
-  return { key: 'rules.run.told', values: { names: shown.join(', '), more: names.length - shown.length } };
+  const more = names.length - shown.length;
+  return { key: 'rules.run.told', values: { names: more ? [...shown, { key: 'rules.run.toldOthers', values: { more } }] : shown } };
 }
 
 /** Thrown inside a run's transaction when the run log says the rule already acted for this change. */
