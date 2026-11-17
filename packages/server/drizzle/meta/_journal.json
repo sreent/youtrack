@@ -260,6 +260,13 @@
       "when": 1794917183908,
       "tag": "0036_customer_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794920819273,
+      "tag": "0037_whiteboards",
+      "breakpoints": true
     }
   ]
 }

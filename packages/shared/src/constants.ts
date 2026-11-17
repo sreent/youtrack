@@ -152,6 +152,11 @@ export const EVENT_TYPES = [
   // Someone was copied on a help desk request, or stopped being (D57).
   'request.cc_added',
   'request.cc_removed',
+  // A whiteboard's life, and what came of it (D58). Its elements' edits aren't events: they go to its own live stream.
+  'whiteboard.created',
+  'whiteboard.renamed',
+  'whiteboard.deleted',
+  'whiteboard.converted',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -313,3 +318,32 @@ export const PLAYABLE_AUDIO_TYPES = ['audio/mpeg', 'audio/aac', 'audio/mp4', 'au
 export const PLAYABLE_VIDEO_TYPES = ['video/mp4', 'video/webm'] as const;
 export const PLAY_KINDS = ['audio', 'video'] as const;
 export type PlayKind = (typeof PLAY_KINDS)[number];
+
+/**
+ * Whiteboards (D58): what one holds at most, and what a note can say of itself. A whiteboard is drawn
+ * whole as SVG and read whole by a screen reader's outline, so it stays a team's canvas, not a wall.
+ */
+export const WHITEBOARD_LIMITS = {
+  /** Elements on one whiteboard: notes, text, cards, arrows and sections together. */
+  elements: 500,
+  /** Characters in a note's or a text block's words. */
+  text: 2000,
+  /** Characters in an arrow's label or a section's title. */
+  label: 200,
+  name: 120,
+  /** Changes in one batch: enough to move every element at once. */
+  ops: 500,
+  /** Notes converted, or arrows linked, in one request: a command's cap (D8). */
+  convert: 50,
+  /** How far from the origin anything may be, and how small and large a box. */
+  coordinate: 100_000,
+  minSize: 8,
+  maxSize: 4_000,
+} as const;
+
+/** What a note's tone says, from a short fixed set; Ocean draws each as a meaning, never a colour of its own. */
+export const WHITEBOARD_TONES = ['plain', 'idea', 'agreed', 'question', 'problem', 'parked'] as const;
+export type WhiteboardTone = (typeof WHITEBOARD_TONES)[number];
+
+export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section'] as const;
+export type WhiteboardKind = (typeof WHITEBOARD_KINDS)[number];

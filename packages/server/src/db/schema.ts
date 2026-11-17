@@ -2852,3 +2852,106 @@ export const requestCcs = pgTable(
   },
   (t) => [uniqueIndex('request_ccs_address').on(t.issueId, sql`lower(${t.email})`), index('request_ccs_email').on(sql`lower(${t.email})`)],
 );
+
+// ---------------------------------------------------------------------------
+// Whiteboards (wave 4: docs/architecture.md, D58)
+// ---------------------------------------------------------------------------
+
+/** A project's canvas: read by whoever reads the project, changed by whoever may change its issues. */
+export const whiteboards = pgTable(
+  'whiteboards',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Its latest change. Each change takes the next under the whiteboard's row lock, so they never cross. */
+    seq: bigint('seq', { mode: 'number' }).notNull().default(0),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('whiteboards_project').on(t.projectId)],
+);
+
+/**
+ * What's on a whiteboard. Its id is chosen by whoever adds it, unique within the whiteboard, so an
+ * arrow can name what the same batch adds and an undone removal comes back as it was. A card points
+ * at its issue or article, which go on without it; deleting either leaves the card holding nothing.
+ */
+export const whiteboardElements = pgTable(
+  'whiteboard_elements',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    /** note, text, issue, article, arrow or section. */
+    kind: text('kind').notNull(),
+    x: doublePrecision('x').notNull(),
+    y: doublePrecision('y').notNull(),
+    w: doublePrecision('w').notNull(),
+    h: doublePrecision('h').notNull(),
+    z: doublePrecision('z').notNull().default(0),
+    text: text('text'),
+    tone: text('tone'),
+    label: text('label'),
+    fromId: text('from_id'),
+    toId: text('to_id'),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    articleId: text('article_id').references(() => articles.id, { onDelete: 'set null' }),
+    /** An arrow made into a link between its issues: the link as it reads from the arrow's start. */
+    linked: text('linked'),
+    /** The whiteboard's change that last changed it. */
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    version: integer('version').notNull().default(1),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.whiteboardId, t.id] }),
+    index('whiteboard_elements_issue').on(t.issueId),
+    index('whiteboard_elements_article').on(t.articleId),
+  ],
+);
+
+/**
+ * A whiteboard's latest changes, what its live streams send and resume from: the elements each left,
+ * and what it removed. The last 500 are kept; a stream further behind reads the whiteboard again.
+ */
+export const whiteboardChanges = pgTable(
+  'whiteboard_changes',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Which of a person's tabs sent it, as it said. */
+    client: text('client'),
+    /** The rows of the elements it added or changed, as it left them. */
+    elements: jsonb('elements').notNull(),
+    removed: text('removed').array().notNull().default(sql`'{}'::text[]`),
+    at: ts('at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.whiteboardId, t.seq] })],
+);
+
+/** Who is looking at a whiteboard: a row per open stream, kept fresh while it's open, and gone soon after. */
+export const whiteboardViewers = pgTable(
+  'whiteboard_viewers',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    /** One per stream or client, so one of a person's two tabs closing leaves the other. */
+    session: text('session').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    since: ts('since').notNull().defaultNow(),
+    seenAt: ts('seen_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.whiteboardId, t.session] }), index('whiteboard_viewers_seen').on(t.seenAt)],
+);

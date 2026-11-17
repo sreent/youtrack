@@ -44,6 +44,7 @@ import { projectKeyTools } from './project-keys';
 import { boardTools } from './boards';
 import { requestCcTools } from './request-ccs';
 import { customerGroupTools } from './customer-groups';
+import { whiteboardTools } from './whiteboards';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -635,6 +636,7 @@ export const TOOLS: ToolDef[] = [
   ...boardTools,
   ...requestCcTools,
   ...customerGroupTools,
+  ...whiteboardTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

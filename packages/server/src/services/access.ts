@@ -1025,6 +1025,7 @@ export function eventFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent):
   // Who is copied on a request is people outside the team, by their addresses (D57): a guest isn't
   // told, as they aren't told who asked.
   if (view?.guest && (e.type === 'request.cc_added' || e.type === 'request.cc_removed')) return null;
+  e = whiteboardOriginFor(view, s, e);
   const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
   if (!p) return e;
   const hidden = hiddenFields(view, s);
@@ -1047,6 +1048,29 @@ export function eventFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent):
     };
   }
   return changes.length === e.changes.length && data === e.data ? e : { ...e, changes, data };
+}
+
+/**
+ * Where an issue or a link came from, and what a whiteboard made (D58), as the reader may know it: a
+ * note may become an issue in another project than its whiteboard's, so a reader of the issue who
+ * can't read the whiteboard's project isn't told its name; and of what a whiteboard made, its readers
+ * are told only the issues in projects they read. Webhooks (no reader) hear it all, as they hear every
+ * project.
+ */
+function whiteboardOriginFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent): TrackerEvent {
+  if (!view) return e;
+  const d = e.data as { whiteboard?: { id?: unknown; project?: unknown }; issues?: unknown; links?: unknown };
+  if (e.type === 'whiteboard.converted') {
+    const seen = (id: unknown) => canReadIssueId(view, s, id);
+    const issues = Array.isArray(d.issues) ? d.issues.filter(seen) : d.issues;
+    const links = Array.isArray(d.links) ? d.links.filter((l: { from?: unknown; to?: unknown } | null) => seen(l?.from) && seen(l?.to)) : d.links;
+    return { ...e, data: { ...e.data, issues, links } };
+  }
+  const wb = d.whiteboard;
+  if (!wb || typeof wb !== 'object' || typeof wb.project !== 'string') return e;
+  const p = s.projectsByKey.get(wb.project.toUpperCase());
+  if (p && view.canRead(p.id)) return e;
+  return { ...e, data: { ...e.data, whiteboard: { id: wb.id } } };
 }
 
 /**
