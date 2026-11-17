@@ -58,12 +58,16 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
   if (!r.group && !groups.data?.length) return null;
+  // What was chosen shows at once, while it saves.
+  const asked = change.isPending ? change.variables : undefined;
+  const groupShown = asked?.group !== undefined ? (asked.group ?? '') : (r.group?.id ?? '');
+  const privateShown = asked?.private !== undefined ? asked.private : r.private;
   return (
-    <div className="stack tight" aria-label={t('helpdesk.requestCard.customerGroup')}>
+    <div className="stack tight">
       {canEdit && groups.data?.length ? (
         <FormField label={t('helpdesk.requestCard.customerGroup')}>
           {(id) => (
-            <select id={id} value={r.group?.id ?? ''} disabled={change.isPending} onChange={(e) => change.mutate({ group: e.target.value || null })}>
+            <select id={id} value={groupShown} disabled={change.isPending} onChange={(e) => change.mutate({ group: e.target.value || null })}>
               <option value="">{t('helpdesk.requestCard.noGroup')}</option>
               {groups.data.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -85,7 +89,7 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
       ) : null}
       {r.group && r.group.sharing !== 'none' && canEdit ? (
         <label className="check">
-          <input type="checkbox" checked={r.private} disabled={change.isPending} onChange={(e) => change.mutate({ private: e.target.checked })} />
+          <input type="checkbox" checked={privateShown} disabled={change.isPending} onChange={(e) => change.mutate({ private: e.target.checked })} />
           {t('helpdesk.requestCard.keepFromGroup', { group: r.group.name })}
         </label>
       ) : null}

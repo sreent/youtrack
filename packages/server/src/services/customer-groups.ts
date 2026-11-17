@@ -15,7 +15,8 @@
  *   unless one is kept private (services/portal.ts, through the seam's `requesterSees`).
  */
 import { isOwnAgent, type BusinessHours, type Change, type CustomerGroup, type CustomerGroupInput, type CustomerGroupMember, type CustomerSharing } from '@a4a/shared';
-import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-orm';
+import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { absences, customerGroupAgents, customerGroupDomains, customerGroupMembers, customerGroups, helpdeskRequests, issueFieldValues, issues, requesters, users } from '../db/schema';
@@ -24,7 +25,7 @@ import { calendarOf } from '../helpdesk/business-time';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { localDate, serverTimeZone } from '../reports/tz';
-import { emailDomain, projectGrantsOf, requesterMayComment, requireProject } from './access';
+import { emailDomain, issueSeenSql, projectAccess, projectGrantsOf, requesterMayComment, requireProject } from './access';
 import { readableId } from './issue-refs';
 import { applyChanges, type ChangeSpec } from './issues';
 import { projectSettings } from './projects';
@@ -40,8 +41,6 @@ type RequestRow = typeof helpdeskRequests.$inferSelect;
 /** The names a request's history gives its group and its privacy (D56): a4a's own, beside its fields'. */
 export const GROUP_CHANGE = 'Customer group';
 export const PRIVATE_CHANGE = 'Private';
-/** The help desk's agent (services/helpdesk.ts), known here by its login. */
-const HELPDESK_BOT = 'helpdesk';
 const MAX_GROUPS = 200;
 
 const groupMissing = () => notFound('Customer group', 'It may have been deleted: reload the desk’s settings.').said('customerGroups.groupNotFound');
@@ -125,7 +124,7 @@ async function groupsOf(db: Db, projectId: string): Promise<GroupRow[]> {
   return db.select().from(customerGroups).where(eq(customerGroups.projectId, projectId)).orderBy(asc(sql`lower(${customerGroups.name})`));
 }
 
-async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupRow[]): Promise<CustomerGroup[]> {
+async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupRow[], seen?: SQL): Promise<CustomerGroup[]> {
   const ids = rows.map((r) => r.id);
   if (!ids.length) return [];
   const domains = await db.select().from(customerGroupDomains).where(inArray(customerGroupDomains.groupId, ids)).orderBy(asc(customerGroupDomains.domain));
@@ -135,7 +134,8 @@ async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupR
     .select({ id: helpdeskRequests.groupId, n: sql<number>`count(*)::int` })
     .from(helpdeskRequests)
     .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
-    .where(and(inArray(helpdeskRequests.groupId, ids), isNull(issues.resolvedAt)))
+    // Counted as every count is: only what the reader sees (D37).
+    .where(and(inArray(helpdeskRequests.groupId, ids), isNull(issues.resolvedAt), seen))
     .groupBy(helpdeskRequests.groupId);
   const grants = await projectGrantsOf(db, project.id, agents.map((a) => a.userId));
   return rows.map((g) => ({
@@ -162,7 +162,8 @@ function assignable(u: { isBot: boolean; login: string; banned: boolean; role: s
 
 export async function listCustomerGroups(ctx: Ctx, key: string): Promise<CustomerGroup[]> {
   const project = await requireProject(ctx, key, 'read');
-  return dtos(ctx.db, await ctx.app.schema.get(), project, await groupsOf(ctx.db, project.id));
+  const s = await ctx.app.schema.get();
+  return dtos(ctx.db, s, project, await groupsOf(ctx.db, project.id), issueSeenSql(await projectAccess(ctx), s));
 }
 
 async function ownGroup(db: Db, project: ProjectRow, id: string): Promise<GroupRow> {
@@ -183,7 +184,8 @@ export async function groupByRef(db: Db, projectId: string, ref: string): Promis
 
 export async function getCustomerGroup(ctx: Ctx, key: string, id: string): Promise<CustomerGroup> {
   const project = await requireProject(ctx, key, 'read');
-  return (await dtos(ctx.db, await ctx.app.schema.get(), project, [await ownGroup(ctx.db, project, id)]))[0]!;
+  const s = await ctx.app.schema.get();
+  return (await dtos(ctx.db, s, project, [await ownGroup(ctx.db, project, id)], issueSeenSql(await projectAccess(ctx), s)))[0]!;
 }
 
 // ---------------------------------------------------------------------------
@@ -452,10 +454,13 @@ export async function assignToGroupAgent(tx: Db, bot: Ctx, issue: IssueRow, grou
   // One at a time per group, so two requests filed together each see the other's agent.
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:customer-group:${group.id}`}))`);
   const zone = (group.businessHours as BusinessHours | null)?.timeZone ?? projectSettings(project).helpdesk.businessHours?.timeZone ?? serverTimeZone();
+  // The desk acts on its own here, not for its requester: automation, as the help desk's agent (rule 6).
+  const desk = adminCtx(bot.app, bot.actor.user, 'automation');
+  desk.actor.projectIds = [project.id];
   for (const userId of await agentOrder(tx, s, project, group.id, field.id, zone)) {
     try {
       const res = await tx.transaction(async (sp) =>
-        applyChanges(sp as unknown as Db, bot, issue, { fields: [{ field, mode: 'set', values: [{ userId }] }], data: { customerGroup: group.name } }),
+        applyChanges(sp as unknown as Db, desk, issue, { fields: [{ field, mode: 'set', values: [{ userId }] }], data: { customerGroup: group.name } }),
       );
       return res.activities;
     } catch (e) {
@@ -464,11 +469,6 @@ export async function assignToGroupAgent(tx: Db, bot: Ctx, issue: IssueRow, grou
     }
   }
   return [];
-}
-
-/** The help desk's agent's login, for checks that read the history. */
-export function isHelpdeskBot(login: string | null | undefined): boolean {
-  return login?.toLowerCase() === HELPDESK_BOT;
 }
 
 // ---------------------------------------------------------------------------
