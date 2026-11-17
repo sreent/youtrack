@@ -77,7 +77,8 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
       ? await mintTeamReplyAddress(app, app.db, user.id, n.issueId, (lastComment?.data as { visibility?: string } | undefined)?.visibility === 'public')
       : null;
   const sections: MailSection[] = events.map((e) => {
-    const head = `${actorName(tr, e)} ${eventVerb(tr, e)} · ${emailTime(e.occurredAt, zone, tr.locale)}`;
+    // Who did what as the language says it (Korean's 이(가) after the name, Japanese's が), then when.
+    const head = `${tr.t('server.notify.title.one', { who: actorName(tr, e), did: eventVerb(tr, e) })} · ${emailTime(e.occurredAt, zone, tr.locale)}`;
     if (e.type.startsWith('comment')) {
       const c = written.get(String((e.data as { commentId?: string }).commentId ?? ''));
       if (c?.deletedAt) return { head: tr.t('server.mail.deletedSince', { head }) };

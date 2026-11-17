@@ -28,7 +28,7 @@ export function ArticleVisibleTo({ a, canWrite }: { a: ArticleDetail; canWrite: 
       setEditing(null);
       setSaid({
         text: next.visibleTo
-          ? t('articles.visibleTo.limitedNow', { audience: audience(next.visibleTo) })
+          ? t('articles.visibleTo.limitedNow', audience(next.visibleTo))
           : t('articles.visibleTo.openNow', { above: next.limitedAbove.length ? 'yes' : 'no', key }),
       });
     },

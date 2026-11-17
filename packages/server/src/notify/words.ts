@@ -12,7 +12,8 @@ export function actorName(tr: Translator, e: TrackerEvent): string {
     case 'automation':
       return e.actor.login ?? tr.t('server.notify.anAgent');
     case 'mcp':
-      return tr.t('server.notify.agentFor', { agent: e.actor.token ?? tr.t('server.notify.anAgentLower'), person });
+      // A name begins the line it's in (an email's head, a push's title), so an agent with no token's name is "An agent".
+      return tr.t('server.notify.agentFor', { agent: e.actor.token ?? tr.t('server.notify.anAgent'), person });
     case 'assistant':
       return tr.t('server.notify.assistantFor', { person });
     case 'api':

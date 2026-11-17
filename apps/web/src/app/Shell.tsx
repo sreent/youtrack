@@ -141,8 +141,8 @@ function UnreadCount() {
   if (!n) return null;
   return (
     <span className="nav-count">
-      {n > 99 ? '99+' : n}
-      <span className="hidden">{t('app.shell.unread')}</span>
+      <span aria-hidden="true">{n > 99 ? '99+' : n}</span>
+      <span className="hidden">{t('app.shell.unreadCount', { n })}</span>
     </span>
   );
 }

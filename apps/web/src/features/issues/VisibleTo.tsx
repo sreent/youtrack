@@ -7,12 +7,13 @@ import { UserWho } from '../../components/Who';
 import { FormField } from '../../components/Form';
 import { errorText, Said } from '../common/bits';
 import { useGroups } from '../groups/api';
-import { t, tr } from '../../i18n';
+import { formatList, t, tr } from '../../i18n';
 
 /** Who besides the few who always see it, as people's and groups' names: "Erin Hall, Security". */
-export function audience(v: VisibleToDto): string {
+/** Whom a limit names, as a list in the page's language, and whether it names nobody: a message says each its own way. */
+export function audience(v: VisibleToDto): { audience: string; none: 'yes' | 'no' } {
   const names = [...v.users.map((u) => u.name), ...v.groups.map((g) => g.name)];
-  return names.length ? names.join(', ') : t('issues.visibleTo.nobodyElse');
+  return { audience: formatList(names), none: names.length ? 'no' : 'yes' };
 }
 
 /** What a limit asks for: logins and group ids. */
@@ -80,7 +81,7 @@ export function VisibleToCard({ issue, canEdit }: { issue: IssueDetail; canEdit:
       qc.setQueryData(keys.issue(issue.id), next);
       void qc.invalidateQueries({ queryKey: keys.issue(issue.id) });
       setEditing(null);
-      setSaid({ text: next.visibleTo ? t('issues.visibleTo.itSLimitedToNow', { audience: audience(next.visibleTo) }) : t('issues.visibleTo.everyoneWhoSeesSeesIt', { key: key }) });
+      setSaid({ text: next.visibleTo ? t('issues.visibleTo.itSLimitedToNow', audience(next.visibleTo)) : t('issues.visibleTo.everyoneWhoSeesSeesIt', { key: key }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });

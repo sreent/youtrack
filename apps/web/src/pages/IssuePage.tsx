@@ -1,7 +1,7 @@
 import type { IssueDetail, IssueField, Suggestion, SuggestedSummary, SummarizeResult, User } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
-import { useId, useMemo, useState, useEffect } from 'react';
+import { useId, useMemo, useState, useEffect, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ApiError, patch, post } from '../api/client';
 import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
@@ -474,8 +474,13 @@ export default function IssuePage() {
         meta={
           <>
             <span>
-              {request.data ? t('page.issue.askedByThroughTheHelp', { name: request.data.requester.name }) : t('page.issue.reportedBy', { v: data.reporter?.name ?? t('page.issue.someone') })}{' '}
-              <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+              {/* The day inside the sentence, where each language puts it ("on 17 Nov 2026", "am 17. Nov. 2026", 「…に報告」). */}
+              {tr(request.data ? 'page.issue.askedByThroughTheHelp' : 'page.issue.reportedBy', {
+                name: request.data?.requester.name ?? '',
+                v: data.reporter?.name ?? t('page.issue.someone'),
+                date: new Date(data.createdAt).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' }),
+                t0: (c: ReactNode) => <time dateTime={data.createdAt}>{c}</time>,
+              })}
             </span>
             {data.tags.length ? (
               <span className="chips">

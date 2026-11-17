@@ -5,7 +5,7 @@ import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
 import { aRole } from '../roles/words';
-import { commandNote, t, t as tx, tr } from '../../i18n';
+import { commandNote, formatList, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Grammar = 'reads' | 'writes' | 'changes' | 'outside' | 'own';
@@ -301,7 +301,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const people = Array.isArray(e.data.people) ? (e.data.people as unknown[]).map(String) : [];
       return {
         text: (
-          <>{tr('activity.ledgerEntry.toldOf', { v: people.map((p) => `@${p}`).join(', ') || t('activity.ledgerEntry.nobody'), issue: issue })}</>
+          <>{tr('activity.ledgerEntry.toldOf', { v: formatList(people.map((p) => `@${p}`)), anyone: people.length ? 'yes' : 'no', issue: issue })}</>
         ),
         badge: ['own', tx('activity.ledgerEntry.badgeTellsPeople')],
         more: <span className="ledger-note">“{str(e.data.message)}”</span>,

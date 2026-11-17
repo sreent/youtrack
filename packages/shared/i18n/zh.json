@@ -5336,7 +5336,6 @@
   "server.notify.aWorkflowRule": "工作流规则",
   "server.notify.agentFor": "{agent} 代表 {person}",
   "server.notify.anAgent": "智能体",
-  "server.notify.anAgentLower": "智能体",
   "server.notify.anIssue": "问题",
   "server.notify.anotherProject": "其他项目",
   "server.notify.assistantFor": "助手代表 {person}",

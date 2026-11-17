@@ -103,7 +103,7 @@ interface Entry {
   /** A comment the requester of a help desk request sees: theirs, the team's reply to them, or one by someone copied on it (D57) or of their customer group (D56). */
   public?: 'reply' | 'theirs' | 'copied' | 'colleague';
   /** Who a limited comment is for, besides those who always see it (D37). */
-  limited?: string;
+  limited?: { audience: string; none: 'yes' | 'no' };
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
   /** The comment itself, for ticking its checklist against the version read (D39). */
@@ -285,10 +285,10 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.notified': {
       const people = Array.isArray(data.people) ? (data.people as unknown[]).map((p) => `@${String(p)}`) : [];
-      const told = people.length ? formatList(people) : t('issues.issueHistory.nobody');
+      const told = formatList(people);
       return {
         ...base,
-        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told }),
+        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told, anyone: people.length ? 'yes' : 'no' }),
         body: (
           <ul className="change-lines">
             <li>“{String(data.message ?? '')}”</li>
@@ -451,7 +451,7 @@ export function IssueHistory({
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
       const what = done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field));
-      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? formatList(what) : t('issues.issueHistory.itsChange') }) });
+      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: formatList(what), n: what.length }) });
       await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.
@@ -559,7 +559,7 @@ export function IssueHistory({
                   ) : e.public === 'colleague' ? (
                     <Badge grammar="outside">{t('issues.issueHistory.publicAColleagueWroteIt')}</Badge>
                   ) : e.limited ? (
-                    <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
+                    <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited.audience, none: e.limited.none })}</Badge>
                   ) : e.undo?.state === 'undone' ? (
                     <Badge tone="idle" title={undoNote(e.undo)}>{t('issues.issueHistory.undone')}</Badge>
                   ) : null
