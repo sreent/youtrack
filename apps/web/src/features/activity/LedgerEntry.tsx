@@ -91,6 +91,33 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return { text: <>{tr('activity.ledgerEntry.tookOutOf', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
     case 'board.issue_ranked':
       return { text: <>{tr('activity.ledgerEntry.rankedOn', { issue: issue, str: str(e.data.board) })}</>, badge: ['changes', t('activity.ledgerEntry.changesABoardSOrder')] };
+    case 'whiteboard.created':
+    case 'whiteboard.renamed':
+    case 'whiteboard.deleted':
+    case 'whiteboard.converted': {
+      // A whiteboard's life, and what was made from it (D58); its elements' edits aren't events.
+      const wb = e.data.whiteboard as { id?: string; name?: string } | undefined;
+      const name = e.type === 'whiteboard.deleted' || !wb?.id ? str(wb?.name) : <Link to={`/whiteboards/${wb.id}`}>{str(wb.name)}</Link>;
+      if (e.type === 'whiteboard.created') return { text: <>{tr('activity.ledgerEntry.whiteboardCreated', { name })}</>, badge: ['writes', t('activity.ledgerEntry.changesAWhiteboard')] };
+      if (e.type === 'whiteboard.renamed') return { text: <>{tr('activity.ledgerEntry.whiteboardRenamed', { from: str(e.data.from), to: name })}</>, badge: ['writes', t('activity.ledgerEntry.changesAWhiteboard')] };
+      if (e.type === 'whiteboard.deleted') return { text: <>{tr('activity.ledgerEntry.whiteboardDeleted', { name })}</>, badge: ['changes', t('activity.ledgerEntry.deletesAWhiteboard')] };
+      const made = Array.isArray(e.data.issues) ? (e.data.issues as string[]) : [];
+      const links = Array.isArray(e.data.links) ? (e.data.links as { from?: string; relation?: string; to?: string }[]) : [];
+      return {
+        text: <>{tr('activity.ledgerEntry.whiteboardConverted', { name, issues: made.length, links: links.length })}</>,
+        badge: ['changes', t('activity.ledgerEntry.makesIssues')],
+        more: made.length ? (
+          <span>
+            {made.map((id, i) => (
+              <span key={id}>
+                {i ? ' ' : null}
+                <IssueLink id={id} />
+              </span>
+            ))}
+          </span>
+        ) : null,
+      };
+    }
     case 'request.cc_added':
     case 'request.cc_removed': {
       // Someone copied on a help desk request, or no longer (D57): by their address.

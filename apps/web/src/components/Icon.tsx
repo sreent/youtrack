@@ -33,6 +33,8 @@ const OCEAN: Record<string, string[]> = {
 /** Drawn for a4a in Ocean's manner. */
 const A4A: Record<string, string[]> = {
   board: ['M4 4.5h4.5v15H4z', 'M10.75 4.5h4.5v10h-4.5z', 'M17.5 4.5H20v7h-2.5z'],
+  // A whiteboard: a frame on its stand, with a note and an arrow on it (D58).
+  whiteboard: ['M3.5 4.5h17v12h-17z', 'M9 20l3-3.5 3 3.5', 'M6.5 7.5h4v4h-4z', 'M12.5 10.5h5', 'M15.5 8.5l2 2-2 2'],
   timeline: ['M4 4v16', 'M7 7.5h7', 'M10 12h9', 'M8 16.5h6'],
   search: ['M10.5 4.5a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M15 15l5 5'],
   plus: ['M12 5v14', 'M5 12h14'],

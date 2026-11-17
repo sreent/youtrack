@@ -149,6 +149,9 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         const on = imported.createdAt ? t('issues.issueHistory.whereItWasReported', { when: when(imported.createdAt), v: imported.reporter ? t('issues.issueHistory.by', { reporter: imported.reporter }) : '' }) : '';
         return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? t('issues.issueHistory.itsKeyThere'), on: on }) };
       }
+      // Made from a note on a whiteboard (D58): by its name, unless its reader can't see where it is.
+      const whiteboard = data.whiteboard as { id?: string; name?: string } | undefined;
+      if (whiteboard) return { ...base, did: whiteboard.name ? t('issues.issueHistory.madeFromWhiteboard', { name: whiteboard.name }) : t('issues.issueHistory.madeFromAWhiteboard') };
       return { ...base, did: data.requester ? (data.via === 'email' ? t('issues.issueHistory.askedForHelpByEmail') : t('issues.issueHistory.askedForHelp')) : t('issues.issueHistory.reportedIt') };
     }
     case 'sprint.issue_added':

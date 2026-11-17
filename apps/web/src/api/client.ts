@@ -1,4 +1,4 @@
-import type { QueryProblem } from '@a4a/shared';
+import type { QueryProblem, WhiteboardChangeFrame, WhiteboardViewer } from '@a4a/shared';
 import { getLocale, t as tx } from '../i18n';
 
 const BASE = '/api/v1';
@@ -132,6 +132,56 @@ export function subscribeInbox(onUnread: (unread: number) => void): () => void {
   };
 }
 
+/** What a whiteboard's live stream says (D58). */
+export interface WhiteboardStreamHandlers {
+  /** The stream is open, its changes up to `seq` sent or replayed. */
+  ready(seq: number): void;
+  change(frame: WhiteboardChangeFrame): void;
+  viewers(viewers: WhiteboardViewer[]): void;
+  renamed(name: string): void;
+  /** It was deleted, or you may no longer see it. */
+  gone(): void;
+  /** Too much was missed to replay: read it again. */
+  resync(): void;
+}
+
+/**
+ * A whiteboard, live: each change to its elements, who's looking, a new name, and when it's gone. A
+ * reconnect, to whichever instance, resumes after the last change seen (`after`), so nothing is missed.
+ */
+export function subscribeWhiteboard(id: string, after: () => number, on: WhiteboardStreamHandlers): () => void {
+  let source: EventSource | null = null;
+  let closed = false;
+  let retry = 1000;
+  const open = () => {
+    if (closed) return;
+    source = new EventSource(`${BASE}/whiteboards/${encodeURIComponent(id)}/stream?after=${after()}`, { withCredentials: true });
+    const data = (e: Event) => JSON.parse((e as MessageEvent).data) as unknown;
+    source.addEventListener('ready', (e) => {
+      retry = 1000;
+      on.ready((data(e) as { seq: number }).seq);
+    });
+    source.addEventListener('change', (e) => on.change(data(e) as WhiteboardChangeFrame));
+    source.addEventListener('viewers', (e) => on.viewers(data(e) as WhiteboardViewer[]));
+    source.addEventListener('renamed', (e) => on.renamed((data(e) as { name: string }).name));
+    source.addEventListener('resync', () => on.resync());
+    source.addEventListener('gone', () => {
+      closed = true;
+      source?.close();
+      on.gone();
+    });
+    source.onerror = () => {
+      source?.close();
+      setTimeout(open, (retry = Math.min(retry * 2, 30_000)));
+    };
+  };
+  open();
+  return () => {
+    closed = true;
+    source?.close();
+  };
+}
+
 /**
  * Live tracker events. A reconnect, to whichever server instance, resumes after the
  * last event seen, so nothing is missed; when too much was, `resync` arrives instead.
@@ -155,7 +205,7 @@ export function subscribeEvents(onEvent: (event: { type: string; issue: { id: st
       seen(e);
       onEvent({ type: 'resync', issue: null, project: null });
     });
-    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'attachment.added', 'attachment.removed', 'article.created', 'article.updated', 'article.deleted', 'sprint.issue_added', 'sprint.issue_removed', 'commit.linked', 'pull_request.linked', 'pull_request.updated', 'project.key.changed', 'board.issue_ranked', 'request.cc_added', 'request.cc_removed'];
+    const types = ['issue.created', 'issue.updated', 'issue.deleted', 'comment.created', 'comment.updated', 'comment.deleted', 'link.created', 'link.deleted', 'work.logged', 'work.deleted', 'ai.triage.completed', 'baseline.created', 'attachment.added', 'attachment.removed', 'article.created', 'article.updated', 'article.deleted', 'sprint.issue_added', 'sprint.issue_removed', 'commit.linked', 'pull_request.linked', 'pull_request.updated', 'project.key.changed', 'board.issue_ranked', 'request.cc_added', 'request.cc_removed', 'whiteboard.created', 'whiteboard.renamed', 'whiteboard.deleted', 'whiteboard.converted'];
     for (const t of types)
       source.addEventListener(t, (e) => {
         seen(e);
