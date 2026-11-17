@@ -241,8 +241,8 @@ export async function moveIssue(ctx: Ctx, idOrReadable: string, input: MoveIssue
       projectId: target.id,
       issueId: issue.id,
       payload: {
-        issue: issueRef(s, moved!, states.get(issue.id) ?? null),
-        changes: [{ field: 'Project', from: from.key, to: target.key }, ...changed, ...p.droppedValues.map((d) => ({ field: d.field, from: d.from, to: null }))],
+        issue: { ...issueRef(s, moved!, states.get(issue.id) ?? null), id: to },
+        changes: [{ field: 'Project', from: from.key, to: targetKey }, ...changed, ...p.droppedValues.map((d) => ({ field: d.field, from: d.from, to: null }))],
         data: { from: p.plan.from, to, fromProject: from.key, toProject: targetKey, ...(p.plan.leftSprints.length ? { leftSprints: p.plan.leftSprints } : {}) },
       },
     });
