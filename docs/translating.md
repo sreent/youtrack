@@ -126,7 +126,7 @@ A language is a catalog, as Spanish, Japanese and French came:
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
 3. In `packages/server/src/i18n.ts`, import the catalog beside the others (the server's catalogs are imported, not globbed).
-4. If its nouns keep their capital, as German's do, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`.
+4. If its nouns keep their capital, as German's do, or it has no capitals to lower, as Chinese hasn't, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`: a label set in its sentences then keeps its first letter, so a name there (a project's, an acronym) isn't lower-cased.
 5. Write its voice and its terms here, in a section of its own, then run the checks above. A copy of `e2e/spanish.spec.ts` with the language's words checks it in a browser: it signs in a person of its own, not one of the suite's administrators, since German's spec changes Una's language.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
