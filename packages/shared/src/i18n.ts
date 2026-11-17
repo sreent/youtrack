@@ -7,12 +7,12 @@
 import { IntlMessageFormat, type PrimitiveType } from 'intl-messageformat';
 
 /** The languages there are catalogs for. A new one is a catalog and a line here (docs/translating.md). */
-export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'zh'] as const;
+export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'pt', 'zh'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Each language by its own name, as a person looking for theirs reads it. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語', ko: '한국어', zh: '简体中文' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語', ko: '한국어', pt: 'Português (Brasil)', zh: '简体中文' };
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
@@ -131,14 +131,25 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
 }
 
 /** What goes between two sentences said one after the other: a space, but nothing after Japanese's or Chinese's 。 (Korean's . takes one). */
-const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '', ko: ' ', zh: '' };
+const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '', ko: ' ', pt: ' ', zh: '' };
 
-/** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
-/** Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has. */
-export function intlTag(locale: Locale): string {
-  return locale === 'en' ? 'en-GB' : locale;
+/**
+ * A language's tag where its country matters: a4a's Portuguese is Brazil's. A page's `lang` says it,
+ * so a screen reader reads it in a Brazilian voice and the browser hyphenates it as Brazil does.
+ */
+export function langTag(locale: Locale): string {
+  return locale === 'pt' ? 'pt-BR' : locale;
 }
 
+/**
+ * Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has,
+ * and its Portuguese the Brazilian way ("16 de nov. de 2026", "1.234,5"), whatever a runtime's own `pt` is.
+ */
+export function intlTag(locale: Locale): string {
+  return locale === 'en' ? 'en-GB' : langTag(locale);
+}
+
+/** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
 export function joinSentences(tr: Translator, sentences: readonly string[]): string {
   return sentences.filter(Boolean).join(SENTENCE_GAP[tr.locale]);
 }

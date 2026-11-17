@@ -241,9 +241,11 @@ describe("a rule run's kept notes", () => {
     expect(notesIn(translatorFor('ja'), said, english)).toBe('Anna Schmidt、Ben Okafor、ほか3人に通知しました。');
     expect(notesIn(translatorFor('zh'), said, english)).toBe('通知了 Anna Schmidt、Ben Okafor和另外 3 人。');
     expect(notesIn(translatorFor('ko'), said, english)).toBe('Anna Schmidt, Ben Okafor 및 다른 3명에게 알렸습니다.');
+    expect(notesIn(translatorFor('pt'), said, english)).toBe('Avisou Anna Schmidt, Ben Okafor e mais 3 pessoas.');
     // Three names are a list of three: "and" before the last, in each language's way.
     const three = [{ key: 'rules.run.told', values: { names: ['Anna', 'Ben', 'Carl'] } }];
     expect(notesIn(translatorFor('en'), three, '')).toBe('Told Anna, Ben and Carl.');
     expect(notesIn(translatorFor('fr'), three, '')).toBe('Elle a prévenu Anna, Ben et Carl.');
+    expect(notesIn(translatorFor('pt'), three, '')).toBe('Avisou Anna, Ben e Carl.');
   });
 });
