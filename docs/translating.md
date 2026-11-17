@@ -65,8 +65,11 @@ German:
 | reporter | meldende Person |
 | assignee | Bearbeiter (a column), zugewiesene Person |
 | agent | Agent |
+| assistant (its name), the assistant | assistant, der Assistent |
+| conversation (with the assistant) | Unterhaltung |
 | workflow | Workflow |
 | rule | Regel |
+| if (a rule's or a transition's condition) | falls, after a trigger's „Wenn“ |
 | state machine | Zustandsautomat |
 | transition | Übergang |
 | knowledge base | Wissensdatenbank |
@@ -79,24 +82,29 @@ German:
 | timesheet | Stundenzettel |
 | work logged, log time | erfasste Arbeit, Zeit erfassen |
 | estimate | Schätzung |
+| rate (per hour) | Stundensatz |
 | days away | Abwesenheiten |
 | levelling | Kapazitätsabgleich |
 | slack (in a plan) | Puffer |
 | baseline | Baseline |
-| earned value | Fertigstellungswert |
+| earned value, earned | Fertigstellungswert, erbracht |
+| cost and schedule performance (CPI, SPI) | Kosteneffizienz, Termineffizienz |
 | triage | Triage |
 | suggestion | Vorschlag |
 | token | Token |
 | two-factor sign-in | Zwei-Faktor-Anmeldung |
 | sign in, sign out | anmelden, abmelden |
+| login (a person's handle) | der Login |
 | identity provider | Identitätsanbieter |
 | single sign-on | Single Sign-on |
 | webhook, delivery | Webhook, Zustellung |
 | secret | Secret |
 | commit, pull request, branch | Commit, Pull Request, Branch |
+| merge, merged | mergen, gemergt |
+| CI | das CI |
 | field, value | Feld, Wert |
 | link (between issues) | Verknüpfung |
-| resolve, resolved | erledigen, erledigt |
+| resolve, resolved, resolution | erledigen, erledigt, Erledigung (an SLA's: Erledigungsziel) |
 | dashboard, widget | Dashboard, Widget |
 | report | Bericht |
 
