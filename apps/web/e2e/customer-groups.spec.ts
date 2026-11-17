@@ -41,6 +41,12 @@ test('a manager makes a group with a domain and an agent, its member’s request
   await expect(groups.getByText(`By ${domain} · Members read and answer each other’s · In the desk’s hours · 0 added by hand · 0 open requests`)).toBeVisible();
   await expect(groups.getByRole('list', { name: 'Who takes its new requests' }).getByText(THIRD.name)).toBeVisible();
   await expectAccessible(page);
+  // On a phone, editing it, nothing scrolls sideways.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await groups.getByRole('button', { name: `Edit ${name}` }).click();
+  await expect(groups.getByRole('form', { name: `Edit ${name}` })).toBeVisible();
+  await expectNoSidewaysScroll(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   // Pat at the domain writes in: the request is the group's, and Una's.
   const subject = `Invoices are late ${unique()}`;
