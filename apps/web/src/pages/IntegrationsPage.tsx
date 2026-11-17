@@ -79,6 +79,7 @@ function Steps({ provider }: { provider: VcsProvider }) {
           <li>{tr('page.integrations.inTheRepositoryOpenSettings', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong> })}</li>
           <li>{tr('page.integrations.targetUrlTheUrlAbove', { code: <code>POST</code>, code2: <code>application/json</code> })}</li>
           <li>{tr('page.integrations.underTriggerOnChooseCustom', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          <li>{tr('page.integrations.forBuildsAlsoTick', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
         </ol>
       );
   }

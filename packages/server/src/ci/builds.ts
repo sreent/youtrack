@@ -7,17 +7,21 @@
  * (channel `ci`): in their history, and to the rules that act on such a change. What it did to each
  * issue is kept beside it (`build_issues`), so a build says what it marked and why it left the rest.
  *
- * Builds come two ways:
+ * Builds come three ways:
  * - A GitHub integration's `workflow_run` deliveries (receive.ts, signed as pushes are): a run of
  *   the chosen workflow on the chosen branch that finishes is a build. Its commits are those since
  *   the source's last build on that branch: asked of GitHub's compare API with the integration's
  *   token, or else those a4a has seen pushed to that branch, by when they were made.
+ * - A Gitea or Forgejo integration's Actions runs (D55), the same way: Forgejo's own run events,
+ *   or Gitea's `workflow_run`. With no token, a run holds what a4a saw pushed, and the commits of
+ *   the push that started it, which Forgejo's run carries.
  * - Anything else (Jenkins, TeamCity, GitLab CI, a script) posts to /builds/hooks/{source} with
  *   the source's token as a Bearer token: the build, and its commits (their shas, their messages,
  *   or a range a4a asks GitHub about).
  *
  * A build reported again (a re-run, a retry of the request) is the same build: what it holds now is
- * added, and an issue it left open before is marked once it's resolved.
+ * added, and an issue it left open before is marked once it's resolved. Reports of one build are
+ * taken one at a time, and one that comes late never steps it back: a success stays one.
  */
 import {
   BuildSourceBody,
@@ -32,7 +36,7 @@ import {
   type IssueBuild,
 } from '@a4a/shared';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, gt, inArray, isNotNull, lte, ne } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
@@ -182,6 +186,14 @@ export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSou
     if (!i) throw notFound('Integration').said('ci.integrationNotFound');
     if (i.provider !== 'github') throw badRequest(`${i.name} isn't a GitHub integration`, 'Workflow runs come from GitHub Actions; any other CI posts its builds with a token: choose "Any CI".').said('ci.notGithub', { integration: i.name });
     integrationId = i.id;
+  } else if (body.kind === 'gitea') {
+    if (!body.integration) throw badRequest('Say which Gitea or Forgejo integration’s Actions runs are builds', 'Add a Gitea or Forgejo integration first, then give its id.').said('ci.giteaIntegrationNeeded');
+    const [i] = await ctx.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, body.integration));
+    if (!i) throw notFound('Integration').said('ci.integrationNotFound');
+    if (i.provider !== 'gitea') {
+      throw badRequest(`${i.name} isn't a Gitea or Forgejo integration`, 'Choose one that is; for a GitHub integration, choose GitHub Actions, and for any other CI, "Any CI".').said('ci.notGitea', { integration: i.name });
+    }
+    integrationId = i.id;
   } else if (body.integration || body.branch || body.workflow) {
     throw badRequest('A CI that posts its builds takes no integration, branch or workflow', 'It says which build it is, and its branch, as it posts each one.').said('ci.postingTakesNoSource');
   }
@@ -242,6 +254,7 @@ export async function deleteBuildSource(ctx: Ctx, id: string): Promise<void> {
 export async function rotateBuildToken(ctx: Ctx, id: string): Promise<BuildSourceCreated> {
   requireScope(ctx, 'admin');
   const row = await loadSource(ctx.db, id);
+  if (row.kind === 'gitea') throw badRequest('Its builds come signed by its Gitea or Forgejo integration', 'Give the integration a new secret instead.').said('ci.signedByGiteaIntegration');
   if (row.kind !== 'generic') throw badRequest('Its builds come signed by its GitHub integration', 'Give the integration a new secret instead.').said('ci.signedByIntegration');
   const minted = tokenFor();
   const [updated] = await ctx.db.update(buildSources).set({ tokenHash: minted.hash, tokenPrefix: minted.prefix }).where(eq(buildSources.id, row.id)).returning();
@@ -272,9 +285,19 @@ export interface BuildFacts {
 export interface Recorded {
   build: BuildRow;
   again: boolean;
+  /** Nothing new: it was reported in this state, with these commits, already (`quietIfSame`). */
+  same: boolean;
   marked: number;
   /** For the log a person reads: what it did, issue by issue. */
   said: string[];
+}
+
+export interface RecordOptions {
+  /**
+   * A host's run told again in a state the build has already (a delivery sent twice, or Forgejo's
+   * old run event beside its new one) does nothing again: no marking, no event.
+   */
+  quietIfSame?: boolean;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -305,53 +328,81 @@ async function issuesNamed(db: Db, s: SchemaSnapshot, projectId: string, facts: 
   return out;
 }
 
+/**
+ * Where a build stands after a report. A success is final: it's a value, and it has marked
+ * issues. Otherwise the report says how it ended, unless it came late: older, by when each says
+ * the build finished, than the report the build holds (a delivery sent again later, or an
+ * earlier attempt's). A late report changes nothing but what the build holds.
+ */
+function settle(before: BuildRow | undefined, facts: BuildFacts): { status: BuildStatus; url: string | null; finishedAt: Date } {
+  const url = link(facts.url);
+  if (!before) return { status: facts.status, url, finishedAt: facts.finishedAt ?? new Date() };
+  const late = Boolean(facts.finishedAt && before.finishedAt && facts.finishedAt < before.finishedAt);
+  const status: BuildStatus = before.status === 'success' || facts.status === 'success' ? 'success' : late ? (before.status as BuildStatus) : facts.status;
+  if (late) return { status, url: before.url ?? url, finishedAt: before.finishedAt! };
+  return { status, url: url ?? before.url, finishedAt: facts.finishedAt ?? before.finishedAt ?? new Date() };
+}
+
 /** Record a build, and if it succeeded, mark the resolved issues its commits name. */
-export async function recordBuild(app: AppServices, source: SourceRow, facts: BuildFacts): Promise<Recorded> {
+export async function recordBuild(app: AppServices, source: SourceRow, facts: BuildFacts, opts: RecordOptions = {}): Promise<Recorded> {
   const s = await app.schema.get();
   const project = s.projects.get(source.projectId);
   if (!project) throw notFound('Project').said('ci.projectNotFound');
   const ctx = ciCtx(app, s, source);
   const field = buildFieldOf(s, source.projectId, source.fieldId);
   const shas = [...new Set(facts.commits.map((c) => c.sha?.toLowerCase()).filter((x): x is string => Boolean(x)))].slice(0, MAX_BUILD_COMMITS);
-
-  const [before] = await app.db.select().from(builds).where(and(eq(builds.projectId, source.projectId), eq(builds.name, facts.name)));
-  const succeeded = facts.status === 'success' || before?.status === 'success';
-  const status: BuildStatus = facts.status === 'success' || !before ? facts.status : (before.status as BuildStatus) === 'success' ? 'success' : facts.status;
-  const merged = [...new Set([...(before?.commits ?? []), ...shas])].slice(0, MAX_BUILD_COMMITS);
   const said: string[] = [];
 
-  let valueId: string | null = before?.valueId ?? null;
-  if (succeeded && field && !valueId) {
-    const v = await addFieldValue(ctx, field.id, { name: facts.name, project: project.key });
-    valueId = v.id;
-  }
+  // A build's reports are taken one at a time, across instances (D17): two deliveries of one run
+  // come together (Forgejo sends its old run event beside the new one), and each must see what the
+  // other did, so one value is made and what's marked is marked once.
+  let madeValue = false;
+  const { build, before, same } = await app.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:build:${source.projectId}|${facts.name}`}))`);
+    const [before] = await tx.select().from(builds).where(and(eq(builds.projectId, source.projectId), eq(builds.name, facts.name)));
+    const next = settle(before, facts);
+    const merged = [...new Set([...(before?.commits ?? []), ...shas])].slice(0, MAX_BUILD_COMMITS);
+    const same = Boolean(before && before.status === next.status && before.url === next.url && merged.length === before.commits.length);
+    if (same && opts.quietIfSame) return { build: before!, before, same };
+    let valueId: string | null = before?.valueId ?? null;
+    if (next.status === 'success' && field && !valueId) {
+      valueId = (await addFieldValue({ ...ctx, db: tx }, field.id, { name: facts.name, project: project.key })).id;
+      madeValue = true;
+    }
+    const values = {
+      sourceId: source.id,
+      fieldId: field?.id ?? null,
+      valueId,
+      status: next.status,
+      url: next.url,
+      repository: facts.repository ?? before?.repository ?? null,
+      branch: facts.branch ?? before?.branch ?? null,
+      headSha: facts.headSha ?? before?.headSha ?? null,
+      headAt: facts.headAt ?? before?.headAt ?? null,
+      commits: merged,
+      finishedAt: next.finishedAt,
+      updatedAt: new Date(),
+    };
+    const [row] = await tx
+      .insert(builds)
+      .values({ id: newId(), projectId: source.projectId, name: facts.name, ...values })
+      .onConflictDoUpdate({ target: [builds.projectId, builds.name], set: values })
+      .returning();
+    return { build: row!, before, same };
+  });
+  // The value was made inside the transaction: a schema read before it committed mustn't stay.
+  if (madeValue) app.schema.invalidate();
+  if (same && opts.quietIfSame) return { build, again: true, same: true, marked: 0, said: [] };
+  const succeeded = build.status === 'success';
+  const valueId = build.valueId;
   if (succeeded && !field) said.push(`${project.key} has no build field, so the build is kept but marks nothing: give it one under Integrations`);
-
-  const values = {
-    sourceId: source.id,
-    fieldId: field?.id ?? null,
-    valueId,
-    status,
-    url: link(facts.url) ?? before?.url ?? null,
-    repository: facts.repository ?? before?.repository ?? null,
-    branch: facts.branch ?? before?.branch ?? null,
-    headSha: facts.headSha ?? before?.headSha ?? null,
-    headAt: facts.headAt ?? before?.headAt ?? null,
-    commits: merged,
-    finishedAt: facts.finishedAt ?? before?.finishedAt ?? new Date(),
-    updatedAt: new Date(),
-  };
-  const [build] = await app.db
-    .insert(builds)
-    .values({ id: newId(), projectId: source.projectId, name: facts.name, ...values })
-    .onConflictDoUpdate({ target: [builds.projectId, builds.name], set: values })
-    .returning();
 
   let marked = 0;
   const activities: ActivityRow[] = [];
   if (field) {
     const named = await issuesNamed(app.db, s, source.projectId, { ...facts, commits: [...facts.commits, ...(before?.commits ?? []).map((sha) => ({ sha, message: null }))] });
-    const earlier = await app.db.select().from(buildIssues).where(eq(buildIssues.buildId, build!.id));
+    const earlier = await app.db.select().from(buildIssues).where(eq(buildIssues.buildId, build.id));
     const done = new Map(earlier.map((r) => [r.issueId, r.outcome as BuildIssueOutcome]));
     // What it held when reported before (by a message, say) and didn't mark then is looked at again.
     const again = earlier.filter((r) => r.outcome === 'open' || r.outcome === 'refused').map((r) => r.issueId).filter((id) => !named.has(id));
@@ -360,32 +411,32 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
       if (done.get(issue.id) === 'marked' || done.get(issue.id) === 'already') continue;
       if (!succeeded || !valueId) {
         // A build that didn't succeed marks nothing; what it holds is kept, for when it's run again and passes.
-        const { note, said } = status === 'cancelled' ? noted('The build was cancelled', 'builds.note.cancelled') : noted('The build failed', 'builds.note.failed');
+        const { note, said } = build.status === 'cancelled' ? noted('The build was cancelled', 'builds.note.cancelled') : noted('The build failed', 'builds.note.failed');
         await app.db
           .insert(buildIssues)
-          .values({ buildId: build!.id, issueId: issue.id, outcome: 'refused', note, said, commit })
-          .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: 'refused', note, said, commit } });
+          .values({ buildId: build.id, issueId: issue.id, outcome: 'refused', note, said, commit })
+          .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: 'refused', note, said, commit }, setWhere: ne(buildIssues.outcome, 'marked') });
         continue;
       }
-      const r = await markIssue(app, ctx, s, build!, field, valueId, issue, commit);
+      const r = await markIssue(app, ctx, s, build, field, valueId, issue, commit);
       if (r.outcome === 'marked') marked++;
       activities.push(...r.activities);
       said.push(r.said);
     }
   }
-  const total = (await app.db.select({ id: buildIssues.issueId }).from(buildIssues).where(and(eq(buildIssues.buildId, build!.id), eq(buildIssues.outcome, 'marked')))).length;
-  const [finalRow] = await app.db.update(builds).set({ marked: total }).where(eq(builds.id, build!.id)).returning();
+  const total = (await app.db.select({ id: buildIssues.issueId }).from(buildIssues).where(and(eq(buildIssues.buildId, build.id), eq(buildIssues.outcome, 'marked')))).length;
+  const [finalRow] = await app.db.update(builds).set({ marked: total }).where(eq(builds.id, build.id)).returning();
   await app.db.update(buildSources).set({ lastBuildAt: new Date() }).where(eq(buildSources.id, source.id));
   activities.push(
     await recordActivity(app.db, ctx, {
       type: 'build.recorded',
       projectId: source.projectId,
       issueId: null,
-      payload: { data: { build: facts.name, status, url: values.url, source: source.name, commits: merged.length, marked, again: Boolean(before) } },
+      payload: { data: { build: facts.name, status: build.status, url: build.url, source: source.name, commits: build.commits.length, marked, again: Boolean(before) } },
     }),
   );
   await publishActivities(app, activities);
-  return { build: finalRow!, again: Boolean(before), marked, said };
+  return { build: finalRow!, again: Boolean(before), same, marked, said };
 }
 
 /** Why a build left an issue as it did: in English for the API, and its words in the catalogs for a page (D49). */
@@ -431,10 +482,11 @@ async function markIssue(
         out = { outcome: 'refused', note: excerpt(e.message, 500), said: e.words ? { key: `problem.${e.words.key}`, ...(e.words.values ? { values: e.words.values } : {}) } : null };
       }
     }
+    // Another report of the same build may have marked it a moment ago: what it marked stays marked.
     await tx
       .insert(buildIssues)
       .values({ buildId: build.id, issueId: locked.id, outcome: out.outcome, note: out.note, said: out.said, commit })
-      .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: out.outcome, note: out.note, said: out.said, commit } });
+      .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: out.outcome, note: out.note, said: out.said, commit }, setWhere: ne(buildIssues.outcome, 'marked') });
     return out;
   });
   const words: Record<BuildIssueOutcome, string> = {
@@ -464,14 +516,21 @@ export interface WorkflowRun {
   conclusion: string | null;
   url: string | null;
   at: Date | null;
+  /** The commits of the push that started it, when the run carries them (Forgejo's). */
+  pushed: { sha: string; message: string; at: Date | null }[];
 }
+
+/** A workflow's file by its name alone. */
+const fileOf = (path: string): string => path.split('/').pop() ?? '';
 
 function takes(source: SourceRow, run: WorkflowRun): boolean {
   if (source.branch && source.branch !== run.branch) return false;
   if (!source.workflow) return true;
   const w = source.workflow.trim().toLowerCase();
-  const path = (run.path ?? '').toLowerCase();
-  return (run.workflow ?? '').toLowerCase() === w || path === w || path.endsWith(`/${w}`);
+  // GitHub names .github/workflows/ci.yml; Forgejo ci.yml alone; Gitea ci.yml@refs/heads/main.
+  const path = (run.path ?? '').toLowerCase().replace(/@.*$/, '');
+  const fileAlone = path !== '' && !path.includes('/') && fileOf(w) === path;
+  return (run.workflow ?? '').toLowerCase() === w || path === w || path.endsWith(`/${w}`) || fileAlone;
 }
 
 const statusOf = (conclusion: string | null): BuildStatus => (conclusion === 'success' ? 'success' : conclusion === 'cancelled' ? 'cancelled' : 'failure');
@@ -523,15 +582,20 @@ async function runCommits(app: AppServices, integration: IntegrationRow, source:
     .where(and(eq(builds.sourceId, source.id), eq(builds.status, 'success'), isNotNull(builds.headSha), ...(run.branch ? [eq(builds.branch, run.branch)] : []), ne(builds.headSha, run.headSha)))
     .orderBy(desc(builds.createdAt))
     .limit(1);
-  if (last?.headSha && integration.accessToken) {
+  // The push that started the run, when the run carries it (Forgejo's): its commits and their messages.
+  const pushed: CommitSeen[] = run.pushed.map((c) => ({ sha: c.sha, message: c.message }));
+  // Since the last passing build's head commit; one whose head's time isn't known, since it was recorded.
+  const since = last ? (last.headAt ?? last.createdAt) : source.createdAt;
+  // Only GitHub's compare is asked, and only of a GitHub integration: no other host's token goes to GitHub.
+  if (last?.headSha && integration.provider === 'github' && integration.accessToken) {
     const got = await compare(app, integration, run.repository, last.headSha, run.headSha);
     if ('commits' in got) return { commits: [...got.commits, head], note: got.more ? `GitHub named ${got.commits.length} of its commits; the ${got.more} before them weren't read` : null };
-    const seen = await seenBetween(app.db, run.repository, run.branch, last.headAt, run.headAt ?? run.at);
+    const seen = await seenBetween(app.db, run.repository, run.branch, since, run.headAt ?? run.at);
     return { commits: [...seen, head], note: `${got.problem}; read the commits a4a saw pushed instead` };
   }
   // Without a token, or a first build: what a4a saw pushed to the branch since the last build, or since the source began.
-  const seen = await seenBetween(app.db, run.repository, run.branch, last?.headAt ?? source.createdAt, run.headAt ?? run.at);
-  return { commits: [...seen, head], note: null };
+  const seen = await seenBetween(app.db, run.repository, run.branch, since, run.headAt ?? run.at);
+  return { commits: [...seen, ...pushed, head], note: null };
 }
 
 /** A finished workflow run: a build of each source of this integration that takes it. */
@@ -543,10 +607,13 @@ export async function buildsFromRun(
   const what = `${run.workflow ?? run.path ?? 'A workflow'}${run.number ? ` #${run.number}` : ''} on ${run.branch ?? 'no branch'}`;
   const quiet = (message: string) => ({ outcome: 'ignored' as const, message, reply: 'Read: not a build a4a takes.', marked: 0 });
   if (run.action !== 'completed') return quiet(`${what} is ${run.action}: a run is a build once it finishes.`);
+  // Every job skipped (a condition said no): nothing was built.
+  if (run.conclusion === 'skipped') return quiet(`${what} was skipped: it built nothing, so it isn't a build.`);
   const sources = (await app.db.select().from(buildSources).where(and(eq(buildSources.vcsIntegrationId, integration.id), eq(buildSources.active, true)))).filter((src) => takes(src, run));
   if (!sources.length) return quiet(`${what}: no build source takes runs of that workflow on that branch.`);
   const said: string[] = [];
   let marked = 0;
+  let fresh = 0;
   for (const source of sources) {
     const { commits, note } = await runCommits(app, integration, source, run);
     // A source that takes one workflow names its builds by the run's number; one that takes any, by the workflow's name too.
@@ -561,11 +628,18 @@ export async function buildsFromRun(
       headAt: run.headAt,
       finishedAt: run.at,
       commits,
-    });
+    }, { quietIfSame: true });
+    if (r.same) {
+      said.push(`${source.name}: build ${name} was recorded already as ${r.build.status}, with these commits: nothing new`);
+      continue;
+    }
+    fresh++;
     marked += r.marked;
     said.push(`${source.name}: build ${name} (${r.build.status}), ${plural(r.build.commits.length, 'commit')}${r.said.length ? `; ${r.said.join('; ')}` : ''}${note ? `. ${note}` : ''}`);
   }
-  return { outcome: 'processed', message: `${what}. ${said.join('. ')}.`, reply: `Read: ${plural(sources.length, 'build')} recorded, ${plural(marked, 'issue')} marked.`, marked };
+  // The same run told twice (Forgejo sends its old run event beside the new one) is one build.
+  if (!fresh) return { outcome: 'ignored', message: `${what}. ${said.join('. ')}.`, reply: 'Read: that build was recorded already.', marked: 0 };
+  return { outcome: 'processed', message: `${what}. ${said.join('. ')}.`, reply: `Read: ${plural(fresh, 'build')} recorded, ${plural(marked, 'issue')} marked.`, marked };
 }
 
 // ---------------------------------------------------------------------------

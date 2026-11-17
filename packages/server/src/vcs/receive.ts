@@ -220,7 +220,7 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
     case 'ping':
       return { outcome: 'processed', message: `${provider} can reach a4a, and the signature is right.`, linked: 0, applied: 0 };
     case 'other':
-      return { outcome: 'ignored', message: `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
+      return { outcome: 'ignored', message: delivery.note ?? `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
     case 'workflow_run': {
       // A finished run a build source takes is a build (D46): which issues it marks is the log's.
       const r = await buildsFromRun(app, integration, delivery);
