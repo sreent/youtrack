@@ -52,7 +52,7 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
   });
   (app as unknown as { openapi: (r: unknown, h: (c: Context<HttpEnv>) => Promise<Response>) => void }).openapi(upload, async (c) => {
     const ctx = c.get('ctx');
-    if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token in Profile → API tokens.');
+    if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.');
     const query = ImportUploadQuery.safeParse(c.req.query());
     if (!query.success) throw badRequest(`Invalid request: ${query.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
     const type = c.req.header('content-type') ?? '';

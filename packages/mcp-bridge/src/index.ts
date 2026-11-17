@@ -18,7 +18,7 @@ function fail(message: string): never {
 const baseUrl = (process.env.A4A_URL ?? process.argv[2] ?? '').replace(/\/$/, '');
 const token = process.env.A4A_TOKEN ?? '';
 if (!baseUrl) fail('set A4A_URL (for example http://localhost:3000)');
-if (!token) fail('set A4A_TOKEN to an API token from Profile → API tokens');
+if (!token) fail('set A4A_TOKEN to an API token from Agents and tokens');
 
 let endpoint: URL;
 try {

@@ -41,7 +41,7 @@ const MultipartFile = z.object({ file: z.string().meta({ format: 'binary', descr
 
 function need(c: Context<HttpEnv>): Ctx {
   const ctx = c.get('ctx');
-  if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token in Profile → API tokens.');
+  if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.');
   return ctx;
 }
 

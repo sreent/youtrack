@@ -1,5 +1,5 @@
 import { isLocale } from '@a4a/shared/i18n';
-import { localeOfRequest } from '../i18n';
+import { localeOfRequest, translatorFor } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
@@ -17,7 +17,30 @@ import { actorFromSession, actorFromToken, SESSION_COOKIE } from '../services/au
 import { guestCtx, guestMayRequest } from '../services/guests';
 import type { HttpEnv } from './env';
 
+/** A problem as a page says it: its words, then its fix, each a sentence. */
+const sentence = (s: string) => (/[.!?…:]["”’)]*$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
+export const pageWords = (message: string, hint?: string) => (hint ? `${sentence(message)} ${sentence(hint)}` : sentence(message));
+
+/** Problems a page says in general: the API adds what only a program reads (which field, as zod put it). */
+const GENERAL = new Set(['validationFailed']);
+
+/**
+ * Under tests, a keyed problem's English in the catalog must say what the API says (D49): the two
+ * are written apart, the API's at the throw and the page's in en.json, so a test that meets the
+ * problem fails when one changes without the other.
+ */
+function checkProblemWords(message: string, hint: string | undefined, words: ProblemWords): void {
+  if (process.env.NODE_ENV !== 'test' || GENERAL.has(words.key)) return;
+  const en = translatorFor('en');
+  const key = `problem.${words.key}`;
+  if (!en.has(key)) throw new Error(`${key} is in no catalog: add its English to packages/shared/i18n/en.json`);
+  const catalog = en.t(key, words.values);
+  const api = pageWords(message, hint);
+  if (catalog !== api) throw new Error(`${key} says "${catalog}" in en.json, but the API says "${api}": make them the same words`);
+}
+
 export function errorBody(code: string, message: string, hint?: string, details?: unknown, words?: ProblemWords) {
+  if (words) checkProblemWords(message, hint, words);
   return {
     error: {
       code,
@@ -68,13 +91,13 @@ export function authenticate(runtime: Runtime): MiddlewareHandler<HttpEnv> {
       // An app's token (OAuth, D28) is for /mcp alone: its audience. Elsewhere it's refused unread.
       const oauth = bearer.startsWith(ACCESS_PREFIX);
       if (oauth && !isMcp) {
-        return c.json(errorBody('unauthorized', 'This token is an app’s, for MCP: it works at /mcp only', 'For the REST API, create an API token in Profile → API tokens.'), 401);
+        return c.json(errorBody('unauthorized', 'This token is an app’s, for MCP: it works at /mcp only', 'For the REST API, create an API token under Agents and tokens.'), 401);
       }
       const actor = oauth ? await actorFromOAuthToken(runtime, bearer) : await actorFromToken(runtime.db, bearer, isMcp ? 'mcp' : 'api');
       if (!actor) {
         // At /mcp the challenge says where to sign in again, so a client can renew what expired.
         if (isMcp) c.header('www-authenticate', mcpChallenge(runtime.config, { code: 'invalid_token', description: 'The token is unknown, expired or revoked' }));
-        return c.json(errorBody('unauthorized', 'The token is unknown, expired or revoked', 'Create a new token in Profile → API tokens.', undefined, { key: 'tokenUnknown' }), 401);
+        return c.json(errorBody('unauthorized', 'The token is unknown, expired or revoked', 'Create a new token under Agents and tokens.', undefined, { key: 'tokenUnknown' }), 401);
       }
       ctx = { app: runtime, db: runtime.db, actor };
     } else if (!isMcp) {

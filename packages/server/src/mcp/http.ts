@@ -43,7 +43,7 @@ export async function handleMcp(c: Context<HttpEnv>): Promise<Response> {
       errorBody(
         'unauthorized',
         'MCP needs "Authorization: Bearer <token>"',
-        oauthOn(config) ? 'Sign in with OAuth, as MCP clients do, or create a token in a4a: Profile → API tokens.' : 'Create a token in a4a: Profile → API tokens.',
+        oauthOn(config) ? 'Sign in with OAuth, as MCP clients do, or create a token in a4a, under Agents and tokens.' : 'Create a token in a4a, under Agents and tokens.',
       ),
       401,
     );

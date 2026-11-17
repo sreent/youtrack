@@ -51,7 +51,7 @@ import { appCallGuard } from './app-calls';
 
 const API_DESCRIPTION = `The a4a REST API: everything the web UI does, for scripts and integrations.
 
-**Authentication.** Send \`Authorization: Bearer a4a_…\` with a token from Profile → API tokens. A token's scopes (read, write, admin) narrow what it may do and never exceed its owner's role.
+**Authentication.** Send \`Authorization: Bearer a4a_…\` with a token from Agents and tokens. A token's scopes (read, write, admin) narrow what it may do and never exceed its owner's role.
 
 **Conventions.** Issues are addressed by readable ids (\`BACK-12\`). Custom fields are set by name: \`{"fields": {"Priority": "Critical", "Assignee": "anna"}}\`. Errors are \`{"error": {"code", "message", "hint"}}\`; the hint says how to fix the request. Send \`Idempotency-Key\` on POSTs to make retries safe, and \`expectedVersion\` on updates to avoid overwriting someone else's change.
 

@@ -112,7 +112,7 @@ export function requireScope(ctx: Ctx, scope: Scope): void {
   if (ctx.actor.guest) throw unauthorized('Sign in to do that', 'Guests can read the projects open to them, and nothing else.');
   if (scope === 'admin') throw forbidden('This action requires an administrator');
   if (ctx.actor.authMethod === 'token') {
-    throw forbidden(`This token lacks the "${scope}" scope`, 'Create a token with the required scope in Profile → API tokens.');
+    throw forbidden(`This token lacks the "${scope}" scope`, 'Create a token with the required scope under Agents and tokens.');
   }
   throw forbidden(scope === 'write' ? 'Your role is read-only' : 'You do not have access');
 }
