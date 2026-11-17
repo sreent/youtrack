@@ -13,7 +13,8 @@
 import type { ChatStreamEvent } from '@a4a/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createConversation, decide, getConversation, sendMessage } from '../../src/ai/chat/agent';
-import { similarWithJudgement, summarizeIssue, wordsToCommand, wordsToQuery } from '../../src/ai/nl';
+import { similarWithJudgement, wordsToCommand, wordsToQuery } from '../../src/ai/nl';
+import { summarizeIssue, writeWithAI } from '../../src/ai/writing';
 import { AI_PROVIDERS } from '../../src/ai/providers';
 import { triageIssue } from '../../src/ai/triage';
 import { adminCtx, createRuntime, type Runtime } from '../../src/app-services';

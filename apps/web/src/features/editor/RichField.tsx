@@ -1,4 +1,4 @@
-import type { Attachment, User } from '@a4a/shared';
+import type { Attachment, User, WritingFor } from '@a4a/shared';
 import { imagePath } from '@a4a/shared/markdown';
 import { lazy, Suspense, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -6,7 +6,8 @@ import { useUsers } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { contentPath, refusal, uploadFile, useAttachmentLimits } from '../attachments/api';
 import { MentionField } from '../issues/MentionField';
-import type { Placed } from './VisualEditor';
+import type { EditorHandle, Picked, Placed } from './VisualEditor';
+import { carriedOn, useWritingHelp } from '../writing/WritingHelp';
 import { t, problemWords } from '../../i18n';
 
 // Fetched when someone first writes: pages that only read never load the editor.
@@ -62,6 +63,7 @@ export function RichField({
   onUploaded,
   onOtherFiles,
   tall,
+  writing,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -77,6 +79,8 @@ export function RichField({
   onUploaded?: (file: Attachment) => void;
   onOtherFiles?: (files: File[]) => void;
   tall?: boolean;
+  /** Where the text goes, for writing help (D59): offered only with it, and while the server has an AI provider. */
+  writing?: WritingFor;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -93,6 +97,45 @@ export function RichField({
     latest.current = next;
     onChange(next);
   };
+
+  // What's selected, for writing help: the visual editor's, or the Markdown's from where to where.
+  const editorHandle = useRef<EditorHandle | null>(null);
+  const area = useRef({ start: 0, end: 0 });
+  const [selected, setSelected] = useState(false);
+  const fieldEl = () => document.getElementById(id);
+  const help = useWritingHelp({
+    at: writing,
+    value,
+    selected,
+    pick: (): Picked | null => {
+      if (mode === 'visual') return editorHandle.current?.pick() ?? null;
+      const { start, end } = area.current;
+      if (end <= start) return null;
+      const text = latest.current.slice(start, end);
+      return {
+        text,
+        apply: (next) => {
+          const now = latest.current;
+          if (now.slice(start, end) !== text) return false;
+          change(now.slice(0, start) + next + now.slice(end));
+          return true;
+        },
+      };
+    },
+    whole: (carryOn) => {
+      const text = latest.current;
+      return {
+        text,
+        apply: (next) => {
+          if (latest.current !== text) return false;
+          change(carryOn ? carriedOn(text, next) : next);
+          return true;
+        },
+      };
+    },
+    focusField: () => (mode === 'visual' ? editorHandle.current?.focus() : fieldEl()?.focus()),
+    say,
+  });
 
   const place = uploadTo
     ? async (file: File): Promise<Placed | null> => {
@@ -145,6 +188,7 @@ export function RichField({
           onClick={() => {
             setMode(m);
             keepMode(m);
+            setSelected(false);
           }}
         >
           {m === 'visual' ? t('editor.richField.visual') : t('editor.richField.markdown')}
@@ -161,6 +205,7 @@ export function RichField({
             <div className="editor-bar">
               <span className="note">{t('editor.richField.openingTheEditor')}</span>
               <span className="grow" />
+              {help.button}
               {switcher}
             </div>
           }
@@ -178,7 +223,14 @@ export function RichField({
             place={place}
             onOtherFiles={onOtherFiles}
             onStatus={say}
-            end={switcher}
+            end={
+              <>
+                {help.button}
+                {switcher}
+              </>
+            }
+            handle={editorHandle}
+            onSelection={setSelected}
           />
         </Suspense>
       ) : (
@@ -186,6 +238,7 @@ export function RichField({
           <div className="editor-bar">
             <span className="note">{t('editor.richField.markdownAsItSKept')}</span>
             <span className="grow" />
+            {help.button}
             {switcher}
           </div>
           <MentionField
@@ -198,9 +251,14 @@ export function RichField({
             autoFocus={autoFocus}
             people={people}
             onFiles={(files, start, end) => void putFiles(files, start, end)}
+            onSelection={(start, end) => {
+              area.current = { start, end };
+              setSelected(end > start);
+            }}
           />
         </>
       )}
+      {help.panel}
       {status?.bad ? (
         <ErrorLine id={statusId}>{status.text}</ErrorLine>
       ) : (

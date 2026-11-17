@@ -5,7 +5,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createConversation } from '../src/ai/chat/agent';
 import { setClaudeClientForTests, type ClaudeClient } from '../src/ai/client';
-import { judgeDuplicates, summarizeIssue, wordsToQuery } from '../src/ai/nl';
+import { judgeDuplicates, wordsToQuery } from '../src/ai/nl';
+import { summarizeIssue } from '../src/ai/writing';
 import { findSimilar } from '../src/ai/similar';
 import { dismissSuggestion, listPendingSuggestions, listSuggestions, triageConsumer, triageIssue } from '../src/ai/triage';
 import { adminCtx } from '../src/app-services';

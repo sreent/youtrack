@@ -1,4 +1,4 @@
-import type { Article, ArticleDetail } from '@a4a/shared';
+import type { Article, ArticleDetail, TextSummary } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { Fragment, useEffect, useId, useMemo, useState } from 'react';
@@ -22,6 +22,8 @@ import { whenRead } from '../features/common/format';
 import { errorText, useStateTones } from '../features/issues/api';
 import { LimitPicker, type Limit } from '../features/issues/VisibleTo';
 import { AppWidgets } from '../features/apps/AppWidgets';
+import { SummaryCard, useWritingOn } from '../features/writing/WritingHelp';
+import { errorText as problemText } from '../features/common/bits';
 import { intlLocale, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
@@ -405,6 +407,39 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
   );
 }
 
+/** The article summarised by the assistant, in the reader's language (D59): shown, never saved. */
+function ArticleSummary({ a }: { a: ArticleDetail }) {
+  const on = useWritingOn();
+  const [state, setState] = useState<{ result: TextSummary } | { error: string } | 'asking' | null>(null);
+  if (!on || !a.body.trim()) return null;
+  const ask = async () => {
+    setState('asking');
+    try {
+      setState({ result: await post<TextSummary>(`/articles/${a.id}/summarize`) });
+    } catch (e) {
+      setState({ error: problemText(e) });
+    }
+  };
+  if (state === null || state === 'asking' || 'error' in state)
+    return (
+      <div className="cluster">
+        <button type="button" onClick={() => void ask()} disabled={state === 'asking'}>
+          {state === 'asking' ? t('page.articles.summarising') : t('page.articles.summarise')}
+        </button>
+        {state !== null && state !== 'asking' ? <ErrorLine>{state.error}</ErrorLine> : null}
+      </div>
+    );
+  return (
+    <SummaryCard
+      label={t('page.articles.summaryByTheAssistant')}
+      did={t('page.articles.summarisedTheArticle')}
+      summary={state.result.summary}
+      note={state.result.partial ? t('page.articles.longArticleSummarised') : null}
+      onClose={() => setState(null)}
+    />
+  );
+}
+
 function ArticleView() {
   const { id = '' } = useParams();
   const location = useLocation();
@@ -474,6 +509,7 @@ function ArticleView() {
             )}
             {tickSaid ? <ErrorLine>{tickSaid}</ErrorLine> : null}
           </article>
+          <ArticleSummary key={`summary-${a.id}`} a={a} />
           {a.children.length ? (
             <section className="card stack" aria-labelledby="under-title">
               <h2 id="under-title">{t('page.articles.underIt')}</h2>
@@ -642,6 +678,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
               tall
               uploadTo={mode === 'edit' && id ? `/articles/${id}/attachments` : undefined}
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.article(id ?? '') })}
+              writing={{ kind: 'article', article: mode === 'edit' && id ? id : undefined, project: project || undefined, title: title || undefined }}
             />
           </div>
           <div className="article-preview" role="region" aria-label={t('page.articles.howItWillRead')}>

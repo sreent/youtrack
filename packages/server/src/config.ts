@@ -82,6 +82,8 @@ export interface Config {
   aiEnabled: boolean;
   /** Why the AI is off, in words for the person running the server; null when it's on. */
   aiOffReason: string | null;
+  /** How many times a person may ask for writing and reading help in an hour (AI_WRITING_MAX_PER_HOUR, D59). */
+  aiWritingMaxPerHour: number;
   webDist: string | undefined;
   sessionTtlDays: number;
   isDev: boolean;
@@ -592,6 +594,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     aiModel: ai.model,
     aiEnabled: ai.offReason === null,
     aiOffReason: ai.offReason,
+    aiWritingMaxPerHour: intEnv(env.AI_WRITING_MAX_PER_HOUR, 100, 1),
     webDist: webDistCandidates.find((p) => existsSync(path.join(p, 'index.html'))),
     sessionTtlDays: Number(env.SESSION_TTL_DAYS ?? 30),
     isDev: env.NODE_ENV !== 'production',

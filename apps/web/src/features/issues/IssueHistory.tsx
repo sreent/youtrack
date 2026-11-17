@@ -626,6 +626,7 @@ export function IssueHistory({
                 uploadTo={`/issues/${issue.id}/attachments`}
                 onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
                 onOtherFiles={pick}
+                writing={{ kind: requester && canReply && visibility === 'public' ? 'reply' : 'comment', issue: issue.id }}
               />
             )}
           </FormField>

@@ -1,6 +1,7 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { formatPeriod } from '@a4a/shared';
 import { z } from 'zod';
+import { aiService } from '../ai/client';
 import type { Ctx } from '../context';
 import { excerpt } from '../lib/text';
 import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../search/reference';
@@ -87,7 +88,8 @@ async function issueMarkdown(ctx: Ctx, id: string): Promise<string> {
 export function createMcpServer(ctx: Ctx): McpServer {
   const server = new McpServer({ name: 'a4a', version: '0.1.0', title: 'a4a' }, { instructions: MCP_INSTRUCTIONS, capabilities: { logging: {} } });
 
-  for (const tool of TOOLS) registerTool(server, ctx, tool);
+  // A tool that asks a4a's own AI is there only while the server has an AI provider (D59).
+  for (const tool of TOOLS) if (!tool.needsAI || aiService(ctx.app)) registerTool(server, ctx, tool);
 
   server.registerResource(
     'query-language',
