@@ -17,10 +17,9 @@ import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
-import { newId } from '../lib/ids';
 import { mailConfigured } from '../notify/state';
 import { requesterMayComment, requesterSees } from './access';
-import { groupsOfRequester, sharingOf, type GroupRow } from './customer-groups';
+import { groupsOfRequester, requesterByEmail, sharingOf, type GroupRow } from './customer-groups';
 import { botCtx, deskProject, openRequest, postRequesterReply } from './helpdesk';
 import { applyChanges } from './issues';
 import { publishActivities } from '../events/activity';
@@ -40,18 +39,6 @@ type RequesterRow = typeof requesters.$inferSelect;
 
 const missing = () => new AppError(404, 'not_found', "There's no request here", 'Open it from your list of requests.').said('portal.noRequestHere');
 const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see your requests', 'Ask for a sign-in link with your email address.').said('portal.signInToSee');
-
-/** Find the requester an email names, or make them, named for the email until they say otherwise. */
-async function requesterByEmail(db: Db, email: string): Promise<RequesterRow> {
-  const clean = email.trim();
-  const res = await db.execute(sql`
-    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${clean}, ${clean.split('@')[0] || clean})
-    ON CONFLICT ((lower(email))) DO UPDATE SET updated_at = requesters.updated_at
-    RETURNING id`);
-  const id = String((res as unknown as { rows: { id: string }[] }).rows[0]!.id);
-  const [row] = await db.select().from(requesters).where(eq(requesters.id, id));
-  return row!;
-}
 
 /**
  * Send a sign-in link. It says the same whether or not the address has asked for help before, so

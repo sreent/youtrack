@@ -6,6 +6,7 @@ import { useMembers } from '../../api/queries';
 import { isOwnAgent } from '@a4a/shared/constants';
 import { Badge } from '../../components/Badges';
 import { errorText, FormField, Said } from '../common/bits';
+import { Confirm } from '../common/Confirm';
 import { intlLocale, t, tr, weekdayNames } from '../../i18n';
 
 const DAYS = weekdayNames();
@@ -213,9 +214,16 @@ export function CustomerGroups({ project, canEdit }: { project: Project; canEdit
                     <button type="button" className="link" onClick={() => setEditing(editing === g.id ? null : g.id)} aria-label={t('helpdesk.groups.editGroup', { name: g.name })}>
                       {t('helpdesk.groups.edit')}
                     </button>
-                    <button type="button" className="link" onClick={() => remove.mutate(g.id)} aria-label={t('helpdesk.groups.deleteGroup', { name: g.name })}>
-                      {t('helpdesk.groups.delete')}
-                    </button>
+                    <Confirm
+                      small
+                      label={t('helpdesk.groups.delete')}
+                      name={t('helpdesk.groups.deleteGroup', { name: g.name })}
+                      title={t('helpdesk.groups.deleteTitle', { name: g.name })}
+                      about={t('helpdesk.groups.deleteAbout')}
+                      confirm={t('helpdesk.groups.deleteIt')}
+                      disabled={remove.isPending}
+                      onConfirm={() => remove.mutate(g.id)}
+                    />
                   </span>
                 ) : null}
               </div>
