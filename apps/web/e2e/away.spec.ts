@@ -75,7 +75,7 @@ test.describe('signed in as people of its own', () => {
     await expect(form.getByLabel('To', { exact: true })).toHaveValue(week.tue);
     await form.getByLabel('Why').selectOption('training');
     await form.getByRole('button', { name: 'Add the days away' }).click();
-    await expect(dialog.getByRole('status')).toHaveText(new RegExp(`^Added: ${sam.name} is away Tue [^.]+\\. Plans skip it for ${sam.name}’s work\\.$`));
+    await expect(dialog.getByRole('status')).toHaveText(new RegExp(`^Added: ${sam.name} is away Tue [^,]+, so plans skip it for ${sam.name}’s work\\.$`));
     await expect(dialog.getByRole('row').filter({ hasText: 'Training' })).toBeVisible();
     // Half of Thursday too: the afternoon.
     await form.getByLabel('From').fill(week.thu);
@@ -123,7 +123,7 @@ test.describe('signed in as people of its own', () => {
     await expect(form.getByRole('group', { name: 'How much of the day' })).toBeHidden();
     await form.getByLabel('A note, if you want one').fill('Lisbon');
     await form.getByRole('button', { name: 'Add the days away' }).click();
-    await expect(away.getByRole('status')).toHaveText(/^Added: you’re away [^.]+ to [^.]+\. Plans skip those days for your work\.$/);
+    await expect(away.getByRole('status')).toHaveText(/^Added: you’re away [^,]+ to [^,]+, so plans skip those days for your work\.$/);
     const row = away.getByRole('row').filter({ hasText: 'Lisbon' });
     await expect(row).toContainText('Holiday');
 
@@ -131,7 +131,7 @@ test.describe('signed in as people of its own', () => {
     const change = away.getByRole('form', { name: /^Change / });
     await change.getByLabel('To', { exact: true }).fill(week.thu);
     await change.getByRole('button', { name: 'Save the change' }).click();
-    await expect(away.getByRole('status')).toHaveText(/^Changed: you’re away [^.]+ to [^.]+\./);
+    await expect(away.getByRole('status')).toHaveText(/^Changed: you’re away [^,]+ to [^,]+, so plans skip/);
     expect((await api.get<Absence[]>(`/absences?user=${kit.login}`)).map((a) => [a.from, a.to])).toEqual([[week.mon, week.thu]]);
 
     await away.getByRole('row').filter({ hasText: 'Lisbon' }).getByRole('button', { name: /^Remove / }).click();
