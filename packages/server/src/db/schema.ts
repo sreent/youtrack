@@ -444,6 +444,11 @@ export const activities = pgTable(
     index('activities_sprint')
       .on(sql`(${t.payload}->'data'->>'sprintId')`, t.id)
       .where(sql`${t.type} in ('sprint.issue_added', 'sprint.issue_removed')`),
+    // Articles that were limited when they were deleted (D51): their history stays hidden, so every
+    // feed asks of these few rows.
+    index('activities_article_gone')
+      .on(t.projectId)
+      .where(sql`${t.type} = 'article.deleted' and ${t.payload}->'data'->>'limited' = 'true'`),
   ],
 );
 
@@ -927,10 +932,19 @@ export const articles = pgTable(
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(body, '')), 'B')`,
     ),
+    /**
+     * Limited to some people and groups (D51): then only they see it, and what is under it, besides
+     * its author, the project's managers and administrators. A limit above it narrows it too.
+     */
+    limited: boolean('limited').notNull().default(false),
+    visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
+    visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [
     uniqueIndex('articles_project_number').on(t.projectId, t.number),
     index('articles_tree').on(t.projectId, t.parentId, t.position),
+    // Who doesn't see what starts from the few that are limited (D51).
+    index('articles_limited').on(t.projectId).where(sql`${t.limited}`),
     index('articles_updated').on(t.updatedAt),
     index('articles_search').using('gin', t.searchVector),
     index('articles_title_trgm').using('gin', sql`${t.title} gin_trgm_ops`),

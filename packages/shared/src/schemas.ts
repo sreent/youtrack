@@ -1637,8 +1637,9 @@ export const ArticleSchema = z
     title: z.string(),
     parent: z.string().nullable().describe('Readable id of the article it sits under; null at the top of the tree'),
     position: z.number().int().describe('Its place among the articles under the same parent, from 0'),
-    childCount: z.number().int(),
+    childCount: z.number().int().describe('The articles under it that you see'),
     version: z.number().int().describe('Its content version; send as expectedVersion to avoid overwriting a newer one'),
+    limited: z.boolean().describe('Limited to some people and groups (D51); what is under it is seen only by who sees it'),
     createdBy: UserRefSchema.nullable(),
     updatedBy: UserRefSchema.nullable(),
     createdAt: timestamp,
@@ -1656,6 +1657,10 @@ export const ArticleDetailSchema = ArticleSchema.extend({
     articles: z.array(ArticleRefSchema).describe('Other articles that mention it'),
   }),
   attachmentCount: z.number().int(),
+  visibleTo: VisibleToSchema.nullable().describe(
+    "Null: it isn't limited itself. Otherwise only these see it, besides its author, the project's managers and administrators (D51)",
+  ),
+  limitedAbove: z.array(ArticleRefSchema).describe('The limited articles it sits under, from the top: only who sees them sees it'),
 }).meta({ id: 'ArticleDetail' });
 export type ArticleDetail = z.infer<typeof ArticleDetailSchema>;
 
@@ -1665,6 +1670,9 @@ export const CreateArticleBody = z.object({
   body: z.string().max(200_000).default('').describe('Markdown. Mention issues (BACK-12) and articles (BACK-A-3) by id'),
   parent: z.string().nullable().optional().describe('Readable id of the article to put it under; omit for the top of the tree'),
   position: z.number().int().min(0).optional().describe('Its place among its siblings, from 0; omit to put it last'),
+  visibleTo: VisibleToInput.nullable()
+    .optional()
+    .describe("Limit it to these people and groups from the start (D51): its author, the project's managers and administrators still see it"),
 });
 export type CreateArticleInput = z.input<typeof CreateArticleBody>;
 

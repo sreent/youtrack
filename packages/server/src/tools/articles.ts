@@ -2,8 +2,20 @@ import { z } from 'zod';
 import { diffLines, diffStats } from '../lib/diff';
 import { excerpt } from '../lib/text';
 import { formatBytes, listArticleAttachments } from '../services/attachments';
-import { articleUrl, createArticle, getArticle, getArticleVersion, searchArticles, updateArticle } from '../services/articles';
+import { articleUrl, createArticle, getArticle, getArticleVersion, searchArticles, setArticleVisibility, updateArticle } from '../services/articles';
 import { defineTool, type ToolDef } from './types';
+
+/** Whom an article is limited to (D51), as add_comment's visibleTo names them. */
+const VisibleTo = z.object({ users: z.array(z.string()).max(100).default([]).describe('Logins'), groups: z.array(z.string()).max(100).default([]).describe('Group names') });
+
+/** Who sees an article, in words: limited itself, or under limited articles, or everyone in its project. */
+function seenBy(a: { limited: boolean; visibleTo: { users: { login: string }[]; groups: { name: string }[] } | null; limitedAbove: { id: string }[] }) {
+  if (!a.limited && !a.limitedAbove.length) return undefined;
+  return {
+    limitedTo: a.visibleTo ? { users: a.visibleTo.users.map((u) => u.login), groups: a.visibleTo.groups.map((g) => g.name) } : undefined,
+    alsoOnlyWhoSees: a.limitedAbove.length ? a.limitedAbove.map((x) => x.id) : undefined,
+  };
+}
 
 /** An agent reads this much of a body at a time; `body_offset` reads on. */
 const BODY_CHARS = 60_000;
@@ -76,6 +88,8 @@ const getArticleTool = defineTool({
           articles: a.mentionedIn.articles.map((x) => ({ id: x.id, title: x.title })),
         },
         attachments: files.map((f) => ({ id: f.id, name: f.name, size: formatBytes(f.size), type: f.contentType, text: f.text || undefined })),
+        // Limited (D51): only these see it, besides its author, the project's managers and administrators.
+        seenBy: seenBy(a),
       },
       summary: `${a.id} ${a.title}${v ? ` (version ${v.version})` : ''}`,
     };
@@ -93,13 +107,17 @@ const createArticleTool = defineTool({
     body: z.string().max(200_000).default('').describe('Markdown'),
     parent: z.string().optional().describe('The article to put it under, e.g. BACK-A-1'),
     position: z.number().int().min(0).optional().describe('Its place among the articles beside it, from 0; omit to put it last'),
+    visibleTo: VisibleTo.optional().describe(
+      "Limit it to these people and groups from the start: its author, the project's managers and administrators still see it. Under a limited article, only who sees that one sees it anyway.",
+    ),
   }),
   kind: 'changes',
   idempotent: false,
   async preview(_ctx, input) {
     const lines = input.body ? input.body.split('\n').length : 0;
     const where = input.parent ? `under ${input.parent.toUpperCase()}` : 'at the top of its tree';
-    return `Write "${input.title.trim()}" in ${input.project.toUpperCase()}'s knowledge base, ${where}: ${lines} ${lines === 1 ? 'line' : 'lines'} of Markdown${input.body ? `\n${excerpt(input.body, 300)}` : ''}`;
+    const limit = input.visibleTo ? `, seen only by ${[...input.visibleTo.users, ...input.visibleTo.groups].join(', ') || 'those who always see it'} besides its author and the project's managers` : '';
+    return `Write "${input.title.trim()}" in ${input.project.toUpperCase()}'s knowledge base, ${where}${limit}: ${lines} ${lines === 1 ? 'line' : 'lines'} of Markdown${input.body ? `\n${excerpt(input.body, 300)}` : ''}`;
   },
   async run(ctx, input) {
     const a = await createArticle(ctx, input);
@@ -111,7 +129,7 @@ const updateArticleTool = defineTool({
   name: 'update_article',
   title: 'Change an article',
   description:
-    "Change an article's title or body, saved as a new version (the old ones stay in its history), or move it under another article (parent) or to the top of its tree (parent: null). Send the whole new body, not a part of it. Pass expected_version from get_article, so a newer save by someone else isn't overwritten.",
+    "Change an article's title or body, saved as a new version (the old ones stay in its history), or move it under another article (parent) or to the top of its tree (parent: null), or change who sees it (visibleTo). Send the whole new body, not a part of it. Pass expected_version from get_article, so a newer save by someone else isn't overwritten. Under a limited article, only who sees that one sees it: moving it there hides it from everyone else, and moving it out shows it to them.",
   input: z.object({
     article: z.string().describe('Readable id, e.g. BACK-A-3'),
     title: z.string().min(1).max(250).optional(),
@@ -119,6 +137,9 @@ const updateArticleTool = defineTool({
     parent: z.string().nullable().optional().describe('Move it under this article, or to the top with null'),
     position: z.number().int().min(0).optional().describe('Its place among the articles beside it, from 0'),
     expected_version: z.number().int().optional(),
+    visibleTo: VisibleTo.nullable()
+      .optional()
+      .describe("Limit it to these people and groups (its author, the project's managers and administrators still see it), or null to let everyone who sees the project see it"),
   }),
   kind: 'changes',
   destructive: true,
@@ -135,19 +156,22 @@ const updateArticleTool = defineTool({
     }
     if (input.parent !== undefined) parts.push(input.parent === null ? 'move it to the top of the tree' : `move it under ${input.parent.toUpperCase()}`);
     if (input.position !== undefined) parts.push(`put it in place ${input.position + 1}`);
+    if (input.visibleTo === null && a.limited) parts.push('let everyone who sees the project see it');
+    if (input.visibleTo) parts.push(`let only ${[...input.visibleTo.users, ...input.visibleTo.groups].join(', ') || 'those who always see it'} see it, besides its author and the project's managers`);
     if (input.expected_version !== undefined && input.expected_version !== a.version) {
       parts.push(`it is at version ${a.version} now, not ${input.expected_version}, so this would be refused`);
     }
     return parts.length ? `${a.id} ${a.title}: ${parts.join('; ')}` : `${a.id}: no changes`;
   },
   async run(ctx, input) {
-    const a = await updateArticle(ctx, input.article, {
+    let a = await updateArticle(ctx, input.article, {
       title: input.title,
       body: input.body,
       parent: input.parent,
       position: input.position,
       expectedVersion: input.expected_version,
     });
+    if (input.visibleTo !== undefined) a = await setArticleVisibility(ctx, a.id, input.visibleTo);
     return { data: { id: a.id, version: a.version, under: a.parent, url: articleUrl(ctx, a.id) }, summary: `Changed ${a.id} (version ${a.version})` };
   },
 });

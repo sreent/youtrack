@@ -28,7 +28,7 @@ function typeKind(contentType: string): { kind: string; format: string } {
   return { kind: 'binary', format: '' };
 }
 import { attachmentStorage, BlobNotFound, newBlobKey, StorageUnavailable } from '../attachments/storage';
-import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject, commentSeenSql, projectAccess, seesCommentRow } from './access';
+import { assertCanCommentProject, assertCanReadProject, assertCanWriteProject, commentSeenSql, projectAccess, seenArticleIds, seesCommentRow } from './access';
 import { articleReadableId, articleRef, articleRefsById, resolveArticle, type ArticleRow } from './article-refs';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { findVisibleIssue, resolveIssue } from './issues';
@@ -159,6 +159,8 @@ async function loadVisible(ctx: Ctx, id: string): Promise<AttachmentRow> {
   // So does one on an issue, or a comment, limited away from them (D37).
   if (found.a.issueId && !(await findVisibleIssue(ctx, found.a.issueId))) throw missing();
   if (found.comment && !seesCommentRow(await projectAccess(ctx), found.a.projectId, found.comment)) throw missing();
+  // And one on an article limited away from them, or under one that is (D51): its preview and its bytes too.
+  if (found.a.articleId && !(await seenArticleIds(ctx, [found.a.articleId])).has(found.a.articleId)) throw missing();
   return found.a;
 }
 
