@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese and French are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Simplified Chinese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,7 +117,7 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French or Japanese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese or Simplified Chinese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
@@ -382,29 +382,29 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 
 `zh.json` is Simplified Chinese as mainland China writes it, in the words Chinese teams read a tracker in. Where Jira's Simplified Chinese has a word for a tracker's thing, a4a takes it (问题, 经办人, 报告人, 冲刺, 看板, 待办事项, 仪表板, 转换), since most teams there met a tracker through it.
 
-- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你的令牌」, 「先保存更改。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您提交了请求，因此收到这封邮件。」
-- **Plain sentences, no 请 where English has no "please"**: 「选择一个项目。」, 「先保存，再运行。」. 请 asks something of someone, where English asks too. Buttons and labels are short verb phrases or nouns, never sentences: 「保存」, 「保存更改」, 「删除字段」. A status line is short: 「已保存。」, 「正在保存……」, 「已添加 {name}。」
+- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限这样做。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”寻求了帮助。」
+- **Plain sentences, no 请 where English has no "please"**: 「至少选择一个项目。」, 「先保存：然后才能插入图片和文件。」. 请 asks something of someone, where English asks too. Buttons and labels are short verb phrases or nouns, never sentences: 「保存」, 「保存更改」, 「删除字段」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
 - **Typography, as mainland China sets it**:
   - full-width punctuation: ，。、：；？！（）;
   - quotes are “…”, and ‘…’ inside them (「」 is Taiwan's and Japan's);
   - the ellipsis is ……, two of …, as Chinese sets it: 「正在加载……」;
   - no space between Chinese characters;
-  - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 BACK-12」, 「每 2 小时」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
+  - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
   - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」;
   - " · " between the parts of a line, and code, ids, queries and keyboard keys stay as English writes them.
-- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 位 people (「3 位成员」, but 「3 人」 in a short count); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
+- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位被抄送的人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Chinese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」, 「将 {issue} 指派给你」. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
-  - A webhook's events are each a clause, joined with 或 into 「{join}时」: 「创建问题或添加评论时」.
-  - A rule is one sentence, in Chinese order: 「<t0>当</t0>{trigger}<t0>时</t0>，<t0>如果</t0>匹配 {query}，<t0>则</t0>{actions}。」 Its trigger is a clause (「创建问题」, 「问题的 {field} 发生变化」), its conditions say 如果, and its actions are verb phrases (「应用 Assignee anna」, 「通知经办人“{short}”」). The rule's words in `<t0>` are 当…时, 如果 and 则.
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」; a notification's, 「把它指派给了你」. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
+  - A webhook's events are each a clause, joined with 或 into 「{join}时」: 「创建问题或有人发表评论时」.
+  - A rule is one sentence, in Chinese order: 「<t0>当</t0>{trigger}<t0>时</t0>，<t0>如果</t0>匹配 {query}，<t0>则</t0>{actions}。」 Its trigger is a clause (「创建问题」, 「问题的 {field} 发生变更」), its conditions say 如果, and its actions are verb phrases (「应用 Assignee anna」, 「通知它的经办人“{short}”」). The rule's words in `<t0>` are 当…时, 如果 and 则.
 - **A loading line is a whole message**, one per thing (`loadingLine.*`): 「正在加载计划……」. It names the thing with no owner (「正在加载收件箱……」 for "Loading your inbox…"); a thing's own name or id reads 「正在加载 {name}……」, and nothing, 「正在加载……」.
 - **Dates and numbers** come from Intl, `zh`, which writes them as `zh-CN` does: 「2026年11月16日」, 「1,234.5」, 「3分钟前」, lists as 「A、B和C」.
-- **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Chinese and every case stays: `{state, select, merged {已合并} closed {已关闭} other {已打开}}`. A field's `{type}` in a problem is such a code too (`enum` 选项列表, `owned` 带经办人的列表), with `other` keeping the code.
+- **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Chinese and every case stays: `{state, select, merged {已合并} closed {已关闭} other {已重新打开}}`. A field's `{type}` in a problem is such a code too (`enum` 选项列表, `owned` 带负责人的列表), with `other` keeping the code.
 - **Field names, states and values** are data, as in every language: 「State 和 Assignee」 stay as they were named, and so do examples of the query and command languages (`for: me`, `#Unresolved`). Examples of plain words for the assistant to read are Chinese.
-- **Problems** say what went wrong, then the fix: 「找不到问题 {id}。检查编号，或者搜索它。」 问题 is an issue here, never what went wrong: a problem says 无法…, 出错, 不能… or 有误. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) ends the message after 「错误：」, 「原因：」 or 「回复：」 and brings its own punctuation, so no 。 follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its 。, and Chinese joins them with no gap.
+- **Problems** say what went wrong, then the fix: 「找不到问题 {id}。使用可读的编号，例如 BACK-12。」 问题 is an issue here, never what went wrong: a problem says 无法…, 出错, 不能… or 有误. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) ends the message after 「错误：」, 「原因：」 or 「回复：」 and brings its own punctuation, so no 。 follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its 。, and Chinese joins them with no gap.
 - **You and your**: a label that names the reader's own things says 我的, as Chinese apps' menus do (「我的令牌」, 「我的仪表板」, 「我的请求」), or nothing where the owner is plain (「个人资料」, 「计时器」). A sentence speaks to the reader as 你 and 你的: 「你的令牌已撤销。」
-- **The help desk** is 服务台, and asking it for help 提交请求: 「通过服务台提交了请求」 in the history. Its pages and emails for requesters say 您.
+- **The help desk** is 服务台, and asking it for help 提交请求: 「提交了请求」 in an issue's history, 「通过服务台提交了请求」 in a notification. Its pages and emails for requesters say 您.
 
 | English | Simplified Chinese |
 |---|---|
