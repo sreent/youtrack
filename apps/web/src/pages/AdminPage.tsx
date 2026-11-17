@@ -425,7 +425,7 @@ export default function AdminPage() {
             </table>
           </Scroll>
         ) : null}
-        <p className="note">{tr('page.admin.rolesATokenNeverDoes', { join: ROLES.map((r) => ROLE_WORDS[r]).join(', ') })}</p>
+        <p className="note">{tr('page.admin.rolesATokenNeverDoes', { join: formatList(ROLES.map((r) => ROLE_WORDS[r])) })}</p>
         <AddPerson />
       </section>
       <GroupsSection />
