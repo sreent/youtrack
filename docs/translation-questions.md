@@ -45,6 +45,16 @@ From the read of wave 4's messages (D50 to D55):
 - `board.board.movedTo`, moved to the top of a column, says "nach" twice ("nach In Review ganz nach oben verschoben").
 - `problem.ci.giteaIntegrationNeeded` and its GitHub sibling say "Sagen Sie, welche …". "Geben Sie an, …" is more usual in German interfaces.
 
+From the read of D56's and D57's messages (customer groups, and CCs on requests):
+
+- `helpdesk.groups.cantBeGiven` is "{name}: gerade nicht zuweisbar", shortened so its badge fits a phone. Is "zuweisbar" natural to help desk staff?
+- `helpdesk.groups.byDomains` "Domains: {domains}" sits beside `byHandOnly` "Nur von Hand" in a group's summary line. Does the pair read clearly?
+- `issues.issueHistory.ccRemoved` and `activity.ledgerEntry.stoppedCopyingOn` say someone "hat sich … aus der Kopie genommen". "hat die Kopie … abbestellt" is the alternative.
+- `server.helpdesk.copiedOnIt`, "Folgende Personen sind bei Ihrer Anfrage in Kopie …", is slightly off when one address follows.
+- `server.helpdesk.cc.stop`, "Bei dieser Anfrage nicht mehr in Kopie sein", is wooden for a link; "Mich bei dieser Anfrage aus der Kopie nehmen" is the alternative.
+- **Working hours**: a customer group's say "Arbeitszeiten", the desk's SLA settings (`helpdesk.sla.*`) "Arbeitszeit". One term throughout?
+- `helpdesk.groups.addTheGroup` is "Gruppe anlegen", where the button that opens its form says "Gruppe hinzufügen".
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -89,6 +99,17 @@ From the read of wave 4's messages (D50 to D55):
 - `problem.vcs.githubApp.answered` and its siblings: "{host} respondió {status}". "respondió con {status}" reads more naturally.
 - "leer como GitHub App", in about 15 messages: "como" in the sense of "in the capacity of".
 - `projects.projectFields.everyone` is "Todos", a short checkbox label, where the catalog says "Todo el mundo" elsewhere.
+
+From the read of D56's and D57's messages (customer groups, and CCs on requests):
+
+- `page.portal.copiedByYou` and `copiedByTheTeam`, "en copia por ti" and "en copia por el equipo", are terse; "puesto en copia" would guess the person's gender.
+- `issues.issueHistory.publicAColleagueWroteIt`, "público: lo escribió alguien del grupo de clientes", doesn't say "of the requester": the fuller form is too long for a badge.
+- `helpdesk.groups.agents` (and `noAgents`, `cantBeGiven`), "Quién recibe sus solicitudes nuevas": "recibir" is vague, and "A quién se asignan…" is longer than its badge allows.
+- `page.portal.groupSeesIt`, "{group} ve esta solicitud.": or "Los miembros de {group} ven…"?
+- **"en copia en"** in many messages ("Estás en copia en la solicitud…"): is the double "en" acceptable, or is "en copia de" better?
+- `server.helpdesk.copiedOnIt` heads a list of addresses in an email: does "Personas en copia en tu solicitud, que también recibirán las respuestas del equipo:" read well there?
+- `helpdesk.groups.byDomains`, "Por {domains}": "Por dominio: {domains}" may be clearer.
+- `activity.ledgerEntry.changesWhoIsCopied`, "cambia quién está en copia en una solicitud", is 43 characters on a badge that doesn't wrap.
 
 ## French
 
@@ -173,6 +194,17 @@ From the read of wave 4's messages (D50 to D55):
 - 「GitHub Appとして読み取る」 (`page.integrations.readAsAGithubApp` and its family): would 「GitHub Appとしてアクセス」 read more naturally?
 - 「異動や退職」 for a person who leaves (`page.integrations.aGithubIntegrationCanRead`, `aPersonSTokenStopsWorking`).
 - The board's drop text puts the state between the column and の (「Done（Fixedとして）のBACK-19の上に移動」), which may read awkwardly to a screen reader user.
+
+From the read of D56's and D57's messages (customer groups, and CCs on requests):
+
+- `helpdesk.requestCcs.nobody` and `page.portal.nobodyCopied`, "CCはいません。…", treat CC as people. 「CCに追加された人はいません。」 is more explicit, but repeats in the longer message.
+- `issues.issueHistory.publicSomeoneCopiedWroteIt`, 「公開：CCの人が記入」, is conversational; CC先 or CCに追加された人 are the alternatives.
+- **Kept from the group** (`helpdesk.requestCard.keepFromGroup`, `page.portal.keepPrivate`, `keepFromMyGroup`, `ui.changes.keptFromGroup`) is built on 「{group}に非公開」. 「{group}には非公開にする」 may flow better.
+- **SLA time**: 計算 (as the catalog says 営業時間で計算) or 計測, as support tools often say?
+- `helpdesk.groups.cantBeGiven`, 「現在は割り当てられません」: 「割り当て不可」 is shorter, but the catalog never uses 不可.
+- `page.unsubscribe.what`'s `cc` case, 「CCとして受け取っている、このリクエストに関するメール。」: the comma between the two modifiers may read stiffly.
+- `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
+- `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
 ## What a catalog can't say yet
 
