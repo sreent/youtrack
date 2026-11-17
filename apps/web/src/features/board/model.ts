@@ -21,13 +21,72 @@ export interface Lane {
   user: UserRef | null;
 }
 
-export interface PendingMove {
+/** Where in its cell a card goes (D53): just after one card, or just before one; neither keeps its place in the board's order. */
+export interface Place {
+  after?: string;
+  before?: string;
+}
+
+export interface PendingMove extends Place {
   issue: string;
   version: number;
   column: number;
   lane: number;
-  /** What the PATCH writes, by field name. */
+  /** What the move changes on the issue, by field name: to show it before the server says so. */
   fields: Record<string, string | null>;
+}
+
+/** What a move sends to the board's rank (POST /boards/{id}/rank): its column, its lane when it changes, its place, and the version shown. */
+export function rankBody(view: BoardView, lanes: Lane[], m: PendingMove, version: number) {
+  const laneField = view.board.swimlaneField;
+  const lane = laneField && lanes.length && Object.keys(m.fields).some((n) => same(n, laneField)) ? { lane: lanes[m.lane]?.value ?? null } : {};
+  return {
+    issue: m.issue,
+    column: view.columns[m.column]!.name,
+    ...lane,
+    ...(m.after ? { after: m.after } : m.before ? { before: m.before } : {}),
+    ...(view.sprint ? { sprint: view.sprint.id } : {}),
+    expectedVersion: version,
+  };
+}
+
+/**
+ * The board's order with the moves still on their way laid over it: a move with a place sits just
+ * after or before its card; one without keeps the place the board's order gives it (D53).
+ */
+export function orderWith(order: readonly string[], pending: ReadonlyMap<string, PendingMove>): string[] {
+  const out = [...order];
+  for (const m of pending.values()) {
+    const anchor = m.after ?? m.before;
+    if (!anchor || anchor === m.issue || !out.includes(anchor)) continue;
+    out.splice(out.indexOf(m.issue), out.includes(m.issue) ? 1 : 0);
+    out.splice(out.indexOf(anchor) + (m.after ? 1 : 0), 0, m.issue);
+  }
+  return out;
+}
+
+/** The cards of each cell, in the board's order: by `cellId`. */
+export function cardsByCell(cards: Placed[], order: readonly string[], laned: boolean): Map<string, Placed[]> {
+  const at = new Map(order.map((id, i) => [id, i]));
+  const sorted = [...cards].sort((a, b) => (at.get(a.issue.id) ?? Infinity) - (at.get(b.issue.id) ?? Infinity));
+  const m = new Map<string, Placed[]>();
+  for (const c of sorted) {
+    const k = cellId(laned ? c.lane : 0, c.column);
+    m.set(k, [...(m.get(k) ?? []), c]);
+  }
+  return m;
+}
+
+/**
+ * The place a card dropped at `index` among a cell's other cards takes: just after the one above,
+ * or before the first; none in an empty cell. Null when that's where it already is.
+ */
+export function placeAt(cell: readonly Placed[], card: Placed, index: number): Place | null {
+  const others = cell.filter((c) => c.issue.id !== card.issue.id);
+  const own = cell.findIndex((c) => c.issue.id === card.issue.id);
+  if (own >= 0 && own === index) return null;
+  if (index > 0) return { after: others[Math.min(index, others.length) - 1]!.issue.id };
+  return others.length ? { before: others[0]!.issue.id } : {};
 }
 
 export interface Placed {
@@ -182,8 +241,11 @@ export function placeCards(view: BoardView, lanes: Lane[], pending: ReadonlyMap<
   return out;
 }
 
-/** What moving a card to (column, lane) writes, or null when it stays where it is. */
-export function moveFor(view: BoardView, lanes: Lane[], card: Placed, column: number, lane: number): PendingMove | null {
+/**
+ * What moving a card to (column, lane), at a place in that cell or keeping its place, changes; null
+ * when it stays where it is.
+ */
+export function moveFor(view: BoardView, lanes: Lane[], card: Placed, column: number, lane: number, place: Place = {}): PendingMove | null {
   const fields: Record<string, string | null> = {};
   if (column !== card.column) {
     const value = view.columns[column]?.values[0];
@@ -193,8 +255,8 @@ export function moveFor(view: BoardView, lanes: Lane[], card: Placed, column: nu
   if (lanes.length && lane !== card.lane && view.board.swimlaneField) {
     fields[view.board.swimlaneField] = lanes[lane]?.value ?? null;
   }
-  if (!Object.keys(fields).length) return null;
-  return { issue: card.issue.id, version: card.issue.version, column, lane, fields };
+  if (!Object.keys(fields).length && !place.after && !place.before) return null;
+  return { issue: card.issue.id, version: card.issue.version, column, lane, fields, ...place };
 }
 
 export const cellId = (lane: number, column: number) => `cell:${lane}:${column}`;

@@ -1047,6 +1047,7 @@ export const BoardViewSchema = z
     ),
     points: z.number().nullable().describe('Story points of every issue shown; null without a points field'),
     swimlanes: z.array(z.string()).describe('Swimlane values in display order (empty when no swimlane field)'),
+    order: z.array(z.string()).describe("Every card's id in the board's order (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it"),
   })
   .meta({ id: 'BoardView' });
 export type BoardView = z.infer<typeof BoardViewSchema>;
@@ -3067,9 +3068,22 @@ export const BacklogSchema = z
 export type Backlog = z.infer<typeof BacklogSchema>;
 
 export const RankBody = z.object({
-  issue: z.string().describe('The issue to move (readable id)'),
-  after: z.string().nullable().optional().describe('Put it just after this issue'),
-  before: z.string().nullable().optional().describe('Put it just before this issue; with neither, at the top'),
+  issue: z.string().max(100).describe('The issue to move (readable id)'),
+  after: z.string().max(100).nullable().optional().describe('Put it just after this issue'),
+  before: z.string().max(100).nullable().optional().describe('Put it just before this issue; with neither, at the top (on the board, see column)'),
+  // Ranking a card on the board itself (D53): its place and its column, and its lane, in one change.
+  column: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      "On the board: the column its card is in, or goes into, by name. Into another column, the board's column field becomes that column's first value its project has, in the same change as its place. With neither after nor before, it keeps its place in the board's order",
+    ),
+  lane: z.string().max(200).nullable().optional().describe("On the board: the swimlane its card goes into, by the lane's value (a login, or a value's name); null for the lane of no value"),
+  sprint: z.string().max(100).optional().describe("On the board: the sprint whose cards were shown; the one the board shows first when not said"),
+  expectedVersion: z.number().int().optional().describe("The issue's version as read: a column or lane change is refused (409) if it has changed since. Its place alone needs none"),
 });
 export type RankInput = z.infer<typeof RankBody>;
 

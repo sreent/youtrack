@@ -89,6 +89,8 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return { text: <>{tr('activity.ledgerEntry.putIn', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
     case 'sprint.issue_removed':
       return { text: <>{tr('activity.ledgerEntry.tookOutOf', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
+    case 'board.issue_ranked':
+      return { text: <>{tr('activity.ledgerEntry.rankedOn', { issue: issue, str: str(e.data.board) })}</>, badge: ['changes', t('activity.ledgerEntry.changesABoardSOrder')] };
     case 'issue.updated':
       if (e.data.undoes !== undefined)
         return {
