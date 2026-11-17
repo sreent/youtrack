@@ -41,12 +41,15 @@ a4a writes as it does in English: short sentences, plain words, the thing named 
 German:
 
 - **Sie**, always: "Speichern Sie zuerst", "Ihr Profil". Never "du".
+- **"Sie" and "Ihr" at a sentence's start are the reader.** A sentence about an app, a rule, a file or a request names it ("Die App verliert sofort den Zugang", "Die Regel ist ausgeschaltet"), and a heading says "Rolle" or "Einstellungen der App", not "Ihre Rolle". A thing that is on or off is "eingeschaltet" or "ausgeschaltet" in a sentence; "Ein" and "Aus" are for options and badges.
 - **Buttons are infinitives or nouns**: "Speichern", "Änderung speichern", "Abbrechen". A button that names what it changes says it: "Feld löschen", not "Löschen" alone, where English says "Delete the field".
 - **Status lines are passive or perfect**: "Gespeichert.", "Wird gespeichert…", "{name} ist hinzugefügt."
+- **The loading line is "Lade{v}…"**, since a page puts what it loads after the verb, and sometimes nothing, an issue's id or a file's name: "Lade den Plan…", "Lade BACK-12…", "Lade…". So each word a page loads is a noun phrase in the accusative ("den Verlauf", "Ihren Posteingang", "die Agenten"), never a clause.
 - **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
 - **Nouns keep their capital** inside a sentence, so a label set into a sentence isn't lower-cased in German (`inSentence()` in the web's `i18n`).
 - **Dates and numbers** come from Intl, never from the catalog: "16. Nov. 2026", "1.234,5", "vor 3 Minuten".
 - Quotation marks are „…“, and the ellipsis is one character, as in English.
+- **English the page passes in**: where a page gives a message an English word as a value ('change' or 'link' to an undo, 'merged' to a pull request, 'you', 'below', 'add'), the German selects on it, `{v, select, below {unter} other {über}}`, and puts the noun where German wants it: "hat die Änderung von Ada rückgängig gemacht".
 
 ## The terms
 
@@ -63,8 +66,11 @@ German:
 | reporter | meldende Person |
 | assignee | Bearbeiter (a column), zugewiesene Person |
 | agent | Agent |
+| assistant (its name), the assistant | assistant, der Assistent |
+| conversation (with the assistant) | Unterhaltung |
 | workflow | Workflow |
 | rule | Regel |
+| if (a rule's or a transition's condition) | falls, after a trigger's „Wenn“ |
 | state machine | Zustandsautomat |
 | transition | Übergang |
 | knowledge base | Wissensdatenbank |
@@ -77,24 +83,29 @@ German:
 | timesheet | Stundenzettel |
 | work logged, log time | erfasste Arbeit, Zeit erfassen |
 | estimate | Schätzung |
+| rate (per hour) | Stundensatz |
 | days away | Abwesenheiten |
 | levelling | Kapazitätsabgleich |
 | slack (in a plan) | Puffer |
 | baseline | Baseline |
-| earned value | Fertigstellungswert |
+| earned value, earned | Fertigstellungswert, erbracht |
+| cost and schedule performance (CPI, SPI) | Kosteneffizienz, Termineffizienz |
 | triage | Triage |
 | suggestion | Vorschlag |
 | token | Token |
 | two-factor sign-in | Zwei-Faktor-Anmeldung |
 | sign in, sign out | anmelden, abmelden |
+| login (a person's handle) | der Login |
 | identity provider | Identitätsanbieter |
 | single sign-on | Single Sign-on |
 | webhook, delivery | Webhook, Zustellung |
 | secret | Secret |
 | commit, pull request, branch | Commit, Pull Request, Branch |
+| merge, merged | mergen, gemergt |
+| CI | das CI |
 | field, value | Feld, Wert |
 | link (between issues) | Verknüpfung |
-| resolve, resolved | erledigen, erledigt |
+| resolve, resolved, resolution | erledigen, erledigt, Erledigung (an SLA's: Erledigungsziel) |
 | dashboard, widget | Dashboard, Widget |
 | report | Bericht |
 
