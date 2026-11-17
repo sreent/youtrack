@@ -9,7 +9,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { systemCtx } from '../src/app-services';
 import type { Ctx, UserRow } from '../src/context';
-import { helpdeskInbound, issues, requestCcs, requesters, users } from '../src/db/schema';
+import { helpdeskInbound, helpdeskRequests, issues, requestCcs, requesters, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { receiveMail } from '../src/helpdesk/inbound';
@@ -18,9 +18,9 @@ import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { issueActivity } from '../src/services/activity';
 import { addComment, listComments } from '../src/services/comments';
-import { requestOf, trackRequest } from '../src/services/helpdesk';
+import { openRequest, requestOf, trackRequest } from '../src/services/helpdesk';
 import { newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
-import { createIssue } from '../src/services/issues';
+import { createIssue, getIssue, updateIssue } from '../src/services/issues';
 import { applyUnsubscribe, describeUnsubscribe } from '../src/services/notifications';
 import { portalCopy, portalReply, portalRequest, portalRequests } from '../src/services/portal';
 import { updateProject } from '../src/services/projects';
@@ -285,6 +285,22 @@ describe('CCs on a help desk request', () => {
     } finally {
       await updateProject(w.adminCtx, 'BACK', { visibility: 'open' });
     }
+  });
+
+  it("counts a CC's answer as the customer's side: it ends a wait, as the requester's does, and is no first response", async () => {
+    await updateProject(w.adminCtx, 'WEB', { settings: { helpdesk: { enabled: true, firstResponseHours: 4, waitingStates: ['Blocked'], resumeState: 'Open' } } });
+    const web = projectByKey(await w.app.schema.get(), 'WEB')!;
+    const opened = await openRequest(w.app, web, { name: 'Kim', email: 'kim@example.com', summary: 'Badge reader is dead', description: '', via: 'email', cc: [{ email: 'lee@example.org', name: 'Lee' }] });
+    expect(opened.copied).toEqual({ copied: ['lee@example.org'], left: [] });
+    await updateIssue(w.adminCtx, opened.id, { fields: { State: 'Blocked' } });
+    const waiting = await w.app.db.select().from(helpdeskRequests).where(eq(helpdeskRequests.issueId, opened.uid));
+    expect(waiting[0]!.waitingSince).not.toBeNull();
+    const [lee] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'lee@example.org'));
+    const leeRow = lee ?? (await w.app.db.insert(requesters).values({ id: `r-lee-${serial++}`, email: 'lee@example.org', name: 'Lee' }).returning())[0]!;
+    await portalReply(w.app, leeRow, opened.id, 'It blinks red now.');
+    const after = await getIssue(w.adminCtx, opened.id);
+    expect(after.fields.find((f) => f.name === 'State')?.value).toMatchObject({ name: 'Open' });
+    expect((await requestOf(w.adminCtx, opened.id)).firstResponse).toMatchObject({ state: 'due', respondedAt: null });
   });
 
   it(`copies at most ${REQUEST_CCS_MAX}, also when people are copied at once`, async () => {
