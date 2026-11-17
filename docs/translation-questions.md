@@ -402,7 +402,7 @@ The whole catalog was translated in one pass by a model, working from English, t
 
 Terms:
 
-- **你 and 您**: 你 everywhere, and 您 on the help desk's pages for requesters (the form, the portal, a request's page), in their emails, and on the unsubscribe page, which team members reach from their emails too. Is 您 right there? And do problems' fixes, which have no 请 where English has no "please" (「一分钟后重试。」), read too curt?
+- **你 and 您**: 你 everywhere, and 您 on the help desk's pages for requesters (the form, the portal, a request's page), in their emails, and on the unsubscribe page, which team members reach from their emails too. Is 您 right there?
 - **问题 for issue** is Jira's. 事项 and 工作项 (Feishu's, PingCode's) or GitHub's 议题 are the alternatives; 问题 also means "problem", so no problem says it.
 - **经办人 for assignee** is Jira's, and keeps 负责人 for a project's lead. Many Chinese tools say 负责人 or 处理人 for the assignee.
 - **冲刺 for sprint** is Jira's. Chinese agile teams often say 迭代.
@@ -412,7 +412,7 @@ Terms:
 - **休假 for days away**, sick days included. 请假 or 不在岗 are the alternatives.
 - **The plan's words** are the project management ones Chinese PMP courses teach: 挣值, 成本绩效指数, 资源平衡, 浮动时间, 基线, 关键路径. What-if is 模拟, and its button 「假如……」.
 - **令牌 for token**, 密钥 for a webhook's or an app's secret, 投递 for a delivery, 两步验证 for two-factor sign-in (双重身份验证 and 双因素认证 are the alternatives).
-- **The navigation's groups**: 工作, 决策, 构建, 总览 (`app.shell.work`, `decide`, `build`, `oversee`). Natural?
+- **The navigation's groups**: 工作, 决策, 配置, 系统 (`app.shell.work`, `decide`, `build`, `oversee`). Build was 构建, which is CI's build, and Oversee 总览, which reads as an overview page; 配置 and 系统 are what a Chinese admin console groups such pages under. Natural?
 - **Age** in the reports (`reports.moreReports.*`) is 时长; **velocity** is 速度.
 
 Phrasing:
@@ -421,8 +421,8 @@ Phrasing:
 - **Intl's own spacing**: dates, durations and lists come from Intl unspaced (「2.5小时」, 「Anna Schmidt和Vera Viewer」) beside the catalog's 「3 个问题」. Acceptable side by side?
 - **Free text moved to the end**, after 错误：, 原因： or 回复： (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Does it read naturally?
 - **The desk's name in quotes**: `server.helpdesk.whyAnswer`, `whyLink` and `server.portal.lead` quote it, 「向“BACK 的服务台”寻求了帮助」, so the plain 「服务台」 reads too.
-- **A rule's sentence**: 「当创建问题时，如果它匹配 Type: Bug，则应用 Assignee anna。」 Conditions on linked issues say 「与它存在“{v}”关系的问题」, which is heavy (`rules.words.*Linked*`, `rules.preview.actsOn`).
-- **The board's drop lines** (`board.board.dropItTo*`): 「放下以将 BACK-1 移到 Done（作为 Fixed），并……」, read by a screen reader as a card moves.
+- **A rule's sentence**: 「当创建问题时，如果问题匹配 Type: Bug，则应用 Assignee anna。」 Conditions on linked issues say 「通过“{v}”链接的问题」 (`rules.words.*Linked*`, `rules.preview.actsOn`), where they said the heavier 「与它存在“{v}”关系的问题」. With an English phrase in the quotes (「通过“depends on”链接的问题」), does it read?
+- **The board's drop lines** (`board.board.dropItTo*`): 「放下即可将 BACK-1 移到 Done（设为 Fixed），并指派给 anna」, read by a screen reader as a card moves; it was 「放下以将…」.
 - **Examples for the assistant** are Chinese (「把这些移到 Review，并指派给 anna」, 「本周无人处理的严重 Bug」); examples of the query and command languages stay as written.
 - **The issue list's count line** says 「4 个问题：项目 SPR、未解决」, joining the query's parts with 、.
 - **Traditional Chinese readers**: a browser asking for zh-TW or zh-HK gets this catalog, since a4a matches a language by its first part, and most such browsers list zh as well. Is Simplified better than English for them, or should a4a match only zh, zh-CN and zh-Hans until it has a Traditional catalog?
@@ -436,8 +436,23 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **A thread is 话题** (`server.chat.issue.thread`, the label in Slack's modal, and `page.issue.source.replies`), as Feishu says it. Slack's own Chinese says 消息列.
 - **Whiteboard names are quoted** in sentences, as rules' and baselines' names are: 「创建了白板“Q3 规划”」 (`activity.ledgerEntry.whiteboard*`, `issues.issueHistory.madeFromWhiteboard`, `page.whiteboard.deleteTitle`). A dashboard's delete title doesn't quote its name (「删除仪表板 {name}？」): should one way win?
 - **Zero is a count**: `activity.ledgerEntry.whiteboardConverted` and `page.whiteboard.said.converted` read 「创建了 0 个问题和 2 个链接」, where English says "no issues".
-- `page.whiteboards.row` says 「3 个元素，更改于 3分钟前」, as `page.guestPages.updated` says 更新于 {when}; 「3分钟前更改」 reads more naturally with a relative time.
-- `page.issue.source.from`, 「来自 Acme 的 #eng 频道中的 Slack 消息」, is heavy with 的; and a watcher's reason `issues.watching.wroteTheMessage` is 「发送了它的来源消息」.
+- `page.issue.source.from` now reads 「来自 Slack 消息（Acme · #eng）」, and a watcher's reason `issues.watching.wroteTheMessage` 「发送了来源消息」. Clear enough?
+
+Edited for natural phrasing:
+
+- **请 in a fix**: problems and notices that ask the reader to act now say 请 (「请稍后重试。」, 「请联系管理员。」, 「请先保存，之后才能插入图片和文件。」), across `problem.*`, `app.auth.ask*`, `attachments.api.*`, `editor.*`, `notifications.push.*`. The catalog had none where English has no "please", which read as orders. Is it now too polite anywhere, such as a form's own hint (`page.oAuthConsent.chooseAtLeastOneProject`, 「请至少选择一个项目。」)?
+- **A time before its verb**: 「3分钟前更新」, 「11月16日报告」 (`page.guestPages.updated`, `page.guestPages.reported`, `page.whiteboards.row`, `notifications.pushSettings.added`, `page.webhooks.added`, `agents.agentAccounts.roleAdded`). With a date from another year it reads 「2025年11月16日更新」: fine?
+- **Who reported a guest page's issue**: `page.guestPages.by` is 「{name} 」 before the time (「BACK-1 · 语言 · 王芳 3分钟前报告」). The space after a Chinese name is the catalog's rule for names; does it read?
+- **项目键 for a project's key** (`page.project.key`, `page.projects.key`, `page.project.keyRename`, `problem.projectKeys.*`): 键 alone read as a key-value's or a keyboard's. Jira's Chinese says 关键字 in places; is 项目键 what teams say? An imported issue's key in another tracker is 编号 (`problem.imports.noKeyColumn`, 「编号列」).
+- **Someone, as a name**: an author or actor whose name is gone is 未知用户 (`page.guestPages.someone`, `issues.issueHistory.someone`, `page.issue.someone`, `activity.ledgerEntry.someone`, `page.dashboard.someone`); in a notification's title it is 有人 (`server.notify.someone`, 「有人 发表了评论」). Right?
+- **The language picker's first option**, 「跟随浏览器（简体中文）」 (`page.profile.yourBrowsersLanguage`), as Chinese apps say 跟随系统. The time zone's stays 「服务器时区（…）」.
+- **Newer and older** on the guest pages are 上一页 and 下一页 (`page.guestPages.newer`, `older`): they page through issues newest first. Is losing "newer/older" acceptable?
+- **The unsubscribe page says 退订** (`page.unsubscribe.stopThem`, `stopped`, `stopTheseEmails`), as Chinese mail does; a request's requester 「已退订此请求的邮件」 (`helpdesk.requestCard.theyStoppedEmailsAboutIt`).
+- **The editor's Visual mode is 富文本** (`editor.richField.visual`), beside Markdown. 可视化 was literal; 所见即所得 is the alternative.
+- **The consent button says 授权** (`page.oAuthConsent.allow`), as the terms table's "allow (an app)" does, and 「请求以你的身份访问 a4a」 (`page.oAuthConsent.asksToWorkInA4a`) for "asks to work in a4a as you".
+- **A workflow's action is still 动作** (`workflow.actions.*`, `problem.workflow.action*`, `problem.command.action*`). Chinese tools often say 操作 for a button that runs a command; it is left as it was. Should it change everywhere?
+- **The profile's sections**: 「基本信息」 for "You" (`page.profile.you`), 「登录方式」 for "Signing in" (`page.profile.signingIn`), and the role line 「你是管理员，可以更改所有内容。」 (`page.profile.youRe` with `roleAdmin`, `roleMember`, `roleViewer`).
+- **Webhook events as clauses**: 「服务台请求新增抄送时」, 「从项目中移除成员时」 (`page.webhooks.someoneIsCopiedOnARequest`, `someoneIsTakenOutOf`, `aGroupIsTakenOut`), for English's passives.
 
 ## Vietnamese
 

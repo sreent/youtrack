@@ -108,7 +108,7 @@ describe('a4a in each person’s language (D49)', () => {
       fr: 'Tous les tickets (les plus récemment mis à jour d’abord) : 0',
       id: '0 isu (yang terakhir diperbarui lebih dulu)',
       ja: '0件の課題（最近更新された順）',
-      zh: '0 个问题（最近更新的在前）',
+      zh: '0 个问题（按最近更新排序）',
       ko: '이슈 0개 (최근 업데이트순)',
       pt: 'Todos os itens (os atualizados mais recentemente primeiro): 0',
       vi: '0 vấn đề (mới cập nhật xếp trước)',
