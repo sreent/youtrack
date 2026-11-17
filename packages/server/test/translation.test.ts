@@ -4,7 +4,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LOCALES } from '@a4a/shared/i18n';
+import { createTranslator, koreanParticles, LOCALES } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json' with { type: 'json' };
 import en from '@a4a/shared/i18n/en.json' with { type: 'json' };
 import type { UserRow } from '../src/context';
@@ -182,5 +182,25 @@ describe('a4a in each person’s language (D49)', () => {
     expect(tr.t('server.mail.openInbox')).toBe('Posteingang öffnen');
     expect(translatorFor('xx').locale).toBe('en');
     expect(tr.t('no.such.key')).toBe('no.such.key');
+  });
+
+  it('chooses a Korean particle by the word before it, where a4a can read its end', () => {
+    // A Hangul word by its last syllable's final consonant, ㄹ apart before (으)로; a number as Korean reads it.
+    expect(koreanParticles('BACK-12을(를) 옮겼습니다')).toBe('BACK-12를 옮겼습니다');
+    expect(koreanParticles('BACK-10을(를) 옮겼습니다')).toBe('BACK-10을 옮겼습니다');
+    expect(koreanParticles('김민준이(가) 댓글을 남겼습니다')).toBe('김민준이 댓글을 남겼습니다');
+    expect(koreanParticles('안나은(는) 담당자입니다')).toBe('안나는 담당자입니다');
+    expect(koreanParticles('서울(으)로, 부산(으)로, 7(으)로')).toBe('서울로, 부산으로, 7로');
+    expect(koreanParticles('사과(이)라는 값, 책(이)라는 값')).toBe('사과라는 값, 책이라는 값');
+    expect(koreanParticles('“완료”과(와) “진행”과(와)')).toBe('“완료”와 “진행”과');
+    // A Latin word's end a4a can't hear: both ways stay.
+    expect(koreanParticles('Anna을(를) 보았습니다')).toBe('Anna을(를) 보았습니다');
+    // Through a translator: plain words, a count, and a name inside a tag.
+    const ko = createTranslator('ko', { saw: '{name}을(를) 보았습니다', moved: '{n, plural, other {이슈 #개}}을(를) 옮겼습니다', bold: '<b>{name}</b>을(를) 보았습니다' });
+    expect(ko.t('saw', { name: '민수' })).toBe('민수를 보았습니다');
+    expect(ko.t('moved', { n: 3 })).toBe('이슈 3개를 옮겼습니다');
+    expect(ko.parts('bold', { name: '민준', b: (c: unknown[]) => ({ b: c }) })).toEqual([{ b: ['민준'] }, '을 보았습니다']);
+    // Only Korean: another language's brackets are its own.
+    expect(createTranslator('en', { x: '{name}을(를)' }).t('x', { name: '민수' })).toBe('민수을(를)');
   });
 });

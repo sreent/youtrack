@@ -90,15 +90,87 @@ export function createTranslator(locale: Locale, messages: Messages): Translator
       const f = format(key);
       if (!f) return key;
       const out = f.format(prepare(key, values) as Record<string, PrimitiveType> | undefined);
-      return Array.isArray(out) ? out.join('') : String(out);
+      const text = Array.isArray(out) ? out.join('') : String(out);
+      return locale === 'ko' ? koreanParticles(text) : text;
     },
     parts<T>(key: string, values?: MessageValues) {
       const f = format(key);
       if (!f) return [key];
-      const out = f.format<T>(prepare(key, values) as Record<string, PrimitiveType | T>);
-      return (Array.isArray(out) ? out : [out]) as (string | T)[];
+      // Korean's particles follow what a tag holds too ("<b>{name}</b>을(를)"): each tag's words are kept to read its end by.
+      const said = new Map<unknown, string>();
+      const given = prepare(key, values);
+      const watched =
+        locale === 'ko' && given
+          ? Object.fromEntries(
+              Object.entries(given).map(([name, v]) => [
+                name,
+                typeof v === 'function'
+                  ? (chunks: unknown[]) => {
+                      const made = (v as (c: unknown[]) => unknown)(chunks);
+                      said.set(made, chunks.map((c) => (typeof c === 'string' ? c : (said.get(c) ?? ''))).join(''));
+                      return made;
+                    }
+                  : v,
+              ]),
+            )
+          : given;
+      const out = f.format<T>(watched as Record<string, PrimitiveType | T>);
+      const parts = (Array.isArray(out) ? out : [out]) as (string | T)[];
+      if (locale !== 'ko') return parts;
+      const joined: (string | T)[] = [];
+      for (const p of parts) {
+        const last = joined.length - 1;
+        if (typeof p === 'string' && typeof joined[last] === 'string') joined[last] = (joined[last] as string) + p;
+        else joined.push(p);
+      }
+      return joined.map((p, i) => (typeof p === 'string' ? koreanParticles(p, i > 0 ? (said.get(joined[i - 1]) ?? '') : '') : p));
     },
   };
+}
+
+/** How a word ends, for the Korean particle after it: its last syllable's final consonant (ㄹ apart), or a digit's as Korean reads it ("12" 십이, "10" 십). Null where a4a can't know, as after a Latin word. */
+function koreanEnd(text: string): 'vowel' | 'rieul' | 'consonant' | null {
+  const ch = text.replace(/["'”’»)\]」』》〉>]+$/u, '').slice(-1);
+  if (!ch) return null;
+  const code = ch.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    const final = (code - 0xac00) % 28;
+    return final === 0 ? 'vowel' : final === 8 ? 'rieul' : 'consonant';
+  }
+  const digits: Record<string, 'vowel' | 'rieul' | 'consonant'> = { '0': 'consonant', '1': 'rieul', '2': 'vowel', '3': 'consonant', '4': 'vowel', '5': 'vowel', '6': 'consonant', '7': 'rieul', '8': 'rieul', '9': 'vowel' };
+  return digits[ch] ?? null;
+}
+
+/** Korean's particles written both ways, as a catalog must where a value goes before one. */
+const KOREAN_PARTICLE = /을\(를\)|은\(는\)|이\(가\)|과\(와\)|\(으\)로|\(이\)(?=[가-힣])/g;
+
+/**
+ * Korean's particles chosen where the word before them says which (D49): "BACK-12을(를)" is
+ * "BACK-12를", "민준이(가)" "민준이", "서울(으)로" "서울로". After a word a4a can't read the end of (a
+ * Latin one: "Anna을(를)"), both ways stay, as Korean software writes them. `before` is what came
+ * just before the text, when that was a page's element.
+ */
+export function koreanParticles(text: string, before = ''): string {
+  return text.replace(KOREAN_PARTICLE, (form: string, offset: number) => {
+    const end = koreanEnd(offset ? text.slice(0, offset) : before);
+    if (!end) return form;
+    const closed = end !== 'vowel';
+    switch (form) {
+      case '을(를)':
+        return closed ? '을' : '를';
+      case '은(는)':
+        return closed ? '은' : '는';
+      case '이(가)':
+        return closed ? '이' : '가';
+      case '과(와)':
+        return closed ? '과' : '와';
+      case '(으)로':
+        return end === 'consonant' ? '으로' : '로';
+      default:
+        // (이)라는, (이)면: 이 after a consonant, nothing after a vowel.
+        return closed ? '이' : '';
+    }
+  });
 }
 
 /** The placeholders and tags a message names, for the checks: a translation must name the same. */
