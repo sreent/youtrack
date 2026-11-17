@@ -27,8 +27,8 @@ importers:
         specifier: 7.23.0
         version: 7.23.0(@codemirror/language@6.13.1)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(typescript@5.9.3)
       '@sreent/ocean':
-        specifier: github:sreent/ocean#e056be04dda202113f48a604b3701212fc393018
-        version: https://codeload.github.com/sreent/ocean/tar.gz/e056be04dda202113f48a604b3701212fc393018
+        specifier: link:../../data/ocean
+        version: link:../../data/ocean
       '@tanstack/react-query':
         specifier: ^5.107.1
         version: 5.107.1(@types/react@19.3.0)(react@19.3.1)

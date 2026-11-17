@@ -17,7 +17,7 @@
     "@a4a/shared": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
     "@milkdown/kit": "7.23.0",
-    "@sreent/ocean": "github:sreent/ocean#e056be04dda202113f48a604b3701212fc393018",
+    "@sreent/ocean": "link:../../data/ocean",
     "@tanstack/react-query": "^5.107.1",
     "clsx": "^2.1.1",
     "react": "^19.3.1",
