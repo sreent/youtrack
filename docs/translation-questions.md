@@ -344,6 +344,18 @@ Phrasing:
 - **The issue list's count line** says 「4 个问题：项目 SPR、未解决」, joining the query's parts with 、.
 - **Traditional Chinese readers**: a browser asking for zh-TW or zh-HK gets this catalog, since a4a matches a language by its first part, and most such browsers list zh as well. Is Simplified better than English for them, or should a4a match only zh, zh-CN and zh-Hans until it has a Traditional catalog?
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard's note is 便签** (`whiteboards.kind.note`, `page.whiteboard.addNote`), as Feishu's and Tencent Docs' whiteboards say it, kept apart from 备注, a dashboard's or an internal note. 便利贴 and Microsoft's 便笺 are the alternatives.
+- **A section is 分区** (`whiteboards.kind.section`, `page.whiteboard.group` 「放入分区」), and **an arrow's label 标注** (`whiteboards.connectDialog.label`, `whiteboards.textDialog.labelArrow`), since 标签 is a tag. 框架 (Miro's frame) and 文字 are the alternatives.
+- **"Make issues" is 转为问题** (`page.whiteboard.convert`, `whiteboards.convertDialog.title`), and its button counts with 创建 (「创建 3 个问题」, `whiteboards.convertDialog.go`); an issue from a chat message is 从消息创建问题 (`server.chat.issue.*`). Should one verb serve both?
+- **The tones** (`whiteboards.tone.*`, drawn as badges on notes): 普通, 想法, 已商定, 疑问, 痛点, 暂缓. Question and problem can't be 问题, which is an issue: is 痛点 right for a problem, or 难点 or 障碍? And 暂缓 for parked, or 搁置?
+- **A thread is 话题** (`server.chat.issue.thread`, the label in Slack's modal, and `page.issue.source.replies`), as Feishu says it. Slack's own Chinese says 消息列.
+- **Whiteboard names are quoted** in sentences, as rules' and baselines' names are: 「创建了白板“Q3 规划”」 (`activity.ledgerEntry.whiteboard*`, `issues.issueHistory.madeFromWhiteboard`, `page.whiteboard.deleteTitle`). A dashboard's delete title doesn't quote its name (「删除仪表板 {name}？」): should one way win?
+- **Zero is a count**: `activity.ledgerEntry.whiteboardConverted` and `page.whiteboard.said.converted` read 「创建了 0 个问题和 2 个链接」, where English says "no issues".
+- `page.whiteboards.row` says 「3 个元素，更改于 3分钟前」, as `page.guestPages.updated` says 更新于 {when}; 「3分钟前更改」 reads more naturally with a relative time.
+- `page.issue.source.from`, 「来自 Acme 的 #eng 频道中的 Slack 消息」, is heavy with 的; and a watcher's reason `issues.watching.wroteTheMessage` is 「发送了它的来源消息」.
+
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), with no second read yet and no native speaker.
