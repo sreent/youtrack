@@ -24,11 +24,18 @@ export function splitAddress(address: string): { local: string; domain: string }
 }
 
 /** Why an address can't be a desk's, in words; null when it can. */
-export function deskAddressProblem(address: string): string | null {
+export function deskAddressProblem(address: string): { message: string; key: string; values?: Record<string, number> } | null {
+  // Each with its key under problem.* (D49): the page says it, and the fix the caller gives, in its person's language.
   const parts = splitAddress(address);
-  if (!parts) return 'That isn’t an email address';
-  if (parts.local.includes('+')) return 'Leave out the “+” part: a4a adds one to each reply address';
-  if (parts.local.length + TOKEN_ROOM > LOCAL_MAX) return `Its part before the “@” is too long: reply addresses add ${TOKEN_ROOM} characters to it, and ${LOCAL_MAX} is the most`;
+  if (!parts) return { message: 'That isn’t an email address', key: 'helpdeskMail.notAnAddress' };
+  if (parts.local.includes('+')) return { message: 'Leave out the “+” part: a4a adds one to each reply address', key: 'helpdeskMail.leaveOutPlus' };
+  if (parts.local.length + TOKEN_ROOM > LOCAL_MAX) {
+    return {
+      message: `Its part before the “@” is too long: reply addresses add ${TOKEN_ROOM} characters to it, and ${LOCAL_MAX} is the most`,
+      key: 'helpdeskMail.localPartTooLong',
+      values: { room: TOKEN_ROOM, max: LOCAL_MAX },
+    };
+  }
   return null;
 }
 

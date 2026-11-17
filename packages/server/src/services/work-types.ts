@@ -37,7 +37,7 @@ export async function createWorkType(ctx: Ctx, projectKey: string, input: { name
   const name = input.name.trim();
   const rows = await typesOf(ctx.db, p.id);
   const taken = sameName(rows, name);
-  if (taken) throw conflict(`${p.key} already has the work type ${taken.name}`);
+  if (taken) throw conflict(`${p.key} already has the work type ${taken.name}`).said('workTypes.alreadyHas', { key: p.key, taken: taken.name });
   const ordinal = rows.reduce((max, r) => Math.max(max, r.ordinal + 1), 0);
   const [row] = await ctx.db.insert(workTypes).values({ id: newId(), projectId: p.id, name, ordinal }).returning();
   return workTypeDto(row!);
@@ -47,9 +47,9 @@ export async function createWorkType(ctx: Ctx, projectKey: string, input: { name
 async function loadForManager(ctx: Ctx, id: string): Promise<WorkTypeRow> {
   const [row] = await ctx.db.select().from(workTypes).where(eq(workTypes.id, id));
   const project = row ? (await ctx.app.schema.get()).projects.get(row.projectId) : undefined;
-  if (!row || !project) throw notFound('Work type');
+  if (!row || !project) throw notFound('Work type').said('workTypes.notFound');
   await requireProject(ctx, project.key, 'manage').catch((e: unknown) => {
-    if (e instanceof Error && 'status' in e && e.status === 404) throw notFound('Work type');
+    if (e instanceof Error && 'status' in e && e.status === 404) throw notFound('Work type').said('workTypes.notFound');
     throw e;
   });
   return row;
@@ -61,7 +61,7 @@ export async function updateWorkType(ctx: Ctx, id: string, input: { name?: strin
   const name = input.name?.trim();
   if (name) {
     const taken = sameName(await typesOf(ctx.db, row.projectId), name, row.id);
-    if (taken) throw conflict(`There is already a work type called ${taken.name}`);
+    if (taken) throw conflict(`There is already a work type called ${taken.name}`).said('workTypes.nameTaken', { taken: taken.name });
   }
   const [updated] = await ctx.db
     .update(workTypes)
@@ -81,7 +81,7 @@ export async function deleteWorkType(ctx: Ctx, id: string): Promise<void> {
   const row = await loadForManager(ctx, id);
   const [used] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(workItems).where(eq(workItems.workTypeId, id));
   if (Number(used?.n ?? 0) > 0) {
-    throw conflict(`Work has been logged as ${row.name}`, 'Archive it instead: it stays on that work, and is no longer offered.');
+    throw conflict(`Work has been logged as ${row.name}`, 'Archive it instead: it stays on that work, and is no longer offered.').said('workTypes.inUse', { name: row.name });
   }
   await ctx.db.delete(workTypes).where(eq(workTypes.id, id));
 }
@@ -101,12 +101,12 @@ export async function resolveWorkType(
   const choose = offered.length ? `Choose one of: ${offered.join(', ')}.` : 'A manager of the project can add work types.';
   const named = input?.trim();
   if (!named) {
-    if (required) throw badRequest(`Work logged in ${project.key} needs a work type`, choose);
+    if (required) throw badRequest(`Work logged in ${project.key} needs a work type`, choose).said('workTypes.needed', { project: project.key, n: offered.length, types: offered.join(', ') });
     return null;
   }
   const found = rows.find((r) => r.id === named) ?? rows.find((r) => r.name.toLowerCase() === named.toLowerCase());
-  if (!found) throw badRequest(`${project.key} has no work type "${named}"`, choose);
-  if (found.archived) throw badRequest(`The work type ${found.name} is archived`, choose);
+  if (!found) throw badRequest(`${project.key} has no work type "${named}"`, choose).said('workTypes.unknown', { project: project.key, name: named, n: offered.length, types: offered.join(', ') });
+  if (found.archived) throw badRequest(`The work type ${found.name} is archived`, choose).said('workTypes.archived', { name: found.name, n: offered.length, types: offered.join(', ') });
   return found;
 }
 

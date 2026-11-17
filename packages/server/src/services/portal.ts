@@ -33,8 +33,8 @@ export const PORTAL_COOKIE = 'a4a_portal';
 
 type RequesterRow = typeof requesters.$inferSelect;
 
-const missing = () => new AppError(404, 'not_found', "There's no request here", 'Open it from your list of requests.');
-const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see your requests', 'Ask for a sign-in link with your email address.');
+const missing = () => new AppError(404, 'not_found', "There's no request here", 'Open it from your list of requests.').said('portal.noRequestHere');
+const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see your requests', 'Ask for a sign-in link with your email address.').said('portal.signInToSee');
 
 /** Find the requester an email names, or make them, named for the email until they say otherwise. */
 async function requesterByEmail(db: Db, email: string): Promise<RequesterRow> {
@@ -54,7 +54,7 @@ async function requesterByEmail(db: Db, email: string): Promise<RequesterRow> {
  */
 export async function requestSignIn(app: AppServices, email: string, desk?: string): Promise<void> {
   if (!mailConfigured(app)) {
-    throw new AppError(503, 'mail_unavailable', "Signing in needs email, and this server doesn't send any", 'Use the link in an email about your request, or ask the team.');
+    throw new AppError(503, 'mail_unavailable', "Signing in needs email, and this server doesn't send any", 'Use the link in an email about your request, or ask the team.').said('portal.noEmail');
   }
   const requester = await requesterByEmail(app.db, email);
   await enqueueMail(app.db, app, {
@@ -69,7 +69,7 @@ export async function requestSignIn(app: AppServices, email: string, desk?: stri
 /** The team invites a request's requester to the portal: the same link, sent to them. */
 export async function inviteRequester(app: AppServices, issueId: string, deskKey: string): Promise<void> {
   const [row] = await app.db.select({ requester: requesters }).from(helpdeskRequests).innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId)).where(eq(helpdeskRequests.issueId, issueId));
-  if (!row) throw new AppError(404, 'not_found', 'This issue is no help desk request', 'Only requests have requesters to invite.');
+  if (!row) throw new AppError(404, 'not_found', 'This issue is no help desk request', 'Only requests have requesters to invite.').said('portal.notARequest');
   await requestSignIn(app, row.requester.email, deskKey);
 }
 
@@ -109,7 +109,7 @@ export async function redeemSignIn(app: AppServices, token: string): Promise<{ s
     .set({ usedAt: now })
     .where(and(eq(requesterSignIns.tokenHash, sha256(token)), isNull(requesterSignIns.usedAt), gt(requesterSignIns.expiresAt, now)))
     .returning();
-  if (!used) throw new AppError(401, 'link_expired', 'This sign-in link has expired or was used', 'Ask for a new one: it comes by email in a minute.');
+  if (!used) throw new AppError(401, 'link_expired', 'This sign-in link has expired or was used', 'Ask for a new one: it comes by email in a minute.').said('portal.linkExpired');
   const session = randomToken(SESSION_PREFIX, 32);
   await app.db.insert(requesterSessions).values({ tokenHash: sha256(session), requesterId: used.requesterId, expiresAt: new Date(now.getTime() + PORTAL_SESSION_MS) });
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, used.requesterId));
@@ -249,7 +249,7 @@ export async function portalRequest(app: AppServices, r: RequesterRow, id: strin
 export async function portalReply(app: AppServices, r: RequesterRow, id: string, text: string): Promise<PortalRequestDetail> {
   const row = await oneRow(app, r, id);
   if (row.requester.id !== r.id) {
-    throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.');
+    throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.').said('portal.colleaguesRequest');
   }
   await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page');
   return portalRequest(app, r, id);

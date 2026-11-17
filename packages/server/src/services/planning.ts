@@ -182,7 +182,7 @@ export async function loadPlan(
   let baseline: PlanBaseline | null = null;
   if (opts.baselineId) {
     const [b] = await ctx.db.select().from(baselines).where(and(eq(baselines.id, opts.baselineId), eq(baselines.projectId, project.id)));
-    if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`);
+    if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`).said('planning.baselineNotFoundList', { project: project.key });
     const bt = await ctx.db.select().from(baselineTasks).where(eq(baselineTasks.baselineId, b.id));
     baseline = { id: b.id, name: b.name, tasks: bt.map((t) => ({ id: t.readableId, start: t.start, finish: t.finish, effortMinutes: t.effortMinutes, cost: t.cost })) };
   }
@@ -289,19 +289,19 @@ export interface OverrideInput {
 function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[] {
   return list.map((o) => {
     const id = o.issue.toUpperCase();
-    if (!l.refs.has(id)) throw badRequest(`${o.issue} is not in this plan`);
+    if (!l.refs.has(id)) throw badRequest(`${o.issue} is not in this plan`).said('planning.notInPlan', { issue: o.issue });
     const out: PlanOverride = { id };
     if (o.delayDays !== undefined) out.delayDays = o.delayDays;
     if (o.estimate !== undefined) {
       const m = parsePeriod(o.estimate);
-      if (m === null) throw badRequest(`"${o.estimate}" is not a duration`);
+      if (m === null) throw badRequest(`"${o.estimate}" is not a duration`).said('planning.notADuration', { estimate: o.estimate });
       out.effortMinutes = m;
     }
     if (o.assignee !== undefined) {
       if (o.assignee === null) out.assigneeId = null;
       else {
         const u = findUser(l.s, o.assignee, ctx.actor.user.id);
-        if (!u) throw badRequest(`Unknown user "${o.assignee}"`);
+        if (!u) throw badRequest(`Unknown user "${o.assignee}"`).said('planning.unknownUser', { assignee: o.assignee });
         out.assigneeId = u.id;
         if (!l.input.resources.some((r) => r.id === u.id)) {
           l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate, week: u.workWeek });
@@ -380,12 +380,12 @@ export async function level(
       `The plan of ${l.project.key} changed since this levelling was proposed`,
       'Review the new proposal, then level again.',
       { starts },
-    );
+    ).said('planning.planChanged', { project: l.project.key });
   }
   if (!opts.dryRun && writes.length) {
     const startField = fieldByName(l.s, WELL_KNOWN_FIELDS.startDate);
     if (!startField || !(l.s.projectFields.get(l.project.id) ?? []).some((pf) => pf.fieldId === startField.id)) {
-      throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.');
+      throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.').said('planning.noStartDateField', { project: l.project.key, field: WELL_KNOWN_FIELDS.startDate });
     }
     // One transaction: the person agreed to the whole proposal, so it lands whole or not at all.
     const activities = await ctx.db.transaction(async (txRaw) => {
@@ -404,7 +404,7 @@ export async function level(
       }
       for (const [id, start] of writes) {
         const row = l.rowsById.get(id);
-        if (!row) throw notFound(`Issue ${id}`);
+        if (!row) throw notFound(`Issue ${id}`).said('notFound.issue', { id });
         const fields = resolveFieldsInput(l.s, l.project, { [WELL_KNOWN_FIELDS.startDate]: start }, ctx.actor.user.id);
         const res = await applyChanges(tx, ctx, row, { fields });
         out.push(...res.activities);
@@ -499,7 +499,7 @@ export async function getBaseline(ctx: Ctx, id: string): Promise<Baseline> {
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
   // A baseline of a project the caller can't see is not found, as one that doesn't exist.
-  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline');
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
   return baselineDto(ctx, s, row);
 }
 
@@ -567,7 +567,7 @@ export async function deleteBaseline(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline');
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
   await requireProject(ctx, s.projects.get(row.projectId)?.key ?? '', 'manage');
   await ctx.db.delete(baselines).where(eq(baselines.id, id));
 }

@@ -68,13 +68,13 @@ export async function listPolicies(ctx: Ctx, key: string): Promise<SlaPolicy[]> 
 /** A policy's query must read in the project's words, and it needs a target: a 400 says which. */
 async function checkPolicy(ctx: Ctx, project: ProjectRow, input: SlaPolicyInput): Promise<void> {
   if (input.firstResponseMinutes == null && input.resolutionMinutes == null) {
-    throw badRequest('A policy needs a target', 'Give a first-response target, a resolution target, or both.');
+    throw badRequest('A policy needs a target', 'Give a first-response target, a resolution target, or both.').said('sla.needsTarget');
   }
   const query = input.query?.trim() ?? '';
   if (query) {
     const s = await ctx.app.schema.get();
     const { problems } = condition(ruleWorld(s, project.id), query, { meId: null, projectId: project.id });
-    if (problems.length) throw badRequest(`The policy's query doesn't read: ${problems[0]!.message}`, problems[0]!.hint ?? 'Write it as you would a search, such as Priority: Critical.');
+    if (problems.length) throw badRequest(`The policy's query doesn't read: ${problems[0]!.message}`, problems[0]!.hint ?? 'Write it as you would a search, such as Priority: Critical.').said('sla.queryDoesntRead', { problem: problems[0]!.message, hasHint: problems[0]!.hint ? 'yes' : 'no', hint: problems[0]!.hint ?? '' });
   }
 }
 
@@ -101,7 +101,7 @@ export async function createPolicy(ctx: Ctx, key: string, input: SlaPolicyInput)
 
 async function ownPolicy(ctx: Ctx, project: ProjectRow, id: string): Promise<PolicyRow> {
   const [row] = await ctx.db.select().from(slaPolicies).where(and(eq(slaPolicies.id, id), eq(slaPolicies.projectId, project.id)));
-  if (!row) throw notFound('SLA policy', 'It may have been deleted: reload the desk’s settings.');
+  if (!row) throw notFound('SLA policy', 'It may have been deleted: reload the desk’s settings.').said('sla.policyNotFound');
   return row;
 }
 
@@ -138,7 +138,7 @@ export async function reorderPolicies(ctx: Ctx, key: string, ids: string[]): Pro
   const project = await requireProject(ctx, key, 'manage');
   const existing = await policiesOf(ctx.db, project.id);
   if (ids.length !== existing.length || !existing.every((p) => ids.includes(p.id))) {
-    throw badRequest('Give every policy of the desk, once each', 'Reload the desk’s settings, then order them again.');
+    throw badRequest('Give every policy of the desk, once each', 'Reload the desk’s settings, then order them again.').said('sla.orderEveryPolicy');
   }
   await ctx.db.transaction(async (tx) => {
     for (const [i, id] of ids.entries()) await tx.update(slaPolicies).set({ position: i, updatedAt: new Date() }).where(eq(slaPolicies.id, id));
@@ -541,7 +541,7 @@ export async function slaReport(ctx: Ctx, key: string, opts: { from?: string; to
   const today = localDate(Date.now(), tz);
   const to = opts.to ?? today;
   const from = opts.from ?? addDays(to, -7 * 11);
-  if (from > to) throw badRequest('The report starts after it ends', 'Give a from date on or before the to date.');
+  if (from > to) throw badRequest('The report starts after it ends', 'Give a from date on or before the to date.').said('sla.reportStartsAfterEnd');
   const start = new Date(startOfDay(mondayOf(from), tz));
   const end = new Date(startOfDay(addDays(to, 1), tz));
   const rows = await ctx.db

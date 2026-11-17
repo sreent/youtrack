@@ -63,12 +63,12 @@ export async function linkIssues(
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
   const target = await findVisibleIssue(ctx, other);
-  if (!target) throw notFound(`Issue ${other}`);
+  if (!target) throw notFound(`Issue ${other}`).said('notFound.issue', { id: other });
   const phrase = resolveLinkPhrase(s, relation);
   const result = await ctx.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, issue, { links: [{ phrase, target, remove }] }),
   );
-  if (!result.changes.length && remove) throw badRequest(`${issueId} is not linked that way to ${other}`);
+  if (!result.changes.length && remove) throw badRequest(`${issueId} is not linked that way to ${other}`).said('links.notLinked', { issue: issueId, other });
   await publishActivities(ctx.app, result.activities);
   return issueLinksOf(ctx, issue.id);
 }
@@ -80,9 +80,9 @@ export async function deleteLinkById(ctx: Ctx, linkId: string): Promise<void> {
   // A link to an issue the caller can't see is not found, exactly as one that doesn't exist.
   const source = link ? await findVisibleIssue(ctx, link.sourceId) : undefined;
   const target = link ? await findVisibleIssue(ctx, link.targetId) : undefined;
-  if (!link || !source || !target) throw notFound('Link');
+  if (!link || !source || !target) throw notFound('Link').said('links.linkNotFound');
   const type = s.linkTypes.find((t) => t.id === link.typeId);
-  if (!type) throw notFound('Link type');
+  if (!type) throw notFound('Link type').said('links.linkTypeNotFound');
   const phrase = s.linkPhrases.find((p) => p.type.id === type.id && (p.direction === 'outward' || p.direction === 'both'))!;
   const result = await ctx.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, source, { links: [{ phrase, target, remove: true }] }),

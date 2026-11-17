@@ -23,7 +23,7 @@ export function canonicalTimeZone(name: string): string | null {
 /** A zone someone chose, canonical; a 400 with a hint when it isn't one. */
 export function timeZoneOrRefuse(name: string): string {
   const zone = canonicalTimeZone(name);
-  if (!zone) throw badRequest(`Unknown time zone "${name}"`, 'Use an IANA name such as Europe/Berlin, America/New_York or UTC.');
+  if (!zone) throw badRequest(`Unknown time zone "${name}"`, 'Use an IANA name such as Europe/Berlin, America/New_York or UTC.').said('timeZones.unknown', { name });
   return zone;
 }
 

@@ -109,7 +109,7 @@ export async function findIssue(db: Db, s: SchemaSnapshot, idOrReadable: string)
 export async function resolveIssue(ctx: Ctx, idOrReadable: string, db: Db = ctx.db): Promise<IssueRow> {
   requireScope(ctx, 'read');
   const row = await findVisibleIssue(ctx, idOrReadable, db);
-  if (!row) throw notFound(`Issue ${idOrReadable}`, 'Use a readable id such as BACK-12.');
+  if (!row) throw notFound(`Issue ${idOrReadable}`, 'Use a readable id such as BACK-12.').said('issues.notFound', { id: idOrReadable });
   return row;
 }
 
@@ -313,7 +313,7 @@ export function resolveFieldsInput(
     const field = fieldByName(s, name);
     if (!field || !attached.has(field.id)) {
       const names = projectFieldList(s, project.id).map((f) => f.name);
-      throw badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`);
+      throw badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`).said('issues.noSuchField', { project: project.key, name, names: names.join(', ') });
     }
     out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId, today, zone) });
   }
@@ -327,7 +327,7 @@ export function resolveLinkPhrase(s: SchemaSnapshot, relation: string): LinkPhra
     throw badRequest(
       `Unknown link relation "${relation}"`,
       `Use one of: ${[...new Set(s.linkPhrases.map((p) => p.display))].join(', ')}`,
-    );
+    ).said('issues.unknownLinkRelation', { relation, relations: [...new Set(s.linkPhrases.map((p) => p.display))].join(', ') });
   }
   return found;
 }
@@ -411,7 +411,7 @@ export async function applyChanges(
     ? await tx.select().from(issues).where(eq(issues.id, stale.id))
     : await tx.select().from(issues).where(eq(issues.id, stale.id)).for('update');
   const issue = lockedRows[0];
-  if (!issue) throw notFound(`Issue ${readableId(s, stale)}`);
+  if (!issue) throw notFound(`Issue ${readableId(s, stale)}`).said('notFound.issue', { id: readableId(s, stale) });
   // A comment alone needs only a role in the project (a viewer comments); anything else changes
   // the issue. A dry run changes nothing, so reading is enough to preview.
   if (opts.dryRun) await assertCanReadProject(ctx, issue.projectId, tx);
@@ -423,7 +423,7 @@ export async function applyChanges(
       `${readableId(s, issue)} was changed by someone else (version ${issue.version}, you sent ${spec.expectedVersion})`,
       'Reload the issue and re-apply your change.',
       { currentVersion: issue.version },
-    );
+    ).said('issues.changedMeanwhile', { id: readableId(s, issue), version: issue.version, expectedVersion: spec.expectedVersion });
   }
   const changes: Change[] = [];
   const current = await fieldValuesOf(tx, issue.id);
@@ -435,7 +435,7 @@ export async function applyChanges(
     const after = mergeValues(fs.field, before, fs);
     if (sameValues(before, after)) continue;
     const pf = pfs.find((p) => p.fieldId === fs.field.id);
-    if (pf?.required && !pf.condition && after.length === 0) throw badRequest(`${fs.field.name} is required in ${project.key}`);
+    if (pf?.required && !pf.condition && after.length === 0) throw badRequest(`${fs.field.name} is required in ${project.key}`).said('issues.fieldRequired', { field: fs.field.name, project: project.key });
     if (fs.field.type === 'user') {
       const added = after.map((v) => v.userId).filter((id): id is string => Boolean(id) && !before.some((b) => b.userId === id));
       await assertPeopleSeeProject(tx, s, project, fs.field, added);
@@ -454,7 +454,7 @@ export async function applyChanges(
   const patch: Partial<typeof issues.$inferInsert> = {};
   if (spec.summary !== undefined && spec.summary.trim() !== issue.summary) {
     const summary = spec.summary.trim();
-    if (!summary) throw badRequest('Summary cannot be empty');
+    if (!summary) throw badRequest('Summary cannot be empty').said('issues.summaryEmpty');
     patch.summary = summary;
     changes.push({ field: 'Summary', from: issue.summary, to: summary });
   }
@@ -482,14 +482,14 @@ export async function applyChanges(
   // Links (validated before writing anything)
   const linkOps: { spec: LinkSpec; endpoints: { sourceId: string; targetId: string }; existingId: string | null }[] = [];
   for (const l of spec.links ?? []) {
-    if (l.target.id === issue.id) throw badRequest('An issue cannot be linked to itself');
+    if (l.target.id === issue.id) throw badRequest('An issue cannot be linked to itself').said('issues.selfLink');
     // A link shows on both issues and changes both histories, so it needs both: never reveal
     // an issue the caller can't see, and never change one they may only read.
-    if (!(await canReadProject(ctx, l.target.projectId, tx))) throw notFound(`Issue ${readableId(s, l.target)}`);
+    if (!(await canReadProject(ctx, l.target.projectId, tx))) throw notFound(`Issue ${readableId(s, l.target)}`).said('notFound.issue', { id: readableId(s, l.target) });
     if (!opts.dryRun) {
       await assertCanWriteProject(ctx, l.target.projectId, tx).catch((e: unknown) => {
         if (e instanceof AppError && e.status === 403) {
-          throw forbidden(`${e.message}, and a link changes ${readableId(s, l.target)} too`, e.hint);
+          throw forbidden(`${e.message}, and a link changes ${readableId(s, l.target)} too`, e.hint).said('issues.linkChangesToo', { problem: e.message, id: readableId(s, l.target), fix: e.hint ?? '' });
         }
         throw e;
       });
@@ -517,7 +517,7 @@ export async function applyChanges(
           .select({ id: issueLinks.id })
           .from(issueLinks)
           .where(and(eq(issueLinks.typeId, l.phrase.type.id), eq(issueLinks.targetId, issue.id)));
-        if (parent.length) throw badRequest(`${readableId(s, issue)} already has a parent`, 'Remove the existing "subtask of" link first.');
+        if (parent.length) throw badRequest(`${readableId(s, issue)} already has a parent`, 'Remove the existing "subtask of" link first.').said('issues.hasParent', { id: readableId(s, issue) });
       }
       linkOps.push({ spec: l, endpoints, existingId });
       changes.push({
@@ -531,7 +531,7 @@ export async function applyChanges(
   if (spec.visibleTo && !sameLimits(spec.visibleTo, issue)) {
     // Nobody limits an issue away from themselves: they'd lose it the moment they saved.
     if (!(await seesIssueRow(await projectAccess(ctx, tx), tx, s, { ...issue, ...spec.visibleTo }))) {
-      throw badRequest(`That would hide ${readableId(s, issue)} from you`, 'Add yourself, or a group you are in, to who sees it.');
+      throw badRequest(`That would hide ${readableId(s, issue)} from you`, 'Add yourself, or a group you are in, to who sees it.').said('issues.wouldHide', { id: readableId(s, issue) });
     }
     patch.limited = spec.visibleTo.limited;
     patch.visibleUserIds = spec.visibleTo.visibleUserIds;
@@ -593,7 +593,7 @@ export async function applyChanges(
     .returning();
   if (!updated) {
     // Unreachable while the row lock is held; kept as a guard for future callers.
-    throw conflict(`${readableId(s, issue)} changed while it was being updated`, 'Retry the change.');
+    throw conflict(`${readableId(s, issue)} changed while it was being updated`, 'Retry the change.').said('issues.changedWhileUpdating', { id: readableId(s, issue) });
   }
   const states = await stateNames(tx, s, [issue.id]);
   const ref = issueRef(s, updated!, states.get(issue.id) ?? null);
@@ -803,7 +803,7 @@ async function assertPeopleSeeProject(db: Db, s: SchemaSnapshot, project: Projec
   throw badRequest(
     `${names} can't see ${project.key}, so can't be its ${field.name}`,
     `Only ${project.key}'s people see it. Add ${outside.length === 1 ? 'them' : 'each of them'} to the project first, or choose someone who is in it.`,
-  );
+  ).said('issues.cantSeeProject', { names, project: project.key, field: field.name, n: outside.length });
 }
 
 async function computeResolvedAt(
@@ -869,12 +869,12 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
   if (!project || !view.canRead(project.id)) {
     // Only the projects the caller can file in: a hidden project's key is never named.
     const open = [...s.projects.values()].filter((p) => view.allows(p.id, 'create') && !p.archived).map((p) => p.key);
-    throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.');
+    throw notFound(`Project ${input.project}`, open.length ? `Projects you can file in: ${open.join(', ')}` : 'You can file issues in no project yet.').said('issues.projectNotFound', { project: input.project, n: open.length, projects: open.join(', ') });
   }
   await assertCanProject(ctx, project.id, 'create', db);
-  if (project.archived) throw badRequest(`Project ${project.key} is archived`);
+  if (project.archived) throw badRequest(`Project ${project.key} is archived`).said('issues.projectArchived', { project: project.key });
   const summary = input.summary.trim();
-  if (!summary) throw badRequest('Summary cannot be empty');
+  if (!summary) throw badRequest('Summary cannot be empty').said('issues.summaryEmpty');
 
   const today = todayIn(zoneOf(ctx));
   const given = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, today, zoneOf(ctx));
@@ -906,7 +906,7 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
     const field = s.fields.get(pf.fieldId);
     if (!field) continue;
     // A field required only while a condition holds is checked once the issue is written (D41).
-    if (pf.required && !pf.condition && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`);
+    if (pf.required && !pf.condition && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`).said('issues.fieldRequired', { field: field.name, project: project.key });
     if (field.type === 'user') {
       await assertPeopleSeeProject(db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
     }
@@ -921,7 +921,7 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
     (input.links ?? []).map(async (l) => ({ phrase: resolveLinkPhrase(s, l.relation), target: await resolveIssue(ctx, l.issue, db) })),
   );
   const subtaskPhrase = s.linkPhrases.find((p) => p.type.aggregation && p.direction === 'inward');
-  if (parent && !subtaskPhrase) throw badRequest('No subtask link type is configured');
+  if (parent && !subtaskPhrase) throw badRequest('No subtask link type is configured').said('issues.noSubtaskLinkType');
   const links: LinkSpec[] = linkTargets.map((l) => ({ phrase: l.phrase, target: l.target }));
   if (parent && subtaskPhrase) links.unshift({ phrase: subtaskPhrase, target: parent });
   const limits = await resolveVisibleTo(db, s, input.visibleTo);

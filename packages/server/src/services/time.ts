@@ -63,7 +63,7 @@ async function timerOn(ctx: Ctx, issueId: string): Promise<{ issue: { id: string
 
 async function oneTimer(ctx: Ctx, issueId: string): Promise<Timer> {
   const { row } = await timerOn(ctx, issueId);
-  if (!row) throw notFound('Timer');
+  if (!row) throw notFound('Timer').said('time.timerNotFound');
   return (await timerDtos(ctx, [row]))[0]!;
 }
 
@@ -95,7 +95,7 @@ export async function startTimer(ctx: Ctx, issueId: string): Promise<Timer> {
 export async function pauseTimer(ctx: Ctx, issueId: string): Promise<Timer> {
   requireScope(ctx, 'write');
   const { issue, row } = await timerOn(ctx, issueId);
-  if (!row) throw notFound('Timer', 'Start one first: POST /issues/{id}/timer/start.');
+  if (!row) throw notFound('Timer', 'Start one first: POST /issues/{id}/timer/start.').said('time.timerNotFoundStart');
   if (row.runningSince) {
     await ctx.db
       .update(timers)
@@ -113,13 +113,13 @@ export async function pauseTimer(ctx: Ctx, issueId: string): Promise<Timer> {
 export async function stopTimer(ctx: Ctx, issueId: string, input: StopTimerInput = {}): Promise<{ workItem: WorkItem | null }> {
   requireScope(ctx, 'write');
   const { issue, row } = await timerOn(ctx, issueId);
-  if (!row) throw notFound('Timer', 'Start one first: POST /issues/{id}/timer/start.');
+  if (!row) throw notFound('Timer', 'Start one first: POST /issues/{id}/timer/start.').said('time.timerNotFoundStart');
   await assertCanProject(ctx, issue.projectId, 'time');
   const minutes = Math.round(elapsed(row, Date.now()) / 60);
   const where = and(eq(timers.userId, row.userId), eq(timers.issueId, issue.id));
   // Taken first, so stopping twice at once logs the time once.
   const [taken] = await ctx.db.delete(timers).where(where).returning();
-  if (!taken) throw notFound('Timer');
+  if (!taken) throw notFound('Timer').said('time.timerNotFound');
   if (input.duration === undefined && minutes <= 0) return { workItem: null };
   try {
     const workItem = await logWork(ctx, issueId, { duration: input.duration ?? minutes, date: input.date, description: input.description ?? '', type: input.type });
@@ -138,7 +138,7 @@ export async function discardTimer(ctx: Ctx, issueId: string): Promise<void> {
     .delete(timers)
     .where(and(eq(timers.userId, ctx.actor.user.id), eq(timers.issueId, issue.id)))
     .returning({ issueId: timers.issueId });
-  if (!gone.length) throw notFound('Timer');
+  if (!gone.length) throw notFound('Timer').said('time.timerNotFound');
 }
 
 // ---------------------------------------------------------------------------
@@ -149,8 +149,8 @@ export async function discardTimer(ctx: Ctx, issueId: string): Promise<void> {
 function whose(ctx: Ctx, s: SchemaSnapshot, login: string | undefined): UserRow {
   if (!login) return ctx.actor.user;
   const u = findUser(s, login, ctx.actor.user.id);
-  if (!u) throw notFound(`User ${login}`);
-  if (u.id !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only administrators can see or change other people’s timesheets');
+  if (!u) throw notFound(`User ${login}`).said('notFound.user', { id: login });
+  if (u.id !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only administrators can see or change other people’s timesheets').said('time.othersTimesheets');
   return u;
 }
 
@@ -177,7 +177,7 @@ export async function getTimesheet(ctx: Ctx, q: { week?: string; user?: string }
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const person = whose(ctx, s, q.user);
-  if (q.week !== undefined && !isISODate(q.week)) throw badRequest('week must be a date (YYYY-MM-DD)');
+  if (q.week !== undefined && !isISODate(q.week)) throw badRequest('week must be a date (YYYY-MM-DD)').said('time.weekNotADate');
   const monday = startOfWeek(q.week ?? todayIn(zoneOf(ctx)));
   const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const view = await projectAccess(ctx);
@@ -223,7 +223,7 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const person = whose(ctx, s, input.user);
-  if (!isISODate(input.date)) throw badRequest('date must be YYYY-MM-DD');
+  if (!isISODate(input.date)) throw badRequest('date must be YYYY-MM-DD').said('time.dateFormat');
   const issue = await resolveIssue(ctx, input.issue);
   await assertCanProject(ctx, issue.projectId, 'time');
   const project = s.projects.get(issue.projectId)!;
@@ -233,7 +233,7 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
     const types = await ctx.db.select().from(workTypes).where(eq(workTypes.projectId, project.id));
     const named = input.type.trim().toLowerCase();
     const t = types.find((x) => x.id === input.type) ?? types.find((x) => x.name.toLowerCase() === named);
-    if (!t) throw badRequest(`${project.key} has no work type "${input.type}"`);
+    if (!t) throw badRequest(`${project.key} has no work type "${input.type}"`).said('time.noWorkType', { project: project.key, type: input.type });
     typeId = t.id;
   }
   const existing = await ctx.db
@@ -248,7 +248,7 @@ export async function setTimesheetCell(ctx: Ctx, input: TimesheetCellInput): Pro
       ),
     );
   if (existing.length > 1) {
-    throw conflict(`That day has ${existing.length} entries on ${project.key}-${issue.number}`, 'Change them on the issue, one by one.');
+    throw conflict(`That day has ${existing.length} entries on ${project.key}-${issue.number}`, 'Change them on the issue, one by one.').said('time.severalEntries', { n: existing.length, project: project.key, number: issue.number });
   }
   const [one] = existing;
   if (one) {
