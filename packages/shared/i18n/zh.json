@@ -3493,6 +3493,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} 无法在不推迟完成日期（{dayMonth}）的情况下移动。",
   "plan.resources.cantBeLevelledAtAll": "{named} 完全无法平衡，因此{n, plural, other {保持不动}}。",
   "plan.resources.cantBeLevelledWithinSlack": "{named} 无法在浮动时间内平衡，因此{n, plural, other {保持不动}}。",
+  "plan.resources.cellAway": "不在",
+  "plan.resources.cellOff": "休息",
   "plan.resources.daysAway": "休假",
   "plan.resources.done": "已完成",
   "plan.resources.half": "{el}一半",

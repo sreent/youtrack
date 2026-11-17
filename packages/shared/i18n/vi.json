@@ -3483,6 +3483,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} không thể dời mà không dời ngày kết thúc, {dayMonth}.",
   "plan.resources.cantBeLevelledAtAll": "Không thể cân bằng {named}{n, plural, other {}}, nên giữ nguyên vị trí.",
   "plan.resources.cantBeLevelledWithinSlack": "Không thể cân bằng {named} trong thời gian dự trữ{n, plural, other {}}, nên giữ nguyên vị trí.",
+  "plan.resources.cellAway": "vắng",
+  "plan.resources.cellOff": "nghỉ",
   "plan.resources.daysAway": "Ngày vắng mặt",
   "plan.resources.done": "Xong",
   "plan.resources.half": "{el}một nửa",

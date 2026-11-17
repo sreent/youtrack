@@ -1,6 +1,6 @@
 /** A notification's email, and the daily digest: rendered when sent, from what is true then. */
 import type { IssueRef, NotificationKind } from '@a4a/shared';
-import { subscriptionTells } from '@a4a/shared/i18n';
+import { joinSentences, langTag, subscriptionTells } from '@a4a/shared/i18n';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
@@ -89,10 +89,14 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   });
   const t = tr.t;
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: t('server.mail.lead', { title, id: issue.id, summary: issue.summary }),
     sections,
     action: n.issueId ? { label: t('server.mail.open', { id: issue.id }), url: l.issue(issue.id) } : { label: t('server.mail.openInbox'), url: l.inbox },
-    why: `${stopKind === 'subscription' ? t('server.mail.whySubscribed', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name }) : t('server.mail.why', { because: because(tr, kind) })}${replyTo ? ` ${t('server.mail.replyToComment')}` : ''}`,
+    why: joinSentences(tr, [
+      stopKind === 'subscription' ? t('server.mail.whySubscribed', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name }) : t('server.mail.why', { because: because(tr, kind) }),
+      replyTo ? t('server.mail.replyToComment') : '',
+    ]),
     stop: {
       label:
         stopKind === 'subscription'
@@ -160,6 +164,7 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
   }
   const subject = t('server.mail.digest.subject', { n: rows.length });
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: t('server.mail.digest.lead', { n: byIssue.size }),
     sections: [...byIssue.values()].map((g) => ({ head: `${g.issue.id}: ${g.issue.summary} · ${l.issue(g.issue.id)}`, lines: g.lines })),
     action: { label: t('server.mail.openInbox'), url: l.inbox },

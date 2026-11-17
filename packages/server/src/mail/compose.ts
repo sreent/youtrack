@@ -14,6 +14,8 @@ export interface MailSection {
 }
 
 export interface MailContent {
+  /** The language it's written in, as a page's `lang` says it (`langTag`): a screen reader picks its voice by it. */
+  lang: string;
   lead: string;
   sections: MailSection[];
   action: { label: string; url: string };
@@ -50,7 +52,7 @@ export function composeMail(subject: string, c: MailContent): { text: string; ht
   const text: string[] = [c.lead, ''];
   const html: string[] = [
     '<!doctype html>',
-    '<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<html lang="${esc(c.lang)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${esc(subject)}</title></head><body>`,
     `<p><strong>${esc(c.lead)}</strong></p>`,
   ];

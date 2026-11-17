@@ -9,7 +9,7 @@ import { hoursWords } from '../common/format';
 import { useId } from 'react';
 import { Link } from 'react-router';
 import { Badge } from '../../components/Badges';
-import { dayMonth, spanWords } from '../plan/dates';
+import { dayMonth, span } from '../plan/dates';
 import { hoursOf, labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
 import { t, tr } from '../../i18n';
 
@@ -235,7 +235,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
             {b.sprint.name} <span className="note">{tr('reports.burndown.on', { name: b.sprint.board.name })}</span>
           </h2>
           <p className="note">
-            {spanWords(b.sprint.startDate, b.sprint.endDate)}, {t('count.workingDays', { n: b.workingDays })}
+            {span(b.sprint.startDate, b.sprint.endDate)}, {t('count.workingDays', { n: b.workingDays })}
             {b.sprint.goal ? ` · ${b.sprint.goal}` : ''}
           </p>
         </div>

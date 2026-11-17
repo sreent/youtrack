@@ -3483,6 +3483,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} tidak dapat bergeser tanpa menggeser tanggal selesai, {dayMonth}.",
   "plan.resources.cantBeLevelledAtAll": "{named} sama sekali tidak dapat diratakan, jadi {n, plural, other {tetap di tempatnya}}.",
   "plan.resources.cantBeLevelledWithinSlack": "{named} tidak dapat diratakan dalam kelonggaran, jadi {n, plural, other {tetap di tempatnya}}.",
+  "plan.resources.cellAway": "tidak hadir",
+  "plan.resources.cellOff": "libur",
   "plan.resources.daysAway": "Ketidakhadiran",
   "plan.resources.done": "Selesai",
   "plan.resources.half": "{el}setengah",

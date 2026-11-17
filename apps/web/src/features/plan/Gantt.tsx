@@ -7,7 +7,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { addDays, dayMonth, diffDays, localToday, span, spanWords, weekday, type WorkCalendar } from './dates';
+import { addDays, dayMonth, diffDays, localToday, span, weekday, type WorkCalendar } from './dates';
 import { andList } from './format';
 import { anchors, DAY, ganttRange, HEAD, linkHead, linkPath, restDays, ROW, rowTop, scale, type GanttTask, type Scale } from './gantt';
 import { t as tw_, tr } from '../../i18n';
@@ -224,7 +224,7 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
   return (
     <section className="gantt gantt-box" aria-labelledby={titleId}>
       <h2 id={titleId} className="hidden">{tr('plan.gantt.byDay', { title: title })}</h2>
-      <div ref={scroller} className="gantt-scroll" tabIndex={0} role="group" aria-label={`${title}, ${spanWords(start, finish)}`}>
+      <div ref={scroller} className="gantt-scroll" tabIndex={0} role="group" aria-label={`${title}, ${span(start, finish)}`}>
         <div className="gantt-grid">
           <div className="gantt-side">
             <div className="gantt-side-head" aria-hidden="true">

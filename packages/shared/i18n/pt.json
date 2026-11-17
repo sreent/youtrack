@@ -3493,6 +3493,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} não pode mudar sem mudar o término, {dayMonth}.",
   "plan.resources.cantBeLevelledAtAll": "{named} {n, plural, one {não pode ser nivelada de forma alguma, então fica onde está} other {não podem ser niveladas de forma alguma, então ficam onde estão}}.",
   "plan.resources.cantBeLevelledWithinSlack": "{named} {n, plural, one {não pode ser nivelada dentro da folga, então fica onde está} other {não podem ser niveladas dentro da folga, então ficam onde estão}}.",
+  "plan.resources.cellAway": "ausente",
+  "plan.resources.cellOff": "folga",
   "plan.resources.daysAway": "Ausências",
   "plan.resources.done": "Concluído",
   "plan.resources.half": "{el}metade",

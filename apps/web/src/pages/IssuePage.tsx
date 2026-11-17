@@ -35,7 +35,7 @@ import { WorkflowBar } from '../features/workflow/WorkflowBar';
 import { AppWidgets } from '../features/apps/AppWidgets';
 import { attachmentKeys } from '../features/attachments/api';
 import { RichField } from '../features/editor/RichField';
-import { formatList, intlLocale, t, tr } from '../i18n';
+import { formatList, intlLocale, sentences, t, tr } from '../i18n';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -200,7 +200,7 @@ function Summary({ issue, canComment }: { issue: IssueDetail; canComment: boolea
       </section>
     );
   const r = state.result;
-  const note = [r.partial ? t('page.issue.longThreadSummarised') : '', r.post ? '' : t('page.issue.summaryReadLimitedComments')].filter(Boolean).join(' ');
+  const note = sentences([r.partial ? t('page.issue.longThreadSummarised') : '', r.post ? '' : t('page.issue.summaryReadLimitedComments')]);
   return (
     <SummaryCard label={t('page.issue.summaryByTheAssistant')} did={t('page.issue.summarisedTheIssueAndIts')} summary={r.summary} note={note || null} onClose={() => setState(null)}>
       {r.post && canComment ? (

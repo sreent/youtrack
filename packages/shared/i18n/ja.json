@@ -3599,6 +3599,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named}は、終了日（{dayMonth}）を動かさずには移動できません。",
   "plan.resources.cantBeLevelledAtAll": "{named}はまったく平準化できないため、今の位置のままです。{n, plural, other {}}",
   "plan.resources.cantBeLevelledWithinSlack": "{named}は余裕の範囲では平準化できないため、今の位置のままです。{n, plural, other {}}",
+  "plan.resources.cellAway": "不在",
+  "plan.resources.cellOff": "休み",
   "plan.resources.daysAway": "不在日",
   "plan.resources.done": "完了",
   "plan.resources.half": "{el}半分",

@@ -23,8 +23,8 @@ function sameDay(a: Date, b: Date): boolean {
 /** As people read times: today's alone ("10:02"), older ones with their day ("Mon 9 Nov, 10:02"). */
 export function whenRead(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (sameDay(d, now)) return time;
+  // Today's time alone, as the page's language writes one ("14:05", Indonesian's "14.05").
+  if (sameDay(d, now)) return d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   // The day and the time together, as the page's language joins them (Japanese has no comma), on a 24-hour clock.
   return d.toLocaleString(intlLocale(), {
     weekday: 'short',

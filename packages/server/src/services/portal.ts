@@ -14,6 +14,7 @@ import type { AppServices } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
+import { langTag } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -78,6 +79,7 @@ export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promi
   const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
   const subject = tr.t('server.portal.subject', { where });
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: tr.t('server.portal.lead', { where }),
     sections: [],
     action: { label: tr.t('server.portal.signIn'), url: `${app.config.publicUrl}/portal#${token}` },

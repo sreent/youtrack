@@ -7,6 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { comments, helpdeskReplyTokens, helpdeskRequests, helpdeskTokens, issues, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type RenderedMail } from '../mail/compose';
+import { langTag } from '@a4a/shared/i18n';
 import { mailHost, type MailRow } from '../mail/outbox';
 import { sha256 } from '../lib/crypto';
 import { deskAddress, mintTrackingToken, trackingUrl } from '../services/helpdesk';
@@ -89,6 +90,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   const replyToken = deskMail ? await mintReplyToken(app.db, issue.id) : null;
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead,
     sections: [
       ...(quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : []),
@@ -180,6 +182,7 @@ async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise
   const base = app.config.publicUrl;
   const subject = `Re: ${issue.summary}`;
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead,
     sections: quote ? [{ head: tr.t('server.helpdesk.theyWrote'), quote }] : [],
     action: { label: tr.t('server.helpdesk.cc.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },

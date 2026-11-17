@@ -3599,6 +3599,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} can't move without moving the finish, {dayMonth}.",
   "plan.resources.cantBeLevelledAtAll": "{named} can't be levelled at all, so {n, plural, one {it stays where it is} other {they stay where they are}}.",
   "plan.resources.cantBeLevelledWithinSlack": "{named} can't be levelled within slack, so {n, plural, one {it stays where it is} other {they stay where they are}}.",
+  "plan.resources.cellAway": "away",
+  "plan.resources.cellOff": "off",
   "plan.resources.daysAway": "Days away",
   "plan.resources.done": "Done",
   "plan.resources.half": "{el}half",

@@ -3493,6 +3493,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named}은(는) 완료일({dayMonth})을 옮기지 않고는 이동할 수 없습니다.",
   "plan.resources.cantBeLevelledAtAll": "{named}은(는) 전혀 평준화할 수 없어서 {n, plural, other {그대로 둡니다}}.",
   "plan.resources.cantBeLevelledWithinSlack": "{named}은(는) 여유 시간 안에서 평준화할 수 없어서 {n, plural, other {그대로 둡니다}}.",
+  "plan.resources.cellAway": "부재",
+  "plan.resources.cellOff": "휴무",
   "plan.resources.daysAway": "부재일",
   "plan.resources.done": "완료",
   "plan.resources.half": "{el}절반",

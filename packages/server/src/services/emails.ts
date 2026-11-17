@@ -18,6 +18,7 @@ import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
+import { langTag } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { mailConfigured } from '../notify/state';
 import { findUser } from './schema-cache';
@@ -334,6 +335,7 @@ export async function renderEmailConfirmMail(app: AppServices, row: MailRow): Pr
   const tr = translatorFor(localeOfPerson(app, u));
   const subject = tr.t('server.emails.subject');
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: tr.t('server.emails.lead', { email }),
     sections: [
       {

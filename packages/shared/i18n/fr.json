@@ -3599,6 +3599,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} ne peut pas bouger sans déplacer la fin, le {dayMonth}.",
   "plan.resources.cantBeLevelledAtAll": "Impossible de niveler {named} : {n, plural, one {elle reste où elle est} other {elles restent où elles sont}}.",
   "plan.resources.cantBeLevelledWithinSlack": "Impossible de niveler {named} dans la marge : {n, plural, one {elle reste où elle est} other {elles restent où elles sont}}.",
+  "plan.resources.cellAway": "absent",
+  "plan.resources.cellOff": "repos",
   "plan.resources.daysAway": "Absences",
   "plan.resources.done": "Fait",
   "plan.resources.half": "{el}la moitié",

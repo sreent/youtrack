@@ -1,12 +1,11 @@
-import { monthNames, weekdayNames } from '../../i18n';
+import { intlLocale, weekdayNames } from '../../i18n';
 /**
  * Calendar dates as the API sends them (YYYY-MM-DD), handled as UTC days so arithmetic never
  * shifts across a change of clocks; working days as a plan's calendar defines them; and dates
- * as people read them ("9 Nov", "9 to 20 Nov"), in Ocean's voice.
+ * as people read them ("9 Nov", "9–20 Nov"), as the page's language writes a date and a range (Intl).
  */
 
 const DAY = 86_400_000;
-const MONTHS = monthNames();
 const WEEKDAYS = weekdayNames();
 
 function utc(d: string): number {
@@ -63,10 +62,18 @@ export const maxDate = (a: string, b: string) => (a > b ? a : b);
 
 const yearOf = (d: string) => d.slice(0, 4);
 
-/** "9 Nov", or "9 Nov 2027" when it isn't this year. */
+/** A calendar day's formatter in the page's language, read as the UTC day it is. */
+const dayFormat = (opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intlLocale(), { ...opts, timeZone: 'UTC' });
+const yearIf = (shown: boolean): Intl.DateTimeFormatOptions => (shown ? { year: 'numeric' } : {});
+
+/** "9 Nov", or "9 Nov 2027" when it isn't this year, as the page's language writes a date ("11月9日"). */
 export function dayMonth(d: string, thisYear = localToday().slice(0, 4)): string {
-  const text = `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
-  return yearOf(d) === thisYear ? text : `${text} ${yearOf(d)}`;
+  return dayFormat({ day: 'numeric', month: 'short', ...yearIf(yearOf(d) !== thisYear) }).format(new Date(utc(d)));
+}
+
+/** "Fri 4 Dec", a weekday with its date, as the page's language puts them together. */
+export function weekdayDayMonth(d: string, thisYear = localToday().slice(0, 4)): string {
+  return dayFormat({ weekday: 'short', day: 'numeric', month: 'short', ...yearIf(yearOf(d) !== thisYear) }).format(new Date(utc(d)));
 }
 
 /** "Mon" */
@@ -75,24 +82,16 @@ export function weekdayName(d: string): string {
 }
 
 /**
- * Two dates as one span: "13 Nov", "9–13 Nov", "30 Nov–4 Dec". With `sep` " to ", the words
- * a sentence uses: "9 to 13 Nov".
+ * Two dates as one span, as the page's language writes a range (Intl's): "13 Nov", "9 – 13 Nov",
+ * "30 Nov – 4 Dec", Japanese's "11/09～11/13". A sentence says it as a page shows it.
  */
-export function span(a: string, b: string, sep = '–'): string {
+export function span(a: string, b: string): string {
   if (a === b) return dayMonth(a);
   if (b < a) [a, b] = [b, a];
   const thisYear = localToday().slice(0, 4);
-  if (yearOf(a) === yearOf(b) && a.slice(5, 7) === b.slice(5, 7)) {
-    return `${Number(a.slice(8, 10))}${sep}${dayMonth(b, thisYear)}`;
-  }
-  if (yearOf(a) === yearOf(b)) {
-    const first = `${Number(a.slice(8, 10))} ${MONTHS[Number(a.slice(5, 7)) - 1]}`;
-    return `${first}${sep}${dayMonth(b, thisYear)}`;
-  }
-  return `${dayMonth(a, '')}${sep}${dayMonth(b, '')}`;
+  return dayFormat({ day: 'numeric', month: 'short', ...yearIf(yearOf(a) !== thisYear || yearOf(b) !== thisYear) }).formatRange(new Date(utc(a)), new Date(utc(b)));
 }
 
-export const spanWords = (a: string, b: string) => span(a, b, ' to ');
 
 // ---------------------------------------------------------------------------
 // Working days

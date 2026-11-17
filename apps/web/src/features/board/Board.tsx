@@ -30,7 +30,7 @@ import { useUsers } from '../../api/queries';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { Avatar } from '../../components/Who';
-import { localToday, spanWords, workCalendar } from '../plan/dates';
+import { localToday, span, workCalendar } from '../plan/dates';
 import { useCardMoves, useProjectFieldLists } from './api';
 import {
   asMoved,
@@ -95,7 +95,7 @@ function SprintHead({ view, headingId }: { view: BoardView; headingId: string })
     <div className="sprint">
       <div className="sprint-title">
         <h2 id={headingId}>{s.name}</h2>
-        {s.startDate && s.endDate ? <span className="sprint-dates">{spanWords(s.startDate, s.endDate)}</span> : null}
+        {s.startDate && s.endDate ? <span className="sprint-dates">{span(s.startDate, s.endDate)}</span> : null}
         {left ? <span className="chip">{s.archived ? t('board.board.archived') : left}</span> : null}
       </div>
       {s.goal ? (

@@ -3599,6 +3599,8 @@
   "plan.resources.canTMoveWithoutMoving": "{named} kann sich nicht verschieben, ohne das Ende ({dayMonth}) zu verschieben.",
   "plan.resources.cantBeLevelledAtAll": "{named} {n, plural, one {kann} other {können}} überhaupt nicht abgeglichen werden, deshalb {n, plural, one {bleibt sie, wo sie ist} other {bleiben sie, wo sie sind}}.",
   "plan.resources.cantBeLevelledWithinSlack": "{named} {n, plural, one {kann} other {können}} nicht innerhalb des Puffers abgeglichen werden, deshalb {n, plural, one {bleibt sie, wo sie ist} other {bleiben sie, wo sie sind}}.",
+  "plan.resources.cellAway": "abwesend",
+  "plan.resources.cellOff": "frei",
   "plan.resources.daysAway": "Abwesenheiten",
   "plan.resources.done": "Erledigt",
   "plan.resources.half": "{el}halb",
