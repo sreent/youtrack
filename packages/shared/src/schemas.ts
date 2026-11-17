@@ -2665,6 +2665,8 @@ export const MoveProblemSchema = z
     message: z.string(),
     hint: z.string().optional(),
     choices: z.array(z.string()).optional().describe('Values the field takes in the project it moves to'),
+    key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
+    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
   })
   .meta({ id: 'MoveProblem' });
 export type MoveProblem = z.infer<typeof MoveProblemSchema>;

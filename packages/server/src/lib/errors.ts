@@ -119,6 +119,14 @@ export function wordsOf(p: { key?: string; values?: Record<string, string | numb
 /** The nearest known name, as a problem's words take it: "Did you mean …?" when there is one (D49). */
 export const guessWords = (guess: string | null | undefined) => ({ hasGuess: guess ? 'yes' : 'no', guess: guess ?? '' });
 
+type SaidAs = { message: string; hint?: string; key?: string; values?: Record<string, string | number> };
+
+/**
+ * A parser's problem as another problem's value, said whole with its fix on a page (D49): by its key,
+ * or, for what has none (what the JavaScript engine says of a script), in the English it came in.
+ */
+export const saidProblem = (p: SaidAs): ProblemSaid =>
+  p.key ? (p.values ? { key: p.key, values: p.values } : { key: p.key }) : { key: 'inItsOwnWords', values: { words: pageWords(p.message, p.hint) } };
+
 /** A parser's problems as one problem's value: each said whole, with its fix, on a page (D49). */
-export const saidProblems = (problems: readonly { key?: string; values?: Record<string, string | number> }[]): ProblemSaid[] =>
-  problems.filter((p): p is QueryProblemWords => typeof p.key === 'string').map((p) => (p.values ? { key: p.key, values: p.values } : { key: p.key }));
+export const saidProblems = (problems: readonly SaidAs[]): ProblemSaid[] => problems.map(saidProblem);

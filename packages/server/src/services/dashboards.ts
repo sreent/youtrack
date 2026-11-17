@@ -9,7 +9,7 @@ import { WidgetSchema } from '@a4a/shared';
 import { and, asc, eq, or, sql } from 'drizzle-orm';
 import { isAdmin, requireScope, type Ctx } from '../context';
 import { boards, dashboards, savedSearches, sprints } from '../db/schema';
-import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { badRequest, conflict, forbidden, notFound, saidProblems } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { todayISO } from '../lib/dates';
 import { prepareQuery } from '../search/service';
@@ -189,7 +189,7 @@ async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
       if (prepared.compiled.problems.length) {
         throw badRequest(`The query of ${where} has problems: ${prepared.compiled.problems.map((p) => p.message).join('; ')}`, 'Fix the query, or try it on the Issues page first.', {
           problems: prepared.compiled.problems,
-        }).said('dashboards.queryProblems', { titled: w.title ? 'yes' : 'no', title: w.title ?? '', wid: w.id, problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
+        }).said('dashboards.queryHasProblems', { titled: w.title ? 'yes' : 'no', title: w.title ?? '', wid: w.id, problems: saidProblems(prepared.compiled.problems) });
       }
     };
     if (w.kind === 'report') {

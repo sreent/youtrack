@@ -7,7 +7,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { issues } from '../db/schema';
-import { badRequest } from '../lib/errors';
+import { badRequest, saidProblem } from '../lib/errors';
 import { condition, meets, ruleWorld } from '../workflow/match';
 import type { SchemaSnapshot } from './schema-cache';
 
@@ -17,7 +17,7 @@ export function checkFieldCondition(s: SchemaSnapshot, projectId: string, text: 
   if (!t) return null;
   const c = condition(ruleWorld(s, projectId), t, { meId: null });
   const p = c.problems[0];
-  if (p) throw badRequest(`The condition doesn't read: ${p.message}`, p.hint ?? 'Write it as a search, e.g. State: Fixed').said('conditions.doesNotRead', { message: (/[.!?…:]["”’)]*$/.test(p.message.trim()) ? p.message.trim() : `${p.message.trim()}.`), hasHint: p.hint ? 'yes' : 'no', hint: p.hint ? (/[.!?…:]["”’)]*$/.test(p.hint.trim()) ? p.hint.trim() : `${p.hint.trim()}.`) : '' });
+  if (p) throw badRequest(`The condition doesn't read: ${p.message}`, p.hint ?? 'Write it as a search, e.g. State: Fixed').said('conditions.doesNotReadSaying', { problem: saidProblem(p), hasHint: p.hint ? 'yes' : 'no' });
   if (!c.where) throw badRequest("The condition doesn't say anything", 'Write it as a search, e.g. State: Fixed').said('conditions.saysNothing');
   return t;
 }

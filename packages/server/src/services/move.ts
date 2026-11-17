@@ -19,7 +19,7 @@ import type { Db } from '../db/client';
 import { CLONE_LINK } from '../db/defaults';
 import { issueAliases, issueFieldValues, issueLinks, issues, issueTags, mentions, projects, sprintIssues, tags } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
-import { badRequest, conflict, notFound } from '../lib/errors';
+import { AppError, badRequest, conflict, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { todayIn } from '../reports/tz';
 import { assertCanWriteProject, canReadProject, projectAccess } from './access';
 import { issueRef, issueRefsById, readableId, stateNames, type IssueRow } from './issue-refs';
@@ -45,7 +45,13 @@ async function carryValues(db: Db, s: SchemaSnapshot, field: FieldRow, target: P
       const name = s.values.get(v.valueId)?.name ?? '';
       const same = allowed.find((a) => a.name.toLowerCase() === name.toLowerCase());
       if (!same) {
-        return { problem: { message: `${field.name} "${name}" isn't a value in ${target.key}`, hint: `Choose one of its values for ${field.name}, or null to leave it empty.` } };
+        return {
+          problem: keyedProblem(
+            { message: `${field.name} "${name}" isn't a value in ${target.key}`, hint: `Choose one of its values for ${field.name}, or null to leave it empty.` },
+            'move.notAValueThere',
+            { field: field.name, value: name, project: target.key },
+          ),
+        };
       }
       out.push({ valueId: same.id });
     }
@@ -55,7 +61,15 @@ async function carryValues(db: Db, s: SchemaSnapshot, field: FieldRow, target: P
     const people = before.flatMap((v) => (v.userId && s.users.get(v.userId) ? [s.users.get(v.userId)!] : []));
     const seeing = await whoSees(db, s, target.id, people.map((u) => u.login));
     const blind = people.find((u) => !seeing.has(u.login.toLowerCase()));
-    if (blind) return { problem: { message: `${blind.name} can't see ${target.key}, so can't stay ${field.name}`, hint: `Choose someone who can, or null to leave ${field.name} empty.` } };
+    if (blind) {
+      return {
+        problem: keyedProblem(
+          { message: `${blind.name} can't see ${target.key}, so can't stay ${field.name}`, hint: `Choose someone who can, or null to leave ${field.name} empty.` },
+          'move.cantSeeTarget',
+          { name: blind.name, project: target.key, field: field.name },
+        ),
+      };
+    }
     return { values: before };
   }
   return { values: before };
@@ -109,7 +123,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
         try {
           after = resolveFieldInput(s, f, target.id, g as string | string[], ctx.actor.user.id, today, zone);
         } catch (e) {
-          problem({ message: (e as Error).message, ...((e as { hint?: string }).hint ? { hint: (e as { hint?: string }).hint } : {}) });
+          problem({ message: (e as Error).message, ...((e as { hint?: string }).hint ? { hint: (e as { hint?: string }).hint } : {}), ...(e instanceof AppError ? wordsOf(e) : {}) });
           continue;
         }
       }
@@ -128,14 +142,14 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
       }
     }
     if (pf.required && !pf.condition && !after.length) {
-      problem({ message: `${f.name} is required in ${target.key}`, hint: `Give ${f.name} a value.` });
+      problem(keyedProblem({ message: `${f.name} is required in ${target.key}`, hint: `Give ${f.name} a value.` }, 'move.fieldRequired', { field: f.name, project: target.key }));
       continue;
     }
     if (after.length) values.set(f.id, after);
     if (before.length || after.length) carried.push({ field: f.name, from: presentValues(s, f, before), to: presentValues(s, f, after) });
   }
   for (const k of given.keys()) {
-    if (!pfs.some((pf) => s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push({ field: k, message: `${target.key} has no field "${k}"` });
+    if (!pfs.some((pf) => s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push(keyedProblem({ field: k, message: `${target.key} has no field "${k}"` }, 'move.noField', { project: target.key, field: k }));
   }
   const droppedValues = [...current.entries()]
     .filter(([fid, vals]) => vals.length && !pfs.some((pf) => pf.fieldId === fid))
@@ -185,7 +199,7 @@ export async function moveIssue(ctx: Ctx, idOrReadable: string, input: MoveIssue
       }).said('move.changedMeanwhile', { issue: p.plan.from, version: issue.version, expectedVersion: input.expectedVersion });
     }
     if (p.plan.problems.length) {
-      throw badRequest(`${p.plan.from} can't move to ${target.key} yet: ${problemList(p.plan.problems)}`, 'Give a value for each in fields, or null to leave it empty, and move it again.', p.plan).said('move.fieldsMissing', { issue: p.plan.from, project: target.key, problems: problemList(p.plan.problems) });
+      throw badRequest(`${p.plan.from} can't move to ${target.key} yet: ${problemList(p.plan.problems)}`, 'Give a value for each in fields, or null to leave it empty, and move it again.', p.plan).said('move.fieldsToGive', { issue: p.plan.from, project: target.key, problems: saidProblems(p.plan.problems) });
     }
     const [{ number } = { number: 0 }] = await tx
       .update(projects)
