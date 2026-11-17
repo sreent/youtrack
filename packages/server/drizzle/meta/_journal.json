@@ -218,6 +218,13 @@
       "when": 1794899873554,
       "tag": "0030_project_key_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794904820766,
+      "tag": "0031_private_fields",
+      "breakpoints": true
     }
   ]
 }

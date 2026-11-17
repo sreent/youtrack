@@ -7,7 +7,7 @@ import { publishActivities, recordActivity, type ActivityRow } from '../events/a
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { searchIssueRows } from '../search/service';
-import { assertCanProject, assertCanWriteProject, issueSeenSql, projectAccess, scopeSchema, type AccessView } from './access';
+import { assertCanProject, assertCanWriteProject, issueSeenSql, projectAccess, scopeFields, scopeSchema, type AccessView } from './access';
 import { issueRefsById } from './issue-refs';
 import { issueDtos } from './issues';
 import { resolveIssue } from './issues';
@@ -159,10 +159,13 @@ function seesBoard(view: AccessView, row: BoardRow): boolean {
   return row.projectIds.some((id) => view.canRead(id));
 }
 
-/** The reference data as the caller sees it, so a board names no project or value they can't see. */
+/**
+ * The reference data as the caller sees it, so a board names no project or value they can't see, nor a
+ * private field kept from them (D50): its lanes, columns and points are then as if it had none.
+ */
 export async function scoped(ctx: Ctx): Promise<{ s: SchemaSnapshot; view: AccessView }> {
   const view = await projectAccess(ctx);
-  return { s: scopeSchema(await ctx.app.schema.get(), view.visibleIds()), view };
+  return { s: scopeFields(scopeSchema(await ctx.app.schema.get(), view.visibleIds()), view), view };
 }
 
 export async function listBoards(ctx: Ctx): Promise<Board[]> {
@@ -350,7 +353,9 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
       swimlanes = [...names].sort();
       swimlanes.push('Unassigned');
     } else if (field) {
-      swimlanes = [...new Set(readable.flatMap((pid) => allowedValues(s, field.id, pid).map((v) => v.name)))];
+      // Lanes of the projects whose issues show the field to them (D50).
+      const showing = readable.filter((pid) => (s.projectFields.get(pid) ?? []).some((pf) => pf.fieldId === field.id));
+      swimlanes = [...new Set(showing.flatMap((pid) => allowedValues(s, field.id, pid).map((v) => v.name)))];
       swimlanes.push('No value');
     }
   }

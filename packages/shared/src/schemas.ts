@@ -488,6 +488,9 @@ export const ProjectFieldSchema = z
       .string()
       .nullable()
       .describe('A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always'),
+    private: z
+      .boolean()
+      .describe("Seen only by people who may read the project's private fields, and changed only by those who may change them (D50)"),
   })
   .meta({ id: 'ProjectField' });
 export type ProjectField = z.infer<typeof ProjectFieldSchema>;
@@ -537,6 +540,10 @@ export const AttachFieldBody = z.object({
     .nullable()
     .optional()
     .describe('A query: the field shows, and is required if it is, only while the issue matches it, e.g. "State: Fixed". Null: always'),
+  private: z
+    .boolean()
+    .optional()
+    .describe("Seen only by people who may read the project's private fields (D50). Left as it is unless given"),
 });
 
 // ---------------------------------------------------------------------------
@@ -589,6 +596,10 @@ export const IssueFieldSchema = z
       .boolean()
       .optional()
       .describe("Whether a conditional field's condition holds for the issue now (D41); absent for a field with none"),
+    private: z
+      .boolean()
+      .optional()
+      .describe('Private in its project (D50): only people who may read its private fields get it at all. Absent for a field everyone sees'),
   })
   .meta({ id: 'IssueField' });
 export type IssueField = z.infer<typeof IssueFieldSchema>;

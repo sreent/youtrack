@@ -30,12 +30,17 @@ import {
   assertCanCommentProject,
   assertCanProject,
   assertCanReadProject,
+  assertCanSetFields,
   assertCanWriteProject,
   canReadProject,
   commentSeenSql,
+  hiddenFields,
+  privateFieldIds,
   projectAccess,
   projectRolesOf,
+  scopeFields,
   seenIssueIds,
+  seesField,
   seesIssueRow,
 } from './access';
 import { describeLimits, resolveVisibleTo, sameLimits, UNLIMITED, visibleToDtos, type Limits } from './visibility';
@@ -54,6 +59,7 @@ import {
 import { ensureTags, tagDto } from './tags';
 import { issueIdByAlias, formerIdsOf } from './aliases';
 import { enforceRequiredWhen, fieldsApplying, missingNow, requiredWhen } from './conditions';
+import { ruleWorld } from '../workflow/match';
 import { hasVoted, reactionsOf } from './votes';
 import { todayIn } from '../reports/tz';
 import { zoneOf } from './time-zones';
@@ -151,14 +157,19 @@ function projectFieldList(s: SchemaSnapshot, projectId: string): FieldRow[] {
     .filter((f): f is FieldRow => Boolean(f));
 }
 
-function buildFields(s: SchemaSnapshot, projectId: string, values: Map<string, ResolvedValue[]>): IssueField[] {
-  return projectFieldList(s, projectId).map((f) => ({
-    fieldId: f.id,
-    name: f.name,
-    type: f.type,
-    multi: f.multi,
-    value: fieldValueDto(s, f, values.get(f.id) ?? []),
-  }));
+/** An issue's fields, leaving out those kept from whoever reads it (`hidden`, D50); a private one they see says so. */
+function buildFields(s: SchemaSnapshot, projectId: string, values: Map<string, ResolvedValue[]>, hidden?: ReadonlySet<string>): IssueField[] {
+  const own = privateFieldIds(s, projectId);
+  return projectFieldList(s, projectId)
+    .filter((f) => !hidden?.has(f.id))
+    .map((f) => ({
+      fieldId: f.id,
+      name: f.name,
+      type: f.type,
+      multi: f.multi,
+      value: fieldValueDto(s, f, values.get(f.id) ?? []),
+      ...(own.has(f.id) ? { private: true } : {}),
+    }));
 }
 
 /** Batch-map issue rows to list DTOs, preserving order. */
@@ -166,7 +177,10 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
   if (!rows.length) return [];
   const s = await ctx.app.schema.get();
   const ids = rows.map((r) => r.id);
-  const commentSeen = commentSeenSql(await projectAccess(ctx), 'comments');
+  const view = await projectAccess(ctx);
+  const commentSeen = commentSeenSql(view, 'comments');
+  // A project's private fields reach only who may read them (D50).
+  const hidden = hiddenFields(view, s);
   const [fieldRows, tagRows, commentCounts] = await Promise.all([
     loadFieldRows(ctx.db, ids),
     ctx.db
@@ -196,7 +210,7 @@ export async function issueDtos(ctx: Ctx, rows: IssueRow[]): Promise<Issue[]> {
       updatedAt: r.updatedAt.toISOString(),
       resolvedAt: r.resolvedAt?.toISOString() ?? null,
       version: r.version,
-      fields: buildFields(s, r.projectId, fieldRows.get(r.id) ?? new Map()),
+      fields: buildFields(s, r.projectId, fieldRows.get(r.id) ?? new Map(), hidden.get(r.projectId)),
       tags: (tagsByIssue.get(r.id) ?? [])
         .map((id) => s.tags.get(id))
         .filter((t): t is NonNullable<typeof t> => Boolean(t))
@@ -261,7 +275,9 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
     hasVoted(ctx.db, row.id, me),
     reactionsOf(ctx.db, s, row.id, me, { anonymous: Boolean(ctx.actor.guest) }),
     formerIdsOf(ctx.db, s, row.id),
-    fieldsApplying(ctx.db, s, row.projectId, row.id),
+    // Answered in the project's words as the caller reads them: a condition that reads a private field
+    // kept from them holds always, as one that no longer reads does, so it says nothing of the value (D50).
+    fieldsApplying(ctx.db, scopeFields(ruleWorld(s, row.projectId), await projectAccess(ctx)), row.projectId, row.id),
   ]);
   return {
     ...base!,
@@ -311,13 +327,19 @@ export function resolveFieldsInput(
   const out: FieldChangeSpec[] = [];
   for (const [name, raw] of Object.entries(input)) {
     const field = fieldByName(s, name);
-    if (!field || !attached.has(field.id)) {
-      const names = projectFieldList(s, project.id).map((f) => f.name);
-      throw badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`).said('issues.noSuchField', { project: project.key, name, names: names.join(', ') });
-    }
+    if (!field || !attached.has(field.id)) throw noSuchField(s, project, name);
     out.push({ field, mode: 'set', values: resolveFieldInput(s, field, project.id, raw, meId, today, zone) });
   }
   return out;
+}
+
+/**
+ * A field the project doesn't have, naming those it has. Given the snapshot as the caller sees it
+ * (`scopeFields`), a private field kept from them is one of these, in the same words (D50).
+ */
+export function noSuchField(s: SchemaSnapshot, project: ProjectRow, name: string): AppError {
+  const names = projectFieldList(s, project.id).map((f) => f.name);
+  return badRequest(`Project ${project.key} has no field "${name}"`, `Fields: ${names.join(', ')}`).said('issues.noSuchField', { project: project.key, name, names: names.join(', ') });
 }
 
 export function resolveLinkPhrase(s: SchemaSnapshot, relation: string): LinkPhrase {
@@ -401,7 +423,7 @@ export async function applyChanges(
   ctx: Ctx,
   stale: IssueRow,
   spec: ChangeSpec,
-  opts: { dryRun?: boolean; guards?: boolean; machines?: boolean } = {},
+  opts: { dryRun?: boolean; guards?: boolean; machines?: boolean; /** A transition's own command (D40): the project's, not the actor's choice. */ privateOk?: boolean } = {},
 ): Promise<ApplyResult> {
   const s = await ctx.app.schema.get(tx);
   // Lock the issue row for the rest of the transaction so concurrent changes to the
@@ -426,6 +448,12 @@ export async function applyChanges(
     ).said('issues.changedMeanwhile', { id: readableId(s, issue), version: issue.version, expectedVersion: spec.expectedVersion });
   }
   const changes: Change[] = [];
+  // A private field is set only by who may change it, and one kept from the actor is a field the
+  // project doesn't have (D50): every field named, changed or not, so trying values tells nothing.
+  const view = await projectAccess(ctx, tx);
+  if (!opts.privateOk && spec.fields?.length) {
+    await assertCanSetFields(ctx, issue.projectId, spec.fields.map((f) => f.field.id), (id) => noSuchField(scopeFields(s, view), project, s.fields.get(id)?.name ?? id), tx);
+  }
   const current = await fieldValuesOf(tx, issue.id);
   const pfs = s.projectFields.get(project.id) ?? [];
   const fieldUpdates: { field: FieldRow; values: ResolvedValue[] }[] = [];
@@ -554,7 +582,8 @@ export async function applyChanges(
   const guards = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : guardChecks(ctx, s, issue.projectId);
   const heldBefore = guards.length ? await guardsHeld(tx, guards, issue.id) : [];
   // Fields required while a condition holds, and which were missing already (D41).
-  const needs = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : requiredWhen(s, issue.projectId);
+  // One kept from the actor asks nothing of them: it isn't there for them (D50).
+  const needs = opts.guards === false || (spec.data as { imported?: unknown } | undefined)?.imported ? [] : requiredWhen(s, issue.projectId).filter((n) => seesField(view, s, issue.projectId, n.fieldId));
   const missingBefore = needs.length ? await missingNow(tx, issue.id, needs) : [];
 
   // ---- write ---------------------------------------------------------------
@@ -732,7 +761,7 @@ export async function applyChanges(
   // What the transitions made also do: their commands, as whoever made the move, in this transaction.
   let final = updated!;
   for (const extra of moves.length ? await transitionSpecs(tx, ctx, s, final, moves) : []) {
-    const res = await applyChanges(tx, ctx, final, extra, { guards: false, machines: false });
+    const res = await applyChanges(tx, ctx, final, extra, { guards: false, machines: false, privateOk: true });
     changes.push(...res.changes);
     activities.push(...res.activities);
     final = res.issue;
@@ -877,10 +906,17 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
   if (!summary) throw badRequest('Summary cannot be empty').said('issues.summaryEmpty');
 
   const today = todayIn(zoneOf(ctx));
-  const given = resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, today, zoneOf(ctx));
+  // Named as the reporter sees the project: a private field kept from them is one it doesn't have (D50).
+  const given = resolveFieldsInput(scopeFields(s, view), project, input.fields, ctx.actor.user.id, today, zoneOf(ctx));
+  await assertCanSetFields(ctx, project.id, given.map((g) => g.field.id), (id) => noSuchField(scopeFields(s, view), project, s.fields.get(id)?.name ?? id), db);
+  // What a clone carries, of the private fields, only where its reporter could set them.
+  const own = privateFieldIds(s, project.id);
+  const setsPrivate = view.allows(project.id, 'readPrivate') && view.allows(project.id, 'editPrivate');
   const specs = [
     ...given,
-    ...carry.filter((c) => !given.some((g) => g.field.id === c.field.id)).map((c) => ({ field: c.field, mode: 'set' as const, values: c.values })),
+    ...carry
+      .filter((c) => !given.some((g) => g.field.id === c.field.id) && (setsPrivate || !own.has(c.field.id)))
+      .map((c) => ({ field: c.field, mode: 'set' as const, values: c.values })),
   ];
   const pfs = s.projectFields.get(project.id) ?? [];
   const values = new Map<string, ResolvedValue[]>();
@@ -906,7 +942,8 @@ async function prepareIssue(ctx: Ctx, input: CreateIssueInput, db: Db, carry: Cr
     const field = s.fields.get(pf.fieldId);
     if (!field) continue;
     // A field required only while a condition holds is checked once the issue is written (D41).
-    if (pf.required && !pf.condition && !(values.get(field.id)?.length)) throw badRequest(`${field.name} is required in ${project.key}`).said('issues.fieldRequired', { field: field.name, project: project.key });
+    // A private field kept from the reporter isn't theirs to fill (D50).
+    if (pf.required && !pf.condition && !(values.get(field.id)?.length) && seesField(view, s, project.id, field.id)) throw badRequest(`${field.name} is required in ${project.key}`).said('issues.fieldRequired', { field: field.name, project: project.key });
     if (field.type === 'user') {
       await assertPeopleSeeProject(db, s, project, field, (values.get(field.id) ?? []).map((v) => v.userId).filter((id): id is string => Boolean(id)));
     }
@@ -1033,7 +1070,10 @@ async function insertIssue(tx: Db, ctx: Ctx, p: PreparedIssue, opts: CreateOptio
   }
   // A new issue has no "before": it must keep every guard it matches, or it isn't made at all.
   // An imported one is history, which the team's guards, made for new work, don't judge.
-  if (!imported) await enforceRequiredWhen(tx, issue.id, requiredWhen(s, project.id), null);
+  if (!imported) {
+    const view = await projectAccess(ctx, tx);
+    await enforceRequiredWhen(tx, issue.id, requiredWhen(s, project.id).filter((n) => seesField(view, s, project.id, n.fieldId)), null);
+  }
   if (!imported) {
     await enforceGuards(tx, ctx, s, guardChecks(ctx, s, project.id), null, issue);
     await enforceScriptGuards(tx, ctx, s, issue, changeOf('created', s.users.get(ctx.actor.user.id)), true);
@@ -1069,7 +1109,8 @@ export async function updateIssue(ctx: Ctx, idOrReadable: string, input: UpdateI
   const spec: ChangeSpec = {
     summary: input.summary,
     description: input.description,
-    fields: resolveFieldsInput(s, project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx)), zoneOf(ctx)),
+    // Named as the caller sees the project: a private field kept from them is one it doesn't have (D50).
+    fields: resolveFieldsInput(scopeFields(s, await projectAccess(ctx)), project, input.fields, ctx.actor.user.id, todayIn(zoneOf(ctx)), zoneOf(ctx)),
     addTags: input.addTags,
     removeTags: input.removeTags,
     expectedVersion: input.expectedVersion,

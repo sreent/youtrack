@@ -283,7 +283,7 @@ async function unfurl(app: AppServices, ws: WorkspaceRow, e: Record<string, unkn
     const project = s.projects.get(row.projectId);
     if (!project || (await whyNotFor(app.db, user.id, row.projectId, project.name))) continue;
     // The channel reads it: in the channel's language (D49).
-    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id), channelTr(app), { actions: false }) };
+    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id, { everyone: true }), channelTr(app), { actions: false }) };
   }
   if (!Object.keys(unfurls).length) return;
   const where = typeof e.unfurl_id === 'string' && typeof e.source === 'string' ? { unfurl_id: e.unfurl_id, source: e.source } : { channel: e.channel, ts: e.message_ts };

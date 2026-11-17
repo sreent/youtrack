@@ -19,7 +19,7 @@ import { publishActivities, recordActivity, type ActivityRow } from '../events/a
 import { AppError, asSentence, saidProblems } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
-import { assertCanWriteProject } from '../services/access';
+import { assertCanWriteProject, publicChanges } from '../services/access';
 import { issueRef, readableId, stateNames, type IssueRow } from '../services/issue-refs';
 import { applyChanges, findIssue, resolveIssue } from '../services/issues';
 import type { SchemaSnapshot } from '../services/schema-cache';
@@ -177,8 +177,10 @@ export async function linkCommit(
         });
         activities.push(...res.activities);
         applied = true;
-        note = res.changes.length ? changeWords(res.changes) : 'Nothing to change: it was so already';
-        noteSaid = res.changes.length ? null : { key: 'vcs.note.nothingToChange' };
+        // The note shows to everyone who reads the issue: a private field's change isn't in it (D50).
+        const shown = publicChanges(s, locked.projectId, res.changes);
+        note = shown.length ? changeWords(shown) : 'Nothing to change: it was so already';
+        noteSaid = shown.length ? null : { key: 'vcs.note.nothingToChange' };
         said = `#${command} applied as ${author.user!.name}: ${note}`;
       } catch (e) {
         if (!(e instanceof AppError)) throw e;

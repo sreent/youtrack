@@ -6,7 +6,7 @@ import { toEventDto } from '../events/activity';
 import { parseDateExpression } from '../lib/dates';
 import { badRequest } from '../lib/errors';
 import { startOfDay, todayIn } from '../reports/tz';
-import { eventsVisibleSql, projectAccess } from './access';
+import { eventFor, eventsFieldsSql, eventsVisibleSql, projectAccess } from './access';
 import { undoStandings } from './agents';
 import { resolveIssue } from './issues';
 import { projectByKey } from './schema-cache';
@@ -17,14 +17,16 @@ export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Pro
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
-  const seen = eventsVisibleSql(await projectAccess(ctx), s);
+  const view = await projectAccess(ctx);
+  const seen = eventsVisibleSql(view, s);
   const rows = await ctx.db
     .select()
     .from(activities)
-    .where(and(eq(activities.issueId, issue.id), seen))
+    .where(and(eq(activities.issueId, issue.id), seen, eventsFieldsSql(view, s)))
     .orderBy(asc(activities.id))
     .limit(limit);
-  const events = rows.map((r) => toEventDto(s, r));
+  // A change to a private field kept from them isn't there (D50).
+  const events = rows.map((r) => eventFor(view, s, toEventDto(s, r))).filter((e): e is TrackerEvent => e !== null);
   // A change an agent made on its own says whether a person can still undo it (D34).
   const standings = await undoStandings(ctx.db, s, events);
   return events.map((e) => (standings.has(e.id) ? { ...e, undo: standings.get(e.id) } : e));
@@ -51,6 +53,8 @@ export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<Track
   const conds: SQL[] = [];
   const seen = eventsVisibleSql(view, s);
   if (seen) conds.push(seen);
+  const fieldsSeen = eventsFieldsSql(view, s);
+  if (fieldsSeen) conds.push(fieldsSeen);
   if (opts.after !== undefined) conds.push(gt(activities.id, opts.after));
   if (opts.since) {
     // "-7d" or a date: from its start where the asker is (D31).
@@ -78,7 +82,7 @@ export async function eventFeed(ctx: Ctx, opts: EventFeedOptions): Promise<Track
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(opts.order === 'desc' || opts.after === undefined ? desc(activities.id) : asc(activities.id))
     .limit(limit);
-  const out = rows.map((r) => toEventDto(s, r));
+  const out = rows.map((r) => eventFor(view, s, toEventDto(s, r))).filter((e): e is TrackerEvent => e !== null);
   return opts.order === 'asc' && opts.after === undefined ? out.reverse() : out;
 }
 

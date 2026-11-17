@@ -11,7 +11,7 @@ import type { OutboxConsumer } from '../events/worker';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
-import { assertCanWriteProject, canReadIssueId, projectAccess, projectRolesOf, redactUnseenIds, requireProject, seenIssueIds, type AccessView } from '../services/access';
+import { assertCanWriteProject, canReadIssueId, privateFieldIds, projectAccess, projectRolesOf, redactUnseenIds, requireProject, seenIssueIds, type AccessView } from '../services/access';
 import { findIssue } from '../services/issues';
 import { getIssue, resolveIssue, updateIssue } from '../services/issues';
 import { issueRefsById } from '../services/issue-refs';
@@ -40,9 +40,13 @@ async function dto(ctx: Ctx, row: SuggestionRow, view?: AccessView): Promise<Sug
   // Possible duplicates limited away from the caller (D37) go too, and their ids from the words.
   const dupRows = await Promise.all(raw.duplicates.filter((d) => canReadIssueId(v, s, d.issue)).map(async (d) => ({ d, row: await findIssue(ctx.db, s, String(d.issue)) })));
   const seen = await seenIssueIds(ctx, dupRows.flatMap((x) => (x.row ? [x.row.id] : [])));
+  // Triage never works on a private field; one made private since is left out for everyone (D50).
+  const project = ref ? s.projectsByKey.get(ref.id.split('-')[0]!.toUpperCase()) : undefined;
+  const own = project ? privateFieldIds(s, project.id) : new Set<string>();
+  const isPrivate = (name: string) => [...own].some((id) => s.fields.get(id)?.name.toLowerCase() === name.toLowerCase());
   const payload: TriagePayload = {
     ...raw,
-    fields: await Promise.all(raw.fields.map(async (f) => ({ ...f, reason: await redactUnseenIds(ctx, f.reason) }))),
+    fields: await Promise.all(raw.fields.filter((f) => !isPrivate(f.name)).map(async (f) => ({ ...f, reason: await redactUnseenIds(ctx, f.reason) }))),
     duplicates: await Promise.all(dupRows.filter((x) => x.row && seen.has(x.row.id)).map(async ({ d }) => ({ ...d, reason: await redactUnseenIds(ctx, d.reason) }))),
     summary: await redactUnseenIds(ctx, raw.summary),
   };
@@ -59,10 +63,14 @@ async function dto(ctx: Ctx, row: SuggestionRow, view?: AccessView): Promise<Sug
   };
 }
 
-/** Fields an agent may triage: option fields other than State and versions, and the Assignee. */
+/**
+ * Fields an agent may triage: option fields other than State and versions, and the Assignee. Never a
+ * private one (D50): what triage writes, everyone who reads the issue reads.
+ */
 function triageFields(ctx: { s: Awaited<ReturnType<AppServices['schema']['get']>> }, projectId: string): FieldRow[] {
   const s = ctx.s;
   return (s.projectFields.get(projectId) ?? [])
+    .filter((pf) => !pf.private)
     .map((pf) => s.fields.get(pf.fieldId))
     .filter((f): f is FieldRow => Boolean(f))
     .filter((f) => (f.type === 'enum' && allowedValues(s, f.id, projectId).length > 0) || (f.type === 'user' && f.name.toLowerCase() === 'assignee'));
@@ -140,7 +148,8 @@ export async function triageIssue(ctx: Ctx, issueId: string): Promise<Suggestion
   const Out = z.object(shape);
 
   const team = await teamSummary(ctx.db, project.id, assigneeField?.id, s);
-  const current = issue.fields.map((f) => `${f.name}: ${presentField(f) ?? '—'}`).join('; ');
+  // Nor does Claude read one: what it says goes to everyone who reads the issue (D50).
+  const current = issue.fields.filter((f) => !f.private).map((f) => `${f.name}: ${presentField(f) ?? '—'}`).join('; ');
   const similar = candidates.map((c) => `- ${c.issue.id} [${c.issue.state ?? '—'}] "${c.issue.summary}"`).join('\n');
   const { output, model } = await structured(ctx.app, {
     system:

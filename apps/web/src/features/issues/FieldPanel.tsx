@@ -269,6 +269,8 @@ interface Props {
   proposals: Map<string, Proposal>;
   /** False for someone who may only read the issue's project. */
   canEdit?: boolean;
+  /** Whether they may change the project's private fields too (D50); a private field they only read shows its value. */
+  canEditPrivate?: boolean;
 }
 
 const NO_PROPOSALS = new Map<string, Proposal>();
@@ -277,7 +279,7 @@ const NO_PROPOSALS = new Map<string, Proposal>();
  * Ocean's FieldPanel: an issue's fields beside it, each value a control. Without `canEdit` (someone
  * who may only read the project), each value is its words alone, and nothing waits to be accepted.
  */
-export function FieldPanel({ issue, fields, users, proposals: offered, canEdit = true }: Props) {
+export function FieldPanel({ issue, fields, users, proposals: offered, canEdit = true, canEditPrivate = canEdit }: Props) {
   const id = useId();
   // Accepting a value is a change to the issue, so only someone who may change it is asked.
   const proposals = canEdit ? offered : NO_PROPOSALS;
@@ -337,6 +339,8 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
           const labelId = `${id}-${pf.fieldId}`;
           const proposal = proposals.get(pf.name);
           const proposedId = proposal ? `${labelId}-proposed` : undefined;
+          // A private field is changed only by who may change private fields (D50).
+          const editable = canEdit && (!pf.private || canEditPrivate);
           let control: React.ReactNode;
 
           if (isOptionType(pf.type) || pf.type === 'group') {
@@ -362,7 +366,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
             );
-            control = !canEdit ? (
+            control = !editable ? (
               <span className="fields-value">{view}</span>
             ) : (
               <ChoiceValue
@@ -392,7 +396,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
             );
-            control = !canEdit ? (
+            control = !editable ? (
               <span className="fields-value">{view}</span>
             ) : (
               <ChoiceValue
@@ -416,7 +420,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
             );
           } else if (pf.type === 'datetime') {
             const iso = typeof f?.value === 'string' ? f.value : '';
-            control = !canEdit ? (
+            control = !editable ? (
               <span className="fields-value">{iso ? formatMoment(iso) : <span className="empty">{emptyWords(pf.name)}</span>}</span>
             ) : (
               <TextValue
@@ -431,7 +435,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
           } else {
             const initial = pf.type === 'date' ? (typeof f?.value === 'string' ? f.value.slice(0, 10) : '') : currentText(f);
             const mono = pf.type === 'period' || pf.type === 'integer' || pf.type === 'float';
-            control = !canEdit ? (
+            control = !editable ? (
               <span className={mono ? 'fields-value mono' : 'fields-value'}>
                 {initial ? (pf.type === 'date' ? formatDate(initial) : initial) : <span className="empty">{emptyWords(pf.name)}</span>}
               </span>
@@ -450,7 +454,15 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
 
           return (
             <div className="fields-row" key={pf.fieldId}>
-              <dt id={labelId}>{pf.name}</dt>
+              <dt id={labelId}>
+                {pf.name}
+                {pf.private ? (
+                  <>
+                    {' '}
+                    <Badge title={t('issues.fieldPanel.onlySomePeopleSeeIt')}>{t('issues.fieldPanel.private')}</Badge>
+                  </>
+                ) : null}
+              </dt>
               <dd>
                 {control}
                 {proposal ? (

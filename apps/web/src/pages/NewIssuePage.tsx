@@ -178,7 +178,12 @@ export default function NewIssuePage() {
   }, [project, projects.data]);
   useEffect(() => setKey(newKey()), [project, summary, description, fields]);
 
-  const asked = useMemo(() => (projectFields.data ?? []).filter((f) => ASKED.includes(f.name)).sort((a, b) => ASKED.indexOf(a.name) - ASKED.indexOf(b.name)), [projectFields.data]);
+  // A private field only for who may set it (D50); to anyone else it isn't there at all.
+  const setsPrivate = Boolean(projects.data?.find((p) => p.key === project)?.access.permissions.includes('editPrivate'));
+  const asked = useMemo(
+    () => (projectFields.data ?? []).filter((f) => ASKED.includes(f.name) && (!f.private || setsPrivate)).sort((a, b) => ASKED.indexOf(a.name) - ASKED.indexOf(b.name)),
+    [projectFields.data, setsPrivate],
+  );
 
   const create = async () => {
     setBusy(true);

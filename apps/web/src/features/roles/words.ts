@@ -13,6 +13,8 @@ export const PERMISSION_NAMES: Record<Permission, string> = {
   costs: t('roles.words.seeTimeAndCosts'),
   boards: t('roles.words.changeBoards'),
   manage: t('roles.words.manage'),
+  readPrivate: t('roles.words.seePrivateFields'),
+  editPrivate: t('roles.words.changePrivateFields'),
 };
 
 const PHRASES: Record<Permission, string> = {
@@ -25,6 +27,8 @@ const PHRASES: Record<Permission, string> = {
   costs: t('roles.words.seeTimeAndCosts2'),
   boards: t('roles.words.changeItsBoards'),
   manage: t('roles.words.changeItsSettingsAndPeople'),
+  readPrivate: t('roles.words.phraseSeeItsPrivateFields'),
+  editPrivate: t('roles.words.phraseChangeItsPrivateFields'),
 };
 
 export const PERMISSION_ABOUT: Record<Permission, string> = {
@@ -37,6 +41,8 @@ export const PERMISSION_ABOUT: Record<Permission, string> = {
   costs: t('roles.words.seeTheTimeLoggedAnd'),
   boards: t('roles.words.makeAndChangeBoardsAnd'),
   manage: t('roles.words.changeTheProjectSSettings'),
+  readPrivate: t('roles.words.seeTheFieldsItsManagersMadePrivate'),
+  editPrivate: t('roles.words.setPrivateFieldsOnIssues'),
 };
 
 /** "read its issues, comment on them and see time and costs", to follow "may": a role with none says so in a sentence of its own. */

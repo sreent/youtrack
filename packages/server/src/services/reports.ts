@@ -27,7 +27,7 @@ import { burndown, createdResolved, cumulativeFlow, cycleTimes, histogram, perce
 import { buildTimelines, insideDuring, leftSprint, type HistoryEvent, type Timeline } from '../reports/history';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
-import { issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
+import { fieldSeenSql, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
 import { allowedValues, fieldByName, findUser, idWithKeyNow, keyNow, keysOfProject, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
@@ -204,6 +204,7 @@ export async function loadEvents(
       id: activities.id,
       type: activities.type,
       at: activities.createdAt,
+      projectId: activities.projectId,
       rid: sql<string | null>`${p}->'issue'->>'id'`,
       summary: sql<string | null>`${p}->'issue'->>'summary'`,
       state: sql<string | null>`${p}->'issue'->>'state'`,
@@ -229,9 +230,24 @@ export async function loadEvents(
   if (rows.length > MAX_EVENTS) {
     throw badRequest('This report would read more history than a4a reads at once', 'Narrow it: choose a project, or add a query.').said('reports.tooMuchHistory');
   }
+  // What a private field kept from the caller held, in the projects where it's kept, is no value to them (D50).
+  const hidden = hiddenFields(await projectAccess(ctx), s);
+  const keptIn = (projectId: string | null, name: string) => {
+    const ids = projectId ? hidden.get(projectId) : undefined;
+    if (!ids) return false;
+    return [...ids].some((id) => {
+      const f = s.fields.get(id);
+      return Boolean(f && [f.name, ...(f.formerNames ?? [])].some((n) => n.toLowerCase() === name.toLowerCase()));
+    });
+  };
   const out: HistoryEvent[] = [];
   for (const r of rows) {
     if (!r.rid) continue;
+    if (hidden.size && opts.estimates && names.some((n) => keptIn(r.projectId, n))) {
+      r.createdEstimate = null;
+      r.estimateChange = null;
+    }
+    if (hidden.size && field && keptIn(r.projectId, field)) r.value = null;
     // History names an issue by the id it had then: under a key its project has had (D52), it reads as it does now, so it's one history.
     const e: HistoryEvent = { id: Number(r.id), at: new Date(r.at).getTime(), type: r.type, rid: idWithKeyNow(s, r.rid), summary: r.summary };
     if (r.type !== 'sprint.issue_added' && r.type !== 'sprint.issue_removed') {
@@ -792,6 +808,8 @@ export async function timeReport(ctx: Ctx, input: { project?: string; query?: st
   // Estimate against spent, per issue: spent in the window, spent all told, and the estimate.
   const issueIds = [...new Set(rows.map((r) => r.issueId))];
   const est = fieldByName(s, WELL_KNOWN_FIELDS.estimation);
+  // An estimate private where it's kept from the caller counts as none (D50).
+  const estSeen = est ? fieldSeenSql(await projectAccess(ctx), s, est.id) : undefined;
   const [totals, estimates] = issueIds.length
     ? await Promise.all([
         ctx.db
@@ -803,7 +821,7 @@ export async function timeReport(ctx: Ctx, input: { project?: string; query?: st
           ? ctx.db
               .select({ issueId: issueFieldValues.issueId, minutes: issueFieldValues.numberValue })
               .from(issueFieldValues)
-              .where(and(eq(issueFieldValues.fieldId, est.id), inArray(issueFieldValues.issueId, issueIds)))
+              .where(and(eq(issueFieldValues.fieldId, est.id), inArray(issueFieldValues.issueId, issueIds), estSeen ? sql`EXISTS (SELECT 1 FROM issues WHERE issues.id = ${issueFieldValues.issueId} AND ${estSeen})` : undefined))
           : Promise.resolve([] as { issueId: string; minutes: number | null }[]),
       ])
     : [[], []];

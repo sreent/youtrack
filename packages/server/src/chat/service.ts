@@ -542,10 +542,14 @@ const KIND_ALIASES: Record<string, ChatChangeKind> = {
   other: 'fields',
 };
 
-/** An issue as the person sees it, for a card. */
-export async function issueForCard(ctx: Ctx, id: string): Promise<CardIssue> {
+/**
+ * An issue as the person sees it, for a card. For a channel (`everyone`), without its private fields,
+ * whoever vouches for it: a channel hears only what every reader of the project may see (D42, D50).
+ */
+export async function issueForCard(ctx: Ctx, id: string, opts: { everyone?: boolean } = {}): Promise<CardIssue> {
   const detail = await getIssue(ctx, id);
-  return cardIssue(ctx.app, await ctx.app.schema.get(), detail);
+  const shown = opts.everyone ? { ...detail, fields: detail.fields.filter((f) => !f.private) } : detail;
+  return cardIssue(ctx.app, await ctx.app.schema.get(), shown);
 }
 
 /**

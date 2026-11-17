@@ -22,6 +22,25 @@ export function checkFieldCondition(s: SchemaSnapshot, projectId: string, text: 
   return t;
 }
 
+/**
+ * Whether a condition reads any of these fields: it reads in the project's words, and doesn't without
+ * them (D50). A public field's condition that read a private one would show and hide by its value.
+ */
+export function conditionReads(s: SchemaSnapshot, projectId: string, text: string | null | undefined, fieldIds: ReadonlySet<string>): boolean {
+  const t = (text ?? '').trim();
+  if (!t || !fieldIds.size) return false;
+  const world = ruleWorld(s, projectId);
+  const kept = <V>(m: Map<string, V>, id: (k: string, v: V) => string) => new Map([...m].filter(([k, v]) => !fieldIds.has(id(k, v))));
+  const without: SchemaSnapshot = {
+    ...world,
+    fields: kept(world.fields, (k) => k),
+    fieldsByName: kept(world.fieldsByName, (_, f) => f.id),
+    values: kept(world.values, (_, v) => v.fieldId),
+    valuesByField: kept(world.valuesByField, (k) => k),
+  };
+  return !condition(world, t, { meId: null }).problems.length && condition(without, t, { meId: null }).problems.length > 0;
+}
+
 /** A condition as SQL on `issues`. One that no longer reads (a value renamed since) holds always: the field behaves as though it had none. */
 function conditionSql(world: SchemaSnapshot, text: string): SQL {
   const c = condition(world, text, { meId: null });

@@ -955,7 +955,7 @@ Until now a project was the one unit of access: whoever could read it read all o
 - A plan holds what its reader sees, so someone who sees less sees a plan computed without what they can't see; its managers, who level it, see it all.
 - Permissions are checked in more places than roles were, so a custom role is only as narrow as the checks: costs gate logged time, the time report and the cost report, and not an issue's total time spent.
 
-**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`.
+**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`. (Fields came, by permission: D50.)
 
 ### D38. Identity in depth: a second factor, a directory, provisioning, and apps that name themselves
 
@@ -1394,6 +1394,42 @@ People who use a4a don't all read English. a4a says its own words in each person
 
 **Revisit when:** a right-to-left language comes; people want a project's own words (its states, its fields) in several languages; or the API should answer in its caller's language.
 
+### D50. Fields only some people see: private in a project, two permissions, and absent to everyone else
+
+YouTrack lets a project keep a field to some people: a private field, read only with "Read Issue Private Fields" and set only with "Update Issue Private Fields". D37 planned it ("a Salary field only HR sees"), with the seam in place. a4a now has it, the same way.
+
+- **Permissions decide it, not roles.** Two permissions join D37's: `readPrivate` (see a project's private fields) and `editPrivate` (change them). Every check in a4a asks for a permission, never a role by name, so a role an administrator makes ("HR", "Team") works at once, as YouTrack's do.
+  - A manager has both; the built-in viewer and member have neither. In an open project everyone who signs in is a member, so a member's permission would make "private" mean "not the viewers and guests", while D37 asked for a field only some people see. A team whose members should see one gives them a role that does.
+  - `editPrivate` changes something, so a read-only account or token never has it; and it needs `readPrivate`, since a field one can't see is one one can't set. Seeing is reading: a manager's read-only token sees them.
+  - Through an app (D48), a person's permissions lose both: an app is granted issues, not what a project keeps to some people. An app's agent never had them, and an app's script reads none.
+- **Making one private** is a project's managers' to do, as attaching a field is: `private` on `PUT /projects/{key}/fields/{fieldId}`, the "Who sees it" column on the project's page. It's a setting of the field in that project, so a field can be private in one project and public in another. State and the assignee field can't be: a4a reads them for everyone (whether an issue is resolved, for `#Resolved` and boards' columns; who has it, for who sees a limited issue and whom to tell), so kept from some they'd still say what they hold.
+- **Absent, as if it weren't there.** To someone who may not read it:
+  - `visibleSchema` leaves it out of the project's fields (`scopeFields`), and out of everything, values and all, when it's kept from them in every project of theirs that has it. The query and command languages, completion, the field list, `get_project` and every prompt to Claude are built from that, so they answer it as a field that doesn't exist, in the same words, with no "did you mean".
+  - A field kept from them in one project and public in another is a word they know. Its values in the project that keeps it read as empty wherever a value is read: every read of a field's values in the compiler, grouping and reports takes `fieldSeenSql`, so it doesn't match, sorts as empty and counts as none, and plans and boards (lanes, columns, points) do without it.
+  - Issue reads leave it out: REST, MCP, lists, boards, the assistant, a chat card to a person. A private field someone does see says so (`private: true`), and the issue page marks it.
+  - Its changes leave the history, the feed, the live stream, the inbox, email and push (`eventFor`); a change to nothing else isn't shown at all, left out as SQL (`eventsFieldsSql`) so a feed's pages and its cursor stay whole. A new issue's created event loses its value, and a move's keeps back what either project keeps.
+  - History names a change by the name its field had then, so a renamed field keeps the names it had (`fields.former_names`), and its old changes stay kept.
+  - A rule's run that changed it isn't in their run log, since the run's words say the change, and a commit's command note says no change to it.
+  - A field everyone sees can't show and hide by a private field's value (D41): its condition can't read one, and a field a public condition reads can't turn private, each refused saying what to do instead. A condition from before either holds always for whoever can't see what it reads, as one that no longer reads does, so it says nothing of the value.
+- **Changing it.** `applyChanges` refuses to set a private field. To someone who can't read it, the refusal is a field the project lacks, in those words; to someone who reads it only, 403, naming the permission. Every field named is checked, changed or not, so trying values tells nothing. That covers every channel: the command bar, the issue page, the API, MCP, chat, commits' commands and imports.
+  - A required private field asks nothing of someone who can't see it, on a new issue or a change.
+  - Moving an issue carries what the mover can't see without saying it; what doesn't carry is left behind, as a field the other project lacks is. A clone copies none of it.
+  - Rules and scripts act as their bot, which sees and sets everything, and so does a state machine's own command.
+- **Who's told.** Notifications follow each recipient's access as they would sign in, as for a limited issue (D37). A chat channel is told only what every reader may see (D42): never a private field, its changes or a card's fact, and a channel's saved search is read as everyone would read it.
+- **Webhooks get what everyone may see.** An administrator makes a webhook, but its receiver is outside a4a, where nobody's access is known, the reason D37 keeps limited issues from it. So a webhook gets no private field: its changes are taken out, and a change to nothing else isn't sent. An administrator who wants private values elsewhere reads them with a token, which asks a4a as someone.
+- **Triage** never reads or suggests a private field: what it writes, everyone who reads the issue reads. A suggestion made before a field turned private leaves it out.
+- **Caching.** Nothing keeps a field's value by issue alone. Whether a field is private is reference data, reloaded on every instance after a change (D17), and who may read it is the access view (two seconds at most, or until `accessChanged`). The live stream's facts, kept 10 seconds an event (D37), are limits, not values: each stream trims each event as it sends it. So an open stream stops carrying a field's changes when the field turns private, on this instance at once and on others at the change's `NOTIFY`.
+
+**What it costs.**
+- A query by someone who can't read some project's private field carries a `project_id NOT IN (…)` for each read of that field's values. Nothing for whoever reads them all, nor where no field is private.
+- A feed carries one more `NOT (…)` per project that keeps a field from its reader, and each event is trimmed as it's read.
+- Built-in members don't see private fields: a team where they should needs a role of its own.
+- A rule's run that touched a private field is left out whole for whoever it's kept from, its other changes with it.
+- That a field exists isn't private where it's public in another project of theirs: only its values are, where it's private.
+- A rule's own words (its message, a guard's refusal, a script's comment) are its author's, who may write a private value into them.
+
+**Revisit when:** a field should be private to named people or groups rather than by permission; a private field's history should show that something changed without what; or private fields should reach a webhook an administrator marks as trusted.
+
 ### D52. A project's key can be renamed, and the key it had stays its own
 
 A project's key (`BACK`, the start of `BACK-12`) can now change, as YouTrack's project ID can. Its issues keep their numbers, so `BACK-12` becomes `CORE-12`, and the key it had stays the project's for good.
@@ -1530,7 +1566,7 @@ Planned, with the seams already in place:
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
 - being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - days away from an HR calendar (D36);
-- fields only some roles see, articles limited to some people, and guests on boards, reports and plans (D37);
+- articles limited to some people, and guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);

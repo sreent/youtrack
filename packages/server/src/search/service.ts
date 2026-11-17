@@ -6,7 +6,7 @@ import { issues } from '../db/schema';
 import { badRequest, saidProblems } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
-import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../services/access';
+import { commentSeenSql, fieldSeenSql, issueSeenSql, projectAccess, scopeFields, scopeSchema, visibleSchema } from '../services/access';
 import { zoneOf } from '../services/time-zones';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { translatorFor } from '../i18n';
@@ -27,18 +27,20 @@ export interface PreparedQuery {
  * Parse and compile a query as the caller sees the tracker: a project they can't see, and its
  * own values, are unknown words to them, exactly as ones that don't exist; and only issues in
  * projects they can see ever match, and of those only the ones not limited away from them (D37),
- * whose words match only in comments they see.
+ * whose words match only in comments they see. A private field kept from them everywhere is an unknown
+ * word too; one kept from them in some projects matches, sorts and counts there as empty (D50).
  */
-export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string }): Promise<PreparedQuery> {
+export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string; /** Read as everyone at once: no private field (D50), as a chat channel's search is. */ everyone?: boolean }): Promise<PreparedQuery> {
   const view = await projectAccess(ctx);
   const visible = view.visibleIds();
   const full = await ctx.app.schema.get();
-  const s = scopeSchema(full, visible);
+  const reader = extra?.everyone ? null : view;
+  const s = scopeFields(scopeSchema(full, visible), reader);
   const vocab = buildVocabulary(s);
   const parsed = parseQuery(query, vocab);
   // Dates are read where the asker is (D31): "today" is their today.
   const zone = zoneOf(ctx);
-  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone, commentSeen: commentSeenSql(view) });
+  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone, commentSeen: commentSeenSql(view), fieldSeen: (fieldId) => fieldSeenSql(reader, full, fieldId) });
   if (extra?.projectId) {
     const scope = sql`${issues.projectId} = ${extra.projectId}`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;
@@ -117,7 +119,8 @@ export async function searchIssues(ctx: Ctx, query: string, offset = 0, limit = 
 
 export async function countIssues(ctx: Ctx, query: string, groupBy?: string): Promise<CountResult> {
   requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
+  // A field kept from the caller can't be grouped by, and counts as empty where it's kept (D50).
+  const s = await visibleSchema(ctx);
   const { compiled } = await compileOrThrow(ctx, query);
   const where = compiled.where ?? sql`TRUE`;
   const [{ n } = { n: 0 }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(issues).where(where);
@@ -137,20 +140,22 @@ export async function countIssues(ctx: Ctx, query: string, groupBy?: string): Pr
   } else {
     const field = fieldByName(s, groupBy);
     if (!field) throw badRequest(`Cannot group by "${groupBy}"`, 'Use a custom field name, project, tag, reporter or resolved.').said('query.cannotGroupBy', { field: groupBy });
+    const seen = fieldSeenSql(await projectAccess(ctx), await ctx.app.schema.get(), field.id);
+    const kept = seen ? sql` AND ${seen}` : sql``;
     if (isOptionType(field.type)) {
-      grouped = sql`SELECT fv.name AS value, count(DISTINCT issues.id)::int AS count, min(fv.ordinal) AS ord FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN field_values fv ON fv.id = ifv.value_id WHERE ${where} GROUP BY fv.name ORDER BY ord NULLS LAST`;
+      grouped = sql`SELECT fv.name AS value, count(DISTINCT issues.id)::int AS count, min(fv.ordinal) AS ord FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} LEFT JOIN field_values fv ON fv.id = ifv.value_id WHERE ${where} GROUP BY fv.name ORDER BY ord NULLS LAST`;
     } else if (field.type === 'user') {
-      grouped = sql`SELECT u.login AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN users u ON u.id = ifv.user_id WHERE ${where} GROUP BY u.login ORDER BY count DESC`;
+      grouped = sql`SELECT u.login AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} LEFT JOIN users u ON u.id = ifv.user_id WHERE ${where} GROUP BY u.login ORDER BY count DESC`;
     } else if (field.type === 'group') {
-      grouped = sql`SELECT g.name AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN groups g ON g.id = ifv.group_id WHERE ${where} GROUP BY g.name ORDER BY count DESC`;
+      grouped = sql`SELECT g.name AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} LEFT JOIN groups g ON g.id = ifv.group_id WHERE ${where} GROUP BY g.name ORDER BY count DESC`;
     } else if (field.type === 'datetime') {
       // By the day, where the asker is.
       const day = sql`to_char(ifv.time_value AT TIME ZONE ${zoneOf(ctx)}, 'YYYY-MM-DD')`;
-      grouped = sql`SELECT ${day} AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} WHERE ${where} GROUP BY 1 ORDER BY 1 NULLS LAST`;
+      grouped = sql`SELECT ${day} AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} WHERE ${where} GROUP BY 1 ORDER BY 1 NULLS LAST`;
     } else if (field.type === 'date') {
-      grouped = sql`SELECT ifv.date_value::text AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} WHERE ${where} GROUP BY ifv.date_value ORDER BY ifv.date_value NULLS LAST`;
+      grouped = sql`SELECT ifv.date_value::text AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} WHERE ${where} GROUP BY ifv.date_value ORDER BY ifv.date_value NULLS LAST`;
     } else {
-      grouped = sql`SELECT coalesce(ifv.text_value, ifv.number_value::text) AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} WHERE ${where} GROUP BY 1 ORDER BY count DESC`;
+      grouped = sql`SELECT coalesce(ifv.text_value, ifv.number_value::text) AS value, count(DISTINCT issues.id)::int AS count FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id}${kept} WHERE ${where} GROUP BY 1 ORDER BY count DESC`;
     }
   }
   const res = await ctx.db.execute(grouped);

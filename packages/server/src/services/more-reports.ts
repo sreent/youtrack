@@ -16,7 +16,7 @@ import { buildTimelines, projectBefore, valueBefore, type Timeline } from '../re
 import { averageAge, byState, timeInStates, toDays, type Track } from '../reports/more';
 import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { quoteValue } from '../search/lexer';
-import { projectAccess, visibleProjectIds } from './access';
+import { fieldSeenSql, projectAccess, scopeFields, visibleProjectIds } from './access';
 import { knownStates, loadEvents, openStates, refOf, resolveScope, scopeDto, windowOf, within, type Scope, type WindowInput } from './reports';
 import { stateField, type FieldRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf } from './values';
@@ -45,9 +45,11 @@ async function fieldNamed(ctx: Ctx, s: SchemaSnapshot, scope: Scope, name: strin
   if (n.toLowerCase() === 'project') return 'project';
   let projectIds = scope.projects.map((p) => p.id);
   if (!projectIds.length) projectIds = (await visibleProjectIds(ctx)) ?? [...s.projects.keys()];
+  // Named as the caller sees the projects: a private field kept from them isn't one here (D50).
+  const seen = scopeFields(s, await projectAccess(ctx));
   const ids = new Set<string>();
-  for (const id of projectIds) for (const pf of s.projectFields.get(id) ?? []) ids.add(pf.fieldId);
-  const fields = [...s.fields.values()].filter((f) => ids.has(f.id));
+  for (const id of projectIds) for (const pf of seen.projectFields.get(id) ?? []) ids.add(pf.fieldId);
+  const fields = [...seen.fields.values()].filter((f) => ids.has(f.id));
   const found = fields.find((f) => f.name.toLowerCase() === n.toLowerCase());
   if (found) return found;
   const names = ['Project', ...fields.map((f) => f.name).sort((a, b) => a.localeCompare(b))];
@@ -154,7 +156,8 @@ async function countedBy(ctx: Ctx, s: SchemaSnapshot, scope: Scope, d: Dim, list
         })
         .from(issueFieldValues)
         .innerJoin(issues, eq(issues.id, issueFieldValues.issueId))
-        .where(and(eq(issueFieldValues.fieldId, d.id), scope.issueWhere))
+        // Its values count only where the caller sees them (D50).
+        .where(and(eq(issueFieldValues.fieldId, d.id), scope.issueWhere, fieldSeenSql(await projectAccess(ctx), s, d.id)))
     : [];
   const F = d.name;
   const named = (name: string, tone: Tone | null, order: number | string): Bucket => ({ key: name.toLowerCase(), label: name, tone, order, clause: `${F}: ${quoteValue(name)}` });

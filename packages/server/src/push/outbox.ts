@@ -17,7 +17,7 @@ import type { Db } from '../db/client';
 import { notifications, notificationSettings, pushOutbox, pushSubscriptions, users } from '../db/schema';
 import { newId } from '../lib/ids';
 import { eventDetail, notificationTitle } from '../notify/words';
-import { accessFor, eventSeen } from '../services/access';
+import { accessFor, eventFor, eventSeen } from '../services/access';
 import { eventsOf, unreadCount } from '../services/notifications';
 import { deviceSignedIn, noteOutcome, sendPush, topicFor, type DeviceRow, type PushOptions, type PushPayload } from './service';
 import { localeOfPerson, translatorFor } from '../i18n';
@@ -88,7 +88,7 @@ export async function renderNotificationPush(app: AppServices, notificationId: s
   if (!n.projectId || !view.canRead(n.projectId)) return null;
   const s = await app.schema.get();
   // Read fresh: a push goes seconds after the change, within the moment access keeps what it read.
-  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e, { fresh: true }) })).get(n.id) ?? { events: [], reasons: new Map() };
+  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e, { fresh: true }), shape: (e) => eventFor(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const tr = translatorFor(localeOfPerson(app, user));

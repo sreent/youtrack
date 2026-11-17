@@ -52,7 +52,8 @@ export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translat
   }
   if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing.join(', ') });
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
-  const parsed = parseCommand(req.command, s, projectIds);
+  // Read in the caller's words: a private field kept from them is one that doesn't exist (D50).
+  const parsed = parseCommand(req.command, await visibleSchema(ctx), projectIds);
   const description = describeCommand(parsed.ops, words);
   if (parsed.problems.length) {
     return { applied: false, problems: parsed.problems, results: [], description };
