@@ -395,7 +395,7 @@ async function onAction(app: AppServices, a: TeamsActivity): Promise<Record<stri
   let note: { text: string; bad?: boolean } | null = null;
   try {
     if (verb === 'assign') {
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.assigned') };
     } else if (verb === 'state') {
       const state = typeof data.state === 'string' ? data.state.trim() : '';
@@ -404,7 +404,7 @@ async function onAction(app: AppServices, a: TeamsActivity): Promise<Record<stri
         const current = await issueForCard(ctx, issueId);
         const field = (await app.schema.get()).fields;
         const stateField = [...field.values()].find((f) => f.type === 'state' && current.states.includes(state));
-        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }), tr);
+        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }, tr), tr);
         note = o.bad ? o : { text: tr.t('server.chat.moved', { state }) };
       }
     } else if (verb === 'comment') {

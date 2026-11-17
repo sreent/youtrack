@@ -16,6 +16,8 @@ import { presentField, toolByName } from '../src/tools/registry';
 import { createIntegration, listIntegrations, listVcsDeliveries, rotateIntegrationSecret, testIntegration, updateIntegration } from '../src/vcs/integrations';
 import { issueVcs } from '../src/vcs/links';
 import { mentions } from '../src/vcs/mentions';
+import { noteIn } from '@a4a/shared/notes';
+import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -128,11 +130,18 @@ describe('GitHub', () => {
     expect((await vcsOf('BACK-2')).commits[0]).toMatchObject({ command: 'State In Progress Assignee anna', applied: false, note: 'Not applied: a4a doesn’t know who wrote it', author: { user: null } });
     const two = (await issueActivity(w.adminCtx, 'BACK-2')).find((e) => e.type === 'commit.linked')!;
     expect(two.actor).toMatchObject({ id: null, channel: 'vcs' });
+    // Why, in its words beside the API's English, so a page says it in its own language (D49).
+    const unknown = (await vcsOf('BACK-2')).commits[0]!;
+    expect(unknown.said).toEqual({ key: 'vcs.why.unknown' });
+    expect(two.data.said).toEqual({ key: 'vcs.why.unknown' });
+    expect(noteIn(translatorFor('de'), unknown.said, unknown.note!)).toBe('a4a weiß nicht, wer ihn geschrieben hat');
 
     // BACK-3: two commits by Vera, a viewer: both linked, her #Fixed not applied.
     const three = await vcsOf('BACK-3');
     expect(three.commits).toHaveLength(2);
     expect(three.commits.find((c) => c.command)).toMatchObject({ command: 'Fixed', applied: false, note: 'Not applied: Vera Viewer can’t change issues in BACK' });
+    const vera = three.commits.find((c) => c.command)!;
+    expect(noteIn(translatorFor('de'), vera.said, vera.note!)).toBe('Vera Viewer kann keine Vorgänge in BACK ändern');
     expect(value(await getIssue(w.adminCtx, 'BACK-3'), 'State')).toBe('Open');
 
     const [delivery] = await listVcsDeliveries(w.adminCtx, github.id);
@@ -361,6 +370,12 @@ describe('a members-only project, and people who may only read', () => {
     const res = await fromGithub('push', body);
     expect(res.body).toMatchObject({ outcome: 'processed', linked: 1, applied: 0 });
     expect((await vcsOf('BACK-4')).commits[0]).toMatchObject({ command: 'relates to WEB-1', applied: false, note: 'Not applied: Unknown issue WEB-1' });
+    // A refusal is kept as the problem it was, and a page says it in its own language (D49).
+    const four = (await vcsOf('BACK-4')).commits[0]!;
+    expect(four.said!.key).toMatch(/^problem\./);
+    const german = noteIn(translatorFor('de'), four.said, four.note!);
+    expect(german).toContain('WEB-1');
+    expect(german).not.toMatch(/Unknown|Not applied/);
     expect((await getIssue(w.adminCtx, 'WEB-1')).links).toEqual([]);
   });
 });

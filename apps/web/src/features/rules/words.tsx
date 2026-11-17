@@ -1,5 +1,5 @@
-import type { Rule, RuleNotify, RulePreview, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
-import { previewNote, scheduleWordsIn, targetIn, triggerWordsIn } from '@a4a/shared/notes';
+import type { Rule, RuleNotify, RulePreview, RuleRelated, RuleRun, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
+import { notesIn, previewNote, scheduleWordsIn, targetIn, triggerWordsIn } from '@a4a/shared/notes';
 import type React from 'react';
 import { formatList, inPage, listNodes, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
@@ -19,6 +19,22 @@ export function scheduleWords(schedule: RuleSchedule | null): string {
  */
 function targetOf(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): { target: string; phrase: string } {
   return inPage((page) => targetIn(page, t));
+}
+
+/**
+ * What a rule's run did, in the page's language (D49): from its words, a sentence each; a run recorded
+ * before a4a kept them, or one that is the rule's own words, as its message says.
+ */
+export function runWords(run: Pick<RuleRun, 'said' | 'message'>): string {
+  return inPage((t) => notesIn(t, run.said, run.message));
+}
+
+/** What a script logged as it ran, from a run's words, or after " Logged: " in a run's English from before. */
+export function runLogged(run: Pick<RuleRun, 'said' | 'message'>): string | null {
+  const logged = run.said?.find((n) => n.key === 'rules.run.logged');
+  if (logged) return inPage((t) => notesIn(t, [logged], ''));
+  const at = run.said ? -1 : run.message.indexOf(' Logged: ');
+  return at >= 0 ? run.message.slice(at + 1) : null;
 }
 
 /** What a rule's preview shows, in the page's language, from what the server says it shows (D49). */

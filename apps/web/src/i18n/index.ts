@@ -9,6 +9,7 @@
  * the browser's, else the server's default, else English.
  */
 import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
 const catalogs = import.meta.glob<{ default: Record<string, string> }>('../../../../packages/shared/i18n/*.json');
@@ -112,6 +113,17 @@ export function errorSaid(words: unknown, english: string): string {
 /** Sentences one after the other, as the page's language puts them: a space, but none after Japanese's 。. */
 export function sentences(parts: readonly string[]): string {
   return joinSentences(translator, parts);
+}
+
+/**
+ * A commit's command note, in the page's language (D49): why it wasn't applied (without the API's
+ * "Not applied:"), or what it did. One kept before a4a kept its words, or one that is only field names
+ * and values, as its English says it.
+ */
+export function commandNote(said: unknown, note: unknown): string {
+  const english = (typeof note === 'string' ? note : '').replace(/^Not applied:\s*/i, '');
+  const kept = said && typeof said === 'object' && typeof (said as { key?: unknown }).key === 'string' ? (said as { key: string; values?: Record<string, unknown> }) : null;
+  return noteIn(translator, kept, english);
 }
 
 /** Words the shared package says with a translator (`@a4a/shared/notes`), said in the page's language. */

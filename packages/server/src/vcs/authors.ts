@@ -12,7 +12,7 @@
  *   know (a provider's no-reply address, say).
  * - A pull request's author is the account that opened it, signed in at the provider.
  */
-import { VCS_PROVIDER_NAMES, type VcsProvider } from '@a4a/shared';
+import { VCS_PROVIDER_NAMES, type NoteSaid, type VcsProvider } from '@a4a/shared';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { UserRow } from '../context';
 import type { Db } from '../db/client';
@@ -21,7 +21,12 @@ import type { SchemaSnapshot } from '../services/schema-cache';
 import type { Person } from './payloads';
 
 /** Who wrote a commit, in a4a, or why there's nobody: in words for the issue, and in detail for the delivery's log. */
-export type Author = { user: UserRow; by: 'email' | 'login' | 'both' } | { user: null; why: string; detail: string };
+/**
+ * Who wrote a commit, in a4a, or why nobody: `why` for the issue (it names nobody), in English for the
+ * API, and in the catalogs as `whySaid`, for a page in another language (D49); `detail`, for the
+ * delivery's log, which only administrators read, may name them.
+ */
+export type Author = { user: UserRow; by: 'email' | 'login' | 'both' } | { user: null; why: string; whySaid: NoteSaid; detail: string };
 
 /** A login as it's matched: without regard to case; a Bitbucket Cloud UUID without its braces. */
 export function loginKey(provider: VcsProvider, login: string): string {
@@ -76,9 +81,9 @@ export async function authorOf(db: Db, s: SchemaSnapshot, provider: VcsProvider,
     return { user: user!, by: byEmail.size && byLogin.size ? 'both' : byEmail.size ? 'email' : 'login' };
   }
   // The words for the issue name nobody; the delivery's log, which only administrators read, may.
-  if (byEmail.size > 1) return { user: null, why: 'more than one person in a4a has its author’s email', detail: `more than one person in a4a has the email ${person.email}` };
+  if (byEmail.size > 1) return { user: null, why: 'more than one person in a4a has its author’s email', whySaid: { key: 'vcs.why.sharedEmail' }, detail: `more than one person in a4a has the email ${person.email}` };
   if (byLogin.size > 1) {
-    return { user: null, why: `more than one person in a4a has its author’s login at ${at}`, detail: `more than one person in a4a has the login ${person.login ?? keys.join(', ')} at ${at}` };
+    return { user: null, why: `more than one person in a4a has its author’s login at ${at}`, whySaid: { key: 'vcs.why.sharedLogin', values: { at } }, detail: `more than one person in a4a has the login ${person.login ?? keys.join(', ')} at ${at}` };
   }
   if (all.size > 1) {
     const [e] = byEmail.values();
@@ -86,6 +91,7 @@ export async function authorOf(db: Db, s: SchemaSnapshot, provider: VcsProvider,
     return {
       user: null,
       why: `its author’s email and their login at ${at} are two different people’s in a4a`,
+      whySaid: { key: 'vcs.why.twoPeople', values: { at } },
       detail: `the email ${person.email} is ${e!.name}’s, and the login ${person.login ?? keys[0]} at ${at} is ${l!.name}’s`,
     };
   }
@@ -93,10 +99,11 @@ export async function authorOf(db: Db, s: SchemaSnapshot, provider: VcsProvider,
     return {
       user: null,
       why: `${unconfirmed.name}’s email isn’t confirmed yet`,
+      whySaid: { key: 'vcs.why.unconfirmed', values: { name: unconfirmed.name } },
       detail: `${unconfirmed.name}’s email ${person.email} isn’t confirmed: they can confirm it on their profile, or an administrator can under Administration`,
     };
   }
-  if (!email && !keys.length) return { user: null, why: 'the commit names no email for its author', detail: 'the commit names no email for its author' };
+  if (!email && !keys.length) return { user: null, why: 'the commit names no email for its author', whySaid: { key: 'vcs.why.noEmail' }, detail: 'the commit names no email for its author' };
   const known = [email ? `the confirmed email ${person.email}` : null, keys.length ? `the login ${person.login ?? keys[0]} at ${at}` : null].filter(Boolean).join(' or ');
-  return { user: null, why: 'a4a doesn’t know who wrote it', detail: `nobody in a4a has ${known}` };
+  return { user: null, why: 'a4a doesn’t know who wrote it', whySaid: { key: 'vcs.why.unknown' }, detail: `nobody in a4a has ${known}` };
 }

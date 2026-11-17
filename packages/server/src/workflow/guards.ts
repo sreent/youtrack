@@ -26,7 +26,8 @@ import type { Ctx } from '../context';
 import type { Db } from '../db/client';
 import { ruleRuns } from '../db/schema';
 import type { SQL } from 'drizzle-orm';
-import { AppError, asSentence } from '../lib/errors';
+import type { NoteSaid } from '@a4a/shared';
+import { AppError, asSentence, saidProblems } from '../lib/errors';
 import { readableId, type IssueRow } from '../services/issue-refs';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
 import { condition, meets, ruleWorld } from './match';
@@ -49,7 +50,8 @@ export function guardChecks(ctx: Ctx, s: SchemaSnapshot, projectId: string): Gua
     // A guard that no longer reads (a value was renamed since) must neither refuse every change nor
     // let a misread query decide: it refuses nothing until someone fixes it, and says so.
     if (when.problems.length || requires.problems.length) {
-      noteBroken(ctx, rule, [...when.problems, ...requires.problems].map((p) => p.message).join('; '));
+      const problems = [...when.problems, ...requires.problems];
+      noteBroken(ctx, rule, problems.map((p) => p.message).join('; '), [{ key: 'problem.rule.noLongerReads', values: { guard: 'yes', problems: saidProblems(problems) } }]);
       continue;
     }
     out.push({ rule, when: when.where, requires: requires.where });
@@ -123,6 +125,8 @@ export function noteRefusal(ctx: Ctx, rule: RuleRow, issue: { id: string; key: s
       actorId: actorOf(ctx),
       outcome: 'refused',
       message: issue ? (message ?? rule.message ?? '') : `Refused a new issue. ${message ?? rule.message ?? ''}`.trim(),
+      // On an issue, the message is the rule's own words, or its script's; a new issue's says so first (D49).
+      said: issue ? null : [{ key: 'rules.run.refusedNewIssue', values: { hasMessage: (message ?? rule.message ?? '').trim() ? 'yes' : 'no', message: (message ?? rule.message ?? '').trim() } }],
     })
     .catch(() => {});
 }
@@ -130,8 +134,11 @@ export function noteRefusal(ctx: Ctx, rule: RuleRow, issue: { id: string; key: s
 const brokenNoted = new Map<string, number>();
 const BROKEN_NOTE_EVERY_MS = 3_600_000;
 
-/** A guard that no longer reads is written down once an hour, not on every change. */
-export function noteBroken(ctx: Ctx, rule: RuleRow, problems: string, said?: string): void {
+/**
+ * A guard that no longer reads is written down once an hour, not on every change: in English for the
+ * API (`said`, or its problems in a sentence), and `words`, a sentence each, for a page (D49).
+ */
+export function noteBroken(ctx: Ctx, rule: RuleRow, problems: string, words: NoteSaid[], said?: string): void {
   const last = brokenNoted.get(rule.id) ?? 0;
   if (Date.now() - last < BROKEN_NOTE_EVERY_MS) return;
   brokenNoted.set(rule.id, Date.now());
@@ -142,6 +149,7 @@ export function noteBroken(ctx: Ctx, rule: RuleRow, problems: string, said?: str
       projectId: rule.projectId,
       outcome: 'failed',
       message: said ?? `It no longer reads (${problems}), so it refuses nothing until it is fixed.`,
+      said: words,
     })
     .catch(() => {});
 }

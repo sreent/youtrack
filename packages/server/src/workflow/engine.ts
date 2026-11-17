@@ -23,7 +23,7 @@
  * rule never reads, links to or changes another project's issues. A project's rule reads only its
  * own project's names (match.ts, ruleWorld), as it was checked when it was made.
  */
-import type { Change, RuleSchedule, TrackerEvent } from '@a4a/shared';
+import type { Change, NoteSaid, RuleSchedule, TrackerEvent } from '@a4a/shared';
 import { and, asc, eq, gt, lte, sql, type SQL } from 'drizzle-orm';
 import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
@@ -34,7 +34,7 @@ import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import type { Chore, OutboxConsumer } from '../events/worker';
-import { AppError, asSentence } from '../lib/errors';
+import { AppError, asSentence, saidProblems } from '../lib/errors';
 import { issueRef, readableId, stateNames } from '../services/issue-refs';
 import { findIssue, type IssueRow } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -42,7 +42,7 @@ import { condition, meets, relatedSql, ruleWorld, TARGETS_CAP, targetIssues } fr
 import { botCtx, draftOf, pruneRuleRuns, readingProblems, relatedCondition } from './rules';
 import { runScript } from './sandbox';
 import { changeOf, scriptInput, type ScriptChange } from './script-issue';
-import { applyPlanned, plannedChanges, scriptErrorText, type Planned } from './scripts';
+import { applyPlanned, plannedChanges, scriptErrorSaid, scriptErrorText, type Planned } from './scripts';
 import { recipientsFor } from './tell';
 import { appAgentCtx } from '../apps/actor';
 import { settingsForRule } from '../services/apps';
@@ -106,6 +106,31 @@ function changeWords(changes: Change[]): string {
   return changes.map((c) => (c.field === 'Comment' ? 'Commented' : `${c.field}: ${c.from ?? '—'} → ${c.to ?? '—'}`)).join('; ');
 }
 
+// What a run did, in the catalogs, a sentence each, beside its English message (D49): a page says it
+// in its person's language. What people named (fields, values, a rule's or a script's own words) stays as written.
+
+/** What went wrong, as a page says it: a keyed problem by its words; anything else in the English it came in. */
+function errorSaid(e: unknown): NoteSaid {
+  if (e instanceof AppError && e.words) return { key: `problem.${e.words.key}`, ...(e.words.values ? { values: e.words.values } : {}) };
+  return { key: 'problem.inItsOwnWords', values: { words: asSentence(errorText(e)) } };
+}
+
+/** The fields it changed (their names and values, as named), and whether it commented. */
+function changesSaid(changes: Change[]): NoteSaid[] {
+  const fields = changes.filter((c) => c.field !== 'Comment');
+  return [
+    ...(fields.length ? [{ key: 'rules.run.changed', values: { changes: fields.map((c) => `${c.field}: ${c.from ?? '—'} → ${c.to ?? '—'}`).join('; ') } }] : []),
+    ...(changes.length > fields.length ? [{ key: 'rules.run.commented' }] : []),
+  ];
+}
+
+/** What a script logged, the first few lines, as it wrote them. */
+function logSaid(logs: string[]): NoteSaid[] {
+  if (!logs.length) return [];
+  const shown = logs.slice(0, 5).map((l) => (l.length > 200 ? `${l.slice(0, 199)}…` : l));
+  return [{ key: 'rules.run.logged', values: { lines: shown.join(' | '), more: Math.max(0, logs.length - 5) } }];
+}
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** What a script logged, for its run: the first few lines. */
@@ -136,6 +161,13 @@ async function refOf(db: Db, s: SchemaSnapshot, issue: IssueRow) {
 function people(users: UserRow[]): string {
   const names = users.map((u) => u.name);
   return names.length <= 3 ? listWords(names) : `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`;
+}
+
+/** Whom it told, for a page: up to three names, or two and how many more. */
+function toldSaid(users: UserRow[]): NoteSaid {
+  const names = users.map((u) => u.name);
+  const shown = names.length <= 3 ? names : names.slice(0, 2);
+  return { key: 'rules.run.told', values: { names: shown.join(', '), more: names.length - shown.length } };
 }
 
 /** Thrown inside a run's transaction when the run log says the rule already acted for this change. */
@@ -215,7 +247,7 @@ export class RuleEngine {
       } catch (e) {
         // One rule failing never stops the others, nor the outbox.
         this.log(`workflow rule ${rule.id} failed on event ${event.id}`, e);
-        await this.record(s, rule, issue, chain, 'failed', errorText(e));
+        await this.record(s, rule, issue, chain, 'failed', errorText(e), [errorSaid(e)]);
       }
     }
   }
@@ -230,7 +262,9 @@ export class RuleEngine {
       ? (await targetIssues(this.app.db, s, d.target.to, d.target.phrase ?? null, issue.id)).slice(0, TARGETS_CAP).filter((t) => !rule.projectId || t.projectId === rule.projectId)
       : [issue];
     for (const target of targets) {
-      await this.record(s, rule, target, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`);
+      await this.record(s, rule, target, chain, 'skipped', `Rules set off by other rules stop after ${MAX_DEPTH} steps, so it didn't act on this change.`, [
+        { key: 'rules.run.tooDeep', values: { max: MAX_DEPTH } },
+      ]);
     }
   }
 
@@ -241,7 +275,9 @@ export class RuleEngine {
     const last = this.brokenNoted.get(rule.id) ?? 0;
     if (Date.now() - last >= BROKEN_NOTE_EVERY_MS) {
       this.brokenNoted.set(rule.id, Date.now());
-      await this.record(s, rule, null, null, 'failed', `It no longer reads (${problems.map((p) => p.message).join('; ')}), so it does nothing until it is fixed.`);
+      await this.record(s, rule, null, null, 'failed', `It no longer reads (${problems.map((p) => p.message).join('; ')}), so it does nothing until it is fixed.`, [
+        { key: 'problem.rule.noLongerReads', values: { guard: 'no', problems: saidProblems(problems) } },
+      ]);
     }
     return false;
   }
@@ -276,7 +312,10 @@ export class RuleEngine {
         outside ? `Left ${plural(outside, 'issue')} alone: ${outside === 1 ? 'it is' : 'they are'} in another project, and a rule acts only on its own project's issues` : '',
         capped ? `Acted on the first ${TARGETS_CAP} only` : '',
       ].filter(Boolean);
-      await this.record(s, rule, issue, chain, 'skipped', `${said.join('. ')}.`);
+      await this.record(s, rule, issue, chain, 'skipped', `${said.join('. ')}.`, [
+        ...(outside ? [{ key: 'rules.run.leftOutside', values: { outside } }] : []),
+        ...(capped ? [{ key: 'rules.run.firstOnly', values: { cap: TARGETS_CAP } }] : []),
+      ]);
     }
     return failed ? 'failed' : applied ? 'applied' : 'unchanged';
   }
@@ -310,17 +349,23 @@ export class RuleEngine {
       const out = await runScript(rule.script, owner ? { ...input, settings: await settingsForRule(this.app, owner.id, issue.projectId) } : input);
       const logged = logWords(out.intents.logs);
       if (out.error) {
-        await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`);
+        await this.record(s, rule, issue, chain, 'failed', `${scriptErrorText(out)}.${logged}`, [
+          { key: 'problem.rule.scriptStopped', values: { error: scriptErrorSaid(out.error) } },
+          ...logSaid(out.intents.logs),
+        ]);
         return 'failed';
       }
       if (out.intents.refusal !== null) {
-        await this.record(s, rule, issue, chain, 'skipped', `It did nothing: ${out.intents.refusal}${logged}`);
+        await this.record(s, rule, issue, chain, 'skipped', `It did nothing: ${out.intents.refusal}${logged}`, [
+          { key: 'rules.run.didNothing', values: { refusal: out.intents.refusal } },
+          ...logSaid(out.intents.logs),
+        ]);
         return 'unchanged';
       }
       try {
         planned = await plannedChanges(ctx, this.app.db, s, issue, input.issue, out.intents, { meId: chain.me ?? undefined });
       } catch (e) {
-        await this.record(s, rule, issue, chain, 'failed', `${errorText(e)}${logged}`);
+        await this.record(s, rule, issue, chain, 'failed', `${errorText(e)}${logged}`, [errorSaid(e), ...logSaid(out.intents.logs)]);
         return 'failed';
       }
       logs = out.intents.logs;
@@ -329,11 +374,12 @@ export class RuleEngine {
         const parsed = parseCommand(rule.command, s, [issue.projectId]);
         if (parsed.problems.length) {
           const key = s.projects.get(issue.projectId)?.key ?? 'this project';
-          throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.commandMisfit', { project: key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
+          // Its parser's problems as words of their own, said whole on a page (D49).
+          throw new AppError(400, 'bad_request', `Its command doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.commandMisfit', { project: key, problems: saidProblems(parsed.problems) });
         }
         planned = [{ issue, spec: await commandSpec(ctx, issue, parsed.ops, rule.comment ?? undefined, { meId: chain.me ?? undefined }), command: rule.command }];
       } catch (e) {
-        await this.record(s, rule, issue, chain, 'failed', errorText(e));
+        await this.record(s, rule, issue, chain, 'failed', errorText(e), [errorSaid(e)]);
         return 'failed';
       }
     }
@@ -384,6 +430,12 @@ export class RuleEngine {
             told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
             call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
           ].filter(Boolean);
+          const words: NoteSaid[] = [
+            ...changesSaid(res.changes),
+            ...(res.others.length ? [{ key: 'rules.run.alsoChanged', values: { others: res.others.join('; ') } }] : []),
+            ...(told.length ? [toldSaid(told)] : d.notify ? [{ key: 'rules.run.toldNobody' }] : []),
+            ...(call?.ok ? [call.origin ? { key: 'rules.run.called', values: { origin: call.origin } } : { key: 'rules.run.calledItsWebhook' }] : call ? [{ key: call.whyKey }] : []),
+          ];
           const claimed = await tx
             .insert(ruleRuns)
             .values({
@@ -396,6 +448,7 @@ export class RuleEngine {
               actorId: chain.actorId,
               outcome: acted ? 'applied' : 'unchanged',
               message: `${said.length ? said.join('; ') : 'Nothing to change: it was so already.'}${logWords(logs)}`,
+              said: [...(words.length ? words : [{ key: 'rules.run.nothingToChange' }]), ...logSaid(logs)],
               changes: res.changes,
             })
             .onConflictDoNothing()
@@ -409,19 +462,19 @@ export class RuleEngine {
       return result.acted ? 'applied' : 'unchanged';
     } catch (e) {
       if (e instanceof AlreadyActed) return 'duplicate';
-      await this.record(s, rule, issue, chain, 'failed', errorText(e));
+      await this.record(s, rule, issue, chain, 'failed', errorText(e), [errorSaid(e)]);
       return 'failed';
     }
   }
 
   /** Whether the webhook a rule calls can be called now: there, on, and https (or this machine). */
-  private async callable(webhookId: string): Promise<{ ok: boolean; origin: string | null; why: string }> {
+  private async callable(webhookId: string): Promise<{ ok: boolean; origin: string | null; why: string; whyKey: string }> {
     const [hook] = await this.app.db.select({ url: webhooks.url, active: webhooks.active }).from(webhooks).where(eq(webhooks.id, webhookId));
-    if (!hook) return { ok: false, origin: null, why: 'Its webhook is gone, so nothing was called' };
+    if (!hook) return { ok: false, origin: null, why: 'Its webhook is gone, so nothing was called', whyKey: 'rules.run.webhookGone' };
     const origin = webhookOrigin(hook.url);
-    if (!callableUrl(hook.url)) return { ok: false, origin, why: "Its webhook's address isn't https, so it wasn't called" };
-    if (!hook.active) return { ok: false, origin, why: 'Its webhook is paused, so nothing was sent' };
-    return { ok: true, origin, why: '' };
+    if (!callableUrl(hook.url)) return { ok: false, origin, why: "Its webhook's address isn't https, so it wasn't called", whyKey: 'rules.run.webhookNotHttps' };
+    if (!hook.active) return { ok: false, origin, why: 'Its webhook is paused, so nothing was sent', whyKey: 'rules.run.webhookPaused' };
+    return { ok: true, origin, why: '', whyKey: '' };
   }
 
   private async actedFor(rule: RuleRow, issue: IssueRow, origin: string): Promise<boolean> {
@@ -433,7 +486,8 @@ export class RuleEngine {
     return Boolean(row);
   }
 
-  private async record(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow | null, chain: Chain | null, outcome: Outcome, message: string): Promise<void> {
+  /** A run in the log: its message in English, for the API, and `said`, its words for a page (D49). */
+  private async record(s: SchemaSnapshot, rule: RuleRow, issue: IssueRow | null, chain: Chain | null, outcome: Outcome, message: string, said: NoteSaid[] | null = null): Promise<void> {
     if (outcome === 'duplicate') return;
     await this.app.db
       .insert(ruleRuns)
@@ -447,6 +501,7 @@ export class RuleEngine {
         actorId: chain?.actorId ?? null,
         outcome,
         message,
+        said,
       })
       .onConflictDoNothing()
       .catch((e) => this.log(`could not write the run of workflow rule ${rule.id}`, e));
@@ -521,7 +576,9 @@ export class RuleEngine {
     ]
       .filter(Boolean)
       .join(', ');
-    await this.record(s, rule, null, null, failed ? 'failed' : changed ? 'applied' : 'unchanged', `${said}.`);
+    await this.record(s, rule, null, null, failed ? 'failed' : changed ? 'applied' : 'unchanged', `${said}.`, [
+      { key: 'rules.run.scheduled', values: { checked, changed, failed, capped: capped ? 'yes' : 'no', cap: SCHEDULED_CAP, lost: lost ? 'yes' : 'no' } },
+    ]);
   }
 }
 

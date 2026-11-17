@@ -237,14 +237,14 @@ export async function slackInteraction(app: AppServices, ws: WorkspaceRow, paylo
   try {
     if (action.action_id === 'assign') {
       issueId = String(action.value ?? '').toUpperCase();
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.assigned'), bad: false };
     } else if (action.action_id === 'state') {
       const [id, ...state] = String(action.selected_option?.value ?? '').split('|');
       issueId = (id ?? '').toUpperCase();
       const name = state.join('|');
       const field = [...(await app.schema.get()).fields.values()].find((f) => f.type === 'state');
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.moved', { state: name }), bad: false };
     } else return;
   } catch (e) {

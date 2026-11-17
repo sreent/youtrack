@@ -931,6 +931,16 @@ export const ProblemWordsSchema = z
   .meta({ id: 'ProblemWords' });
 export type ProblemWords = z.infer<typeof ProblemWordsSchema>;
 
+/** A note's words in the catalogs, beside its English: a key and its values (D49). */
+export const NoteSaidSchema = z
+  .object({
+    key: z.string().describe('The message: builds.note.<what>, vcs.why.<what>, rules.run.<what>, or problem.<key> for one a page says as a problem'),
+    values: z.record(z.string(), z.unknown()).optional().describe('What its words take, by name; a problem among them is a { key, values } of its own'),
+  })
+  .describe('The note in the catalogs, for a page that says it in its person’s language (D49). Null where the note is null, and where it was recorded before a4a kept its words; note is the same in English.')
+  .meta({ id: 'NoteSaid' });
+export type NoteSaid = z.infer<typeof NoteSaidSchema>;
+
 export const CommandIssueResultSchema = z
   .object({
     issue: z.string(),
@@ -2063,6 +2073,10 @@ export const RuleRunSchema = z
     issue: z.string().nullable().describe('Readable id of the issue it acted on, or null for a scheduled run as a whole'),
     outcome: z.enum(RULE_OUTCOMES),
     message: z.string(),
+    said: z
+      .array(NoteSaidSchema)
+      .nullable()
+      .describe("The message in the catalogs, a sentence each, for a page in another language (D49). Null for a run recorded before a4a kept them, and where the message is the rule's own words"),
     changes: z.array(ChangeSchema),
     by: UserRefSchema.nullable().describe('Whose change set it off, or whose change it refused'),
     at: timestamp,
@@ -2266,6 +2280,7 @@ export const VcsCommitSchema = z
     command: z.string().nullable().describe('The command it gave this issue ("BACK-12 #Fixed" gives "Fixed")'),
     applied: z.boolean().nullable().describe('Whether the command was applied; null when it gave none'),
     note: z.string().nullable().describe('What the command changed, or why it was not applied'),
+    said: NoteSaidSchema.nullable().describe('The note in the catalogs, for a page in another language (D49); null where it is only field names and values, and before a4a kept it'),
     integration: VcsSourceSchema,
   })
   .meta({ id: 'VcsCommit' });
@@ -3320,16 +3335,6 @@ export const UpdateBuildSourceBody = z.object({
   workflow: z.string().trim().max(200).nullable().optional(),
   active: z.boolean().optional(),
 });
-
-/** A note's words in the catalogs, beside its English: a key and its values (D49). */
-export const NoteSaidSchema = z
-  .object({
-    key: z.string().describe('The message: builds.note.<what>, or problem.<key> for a refusal a page says as a problem'),
-    values: z.record(z.string(), z.unknown()).optional().describe('What its words take, by name; a problem among them is a { key, values } of its own'),
-  })
-  .describe('The note in the catalogs, for a page that says it in its person’s language (D49). Null where the note is null, and where it was recorded before a4a kept its words; note is the same in English.')
-  .meta({ id: 'NoteSaid' });
-export type NoteSaid = z.infer<typeof NoteSaidSchema>;
 
 export const BuildIssueSchema = z
   .object({

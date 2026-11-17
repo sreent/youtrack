@@ -5,6 +5,7 @@ import { Scroll } from '../common/bits';
 import { ChangeLines } from '../common/ChangeLines';
 import { whenRead } from '../common/format';
 import { useRuleRuns } from './api';
+import { runLogged, runWords } from './words';
 import { t } from '../../i18n';
 
 /** How a run went, with its shape: applied went well; nothing to change and skipped stood still; failed and refused, a cross. */
@@ -61,10 +62,10 @@ export function RuleRuns({ project }: { project: string }) {
                   <>
                     <ChangeLines changes={r.changes} />
                     {/* What a script logged as it ran (D40), after its changes. */}
-                    {r.message.includes(' Logged: ') ? <span className="item-about">{r.message.slice(r.message.indexOf(' Logged: ') + 1)}</span> : null}
+                    {runLogged(r) ? <span className="item-about">{runLogged(r)}</span> : null}
                   </>
                 ) : (
-                  r.message
+                  runWords(r)
                 )}
               </td>
             </tr>

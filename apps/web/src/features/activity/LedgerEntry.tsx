@@ -5,7 +5,7 @@ import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
 import { aRole } from '../roles/words';
-import { t, t as tx, tr } from '../../i18n';
+import { commandNote, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Grammar = 'reads' | 'writes' | 'changes' | 'outside' | 'own';
@@ -193,7 +193,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         more: (
           <span className="ledger-note">
             {str(e.data.title)}
-            {command ? (e.data.applied ? (str(e.data.note) ? t('activity.ledgerEntry.commandNote', { command: command, note: str(e.data.note) }) : t('activity.ledgerEntry.commandApplied', { command: command })) : t('activity.ledgerEntry.notApplied', { command: command, replace: str(e.data.note).replace(/^Not applied:\s*/i, '') })) : ''}
+            {command ? (e.data.applied ? (str(e.data.note) ? t('activity.ledgerEntry.commandNote', { command: command, note: commandNote(e.data.said, e.data.note) }) : t('activity.ledgerEntry.commandApplied', { command: command })) : t('activity.ledgerEntry.notApplied', { command: command, replace: commandNote(e.data.said, e.data.note) })) : ''}
           </span>
         ),
       };

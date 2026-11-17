@@ -50,7 +50,7 @@ export const aiDisabled = () =>
  * Words of a problem's own that someone wrote (a script's refusal, a rule's message), ended as a
  * page's sentence ends them: the value a keyed problem places where the API puts them whole (D49).
  */
-export const asSentence = (words: string): string => (/[.!?…:]["”’)]*$/.test(words.trim()) ? words.trim() : `${words.trim()}.`);
+export const asSentence = (words: string): string => (/[.!?…:。！？]["”’)」』）]*$/.test(words.trim()) ? words.trim() : `${words.trim()}.`);
 
 /** A problem as a page says it: its words, then its fix, each a sentence. */
 const sentence = (s: string) => asSentence(s);

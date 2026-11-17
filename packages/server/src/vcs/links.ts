@@ -7,7 +7,7 @@
  * a4a, known by a confirmed email or a login at the provider (authors.ts): if it fails, the link
  * stays and says why.
  */
-import type { Change, IssueVcs, PullRequestState, VcsProvider } from '@a4a/shared';
+import type { Change, IssueVcs, NoteSaid, PullRequestState, VcsProvider } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { systemCtx } from '../app-services';
 import { commandSpec } from '../commands/executor';
@@ -16,7 +16,7 @@ import { requireScope, type AppServices, type Ctx, type UserRow } from '../conte
 import type { Db } from '../db/client';
 import { issues, vcsIntegrations, vcsLinks } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
-import { AppError } from '../lib/errors';
+import { AppError, asSentence, saidProblems } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { assertCanWriteProject } from '../services/access';
@@ -113,19 +113,25 @@ export async function linkCommit(
   // Whether the command may run: as its author, known by a confirmed email or a login, who can change the project's issues.
   let ops: ReturnType<typeof parseCommand>['ops'] | null = null;
   let note: string | null = null;
+  // The note in the catalogs, for a page in another language (D49): why it wasn't applied, or that it
+  // changed nothing. One that lists the changes is field names and values, and needs no words.
+  let noteSaid: NoteSaid | null = null;
   let said = '';
   if (command) {
     const key = s.projects.get(issue.projectId)?.key ?? 'the project';
     if (!author.user) {
       note = `Not applied: ${author.why}`;
+      noteSaid = author.whySaid;
       said = `#${command} not applied: ${author.detail}`;
     } else if (!(await canWrite(ctx, issue.projectId))) {
       note = `Not applied: ${author.user.name} can’t change issues in ${key}`;
+      noteSaid = { key: 'vcs.why.cantChange', values: { name: author.user.name, project: key } };
       said = `#${command} not applied: ${author.user.name} can’t change issues in ${key}`;
     } else {
       const parsed = parseCommand(command, s, [issue.projectId]);
       if (parsed.problems.length) {
         note = `Not applied: ${parsed.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ')}`;
+        noteSaid = { key: 'problem.vcs.commandProblems', values: { problems: saidProblems(parsed.problems) } };
         said = `#${command} ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
       } else ops = parsed.ops;
     }
@@ -172,15 +178,17 @@ export async function linkCommit(
         activities.push(...res.activities);
         applied = true;
         note = res.changes.length ? changeWords(res.changes) : 'Nothing to change: it was so already';
+        noteSaid = res.changes.length ? null : { key: 'vcs.note.nothingToChange' };
         said = `#${command} applied as ${author.user!.name}: ${note}`;
       } catch (e) {
         if (!(e instanceof AppError)) throw e;
         note = `Not applied: ${e.message}`;
+        noteSaid = e.words ? { key: `problem.${e.words.key}`, ...(e.words.values ? { values: e.words.values } : {}) } : { key: 'problem.inItsOwnWords', values: { words: asSentence(e.message) } };
         said = `#${command} not applied: ${e.message}`;
       }
-      await tx.update(vcsLinks).set({ commandApplied: applied, commandNote: note }).where(eq(vcsLinks.id, row.id));
+      await tx.update(vcsLinks).set({ commandApplied: applied, commandNote: note, commandSaid: noteSaid }).where(eq(vcsLinks.id, row.id));
     } else if (command) {
-      await tx.update(vcsLinks).set({ commandApplied: false, commandNote: note }).where(eq(vcsLinks.id, row.id));
+      await tx.update(vcsLinks).set({ commandApplied: false, commandNote: note, commandSaid: noteSaid }).where(eq(vcsLinks.id, row.id));
     }
     const now = (await findIssue(tx, s, issue.id)) ?? locked;
     activities.push(
@@ -197,7 +205,7 @@ export async function linkCommit(
             url: commit.url,
             branch: push.branch,
             author: commit.author.name ?? commit.author.login,
-            ...(command ? { command, applied, note } : {}),
+            ...(command ? { command, applied, note, ...(noteSaid ? { said: noteSaid } : {}) } : {}),
           },
         },
       }),
@@ -384,6 +392,7 @@ export async function issueVcs(ctx: Ctx, idOrReadable: string): Promise<IssueVcs
         command: link.command,
         applied: link.command ? Boolean(link.commandApplied) : null,
         note: link.commandNote,
+        said: link.commandSaid ?? null,
         integration,
       });
     } else {

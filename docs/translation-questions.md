@@ -126,4 +126,4 @@ These need the code to change, not a catalog:
 - **French can't elide before a name**: "de {name}" prints "de Ada", not "d’Ada", since the name is a value.
 - **Spanish's "y" before an "i" sound**: `problem.command.valueOfFields` joins two field names with "y", which should be "e" when the second starts with an "i" sound. Field names are data.
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
-- **What the server explains in English**: a command's note in the ledger (`activity.ledgerEntry.notApplied`, `commandNote`) keeps the English explanation it was saved with. Translating it needs the explanation stored as a key and its values.
+- **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.

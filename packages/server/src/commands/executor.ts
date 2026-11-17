@@ -4,6 +4,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
+import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
 import { AppError, asSentence, badRequest, errorWords, keyedProblem, saidProblems } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
@@ -31,7 +32,11 @@ export interface CommandRequest {
   meId?: string;
 }
 
-export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<CommandResult & { description: string }> {
+/**
+ * Apply a command to issues, or try it (`dryRun`). Its `description` says what it changes, in `words`'
+ * language when given (a chat reply in its person's, D49), else in English, as the API's words are.
+ */
+export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translator): Promise<CommandResult & { description: string }> {
   requireScope(ctx, req.dryRun ? 'read' : 'write');
   if (req.issues.length > MAX_BULK_ISSUES) {
     throw badRequest(`A command can change at most ${MAX_BULK_ISSUES} issues at once`, 'Split the list into smaller batches.').said('command.tooManyIssues', { max: MAX_BULK_ISSUES });
@@ -48,7 +53,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing.join(', ') });
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
   const parsed = parseCommand(req.command, s, projectIds);
-  const description = describeCommand(parsed.ops);
+  const description = describeCommand(parsed.ops, words);
   if (parsed.problems.length) {
     return { applied: false, problems: parsed.problems, results: [], description };
   }

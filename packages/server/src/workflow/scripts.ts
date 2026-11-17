@@ -15,7 +15,8 @@ import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
 import type { Ctx } from '../context';
 import type { Db } from '../db/client';
-import { AppError, badRequest, errorWords, saidProblems } from '../lib/errors';
+import type { ProblemSaid } from '@a4a/shared/i18n';
+import { AppError, asSentence, badRequest, errorWords, saidProblems } from '../lib/errors';
 import { issueRefsById, readableId, type IssueRow } from '../services/issue-refs';
 import { applyChanges, findIssue, type ChangeSpec } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -92,6 +93,11 @@ export function scriptErrorText(out: ScriptOutcome): string {
   return out.error ? `Its script stopped: ${out.error.message}` : '';
 }
 
+/** A script's error, said inside a run's (D49): past its time or memory by its words; what QuickJS said, as it said it. */
+export function scriptErrorSaid(error: { message: string; key?: string; values?: Record<string, string | number> }): ProblemSaid {
+  return error.key ? { key: error.key, ...(error.values ? { values: error.values } : {}) } : { key: 'inItsOwnWords', values: { words: asSentence(error.message) } };
+}
+
 // ---------------------------------------------------------------------------
 // Scripted guards: in the write path, after the change and before commit
 // ---------------------------------------------------------------------------
@@ -115,7 +121,7 @@ export async function enforceScriptGuards(tx: Db, ctx: Ctx, s: SchemaSnapshot, i
     if (rule.query.trim()) {
       const when = condition(ruleWorld(s, rule.projectId), rule.query, { meId: ctx.actor.user.id });
       if (when.problems.length) {
-        noteBroken(ctx, rule, when.problems.map((p) => p.message).join('; '));
+        noteBroken(ctx, rule, when.problems.map((p) => p.message).join('; '), [{ key: 'problem.rule.noLongerReads', values: { guard: 'yes', problems: saidProblems(when.problems) } }]);
         continue;
       }
       if (when.where && !(await meets(tx, issue.id, [when.where]))[0]) continue;
@@ -123,7 +129,13 @@ export async function enforceScriptGuards(tx: Db, ctx: Ctx, s: SchemaSnapshot, i
     input ??= await scriptInput(tx, s, issue, change);
     const out = await runScript(rule.script!, input, { guard: true });
     if (out.error) {
-      noteBroken(ctx, rule, out.error.message, `${scriptErrorText(out)}. It refuses nothing until it is fixed.`);
+      noteBroken(
+        ctx,
+        rule,
+        out.error.message,
+        [{ key: 'problem.rule.scriptStopped', values: { error: scriptErrorSaid(out.error) } }, { key: 'rules.run.refusesNothing' }],
+        `${scriptErrorText(out)}. It refuses nothing until it is fixed.`,
+      );
       continue;
     }
     if (out.intents.refusal !== null) {

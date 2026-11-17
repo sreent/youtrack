@@ -20,7 +20,7 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
-import { formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
+import { commandNote, formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Actor = TrackerEvent['actor'];
@@ -181,7 +181,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
             {command ? (
               <li className="same">
                 #{command}
-                {data.applied ? `: ${String(data.note ?? 'applied')}` : t('issues.issueHistory.notApplied', { v: String(data.note ?? '').replace(/^Not applied:\s*/i, '') || t('issues.issueHistory.seeTheCommit') })}
+                {data.applied ? `: ${data.note ? commandNote(data.said, data.note) : t('vcs.issueCode.applied')}` : t('issues.issueHistory.notApplied', { v: commandNote(data.said, data.note) || t('issues.issueHistory.seeTheCommit') })}
               </li>
             ) : null}
           </ul>

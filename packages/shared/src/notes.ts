@@ -5,7 +5,7 @@
  */
 import { canSayProblem, DEFAULT_LOCALE, joinSentences, sayProblem, type ProblemSaid, type Translator } from './i18n';
 import type { RuleTrigger } from './constants';
-import type { RulePreview, RuleSchedule, RuleTarget, ScriptRun } from './schemas';
+import type { NoteSaid, RulePreview, RuleSchedule, RuleTarget, ScriptRun } from './schemas';
 
 /** When a rule acts, as its sentence says it: "an issue is created", "an issue's Priority changes". */
 export function triggerWordsIn(tr: Translator, trigger: RuleTrigger | null, field: string | null): string {
@@ -67,6 +67,40 @@ export function previewNote(tr: Translator, p: Pick<RulePreview, 'matching' | 'b
  */
 export function problemIn(tr: Translator, words: ProblemSaid | null | undefined, english: string): string {
   return tr.locale !== DEFAULT_LOCALE && words && canSayProblem(tr, words) ? sayProblem(tr, words) : english;
+}
+
+/** A note's words as the server kept them: its message's key, `problem.<key>` for one said as a problem, and its values. */
+type Kept = Pick<NoteSaid, 'key' | 'values'>;
+
+/** One kept note in a translator's language, or null where its catalog lacks the words. */
+function keptIn(tr: Translator, n: Kept): string | null {
+  if (n.key.startsWith('problem.')) {
+    const words: ProblemSaid = { key: n.key.slice('problem.'.length), ...(n.values ? { values: n.values as ProblemSaid['values'] } : {}) };
+    return canSayProblem(tr, words) ? sayProblem(tr, words) : null;
+  }
+  return tr.has(n.key) ? tr.t(n.key, n.values as Record<string, string | number>) : null;
+}
+
+/**
+ * A note the server kept beside its English (D49): a commit's command note, a build's. In the
+ * translator's language by its words; in the English it was kept in where it has none (a row from
+ * before a4a kept them), where a catalog lacks them, and for a problem on an English page, where the
+ * API's own words stand.
+ */
+export function noteIn(tr: Translator, said: Kept | null | undefined, english: string): string {
+  if (!said || (said.key.startsWith('problem.') && tr.locale === DEFAULT_LOCALE)) return english;
+  return keptIn(tr, said) ?? english;
+}
+
+/**
+ * Notes kept a sentence each (D49), as a rule's run keeps what it did: said one after the other, as
+ * the translator's language puts sentences. In the English they were kept in where there are none (a
+ * run from before a4a kept them) or a catalog lacks any one of them.
+ */
+export function notesIn(tr: Translator, said: readonly Kept[] | null | undefined, english: string): string {
+  if (!said?.length) return english;
+  const parts = said.map((n) => keptIn(tr, n));
+  return parts.every((x): x is string => x !== null) ? joinSentences(tr, parts) : english;
 }
 
 /** What a script's test run did, from what the server says it did: stopped, refused, let a change through, or asked for commands. */

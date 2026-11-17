@@ -9,7 +9,7 @@ import { Confirm } from '../common/Confirm';
 
 import { previewRule, ruleKeys } from './api';
 import { SampleDetail } from './RuleForm';
-import { previewWords, Sentence } from './words';
+import { previewWords, runWords, Sentence } from './words';
 import { intlLocale, problemSaid, t, tr } from '../../i18n';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
@@ -47,19 +47,19 @@ function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
       break;
     case 'applied':
       what = run.issue ? (
-        <>{tr('rules.ruleCard.lastActed', { when: when, on: on, v: run.changes.map((c) => c.field).join(', ') || run.message })}</>
+        <>{tr('rules.ruleCard.lastActed', { when: when, on: on, v: run.changes.map((c) => c.field).join(', ') || runWords(run) })}</>
       ) : (
-        <>{tr('rules.ruleCard.lastRan', { when: when, message: run.message })}</>
+        <>{tr('rules.ruleCard.lastRan', { when: when, message: runWords(run) })}</>
       );
       break;
     case 'failed':
       what = (
-        <>{tr('rules.ruleCard.lastFailed', { when: when, on: on, message: run.message })}</>
+        <>{tr('rules.ruleCard.lastFailed', { when: when, on: on, message: runWords(run) })}</>
       );
       break;
     default:
       what = (
-        <>{tr('rules.ruleCard.lastRan2', { when: when, on: on, message: run.message })}</>
+        <>{tr('rules.ruleCard.lastRan2', { when: when, on: on, message: runWords(run) })}</>
       );
   }
   return (

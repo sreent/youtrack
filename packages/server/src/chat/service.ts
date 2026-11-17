@@ -21,7 +21,8 @@ import {
   type ChatSubscription,
   type CreateChatSubscriptionInput,
 } from '@a4a/shared';
-import type { Translator } from '@a4a/shared/i18n';
+import { joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { problemIn } from '@a4a/shared/notes';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
@@ -546,13 +547,18 @@ export async function issueForCard(ctx: Ctx, id: string): Promise<CardIssue> {
 }
 
 /**
- * What a command did to an issue, in a line, in its person's language: its changes, or why not. The
- * command's own words (what it changes, a problem with how it's written) are the command language's.
+ * What a command did to an issue, in a line, in its person's language (D49): its changes, or why not.
+ * A command's keywords and what people named (fields, values, tags) stay as written, the command
+ * language's; what a4a says of them is said in their language: a problem with how it's written, why it
+ * failed on the issue, and what it changed (run it with `tr`, so its description is in theirs too).
  */
 export function commandOutcome(res: Awaited<ReturnType<typeof runCommand>>, tr: Translator): { text: string; bad: boolean } {
-  if (res.problems.length) return { text: res.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; '), bad: true };
+  if (res.problems.length) {
+    const said = res.problems.map((p) => asSentence(problemFor(tr, { message: p.message, hint: p.hint, words: p.key ? { key: p.key, ...(p.values ? { values: p.values } : {}) } : undefined })));
+    return { text: joinSentences(tr, said), bad: true };
+  }
   const r = res.results[0];
-  if (r?.errors.length) return { text: r.errors.join('; '), bad: true };
+  if (r?.errors.length) return { text: joinSentences(tr, r.errors.map((e, i) => problemIn(tr, r.errorWords?.[i] as ProblemSaid | undefined, asSentence(e)))), bad: true };
   if (!r?.changes.length) return { text: tr.t('server.chat.nothingToChange'), bad: false };
   return { text: tr.t('server.chat.done', { change: res.description }), bad: false };
 }
@@ -598,7 +604,7 @@ export async function runChatCommand(app: AppServices, platform: ChatPlatform, u
     if ((m = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*(.*)$/.exec(text))) {
       const id = m[1]!.toUpperCase();
       if (!m[2]) return { text: id, locale, issues: [await issueForCard(ctx, id)] };
-      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }), tr);
+      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }, tr), tr);
       return { text: outcome.text, locale, issues: [await issueForCard(ctx, id)] };
     }
     return { text: tr.t('server.chat.unknown', { text: excerpt(text, 60) }), locale };

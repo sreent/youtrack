@@ -8,6 +8,7 @@ import type { RulePreview, ScriptRun } from '@a4a/shared';
 import { canSayProblem, sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import { previewNote, scriptRunNote } from '@a4a/shared/notes';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { commandOutcome } from '../src/chat/service';
 import { runCommand } from '../src/commands/executor';
 import { rules } from '../src/db/schema';
 import { translatorFor } from '../src/i18n';
@@ -195,6 +196,24 @@ describe("the rule form's reading of a part", () => {
     // A script's problem keeps its words on the way, so the page says it in German.
     const empty = await part(page, 'script', '');
     expect(empty.problems[0]).toMatchObject({ key: 'rule.writeScript' });
+  });
+});
+
+describe("the chat bot's reply to a command", () => {
+  it("says a command's problems, its errors on the issue and its change in the person's language", async () => {
+    const issue = (await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Chat eins', fields: { Priority: 'Major' } })).id;
+    const anna = w.as(w.anna);
+    // As it's written: the parser's problem, in German, and as the API says it in English.
+    expect(commandOutcome(await runCommand(anna, { issues: [issue], command: 'State Fixd' }, de), de)).toEqual({ text: 'Unbekannter Wert „Fixd“ für State. Meinten Sie „Fixed“?', bad: true });
+    expect(commandOutcome(await runCommand(anna, { issues: [issue], command: 'State Fixd' }, en), en).text).toBe('Unknown value "Fixd" for State. Did you mean "Fixed"?');
+    // What it changed: the command's words stay as written, what a4a says of them is German.
+    expect(commandOutcome(await runCommand(anna, { issues: [issue], command: 'tag plaudern' }, de), de)).toEqual({ text: 'Ausgeführt: Tag plaudern hinzufügen.', bad: false });
+    // Why it failed on the issue: a guard's refusal, by its words.
+    await createRule(w.adminCtx, { ...base, name: 'Hoch', kind: 'guard', query: 'summary: Chat', requires: 'Priority: Major', message: 'Bleibt hoch.' });
+    const refused = commandOutcome(await runCommand(anna, { issues: [issue], command: 'Priority Minor' }, de), de);
+    expect(refused.bad).toBe(true);
+    expect(refused.text).toContain('Bleibt hoch.');
+    expect(refused.text).not.toMatch(/refuses|rule/);
   });
 });
 

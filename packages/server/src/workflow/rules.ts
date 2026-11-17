@@ -432,6 +432,7 @@ function runDto(s: SchemaSnapshot, row: RunRow, ruleName: string): RuleRun {
     issue: row.issueKey,
     outcome: row.outcome as RuleRun['outcome'],
     message: row.message,
+    said: row.said ?? null,
     changes: (row.changes as Change[] | null) ?? [],
     by: by ? userRefDto(by) : null,
     at: row.createdAt.toISOString(),
