@@ -69,6 +69,8 @@ export class ChatCallError extends Error {
     readonly retryAfterMs?: number,
     /** For gone and removed: the message as a problem's words, kept with the reason (D49). */
     readonly said?: ProblemSaid,
+    /** The service's own code for it, as it came (Slack's "thread_not_found"). */
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -80,7 +82,7 @@ export class ChatCallError extends Error {
 }
 
 /** A call error that stops a channel or a workspace, with its words. */
-export const stopError = (outcome: 'gone' | 'removed', reason: StopReason): ChatCallError => new ChatCallError(reason.text, outcome, undefined, reason.said ?? undefined);
+export const stopError = (outcome: 'gone' | 'removed', reason: StopReason, code?: string): ChatCallError => new ChatCallError(reason.text, outcome, undefined, reason.said ?? undefined, code);
 
 /** Seconds from a Retry-After header, as milliseconds; a date there too. */
 export function retryAfterMs(header: string | null | undefined): number | undefined {

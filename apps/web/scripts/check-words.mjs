@@ -98,10 +98,10 @@ const NON_TEXT_ATTR = new Set(['className', 'id', 'type', 'role', 'href', 'to', 
 const VERBATIM = new Set(['code', 'pre', 'kbd', 'samp', 'var', 'script', 'style']);
 const UI_PROPS = new Set(['text', 'label', 'title', 'help', 'hint', 'placeholder', 'message', 'description', 'heading', 'confirm', 'empty', 'emptyText', 'legend', 'tooltip', 'caption', 'note', 'okLabel', 'cancelLabel', 'busyLabel', 'about', 'word', 'words', 'group', 'why', 'did', 'verb', 'sub', 'long', 'short']);
 // What the server sends people: emails, push and chat messages say every word through a translator.
-const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/cards|helpdesk\/mails|search\/explain)\.ts$/;
+const SENDS_PEOPLE = /packages\/server\/src\/(notify\/(mails|words)|push\/outbox|chat\/(cards|markdown)|helpdesk\/mails|search\/explain)\.ts$/;
 // What the chat bot says to people, beside the API's problems (which stay English) in the same files:
 // a reply's or a note's text, and an answer to a card's action.
-const CHAT_SAYS = /packages\/server\/src\/chat\/(service|teams|slack)\.ts$/;
+const CHAT_SAYS = /packages\/server\/src\/chat\/(service|teams|slack|issues|package)\.ts$/;
 const CHAT_PROPS = new Set(['text', 'note']);
 const CHAT_CALLS = new Set(['message']);
 const UI_CALLS = new Set(['setSaid', 'onSaid', 'setError', 'setStatus', 'setMessage', 'setNote', 'setProgress', 'setWarning', 'toast', 'alert', 'confirm']);

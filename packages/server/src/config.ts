@@ -191,6 +191,8 @@ export interface Config {
   slackApiUrl: string;
   /** For tests: chat services may be reached over plain http on this machine (CHAT_ALLOW_HTTP_LOOPBACK). Never in production. */
   chatAllowHttpLoopback: boolean;
+  /** How many issues one person may make from chat messages in ten minutes (CHAT_ISSUE_LIMIT, D60). */
+  chatIssueLimit: number;
   /** Push notifications to people's devices (D47). */
   push: PushConfig;
 }
@@ -641,6 +643,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     teams: teamsFromEnv(env),
     slackApiUrl: safeProviderUrl(env.SLACK_API_URL?.trim() || 'https://slack.com/api', 'SLACK_API_URL').replace(/\/+$/, ''),
     chatAllowHttpLoopback: truthy(env.CHAT_ALLOW_HTTP_LOOPBACK, false),
+    chatIssueLimit: intEnv(env.CHAT_ISSUE_LIMIT, 10, 1),
     push: pushFromEnv(env, overrides.publicUrl ?? publicUrl, env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`),
     ...overrides,
   };

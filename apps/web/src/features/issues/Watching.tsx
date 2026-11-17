@@ -10,9 +10,10 @@ const WHY: Record<WatchReason, string> = {
   explicit: t('issues.watching.choseTo'),
   reporter: t('issues.watching.reportedIt'),
   assignee: t('issues.watching.wasAssignedIt'),
-  commenter: 'commented',
+  commenter: t('issues.watching.commented'),
   mentioned: t('issues.watching.wasMentioned'),
   lead: t('issues.watching.leadsTheProject'),
+  message: t('issues.watching.wroteTheMessage'),
 };
 
 /** Ocean's WatchToggle: pressed while you watch the issue, with how many do. */

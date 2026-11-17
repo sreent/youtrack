@@ -25,10 +25,11 @@ import {
   unlinkChatAccount,
   updateChatSubscription,
 } from '../../chat/service';
-import { connectSlack, disconnectSlack, slackCommand, slackEvent, slackInteraction, slackLinked, verifySlackRequest } from '../../chat/slack';
+import { firstTime } from '../../chat/issues';
+import { connectSlack, disconnectSlack, slackCommand, slackEvent, slackInteraction, slackIssueShortcut, slackIssueSubmitted, slackLinked, verifySlackRequest } from '../../chat/slack';
 import { handleTeamsActivity, teamsLinked, verifyTeamsRequest, type TeamsActivity } from '../../chat/teams';
 import { requireScope } from '../../context';
-import { AppError, badRequest } from '../../lib/errors';
+import { AppError, badRequest, unauthorized } from '../../lib/errors';
 import type { HttpEnv } from '../env';
 import { errorBody } from '../middleware';
 import { route } from '../route';
@@ -147,6 +148,12 @@ export function chatRoutes(app: OpenAPIHono<HttpEnv>) {
         throw badRequest('Not an activity');
       }
       await verifyTeamsRequest(runtime, c.req.header('authorization'), { serviceUrl: activity.serviceUrl, channelId: activity.channelId });
+      // An activity is taken once: the same one again, within its token's hour, is a replay (D60).
+      if (typeof activity.id === 'string' && activity.id && !(await firstTime(runtime.db, `teams:${activity.id.slice(0, 200)}`, new Date(Date.now() + 3_600_000)))) {
+        console.warn('chat: a Teams request was refused: replayed');
+        // api only: Teams' Bot Framework posts here, signed, never a page
+        throw unauthorized('This request isn’t from Teams');
+      }
       const answer = await handleTeamsActivity(runtime, activity);
       return answer.body === undefined ? c.body(null, answer.status as 200) : c.json(answer.body, answer.status as 200);
     },
@@ -168,6 +175,13 @@ export function chatRoutes(app: OpenAPIHono<HttpEnv>) {
   fromSlack('/chat/slack/commands', (runtime, ws, raw) => slackCommand(runtime, ws, new URLSearchParams(raw)));
   fromSlack('/chat/slack/interactions', async (runtime, ws, raw) => {
     const payload = JSON.parse(new URLSearchParams(raw).get('payload') ?? '{}') as Record<string, unknown>;
+    // A message made an issue (D60): the modal sent is answered in Slack's three seconds, with what was
+    // wrong under its fields; the shortcut is answered at once, and its modal opened with its trigger.
+    if (payload.type === 'view_submission') return slackIssueSubmitted(runtime, ws, payload);
+    if (payload.type === 'message_action') {
+      void slackIssueShortcut(runtime, ws, payload).catch((e: unknown) => console.warn(`chat: a Slack shortcut wasn't answered: ${e instanceof Error ? e.message : String(e)}`));
+      return null;
+    }
     // Slack wants its answer within three seconds: what the action does is said to the person after.
     void slackInteraction(runtime, ws, payload).catch((e: unknown) => console.warn(`chat: a Slack action wasn't done: ${e instanceof Error ? e.message : String(e)}`));
     return null;

@@ -10,6 +10,7 @@ import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
 import { Who } from '../components/Who';
+import { ChatSourceCard } from '../features/chat/ChatSource';
 import { SuggestionCard } from '../features/decide/SuggestionCard';
 import { errorText, useUpdateIssue } from '../features/issues/api';
 import { CommandBar } from '../features/issues/CommandBar';
@@ -413,6 +414,7 @@ export default function IssuePage() {
             <Loading what="loadingLine.fields" />
           )}
           <RequestCard issue={data} canEdit={canWrite} />
+          {data.source ? <ChatSourceCard source={data.source} /> : null}
           <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />
           <AppWidgets at="issue-panel" issue={data.id} />
