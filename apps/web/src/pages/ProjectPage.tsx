@@ -141,7 +141,7 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
 function Baselines({ project }: { project: Project }) {
   const baselines = useBaselines(project.key);
   const currency = project.settings.plan.currency;
-  if (baselines.isLoading) return <Loading what={t('loading.baselines')} />;
+  if (baselines.isLoading) return <Loading what="loadingLine.baselines" />;
   if (baselines.error) return <ErrorNote error={baselines.error} />;
   if (!baselines.data?.length)
     return (
@@ -192,7 +192,7 @@ export default function ProjectPage() {
   const users = useUsers();
   const ai = useAIStatus();
 
-  if (project.isLoading) return <Loading what={t('page.project.theProject')} />;
+  if (project.isLoading) return <Loading what="loadingLine.project" />;
   if (project.error || !project.data)
     return (
       <>
@@ -318,7 +318,7 @@ export default function ProjectPage() {
           <h2 id="fields">{t('page.project.fields')}</h2>
           <span className="note">{t('page.project.whatItsIssuesHaveValues')}</span>
         </div>
-        {projectFields.isLoading || allFields.isLoading ? <Loading what={t('page.project.itsFields')} /> : null}
+        {projectFields.isLoading || allFields.isLoading ? <Loading what="loadingLine.projectOwnFields" /> : null}
         {projectFields.error ? <ErrorNote error={projectFields.error} /> : null}
         {projectFields.data && allFields.data ? (
           <ProjectFields projectKey={p.key} fields={projectFields.data} all={allFields.data} users={users.data ?? []} canEdit={canEdit} />

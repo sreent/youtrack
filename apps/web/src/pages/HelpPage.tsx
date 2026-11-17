@@ -68,7 +68,7 @@ export default function HelpPage() {
   if (form.isLoading) {
     return (
       <Lone wide>
-        <Loading what={t('page.help.theForm')} />
+        <Loading what="loadingLine.form" />
       </Lone>
     );
   }

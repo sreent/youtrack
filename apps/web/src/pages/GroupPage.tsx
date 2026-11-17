@@ -269,7 +269,7 @@ export default function GroupPage() {
   const admin = me.data?.auth.scopes.includes('admin') ?? false;
   const provider = providerNameOf(status.data);
   const crumbs = admin ? <Link to="/admin">{t('page.group.administration')}</Link> : null;
-  if (group.isLoading) return <Loading what={t('page.group.theGroup2')} />;
+  if (group.isLoading) return <Loading what="loadingLine.group" />;
   if (group.error || !group.data) {
     return (
       <>

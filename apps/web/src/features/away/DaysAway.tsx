@@ -157,7 +157,7 @@ export function DaysAway({ person, you, canEnter }: { person: Person; you: boole
     setSaid(null);
   }, [person.login]);
 
-  if (list.isLoading) return <Loading what={t('away.daysAway.whoseDaysAway', w)} />;
+  if (list.isLoading) return <Loading what="loadingLine.daysAway" values={w} />;
   if (list.error) return <ErrorNote error={list.error} />;
   const rows = list.data ?? [];
 

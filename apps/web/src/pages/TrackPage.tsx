@@ -55,7 +55,7 @@ export default function TrackPage() {
   if (request.isLoading || !request.data) {
     return (
       <Lone wide>
-        <Loading what={t('page.track.yourRequest')} />
+        <Loading what="loadingLine.yourRequest" />
       </Lone>
     );
   }

@@ -101,7 +101,7 @@ export default function TimesheetPage() {
     }
   };
 
-  if (sheet.isLoading) return <Loading what={tx('page.timesheet.yourTimesheet')} />;
+  if (sheet.isLoading) return <Loading what="loadingLine.timesheet" />;
   if (sheet.error || !sheet.data) {
     return (
       <>

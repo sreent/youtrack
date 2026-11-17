@@ -400,7 +400,7 @@ export function IssueHistory({
   const [ticked, setTicked] = useState<{ id: string; text: string } | null>(null);
   const [tickSaid, setTickSaid] = useState<{ id: string; text: string } | null>(null);
 
-  if (activity.isLoading || comments.isLoading) return <Loading what={t('issues.issueHistory.theHistory')} />;
+  if (activity.isLoading || comments.isLoading) return <Loading what="loadingLine.history" />;
   if (activity.error) return <ErrorNote error={activity.error} />;
   if (comments.error) return <ErrorNote error={comments.error} />;
 

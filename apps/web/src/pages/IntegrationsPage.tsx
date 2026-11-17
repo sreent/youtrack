@@ -86,7 +86,7 @@ function Steps({ provider }: { provider: VcsProvider }) {
 
 function Deliveries({ integration }: { integration: VcsIntegration }) {
   const deliveries = useDeliveries(integration.id, true);
-  if (deliveries.isLoading) return <Loading what={t('page.integrations.itsDeliveries')} />;
+  if (deliveries.isLoading) return <Loading what="loadingLine.integrationDeliveries" />;
   if (deliveries.error) return <ErrorNote error={deliveries.error} />;
   if (!deliveries.data?.length) return <p className="note">{t('page.integrations.nothingHasComeYetSend')}</p>;
   return (
@@ -464,7 +464,7 @@ export default function IntegrationsPage() {
       />
       <section className="card" aria-labelledby="vcs-list">
         <h2 id="vcs-list">{t('page.integrations.whereTheyComeFrom')}</h2>
-        {integrations.isLoading ? <Loading what={t('loading.integrations')} /> : null}
+        {integrations.isLoading ? <Loading what="loadingLine.integrations" /> : null}
         {integrations.error ? <ErrorNote error={integrations.error} /> : null}
         {integrations.data && !integrations.data.length ? <p className="note">{t('page.integrations.nowhereYetAddAnIntegration')}</p> : null}
         {integrations.data?.length ? (

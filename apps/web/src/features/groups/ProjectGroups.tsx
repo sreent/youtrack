@@ -160,7 +160,7 @@ export function ProjectGroups({ project }: { project: Project }) {
     <div className="stack">
       <h3>{t('groups.projectGroups.groups')}</h3>
       <p className="note section-note">{t('groups.projectGroups.everyoneInAGroupListed')}</p>
-      {rows.isLoading ? <Loading what={t('groups.projectGroups.itsGroups')} /> : null}
+      {rows.isLoading ? <Loading what="loadingLine.projectGroups" /> : null}
       {rows.error ? <ErrorNote error={rows.error} /> : null}
       {rows.data && !list.length ? <p className="note">{t('groups.projectGroups.noGroupHasARole')}</p> : null}
       {list.length ? (

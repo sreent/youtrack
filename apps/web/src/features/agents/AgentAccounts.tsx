@@ -287,7 +287,7 @@ export function AgentAccounts() {
         </div>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </form>
-      {agents.isLoading ? <Loading what={t('agents.agentAccounts.theAgents')} /> : null}
+      {agents.isLoading ? <Loading what="loadingLine.agents" /> : null}
       {agents.error ? <ErrorNote error={agents.error} /> : null}
       {agents.data && !agents.data.length ? <p className="note">{tx('agents.agentAccounts.noAgentsOfTheirOwn')}</p> : null}
       {agents.data?.length ? (

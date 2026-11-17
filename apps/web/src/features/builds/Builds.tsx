@@ -224,7 +224,7 @@ export function BuildSources({ integrations }: { integrations: VcsIntegration[] 
       <section className="card" aria-labelledby="build-sources">
         <h2 id="build-sources">{t('builds.builds.builds')}</h2>
         <p className="note section-note">{t('builds.builds.aBuildThatPassesGoes')}</p>
-        {sources.isLoading ? <Loading what={t('loading.buildSources')} /> : null}
+        {sources.isLoading ? <Loading what="loadingLine.buildSources" /> : null}
         {sources.error ? <ErrorNote error={sources.error} /> : null}
         {sources.data && !sources.data.length ? <p className="note">{t('builds.builds.noBuildsComeInYet')}</p> : null}
         {sources.data?.length ? (
@@ -244,7 +244,7 @@ export function BuildSources({ integrations }: { integrations: VcsIntegration[] 
 /** A project's builds, newest first, with what each did to the issues its commits name. */
 export function BuildList({ project }: { project: string }) {
   const list = useProjectBuilds(project);
-  if (list.isLoading) return <Loading what={t('builds.builds.itsBuilds')} />;
+  if (list.isLoading) return <Loading what="loadingLine.projectBuilds" />;
   if (list.error) return <ErrorNote error={list.error} />;
   if (!list.data?.length) return <p className="note">{t('builds.builds.noBuildsYetAnAdministrator')}</p>;
   return (

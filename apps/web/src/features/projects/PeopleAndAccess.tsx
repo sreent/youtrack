@@ -279,7 +279,7 @@ export function PeopleAndAccess({ project }: { project: Project }) {
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
       <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) })).join('; ') })}</p>
-      {members.isLoading ? <Loading what={t('projects.peopleAndAccess.itsPeople')} /> : null}
+      {members.isLoading ? <Loading what="loadingLine.projectPeople" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (
         <p className="note">

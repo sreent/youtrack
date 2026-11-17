@@ -82,7 +82,7 @@ export default function BoardPage() {
     </>
   );
 
-  if (view.isLoading) return <Loading what={t('page.board.theBoard')} />;
+  if (view.isLoading) return <Loading what="loadingLine.board" />;
   if (view.error || !v) {
     return (
       <>

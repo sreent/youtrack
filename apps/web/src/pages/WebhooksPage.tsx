@@ -67,7 +67,7 @@ const genuine = given.length === expected.length &&
 
 function Deliveries({ hook }: { hook: Webhook }) {
   const deliveries = useDeliveries(hook.id, true);
-  if (deliveries.isLoading) return <Loading what={t('page.webhooks.itsDeliveries')} />;
+  if (deliveries.isLoading) return <Loading what="loadingLine.webhookDeliveries" />;
   if (deliveries.error) return <ErrorNote error={deliveries.error} />;
   if (!deliveries.data?.length) return <p className="note">{t('page.webhooks.nothingSentYetSendA')}</p>;
   return (
@@ -306,7 +306,7 @@ export default function WebhooksPage() {
       />
       <section className="card" aria-labelledby="hooks">
         <h2 id="hooks">{t('page.webhooks.whereItSends')}</h2>
-        {hooks.isLoading ? <Loading what={t('loading.webhooks')} /> : null}
+        {hooks.isLoading ? <Loading what="loadingLine.webhooks" /> : null}
         {hooks.error ? <ErrorNote error={hooks.error} /> : null}
         {hooks.data && !hooks.data.length ? <p className="note">{t('page.webhooks.nowhereYetAddAWebhook')}</p> : null}
         {hooks.data?.length ? (

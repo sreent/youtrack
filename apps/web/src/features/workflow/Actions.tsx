@@ -168,7 +168,7 @@ export function Actions({ project, projectName, manages, isAdmin }: { project: s
         <h2 id="actions-title">{tr('workflow.actions.actionsIn', { projectName: projectName })}</h2>
         <span className="note">{t('workflow.actions.eachIsAButtonOn')}</span>
       </div>
-      {actions.isLoading ? <Loading what={t('workflow.actions.itsActions')} /> : null}
+      {actions.isLoading ? <Loading what="loadingLine.actions" /> : null}
       {actions.error ? <ErrorNote error={actions.error} /> : null}
       {actions.data && !actions.data.length ? <p className="note">{t('workflow.actions.noActionsYet')}</p> : null}
       {actions.data?.length ? (

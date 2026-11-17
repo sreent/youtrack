@@ -109,7 +109,7 @@ export default function IssuesPage() {
       <div className="stack">
         <QueryBar value={query} onSubmit={search} found={issues.isFetching && !issues.isPlaceholderData ? null : total} project={project} aiEnabled={Boolean(ai.data?.enabled)} />
         <SavedSearches query={query} onPick={search} />
-        {issues.isLoading ? <Loading what={t('loading.issues')} /> : null}
+        {issues.isLoading ? <Loading what="loadingLine.issues" /> : null}
         {issues.error && !badQuery ? <ErrorNote error={issues.error} /> : null}
         {items && items.length === 0 ? (
           <p className="note">{query ? t('page.issues.nothingMatchesThisSearch') : t('page.issues.thereAreNoIssuesYet')}</p>

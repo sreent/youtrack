@@ -76,7 +76,7 @@ export function GroupsSection() {
         </span>
       </div>
       <p className="note section-note">{t('groups.groupsSection.aProjectCanGiveA')}</p>
-      {groups.isLoading ? <Loading what={t('loading.groups')} /> : null}
+      {groups.isLoading ? <Loading what="loadingLine.groups" /> : null}
       {groups.error ? <ErrorNote error={groups.error} /> : null}
       {groups.data && !list.length ? <p className="note">{t('groups.groupsSection.noGroupsYet')}</p> : null}
       {list.length ? (

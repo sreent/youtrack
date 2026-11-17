@@ -163,7 +163,7 @@ function Everywhere() {
   const subs = useChatSubscriptions();
   // Said here, not in the table: stopping the last subscription takes the table away.
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
-  if (subs.isLoading) return <Loading what={tx('loading.subscriptions')} />;
+  if (subs.isLoading) return <Loading what="loadingLine.subscriptions" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   return (
     <div className="stack">
@@ -186,7 +186,7 @@ export default function ChatPage() {
         title={tx('page.chat.chat')}
         about={tx('page.chat.microsoftTeamsAndSlackChannels')}
       />
-      {status.isLoading ? <Loading what={tx('loading.chat')} /> : null}
+      {status.isLoading ? <Loading what="loadingLine.chat" /> : null}
       {status.error ? <ErrorNote error={status.error} /> : null}
       {status.data ? (
         <>

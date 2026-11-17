@@ -225,7 +225,7 @@ function Password({ me }: { me: Me }) {
 export default function ProfilePage() {
   const me = useMe();
   const status = useSetupStatus();
-  if (!me.data) return <Loading what={t('page.profile.yourProfile2')} />;
+  if (!me.data) return <Loading what="loadingLine.profile" />;
   const m = me.data;
   const sso = status.data?.signIn.sso ?? status.data?.signIn.saml ?? null;
   const passwords = status.data?.signIn.password ?? true;

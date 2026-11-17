@@ -154,7 +154,7 @@ export function RolesSection() {
         </span>
       </div>
       <p className="note section-note">{t('roles.rolesSection.aRoleIsASet')}</p>
-      {roles.isLoading ? <Loading what={t('loading.roles')} /> : null}
+      {roles.isLoading ? <Loading what="loadingLine.roles" /> : null}
       {roles.error ? <ErrorNote error={roles.error} /> : null}
       {list.length ? (
         <Scroll label={t('roles.rolesSection.tableOfRoles')}>

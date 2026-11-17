@@ -351,7 +351,7 @@ export default function SprintPlanningPage() {
       <span className="sep" aria-hidden="true">/</span>
     </>
   );
-  if (view.isLoading) return <Loading what={t('page.sprintPlanning.theBoard')} />;
+  if (view.isLoading) return <Loading what="loadingLine.board" />;
   if (view.error || !v) {
     return (
       <>
@@ -377,7 +377,7 @@ export default function SprintPlanningPage() {
             ) : null}
           </div>
           {backlog.error ? <ErrorNote error={backlog.error} /> : null}
-          {backlog.data ? <BacklogList board={v.board} backlog={backlog.data} target={sprint} onMoved={setSaid} /> : <Loading what={t('page.sprintPlanning.theBacklog')} />}
+          {backlog.data ? <BacklogList board={v.board} backlog={backlog.data} target={sprint} onMoved={setSaid} /> : <Loading what="loadingLine.backlog" />}
         </section>
           <section className="card stack" aria-labelledby="sprint-load">
             <div className="section-head">

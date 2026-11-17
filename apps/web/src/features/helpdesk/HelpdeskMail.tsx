@@ -48,7 +48,7 @@ function Secret({ made, onKept }: { made: HelpdeskMailSecret; onKept: () => void
 
 function Log({ projectKey }: { projectKey: string }) {
   const log = useQuery({ queryKey: mailKeys.log(projectKey), queryFn: () => get<HelpdeskInbound[]>(`/projects/${projectKey}/helpdesk/mail/log`), refetchInterval: 30_000 });
-  if (log.isLoading) return <Loading what={t('helpdesk.helpdeskMail.whatCameIn2')} />;
+  if (log.isLoading) return <Loading what="loadingLine.mailIn" />;
   if (log.error) return <ErrorNote error={log.error} />;
   if (!log.data?.length) return <p className="note">{t('helpdesk.helpdeskMail.nothingHasComeInYet')}</p>;
   return (
@@ -125,7 +125,7 @@ export function HelpdeskMail({ project }: { project: Project }) {
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
 
-  if (mail.isLoading) return <Loading what={t('helpdesk.helpdeskMail.itsMail')} />;
+  if (mail.isLoading) return <Loading what="loadingLine.deskMail" />;
   if (mail.error || !mail.data) return <ErrorNote error={mail.error} />;
   const m = mail.data;
   const dirty = address.trim() !== saved;

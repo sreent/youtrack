@@ -285,7 +285,7 @@ export default function AgentsPage() {
               <span className="note">{tx('page.agents.eachActsAsYouNever')}</span>
             </div>
             <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-            {tokens.isLoading ? <Loading what={t('page.agents.yourTokens2')} /> : null}
+            {tokens.isLoading ? <Loading what="loadingLine.yourTokens" /> : null}
             {tokens.error ? <ErrorNote error={tokens.error} /> : null}
             {tokens.data && !tokens.data.length ? <p className="note">{tx('page.agents.youHaveNoTokensYet')}</p> : null}
             {tokens.data?.length ? (
@@ -371,7 +371,7 @@ export default function AgentsPage() {
               />
             </div>
             <p className="note section-note">{tx('page.agents.theSameToolsTheAssistant')}</p>
-            {tools.isLoading ? <Loading what={t('page.agents.theTools')} /> : null}
+            {tools.isLoading ? <Loading what="loadingLine.tools" /> : null}
             {tools.error ? <ErrorNote error={tools.error} /> : null}
             {tools.data ? (
               <>

@@ -120,7 +120,7 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
                 <label className="approval-pick">{tr('page.oAuthConsent.onlyThese', { el: <input type="radio" name={whereId} checked={!every} disabled={busy} onChange={() => setEvery(false)} /> })}</label>
                 {!every ? (
                   projects.isLoading ? (
-                    <Loading what={t('page.oAuthConsent.yourProjects')} />
+                    <Loading what="loadingLine.yourProjects" />
                   ) : (
                     (projects.data ?? []).map((p) => (
                       <label key={p.key} className="approval-pick">
@@ -229,7 +229,7 @@ export default function OAuthConsentPage() {
   if (!me.data || !data) {
     return (
       <Lone>
-        <Loading what={t('page.oAuthConsent.theAppSRequest')} />
+        <Loading what="loadingLine.appRequest" />
       </Lone>
     );
   }

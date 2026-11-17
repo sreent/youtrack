@@ -98,7 +98,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   if (q.error) return <ErrorNote error={q.error} />;
-  if (!q.data) return <Loading what={t('page.portal.theRequest')} />;
+  if (!q.data) return <Loading what="loadingLine.request" />;
   const r = q.data;
   const reply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,7 +256,7 @@ export default function PortalPage() {
               ))}
             </ul>
           ) : list.isLoading ? (
-            <Loading what={t('page.portal.yourRequests2')} />
+            <Loading what="loadingLine.yourRequests" />
           ) : (
             <p className="note">{t('page.portal.noRequestsYet')}</p>
           )}
@@ -283,7 +283,7 @@ export default function PortalPage() {
 function Loone() {
   return (
     <Lone>
-      <Loading what={t('page.portal.yourRequests2')} />
+      <Loading what="loadingLine.yourRequests" />
     </Lone>
   );
 }

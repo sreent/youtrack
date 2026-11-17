@@ -39,7 +39,7 @@ export function ProjectSubscription({ project }: { project: Pick<Project, 'key' 
   const [choice, setChoice] = useState<Choice | null>(null);
   const [email, setEmail] = useState<boolean | null>(null);
   const name = useId();
-  if (subs.isLoading) return <Loading what={t('notifications.subscriptions.yourSubscription')} />;
+  if (subs.isLoading) return <Loading what="loadingLine.yourSubscription" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   const mine = subs.data.find((s) => s.project?.key === project.key);
   const current: Choice = choice ?? mine?.events ?? 'none';
@@ -240,7 +240,7 @@ export function SubscriptionList() {
   const update = useUpdateSubscription();
   const end = useSubscribe();
   const [said, setSaid] = useSaid();
-  if (subs.isLoading) return <Loading what={t('notifications.subscriptions.yourSubscriptions')} />;
+  if (subs.isLoading) return <Loading what="loadingLine.yourSubscriptions" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   if (!subs.data.length) {
     return (

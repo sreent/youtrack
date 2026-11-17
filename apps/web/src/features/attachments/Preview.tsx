@@ -42,7 +42,7 @@ function TextPreview({ file, id }: { file: Attachment; id: string }) {
   if (part.isLoading) {
     return (
       <div className="attachment-preview" id={id}>
-        <Loading what={file.name} />
+        <Loading named={file.name} />
       </div>
     );
   }

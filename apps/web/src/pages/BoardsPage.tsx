@@ -15,7 +15,7 @@ export default function BoardsPage() {
   return (
     <>
       <PageHead title={t('page.boards.boards')} about={t('page.boards.eachBoardShowsAProject')} />
-      {boards.isLoading ? <Loading what={t('loading.boards')} /> : null}
+      {boards.isLoading ? <Loading what="loadingLine.boards" /> : null}
       {boards.error ? <ErrorNote error={boards.error} /> : null}
       {boards.data && boards.data.length === 0 ? (
         <Empty title={t('page.boards.noBoardsYet')}>{tr('page.boards.aBoardShowsAProject', { code: <code>POST /api/v1/boards</code> })}</Empty>

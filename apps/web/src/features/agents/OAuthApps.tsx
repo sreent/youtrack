@@ -55,7 +55,7 @@ export function AllowedApps() {
         <span className="note">{t('agents.oAuthApps.eachSignedInAsYou')}</span>
       </div>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-      {grants.isLoading ? <Loading what={t('agents.oAuthApps.yourApps')} /> : null}
+      {grants.isLoading ? <Loading what="loadingLine.yourApps" /> : null}
       {grants.error ? <ErrorNote error={grants.error} /> : null}
       {grants.data && !grants.data.length ? (
         <p className="note">{t('agents.oAuthApps.noAppHasSignedIn')}</p>

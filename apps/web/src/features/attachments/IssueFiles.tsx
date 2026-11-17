@@ -13,7 +13,7 @@ export function IssueFiles({ issue, me, canEdit }: { issue: IssueDetail; me: Me 
   const files = useIssueAttachments(issue.id);
   const limits = useAttachmentLimits();
   const mayWrite = Boolean(me?.auth.scopes.includes('write'));
-  if (files.isLoading) return <Loading what={t('loading.files')} />;
+  if (files.isLoading) return <Loading what="loadingLine.files" />;
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList

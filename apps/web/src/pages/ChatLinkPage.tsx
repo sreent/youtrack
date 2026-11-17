@@ -22,7 +22,7 @@ export default function ChatLinkPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: chatKeys.accounts }),
   });
   if (!token) return <PageHead title={t('page.chatLink.linkAChatAccount')} about={t('page.chatLink.thisPageTakesALink')} />;
-  if (link.isLoading) return <Loading what={t('page.chatLink.theLink')} />;
+  if (link.isLoading) return <Loading what="loadingLine.link" />;
   if (link.error || !link.data) {
     return (
       <>

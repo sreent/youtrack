@@ -45,7 +45,7 @@ export function ProvisioningSection() {
       </div>
       <p className="note section-note">{tx('identity.provisioning.anIdentityProviderSuchAs')}</p>
       <div className="stack">
-      {tokens.isLoading ? <Loading what={tx('identity.provisioning.scimTokens')} /> : null}
+      {tokens.isLoading ? <Loading what="loadingLine.scimTokens" /> : null}
       {tokens.error ? <ErrorNote error={tokens.error} /> : null}
       {tokens.data?.length ? (
         <ul className="plain" aria-label={tx('identity.provisioning.scimTokens')}>

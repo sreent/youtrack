@@ -145,7 +145,7 @@ export default function ProjectsPage() {
         title={t('page.projects.projects')}
         about={t('page.projects.eachProjectHasAKey')}
       />
-      {projects.isLoading ? <Loading what={t('loading.projects')} /> : null}
+      {projects.isLoading ? <Loading what="loadingLine.projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data ? (
         <section className="card figures-card" aria-label={t('page.projects.projects')}>

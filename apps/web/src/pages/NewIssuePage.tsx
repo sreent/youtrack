@@ -194,7 +194,7 @@ export default function NewIssuePage() {
     }
   };
 
-  if (projects.isLoading) return <Loading what={t('loading.projects')} />;
+  if (projects.isLoading) return <Loading what="loadingLine.projects" />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const triageOn = ai.data?.enabled;
 

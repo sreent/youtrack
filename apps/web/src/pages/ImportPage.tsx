@@ -378,7 +378,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                 <p className="note">{tr('page.import.fileRowsColumns', { fileName: imp.fileName, v: SOURCES[imp.source], rows: imp.rows, columns: imp.columns.length })}</p>
               )}
             </div>
-            {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what={t('page.import.theProjectSFields')} />}
+            {fields.data ? <ColumnsTable imp={imp} fields={fields.data} phrases={phrases} onTarget={(i, t) => change({ columns: { [String(i)]: t } })} /> : <Loading what="loadingLine.projectFields" />}
           </section>
           {imp.values.map((map) => (
             <section key={map.target} className="card stack" aria-labelledby={`values-${map.target}`}>
@@ -497,7 +497,7 @@ export default function ImportPage() {
       />
       <div className="stack">
         {!id ? <Upload /> : null}
-        {id && imp.isLoading ? <Loading what={t('page.import.theImport')} /> : null}
+        {id && imp.isLoading ? <Loading what="loadingLine.import" /> : null}
         {id && imp.error ? <ErrorNote error={imp.error} /> : null}
         {imp.data ? <ImportSteps imp={imp.data} /> : null}
       </div>
