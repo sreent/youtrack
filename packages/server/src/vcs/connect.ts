@@ -46,9 +46,9 @@ export function callbackUrl(app: AppServices, provider: CodeHost): string {
 }
 
 function appFor(app: AppServices, provider: string): { provider: CodeHost; host: CodeHostApp } {
-  if (!(CODE_HOSTS as readonly string[]).includes(provider)) throw notFound(`Code host ${provider}`, `a4a connects accounts at ${CODE_HOSTS.join(', ')}.`);
+  if (!(CODE_HOSTS as readonly string[]).includes(provider)) throw notFound(`Code host ${provider}`, `a4a connects accounts at ${CODE_HOSTS.join(', ')}.`).said('vcs.unknownCodeHost', { host: provider, hosts: CODE_HOSTS.join(', ') });
   const host = app.config.codeHosts[provider as CodeHost];
-  if (!host) throw badRequest(`Connecting an account at ${CODE_HOST_NAMES[provider as CodeHost]} isn't set up here`, `An administrator gives a4a an OAuth app there (${provider.toUpperCase()}_CLIENT_ID and _SECRET).`);
+  if (!host) throw badRequest(`Connecting an account at ${CODE_HOST_NAMES[provider as CodeHost]} isn't set up here`, `An administrator gives a4a an OAuth app there (${provider.toUpperCase()}_CLIENT_ID and _SECRET).`).said('vcs.connectNotSetUp', { host: CODE_HOST_NAMES[provider as CodeHost], prefix: provider.toUpperCase() });
   return { provider: provider as CodeHost, host };
 }
 
@@ -68,7 +68,7 @@ const b64url = (b: Buffer) => b.toString('base64url');
 /** Start connecting: the provider's page to sign in at, with a state only this person's round trip carries. */
 export async function startConnect(ctx: Ctx, provider: string): Promise<{ url: string }> {
   requireScope(ctx, 'write');
-  if (ctx.actor.channel !== 'web') throw badRequest('Connect an account from your profile, signed in', 'It takes your browser, to sign in at the provider.');
+  if (ctx.actor.channel !== 'web') throw badRequest('Connect an account from your profile, signed in', 'It takes your browser, to sign in at the provider.').said('vcs.connectFromProfile');
   const { host, provider: p } = appFor(ctx.app, provider);
   const state = b64url(randomBytes(24));
   const verifier = b64url(randomBytes(32));
@@ -199,6 +199,6 @@ export async function finishConnect(app: AppServices, ctx: Ctx | null, provider:
   }
   const mine = await listProviderLogins(ctx, row.userId);
   const made = mine.find((l) => l.provider === p && loginKey(p, l.login) === matchKey);
-  if (!made) throw new AppError(500, 'internal', 'The account was connected, and then not found');
+  if (!made) throw new AppError(500, 'internal', 'The account was connected, and then not found').said('vcs.connectedThenGone');
   return made;
 }

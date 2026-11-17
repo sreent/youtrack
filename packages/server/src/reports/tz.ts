@@ -17,7 +17,7 @@ export function timeZoneOrThrow(tz?: string | null): string {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: zone });
   } catch {
-    throw badRequest(`Unknown time zone "${tz}"`, 'Use an IANA name such as Europe/Berlin, America/New_York or UTC.');
+    throw badRequest(`Unknown time zone "${tz}"`, 'Use an IANA name such as Europe/Berlin, America/New_York or UTC.').said('reports.unknownTimeZone', { zone: String(tz) });
   }
   return zone;
 }

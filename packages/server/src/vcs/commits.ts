@@ -26,12 +26,12 @@ export function checkBaseUrl(raw: string, at: { name: string; example: string } 
   try {
     url = new URL(raw.trim());
   } catch {
-    throw badRequest('That isn’t an address', `Give ${at.name}’s address, e.g. ${at.example}`);
+    throw badRequest('That isn’t an address', `Give ${at.name}’s address, e.g. ${at.example}`).said('vcs.notAnAddress', { host: at.name, example: at.example });
   }
   const loopbackHttp = url.protocol === 'http:' && LOOPBACK.has(url.hostname) && underTest();
-  if (url.protocol !== 'https:' && !loopbackHttp) throw badRequest(`${at.name}’s address must be https`, `e.g. https://${url.host || new URL(at.example).host}`);
-  if (url.username || url.password) throw badRequest('Give the address without a name or password in it', 'The access token is how a4a signs in.');
-  if (url.search || url.hash) throw badRequest('Give the address alone, without ? or #', `e.g. ${url.origin}${url.pathname.replace(/\/+$/, '')}`);
+  if (url.protocol !== 'https:' && !loopbackHttp) throw badRequest(`${at.name}’s address must be https`, `e.g. https://${url.host || new URL(at.example).host}`).said('vcs.httpsOnly', { host: at.name, example: url.host || new URL(at.example).host });
+  if (url.username || url.password) throw badRequest('Give the address without a name or password in it', 'The access token is how a4a signs in.').said('vcs.noCredentialsInAddress');
+  if (url.search || url.hash) throw badRequest('Give the address alone, without ? or #', `e.g. ${url.origin}${url.pathname.replace(/\/+$/, '')}`).said('vcs.addressAlone', { origin: url.origin, path: url.pathname.replace(/\/+$/, '') });
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 

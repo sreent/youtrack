@@ -42,7 +42,7 @@ import { buildIssues, buildSources, builds, issues, vcsIntegrations, vcsLinks } 
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { RateLimiter } from '../http/middleware';
 import { randomToken, sha256 } from '../lib/crypto';
-import { AppError, badRequest, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { requireProject, seenIssueIds } from '../services/access';
@@ -133,17 +133,17 @@ async function fieldFor(ctx: Ctx, projectKey: string, projectId: string, named: 
   let s = await ctx.app.schema.get();
   if (named) {
     const f = s.fields.get(named) ?? fieldByName(s, named);
-    if (!f) throw notFound(`Field ${named}`, 'Name a build field, or leave it out for the project’s own.');
-    if (f.type !== 'build') throw badRequest(`${f.name} is a ${f.type} field, not a build field`, 'A build goes in a build field: make one under Fields, or leave it out and a4a makes "Fixed in build".');
+    if (!f) throw notFound(`Field ${named}`, 'Name a build field, or leave it out for the project’s own.').said('ci.fieldNotFound', { field: named });
+    if (f.type !== 'build') throw badRequest(`${f.name} is a ${f.type} field, not a build field`, 'A build goes in a build field: make one under Fields, or leave it out and a4a makes "Fixed in build".').said('ci.notABuildField', { field: f.name, type: f.type });
     if (!buildFieldOf(s, projectId, f.id)) await attachField(ctx, projectKey, f.id, {});
     return f.id;
   }
   const own = buildFieldOf(s, projectId, null);
   if (own) return null;
   const attached = (s.projectFields.get(projectId) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f) => f?.type === 'build');
-  if (attached.length > 1) throw badRequest(`${projectKey} has ${attached.length} build fields`, `Say which one its builds go in: ${attached.map((f) => f!.name).join(', ')}.`);
+  if (attached.length > 1) throw badRequest(`${projectKey} has ${attached.length} build fields`, `Say which one its builds go in: ${attached.map((f) => f!.name).join(', ')}.`).said('ci.manyBuildFields', { project: projectKey, count: attached.length, fields: attached.map((f) => f!.name).join(', ') });
   let made = fieldByName(s, FIXED_IN_BUILD);
-  if (made && made.type !== 'build') throw badRequest(`"${FIXED_IN_BUILD}" is a ${made.type} field here`, 'Name a build field for the builds to go in.');
+  if (made && made.type !== 'build') throw badRequest(`"${FIXED_IN_BUILD}" is a ${made.type} field here`, 'Name a build field for the builds to go in.').said('ci.fixedInBuildTaken', { field: FIXED_IN_BUILD, type: made.type });
   if (!made) {
     await createField(ctx, { name: FIXED_IN_BUILD, type: 'build', multi: false, description: 'The build the fix first went out in: CI sets it on the resolved issues its commits name (D46).', values: [] });
     s = await ctx.app.schema.get();
@@ -155,7 +155,7 @@ async function fieldFor(ctx: Ctx, projectKey: string, projectId: string, named: 
 
 async function loadSource(db: Db, id: string): Promise<SourceRow> {
   const [row] = await db.select().from(buildSources).where(eq(buildSources.id, id));
-  if (!row) throw notFound('Build source');
+  if (!row) throw notFound('Build source').said('ci.sourceNotFound');
   return row;
 }
 
@@ -177,13 +177,13 @@ export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSou
   const project = await requireProject(ctx, body.project, 'manage');
   let integrationId: string | null = null;
   if (body.kind === 'github') {
-    if (!body.integration) throw badRequest('Say which GitHub integration’s workflow runs are builds', 'Add a GitHub integration first, then give its id.');
+    if (!body.integration) throw badRequest('Say which GitHub integration’s workflow runs are builds', 'Add a GitHub integration first, then give its id.').said('ci.githubIntegrationNeeded');
     const [i] = await ctx.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, body.integration));
-    if (!i) throw notFound('Integration');
-    if (i.provider !== 'github') throw badRequest(`${i.name} isn't a GitHub integration`, 'Workflow runs come from GitHub Actions; any other CI posts its builds with a token: choose "Any CI".');
+    if (!i) throw notFound('Integration').said('ci.integrationNotFound');
+    if (i.provider !== 'github') throw badRequest(`${i.name} isn't a GitHub integration`, 'Workflow runs come from GitHub Actions; any other CI posts its builds with a token: choose "Any CI".').said('ci.notGithub', { integration: i.name });
     integrationId = i.id;
   } else if (body.integration || body.branch || body.workflow) {
-    throw badRequest('A CI that posts its builds takes no integration, branch or workflow', 'It says which build it is, and its branch, as it posts each one.');
+    throw badRequest('A CI that posts its builds takes no integration, branch or workflow', 'It says which build it is, and its branch, as it posts each one.').said('ci.postingTakesNoSource');
   }
   const fieldId = await fieldFor(ctx, project.key, project.id, body.field);
   const minted = body.kind === 'generic' ? tokenFor() : null;
@@ -216,7 +216,7 @@ export async function updateBuildSource(
   const row = await loadSource(ctx.db, id);
   const s = await ctx.app.schema.get();
   const key = s.projects.get(row.projectId)?.key ?? '';
-  if (row.kind === 'generic' && (input.branch || input.workflow)) throw badRequest('A CI that posts its builds takes no branch or workflow', 'It says its branch as it posts each build.');
+  if (row.kind === 'generic' && (input.branch || input.workflow)) throw badRequest('A CI that posts its builds takes no branch or workflow', 'It says its branch as it posts each build.').said('ci.postingTakesNoBranch');
   const fieldId = input.field !== undefined ? await fieldFor(ctx, key, row.projectId, input.field) : undefined;
   const [updated] = await ctx.db
     .update(buildSources)
@@ -242,7 +242,7 @@ export async function deleteBuildSource(ctx: Ctx, id: string): Promise<void> {
 export async function rotateBuildToken(ctx: Ctx, id: string): Promise<BuildSourceCreated> {
   requireScope(ctx, 'admin');
   const row = await loadSource(ctx.db, id);
-  if (row.kind !== 'generic') throw badRequest('Its builds come signed by its GitHub integration', 'Give the integration a new secret instead.');
+  if (row.kind !== 'generic') throw badRequest('Its builds come signed by its GitHub integration', 'Give the integration a new secret instead.').said('ci.signedByIntegration');
   const minted = tokenFor();
   const [updated] = await ctx.db.update(buildSources).set({ tokenHash: minted.hash, tokenPrefix: minted.prefix }).where(eq(buildSources.id, row.id)).returning();
   return { ...(await sourceDto(ctx.app, await ctx.app.schema.get(), updated!)), token: minted.token };
@@ -309,7 +309,7 @@ async function issuesNamed(db: Db, s: SchemaSnapshot, projectId: string, facts: 
 export async function recordBuild(app: AppServices, source: SourceRow, facts: BuildFacts): Promise<Recorded> {
   const s = await app.schema.get();
   const project = s.projects.get(source.projectId);
-  if (!project) throw notFound('Project');
+  if (!project) throw notFound('Project').said('ci.projectNotFound');
   const ctx = ciCtx(app, s, source);
   const field = buildFieldOf(s, source.projectId, source.fieldId);
   const shas = [...new Set(facts.commits.map((c) => c.sha?.toLowerCase()).filter((x): x is string => Boolean(x)))].slice(0, MAX_BUILD_COMMITS);
@@ -589,16 +589,16 @@ function sameToken(given: string, hash: string | null): boolean {
 
 /** A range of commits, asked of GitHub with the token of an integration that has seen the repository. */
 async function rangeCommits(app: AppServices, repository: string | undefined, range: { from: string; to: string }): Promise<CommitSeen[]> {
-  if (!repository) throw badRequest('A range needs its repository', 'Give "repository": "owner/name", or send the commits themselves.');
+  if (!repository) throw badRequest('A range needs its repository', 'Give "repository": "owner/name", or send the commits themselves.').said('ci.rangeNeedsRepository');
   const github = await app.db.select().from(vcsIntegrations).where(and(eq(vcsIntegrations.provider, 'github'), isNotNull(vcsIntegrations.accessToken)));
   const used = new Set(
     (await app.db.selectDistinct({ id: vcsLinks.integrationId }).from(vcsLinks).where(eq(vcsLinks.repository, repository))).map((r) => r.id).filter(Boolean),
   );
   const integration = github.find((i) => used.has(i.id) || i.name.toLowerCase() === repository.toLowerCase());
   const hint = 'Send the commits instead: their shas and messages, as git log prints them between the last build and this one.';
-  if (!integration) throw badRequest(`No GitHub integration of ${repository} has an access token, so a4a can't read the range`, hint);
+  if (!integration) throw badRequest(`No GitHub integration of ${repository} has an access token, so a4a can't read the range`, hint).said('ci.rangeNoToken', { repository });
   const got = await compare(app, integration, repository, range.from, range.to);
-  if ('problem' in got) throw badRequest(`a4a couldn't read the range from GitHub: ${got.problem}`, hint);
+  if ('problem' in got) throw badRequest(`a4a couldn't read the range from GitHub: ${got.problem}`, hint).said('ci.rangeUnreadable', { problem: asSentence(got.problem) });
   return got.commits;
 }
 

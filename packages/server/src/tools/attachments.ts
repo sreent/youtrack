@@ -58,9 +58,11 @@ const AttachInput = z.object({
 
 function contentOf(input: z.infer<typeof AttachInput>): Buffer {
   if ((input.text === undefined) === (input.base64 === undefined)) {
+    // api only: an MCP tool's, met by agents alone
     throw badRequest('Send the content as text or as base64, one of the two', 'text for a text file; base64 for anything else.');
   }
   if (input.base64 !== undefined && !/^[A-Za-z0-9+/=\s_-]*$/.test(input.base64)) {
+    // api only: an MCP tool's, met by agents alone
     throw badRequest('base64 holds characters base64 never has', 'Encode the file with standard base64.');
   }
   const bytes = input.text !== undefined ? Buffer.from(input.text, 'utf8') : Buffer.from(input.base64!, 'base64');
@@ -75,6 +77,7 @@ function contentOf(input: z.infer<typeof AttachInput>): Buffer {
 
 async function targetOf(ctx: Ctx, input: z.infer<typeof AttachInput>): Promise<UploadTarget> {
   if (parseArticleId(input.to)) {
+    // api only: an MCP tool's, met by agents alone
     if (input.comment) throw badRequest('Articles have no comments', 'Leave out comment to attach the file to the article.');
     return articleUploadTarget(ctx, input.to);
   }
@@ -83,6 +86,7 @@ async function targetOf(ctx: Ctx, input: z.infer<typeof AttachInput>): Promise<U
   const issue = await resolveIssue(ctx, input.to);
   if (target.kind !== 'comment' || target.issue.id !== issue.id) {
     const s = await ctx.app.schema.get();
+    // api only: an MCP tool's, met by agents alone
     throw badRequest(`That comment is not on ${readableId(s, issue)}`, 'Use the id of a comment on the issue you name in "to".');
   }
   return target;

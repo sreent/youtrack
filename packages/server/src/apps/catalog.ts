@@ -15,7 +15,7 @@
  *   key a4a doesn't trust, is refused. A catalog that doesn't sign gives the digest alone.
  */
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
-import { AppError, badRequest } from '../lib/errors';
+import { AppError, asSentence, badRequest } from '../lib/errors';
 import { Remote, RemoteError, type RemotePolicy } from '../imports/remote';
 import type { Config } from '../config';
 import { sha256Hex } from './package';
@@ -67,14 +67,18 @@ function words(e: unknown): string {
 
 /** A catalog a4a was configured with, read (or remembered for five minutes). */
 export async function readCatalog(config: Config, url: string): Promise<Catalog> {
-  if (!config.appCatalogs.includes(url)) throw badRequest(`${url} isn't one of the catalogs this a4a reads`, `The catalogs are set in APP_CATALOGS${config.appCatalogs.length ? `: ${config.appCatalogs.join(', ')}` : ', and none is'}.`);
+  if (!config.appCatalogs.includes(url)) {
+    throw config.appCatalogs.length
+      ? badRequest(`${url} isn't one of the catalogs this a4a reads`, `The catalogs are set in APP_CATALOGS: ${config.appCatalogs.join(', ')}.`).said('apps.catalogUnknown', { url, catalogs: config.appCatalogs.join(', ') })
+      : badRequest(`${url} isn't one of the catalogs this a4a reads`, 'The catalogs are set in APP_CATALOGS, and none is.').said('apps.catalogUnknownNone', { url });
+  }
   const hit = cache.get(url);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.catalog;
   let raw: unknown;
   try {
     raw = await remoteFor(config, url).json<unknown>('');
   } catch (e) {
-    throw badRequest(`The catalog at ${url} can't be read: ${words(e)}`, 'Try again later, or ask whoever keeps it.');
+    throw badRequest(`The catalog at ${url} can't be read: ${words(e)}`, 'Try again later, or ask whoever keeps it.').said('apps.catalogUnreadable', { url, error: asSentence(words(e)) });
   }
   const catalog = catalogOf(url, raw);
   cache.set(url, { at: Date.now(), catalog });
@@ -83,7 +87,7 @@ export async function readCatalog(config: Config, url: string): Promise<Catalog>
 
 function catalogOf(url: string, raw: unknown): Catalog {
   const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
-  if (!o || !Array.isArray(o.apps)) throw badRequest(`The catalog at ${url} lists no apps`, 'A catalog is JSON with an "apps" list.');
+  if (!o || !Array.isArray(o.apps)) throw badRequest(`The catalog at ${url} lists no apps`, 'A catalog is JSON with an "apps" list.').said('apps.catalogEmpty', { url });
   const apps: CatalogEntry[] = [];
   for (const a of o.apps) {
     if (!a || typeof a !== 'object') continue;
@@ -127,19 +131,23 @@ export const signedText = (name: string, version: string, sha256: string) => Buf
 export function checkSignature(config: Config, catalog: Catalog, entry: CatalogEntry): string | null {
   if (!catalog.signed && !entry.signature) return null;
   const keys = trustedKeys(config);
-  if (!entry.signature) throw badRequest(`${entry.title} ${entry.version} isn't signed, and its catalog signs its apps`, 'Ask whoever keeps the catalog to sign it; a4a installs a signing catalog\'s apps only when signed.');
-  if (!keys.length) throw badRequest(`${entry.title} is signed, and this a4a trusts no key to check it with`, 'Add the catalog\'s public key to APP_TRUSTED_KEYS.');
+  if (!entry.signature) throw badRequest(`${entry.title} ${entry.version} isn't signed, and its catalog signs its apps`, 'Ask whoever keeps the catalog to sign it; a4a installs a signing catalog\'s apps only when signed.').said('apps.unsigned', { app: entry.title, version: entry.version });
+  if (!keys.length) throw badRequest(`${entry.title} is signed, and this a4a trusts no key to check it with`, 'Add the catalog\'s public key to APP_TRUSTED_KEYS.').said('apps.noTrustedKey', { app: entry.title });
   const sig = Buffer.from(entry.signature, 'base64');
   for (const k of keys) {
     if (verify(null, signedText(entry.name, entry.version, entry.sha256), k.key, sig)) return k.fingerprint;
   }
-  throw badRequest(`${entry.title} ${entry.version}'s signature isn't by a key this a4a trusts`, 'Install it only from a catalog you trust, signed with a key in APP_TRUSTED_KEYS.');
+  throw badRequest(`${entry.title} ${entry.version}'s signature isn't by a key this a4a trusts`, 'Install it only from a catalog you trust, signed with a key in APP_TRUSTED_KEYS.').said('apps.untrustedSignature', { app: entry.title, version: entry.version });
 }
 
 /** The entry for an app in a catalog: the version asked for, or its newest. */
 export function entryOf(catalog: Catalog, name: string, version?: string, newer?: (a: string, b: string) => boolean): CatalogEntry {
   const found = catalog.apps.filter((a) => a.name === name && (!version || a.version === version));
-  if (!found.length) throw badRequest(`${catalog.name} has no app ${name}${version ? ` at ${version}` : ''}`, 'Pick one the catalog lists.');
+  if (!found.length) {
+    throw version
+      ? badRequest(`${catalog.name} has no app ${name} at ${version}`, 'Pick one the catalog lists.').said('apps.noSuchVersion', { catalog: catalog.name, app: name, version })
+      : badRequest(`${catalog.name} has no app ${name}`, 'Pick one the catalog lists.').said('apps.noSuchApp', { catalog: catalog.name, app: name });
+  }
   return found.reduce((best, a) => (newer && newer(a.version, best.version) ? a : best));
 }
 
@@ -150,11 +158,11 @@ export async function downloadPackage(config: Config, catalog: Catalog, entry: C
   try {
     file = await remote.download(new URL(entry.url, catalog.url).href);
   } catch (e) {
-    throw badRequest(`${entry.title}'s package can't be downloaded: ${words(e)}`, 'Try again later, or ask whoever keeps the catalog.');
+    throw badRequest(`${entry.title}'s package can't be downloaded: ${words(e)}`, 'Try again later, or ask whoever keeps the catalog.').said('apps.downloadFailed', { app: entry.title, error: asSentence(words(e)) });
   }
   if (file.size !== null && file.size > config.appMaxBytes) {
     file.abort();
-    throw badRequest(`${entry.title}'s package is larger than this a4a takes`, 'Ask for APP_MAX_MB to be raised.');
+    throw badRequest(`${entry.title}'s package is larger than this a4a takes`, 'Ask for APP_MAX_MB to be raised.').said('apps.tooLarge', { app: entry.title });
   }
   const chunks: Buffer[] = [];
   let total = 0;
@@ -162,12 +170,12 @@ export async function downloadPackage(config: Config, catalog: Catalog, entry: C
     total += (chunk as Buffer).length;
     if (total > config.appMaxBytes) {
       file.abort();
-      throw badRequest(`${entry.title}'s package is larger than this a4a takes`, 'Ask for APP_MAX_MB to be raised.');
+      throw badRequest(`${entry.title}'s package is larger than this a4a takes`, 'Ask for APP_MAX_MB to be raised.').said('apps.tooLarge', { app: entry.title });
     }
     chunks.push(chunk as Buffer);
   }
   const bytes = Buffer.concat(chunks);
   // The digest first: nothing in a package that isn't the one the catalog names is read.
-  if (sha256Hex(bytes) !== entry.sha256) throw badRequest(`${entry.title}'s package isn't the one its catalog names: its SHA-256 differs`, 'It may have been changed on its way here, or the catalog is out of date: install nothing, and tell whoever keeps the catalog.');
+  if (sha256Hex(bytes) !== entry.sha256) throw badRequest(`${entry.title}'s package isn't the one its catalog names: its SHA-256 differs`, 'It may have been changed on its way here, or the catalog is out of date: install nothing, and tell whoever keeps the catalog.').said('apps.hashMismatch', { app: entry.title });
   return bytes;
 }

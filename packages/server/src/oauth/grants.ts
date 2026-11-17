@@ -49,7 +49,7 @@ export async function revokeGrant(ctx: Ctx, id: string): Promise<void> {
     .set({ revokedAt: now })
     .where(and(eq(oauthGrants.id, id), eq(oauthGrants.userId, ctx.actor.user.id), isNull(oauthGrants.revokedAt)))
     .returning({ id: oauthGrants.id });
-  if (!done.length) throw notFound('App');
+  if (!done.length) throw notFound('App').said('oauth.appNotFound');
   await ctx.db.update(oauthTokens).set({ revokedAt: now }).where(and(eq(oauthTokens.grantId, id), isNull(oauthTokens.revokedAt)));
 }
 

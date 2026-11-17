@@ -97,6 +97,7 @@ const previewRuleTool = defineTool({
         call: r.call ? { webhook: r.call.webhook } : null,
       };
     } else {
+      // api only: an MCP tool's, met by agents alone
       if (!input.kind) throw badRequest('Say which kind of rule it is: change, schedule or guard', 'Or pass rule, the id of a saved one (list_rules).');
       draft = {
         project: input.project ?? null,

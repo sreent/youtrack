@@ -185,6 +185,7 @@ const getReportTool = defineTool({
 });
 
 function needs(v: string | undefined, name: string): string {
+  // api only: an MCP tool's, met by agents alone
   if (!v?.trim()) throw badRequest(`This report needs ${name}`, name === 'by_field' ? 'Give by_field: the field across the columns, e.g. State.' : 'Give field: a field\'s name, e.g. Priority, or Project.');
   return v;
 }

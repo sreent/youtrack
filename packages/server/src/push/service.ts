@@ -151,15 +151,15 @@ function deviceDto(row: DeviceRow, endpoint?: string): PushDevice {
 export async function registerDevice(ctx: Ctx, sessionId: string | null, input: PushSubscriptionInput, userAgent?: string): Promise<PushDevice> {
   requirePersonal(ctx);
   const config = ctx.app.config.push;
-  if (!config.enabled) throw badRequest('This server sends no push notifications', 'An administrator can turn them on: PUSH, on unless "false".');
+  if (!config.enabled) throw badRequest('This server sends no push notifications', 'An administrator can turn them on: PUSH, on unless "false".').said('push.off');
   if (ctx.actor.authMethod !== 'session' || !sessionId) {
-    throw badRequest('Push notifications are for a browser you sign in on', 'Turn them on from your profile in a4a, in the browser on that device.');
+    throw badRequest('Push notifications are for a browser you sign in on', 'Turn them on from your profile in a4a, in the browser on that device.').said('push.browserOnly');
   }
   if (!pushEndpointAllowed(config, input.endpoint)) {
-    throw badRequest(`a4a doesn't send to ${hostOf(input.endpoint)}`, 'Push works in Chrome, Edge, Firefox and Safari. An administrator can add another push service to PUSH_HOSTS.');
+    throw badRequest(`a4a doesn't send to ${hostOf(input.endpoint)}`, 'Push works in Chrome, Edge, Firefox and Safari. An administrator can add another push service to PUSH_HOSTS.').said('push.unknownService', { host: hostOf(input.endpoint) });
   }
   if (!validPublicKey(input.keys.p256dh) || Buffer.from(input.keys.auth, 'base64url').length !== 16) {
-    throw badRequest("The browser's push keys aren't ones a4a can encrypt to", 'Turn push off and on again on this device.');
+    throw badRequest("The browser's push keys aren't ones a4a can encrypt to", 'Turn push off and on again on this device.').said('push.badKeys');
   }
   const label = deviceLabel(userAgent);
   const row = await ctx.db.transaction(async (tx) => {
@@ -193,7 +193,7 @@ export async function removeDevice(ctx: Ctx, id: string): Promise<void> {
     .delete(pushSubscriptions)
     .where(and(eq(pushSubscriptions.id, id), eq(pushSubscriptions.userId, ctx.actor.user.id)))
     .returning({ id: pushSubscriptions.id });
-  if (!gone.length) throw notFound('Device', 'List your devices with GET /push/devices.');
+  if (!gone.length) throw notFound('Device', 'List your devices with GET /push/devices.').said('push.deviceNotFound');
 }
 
 // ---------------------------------------------------------------------------
@@ -323,9 +323,9 @@ export async function deviceSignedIn(app: AppServices, device: DeviceRow): Promi
 /** A push to each of your devices now, to see they get them. */
 export async function sendTestPush(ctx: Ctx): Promise<PushTestResult> {
   requirePersonal(ctx);
-  if (!ctx.app.config.push.enabled) throw badRequest('This server sends no push notifications', 'An administrator can turn them on: PUSH, on unless "false".');
+  if (!ctx.app.config.push.enabled) throw badRequest('This server sends no push notifications', 'An administrator can turn them on: PUSH, on unless "false".').said('push.off');
   const devices = await ctx.db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, ctx.actor.user.id));
-  if (!devices.length) throw badRequest('Push is off on all your devices', 'Turn it on from your profile, on the device you want them on.');
+  if (!devices.length) throw badRequest('Push is off on all your devices', 'Turn it on from your profile, on the device you want them on.').said('push.offEverywhere');
   const result: PushTestResult = { sent: 0, failed: [], ended: 0 };
   for (const device of devices) {
     if (!(await deviceSignedIn(ctx.app, device))) {

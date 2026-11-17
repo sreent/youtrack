@@ -15,7 +15,7 @@
 import { createHash } from 'node:crypto';
 import { APP_EXTENSION_POINTS, APP_RESOURCES, APP_SETTING_TYPES, type AppExtensionPoint, type AppPermissions, type AppResource, type AppSettingDef } from '@a4a/shared';
 import { unzipSync, zipSync, type Unzipped } from 'fflate';
-import { badRequest } from '../lib/errors';
+import { asSentence, badRequest } from '../lib/errors';
 import { SCRIPT_LIMITS } from '../workflow/sandbox';
 
 export const PACKAGE_LIMITS = {
@@ -119,8 +119,12 @@ export function contentTypeOf(path: string): string | null {
   return TYPES[ext] ?? null;
 }
 
+/**
+ * What's wrong with a package, for whoever wrote the app: a page in another language frames it in
+ * its words, and says the problem itself as a4a wrote it, since the manifest's names are English (D49).
+ */
 const fix = (message: string, hint: string): never => {
-  throw badRequest(message, hint);
+  throw badRequest(message, hint).said('apps.packageProblem', { problem: asSentence(message), fix: asSentence(hint) });
 };
 
 /** Read a zip into its files, bounded: the files a4a takes, or why it takes none. */
@@ -144,7 +148,7 @@ export function unpack(bytes: Uint8Array, maxBytes: number): { files: AppFile[];
     });
   } catch (e) {
     if (e instanceof Error && 'status' in e) throw e;
-    throw badRequest(`The zip can't be read: ${e instanceof Error ? e.message : String(e)}`, 'Zip it again, with manifest.json at the root of the zip.');
+    throw badRequest(`The zip can't be read: ${e instanceof Error ? e.message : String(e)}`, 'Zip it again, with manifest.json at the root of the zip.').said('apps.zipUnreadable', { error: asSentence(e instanceof Error ? e.message : String(e)) });
   }
   const files: AppFile[] = [];
   let out = 0;

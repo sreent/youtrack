@@ -78,7 +78,7 @@ async function loadOwn(ctx: Ctx, id: string): Promise<ConversationRow> {
     .select()
     .from(aiConversations)
     .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, ctx.actor.user.id)));
-  if (!row) throw notFound('Conversation');
+  if (!row) throw notFound('Conversation').said('ai.conversationNotFound');
   return row;
 }
 
@@ -98,7 +98,7 @@ export async function createConversation(ctx: Ctx, input: { title?: string; proj
   requireScope(ctx, 'read');
   const s = await visibleSchema(ctx);
   const project = input.project ? projectByKey(s, input.project) : undefined;
-  if (input.project && !project) throw notFound(`Project ${input.project}`);
+  if (input.project && !project) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
   // Frozen for the conversation's life so the prompt prefix stays cacheable.
   const frozen: FrozenContext = {
     intro: [
@@ -428,8 +428,8 @@ export async function sendMessage(
   requireScope(ctx, 'read');
   requireAI(ctx.app);
   const conv = await loadOwn(ctx, conversationId);
-  if (conv.status === 'awaiting_approval') throw conflict('Approve or decline the pending changes first');
-  if (answering(conv)) throw conflict('The assistant is still answering in this conversation');
+  if (conv.status === 'awaiting_approval') throw conflict('Approve or decline the pending changes first').said('ai.pendingFirst');
+  if (answering(conv)) throw conflict('The assistant is still answering in this conversation').said('ai.stillAnswering');
   const blocks: Block[] = [];
   const page = [
     input.context?.issue ? `The person is looking at issue ${input.context.issue}.` : '',
@@ -438,7 +438,7 @@ export async function sendMessage(
   ].filter(Boolean);
   if (page.length) blocks.push({ type: 'text', text: `${PAGE_PREFIX}${page.join(' ')}</page_context>` });
   blocks.push({ type: 'text', text: input.text });
-  if (!(await claim(ctx, conv.id, 'idle', null))) throw conflict('The assistant is still answering in this conversation');
+  if (!(await claim(ctx, conv.id, 'idle', null))) throw conflict('The assistant is still answering in this conversation').said('ai.stillAnswering');
   await append(ctx, conv.id, 'user', blocks);
   if (conv.title === 'New conversation') {
     await ctx.db.update(aiConversations).set({ title: excerpt(input.text, 70) }).where(eq(aiConversations.id, conv.id));
@@ -451,12 +451,12 @@ export async function decide(ctx: Ctx, conversationId: string, decisions: { tool
   requireAI(ctx.app);
   const conv = await loadOwn(ctx, conversationId);
   const pending = conv.pending as Pending | null;
-  if (conv.status !== 'awaiting_approval' || !pending) throw badRequest('Nothing in this conversation is waiting for approval');
+  if (conv.status !== 'awaiting_approval' || !pending) throw badRequest('Nothing in this conversation is waiting for approval').said('ai.nothingPending');
   const byId = new Map(decisions.map((d) => [d.toolUseId, d.approve]));
   const missing = pending.awaiting.filter((a) => !byId.has(a.toolUseId));
-  if (missing.length) throw badRequest(`Decide on every pending change (${missing.length} left)`);
+  if (missing.length) throw badRequest(`Decide on every pending change (${missing.length} left)`).said('ai.decideAll', { count: missing.length });
   // Two decisions sent at once must not both run the changes.
-  if (!(await claim(ctx, conv.id, 'awaiting_approval', pending))) throw badRequest('Nothing in this conversation is waiting for approval');
+  if (!(await claim(ctx, conv.id, 'awaiting_approval', pending))) throw badRequest('Nothing in this conversation is waiting for approval').said('ai.nothingPending');
   const declined: string[] = [];
   await guarded(ctx, conv, emit, async () => {
     for (const a of pending.awaiting) {

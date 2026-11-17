@@ -3,7 +3,7 @@ import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod';
 import type { Config } from '../config';
 import type { AppServices } from '../context';
-import { aiDisabled, AppError } from '../lib/errors';
+import { AppError, aiDisabled, asSentence } from '../lib/errors';
 import { AI_PROVIDERS, providerHost, providerKey, type AIProvider } from './providers';
 
 /** The part of the SDK client the AI features use (lets tests inject a fake). */
@@ -66,21 +66,22 @@ export function toAppError(e: unknown, ai?: AIService): AppError {
   if (e instanceof AppError) return e;
   const provider = ai?.provider ?? AI_PROVIDERS.anthropic;
   if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
-    return new AppError(503, 'ai_unavailable', 'The AI service rejected the server\'s credentials', `Check ${provider.keyVars[0]} on the server.`);
+    return new AppError(503, 'ai_unavailable', 'The AI service rejected the server\'s credentials', `Check ${provider.keyVars[0]} on the server.`).said('ai.badCredentials', { variable: provider.keyVars[0] });
   }
   if (e instanceof Anthropic.RateLimitError) {
-    return new AppError(429, 'ai_rate_limited', 'The AI service is busy right now', 'Try again in a minute.');
+    return new AppError(429, 'ai_rate_limited', 'The AI service is busy right now', 'Try again in a minute.').said('ai.busy');
   }
   if (e instanceof Anthropic.BadRequestError) {
-    return new AppError(502, 'ai_bad_request', `The AI service refused the request: ${e.message}`);
+    return new AppError(502, 'ai_bad_request', `The AI service refused the request: ${e.message}`).said('ai.refused', { error: asSentence(e.message) });
   }
   if (e instanceof Anthropic.APIConnectionError) {
-    return new AppError(503, 'ai_unreachable', 'The AI service could not be reached', `Check the server's network access to ${providerHost(provider, ai?.baseURL)}.`);
+    return new AppError(503, 'ai_unreachable', 'The AI service could not be reached', `Check the server's network access to ${providerHost(provider, ai?.baseURL)}.`).said('ai.unreachable', { host: providerHost(provider, ai?.baseURL) });
   }
   if (e instanceof Anthropic.APIError) {
-    return new AppError(502, 'ai_error', `The AI service failed (${e.status ?? 'no status'})`);
+    return new AppError(502, 'ai_error', `The AI service failed (${e.status ?? 'no status'})`).said('ai.failed', { status: e.status ?? 'none' });
   }
-  return new AppError(500, 'ai_error', e instanceof Error ? e.message : String(e));
+  const words = e instanceof Error ? e.message : String(e);
+  return new AppError(500, 'ai_error', words).said('ai.error', { error: asSentence(words) });
 }
 
 /** A zod schema as a tool's input schema. */
@@ -125,7 +126,7 @@ async function structuredOutput<S extends z.ZodType>(ai: AIService, req: Structu
   }
   stopCheck(message);
   if (message.parsed_output === null || message.parsed_output === undefined) {
-    throw new AppError(502, 'ai_unparseable', 'The AI response did not match the expected shape');
+    throw new AppError(502, 'ai_unparseable', 'The AI response did not match the expected shape').said('ai.unparseable');
   }
   return { output: message.parsed_output as z.infer<S>, model: message.model };
 }
@@ -166,7 +167,7 @@ async function answerByTool<S extends z.ZodType>(ai: AIService, req: StructuredR
     const input = use ? withNulls(tool.input_schema as JsonSchema, use.input) : undefined;
     const parsed = use ? req.schema.safeParse(input) : null;
     if (parsed?.success) return { output: parsed.data as z.infer<S>, model: message.model };
-    if (attempt >= 1) throw new AppError(502, 'ai_unparseable', 'The AI response did not match the expected shape');
+    if (attempt >= 1) throw new AppError(502, 'ai_unparseable', 'The AI response did not match the expected shape').said('ai.unparseable');
     messages.push({ role: 'assistant', content: message.content as Anthropic.Beta.BetaContentBlockParam[] });
     messages.push({
       role: 'user',
@@ -226,9 +227,10 @@ function problemsOf(error: z.ZodError, input: unknown): string {
 
 function stopCheck(message: { stop_reason: string | null; stop_details?: { explanation?: string | null } | null }): void {
   if (message.stop_reason === 'refusal') {
-    throw new AppError(422, 'ai_declined', 'The AI declined this request', message.stop_details?.explanation ?? undefined);
+    const why = message.stop_details?.explanation;
+    throw new AppError(422, 'ai_declined', 'The AI declined this request', why ?? undefined).said(why ? 'ai.declinedWhy' : 'ai.declined', why ? { why: asSentence(why) } : undefined);
   }
   if (message.stop_reason === 'max_tokens') {
-    throw new AppError(502, 'ai_truncated', 'The AI response was cut off before it finished');
+    throw new AppError(502, 'ai_truncated', 'The AI response was cut off before it finished').said('ai.truncated');
   }
 }

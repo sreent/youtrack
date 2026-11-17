@@ -64,7 +64,11 @@ function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, d
     // Who may put a file there is settled before a byte of it is read.
     const where = await target(ctx, c.req.param('id') ?? '');
     const max = ctx.app.config.attachmentMaxBytes;
-    const file = await receiveFile(c.req.raw, { maxBytes: max, tooLargeMessage: `Files can be at most ${formatBytes(max)}` });
+    const file = await receiveFile(c.req.raw, {
+      maxBytes: max,
+      tooLargeMessage: `Files can be at most ${formatBytes(max)}`,
+      tooLargeWords: { key: 'attachments.fileTooLarge', values: { size: formatBytes(max) } },
+    });
     return c.json(await storeAttachment(ctx, where, file), 201);
   });
 }

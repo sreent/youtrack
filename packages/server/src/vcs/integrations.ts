@@ -46,7 +46,7 @@ function projectIds(s: SchemaSnapshot, keys: string[]): string[] {
   const out: string[] = [];
   for (const key of keys) {
     const p = projectByKey(s, key);
-    if (!p) throw notFound(`Project ${key}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`);
+    if (!p) throw notFound(`Project ${key}`, `Projects: ${[...s.projectsByKey.keys()].join(', ')}`).said('vcs.projectNotFound', { id: key, projects: [...s.projectsByKey.keys()].join(', ') });
     if (!out.includes(p.id)) out.push(p.id);
   }
   return out;
@@ -74,7 +74,7 @@ function providerFields(
   const reads = provider === 'bitbucket' || provider === 'bitbucket-dc' || provider === 'github';
   if (!reads) {
     if (input.baseUrl || input.accessToken) {
-      throw badRequest(`${VCS_PROVIDER_NAMES[provider]} integrations take no address or access token`, 'Its deliveries carry what a4a reads.');
+      throw badRequest(`${VCS_PROVIDER_NAMES[provider]} integrations take no address or access token`, 'Its deliveries carry what a4a reads.').said('vcs.noAddressNeeded', { provider: VCS_PROVIDER_NAMES[provider] });
     }
     return {};
   }
@@ -84,14 +84,14 @@ function providerFields(
   if (input.accessToken !== undefined) out.accessToken = input.accessToken?.trim() ? sealToken(app, input.accessToken.trim()) : null;
   const baseUrl = out.baseUrl !== undefined ? out.baseUrl : (now?.baseUrl ?? null);
   if (provider === 'bitbucket-dc' && !baseUrl) {
-    throw badRequest('Give Bitbucket Data Center’s address', 'The address people open it at, e.g. https://bitbucket.acme.example: a4a reads the commits a push moved there.');
+    throw badRequest('Give Bitbucket Data Center’s address', 'The address people open it at, e.g. https://bitbucket.acme.example: a4a reads the commits a push moved there.').said('vcs.bitbucketAddressNeeded');
   }
   return out;
 }
 
 async function load(ctx: Ctx, id: string): Promise<IntegrationRow> {
   const [row] = await ctx.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, id));
-  if (!row) throw notFound('Integration');
+  if (!row) throw notFound('Integration').said('vcs.integrationNotFound');
   return row;
 }
 
@@ -109,7 +109,7 @@ export async function createIntegration(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const name = input.name.trim();
-  if (!name) throw badRequest('Give it a name, such as its repository', 'e.g. acme/backend');
+  if (!name) throw badRequest('Give it a name, such as its repository', 'e.g. acme/backend').said('vcs.nameNeededExample');
   const bitbucket = providerFields(ctx.app, input.provider, input, null);
   const { secret, kept } = secretFor(input.provider);
   const [row] = await ctx.db
@@ -136,7 +136,7 @@ export async function updateIntegration(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const row = await load(ctx, id);
-  if (input.name !== undefined && !input.name.trim()) throw badRequest('Give it a name, such as its repository');
+  if (input.name !== undefined && !input.name.trim()) throw badRequest('Give it a name, such as its repository').said('vcs.nameNeeded');
   const bitbucket = providerFields(ctx.app, row.provider as VcsProvider, input, row);
   const [updated] = await ctx.db
     .update(vcsIntegrations)

@@ -33,8 +33,8 @@ const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called');
 function validateEvents(events: string[]): string[] {
   const known = new Set<string>(SUBSCRIBABLE);
   for (const e of events) {
-    if (e === 'rule.called') throw badRequest('A rule calls only the webhook it names, so a webhook can\'t listen for "rule.called"', 'Choose this webhook in the rule instead.');
-    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${SUBSCRIBABLE.join(', ')}`);
+    if (e === 'rule.called') throw badRequest('A rule calls only the webhook it names, so a webhook can\'t listen for "rule.called"', 'Choose this webhook in the rule instead.').said('webhooks.ruleCalledNotListenable');
+    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${SUBSCRIBABLE.join(', ')}`).said('webhooks.unknownEvent', { event: e, events: SUBSCRIBABLE.join(', ') });
   }
   return [...new Set(events)];
 }
@@ -52,8 +52,8 @@ export async function createWebhook(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const project = input.project ? projectByKey(s, input.project) : undefined;
-  if (input.project && !project) throw notFound(`Project ${input.project}`);
-  if (!/^https?:\/\//i.test(input.url)) throw badRequest('Webhook URLs must be http(s)');
+  if (input.project && !project) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
+  if (!/^https?:\/\//i.test(input.url)) throw badRequest('Webhook URLs must be http(s)').said('webhooks.urlScheme');
   const secret = randomToken('whsec_', 24);
   const [row] = await ctx.db
     .insert(webhooks)
@@ -81,7 +81,7 @@ export async function updateWebhook(
   if (input.project === null) projectId = null;
   else if (input.project) {
     const p = projectByKey(s, input.project);
-    if (!p) throw notFound(`Project ${input.project}`);
+    if (!p) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
     projectId = p.id;
   }
   const [row] = await ctx.db
@@ -94,7 +94,7 @@ export async function updateWebhook(
     })
     .where(eq(webhooks.id, id))
     .returning();
-  if (!row) throw notFound('Webhook');
+  if (!row) throw notFound('Webhook').said('webhooks.notFound');
   return dto(ctx, row);
 }
 
@@ -106,10 +106,10 @@ export async function deleteWebhook(ctx: Ctx, id: string): Promise<void> {
     throw conflict(
       `The rule${callers.length > 1 ? 's' : ''} ${callers.map((r) => `"${r.name}"`).join(', ')} call${callers.length > 1 ? '' : 's'} this webhook`,
       'Change the rule so it calls another webhook, or none, then remove this one.',
-    );
+    ).said('webhooks.calledByRules', { count: callers.length, rules: callers.map((r) => `"${r.name}"`).join(', ') });
   }
   const res = await ctx.db.delete(webhooks).where(eq(webhooks.id, id)).returning({ id: webhooks.id });
-  if (!res.length) throw notFound('Webhook');
+  if (!res.length) throw notFound('Webhook').said('webhooks.notFound');
 }
 
 /** Where a webhook is, without its path or anything secret in it: "https://ops.example.com". */
@@ -252,7 +252,7 @@ async function callFromRule(app: AppServices, event: TrackerEvent): Promise<void
 export async function testWebhook(ctx: Ctx, id: string): Promise<{ delivered: boolean }> {
   requireScope(ctx, 'admin');
   const [hook] = await ctx.db.select().from(webhooks).where(and(eq(webhooks.id, id)));
-  if (!hook) throw notFound('Webhook');
+  if (!hook) throw notFound('Webhook').said('webhooks.notFound');
   const event: TrackerEvent = {
     id: 0,
     type: 'issue.updated',
