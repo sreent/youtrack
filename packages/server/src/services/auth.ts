@@ -20,7 +20,7 @@ export async function login(
   userAgent?: string,
 ): Promise<{ token: string; user: UserRow; expiresAt: Date }> {
   const user = await passwordUser(db, loginName, password);
-  if (!user) throw unauthorized('Wrong login or password');
+  if (!user) throw unauthorized('Wrong login or password').said('wrongLogin');
   return { ...(await startSession(db, user.id, ttlDays, userAgent)), user };
 }
 
@@ -130,7 +130,7 @@ async function tokenProjects(ctx: Ctx, keys: string[] | null | undefined, scopes
     return null;
   }
   if (scopes.includes('admin')) {
-    throw badRequest('A token limited to projects can’t have the admin scope', 'Administration reaches every project: leave out the admin scope, or the projects.');
+    throw badRequest('A token limited to projects can’t have the admin scope', 'Administration reaches every project: leave out the admin scope, or the projects.').said('auth.adminScopeWithProjects');
   }
   const ids: string[] = [];
   for (const key of keys) ids.push((await requireProject(ctx, key)).id);
@@ -142,7 +142,7 @@ export function tokenScopes(ctx: Ctx, scopes: Scope[]): Scope[] {
   const unique = [...new Set(scopes)];
   if (ctx.actor.authMethod === 'token') {
     const more = unique.filter((sc) => !ctx.actor.scopes.includes(sc));
-    if (more.length) throw forbidden(`This token can’t make a token with the ${more.join(', ')} scope`, 'Create it while signed in, or from a token that has it.');
+    if (more.length) throw forbidden(`This token can’t make a token with the ${more.join(', ')} scope`, 'Create it while signed in, or from a token that has it.').said('auth.tokenCantGrantScope', { scopes: more.join(', ') });
   }
   return unique;
 }
@@ -178,7 +178,7 @@ export async function createToken(
   if (ctx.actor.authMethod === 'token') requireScope(ctx, 'write');
   // An agent's tokens are its administrators' to issue (D34): one leaked can't make itself another.
   if (ctx.actor.user.isBot) {
-    throw forbidden('An agent can’t make its own tokens', 'An administrator issues its tokens, under Agents and tokens.');
+    throw forbidden('An agent can’t make its own tokens', 'An administrator issues its tokens, under Agents and tokens.').said('auth.agentCantMakeTokens');
   }
   const scopes = tokenScopes(ctx, input.scopes);
   const projectIds = await tokenProjects(ctx, input.projects, scopes);
@@ -204,7 +204,7 @@ export async function updateToken(ctx: Ctx, id: string, input: { name?: string; 
     .select()
     .from(apiTokens)
     .where(and(eq(apiTokens.id, id), eq(apiTokens.userId, ctx.actor.user.id), isNull(apiTokens.revokedAt)));
-  if (!current) throw notFound('Token');
+  if (!current) throw notFound('Token').said('notFound.tokenUnnamed');
   const projectIds = input.projects === undefined ? current.projectIds : await tokenProjects(ctx, input.projects, current.scopes as Scope[]);
   const [row] = await ctx.db
     .update(apiTokens)
@@ -221,7 +221,7 @@ export async function revokeToken(ctx: Ctx, id: string): Promise<void> {
     .set({ revokedAt: new Date() })
     .where(and(eq(apiTokens.id, id), eq(apiTokens.userId, ctx.actor.user.id), isNull(apiTokens.revokedAt)))
     .returning({ id: apiTokens.id });
-  if (!res.length) throw notFound('Token');
+  if (!res.length) throw notFound('Token').said('notFound.tokenUnnamed');
 }
 
 export async function needsSetup(db: Db): Promise<boolean> {

@@ -144,7 +144,7 @@ function resolveColumns(
   return input.map((c) => {
     const ids = c.values.flatMap((name) => {
       const found = byName.get(name.trim().toLowerCase());
-      if (!found) throw badRequest(`Unknown value "${name}" for column "${c.name}"`);
+      if (!found) throw badRequest(`Unknown value "${name}" for column "${c.name}"`).said('boards.unknownColumnValue', { name, name2: c.name });
       return found;
     });
     return { name: c.name, valueIds: [...new Set(ids)], wipLimit: c.wipLimit ?? null };
@@ -177,14 +177,14 @@ export async function loadBoard(ctx: Ctx, id: string, need: 'read' | 'manage' = 
   const [row] = await ctx.db.select().from(boards).where(eq(boards.id, id));
   const view = await projectAccess(ctx);
   // A board on projects the caller can't see is not found, exactly as one that doesn't exist.
-  if (!row || !seesBoard(view, row)) throw notFound('Board');
+  if (!row || !seesBoard(view, row)) throw notFound('Board').said('notFound.boardUnnamed');
   if (need === 'manage') await assertCanManageBoard(ctx, view, row.projectIds);
   return row;
 }
 
 async function assertCanManageBoard(ctx: Ctx, view: AccessView, projectIds: string[]): Promise<void> {
   if (projectIds.some((id) => !view.canRead(id))) {
-    throw forbidden('Only managers of every project on this board can change it', 'Ask an administrator.');
+    throw forbidden('Only managers of every project on this board can change it', 'Ask an administrator.').said('boards.onlyManagersOfAll');
   }
   for (const id of projectIds) await assertCanProject(ctx, id, 'boards');
 }
@@ -210,19 +210,19 @@ export interface BoardInput {
 function resolveBoardInput(s: SchemaSnapshot, input: BoardInput) {
   const projectIds = input.projects.map((k) => {
     const p = projectByKey(s, k);
-    if (!p) throw notFound(`Project ${k}`);
+    if (!p) throw notFound(`Project ${k}`).said('notFound.project', { id: k });
     return p.id;
   });
   const columnField = fieldByName(s, input.columnField ?? 'State');
   if (!columnField || !['state', 'enum', 'version'].includes(columnField.type)) {
-    throw badRequest(`Column field "${input.columnField ?? 'State'}" must be a field with a list of values`);
+    throw badRequest(`Column field "${input.columnField ?? 'State'}" must be a field with a list of values`).said('boards.columnFieldNeedsValues', { field: input.columnField ?? 'State' });
   }
   const swimlane = input.swimlaneField ? fieldByName(s, input.swimlaneField) : undefined;
-  if (input.swimlaneField && !swimlane) throw notFound(`Field ${input.swimlaneField}`);
+  if (input.swimlaneField && !swimlane) throw notFound(`Field ${input.swimlaneField}`).said('notFound.field', { id: input.swimlaneField });
   const points = input.pointsField ? fieldByName(s, input.pointsField) : undefined;
-  if (input.pointsField && !points) throw notFound(`Field ${input.pointsField}`);
+  if (input.pointsField && !points) throw notFound(`Field ${input.pointsField}`).said('notFound.field', { id: input.pointsField });
   if (points && !['integer', 'float'].includes(points.type)) {
-    throw badRequest(`Story points are counted in a number field, and ${points.name} isn't one`, 'Choose an integer or float field, such as Story points.');
+    throw badRequest(`Story points are counted in a number field, and ${points.name} isn't one`, 'Choose an integer or float field, such as Story points.').said('boards.pointsNeedNumberField', { name: points.name });
   }
   return {
     projectIds,
@@ -298,7 +298,7 @@ export async function deleteBoard(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   await loadBoard(ctx, id, 'manage');
   const res = await ctx.db.delete(boards).where(eq(boards.id, id)).returning({ id: boards.id });
-  if (!res.length) throw notFound('Board');
+  if (!res.length) throw notFound('Board').said('notFound.boardUnnamed');
 }
 
 export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promise<BoardView> {
@@ -317,7 +317,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
       allSprints.find((x) => !x.archived && (x.startDate ?? '') <= today && (x.endDate ?? '9999') >= today) ??
       allSprints.filter((x) => !x.archived).at(-1) ??
       null;
-    if (sprintId && !sprint) throw notFound('Sprint');
+    if (sprintId && !sprint) throw notFound('Sprint').said('notFound.sprintUnnamed');
   }
   const extraWhere = sprint
     ? sql`EXISTS (SELECT 1 FROM sprint_issues si WHERE si.issue_id = issues.id AND si.sprint_id = ${sprint.id})`
@@ -366,7 +366,7 @@ export async function createSprint(
 ): Promise<Sprint> {
   requireScope(ctx, 'write');
   const board = await loadBoard(ctx, boardId, 'manage');
-  if (!board.sprintsEnabled) throw badRequest('This board does not use sprints', 'Enable sprints on the board first.');
+  if (!board.sprintsEnabled) throw badRequest('This board does not use sprints', 'Enable sprints on the board first.').said('boards.noSprints');
   const [row] = await ctx.db
     .insert(sprints)
     .values({ id: newId(), boardId, name: input.name, goal: input.goal ?? '', startDate: input.startDate ?? null, endDate: input.endDate ?? null })
@@ -377,9 +377,9 @@ export async function createSprint(
 /** A sprint on a board the caller sees (404 otherwise, as for one that doesn't exist). */
 export async function loadSprint(ctx: Ctx, id: string, need: 'read' | 'manage'): Promise<{ sprint: SprintRow; board: BoardRow }> {
   const [sprint] = await ctx.db.select().from(sprints).where(eq(sprints.id, id));
-  if (!sprint) throw notFound('Sprint');
+  if (!sprint) throw notFound('Sprint').said('notFound.sprintUnnamed');
   const board = await loadBoard(ctx, sprint.boardId, need).catch((e: unknown) => {
-    if (e instanceof AppError && e.status === 404) throw notFound('Sprint');
+    if (e instanceof AppError && e.status === 404) throw notFound('Sprint').said('notFound.sprintUnnamed');
     throw e;
   });
   return { sprint, board };
@@ -403,7 +403,7 @@ export async function updateSprint(
     })
     .where(eq(sprints.id, id))
     .returning();
-  if (!row) throw notFound('Sprint');
+  if (!row) throw notFound('Sprint').said('notFound.sprintUnnamed');
   return (await sprintDtos(ctx.db, await projectAccess(ctx), [row], await ctx.app.schema.get()))[0]!;
 }
 
@@ -411,7 +411,7 @@ export async function deleteSprint(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   await loadSprint(ctx, id, 'manage');
   const res = await ctx.db.delete(sprints).where(eq(sprints.id, id)).returning({ id: sprints.id });
-  if (!res.length) throw notFound('Sprint');
+  if (!res.length) throw notFound('Sprint').said('notFound.sprintUnnamed');
 }
 
 /** Putting an issue in a sprint, or taking it out, is work on the issue: a member of its project may. */
@@ -420,7 +420,7 @@ export async function setSprintIssues(ctx: Ctx, sprintId: string, issueIds: stri
   const { sprint, board } = await loadSprint(ctx, sprintId, 'read');
   const rows = await Promise.all(issueIds.map((id) => resolveIssue(ctx, id)));
   for (const r of rows) {
-    if (!board.projectIds.includes(r.projectId)) throw badRequest('An issue from another project cannot join this board\'s sprint');
+    if (!board.projectIds.includes(r.projectId)) throw badRequest('An issue from another project cannot join this board\'s sprint').said('boards.otherProjectsIssue');
   }
   for (const pid of new Set(rows.map((r) => r.projectId))) await assertCanWriteProject(ctx, pid);
   const recorded = await ctx.db.transaction(async (txRaw) => changeSprintInTx(txRaw as unknown as Db, ctx, sprint, board, rows, remove));

@@ -90,13 +90,13 @@ export async function addComment(
     // Only a help desk request has someone outside to send a public comment to.
     const [request] = await ctx.db.select({ issueId: helpdeskRequests.issueId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issue.id));
     if (!request) {
-      throw badRequest(`${readableId(s, issue)} didn't come in through a help desk, so a comment on it can't be public`, 'Leave out "visibility", or send "internal".');
+      throw badRequest(`${readableId(s, issue)} didn't come in through a help desk, so a comment on it can't be public`, 'Leave out "visibility", or send "internal".').said('comments.notFromHelpdesk', { id: readableId(s, issue) });
     }
     await assertCanWriteProject(ctx, issue.projectId);
   }
   const commentVisibleTo = await resolveVisibleTo(ctx.db, s, opts.visibleTo);
   if (commentVisibleTo.limited && visibility === 'public') {
-    throw badRequest('A public comment goes to the requester, so it can’t be limited to some people too', 'Send it as internal to limit it, or leave out "visibleTo".');
+    throw badRequest('A public comment goes to the requester, so it can’t be limited to some people too', 'Send it as internal to limit it, or leave out "visibleTo".').said('comments.publicCantBeLimited');
   }
   const result = await ctx.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, issue, { comment: text, commentVisibility: visibility, commentVisibleTo }),
@@ -105,7 +105,7 @@ export async function addComment(
   const created = result.activities.find((a) => a.type === 'comment.created');
   const commentId = (created?.payload as { data?: { commentId?: string } } | undefined)?.data?.commentId;
   const [row] = await ctx.db.select().from(comments).where(eq(comments.id, commentId ?? ''));
-  if (!row) throw notFound('Comment');
+  if (!row) throw notFound('Comment').said('notFound.commentUnnamed');
   return commentDto(ctx, row, readableId(s, issue));
 }
 
@@ -116,10 +116,10 @@ export async function addComment(
 async function loadOwnComment(ctx: Ctx, id: string): Promise<CommentRow> {
   const [row] = await ctx.db.select().from(comments).where(and(eq(comments.id, id), isNull(comments.deletedAt)));
   const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue || !seesCommentRow(await projectAccess(ctx), issue.projectId, row)) throw notFound('Comment');
+  if (!row || !issue || !seesCommentRow(await projectAccess(ctx), issue.projectId, row)) throw notFound('Comment').said('notFound.commentUnnamed');
   await assertCanCommentProject(ctx, issue.projectId);
   if (row.authorId !== ctx.actor.user.id && !(await projectAccess(ctx)).canManage(issue.projectId)) {
-    throw forbidden('You can only change your own comments', 'Managers of the project can change anyone’s.');
+    throw forbidden('You can only change your own comments', 'Managers of the project can change anyone’s.').said('comments.onlyOwn');
   }
   return row;
 }
@@ -146,7 +146,7 @@ export async function updateComment(ctx: Ctx, id: string, text: string, expected
       const [now] = await tx.select({ version: comments.version }).from(comments).where(eq(comments.id, id));
       throw conflict(`The comment was changed by someone else (version ${now?.version ?? '?'}, you sent ${expectedVersion})`, 'Reload the comment, then make your change again.', {
         version: now?.version ?? null,
-      });
+      }).said('comments.changedBySomeoneElse', { version: now?.version ?? '?', expectedVersion: String(expectedVersion) });
     }
     const issueRow = await resolveIssue(ctx, row.issueId, tx);
     const seeing = await whoSees(tx, s, issueRow.projectId, added, issueRow, row);
@@ -193,7 +193,7 @@ export async function setCommentVisibility(ctx: Ctx, id: string, input: VisibleT
   const row = await loadOwnComment(ctx, id);
   const limits = await resolveVisibleTo(ctx.db, s, input);
   if (limits.limited && row.visibility === 'public') {
-    throw badRequest('This comment went to the requester, so it can’t be limited to some people', 'Leave it as it is, or delete it.');
+    throw badRequest('This comment went to the requester, so it can’t be limited to some people', 'Leave it as it is, or delete it.').said('comments.wentToRequester');
   }
   const ref = (await issueRefsById(ctx.db, s, [row.issueId])).get(row.issueId);
   if (sameLimits(limits, row)) return commentDto(ctx, row, ref?.id);

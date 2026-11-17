@@ -121,7 +121,7 @@ export async function listDashboards(ctx: Ctx): Promise<Dashboard[]> {
 async function load(ctx: Ctx, id: string): Promise<Row> {
   const [row] = await ctx.db.select().from(dashboards).where(eq(dashboards.id, id));
   // Someone else's dashboard that isn't shared is theirs alone, admins included: it looks like a missing one.
-  if (!row || (row.ownerId !== ctx.actor.user.id && !row.shared)) throw notFound('Dashboard', 'GET /dashboards lists yours and the shared ones.');
+  if (!row || (row.ownerId !== ctx.actor.user.id && !row.shared)) throw notFound('Dashboard', 'GET /dashboards lists yours and the shared ones.').said('dashboards.notFoundListThem');
   return row;
 }
 
@@ -175,12 +175,12 @@ export async function defaultDashboard(ctx: Ctx): Promise<Dashboard> {
 
 /** Widgets as given, checked: one id each, and every project, query, saved search and board they name exists. */
 async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
-  if (input.length > MAX_WIDGETS) throw badRequest(`A dashboard holds ${MAX_WIDGETS} widgets at most`);
+  if (input.length > MAX_WIDGETS) throw badRequest(`A dashboard holds ${MAX_WIDGETS} widgets at most`).said('dashboards.tooManyWidgets', { MAX_WIDGETS });
   const widgets = input.map((w) => WidgetSchema.parse(w));
   const ids = new Set<string>();
   let seen: Seen | undefined;
   for (const w of widgets) {
-    if (ids.has(w.id)) throw badRequest(`Two widgets have the id "${w.id}"`, 'Give each widget an id of its own.');
+    if (ids.has(w.id)) throw badRequest(`Two widgets have the id "${w.id}"`, 'Give each widget an id of its own.').said('dashboards.duplicateWidgetId', { id: w.id });
     ids.add(w.id);
     const where = w.title ? `"${w.title}"` : `widget ${w.id}`;
     const checkQuery = async (query: string | undefined) => {
@@ -189,27 +189,27 @@ async function checkWidgets(ctx: Ctx, input: WidgetInput[]): Promise<Widget[]> {
       if (prepared.compiled.problems.length) {
         throw badRequest(`The query of ${where} has problems: ${prepared.compiled.problems.map((p) => p.message).join('; ')}`, 'Fix the query, or try it on the Issues page first.', {
           problems: prepared.compiled.problems,
-        });
+        }).said('dashboards.queryProblems', { titled: w.title ? 'yes' : 'no', title: w.title ?? '', wid: w.id, problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
       }
     };
     if (w.kind === 'report') {
       const p = w.params;
       if (p.report === 'burndown') {
-        if (!p.board && !p.sprint) throw badRequest(`${where} needs a board (for its current sprint) or a sprint`);
+        if (!p.board && !p.sprint) throw badRequest(`${where} needs a board (for its current sprint) or a sprint`).said('dashboards.needsBoardOrSprint', { titled: w.title ? 'yes' : 'no', title: w.title ?? '', wid: w.id });
         seen ??= await seenBy(ctx);
         if (p.board) {
-          if (!(seen.boards.get(p.board) ?? seen.boards.get(p.board.toLowerCase()))) throw notFound(`Board ${p.board}`, 'GET /boards lists the boards you can see.');
-        } else if (p.sprint && !(await seen.sprint(p.sprint))) throw notFound(`Sprint ${p.sprint}`);
+          if (!(seen.boards.get(p.board) ?? seen.boards.get(p.board.toLowerCase()))) throw notFound(`Board ${p.board}`, 'GET /boards lists the boards you can see.').said('dashboards.boardNotFound', { board: p.board });
+        } else if (p.sprint && !(await seen.sprint(p.sprint))) throw notFound(`Sprint ${p.sprint}`).said('notFound.sprint', { id: p.sprint });
       } else {
         if (p.project) await requireProject(ctx, p.project, 'read');
         await checkQuery(p.query);
       }
     } else if (w.kind === 'search') {
-      if (!w.savedSearch && !w.query?.trim()) throw badRequest(`${where} needs a saved search or a query`);
+      if (!w.savedSearch && !w.query?.trim()) throw badRequest(`${where} needs a saved search or a query`).said('dashboards.needsSearch', { titled: w.title ? 'yes' : 'no', title: w.title ?? '', wid: w.id });
       if (w.savedSearch) {
         // One you can't list (someone else's, or naming what you can't see) is as one that doesn't exist.
         seen ??= await seenBy(ctx);
-        if (!(await seen.savedSearch(w.savedSearch))) throw notFound(`Saved search ${w.savedSearch}`, 'Use one of yours, or a shared one: GET /saved-searches lists them.');
+        if (!(await seen.savedSearch(w.savedSearch))) throw notFound(`Saved search ${w.savedSearch}`, 'Use one of yours, or a shared one: GET /saved-searches lists them.').said('dashboards.savedSearchNotFound', { savedSearch: w.savedSearch });
       } else await checkQuery(w.query);
     }
   }
@@ -235,7 +235,7 @@ export async function updateDashboard(
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const current = await load(ctx, id);
-  if (current.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can change a dashboard', 'Make a copy of it to change it: create a dashboard with its widgets.');
+  if (current.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can change a dashboard', 'Make a copy of it to change it: create a dashboard with its widgets.').said('dashboards.onlyOwnerChanges');
   const widgets = input.widgets ? await checkWidgets(ctx, input.widgets) : undefined;
   const conds = [eq(dashboards.id, id)];
   if (input.expectedVersion !== undefined) conds.push(eq(dashboards.version, input.expectedVersion));
@@ -252,10 +252,10 @@ export async function updateDashboard(
     .returning();
   if (!row) {
     const [now] = await ctx.db.select({ version: dashboards.version }).from(dashboards).where(eq(dashboards.id, id));
-    if (!now) throw notFound('Dashboard');
+    if (!now) throw notFound('Dashboard').said('notFound.dashboardUnnamed');
     throw conflict(`"${current.name}" was changed by someone else (version ${now.version}, you sent ${input.expectedVersion})`, 'Reload it and make your change again.', {
       currentVersion: now.version,
-    });
+    }).said('dashboards.changedBySomeoneElse', { name: current.name, version: now.version, expectedVersion: String(input.expectedVersion) });
   }
   return dto(ctx, s, row);
 }
@@ -263,6 +263,6 @@ export async function updateDashboard(
 export async function deleteDashboard(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const current = await load(ctx, id);
-  if (current.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can delete a dashboard');
+  if (current.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can delete a dashboard').said('dashboards.onlyOwnerDeletes');
   await ctx.db.delete(dashboards).where(eq(dashboards.id, id));
 }
