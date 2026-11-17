@@ -158,6 +158,51 @@ test("dragged into another column at a place, a card's state and its place chang
   expect(now.version).toBe(version + 1);
 });
 
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('a card held still is picked up; a finger that moves at once swipes through the columns', async ({ page, api }) => {
+    const board = await boardWith(api, [
+      ['Shorten the sign-up form', 'Open'],
+      ['Explain the export limits', 'Open'],
+    ]);
+    await page.goto(`/boards/${board.id}`);
+    await expect(column(page, 'Open').locator('li.board-card')).toHaveCount(2);
+    const [upper, lower] = await order(page, 'Open');
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x = 0, y = 0) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+    const frame = page.locator('.board-scroll');
+
+    // A hold: still for a moment, the card is picked up, and carried above the other.
+    const held = (await cardOf(page, lower!).boundingBox())!;
+    const onto = (await cardOf(page, upper!).boundingBox())!;
+    const start = { x: held.x + held.width / 2, y: held.y + held.height - 8 };
+    const end = onto.y + onto.height * 0.25;
+    const saved = ranked(page, board);
+    await touch('touchStart', start.x, start.y);
+    await page.waitForTimeout(400);
+    for (let k = 1; k <= 10; k++) await touch('touchMove', start.x, start.y + ((end - start.y) * k) / 10);
+    await expect(page.locator('li.board-drop').getByText(`Drop it to put ${lower} above ${upper}`)).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath('board-rank-phone.png') });
+    await touch('touchEnd');
+    expect((await saved).postDataJSON()).toMatchObject({ issue: lower, column: 'Open', before: upper });
+    await expect.poll(() => order(page, 'Open')).toEqual([lower, upper]);
+    expect(await frame.evaluate((el) => el.scrollLeft)).toBe(0);
+
+    // A swipe: the finger moves at once, so the columns scroll and nothing is picked up.
+    let sent = 0;
+    page.on('request', (r) => void (r.url().endsWith('/rank') && sent++));
+    const from = (await cardOf(page, upper!).boundingBox())!;
+    await touch('touchStart', from.x + from.width / 2, from.y + from.height - 8);
+    for (let k = 1; k <= 12; k++) await touch('touchMove', from.x + from.width / 2 - k * 22, from.y + from.height - 8);
+    await touch('touchEnd');
+    await expect.poll(() => frame.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    await expect(page.locator('li.board-drop')).toHaveCount(0);
+    expect(sent).toBe(0);
+    await expect.poll(() => order(page, 'Open')).toEqual([lower, upper]);
+  });
+});
+
 test("someone else's rank shows on an open board without a reload", async ({ page, api }) => {
   const board = await boardWith(api, [
     ['Move the docs to the new host', 'In Progress'],
