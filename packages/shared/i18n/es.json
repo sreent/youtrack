@@ -2642,7 +2642,7 @@
   "page.oAuthConsent.describesItItsNameIs": "{documentHost} la describe (el nombre es el que da ese sitio) · ",
   "page.oAuthConsent.everyProjectYouCanSee": "{el}Todos los proyectos que puedes ver, y aquellos a los que te unas después",
   "page.oAuthConsent.goToA4a": "Ir a a4a",
-  "page.oAuthConsent.itIsAProgramOn": "es un programa de este equipo",
+  "page.oAuthConsent.itIsAProgramOn": "es un programa en tu PC",
   "page.oAuthConsent.itSendsYouBackTo": "te devuelve a {redirectHost}",
   "page.oAuthConsent.makeChangesAsYou": "{el}Hacer cambios, en tu nombre",
   "page.oAuthConsent.may": "Puede",
