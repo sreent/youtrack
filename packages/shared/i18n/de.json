@@ -332,7 +332,7 @@
   "apps.appsSection.itSInstalledAtThis": "Installiert ist {version}. Diese Version darf",
   "apps.appsSection.itSSetA4aNever": "Es ist gesetzt; a4a zeigt es nie.",
   "apps.appsSection.itsHandlersAndRulesHaven": "Die Handler und Regeln der App sind noch nicht gelaufen.",
-  "apps.appsSection.itsPartsGoWithSettings": "{rules, plural, one {# Regel} other {# Regeln}}, {widgets, plural, one {# Widget} other {# Widgets}} und {handlers, plural, one {# Handler} other {# Handler}} der App werden entfernt, mit {settings} Einstellungen, {stored, plural, one {# gespeichertem Wert} other {# gespeicherten Werten}}, {runs} Läufen im Protokoll und ihrem Agenten {agent}. Niemand kann sie zurückholen.",
+  "apps.appsSection.itsPartsGoCounted": "{rules, plural, one {# Regel} other {# Regeln}}, {widgets, plural, one {# Widget} other {# Widgets}} und {handlers, plural, one {# Handler} other {# Handler}} der App werden entfernt, mit {settings, plural, one {# Einstellung} other {# Einstellungen}}, {stored, plural, one {# gespeichertem Wert} other {# gespeicherten Werten}}, {runs, plural, one {# Lauf} other {# Läufen}} im Protokoll und ihrem Agenten {agent}. Niemand kann sie zurückholen.",
   "apps.appsSection.itsRulesActAsInstalled": "{v} Die Regeln der App handeln als {login}. Installiert {when}{v2}{v3}.",
   "apps.appsSection.itsRulesWidgetsHandlersSettings": "Die Regeln, Widgets, Handler und Einstellungen der App, was sie gespeichert hat, ihr Protokoll und ihr Agent werden entfernt. Niemand kann sie zurückholen.",
   "apps.appsSection.itsSettings": "Einstellungen der App",

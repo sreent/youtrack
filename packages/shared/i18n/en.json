@@ -332,7 +332,7 @@
   "apps.appsSection.itSInstalledAtThis": "It's installed at {version}. This version may",
   "apps.appsSection.itSSetA4aNever": "It’s set; a4a never shows it.",
   "apps.appsSection.itsHandlersAndRulesHaven": "Its handlers and rules haven’t run yet.",
-  "apps.appsSection.itsPartsGoWithSettings": "Its {rules, plural, one {# rule} other {# rules}}, {widgets, plural, one {# widget} other {# widgets}} and {handlers, plural, one {# handler} other {# handlers}} go, with {settings} settings, {stored, plural, one {# stored value} other {# stored values}}, {runs} runs in its log, and its agent {agent}. Nobody can bring them back.",
+  "apps.appsSection.itsPartsGoCounted": "Its {rules, plural, one {# rule} other {# rules}}, {widgets, plural, one {# widget} other {# widgets}} and {handlers, plural, one {# handler} other {# handlers}} go, with {settings, plural, one {# setting} other {# settings}}, {stored, plural, one {# stored value} other {# stored values}}, {runs, plural, one {# run} other {# runs}} in its log, and its agent {agent}. Nobody can bring them back.",
   "apps.appsSection.itsRulesActAsInstalled": "{v} Its rules act as {login}. Installed {when}{v2}{v3}.",
   "apps.appsSection.itsRulesWidgetsHandlersSettings": "Its rules, widgets, handlers, settings, what it stored, its run log and its agent go. Nobody can bring them back.",
   "apps.appsSection.itsSettings": "Its settings",

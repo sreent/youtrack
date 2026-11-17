@@ -304,7 +304,7 @@ function InstalledApp({ app }: { app: App }) {
             title={t('apps.appsSection.remove', { title: app.title })}
             about={
               r
-                ? t('apps.appsSection.itsPartsGoWithSettings', { rules: r.rules, widgets: r.widgets, handlers: r.handlers, settings: r.settings, stored: r.stored, runs: r.runs, agent: r.agent })
+                ? t('apps.appsSection.itsPartsGoCounted', { rules: r.rules, widgets: r.widgets, handlers: r.handlers, settings: r.settings, stored: r.stored, runs: r.runs, agent: r.agent })
                 : t('apps.appsSection.itsRulesWidgetsHandlersSettings')
             }
             confirm={t('apps.appsSection.removeIt')}
