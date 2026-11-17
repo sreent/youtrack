@@ -8,16 +8,20 @@
  *   until near its expiry, and only at Bot Framework's hosts.
  */
 import { createPublicKey, verify as verifySignature, type JsonWebKey } from 'node:crypto';
-import type { TrackerEvent } from '@a4a/shared';
+import type { IssueDetail, TrackerEvent } from '@a4a/shared';
+import newIssueTemplate from '@sreent/ocean/teams/cards/a4a-new-issue.json' with { type: 'json' };
 import { and, eq } from 'drizzle-orm';
 import { matchLocale, type Translator } from '@a4a/shared/i18n';
-import type { AppServices, UserRow } from '../context';
+import type { AppServices, Ctx, UserRow } from '../context';
 import { problemFor, translatorFor } from '../i18n';
-import { chatWorkspaces } from '../db/schema';
+import { chatChannels, chatWorkspaces } from '../db/schema';
 import { AppError, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { addComment } from '../services/comments';
-import { cardAttachment, cardChange, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
+import { bindTemplate, cardAttachment, cardChange, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
+import { checkIssueForm, creatableProjects, draftFor, isRefusal, makeChatIssue, openIssueForm, threadMayHear, type IssueForm, type MadeIssue, type Refusal } from './issues';
+import { escapeMd, FORM_MAX, teamsHtmlToMarkdown } from './markdown';
+import { TEAMS_ISSUE_COMMAND } from './package';
 import { callable, channelTr, ChatCallError, chatCtx, personTr, retryAfterMs, stopError, stopReason, type Answer } from './common';
 import {
   channelByExternal,
@@ -50,7 +54,15 @@ export interface TeamsActivity {
   text?: string;
   /** The language of the sender's Teams ("de-DE"): a4a's words for someone it doesn't know yet (D49). */
   locale?: string;
-  value?: { action?: { type?: string; verb?: string; data?: Record<string, unknown> }; trigger?: string };
+  value?: {
+    action?: { type?: string; verb?: string; data?: Record<string, unknown> };
+    trigger?: string;
+    /** A message action's (D60): its command, where it was used, the message, and what its dialog sent. */
+    commandId?: string;
+    commandContext?: string;
+    messagePayload?: MessagePayload;
+    data?: Record<string, unknown>;
+  };
   from?: { id?: string; name?: string; aadObjectId?: string };
   recipient?: { id?: string; name?: string };
   conversation?: { id?: string; conversationType?: string; tenantId?: string; name?: string };
@@ -349,14 +361,15 @@ async function channelOf(app: AppServices, a: TeamsActivity) {
  * Send someone a sign-in link where only they read it: their personal chat with the bot. In the
  * language of whom it's linked to, or else of their Teams.
  */
-async function sendLink(app: AppServices, a: TeamsActivity, who: ChatPerson, linked: UserRow | null): Promise<void> {
+async function sendLink(app: AppServices, a: TeamsActivity, who: ChatPerson, linked: UserRow | null, opts: { quiet?: boolean } = {}): Promise<void> {
   const tr = linked ? personTr(app, linked) : senderTr(app, a);
   const tenant = tenantOf(a)!;
   const personal = a.conversation?.conversationType === 'personal' ? a.conversation.id! : await personalChat(app, a.serviceUrl!, tenant, a.from!.id!);
   const url = await linkUrl(app, who, { serviceUrl: a.serviceUrl!, conversationId: personal });
   const text = tr.t(linked ? 'server.chat.linkAgain' : 'server.chat.linkFirst', { platform: platformName('teams'), url });
   await teamsSend(app, a.serviceUrl!, personal, { text, textFormat: 'plain' });
-  if (personal !== a.conversation?.id) await teamsSend(app, a.serviceUrl!, a.conversation!.id!, { text: tr.t('server.chat.answeredPrivately'), textFormat: 'plain', replyToId: a.id });
+  // A dialog says so itself (quiet); a channel's message is answered with a word there.
+  if (personal !== a.conversation?.id && !opts.quiet) await teamsSend(app, a.serviceUrl!, a.conversation!.id!, { text: tr.t('server.chat.answeredPrivately'), textFormat: 'plain', replyToId: a.id });
 }
 
 async function onMessage(app: AppServices, a: TeamsActivity): Promise<void> {
@@ -453,6 +466,8 @@ export async function handleTeamsActivity(app: AppServices, a: TeamsActivity): P
         return { status: 200 };
       case 'invoke':
         if (a.name === 'adaptiveCard/action') return { status: 200, body: await onAction(app, a) };
+        if (a.name === 'composeExtension/fetchTask') return { status: 200, body: await onFetchTask(app, a) };
+        if (a.name === 'composeExtension/submitAction') return { status: 200, body: await onSubmitAction(app, a) };
         return { status: 200, body: {} };
       default:
         return { status: 200 };
@@ -468,4 +483,188 @@ export async function handleTeamsActivity(app: AppServices, a: TeamsActivity): P
 export async function teamsLinked(app: AppServices, reply: { serviceUrl?: string; conversationId?: string } | null, user: Pick<UserRow, 'name' | 'locale'>): Promise<void> {
   if (!reply?.serviceUrl || !reply.conversationId || !app.config.teams) return;
   await teamsSend(app, reply.serviceUrl, reply.conversationId, { text: personTr(app, user).t('server.chat.linkedTeams', { name: user.name }), textFormat: 'plain' });
+}
+
+// ---------------------------------------------------------------------------
+// A message made an issue (D60): the message action's dialog, and what it sends
+// ---------------------------------------------------------------------------
+
+/** The message a message action was used on, as Teams sends it with the action. */
+interface MessagePayload {
+  id?: string;
+  replyToId?: string;
+  createdDateTime?: string;
+  deleted?: boolean;
+  linkToMessage?: string;
+  from?: { user?: { id?: string; displayName?: string }; application?: { displayName?: string } };
+  body?: { contentType?: string; content?: string };
+  attachments?: { contentType?: string; contentUrl?: string; name?: string }[];
+}
+
+/** Teams' own hosts for a link to a message, and SharePoint's for a file in one. */
+const TEAMS_LINK_HOSTS = ['teams.microsoft.com', 'teams.microsoft.us', 'gov.teams.microsoft.us', 'dod.teams.microsoft.us', 'teams.cloud.microsoft'];
+
+/** A link a reader may follow: https, on Teams' hosts or SharePoint's; anything else isn't kept. */
+function teamsLink(raw: unknown, files = false): string | null {
+  try {
+    const url = new URL(String(raw ?? ''));
+    const host = url.hostname.toLowerCase();
+    const ok = files ? host.endsWith('.sharepoint.com') || host.endsWith('.sharepoint.us') : TEAMS_LINK_HOSTS.includes(host);
+    return url.protocol === 'https:' && ok ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A dialog that says one thing. */
+const taskSays = (text: string) => ({ task: { type: 'message', value: text } });
+
+/** A dialog with a card in it. */
+const taskCard = (title: string, card: unknown) => ({ task: { type: 'continue', value: { title, width: 'medium', height: 'large', card: cardAttachment(card as Parameters<typeof cardAttachment>[0]) } } });
+
+/** The words of the new issue's dialog, in its reader's language: Ocean's template holds none (D49). */
+function formWords(tr: Translator) {
+  return {
+    project: tr.t('server.chat.issue.project'),
+    chooseProject: tr.t('server.chat.issue.chooseProject'),
+    projectNeeded: tr.t('server.chat.issue.projectNeeded'),
+    summary: tr.t('server.chat.issue.summary'),
+    summaryNeeded: tr.t('server.chat.issue.summaryNeeded'),
+    description: tr.t('server.chat.issue.description'),
+    create: tr.t('server.chat.issue.create'),
+  };
+}
+
+/** The dialog's card (a4a-new-issue.json, from Ocean): the form, or the form again with what was wrong. */
+function issueFormCard(tr: Translator, form: Omit<IssueForm, 'projects'> & { projects: { key: string; name: string }[] }, from: string, error: string | null = null) {
+  return bindTemplate(newIssueTemplate as unknown as Parameters<typeof bindTemplate>[0], {
+    words: formWords(tr),
+    from,
+    error,
+    projects: form.projects.map((p) => ({ id: p.key, name: `${p.name} (${p.key})` })),
+    project: form.project ?? '',
+    summary: form.summary,
+    description: form.description,
+    cut: form.cut ? tr.t('server.chat.issue.cut', { max: FORM_MAX }) : null,
+    files: form.files ? tr.t('server.chat.issue.files', { n: form.files }) : null,
+    draft: form.draft,
+  });
+}
+
+/** The channel a message action was used in, when a4a is in its team: the team, and the channel as a4a keeps it. */
+async function actionChannel(app: AppServices, a: TeamsActivity) {
+  if (a.conversation?.conversationType !== 'channel') return null;
+  const ws = await workspaceOf(app, a.channelData?.team?.id);
+  const channelId = a.channelData?.channel?.id ?? a.conversation.id?.split(';')[0];
+  if (!ws || ws.removedAt || !ws.serviceUrl || !channelId) return null;
+  const known = await channelByExternal(app.db, ws.id, channelId);
+  const channel = known && !known.goneAt ? known : await upsertChannel(app.db, ws.id, channelId, a.channelData?.channel?.name ?? known?.name ?? 'General');
+  return { workspace: ws, channel };
+}
+
+/**
+ * The message action's dialog (composeExtension/fetchTask): the form, as Ocean's card, in the person's
+ * language. Someone a4a doesn't know is sent a link in their personal chat, as D42 does, and told so;
+ * a message outside a channel a4a's team is in, or deleted, or someone making issues too fast, is refused.
+ */
+async function onFetchTask(app: AppServices, a: TeamsActivity): Promise<Record<string, unknown>> {
+  const who = personOf(app, a);
+  const p = a.value?.messagePayload;
+  if (a.value?.commandId !== TEAMS_ISSUE_COMMAND || !who || !a.serviceUrl || !a.from?.id) return taskSays(senderTr(app, a).t('server.chat.didntWork'));
+  const user = await personFor(app, who);
+  if (!user) {
+    await sendLink(app, a, who, null, { quiet: true });
+    return taskSays(senderTr(app, a).t('server.chat.answeredPrivately'));
+  }
+  const tr = personTr(app, user);
+  const ctx = chatCtx(app, user, 'teams');
+  if (a.conversation?.conversationType !== 'channel') return taskSays(tr.t('server.chat.issue.onlyChannels'));
+  const where = await actionChannel(app, a);
+  if (!where) return taskSays(tr.t('server.chat.issue.notInChannel', { platform: 'teams', channel: a.channelData?.channel?.name ?? '' }));
+  if (!p?.id || p.deleted) return taskSays(tr.t('server.chat.issue.deleted'));
+  const authorId = p.from?.user?.id ?? null;
+  const authorName = p.from?.user?.displayName || p.from?.application?.displayName || '?';
+  const author = authorId ? await personFor(app, { ...who, externalUserId: authorId, name: authorName }) : null;
+  const html = p.body?.content ?? '';
+  const form = await openIssueForm(
+    ctx,
+    who.externalUserId,
+    {
+      platform: 'teams',
+      workspace: { id: where.workspace.id, name: where.workspace.name },
+      channel: { id: where.channel.id, name: where.channel.name },
+      ref: p.id,
+      thread: p.replyToId || p.id,
+      url: teamsLink(p.linkToMessage),
+      author: { name: authorName, externalId: authorId, userId: author?.id ?? null },
+      sentAt: p.createdDateTime && Number.isFinite(Date.parse(p.createdDateTime)) ? new Date(p.createdDateTime) : null,
+      markdown: p.body?.contentType === 'text' ? escapeMd(html) : teamsHtmlToMarkdown(html),
+      // Files shared in a message are SharePoint's: linked, never copied (D60).
+      files: (p.attachments ?? []).filter((f) => f.contentType === 'reference').map((f) => ({ name: (f.name ?? '').slice(0, 200), url: teamsLink(f.contentUrl, true) })),
+      moreFiles: 0,
+    },
+    tr,
+  );
+  if (isRefusal(form)) return taskSays(form.text);
+  return taskCard(tr.t('server.chat.issue.title'), issueFormCard(tr, form, tr.t('server.chat.issue.from', { author: authorName, channel: where.channel.name })));
+}
+
+/**
+ * The dialog sent (composeExtension/submitAction): the issue made as them, answered in the dialog with the
+ * issue's card, for them alone; or the form again, saying what was wrong. The thread is told where D42's
+ * line allows, once Teams has its answer. Teams gives a bot no channel's replies but through Microsoft
+ * Graph, so the description is the message alone.
+ */
+async function onSubmitAction(app: AppServices, a: TeamsActivity): Promise<Record<string, unknown>> {
+  const who = personOf(app, a);
+  const user = who ? await personFor(app, who) : null;
+  if (!who || !user) return taskSays(senderTr(app, a).t('server.chat.whoAreYou'));
+  const tr = personTr(app, user);
+  const ctx = chatCtx(app, user, 'teams');
+  const data = a.value?.data ?? {};
+  const draft = await draftFor(app.db, typeof data.draft === 'string' ? data.draft : '', 'teams', user, who.externalUserId);
+  if (!draft) return taskSays(tr.t('server.chat.issue.expired'));
+  const input = {
+    project: typeof data.project === 'string' ? data.project : '',
+    summary: typeof data.summary === 'string' ? data.summary : '',
+    description: (typeof data.description === 'string' ? data.description : '').slice(0, FORM_MAX).trim(),
+  };
+  const from = tr.t('server.chat.issue.from', { author: draft.authorName, channel: draft.channelName });
+  // The form again, as they sent it, with what was wrong above it.
+  const again = async (error: string) => {
+    const projects = await creatableProjects(ctx);
+    const form = { draft: draft.id, projects, project: input.project, summary: input.summary, description: input.description, cut: false, files: draft.files.length };
+    return taskCard(tr.t('server.chat.issue.title'), issueFormCard(tr, form, from, error));
+  };
+  let made: MadeIssue | Refusal;
+  if (draft.issueId) made = await makeChatIssue(ctx, draft, { ...input, replies: 0, cut: false }, tr);
+  else {
+    if (a.value?.messagePayload?.deleted) return taskSays(tr.t('server.chat.issue.deleted'));
+    const checked = await checkIssueForm(ctx, input, tr);
+    if (isRefusal(checked)) return again(checked.text);
+    made = await makeChatIssue(ctx, draft, { ...input, project: checked.key, replies: 0, cut: false }, tr);
+  }
+  if (isRefusal(made)) return again(made.text);
+  if (!made.again) {
+    const issue = made.issue;
+    void teamsThreadLink(app, ctx, draft, issue).catch((e: unknown) => console.warn(`chat: a Teams thread wasn't told of ${issue.id}: ${e instanceof Error ? e.message : String(e)}`));
+  }
+  const note = tr.t(made.again ? 'server.chat.issue.madeAlready' : 'server.chat.issue.made', { id: made.issue.id });
+  return taskCard(tr.t('server.chat.issue.title'), teamsIssueCard(await issueForCard(ctx, made.issue.id), tr, { note: { text: note }, canAct: false }));
+}
+
+/** The thread told of the new issue, for everyone in the channel, only where D42's line allows (threadMayHear). */
+async function teamsThreadLink(app: AppServices, ctx: Ctx, draft: { workspaceId: string | null; channelId: string | null; threadRef: string }, made: IssueDetail): Promise<void> {
+  if (!draft.workspaceId || !draft.channelId || !(await threadMayHear(ctx, made))) return;
+  const [ws] = await app.db.select().from(chatWorkspaces).where(eq(chatWorkspaces.id, draft.workspaceId));
+  const channel = await app.db.select().from(chatChannels).where(eq(chatChannels.id, draft.channelId)).then((r) => r[0]);
+  if (!ws?.serviceUrl || ws.removedAt || !channel || channel.goneAt) return;
+  // What the channel reads: the issue as its maker reads it, and only what every reader of the project may see.
+  const issue = await issueForCard(ctx, made.id, { everyone: true });
+  const words = channelTr(app);
+  const change = { who: ctx.actor.user.name, did: words.t('server.chat.issue.didMake'), details: [], kind: 'created' as const };
+  await teamsSend(app, ws.serviceUrl, `${channel.externalId};messageid=${draft.threadRef}`, {
+    summary: `${change.who} ${change.did}: ${issue.id}`,
+    attachments: [cardAttachment(teamsChangeCard(issue, change, words))],
+  });
 }

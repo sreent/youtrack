@@ -20,6 +20,7 @@ import { assigneeFieldIdOf, eventFor, eventLimited } from '../services/access';
 import { personCtx } from '../services/subscriptions';
 import { meets } from '../workflow/match';
 import { ChatCallError, stopError, stopReason } from './common';
+import { pruneChatIssues } from './issues';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
 import { slackPost } from './slack';
 import { teamsChannelPost, teamsSend } from './teams';
@@ -214,6 +215,8 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
 /** What's kept: posts sent or settled for 30 days. A chore of the lease holder's. */
 export async function pruneChat(app: AppServices, now = new Date()): Promise<void> {
   await app.db.delete(chatOutbox).where(and(notInArray(chatOutbox.status, ['pending']), lt(chatOutbox.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
+  // Forms never sent, and requests past their window (D60).
+  await pruneChatIssues(app.db, now);
 }
 
 /** Posts what's due, every few seconds and when woken; one per instance, kept apart by claims. */

@@ -1197,7 +1197,7 @@ export const issueWatchers = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** WATCH_REASONS: 'explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'. */
+    /** WATCH_REASONS: 'explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead', 'message' (wrote the chat message it was made from, D60). */
     reason: text('reason').notNull(),
     createdAt: created(),
   },
@@ -2851,4 +2851,75 @@ export const requestCcs = pgTable(
     removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [uniqueIndex('request_ccs_address').on(t.issueId, sql`lower(${t.email})`), index('request_ccs_email').on(sql`lower(${t.email})`)],
+);
+
+// ---------------------------------------------------------------------------
+// Issues from chat messages (wave 4: docs/architecture.md, D60)
+// ---------------------------------------------------------------------------
+
+/** A file in a message an issue was made from: linked where the chat keeps it, never copied (D60). */
+export interface ChatSourceFile {
+  name: string;
+  /** Where the chat shows it (Slack's permalink, SharePoint's address), https on the chat's own hosts; null for none. */
+  url: string | null;
+}
+
+/**
+ * Where an issue made from a Teams or Slack message came from: written when the person opens the form
+ * (a draft, with no issue), and given its issue in the transaction that makes it, once. Kept as data,
+ * so each reader's page says it in their language (D49).
+ */
+export const chatIssueSources = pgTable(
+  'chat_issue_sources',
+  {
+    id: text('id').primaryKey(),
+    /** Null while it's a form someone has open; set once, as the issue is made. */
+    issueId: text('issue_id')
+      .unique()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id').references(() => chatWorkspaces.id, { onDelete: 'set null' }),
+    /** The Slack workspace's or the Teams team's name, then. */
+    workspaceName: text('workspace_name').notNull(),
+    channelId: text('channel_id').references(() => chatChannels.id, { onDelete: 'set null' }),
+    /** The channel as it was named then: "#eng", "General". */
+    channelName: text('channel_name').notNull(),
+    /** Slack: the message's ts. Teams: the message's id. */
+    messageRef: text('message_ref').notNull(),
+    /** The thread it's in: Slack's thread_ts, Teams' parent message; its own ref when it starts one. */
+    threadRef: text('thread_ref').notNull(),
+    /** A link to the message in the chat (Slack's permalink, Teams' message link): https on the chat's hosts, else null. */
+    url: text('url'),
+    /** Who sent the message, as the chat names them; their id there; and the a4a account it's linked to, if any. */
+    authorName: text('author_name').notNull(),
+    authorExternalId: text('author_external_id'),
+    authorUserId: text('author_user_id').references(() => users.id, { onDelete: 'set null' }),
+    sentAt: ts('sent_at'),
+    /** The first ten files in the message, linked; and how many more there were. */
+    files: jsonb('files').$type<ChatSourceFile[]>().notNull().default([]),
+    moreFiles: integer('more_files').notNull().default(0),
+    /** Replies from the thread brought into the description. */
+    replies: integer('replies').notNull().default(0),
+    /** Whether the message, or its replies, were cut to fit. */
+    cut: boolean('cut').notNull().default(false),
+    /** Who opened the form, as a4a and as the chat knows them: only they may send it. The issue keeps its source if they go. */
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdByExternalId: text('created_by_external_id').notNull(),
+    createdAt: created(),
+    /** A form not sent by then is gone. */
+    expiresAt: ts('expires_at').notNull(),
+    /** When its issue was made: how fast someone makes issues from chat is counted by it. */
+    madeAt: ts('made_at'),
+  },
+  (t) => [index('chat_issue_sources_made').on(t.createdById, t.madeAt), index('chat_issue_sources_expires').on(t.expiresAt)],
+);
+
+/** Requests from Teams and Slack a4a has taken, by a key of each (Slack's signature, Teams' activity id), so none is taken twice. */
+export const chatRequestsSeen = pgTable(
+  'chat_requests_seen',
+  {
+    key: text('key').primaryKey(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [index('chat_requests_seen_expires').on(t.expiresAt)],
 );

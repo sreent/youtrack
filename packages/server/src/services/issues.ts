@@ -11,6 +11,7 @@ import {
   type UpdateIssueInput,
   type VisibleToInput,
 } from '@a4a/shared';
+import { chatSourceOf } from './chat-sources';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
@@ -273,13 +274,15 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
   const subtasks = links.filter((l) => aggregation.has(l.typeId) && l.direction === 'outward').map((l) => l.issue);
   const updatedBy = row.updatedById ? s.users.get(row.updatedById) : undefined;
   const me = ctx.actor.user.id;
-  const [voted, reactionMap, formerIds, applying] = await Promise.all([
+  const [voted, reactionMap, formerIds, applying, source] = await Promise.all([
     hasVoted(ctx.db, row.id, me),
     reactionsOf(ctx.db, s, row.id, me, { anonymous: Boolean(ctx.actor.guest) }),
     formerIdsOf(ctx.db, s, row.id),
     // Answered in the project's words as the caller reads them: a condition that reads a private field
     // kept from them holds always, as one that no longer reads does, so it says nothing of the value (D50).
     fieldsApplying(ctx.db, scopeFields(ruleWorld(s, row.projectId), await projectAccess(ctx)), row.projectId, row.id),
+    // Made from a chat message (D60): where from, to whoever sees the issue.
+    chatSourceOf(ctx.db, row.id),
   ]);
   return {
     ...base!,
@@ -289,6 +292,7 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
     reactions: reactionMap.get(`issue:${row.id}`) ?? [],
     formerIds,
     description: row.description,
+    source,
     visibleTo: visibleTo ?? null,
     updatedBy: updatedBy ? userRefDto(updatedBy) : null,
     links,

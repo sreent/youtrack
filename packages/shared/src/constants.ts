@@ -204,7 +204,7 @@ export const SUBSCRIPTION_EVENTS = ['new', 'all'] as const;
 export type SubscriptionEvents = (typeof SUBSCRIPTION_EVENTS)[number];
 
 /** Why someone watches an issue: they chose to, or what they did or were given. */
-export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'] as const;
+export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead', 'message'] as const;
 export type WatchReason = (typeof WATCH_REASONS)[number];
 
 /** Who a comment is for: the team only, or also the requester of a help desk request, who is emailed it. */

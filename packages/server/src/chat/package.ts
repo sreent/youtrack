@@ -6,7 +6,11 @@ import { crc32, deflateSync } from 'node:zlib';
 import { APP_FULL_NAME, APP_NAME } from '@a4a/shared';
 import tokens from '@sreent/ocean/tokens.json' with { type: 'json' };
 import type { AppServices } from '../context';
+import { translatorFor } from '../i18n';
 import { notFound } from '../lib/errors';
+
+/** The message action that makes an issue of a message (D60): its command's id in the manifest. */
+export const TEAMS_ISSUE_COMMAND = 'createIssue';
 
 /** Ocean's blue for what someone can do, as Teams' accent colour and the icon's ground. */
 function accent(): string {
@@ -109,6 +113,7 @@ export function teamsManifest(app: AppServices): Record<string, unknown> {
   if (!cfg) throw notFound('Teams bot', 'Set TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID first.').said('chat.teamsBotNotSetUp');
   const site = app.config.publicUrl;
   const host = new URL(site).hostname;
+  const words = translatorFor(app.config.defaultLocale);
   const commands = [
     { title: 'help', description: 'What I understand' },
     { title: 'search', description: 'Find issues with the query language' },
@@ -130,6 +135,23 @@ export function teamsManifest(app: AppServices): Record<string, unknown> {
     icons: { color: 'color.png', outline: 'outline.png' },
     accentColor: accent(),
     bots: [{ botId: cfg.appId, scopes: ['personal', 'team', 'groupChat'], supportsFiles: false, isNotificationOnly: false, commandLists: [{ scopes: ['personal', 'team', 'groupChat'], commands }] }],
+    // A message's "More actions": make an issue of it (D60), in the words of the server's language, since
+    // everyone in the tenant reads the one manifest (D49).
+    composeExtensions: [
+      {
+        botId: cfg.appId,
+        commands: [
+          {
+            id: TEAMS_ISSUE_COMMAND,
+            type: 'action',
+            title: words.t('server.chat.issue.actionTitle').slice(0, 32),
+            description: words.t('server.chat.issue.actionDescription').slice(0, 128),
+            context: ['message'],
+            fetchTask: true,
+          },
+        ],
+      },
+    ],
     permissions: ['identity', 'messageTeamMembers'],
     validDomains: [host],
   };

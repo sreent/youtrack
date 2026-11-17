@@ -12,6 +12,7 @@ import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
 import { Avatar, Who } from '../components/Who';
 import { Said } from '../features/common/bits';
 import { SummaryCard } from '../features/writing/WritingHelp';
+import { ChatSourceCard } from '../features/chat/ChatSource';
 import { SuggestionCard } from '../features/decide/SuggestionCard';
 import { errorText, useUpdateIssue } from '../features/issues/api';
 import { CommandBar } from '../features/issues/CommandBar';
@@ -554,6 +555,7 @@ export default function IssuePage() {
             <Loading what="loadingLine.fields" />
           )}
           <RequestCard issue={data} canEdit={canWrite} />
+          {data.source ? <ChatSourceCard source={data.source} /> : null}
           <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />
           <AppWidgets at="issue-panel" issue={data.id} />

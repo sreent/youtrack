@@ -260,6 +260,13 @@
       "when": 1794917183908,
       "tag": "0036_customer_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794921004113,
+      "tag": "0037_chat_issue_sources",
+      "breakpoints": true
     }
   ]
 }

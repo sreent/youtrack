@@ -684,8 +684,26 @@ export const ReactionSummarySchema = z
   .meta({ id: 'ReactionSummary' });
 export type ReactionSummary = z.infer<typeof ReactionSummarySchema>;
 
+/** Where an issue made from a Teams or Slack message came from (D60): kept as data, so each reader's page words it. */
+export const ChatIssueSourceSchema = z
+  .object({
+    platform: z.enum(CHAT_PLATFORMS),
+    workspace: z.string().describe('The Slack workspace, or the Teams team, as it was named then'),
+    channel: z.string().describe('The channel, as it was named then: "#eng", "General"'),
+    url: z.string().nullable().describe("A link to the message in the chat (Slack's permalink, Teams' message link), for those who may read it there"),
+    author: z.string().describe('Who sent the message, as the chat named them'),
+    sentAt: timestamp.nullable().describe('When they sent it'),
+    replies: z.number().int().describe('Replies from its thread brought into the description'),
+    files: z.array(z.object({ name: z.string(), url: z.string().nullable() })).describe('Files in the message, linked where the chat keeps them (the first ten); never copied'),
+    moreFiles: z.number().int().describe('Files beyond those ten'),
+    cut: z.boolean().describe('The message, or its replies, were cut to fit'),
+  })
+  .meta({ id: 'ChatIssueSource' });
+export type ChatIssueSource = z.infer<typeof ChatIssueSourceSchema>;
+
 export const IssueDetailSchema = IssueSchema.extend({
   description: z.string(),
+  source: ChatIssueSourceSchema.nullable().describe('Where it came from, when it was made from a chat message (D60); shown to whoever sees the issue'),
   visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees its project sees it. Otherwise only these, besides its reporter, its assignee, the project's managers and administrators"),
   updatedBy: UserRefSchema.nullable(),
   links: z.array(IssueLinkSchema),
@@ -1771,7 +1789,7 @@ export type ArticleVersionDetail = z.infer<typeof ArticleVersionDetailSchema>;
 export const WatcherSchema = z
   .object({
     user: UserRefSchema,
-    reason: z.enum(WATCH_REASONS).describe('Why they watch: they chose to, or they reported it, were assigned, commented, were mentioned, or lead the project of a help desk request'),
+    reason: z.enum(WATCH_REASONS).describe('Why they watch: they chose to, or they reported it, were assigned, commented, were mentioned, lead the project of a help desk request, or wrote the chat message it was made from (D60)'),
     since: timestamp,
   })
   .meta({ id: 'Watcher' });
