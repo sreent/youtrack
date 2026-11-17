@@ -214,6 +214,11 @@ const withIntegration = async (api: Api) => {
   await api.post('/vcs/integrations', { provider: 'github', name: `acme/${unique()}`, projects: [] });
   // One of Bitbucket Data Center's, with its address and no token yet: it says what it lacks.
   await api.post('/vcs/integrations', { provider: 'bitbucket-dc', name: `PROJ/${unique()}`, projects: [], baseUrl: 'https://bitbucket.acme.example' });
+  // One of Forgejo's, whose Actions runs are a project's builds (D55).
+  const forgejo = await api.post<{ id: string }>('/vcs/integrations', { provider: 'gitea', name: `acme/${unique()}`, projects: [] });
+  const key = uniqueKey('TF');
+  await api.createProject({ key, name: `Tour ${key}` });
+  await api.post('/build-sources', { kind: 'gitea', name: 'Forgejo Actions: tour', project: key, integration: forgejo.id, branch: 'main', workflow: 'ci.yml' });
   return '/integrations';
 };
 

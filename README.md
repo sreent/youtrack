@@ -35,7 +35,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **State machines**: a project's state field moves only by its named transitions, each with an optional condition and command. A change that skips one is refused, however it's made, and the issue page offers the moves as buttons.
   - **Custom actions**: named commands or scripts per project, shown as buttons on the issues they're offered for, and run by name as commands too.
 - **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
-- **Builds from CI** (D46): GitHub Actions' workflow runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
+- **Builds from CI** (D46, D55): GitHub Actions' workflow runs, Forgejo's and Gitea's Actions runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
 - **People connect their own accounts** at GitHub, GitLab and Bitbucket from their profile, by signing in there, so their commits are theirs without an administrator.
 - **More importers**: GitHub Issues, Redmine, and Zendesk into a help desk (requesters, public replies and internal notes), beside YouTrack and Jira.
 - **VS Code**: an extension with your issues, an issue beside the code, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent.
@@ -310,6 +310,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 An administrator adds a build source under **Integrations**, for a project. A build that passes goes in the project's build field ("Fixed in build", made for it if it has none), and the resolved issues its commits name are marked as fixed in it (D46).
 
 - **GitHub Actions**: choose a GitHub integration, its branch and its workflow, and tick **Workflow runs** among the webhook's events on GitHub. With an access token on the integration (one that may read the repository's contents), a4a asks GitHub which commits each run holds; without one, those it saw pushed.
+- **Forgejo or Gitea Actions** (D55): choose a Gitea or Forgejo integration, its branch and its workflow's file (`ci.yml`), and tick the run events on its webhook: **Workflow run events**' Success, Failure and Cancelled on Forgejo 17 and later, **Action Run events**' Success and Failure on Forgejo 12 to 16, or **Workflow run** on Gitea. A build is named by its run's number. It holds the commits a4a saw pushed to the branch since the last passing build, and those of the push that started the run, which Forgejo's run carries; these integrations take no token, so a4a asks Forgejo nothing.
 - **Any other CI**: the source shows a URL and a token once. Post each build, with the commits since the previous one, from a step at the end of the build. Keep the token in the CI's secrets as `A4A_BUILD_TOKEN`, and the URL as `A4A_BUILD_URL`.
 
 Jenkins (a `sh` step; `GIT_PREVIOUS_SUCCESSFUL_COMMIT` is the Git plugin's):

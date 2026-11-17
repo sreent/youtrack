@@ -1394,6 +1394,30 @@ People who use a4a don't all read English. a4a says its own words in each person
 
 **Revisit when:** a right-to-left language comes; people want a project's own words (its states, its fields) in several languages; or the API should answer in its caller's language.
 
+### D55. Builds from Forgejo's Actions, as GitHub's workflow runs come
+
+D46 took GitHub's workflow runs as builds, through the integration's own webhook, and left every other host's CI to post its builds with a token. Forgejo's Actions now come as GitHub's do: a build source of kind `gitea` takes a Gitea or Forgejo integration's runs, on a branch and a workflow, through the webhook a4a already receives and verifies (D33), so nobody sets up a second hook. GitLab's and Bitbucket's pipelines are still to come.
+
+- **What Forgejo sends.** Its source says; its documentation shows no payload (`modules/webhook/type.go`, `modules/structs/action.go` and `hook.go`, `services/webhook/notifier.go`):
+  - From Forgejo 17, `workflow_run_<status>` each time a run moves: waiting, blocked, running, then success, failure, cancelled or skipped. Its body is `{ action, run }`.
+  - From Forgejo 12, `action_run_success` and `action_run_failure` once a run is done: any end but success is a failure there, and `run.status` says which. 17 still sends them beside the new ones. 12 to 16 also send `action_run_recover` beside a success that follows a failure, which a4a leaves, since the success says the same.
+  - Forgejo 11 and before send nothing for a run. There a workflow's last step posts the build to "Any CI", as any CI can.
+  - The run: its id; its number (`index_in_repo`); its workflow's file (`workflow_id`, `ci.yml`: Forgejo names no workflow by its name); its ref (`prettyref`: a branch's or a tag's name, or `#12` for a pull request); the commit it built; its status, times and page. And the payload of the event that started it, as a string of JSON: for a push, the push's own delivery, its commits and their messages.
+  - Gitea sends `workflow_run` in GitHub's shape instead, read as GitHub's. It names the workflow's file with its ref (`ci.yml@refs/heads/main`), which a source matches by the file. a4a's one `gitea` provider is both, so Gitea's runs come along; the tests are Forgejo's shapes.
+- **A run is a build once it finishes,** as GitHub's is: waiting, blocked and running are read and left, so no delivery, however late, makes a finished build run again. A skipped run (every job's condition said no) built nothing and isn't a build; nor, now, is GitHub's, which D46 recorded as a failure.
+- **Its name** is the run's number, whichever workflows the source takes. Forgejo counts runs across a repository's workflows, so no two runs share a number, and it's the one Forgejo's pages show. A pull request's run is on its head branch, as GitHub's is, and named like any other; a source of `main` doesn't take it.
+- **Which commits it holds**, by D46's rule: those since the source's last passing build on its branch. For GitHub, its compare, asked with the integration's token, is the exact answer. A Gitea or Forgejo integration holds no token (its deliveries carry what a4a reads), so a4a asks Forgejo nothing, and a run holds:
+  - what a4a saw pushed to the branch since the last passing build's head commit, by when the commits were made, as GitHub's runs without a token do; one whose head's time isn't known counts from when it was recorded;
+  - and the commits of the push that started the run, which Forgejo's run carries with their messages, so a run names its issues even when a4a missed the push.
+  - Only a GitHub integration's token is sent to GitHub's compare, so a token another host's integration holds can't go to github.com.
+- **The same delivery twice** is claimed once by its `X-Forgejo-Delivery` (D33). But one finished run comes as two deliveries on a webhook that takes every event (`workflow_run_success` and `action_run_success`), and a delivery sent again from Forgejo's page is a new one. So a build's reports are taken one at a time: an advisory lock on the project and the build's name, held in the short transaction that settles where the build stands and makes its value. A report that tells nothing new (the same status, link and commits) looks again only at the issues the build left open, as D46 has a later report do, and records no `build.recorded` unless it marks one. What a build marked stays marked, whatever a report beside it found.
+- **Late states.** A success is final: it's a value, and it has marked issues. Otherwise a report older than the one the build holds, by when each says the run finished, leaves it as it is: an attempt's failure that comes after the re-run's success, or after a newer failure. A re-run is the same run, its number unchanged, so it's the same build, as GitHub's re-runs are. Any CI's reports, which seldom say when they finished, are taken in the order they come, as before.
+- **Everywhere GitHub's go.** On the CI page an administrator chooses "Forgejo or Gitea Actions", the integration, the branch and the workflow's file; the integration's steps say which events to tick. The builds are a project's like any other: on its builds page, on its issues, in `list_builds`, as `build.recorded`, and in searches and reports by the build field.
+
+**What it costs.** Without a token, a run holds what a4a saw pushed, by commit time, and its own push's commits: a commit pushed late, or rebased, can fall in the next build, as with GitHub's runs without one. A run of a pull request or a schedule carries no push, so it holds only what a4a saw pushed. Each report of a build takes one more short transaction and a lock. Forgejo 11 and before need a step that posts to "Any CI".
+
+**Revisit when:** Gitea and Forgejo integrations hold a token and the server's address (D54 connects people's Forgejo and Gitea accounts), so a run reads its commits from Forgejo's compare, as GitHub's do; GitLab's and Bitbucket's pipelines should come as these runs do, through the webhooks a4a already verifies; or a build should show while it runs.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1494,6 +1518,7 @@ Planned, with the seams already in place:
 - ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - SLAs per customer, with a calendar per organization; passwords or single sign-on for the requesters' portal; colleagues answering each other's requests (D45);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
+- a Forgejo run's commits read from Forgejo's compare, once its integrations hold a token (D55);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
 - apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48);
 - a right-to-left language; and a project's own words in several languages (D49).

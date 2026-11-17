@@ -3286,7 +3286,8 @@ export const ConnectSlackBody = z.object({
 // Integrations (docs/architecture.md, D46): CI builds, and code-host accounts people connect
 // ---------------------------------------------------------------------------
 
-export const BUILD_SOURCE_KINDS = ['github', 'generic'] as const;
+/** `gitea`: a Gitea or Forgejo integration's Actions runs (D55), as `github` takes a GitHub integration's. */
+export const BUILD_SOURCE_KINDS = ['github', 'generic', 'gitea'] as const;
 export type BuildSourceKind = (typeof BUILD_SOURCE_KINDS)[number];
 export const BUILD_STATUSES = ['success', 'failure', 'cancelled'] as const;
 export type BuildStatus = (typeof BUILD_STATUSES)[number];
@@ -3296,13 +3297,15 @@ export type BuildIssueOutcome = (typeof BUILD_ISSUE_OUTCOMES)[number];
 export const BuildSourceSchema = z
   .object({
     id: z.string(),
-    kind: z.enum(BUILD_SOURCE_KINDS).describe("github: a GitHub integration's workflow runs. generic: any CI, posting each build with a token"),
+    kind: z
+      .enum(BUILD_SOURCE_KINDS)
+      .describe("github: a GitHub integration's workflow runs. gitea: a Gitea or Forgejo integration's Actions runs. generic: any CI, posting each build with a token"),
     name: z.string(),
     project: z.string().describe('The project whose builds they are, by key'),
     field: z.string().nullable().describe('The build field its builds go in, by name; null when the project has none yet'),
-    integration: z.object({ id: z.string(), name: z.string() }).nullable().describe('github: the integration whose workflow runs it takes'),
-    branch: z.string().nullable().describe('github: the branch whose runs are builds; null: any'),
-    workflow: z.string().nullable().describe('github: the workflow, by name or file; null: any'),
+    integration: z.object({ id: z.string(), name: z.string() }).nullable().describe('github, gitea: the integration whose workflow runs it takes'),
+    branch: z.string().nullable().describe('github, gitea: the branch whose runs are builds; null: any'),
+    workflow: z.string().nullable().describe('github, gitea: the workflow, by name or file (gitea: its file, such as ci.yml); null: any'),
     hookUrl: z.string().nullable().describe('generic: where a CI posts its builds'),
     tokenPrefix: z.string().nullable().describe("generic: the token's first characters, to recognise it by"),
     active: z.boolean(),
@@ -3324,9 +3327,18 @@ export const BuildSourceBody = z.object({
     .nullable()
     .optional()
     .describe('The build field to fill, by name or id. Left out: the project\'s "Fixed in build", or its one build field; with none, a4a makes "Fixed in build" and gives it the project'),
-  integration: z.string().optional().describe('github: the GitHub integration (its id) whose workflow_run deliveries it takes'),
-  branch: z.string().trim().max(200).nullable().optional().describe('github: only runs on this branch are builds; null: any'),
-  workflow: z.string().trim().max(200).nullable().optional().describe('github: only this workflow, by name or file; null: any'),
+  integration: z
+    .string()
+    .optional()
+    .describe("github: the GitHub integration (its id) whose workflow_run deliveries it takes. gitea: the Gitea or Forgejo integration whose Actions runs it takes"),
+  branch: z.string().trim().max(200).nullable().optional().describe('github, gitea: only runs on this branch are builds; null: any'),
+  workflow: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .describe('github: only this workflow, by name or file. gitea: by its file, such as ci.yml (Forgejo names no workflow by name). null: any'),
   active: z.boolean().default(true),
 });
 export const UpdateBuildSourceBody = z.object({

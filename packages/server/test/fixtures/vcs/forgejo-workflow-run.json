@@ -1,0 +1,36 @@
+{
+  "action": "run_completed",
+  "run": {
+    "id": 197719,
+    "title": "Round the invoice total once",
+    "repository": {
+      "id": 9,
+      "owner": { "id": 1, "login": "acme", "full_name": "Acme", "email": "", "username": "acme" },
+      "name": "infra",
+      "full_name": "acme/infra",
+      "private": true,
+      "html_url": "https://git.acme.example/acme/infra",
+      "default_branch": "main"
+    },
+    "workflow_id": "ci.yml",
+    "index_in_repo": 57,
+    "trigger_user": { "id": 4, "login": "bokafor", "full_name": "Ben Okafor", "email": "ben.okafor@users.noreply.git.acme.example", "username": "bokafor" },
+    "ScheduleID": 0,
+    "prettyref": "main",
+    "is_ref_deleted": false,
+    "commit_sha": "bffeb74224043ba2feb48d137756c8a9331c449a",
+    "is_fork_pull_request": false,
+    "need_approval": false,
+    "approved_by": 0,
+    "event": "push",
+    "event_payload": "{\"ref\":\"refs/heads/main\",\"before\":\"28e1879d029cb852e4844d9c718537df08844e03\",\"after\":\"bffeb74224043ba2feb48d137756c8a9331c449a\",\"compare_url\":\"https://git.acme.example/acme/infra/compare/28e1879d029cb852e4844d9c718537df08844e03...bffeb74224043ba2feb48d137756c8a9331c449a\",\"commits\":[{\"id\":\"bffeb74224043ba2feb48d137756c8a9331c449a\",\"message\":\"Round the invoice total once\\n\",\"url\":\"https://git.acme.example/acme/infra/commit/bffeb74224043ba2feb48d137756c8a9331c449a\",\"author\":{\"name\":\"Ben Okafor\",\"email\":\"ben.okafor@users.noreply.git.acme.example\",\"username\":\"bokafor\"},\"committer\":{\"name\":\"Ben Okafor\",\"email\":\"ben.okafor@users.noreply.git.acme.example\",\"username\":\"bokafor\"},\"verification\":null,\"timestamp\":\"2026-11-16T11:00:00Z\",\"added\":[],\"removed\":[],\"modified\":[\"billing/total.go\"]}],\"total_commits\":1,\"head_commit\":{\"id\":\"bffeb74224043ba2feb48d137756c8a9331c449a\",\"message\":\"Round the invoice total once\\n\",\"url\":\"https://git.acme.example/acme/infra/commit/bffeb74224043ba2feb48d137756c8a9331c449a\",\"author\":{\"name\":\"Ben Okafor\",\"email\":\"ben.okafor@users.noreply.git.acme.example\",\"username\":\"bokafor\"},\"timestamp\":\"2026-11-16T11:00:00Z\"},\"repository\":{\"id\":9,\"name\":\"infra\",\"full_name\":\"acme/infra\",\"html_url\":\"https://git.acme.example/acme/infra\",\"default_branch\":\"main\"},\"pusher\":{\"id\":4,\"login\":\"bokafor\",\"username\":\"bokafor\"},\"sender\":{\"id\":4,\"login\":\"bokafor\",\"username\":\"bokafor\"}}",
+    "trigger_event": "push",
+    "status": "success",
+    "started": "2026-11-16T12:00:12+01:00",
+    "stopped": "2026-11-16T12:03:40+01:00",
+    "created": "2026-11-16T12:00:05+01:00",
+    "updated": "2026-11-16T12:03:40+01:00",
+    "duration": 208000000000,
+    "html_url": "https://git.acme.example/acme/infra/actions/runs/57"
+  }
+}

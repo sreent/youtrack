@@ -2266,12 +2266,13 @@ export const chatOutbox = pgTable(
 // ---------------------------------------------------------------------------
 
 /**
- * Where a project's builds come from: a GitHub integration's workflow runs (`github`), or any CI
- * that posts them with a token of its own (`generic`), kept as a hash and shown once.
+ * Where a project's builds come from: a GitHub integration's workflow runs (`github`), a Gitea or
+ * Forgejo integration's Actions runs (`gitea`, D55), or any CI that posts them with a token of its
+ * own (`generic`), kept as a hash and shown once.
  */
 export const buildSources = pgTable('build_sources', {
   id: text('id').primaryKey(),
-  /** 'github' or 'generic'. */
+  /** 'github', 'gitea' or 'generic'. */
   kind: text('kind').notNull(),
   name: text('name').notNull(),
   projectId: text('project_id')
@@ -2279,11 +2280,11 @@ export const buildSources = pgTable('build_sources', {
     .references(() => projects.id, { onDelete: 'cascade' }),
   /** The build field its builds go in; null: the project's "Fixed in build", or its one build field. */
   fieldId: text('field_id').references(() => fields.id, { onDelete: 'set null' }),
-  /** github: the integration whose workflow_run deliveries it takes. */
+  /** github, gitea: the integration whose run deliveries it takes. */
   vcsIntegrationId: text('vcs_integration_id').references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
-  /** github: the branch whose runs are builds; null: any. */
+  /** github, gitea: the branch whose runs are builds; null: any. */
   branch: text('branch'),
-  /** github: the workflow, by its name or its file (.github/workflows/ci.yml); null: any. */
+  /** github, gitea: the workflow, by its name or its file (.github/workflows/ci.yml; Forgejo's, ci.yml); null: any. */
   workflow: text('workflow'),
   /** generic: the token's SHA-256. */
   tokenHash: text('token_hash'),

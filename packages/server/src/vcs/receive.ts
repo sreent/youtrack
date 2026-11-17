@@ -14,7 +14,8 @@
  *    commit and issue, so what it did the first time isn't done twice.
  * 4. What it says: pushes link their commits, and run the commands they give; pull and merge
  *    requests are linked and kept current. Commits a delivery leaves out are read from Bitbucket
- *    with the integration's token (commits.ts).
+ *    with the integration's token (commits.ts). Actions runs, GitHub's, Gitea's and Forgejo's,
+ *    become builds of the sources that take them (ci/builds.ts, D46 and D55).
  */
 import { VCS_PROVIDER_NAMES, type VcsDeliveryOutcome, type VcsProvider } from '@a4a/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -220,7 +221,7 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
     case 'ping':
       return { outcome: 'processed', message: `${provider} can reach a4a, and the signature is right.`, linked: 0, applied: 0 };
     case 'other':
-      return { outcome: 'ignored', message: `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
+      return { outcome: 'ignored', message: delivery.note ?? `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
     case 'workflow_run': {
       // A finished run a build source takes is a build (D46): which issues it marks is the log's.
       const r = await buildsFromRun(app, integration, delivery);
