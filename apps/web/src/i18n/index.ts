@@ -141,12 +141,17 @@ export function intlLocale(): string {
   return translator.locale === 'en' ? 'en-GB' : translator.locale;
 }
 
-/** Languages whose nouns keep their capital inside a sentence. */
-const CAPITAL_NOUNS: ReadonlySet<Locale> = new Set<Locale>(['de']);
+/**
+ * Languages that lower a label's first letter inside a sentence ("Time logged" in "…, time logged by
+ * person"). Every other keeps it: German, whose nouns keep their capital, and the languages with no case
+ * (Chinese, Japanese), where a capital can only begin a name ("Backend 中的新问题"). A new language
+ * joins this list only if it lowers a common noun as these do.
+ */
+const LOWERS_LABELS: ReadonlySet<Locale> = new Set<Locale>(['en', 'es', 'fr']);
 
-/** A label set inside a sentence ("Time logged, by person"): lower-cased at its start, unless the page's language capitalises its nouns. */
+/** A label set inside a sentence ("Time logged, by person"): lower-cased at its start where the page's language does that. */
 export function inSentence(label: string): string {
-  return CAPITAL_NOUNS.has(translator.locale) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+  return LOWERS_LABELS.has(translator.locale) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 }
 
 /**

@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese and French are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Simplified Chinese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,7 +117,7 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French or Japanese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese or Simplified Chinese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
@@ -126,7 +126,7 @@ A language is a catalog, as Spanish, Japanese and French came:
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
 3. In `packages/server/src/i18n.ts`, import the catalog beside the others (the server's catalogs are imported, not globbed).
-4. If its nouns keep their capital, as German's do, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`.
+4. If its nouns keep their capital, as German's do, or it has no capitals to lower, as Chinese hasn't, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`: a label set in its sentences then keeps its first letter, so a name there (a project's, an acronym) isn't lower-cased.
 5. Write its voice and its terms here, in a section of its own, then run the checks above. A copy of `e2e/spanish.spec.ts` with the language's words checks it in a browser: it signs in a person of its own, not one of the suite's administrators, since German's spec changes Una's language.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
@@ -378,3 +378,128 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | handler (of an app) | gestionnaire |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
+## Simplified Chinese
+
+`zh.json` is Simplified Chinese as mainland China writes it, in the words Chinese teams read a tracker in. Where Jira's Simplified Chinese has a word for a tracker's thing, a4a takes it (问题, 经办人, 报告人, 冲刺, 看板, 待办事项, 仪表板, 转换), since most teams there met a tracker through it.
+
+- **你, not 您.** Chinese software for teams says 你 today: Feishu, DingTalk and WeCom, Notion's and Slack's Chinese, Microsoft's and Apple's. 您 is a bank's or a form letter's, and a4a speaks to a team plainly: 「你已离线」, 「你没有权限这样做。」. The help desk's words to requesters are the one exception: its emails, the portal and the public form speak to customers outside the team, so they say 您, as Chinese customer service does: 「您收到这封邮件，是因为您向“{desk}”寻求了帮助。」
+- **Plain sentences, no 请 where English has no "please"**: 「至少选择一个项目。」, 「先保存：然后才能插入图片和文件。」. 请 asks something of someone, where English asks too. Buttons and labels are short verb phrases or nouns, never sentences: 「保存」, 「保存更改」, 「删除字段」. A status line is short: 「已保存。」, 「正在保存……」, 「已创建 {name}。」
+- **Typography, as mainland China sets it**:
+  - full-width punctuation: ，。、：；？！（）;
+  - quotes are “…”, and ‘…’ inside them (「」 is Taiwan's and Japan's);
+  - the ellipsis is ……, two of …, as Chinese sets it: 「正在加载……」;
+  - no space between Chinese characters;
+  - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
+  - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」;
+  - " · " between the parts of a line, and code, ids, queries and keyboard keys stay as English writes them.
+- **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位被抄送的人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
+- **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Chinese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
+- **Pieces a page joins**:
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase with 了 and no subject: 「创建了 {issue}」, 「评论了 {issue}」; a notification's, 「把它指派给了你」. A badge is a noun or a short verb phrase: 「新问题」, 「删除问题」.
+  - A webhook's events are each a clause, joined with 或 into 「{join}时」: 「创建问题或有人发表评论时」.
+  - A rule is one sentence, in Chinese order: 「<t0>当</t0>{trigger}<t0>时</t0>，<t0>如果</t0>它匹配 {query}，<t0>则</t0>{actions}。」 Its trigger is a clause (「创建问题」, 「问题的 {field} 发生变更」), its conditions say 如果, and its actions are verb phrases (「应用 Assignee anna」, 「通知它的经办人“{short}”」). The rule's words in `<t0>` are 当…时, 如果 and 则.
+- **A loading line is a whole message**, one per thing (`loadingLine.*`): 「正在加载计划……」. It names the thing with no owner (「正在加载收件箱……」 for "Loading your inbox…"); a thing's own name or id reads 「正在加载 {name}……」, and nothing, 「正在加载……」.
+- **Dates and numbers** come from Intl, `zh`, which writes them as `zh-CN` does: 「2026年11月16日」, 「1,234.5」, 「3分钟前」, lists as 「A、B和C」.
+- **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Chinese and every case stays: `{state, select, merged {已合并} closed {已关闭} other {已重新打开}}`. A field's `{type}` in a problem is such a code too (`enum` 选项列表, `owned` 带负责人的列表), with `other` keeping the code.
+- **Field names, states and values** are data, as in every language: 「State 和 Assignee」 stay as they were named, and so do examples of the query and command languages (`for: me`, `#Unresolved`). Examples of plain words for the assistant to read are Chinese.
+- **Problems** say what went wrong, then the fix: 「找不到问题 {id}。使用可读的编号，例如 BACK-12。」 问题 is an issue here, never what went wrong: a problem says 无法…, 出错, 不能… or 有误. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) ends the message after 「错误：」, 「原因：」 or 「回复：」 and brings its own punctuation, so no 。 follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its 。, and Chinese joins them with no gap.
+- **You and your**: a label that names the reader's own things says 我的, as Chinese apps' menus do (「我的令牌」, 「我的仪表板」, 「我的订阅」), or nothing where the owner is plain (「个人资料」). A sentence speaks to the reader as 你 and 你的: 「你的角色是只读的。」
+- **The help desk** is 服务台, and asking it for help 提交请求: 「提交了请求」 in an issue's history, 「通过服务台提交了请求」 in a notification. Its pages and emails for requesters say 您.
+
+| English | Simplified Chinese |
+|---|---|
+| issue | 问题 |
+| summary (an issue's title) | 概要 |
+| description | 描述 |
+| project | 项目 |
+| lead (of a project) | 负责人 |
+| board | 看板 |
+| sprint | 冲刺 |
+| committed (a sprint's commitment) | 承诺 |
+| blocker | 阻塞项 |
+| backlog | 待办事项 |
+| help desk | 服务台 |
+| SLA at risk, breached | 有风险, 已违反 |
+| request (help desk) | 请求 |
+| requester | 请求人 |
+| copied on a request (CC), copy, stop copying | 抄送, 抄送给, 取消抄送 |
+| customer group, kept from the group | 客户组, 对该组隐藏 |
+| reporter | 报告人 |
+| report (an issue), reported | 报告, 报告人：{name} |
+| assignee | 经办人 |
+| agent | 智能体 |
+| assistant (its name), the assistant | 助手 |
+| conversation (with the assistant) | 对话 |
+| workflow | 工作流 |
+| rule | 规则 |
+| if (a rule's or a transition's condition) | 如果; after 「当…时」, 如果 |
+| state machine | 状态机 |
+| transition | 转换 |
+| state | 状态 |
+| knowledge base | 知识库 |
+| article | 文章 |
+| inbox | 收件箱 |
+| notification | 通知 |
+| digest | 摘要 |
+| subscription, subscribe | 订阅, 订阅 |
+| watch, watcher | 关注, 关注者 |
+| timesheet | 工时表 |
+| work logged, log time | 已记录工时, 记录工时 |
+| estimate | 预估 |
+| rate (per hour) | 小时费率 |
+| days away, away | 休假, 休假中 |
+| levelling | 资源平衡 |
+| slack (in a plan) | 浮动时间 |
+| booked (hours in a plan) | 已安排: 「已安排工时」 |
+| critical path | 关键路径 |
+| what-if (in a plan) | 模拟 |
+| milestone | 里程碑 |
+| baseline | 基线 |
+| earned value, earned | 挣值 |
+| cost and schedule performance (CPI, SPI) | 成本绩效指数, 进度绩效指数 |
+| triage | 分诊 |
+| suggestion | 建议 |
+| tag | 标签 |
+| token, revoke | 令牌, 撤销 |
+| fingerprint (of a token) | 指纹 |
+| scope (of a token) | 范围: 「admin 范围」 |
+| allow (an app), apps you allowed | 授权, 「你授权的应用」 |
+| not found | 找不到: 「找不到问题 {id}。」 |
+| two-factor sign-in | 两步验证 |
+| sign in, sign out | 登录, 退出登录 |
+| login (a person's handle) | 登录名 |
+| identity provider | 身份提供商 |
+| single sign-on | 单点登录 |
+| webhook, delivery | Webhook, 投递 |
+| post (a4a or a provider sending to an address) | 发送; 发布 is for chat messages and comments |
+| secret | 密钥 |
+| commit, pull request, branch | 提交, 拉取请求, 分支 |
+| merge, merged | 合并, 已合并 |
+| build (CI) | 构建 |
+| CI | CI |
+| field, value | 字段, 值 |
+| link (between issues), unlink | 链接, 取消链接 |
+| link, unlink (a chat account) | 关联, 取消关联 |
+| duplicate | 重复 |
+| resolve, resolved, resolution | 解决, 已解决, 解决结果 |
+| dashboard, widget | 仪表板, 小部件 |
+| report | 报告 |
+| settings | 设置 |
+| app, handler (of an app) | 应用, 处理程序 |
+| person, people | 用户; 人 in a count |
+| role, permission | 角色, 权限 |
+| administrator, manager, member, viewer, guest | 管理员, 经理, 成员, 查看者, 访客 |
+
+**Why 问题 for issue**: it's what Jira's Simplified Chinese says, so teams who have used a tracker read it already. 议题 (GitHub's and GitLab's) reads as a topic for discussion, 事项 and 工作项 (Feishu's, PingCode's) are less known to them, and 工单 is a help desk's ticket. 问题 also means "problem", so a4a's problems never use it for what went wrong.
+
+**Why 经办人 for assignee**: Jira's word again, and it keeps 负责人 for a project's lead, as Jira does. Feishu and PingCode say 负责人 for both, which a4a can't, since a project's lead and an issue's assignee are often named on one page.
+
+**Checking Simplified Chinese**: the checks above, and `e2e/chinese.spec.ts`. It signs a person of its own in, through the sign-in page of a browser that asks for Simplified Chinese, and opens the issues, an issue, the inbox and the profile. It also shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px, into the HTML report and beside the test in `apps/web/test-results`.
+
+A reader of Chinese can then:
+
+- read those shots;
+- set a profile's language to 简体中文 and walk the pages;
+- read the pieces of one prefix together, since a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.
+
+The shots in this repository's container are drawn in WenQuanYi Zen Hei, its only CJK font. It is a Chinese font, so they look as Chinese readers expect, if plainer than Noto Sans SC or PingFang SC.

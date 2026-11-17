@@ -216,6 +216,37 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
 - `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
+## Simplified Chinese
+
+The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, and has had no second read. Everything below is open.
+
+Terms:
+
+- **你 and 您**: 你 everywhere, and 您 on the help desk's pages for requesters (the form, the portal, a request's page), in their emails, and on the unsubscribe page, which team members reach from their emails too. Is 您 right there? And do problems' fixes, which have no 请 where English has no "please" (「一分钟后重试。」), read too curt?
+- **问题 for issue** is Jira's. 事项 and 工作项 (Feishu's, PingCode's) or GitHub's 议题 are the alternatives; 问题 also means "problem", so no problem says it.
+- **经办人 for assignee** is Jira's, and keeps 负责人 for a project's lead. Many Chinese tools say 负责人 or 处理人 for the assignee.
+- **冲刺 for sprint** is Jira's. Chinese agile teams often say 迭代.
+- **智能体 for agent**, as Chinese AI products say it now; 代理 reads as a proxy.
+- **分诊 for triage**, borrowed from medicine as English borrowed it. 预审 or 分类 are the alternatives.
+- **经理 for the manager role** reads as a job title. 管理者 sits too close to 管理员 (administrator); 项目经理 is longer.
+- **休假 for days away**, sick days included. 请假 or 不在岗 are the alternatives.
+- **The plan's words** are the project management ones Chinese PMP courses teach: 挣值, 成本绩效指数, 资源平衡, 浮动时间, 基线, 关键路径. What-if is 模拟, and its button 「假如……」.
+- **令牌 for token**, 密钥 for a webhook's or an app's secret, 投递 for a delivery, 两步验证 for two-factor sign-in (双重身份验证 and 双因素认证 are the alternatives).
+- **The navigation's groups**: 工作, 决策, 构建, 总览 (`app.shell.work`, `decide`, `build`, `oversee`). Natural?
+- **Age** in the reports (`reports.moreReports.*`) is 时长; **velocity** is 速度.
+
+Phrasing:
+
+- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 创建」), so a person named in Chinese reads 「以 王芳 身份」. See below.
+- **Intl's own spacing**: dates, durations and lists come from Intl unspaced (「2.5小时」, 「Anna Schmidt和Vera Viewer」) beside the catalog's 「3 个问题」. Acceptable side by side?
+- **Free text moved to the end**, after 错误：, 原因： or 回复： (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Does it read naturally?
+- **The desk's name in quotes**: `server.helpdesk.whyAnswer`, `whyLink` and `server.portal.lead` quote it, 「向“BACK 的服务台”寻求了帮助」, so the plain 「服务台」 reads too.
+- **A rule's sentence**: 「当创建问题时，如果它匹配 Type: Bug，则应用 Assignee anna。」 Conditions on linked issues say 「与它存在“{v}”关系的问题」, which is heavy (`rules.words.*Linked*`, `rules.preview.actsOn`).
+- **The board's drop lines** (`board.board.dropItTo*`): 「放下以将 BACK-1 移到 Done（作为 Fixed），并……」, read by a screen reader as a card moves.
+- **Examples for the assistant** are Chinese (「把这些移到 Review，并指派给 anna」, 「本周无人处理的严重 Bug」); examples of the query and command languages stay as written.
+- **The issue list's count line** says 「4 个问题：项目 SPR、未解决」, joining the query's parts with 、.
+- **Traditional Chinese readers**: a browser asking for zh-TW or zh-HK gets this catalog, since a4a matches a language by its first part, and most such browsers list zh as well. Is Simplified better than English for them, or should a4a match only zh, zh-CN and zh-Hans until it has a Traditional catalog?
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
@@ -225,4 +256,5 @@ These need the code to change, not a catalog:
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
 - **A rule run's changes** (`rules.run.changed`, `alsoChanged`) are fields and values the server joins with English punctuation: "State: Open → Fixed; Priority: — → High".
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
-- **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese would use 「、」.
+- **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese and Chinese would use 「、」.
+- **Whether a value is Chinese**: Chinese spaces a value written in Latin letters or digits and not one written in Chinese, and a catalog can't tell which a value is, so it spaces names, ids and numbers. A person or a project named in Chinese gets spaces it doesn't need: 「以 王芳 身份」.
