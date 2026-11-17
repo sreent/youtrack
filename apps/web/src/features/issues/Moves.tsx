@@ -92,7 +92,7 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
           className="reaction"
           aria-pressed={r.mine}
           disabled={!canReact}
-          title={r.people.map((p) => p.name).join(', ')}
+          title={formatList(r.people.map((p) => p.name))}
           onClick={() => void toggle(r.emoji)}
         >
           {r.emoji} {r.count}
@@ -234,7 +234,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
             </ul>
           ) : null}
           {plan.dropped.length ? <p className="note">{tr('issues.moves.leftBehindAsDoesnT', { key: plan.project.key, join: formatList(plan.dropped) })}</p> : null}
-          {plan.leftSprints.length ? <p className="note">{tr('issues.moves.itLeaves', { join: plan.leftSprints.join(', ') })}</p> : null}
+          {plan.leftSprints.length ? <p className="note">{tr('issues.moves.itLeaves', { join: formatList(plan.leftSprints) })}</p> : null}
         </>
       ) : null}
       {error && !plan?.problems.length ? <ErrorLine>{error}</ErrorLine> : null}

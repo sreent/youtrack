@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { get, put } from '../../api/client';
 import { errorText, Said } from '../common/bits';
 import { useState } from 'react';
-import { t, tr, formatList } from '../../i18n';
+import { formatItems, formatList, t, tr } from '../../i18n';
 
 const WORDS: Record<NotifyKind, string> = {
   created: t('notifications.kinds.created'),
@@ -49,7 +49,7 @@ export function NotifyKindsSettingsCard() {
                   <label key={`${scope}-${way}`} className="check">
                     <input
                       type="checkbox"
-                      aria-label={`${WORDS[k]}, ${scope === 'watching' ? t('notifications.kinds.issuesYouWatch') : t('notifications.kinds.yourSubscriptions')}, ${way === 'inbox' ? t('notifications.kinds.byInbox') : t('notifications.kinds.byEmail')}`}
+                      aria-label={formatItems([WORDS[k], scope === 'watching' ? t('notifications.kinds.issuesYouWatch') : t('notifications.kinds.yourSubscriptions'), way === 'inbox' ? t('notifications.kinds.byInbox') : t('notifications.kinds.byEmail')])}
                       checked={s[scope][k][way]}
                       disabled={save.isPending}
                       onChange={(e) => toggle(scope, k, way, e.target.checked)}
