@@ -6,14 +6,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import type { QueryProblem } from '@a4a/shared';
+import { runCommand } from '../src/commands/executor';
 import { createHttpApp } from '../src/http/app';
 import { translatorFor } from '../src/i18n';
 import { pageWords, readAlike } from '../src/lib/errors';
 import { parseQueryForApi } from '../src/search/service';
 import { addFieldValue, attachField, createField } from '../src/services/fields';
+import { createIssue } from '../src/services/issues';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
+let issueId = '';
 const en = translatorFor('en');
 const de = translatorFor('de');
 
@@ -29,7 +32,10 @@ beforeAll(async () => {
   for (const name of ['2026.11.101', '2026.11.102']) await addFieldValue(admin, build.id, { name });
   const points = await createField(admin, { name: 'Points', type: 'integer', multi: false, description: '', values: [] });
   await attachField(admin, 'BACK', points.id, {});
+  const severity = await createField(admin, { name: 'Severity', type: 'enum', multi: false, description: '', values: [{ name: 'Major' }, { name: 'Minor' }] });
+  await attachField(admin, 'BACK', severity.id, {});
   w.app.schema.invalidate();
+  issueId = (await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Words for problems' })).id;
 });
 
 afterAll(async () => {
@@ -131,5 +137,37 @@ describe('the query language’s problems, in a person’s language (D49)', () =
       expect.objectContaining({ message: 'Cannot sort by "prority"', key: 'query.cannotSortBy', values: { name: 'prority', hasGuess: 'yes', guess: 'priority' } }),
     ]);
     expect(body.problems.map((p) => said(p).de)).toEqual(['Unbekannter Wert „Fixd“ für State. Meinten Sie „Fixed“?', 'Nach „prority“ kann nicht sortiert werden. Meinten Sie „priority“?']);
+  });
+});
+
+/** Each command, and a problem it meets. */
+const COMMANDS: [command: string, key: string, german: string][] = [
+  ['', 'command.empty', 'Der Befehl ist leer. Zum Beispiel „State Fixed“ oder „for me“.'],
+  ['add', 'command.somethingTo', 'Nach „add“ fehlt etwas.'],
+  ['tag', 'command.tagName', 'Der Name eines Tags fehlt.'],
+  ['untag', 'command.tagNameAfterUntag', 'Nach „untag“ fehlt der Name eines Tags.'],
+  ['for', 'command.userAfterFor', 'Nach „for“ fehlt eine Person.'],
+  ['depends on', 'command.issueAfterLink', 'Nach „depends on“ fehlt eine Vorgangs-ID.'],
+  ['State', 'command.valueFor', 'Für State fehlt ein Wert.'],
+  ['Major', 'command.valueOfFields', '„Major“ ist ein Wert von Priority und Severity. Sagen Sie, welches Feld Sie meinen, z. B. „Priority Major“.'],
+  ['BACK-1', 'command.issueIdNotCommand', '„BACK-1“ ist eine Vorgangs-ID, kein Befehl. Ein Befehl gilt für die gewählten Vorgänge, lassen Sie sie also weg. Um mit BACK-1 zu verknüpfen, sagen Sie, wie, z. B. „relates to BACK-1“.'],
+  ['qqqqqqqq', 'command.unknown', 'Unbekannter Befehl „qqqqqqqq“. Verwenden Sie einen Feldnamen und einen Wert, z. B. „State Fixed“, oder „tag urgent“.'],
+  ['untagg urgent', 'command.unknown', 'Unbekannter Befehl „untagg“. Meinten Sie „untag“?'],
+  ['State Fixd', 'command.unknownValue', 'Unbekannter Wert „Fixd“ für State. Meinten Sie „Fixed“?'],
+  ['Estimation zebra', 'command.notADuration', '„zebra“ ist keine Dauer für Estimation. Verwenden Sie z. B. 2d, 4h oder 1w 2d.'],
+];
+
+describe('the command language’s problems, in a person’s language (D49)', () => {
+  it.each(COMMANDS)('%s: %s', async (command, key, german) => {
+    const { problems } = await runCommand(w.as(w.anna), { issues: [issueId], command, dryRun: true });
+    expect(problems.length, `"${command}" has no problem`).toBeGreaterThan(0);
+    for (const p of problems) {
+      const words = said(p);
+      expect(readAlike(words.en, pageWords(p.message, p.hint)), `${words.en} | ${pageWords(p.message, p.hint)}`).toBe(true);
+      expect(words.de).not.toBe(words.en);
+    }
+    const met = problems.find((p) => p.key === key);
+    expect(met, `"${command}" meets ${problems.map((p) => p.key).join(', ')}`).toBeDefined();
+    expect(said(met!).de).toBe(german);
   });
 });

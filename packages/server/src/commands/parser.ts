@@ -1,5 +1,6 @@
 import { isOwnAgent, type QueryProblem, type SuggestItem, isOptionType } from '@a4a/shared';
 import { fixValue, lex, type Token } from '../search/lexer';
+import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { didYouMean, editDistance } from '../lib/text';
 import { actionsFor, allowedValues, machinesFor, transitionsOf, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
@@ -94,10 +95,13 @@ class CommandParser {
     return t?.kind === 'word' ? t.value.toLowerCase() : null;
   }
 
-  /** `fix` is the text to put in the token's place, when there's a likely one. */
-  private problem(message: string, t: Token | undefined, hint?: string, fix?: string | null) {
+  /**
+   * `words` say it on a page in another language (D49); the API carries the English. `fix` is the
+   * text to put in the token's place, when there's a likely one.
+   */
+  private problem(words: QueryProblemWords, message: string, t: Token | undefined, hint?: string, fix?: string | null) {
     const start = t?.start ?? this.input.length;
-    this.problems.push({ message, start, end: t?.end ?? start, hint, ...(fix ? { fix } : {}) });
+    this.problems.push(keyedProblem({ message, start, end: t?.end ?? start, hint, ...(fix ? { fix } : {}) }, words.key, words.values));
   }
 
   /** Longest phrase matching the upcoming words. */
@@ -174,7 +178,7 @@ class CommandParser {
       mode = w;
       this.pos++;
       if (!this.peek()) {
-        this.problem(`Expected something to ${w}`, t);
+        this.problem({ key: 'command.somethingTo', values: { word: w } }, `Expected something to ${w}`, t);
         return;
       }
     }
@@ -182,14 +186,14 @@ class CommandParser {
     if (w2 === 'tag' || w2 === 'tags') {
       this.pos++;
       const name = this.readAtom();
-      if (!name) return this.problem('Expected a tag name', this.peek() ?? t);
+      if (!name) return this.problem({ key: 'command.tagName' }, 'Expected a tag name', this.peek() ?? t);
       this.ops.push({ kind: 'tag', mode: mode === 'remove' ? 'remove' : 'add', name });
       return;
     }
     if (w2 === 'untag') {
       this.pos++;
       const name = this.readAtom();
-      if (!name) return this.problem('Expected a tag name after untag', this.peek() ?? t);
+      if (!name) return this.problem({ key: 'command.tagNameAfterUntag' }, 'Expected a tag name after untag', this.peek() ?? t);
       this.ops.push({ kind: 'tag', mode: 'remove', name });
       return;
     }
@@ -202,16 +206,16 @@ class CommandParser {
     if ((w2 === 'sprint' || w2 === 'sprints') && this.sprintClause()) {
       this.pos++;
       const name = this.readSprintName();
-      if (!name) return this.problem('Expected the name of a sprint', this.peek() ?? t, 'e.g. "sprint Sprint 4", or "remove sprint Sprint 4"');
+      if (!name) return this.problem({ key: 'command.sprintName' }, 'Expected the name of a sprint', this.peek() ?? t, 'e.g. "sprint Sprint 4", or "remove sprint Sprint 4"');
       this.ops.push({ kind: 'sprint', mode: mode === 'remove' ? 'remove' : 'add', name });
       return;
     }
     if (w2 === 'for') {
       this.pos++;
       const assignee = this.fieldsInScope.find((f) => f.type === 'user' && f.name.toLowerCase() === 'assignee') ?? this.fieldsInScope.find((f) => f.type === 'user');
-      if (!assignee) return this.problem('These issues have no Assignee field', t);
+      if (!assignee) return this.problem({ key: 'command.noAssigneeField' }, 'These issues have no Assignee field', t);
       const user = this.readUser();
-      if (!user) return this.problem('Expected a user after "for"', this.peek() ?? t);
+      if (!user) return this.problem({ key: 'command.userAfterFor' }, 'Expected a user after "for"', this.peek() ?? t);
       this.ops.push({ kind: 'field', field: assignee, mode: 'set', raw: [user], display: `${assignee.name} ${user}` });
       return;
     }
@@ -244,7 +248,7 @@ class CommandParser {
         }
         break;
       }
-      if (!targets.length) return this.problem(`Expected an issue id after "${link.item.display}"`, this.peek() ?? t);
+      if (!targets.length) return this.problem({ key: 'command.issueAfterLink', values: { phrase: link.item.display } }, `Expected an issue id after "${link.item.display}"`, this.peek() ?? t);
       this.ops.push({ kind: 'link', mode: mode === 'remove' ? 'remove' : 'add', phrase: link.item, targets });
       return;
     }
@@ -256,7 +260,7 @@ class CommandParser {
       const raw = this.readFieldValue(field.item);
       if (raw === null) {
         // Say a value is missing only if reading it didn't already say what was wrong with it.
-        if (this.problems.length === reported) this.problem(`Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
+        if (this.problems.length === reported) this.problem({ key: 'command.valueFor', values: { field: field.item.name } }, `Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
         return;
       }
       const effective = mode === 'set' && field.item.multi ? 'add' : mode;
@@ -269,10 +273,12 @@ class CommandParser {
       const tok = this.peek()!;
       this.pos += values[0]!.length;
       if (fieldsHit.length > 1) {
+        const names = fieldsHit.map((f) => f.field.name);
         this.problem(
-          `"${values[0]!.item.value}" is a value of ${fieldsHit.map((f) => f.field.name).join(' and ')}`,
+          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, first: names[0]!, last: names[names.length - 1]!, fields: names.join(' and ') } },
+          `"${values[0]!.item.value}" is a value of ${names.join(' and ')}`,
           tok,
-          `Say which one, e.g. "${fieldsHit[0]!.field.name} ${values[0]!.item.value}"`,
+          `Say which one, e.g. "${names[0]} ${values[0]!.item.value}"`,
         );
         return;
       }
@@ -288,13 +294,19 @@ class CommandParser {
       // The command already applies to the chosen issues; another issue only follows a link phrase.
       let end = tok.end;
       while (end < this.input.length && /\s/.test(this.input[end]!)) end++;
-      this.problems.push({
-        message: `"${tok.value}" is an issue id, not a command`,
-        start: tok.start,
-        end,
-        hint: `A command applies to the chosen issues, so leave it out. To link to ${tok.value}, say how, e.g. "relates to ${tok.value}".`,
-        fix: '',
-      });
+      this.problems.push(
+        keyedProblem(
+          {
+            message: `"${tok.value}" is an issue id, not a command`,
+            start: tok.start,
+            end,
+            hint: `A command applies to the chosen issues, so leave it out. To link to ${tok.value}, say how, e.g. "relates to ${tok.value}".`,
+            fix: '',
+          },
+          'command.issueIdNotCommand',
+          { id: tok.value },
+        ),
+      );
       return;
     }
     const vocabulary = [
@@ -310,7 +322,13 @@ class CommandParser {
       'comment',
     ];
     const guess = didYouMean(tok.value, vocabulary);
-    this.problem(`Unknown command "${tok.value}"`, tok, guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".', guess);
+    this.problem(
+      { key: 'command.unknown', values: { word: tok.value, ...guessWords(guess) } },
+      `Unknown command "${tok.value}"`,
+      tok,
+      guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".',
+      guess,
+    );
   }
 
   /** quoted / braced / single word */
@@ -426,10 +444,12 @@ class CommandParser {
         const typed = this.input.slice(t.start, last.end);
         const guess = near?.value ?? didYouMean(t.value, candidates.map((c) => c.item.value));
         const span = { ...t, end: last.end };
+        const known = candidates.map((c) => c.item.value);
         this.problem(
+          { key: 'command.unknownValue', values: { value: typed, field: field.name, ...guessWords(guess), n: known.length, allowed: known.join(', ') } },
           `Unknown value "${typed}" for ${field.name}`,
           span,
-          guess ? `Did you mean "${guess}"?` : `Values: ${candidates.map((c) => c.item.value).join(', ')}`,
+          guess ? `Did you mean "${guess}"?` : known.length ? `Values: ${known.join(', ')}` : 'There are no values yet.',
           guess ? fixValue(this.input, t.start, last.end, guess) : null,
         );
         this.pos += near?.words ?? 1;
@@ -448,7 +468,7 @@ class CommandParser {
             this.pos++;
             return t.value;
           }
-          this.problem(`"${t.value}" is not a duration for ${field.name}`, t, 'Use e.g. 2d, 4h or 1w 2d');
+          this.problem({ key: 'command.notADuration', values: { value: t.value, field: field.name } }, `"${t.value}" is not a duration for ${field.name}`, t, 'Use e.g. 2d, 4h or 1w 2d');
           this.pos++;
           return null;
         }
