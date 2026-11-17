@@ -25,13 +25,16 @@ export function whenRead(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   if (sameDay(d, now)) return time;
-  const day = d.toLocaleDateString(intlLocale(), {
+  // The day and the time together, as the page's language joins them (Japanese has no comma), on a 24-hour clock.
+  return d.toLocaleString(intlLocale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
   });
-  return `${day.replace(',', '')}, ${time}`;
 }
 
 /** A day heading in a conversation: "Today", "Yesterday", or the day. */

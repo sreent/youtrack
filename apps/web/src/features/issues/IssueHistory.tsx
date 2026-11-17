@@ -211,7 +211,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
           <ul className="change-lines">
             {e.changes.map((c) => (
               <li key={c.field}>
-                <span className="change-field">{c.field}:</span> {c.from !== null ? <del>{c.from}</del> : null} {c.to !== null ? <ins>{c.to}</ins> : null}
+                <span className="change-field">{t('ui.changes.fieldLabel', { field: c.field })}</span> {c.from !== null ? <del>{c.from}</del> : null} {c.to !== null ? <ins>{c.to}</ins> : null}
               </li>
             ))}
           </ul>

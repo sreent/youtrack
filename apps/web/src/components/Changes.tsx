@@ -19,7 +19,7 @@ export function ChangeLines({ changes, same }: { changes: Change[]; same?: strin
     <ul className="change-lines">
       {changes.map(said).map((c, i) => (
         <li key={`${c.field}-${i}`}>
-          <span className="change-field">{c.field}:</span>{' '}
+          <span className="change-field">{t('ui.changes.fieldLabel', { field: c.field })}</span>{' '}
           {c.from !== null && c.to !== null ? (
             <>
               <del>{c.from}</del> → <ins>{c.to}</ins>
