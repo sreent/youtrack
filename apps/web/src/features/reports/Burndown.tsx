@@ -5,6 +5,7 @@
  * and the figures as a table beside it.
  */
 import type { Burndown } from '@a4a/shared';
+import { hoursWords } from '../common/format';
 import { useId } from 'react';
 import { Link } from 'react-router';
 import { Badge } from '../../components/Badges';
@@ -86,7 +87,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
             <g key={t}>
               <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(v)} y2={y(v)} />
               <text x={f.left - 8} y={y(v) + 4} textAnchor="end">
-                {b.by === 'count' ? t : `${t}h`}
+                {b.by === 'count' ? t : hoursWords(t)}
               </text>
             </g>
           );

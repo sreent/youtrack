@@ -7,7 +7,7 @@ import { VCS_PROVIDER_NAMES, type ProviderLogin, type VcsProvider } from '@a4a/s
 import { and, asc, eq } from 'drizzle-orm';
 import { requireScope, type Ctx, type UserRow } from '../context';
 import { providerLogins } from '../db/schema';
-import { AppError, asSentence, badRequest, notFound } from '../lib/errors';
+import { AppError, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { findUser, type SchemaSnapshot } from '../services/schema-cache';
 import { userRefDto } from '../services/values';
@@ -67,9 +67,10 @@ export async function addProviderLogin(ctx: Ctx, idOrLogin: string, input: { pro
   const login = input.login.trim().replace(/^@/, '');
   const shape = SHAPES[input.provider];
   if (!shape.ok(login)) {
-    throw badRequest(`That doesn’t look like a login at ${VCS_PROVIDER_NAMES[input.provider]}`, shape.hint).said('vcs.notALogin', {
+    throw badRequest(`That doesn’t look like a login at ${VCS_PROVIDER_NAMES[input.provider]}`, shape.hint).said('vcs.notALoginAt', {
       provider: VCS_PROVIDER_NAMES[input.provider],
-      shape: asSentence(shape.hint),
+      // A stable code the message selects on: each provider's login has its own shape.
+      kind: input.provider,
     });
   }
   const matchKey = loginKey(input.provider, login);

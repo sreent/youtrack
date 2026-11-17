@@ -241,7 +241,7 @@ function WhatIfPanel({
         </form>
       )}
       <div aria-live="polite">
-        {change && result.isFetching && !result.data ? <Loading what={t('plan.timeline.theWhatIf')} /> : null}
+        {change && result.isFetching && !result.data ? <Loading what="loadingLine.whatIf" /> : null}
         {change && result.error ? <ErrorNote error={result.error} /> : null}
         {change && result.data ? <WhatIfResultView result={result.data} before={schedule} change={change} people={people} onClear={() => onChange(null)} /> : null}
       </div>
@@ -276,7 +276,7 @@ export function Timeline({ project, choice }: { project: Project; choice: Baseli
         >{t('plan.timeline.whatIf')}</button>
       </div>
       {choice.error ? <ErrorNote error={choice.error} /> : null}
-      {schedule.isLoading || !choice.ready ? <Loading what={t('plan.timeline.thePlan')} /> : null}
+      {schedule.isLoading || !choice.ready ? <Loading what="loadingLine.plan" /> : null}
       {schedule.error ? <ErrorNote error={schedule.error} /> : null}
       {s ? (
         s.tasks.length === 0 ? (

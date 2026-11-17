@@ -42,7 +42,7 @@ export default function ConfirmEmailPage() {
         ) : link.isLoading ? (
           <>
             <h2 id="confirming">{t('page.confirmEmail.readingTheLink')}</h2>
-            <Loading what={t('page.confirmEmail.theLink')} />
+            <Loading what="loadingLine.link" />
           </>
         ) : link.error ? (
           <>

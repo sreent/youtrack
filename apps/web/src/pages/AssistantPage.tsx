@@ -124,7 +124,13 @@ export default function AssistantPage() {
       {status.data && !status.data.enabled ? (
         <section className="card stack tight">
           <h2>{t('page.assistant.theAssistantIsOffOn')}</h2>
-          <p className="note">{tr('page.assistant.whoeverRunsTheServerCan', { v: status.data.reason ? `${status.data.reason}. ` : '' })}</p>
+          {/* The server's reason names its settings (AI_DISABLED, a key's variable): its operator's words, set apart from the page's sentence. */}
+          {status.data.reason ? (
+            <p className="note">
+              <code>{status.data.reason}</code>
+            </p>
+          ) : null}
+          <p className="note">{tr('page.assistant.whoeverRunsTheServer')}</p>
         </section>
       ) : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
@@ -132,7 +138,7 @@ export default function AssistantPage() {
         <div className="stack">
           <nav className="card side-card nav-card" aria-label={t('page.assistant.yourConversations')}>
             <h2>{t('page.assistant.yourConversations')}</h2>
-            {list.isLoading ? <Loading what={t('loading.conversations')} /> : null}
+            {list.isLoading ? <Loading what="loadingLine.conversations" /> : null}
             {list.error ? <ErrorNote error={list.error} /> : null}
             {list.data && !list.data.length ? <p className="note">{t('page.assistant.noneYetWhatYouAsk')}</p> : null}
             {list.data?.length ? (

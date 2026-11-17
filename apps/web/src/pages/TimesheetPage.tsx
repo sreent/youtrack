@@ -4,6 +4,7 @@
  * its entry; a day of several entries is changed on the issue.
  */
 import type { Timesheet } from '@a4a/shared';
+import { hoursWords, periodWords } from '../features/common/format';
 import { formatPeriod, parsePeriod } from '@a4a/shared/periods';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
@@ -21,7 +22,7 @@ const addDays = (iso: string, n: number) => {
 };
 const dayName = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const shown = (minutes: number) => (minutes ? formatPeriod(minutes) : '');
-const hoursText = (h: number) => `${Math.round(h * 10) / 10}h`;
+const hoursText = (h: number) => hoursWords(h);
 
 interface Row {
   issue: string;
@@ -94,14 +95,14 @@ export default function TimesheetPage() {
       const next = await put<Timesheet>('/timesheet/cell', { issue: row.issue, date, minutes, type: row.type });
       qc.setQueryData(key, next);
       setExtra((rows) => rows.filter((r) => !(r.issue === row.issue && r.type === row.type)));
-      setSaid(minutes ? tx('page.timesheet.savedOn', { formatPeriod: formatPeriod(minutes), issue: row.issue, dayName: dayName(date) }) : tx('page.timesheet.removedTheTimeOn', { issue: row.issue, dayName: dayName(date) }));
+      setSaid(minutes ? tx('page.timesheet.savedOn', { formatPeriod: periodWords(minutes), issue: row.issue, dayName: dayName(date) }) : tx('page.timesheet.removedTheTimeOn', { issue: row.issue, dayName: dayName(date) }));
       await qc.invalidateQueries({ queryKey: ['issues', 'one', row.issue] });
     } catch (e) {
       setError(errorText(e));
     }
   };
 
-  if (sheet.isLoading) return <Loading what={tx('page.timesheet.yourTimesheet')} />;
+  if (sheet.isLoading) return <Loading what="loadingLine.timesheet" />;
   if (sheet.error || !sheet.data) {
     return (
       <>
@@ -122,7 +123,7 @@ export default function TimesheetPage() {
     <>
       <PageHead
         title={tx('page.timesheet.timesheet')}
-        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: formatPeriod(total) || tx('page.timesheet.nothing'), hoursText: hoursText(planned) })}
+        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: periodWords(total) || tx('page.timesheet.nothing'), hoursText: hoursText(planned) })}
         actions={
           <div className="cluster">
             <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>
@@ -178,7 +179,7 @@ export default function TimesheetPage() {
                   const over = m / 60 > hours + 1e-9;
                   return (
                     <td key={t.days[i]} className={over ? 'num mono over' : m / 60 < hours ? 'num mono short' : 'num mono'}>
-                      {formatPeriod(m) || '0m'}
+                      {periodWords(m)}
                       <span className="day-hours">{tr('page.timesheet.of', { hoursText: hoursText(hours) })}</span>
                     </td>
                   );

@@ -395,7 +395,7 @@ export default function FieldsPage() {
   return (
     <AdminOnly title={t('page.fields.fields2')}>
       <PageHead title={t('page.fields.fields2')} about={t('page.fields.theFieldsIssuesCanHave')} />
-      {fields.isLoading ? <Loading what={t('loading.fields')} /> : null}
+      {fields.isLoading ? <Loading what="loadingLine.fields" /> : null}
       {fields.error ? <ErrorNote error={fields.error} /> : null}
       {fields.data ? (
         <div className="tw:grid tw:grid-cols-[15rem_minmax(0,1fr)] tw:items-start tw:gap-4 tw:max-[900px]:grid-cols-1">

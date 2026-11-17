@@ -257,7 +257,7 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
   const s = schedule.data;
   const cal = useMemo(() => workCalendar(s?.calendar ?? project.settings.plan), [s?.calendar, project.settings.plan]);
 
-  if (costs.isLoading || !choice.ready) return <Loading what={t('plan.costs.theCosts')} />;
+  if (costs.isLoading || !choice.ready) return <Loading what="loadingLine.costs" />;
   if (costs.error || !costs.data) return <ErrorNote error={costs.error ?? choice.error} />;
   const c = costs.data;
   const evm = c.evm;
@@ -316,7 +316,7 @@ export function Costs({ project, choice }: { project: Project; choice: BaselineC
                     <p className="label">{t('plan.costs.costPerformanceCpi')}</p>
                     <strong>{evm.cpi === null ? '–' : evm.cpi.toFixed(2)}</strong>
                     <p>{cpiWords(evm.cpi)}</p>
-                    <p className="note">{tr('plan.costs.earnedForSpent', { money: money(evm.ev, cur), money2: money(evm.ac, cur) })}</p>
+                    <p className="note">{tr('plan.costs.earnedAndSpent', { earned: money(evm.ev, cur), spent: money(evm.ac, cur) })}</p>
                   </div>
                   <div className="cost-index">
                     <p className="label">{t('plan.costs.schedulePerformanceSpi')}</p>

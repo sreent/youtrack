@@ -153,18 +153,17 @@ export function SuggestionCard({
 
   if (compact && !open && !said && !p.duplicates.length && !p.tags.length) return null;
 
-  const tagWords = openTags.length === 1 ? tx('decide.suggestionCard.aTag') : 'tags';
   const likeWords = tx(p.duplicates.length === 1 ? 'decide.suggestionCard.anIssueLikeThisOne' : 'decide.suggestionCard.issuesLikeThisOne');
   const title = compact
     ? openTags.length && p.duplicates.length
-      ? tx('decide.suggestionCard.triageSuggestsAndFound', { tagWords: tagWords, likeWords: likeWords })
+      ? tx('decide.suggestionCard.triageSuggestsTagsAndFound', { n: openTags.length, likeWords: likeWords })
       : openTags.length
-        ? tx('decide.suggestionCard.triageSuggests', { tagWords: tagWords })
+        ? tx('decide.suggestionCard.triageSuggestsTags', { n: openTags.length })
         : p.duplicates.length
           ? tx('decide.suggestionCard.triageFound', { likeWords: likeWords })
           : tx('decide.suggestionCard.triageSuggestsChanges')
     : null;
-  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? tx('decide.suggestionCard.ofAccepted', { accepted: accepted, v: fields.length + tags.length }) : null]
+  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? tx('decide.suggestionCard.acceptedOf', { accepted: accepted, total: fields.length + tags.length }) : null]
     .filter(Boolean)
     .join(' · ');
 
@@ -294,7 +293,7 @@ export function SuggestionCard({
 
         {open ? (
           <>
-            {choosing && picked.length === 0 ? <p className="approval-note">{tr('decide.suggestionCard.tickWhatToOrDismiss', { v: compact ? 'add' : 'apply' })}</p> : null}
+            {choosing && picked.length === 0 ? <p className="approval-note">{tr(compact ? 'decide.suggestionCard.tickWhatToAdd' : 'decide.suggestionCard.tickWhatToApply')}</p> : null}
             {!compact && !items.length ? (
               <p className="approval-note">{tx('decide.suggestionCard.thereSNothingHereLeft')}</p>
             ) : null}

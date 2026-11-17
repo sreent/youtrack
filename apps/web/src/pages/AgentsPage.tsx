@@ -179,7 +179,7 @@ export default function AgentsPage() {
                   <div className="tw:grid tw:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] tw:items-start tw:gap-x-4 tw:gap-y-3 tw:max-[640px]:grid-cols-1">
                     <FormField
                       label={tx('page.agents.name')}
-                      help={tx('page.agents.nameItAfterTheAgent', { v: name.trim() || 'claude-code', v2: me.data?.name ?? 'you' })}
+                      help={me.data?.name ? tx('page.agents.nameItAfterTheAgentFor', { agent: name.trim() || 'claude-code', name: me.data.name }) : tx('page.agents.nameItAfterTheAgentForYou', { agent: name.trim() || 'claude-code' })}
                     >
                       {(id, help) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby={help} />}
                     </FormField>
@@ -285,7 +285,7 @@ export default function AgentsPage() {
               <span className="note">{tx('page.agents.eachActsAsYouNever')}</span>
             </div>
             <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-            {tokens.isLoading ? <Loading what={t('page.agents.yourTokens2')} /> : null}
+            {tokens.isLoading ? <Loading what="loadingLine.yourTokens" /> : null}
             {tokens.error ? <ErrorNote error={tokens.error} /> : null}
             {tokens.data && !tokens.data.length ? <p className="note">{tx('page.agents.youHaveNoTokensYet')}</p> : null}
             {tokens.data?.length ? (
@@ -371,7 +371,7 @@ export default function AgentsPage() {
               />
             </div>
             <p className="note section-note">{tx('page.agents.theSameToolsTheAssistant')}</p>
-            {tools.isLoading ? <Loading what={t('page.agents.theTools')} /> : null}
+            {tools.isLoading ? <Loading what="loadingLine.tools" /> : null}
             {tools.error ? <ErrorNote error={tools.error} /> : null}
             {tools.data ? (
               <>

@@ -1,10 +1,19 @@
 import { ApiError } from '../api/client';
 import { Icon } from './Icon';
-import { problemWords, t, tr } from '../i18n';
+import type { MessageValues } from '@a4a/shared/i18n';
+import { problemWords, t } from '../i18n';
 
-export function Loading({ what }: { what?: string }) {
+/**
+ * A page's line while something loads, whole in the page's language (D49): `what` is its message's key
+ * (`loadingLine.plan`: "Loading the plan…"), with `values` where it takes some; `named` is a thing's own
+ * name or id ("Loading report.pdf…"); with neither, "Loading…".
+ */
+export function Loading({ what, values, named }: { what?: string; values?: MessageValues; named?: string }) {
+  const words = what ? t(what, values) : named !== undefined ? t('loadingLine.named', { name: named }) : t('loadingLine.plain');
   return (
-    <p className="note" role="status">{tr('ui.states.loading', { el: <span className="spin" aria-hidden="true" />, v: what ? ` ${what}` : '' })}</p>
+    <p className="note" role="status">
+      <span className="spin" aria-hidden="true" /> {words}
+    </p>
   );
 }
 

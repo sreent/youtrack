@@ -159,7 +159,7 @@ describe('agents as assignees', () => {
   it('takes an agent in a members-only project only once it is one of its people', async () => {
     const issue = await createIssue(w.adminCtx, { project: 'SEC', summary: 'Audit the vault' });
     const e = await failure(updateIssue(w.adminCtx, issue.id, { fields: { Assignee: 'claude' } }));
-    expect(e.message).toBe("Claude can't see SEC, so can't be its Assignee");
+    expect(e.message).toBe("Claude can't see SEC, so can't be the value of Assignee");
     await addMember(w.adminCtx, 'SEC', { user: 'claude', role: 'member' });
     expect(value(await updateIssue(w.adminCtx, issue.id, { fields: { Assignee: 'claude' } }), 'Assignee')).toBe('claude');
   });

@@ -398,7 +398,7 @@ export default function AdminPage() {
           </span>
         </div>
         <p className="note section-note">{t('page.admin.aRateAndHoursA')}</p>
-        {users.isLoading ? <Loading what={t('loading.people')} /> : null}
+        {users.isLoading ? <Loading what="loadingLine.people" /> : null}
         {users.error ? <ErrorNote error={users.error} /> : null}
         {people.length ? (
           <Scroll label={t('page.admin.tableOfPeople')}>
@@ -441,7 +441,7 @@ export default function AdminPage() {
       </section>
       <section className="card" aria-labelledby="instance">
         <h2 id="instance">{t('page.admin.thisInstance')}</h2>
-        {settings.isLoading ? <Loading what={t('loading.settings')} /> : null}
+        {settings.isLoading ? <Loading what="loadingLine.settings" /> : null}
         {settings.error ? <ErrorNote error={settings.error} /> : null}
         {settings.data ? <Instance settings={settings.data} /> : null}
       </section>

@@ -45,7 +45,7 @@ export function widgetQuery(p: ReportWidgetParams): { kind: ReportKind; params: 
 
 export function ReportView({ kind, params, compact }: { kind: ReportKind; params: ReportParams; compact?: boolean }) {
   const q = useReport(kind, params);
-  if (q.isLoading) return <Loading what={t('reports.reportView.theReport')} />;
+  if (q.isLoading) return <Loading what="loadingLine.report" />;
   if (q.error) return <ErrorNote error={q.error} />;
   if (!q.data) return null;
   const body = (() => {

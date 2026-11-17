@@ -8,7 +8,7 @@ import { t } from '../i18n';
 export default function BuildsPage() {
   const { key = '' } = useParams();
   const project = useProject(key);
-  if (project.isLoading) return <Loading what={t('page.builds.theProject')} />;
+  if (project.isLoading) return <Loading what="loadingLine.project" />;
   if (project.error) return <ErrorNote error={project.error} />;
   const p = project.data!;
   return (

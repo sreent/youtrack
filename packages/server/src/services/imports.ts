@@ -45,7 +45,7 @@ import {
 } from '../imports/mapping';
 import { readerFor, type RemotePerson, type RowExtra, type StoredOrigin } from '../imports/readers';
 import { RemoteError, type Remote } from '../imports/remote';
-import { AppError, badRequest, conflict, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt, normalizeName } from '../lib/text';
 import { localDate, timeZoneOrThrow } from '../reports/tz';
@@ -280,7 +280,7 @@ export async function uploadImport(
     await ctx.db.update(imports).set({ header: h, rowCount: rows, mapping, source, status: 'ready' }).where(eq(imports.id, id));
   } catch (e) {
     await ctx.db.delete(imports).where(eq(imports.id, id));
-    if (e instanceof CsvError) throw badRequest(`The file can't be read: ${e.message}`, 'Export it again as CSV (UTF-8, comma-separated), and upload that.').said('imports.fileUnreadable', { message: e.message });
+    if (e instanceof CsvError) throw badRequest(`The file can't be read: ${e.message}`, 'Export it again as CSV (UTF-8, comma-separated), and upload that.').said('imports.fileUnreadableSaying', { message: asSentence(e.message) });
     throw e;
   }
   return getImport(ctx, id);
@@ -493,7 +493,7 @@ export async function updateMapping(
         continue;
       }
       const canonical = choices.get(to.toLowerCase());
-      if (!canonical) throw badRequest(`"${to}" is not a ${kind.label} here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`).said('imports.notAChoice', { to, kind: kind.label, value, choices: [...choices.values()].slice(0, 30).join(', ') });
+      if (!canonical) throw badRequest(`"${to}" isn't one of ${kind.label}'s values here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`).said('imports.notOneOfValues', { to, kind: kind.label, value, choices: [...choices.values()].slice(0, 30).join(', ') });
       out[value] = canonical;
     }
   }

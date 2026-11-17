@@ -223,7 +223,7 @@ export function Machines({ project, projectName, fields, manages }: { project: s
         <h2 id="machines-title">{tr('workflow.machines.stateMachinesIn', { projectName: projectName })}</h2>
         <span className="note">{t('workflow.machines.aChangeToAField')}</span>
       </div>
-      {machines.isLoading ? <Loading what={t('workflow.machines.itsStateMachines')} /> : null}
+      {machines.isLoading ? <Loading what="loadingLine.stateMachines" /> : null}
       {machines.error ? <ErrorNote error={machines.error} /> : null}
       {machines.data && !machines.data.length ? <p className="note">{t('workflow.machines.noStateMachineYetIts')}</p> : null}
       {machines.data?.length ? (

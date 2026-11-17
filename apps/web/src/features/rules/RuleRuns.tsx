@@ -25,7 +25,7 @@ function cause(run: RuleRun): string {
 /** What rules did in a project, newest first: Ocean's table of runs (components/Rule). */
 export function RuleRuns({ project }: { project: string }) {
   const runs = useRuleRuns(project);
-  if (runs.isLoading) return <Loading what={t('rules.ruleRuns.whatRulesDid')} />;
+  if (runs.isLoading) return <Loading what="loadingLine.ruleRuns" />;
   if (runs.error) return <ErrorNote error={runs.error} />;
   if (!runs.data?.length) return <p className="note">{t('rules.ruleRuns.nothingYetWhatEachRule')}</p>;
   return (

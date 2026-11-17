@@ -168,7 +168,7 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
         setDraft({});
       }}
     >
-      {settings.isLoading ? <Loading what={t('apps.appsSection.itsSettings2')} /> : null}
+      {settings.isLoading ? <Loading what="loadingLine.appSettings" /> : null}
       {defs.map((d) => {
         const secretSet = d.type === 'secret' && (settings.data?.values[d.name] as { set?: boolean } | undefined)?.set;
         return (
@@ -207,7 +207,7 @@ function Settings({ defs, app, project }: { defs: AppSettingDef[]; app: string; 
 
 function Runs({ app }: { app: string }) {
   const runs = useQuery({ queryKey: appKeys.runs(app), queryFn: () => get<AppRun[]>(`/apps/${app}/runs`) });
-  if (runs.isLoading) return <Loading what={t('apps.appsSection.itsRuns')} />;
+  if (runs.isLoading) return <Loading what="loadingLine.appRuns" />;
   if (runs.error) return <ErrorNote error={runs.error} />;
   if (!runs.data?.length) return <p className="note">{t('apps.appsSection.itsHandlersAndRulesHaven')}</p>;
   return (
@@ -304,7 +304,7 @@ function InstalledApp({ app }: { app: App }) {
             title={t('apps.appsSection.remove', { title: app.title })}
             about={
               r
-                ? t('apps.appsSection.itsPartsGoWithSettings', { rules: r.rules, widgets: r.widgets, handlers: r.handlers, settings: r.settings, stored: r.stored, runs: r.runs, agent: r.agent })
+                ? t('apps.appsSection.itsPartsGoCounted', { rules: r.rules, widgets: r.widgets, handlers: r.handlers, settings: r.settings, stored: r.stored, runs: r.runs, agent: r.agent })
                 : t('apps.appsSection.itsRulesWidgetsHandlersSettings')
             }
             confirm={t('apps.appsSection.removeIt')}
@@ -336,7 +336,7 @@ function InstalledApp({ app }: { app: App }) {
 
 function Catalog({ onPick }: { onPick: (a: CatalogApp) => void }) {
   const catalog = useQuery({ queryKey: appKeys.catalog, queryFn: () => get<CatalogList>('/apps/catalog'), staleTime: 60_000 });
-  if (catalog.isLoading) return <Loading what={t('apps.appsSection.theCatalogs')} />;
+  if (catalog.isLoading) return <Loading what="loadingLine.catalogs" />;
   if (catalog.error) return <ErrorNote error={catalog.error} />;
   const c = catalog.data!;
   return (
@@ -435,7 +435,7 @@ export function AppsSection() {
       </div>
       <p className="note section-note">{t('apps.appsSection.anAppAddsWidgetsTo')}</p>
       <div className="stack">
-        {apps.isLoading ? <Loading what={t('loading.apps')} /> : null}
+        {apps.isLoading ? <Loading what="loadingLine.apps" /> : null}
         {apps.error ? <ErrorNote error={apps.error} /> : null}
         {apps.data?.length ? (
           <ul className="plain stack" aria-label={t('apps.appsSection.installedApps')}>

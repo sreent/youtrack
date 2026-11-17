@@ -1,4 +1,4 @@
-import { isLocale } from '@a4a/shared/i18n';
+import { isLocale, sayProblem } from '@a4a/shared/i18n';
 import { localeOfRequest, translatorFor } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
@@ -34,7 +34,7 @@ function checkProblemWords(message: string, hint: string | undefined, words: Pro
   const en = translatorFor('en');
   const key = `problem.${words.key}`;
   if (!en.has(key)) throw new Error(`${key} is in no catalog: add its English to packages/shared/i18n/en.json`);
-  const catalog = en.t(key, words.values);
+  const catalog = sayProblem(en, words);
   const api = pageWords(message, hint);
   if (catalog !== api) throw new Error(`${key} says "${catalog}" in en.json, but the API says "${api}": make them the same words`);
 }

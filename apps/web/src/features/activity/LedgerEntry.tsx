@@ -4,6 +4,7 @@ import { Badge, IssueLink } from '../../components/Badges';
 import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
+import { aRole } from '../roles/words';
 import { t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -58,7 +59,13 @@ function byLine(e: TrackerEvent): string {
     chat: e.actor.token ? t('activity.ledgerEntry.fromAs', { v: e.actor.token, name: name }) : t('activity.ledgerEntry.fromChatAs', { name: name }),
     ci: t('activity.ledgerEntry.fromABuildOf', { v: e.actor.token ?? 'CI' }),
     // An app's agent on its own (its rules), or a person through an app's widget or handler (D48).
-    app: e.actor.isBot ? t('activity.ledgerEntry.asTheAppOnIts', { v: e.actor.token ?? 'an' }) : t('activity.ledgerEntry.throughTheAppFor', { v: e.actor.token ?? 'an', name: name }),
+    app: e.actor.isBot
+      ? e.actor.token
+        ? t('activity.ledgerEntry.asAppNamed', { app: e.actor.token })
+        : t('activity.ledgerEntry.asAnApp')
+      : e.actor.token
+        ? t('activity.ledgerEntry.throughAppNamedFor', { app: e.actor.token, name: name })
+        : t('activity.ledgerEntry.throughAnAppFor', { name: name }),
   };
   const tokenNamed = !itself && (e.actor.channel === 'api' || e.actor.channel === 'mcp' || e.actor.channel === 'vcs' || e.actor.channel === 'chat' || e.actor.channel === 'ci');
   return [through[e.actor.channel], ruleOf(e) ? t('activity.ledgerEntry.theRule', { ruleOf: ruleOf(e) }) : null, tokenNamed ? null : e.actor.token ? t('activity.ledgerEntry.token', { token: e.actor.token }) : null, e.project]
@@ -197,7 +204,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         text: (
           <>{tr(e.type === 'pull_request.linked' ? 'activity.ledgerEntry.linkedPullRequestTo' : 'activity.ledgerEntry.sawPullRequestFor', { str: str(e.data.number), t0: (c: ReactNode) => <span className="mono">{c}</span>, issue: issue })}</>
         ),
-        badge: ['outside', e.type === 'pull_request.linked' ? t('activity.ledgerEntry.linksAPullRequest') : t('activity.ledgerEntry.pullRequest', { str: str(e.data.state) })],
+        badge: ['outside', e.type === 'pull_request.linked' ? t('activity.ledgerEntry.linksAPullRequest') : t('activity.ledgerEntry.pullRequestState', { state: str(e.data.state) /* a stable code the message selects on */ })],
         more: <span className="ledger-note">{str(e.data.title)}</span>,
       };
     case 'baseline.created':
@@ -208,7 +215,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         badge: ['changes', t('activity.ledgerEntry.savesABaseline')],
         more: (
           <span className="ledger-note">
-            {[e.data.tasks !== undefined ? t('activity.ledgerEntry.tasks', { str: str(e.data.tasks) }) : '', str(e.data.finish) ? t('activity.ledgerEntry.finishing', { dateRead: dateRead(str(e.data.finish)) }) : '']
+            {[e.data.tasks !== undefined ? t('activity.ledgerEntry.taskCount', { n: Number(e.data.tasks) }) : '', str(e.data.finish) ? t('activity.ledgerEntry.finishing', { dateRead: dateRead(str(e.data.finish)) }) : '']
               .filter(Boolean)
               .join(', ')}
           </span>
@@ -219,18 +226,18 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
     case 'project.member.removed': {
       const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : t('activity.ledgerEntry.aProject');
       const who = str(e.data.name) || str(e.data.user);
-      if (e.type === 'project.member.added') return { text: <>{tr('activity.ledgerEntry.madeAOf', { who: who, str: str(e.data.role), project: project })}</>, badge: ['changes', t('activity.ledgerEntry.givesARole')] };
+      if (e.type === 'project.member.added') return { text: <>{tr('activity.ledgerEntry.madeRoleOf', { who: who, role: aRole(str(e.data.role), str(e.data.role)), project: project })}</>, badge: ['changes', t('activity.ledgerEntry.givesARole')] };
       if (e.type === 'project.member.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf2', { who: who, project: project })}</>, badge: ['changes', t('activity.ledgerEntry.takesARoleAway')] };
-      return { text: <>{tr('activity.ledgerEntry.madeAOfNotA', { who: who, str: str(e.data.to), project: project, str2: str(e.data.from) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
+      return { text: <>{tr('activity.ledgerEntry.madeRoleOfNot', { who: who, role: aRole(str(e.data.to), str(e.data.to)), project: project, before: aRole(str(e.data.from), str(e.data.from)) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
     }
     case 'project.group.added':
     case 'project.group.changed':
     case 'project.group.removed': {
       const project = e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : t('activity.ledgerEntry.aProject');
       const group = <>{tr('activity.ledgerEntry.theGroup', { str: str(e.data.name) })}</>;
-      if (e.type === 'project.group.added') return { text: <>{tr('activity.ledgerEntry.madeAOf2', { group: group, str: str(e.data.role), project: project })}</>, badge: ['changes', t('activity.ledgerEntry.givesARole')] };
+      if (e.type === 'project.group.added') return { text: <>{tr('activity.ledgerEntry.madeRoleOf2', { group: group, role: aRole(str(e.data.role), str(e.data.role)), project: project })}</>, badge: ['changes', t('activity.ledgerEntry.givesARole')] };
       if (e.type === 'project.group.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf3', { group: group, project: project })}</>, badge: ['changes', t('activity.ledgerEntry.takesARoleAway')] };
-      return { text: <>{tr('activity.ledgerEntry.madeAOfNotA2', { group: group, str: str(e.data.to), project: project, str2: str(e.data.from) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
+      return { text: <>{tr('activity.ledgerEntry.madeRoleOfNot2', { group: group, role: aRole(str(e.data.to), str(e.data.to)), project: project, before: aRole(str(e.data.from), str(e.data.from)) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
     }
     case 'project.visibility.changed':
       return {

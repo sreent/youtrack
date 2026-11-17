@@ -39,7 +39,10 @@ export function yourRole(project: Project): string {
           ? t('projects.peopleAndAccess.asOneOf', { v: a.group ?? t('projects.peopleAndAccess.aGroup') })
           : '';
   if (a.via === 'guest') return t('projects.peopleAndAccess.youReReadingAsA', { key: project.key });
-  if (!isBuiltinRole(a.role)) return t('projects.peopleAndAccess.youAreRoleHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) });
+  if (!isBuiltinRole(a.role))
+    return a.permissions.length
+      ? t('projects.peopleAndAccess.youAreRoleHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) })
+      : t('projects.peopleAndAccess.youAreRoleHereNothing', { role: role, why: why });
   if (!a.comment) return t('projects.peopleAndAccess.youAreRoleHereBut', { role: role, why: why });
   return t('projects.peopleAndAccess.youAreRoleHere', { role: role, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
 }
@@ -278,8 +281,8 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) })).join('; ') })}</p>
-      {members.isLoading ? <Loading what={t('projects.peopleAndAccess.itsPeople')} /> : null}
+      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => (r.permissions.length ? t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) }) : t('projects.peopleAndAccess.roleMayNothing', { role: aRole(r.id, r.name) }))).join('; ') })}</p>
+      {members.isLoading ? <Loading what="loadingLine.projectPeople" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (
         <p className="note">

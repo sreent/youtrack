@@ -157,7 +157,7 @@ export default function InboxPage() {
           <button type="button" aria-pressed={!unreadOnly} onClick={() => setUnreadOnly(false)}>{t('page.inbox.all')}</button>
         </div>
         {mark.error ? <ErrorNote error={mark.error} /> : null}
-        {list.isLoading ? <Loading what={t('page.inbox.yourInbox')} /> : null}
+        {list.isLoading ? <Loading what="loadingLine.inbox" /> : null}
         {list.error ? <ErrorNote error={list.error} /> : null}
         {list.data && !groups.length ? (
           <section className="card">

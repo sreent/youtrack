@@ -111,7 +111,7 @@ export function TwoFactorCard() {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (status.isLoading) return <Loading what={t('identity.twoFactor.twoFactorSignIn')} />;
+  if (status.isLoading) return <Loading what="loadingLine.twoFactor" />;
   if (status.error || !status.data) return <ErrorNote error={status.error} />;
   const s = status.data;
   if (enrolment && !s.enabled) {

@@ -58,7 +58,7 @@ export function GuestHome() {
         <SignIn next="/issues" />
       </div>
       <h1>{t('page.guestPages.openToAnyone')}</h1>
-      {info.isLoading ? <Loading what={t('loading.projects')} /> : null}
+      {info.isLoading ? <Loading what="loadingLine.projects" /> : null}
       {info.error ? <ErrorNote error={info.error} /> : null}
       {info.data && !projects.length ? <p className="note">{t('page.guestPages.noProjectHereIsOpen')}</p> : null}
       {projects.length > 1 ? (
@@ -81,7 +81,7 @@ export function GuestHome() {
       {key ? (
         <section className="stack" aria-labelledby="guest-issues">
           <h2 id="guest-issues">{tr('page.guestPages.itsIssues', { v: projects.find((p) => p.key === key)?.name ?? key })}</h2>
-          {issues.isLoading ? <Loading what={t('loading.issues')} /> : null}
+          {issues.isLoading ? <Loading what="loadingLine.issues" /> : null}
           {issues.error ? <ErrorNote error={issues.error} /> : null}
           {issues.data && !issues.data.items.length ? <p className="note">{t('page.guestPages.noIssuesYet')}</p> : null}
           {issues.data?.items.length ? (
@@ -124,7 +124,7 @@ export function GuestIssue() {
         <Link to="/public">{t('page.guestPages.openToAnyone')}</Link>
         <SignIn next={`/issues/${id}`} />
       </div>
-      {issue.isLoading ? <Loading what={t('page.guestPages.theIssue')} /> : null}
+      {issue.isLoading ? <Loading what="loadingLine.issue" /> : null}
       {missing ? (
         <>
           <h1>{id}</h1>

@@ -321,11 +321,11 @@ export default function DashboardPage() {
     setFocus(null);
   }, [focus, list.data]);
 
-  if (list.isLoading) return <Loading what={t('page.dashboard.yourDashboards')} />;
+  if (list.isLoading) return <Loading what="loadingLine.yourDashboards" />;
   if (list.error) return <ErrorNote error={list.error} />;
   if (id && !chosen) return <ErrorNote error={new ApiError(404, 'not_found', t('page.dashboard.dashboardNotFound'), t('page.dashboard.itMayHaveBeenDeleted'))} />;
   const d = chosen ?? fallback.data;
-  if (!d) return fallback.error ? <ErrorNote error={fallback.error} /> : <Loading what={t('page.dashboard.yourDashboard')} />;
+  if (!d) return fallback.error ? <ErrorNote error={fallback.error} /> : <Loading what="loadingLine.yourDashboard" />;
 
   const refresh = () => qc.invalidateQueries({ queryKey: reportKeys.dashboards });
   const save = async (body: { name?: string; shared?: boolean; widgets?: Widget[] }, nextFocus?: { widget: string; act: string }) => {

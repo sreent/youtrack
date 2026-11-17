@@ -63,7 +63,7 @@ function FiguresTable({ label, children }: { label: string; children: React.Reac
 
 export function IssuesPerFieldView({ r, compact }: { r: IssuesPerField; compact?: boolean }) {
   if (!r.total) return <p className="note">{tx('reports.moreReports.noIssuesToCountNothing')}</p>;
-  const by = r.interval ? tx('reports.moreReports.by', { interval: r.interval }) : '';
+  const by = r.interval ? tx('reports.moreReports.byInterval', { interval: r.interval }) : '';
   return (
     <div className="stack">
       <p className="note">{tr('reports.moreReports.issuesByEachCountOpens', { n: r.total, name: r.field.name, by: by, v: r.field.multi ? tx('reports.moreReports.anIssueWithSeveralValues') : '' })}</p>
@@ -302,6 +302,7 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
 // ---------------------------------------------------------------------------
 
 export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: boolean }) {
+  // A stable code the messages select on.
   const word = t.by === 'column' ? 'column' : 'state';
   const max = Math.max(1, ...t.states.map((s) => s.p85 ?? 0));
   const shown = t.issues.slice(-50).reverse();
@@ -309,10 +310,10 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
     <div className="stack">
       <p className="note">
         {t.issues.length
-          ? tx('reports.moreReports.issuesResolvedFromTo', { n: t.issues.length, v: t.board ? tx('reports.moreReports.on', { name: t.board.name }) : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to), word: word })
+          ? tx('reports.moreReports.issuesResolvedFromToBy', { n: t.issues.length, v: t.board ? tx('reports.moreReports.on', { name: t.board.name }) : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to), by: word })
           : tx('reports.moreReports.nothingWasResolvedFromTo', { v: t.board ? tx('reports.moreReports.on', { name: t.board.name }) : '', dayMonth: dayMonth(t.scope.from), dayMonth2: dayMonth(t.scope.to) })}
       </p>
-      <dl className="time-bars" aria-label={tx('reports.moreReports.daysInEach85thPercentile', { word: word })}>
+      <dl className="time-bars" aria-label={tx('reports.moreReports.daysInEach85th', { by: word })}>
         {t.states.map((s) => {
           const p85 = s.p85 ?? 0;
           const mid = s.p50 ?? 0;
@@ -330,7 +331,7 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
           );
         })}
       </dl>
-      <FiguresTable label={tx('reports.moreReports.daysInEachAsFigures', { word: word })}>
+      <FiguresTable label={tx('reports.moreReports.daysInEachFigures', { by: word })}>
         <thead>
           <tr>
             <th scope="col">{t.by === 'column' ? tx('reports.moreReports.column') : tx('reports.moreReports.state')}</th>
@@ -357,7 +358,7 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
         </tbody>
       </FiguresTable>
       {!compact && shown.length ? (
-        <FiguresTable label={tx('reports.moreReports.daysEachResolvedIssueSpent', { word: word })}>
+        <FiguresTable label={tx('reports.moreReports.daysEachIssueSpent', { by: word })}>
           <caption>{t.issues.length > shown.length ? tx('reports.moreReports.theLastResolvedTheCsv', { length: shown.length }) : tx('reports.moreReports.eachResolvedIssue')}</caption>
           <thead>
             <tr>

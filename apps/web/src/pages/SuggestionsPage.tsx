@@ -58,7 +58,7 @@ export default function SuggestionsPage() {
             )}
           </FormField>
         </div>
-        {list.isLoading ? <Loading what={t('loading.suggestions')} /> : null}
+        {list.isLoading ? <Loading what="loadingLine.suggestions" /> : null}
         {list.error ? <ErrorNote error={list.error} /> : null}
         {list.data && !shown.length ? (
           <section className="card">
@@ -73,7 +73,7 @@ export default function SuggestionsPage() {
             )}
           </section>
         ) : null}
-        {shown.length && summaries.isLoading ? <Loading what={t('page.suggestions.theIssuesTheyReAbout')} /> : null}
+        {shown.length && summaries.isLoading ? <Loading what="loadingLine.suggestionIssues" /> : null}
         {shown.length && !summaries.isLoading ? (
           <div className="approvals">
             <h2 className="hidden">{t('page.suggestions.waitingOnYou')}</h2>

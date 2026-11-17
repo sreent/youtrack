@@ -1,4 +1,5 @@
 import type { DeskMailbox, HelpdeskRequest, Project, SlaClock, SlaPolicy, SlaReport } from '@a4a/shared';
+import { periodWords } from '../common/format';
 import { formatPeriod, parsePeriod } from '@a4a/shared/periods';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -22,11 +23,11 @@ export function ClockLine({ c, now = Date.now() }: { c: SlaClock; now?: number }
     case 'at_risk':
       return <Badge tone="warn" title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.atRiskDueIn', { name: name, v: due ? span(due - now) : formatPeriod(c.leftMinutes) })}</Badge>;
     case 'paused':
-      return <Badge tone="idle">{tr('helpdesk.sla.pausedLeft', { name: name, formatPeriod: formatPeriod(Math.max(c.leftMinutes, 0)) })}</Badge>;
+      return <Badge tone="idle">{tr('helpdesk.sla.pausedLeft', { name: name, formatPeriod: periodWords(Math.max(c.leftMinutes, 0)) })}</Badge>;
     case 'breached':
       return <Badge tone="bad">{tr('helpdesk.sla.pastItsTarget', { name: name, v: c.breachedAt ? span(now - new Date(c.breachedAt).getTime()) : '' })}</Badge>;
     case 'met':
-      return <Badge tone="good">{tr('helpdesk.sla.metWithToSpare', { name: name, formatPeriod: formatPeriod(Math.max(c.leftMinutes, 0)) })}</Badge>;
+      return <Badge tone="good">{tr('helpdesk.sla.metWithToSpare', { name: name, formatPeriod: periodWords(Math.max(c.leftMinutes, 0)) })}</Badge>;
     default:
       return <Badge>{tr('helpdesk.sla.missedItsTarget', { name: name })}</Badge>;
   }

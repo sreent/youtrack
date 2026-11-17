@@ -23,7 +23,7 @@ export function EmailSettings() {
   const save = useSaveNotificationSettings();
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const name = useId();
-  if (settings.isLoading) return <Loading what={t('notifications.emailSettings.yourEmailSettings')} />;
+  if (settings.isLoading) return <Loading what="loadingLine.emailSettings" />;
   if (settings.error || !settings.data) return <ErrorNote error={settings.error} />;
   const s = settings.data;
   const change = (body: { email?: EmailLevel; digest?: boolean }) =>

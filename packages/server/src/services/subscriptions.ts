@@ -13,7 +13,7 @@ import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { issues, projects, savedSearches, subscriptionIssues, subscriptions } from '../db/schema';
-import { badRequest, notFound } from '../lib/errors';
+import { asSentence, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
 import { projectAccess, requireProject } from './access';
@@ -176,7 +176,8 @@ export async function subscribe(
   // Your own search that no longer reads (a value renamed since) can't say what comes into it: fix it first.
   const prepared = await prepareQuery(ctx, search.query);
   if (prepared.compiled.problems.length) {
-    throw badRequest(`“${search.name}” doesn't read`, `${prepared.compiled.problems.map((p) => p.message).join('; ')}. Change it on the Issues page first.`).said('subscriptions.searchDoesntRead', { search: search.name, problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
+    const problems = asSentence(prepared.compiled.problems.map((p) => p.message).join('; '));
+    throw badRequest(`“${search.name}” doesn't read`, `${problems} Change it on the Issues page first.`).said('subscriptions.searchDoesntReadSaying', { search: search.name, problems });
   }
   const subId = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;

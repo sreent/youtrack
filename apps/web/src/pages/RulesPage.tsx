@@ -39,7 +39,7 @@ export default function RulesPage() {
   // As the server decides it (services/access.ts): the project's managers make its rules.
   const manages = project?.access.manage ?? false;
 
-  if (projects.isLoading) return <Loading what={t('loading.projects')} />;
+  if (projects.isLoading) return <Loading what="loadingLine.projects" />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   if (!project) {
     return (
@@ -86,7 +86,7 @@ export default function RulesPage() {
           <h2 id="rules-title">{tr('page.rules.rulesIn', { name: project.name })}</h2>
           <span className="note">{tr('page.rules.eachChangeTheyMakeIs', { t0: (c: ReactNode) => <Link to={`/projects/${project.key}`}>{c}</Link> })}</span>
         </div>
-        {rules.isLoading ? <Loading what={t('page.rules.itsRules')} /> : null}
+        {rules.isLoading ? <Loading what="loadingLine.rules" /> : null}
         {rules.error ? <ErrorNote error={rules.error} /> : null}
         {rules.data && !rules.data.length ? (
           <p className="note">{tr('page.rules.noRulesYet', { v: manages ? t('page.rules.addOneBelowOrStart') : '' })}</p>

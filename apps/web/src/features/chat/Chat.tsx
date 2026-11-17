@@ -209,7 +209,7 @@ function AddChannel({ project }: { project: Project }) {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (channels.isLoading) return <Loading what={t('loading.channels')} />;
+  if (channels.isLoading) return <Loading what="loadingLine.channels" />;
   if (!channels.data?.length) {
     return <p className="note">{t('chat.chat.a4aCanPostToNo')}</p>;
   }
@@ -256,7 +256,7 @@ export function ProjectChannels({ project, canAdd }: { project: Project; canAdd:
   const subs = useChatSubscriptions(project.key);
   // Said here, not in the table: stopping the last subscription takes the table away.
   const [said, setSaid] = useState<SaidText | null>(null);
-  if (subs.isLoading) return <Loading what={t('chat.chat.itsChannels')} />;
+  if (subs.isLoading) return <Loading what="loadingLine.projectChannels" />;
   if (subs.error || !subs.data) return <ErrorNote error={subs.error} />;
   return (
     <div className="stack">
@@ -284,7 +284,7 @@ export function ChatAccounts() {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (accounts.isLoading) return <Loading what={t('chat.chat.yourChatAccounts2')} />;
+  if (accounts.isLoading) return <Loading what="loadingLine.chatAccounts" />;
   if (accounts.error || !accounts.data) return <ErrorNote error={accounts.error} />;
   return (
     <div className="stack">

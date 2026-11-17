@@ -60,7 +60,7 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
         <h2 id="code-title">{t('vcs.issueCode.commitsAndPullRequests')}</h2>
         {sources.length ? <span className="note">{tr('vcs.issueCode.from', { join: sources.join(', ') })}</span> : null}
       </div>
-      {vcs.isLoading ? <Loading what={t('vcs.issueCode.itsCommits')} /> : null}
+      {vcs.isLoading ? <Loading what="loadingLine.issueCommits" /> : null}
       {vcs.error ? <ErrorNote error={vcs.error} /> : null}
       {vcs.data && !vcs.data.commits.length && !vcs.data.pullRequests.length ? (
         <p className="note">{tr('vcs.issueCode.noneYetMentionInA', { id: issue.id, t0: (c: ReactNode) => <span className="issue-id">{c}</span> })}</p>

@@ -98,7 +98,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   if (q.error) return <ErrorNote error={q.error} />;
-  if (!q.data) return <Loading what={t('page.portal.theRequest')} />;
+  if (!q.data) return <Loading what="loadingLine.request" />;
   const r = q.data;
   const reply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,13 +250,13 @@ export default function PortalPage() {
                   <button type="button" className="link" onClick={() => setOpen(r.id)}>
                     {r.summary}
                   </button>
-                  <span className="note">{tr('page.portal.updated', { name: r.desk.name, id: r.id, v: r.requester.mine ? 'yours' : r.requester.name, whenRead: whenRead(r.updatedAt) })}</span>
+                  <span className="note">{tr(r.requester.mine ? 'page.portal.updatedYours' : 'page.portal.updatedTheirs', { name: r.desk.name, id: r.id, requester: r.requester.name, whenRead: whenRead(r.updatedAt) })}</span>
                   {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
                 </li>
               ))}
             </ul>
           ) : list.isLoading ? (
-            <Loading what={t('page.portal.yourRequests2')} />
+            <Loading what="loadingLine.yourRequests" />
           ) : (
             <p className="note">{t('page.portal.noRequestsYet')}</p>
           )}
@@ -283,7 +283,7 @@ export default function PortalPage() {
 function Loone() {
   return (
     <Lone>
-      <Loading what={t('page.portal.yourRequests2')} />
+      <Loading what="loadingLine.yourRequests" />
     </Lone>
   );
 }

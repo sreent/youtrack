@@ -66,7 +66,7 @@ export function ProjectApps({ project }: { project: string }) {
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  if (apps.isLoading) return <Loading what={t('apps.projectApps.itsApps')} />;
+  if (apps.isLoading) return <Loading what="loadingLine.projectApps" />;
   if (apps.error) return <ErrorNote error={apps.error} />;
   if (!apps.data?.length) return <p className="note">{t('apps.projectApps.noAppIsChosenFor')}</p>;
   return (

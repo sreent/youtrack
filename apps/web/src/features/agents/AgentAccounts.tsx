@@ -150,7 +150,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
       <div className="hook-head">
         <div className="hook-what">
           <Who kind="agent" name={agent.login} about={agent.name !== agent.login ? agent.name : undefined} />
-          <span className="item-about">{tr('agents.agentAccounts.aAdded', { role: agent.role, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : tx('agents.agentAccounts.tokens', { length: tokens.length }) })}</span>
+          <span className="item-about">{tr('agents.agentAccounts.roleAdded', { role: agent.role /* a stable code the message selects on */, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : tx('agents.agentAccounts.tokens', { length: tokens.length }) })}</span>
         </div>
         {agent.banned ? <Badge tone="bad">{tx('agents.agentAccounts.banned')}</Badge> : <Badge tone="good">{tx('agents.agentAccounts.actsAsItself')}</Badge>}
       </div>
@@ -287,7 +287,7 @@ export function AgentAccounts() {
         </div>
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </form>
-      {agents.isLoading ? <Loading what={t('agents.agentAccounts.theAgents')} /> : null}
+      {agents.isLoading ? <Loading what="loadingLine.agents" /> : null}
       {agents.error ? <ErrorNote error={agents.error} /> : null}
       {agents.data && !agents.data.length ? <p className="note">{tx('agents.agentAccounts.noAgentsOfTheirOwn')}</p> : null}
       {agents.data?.length ? (

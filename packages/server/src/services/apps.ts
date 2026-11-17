@@ -34,7 +34,7 @@ import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { appFiles, appProjects, appRuns, appSettings, apps, appStorage, comments, ruleRuns, rules, users, workItems } from '../db/schema';
 import { publishActivities } from '../events/activity';
-import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { open, seal, secretKey } from '../lib/secret-box';
 import { checkSignature, downloadPackage, entryOf, readCatalog } from '../apps/catalog';
@@ -198,7 +198,7 @@ async function readChecked(app: AppServices, bytes: Buffer): Promise<ReadPackage
   for (const sc of scripts) {
     const source = pkg.files.find((f) => f.path === sc.file)!.content.toString('utf8');
     const problems = await checkScript(source);
-    if (problems.length) throw badRequest(`${sc.what}'s script doesn't compile: ${problems[0]!.message}`, `Fix ${sc.file}, and package the app again.`).said('apps.scriptDoesNotCompile', { what: sc.what, message: problems[0]!.message, file: sc.file });
+    if (problems.length) throw badRequest(`${sc.what}'s script doesn't compile: ${problems[0]!.message}`, `Fix ${sc.file}, and package the app again.`).said('apps.scriptDoesNotCompileSaying', { what: sc.what, message: asSentence(problems[0]!.message), file: sc.file });
   }
   return pkg;
 }
@@ -841,7 +841,7 @@ export async function callHandler(ctx: Ctx, name: string, handlerName: string, i
   });
   if (out.error) {
     await log('failed', out.error.message);
-    throw badRequest(`${row.title}'s handler ${handlerName} stopped: ${out.error.message}`, 'Tell whoever made the app; its run log says the same.').said('apps.handlerStopped', { title: row.title, handlerName, message: out.error.message });
+    throw badRequest(`${row.title}'s handler ${handlerName} stopped: ${out.error.message}`, 'Tell whoever made the app; its run log says the same.').said('apps.handlerStoppedSaying', { title: row.title, handlerName, message: asSentence(out.error.message) });
   }
   if (out.intents.refusal !== null) {
     await log('refused', out.intents.refusal);

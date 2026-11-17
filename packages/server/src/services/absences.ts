@@ -21,6 +21,8 @@ import { can, isAdmin, requireScope, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { absences, userPreferences } from '../db/schema';
 import { addDays, diffDays, todayISO } from '../lib/dates';
+import type { Locale } from '@a4a/shared/i18n';
+import { intlTag } from '../i18n';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import type { PlanAbsence } from '../planning';
@@ -89,8 +91,13 @@ async function personNamed(ctx: Ctx, login: string | undefined): Promise<UserRow
 }
 
 /** "3 Dec", "2 to 6 Dec", "the morning of 3 Dec": how an absence's days read in a message. */
+/** A day as its reader says it, "16 Nov" in English: a problem's dates are in the reader's language (D49). */
+export function dayIn(locale: Locale | undefined, d: string): string {
+  return new Date(`${d}T00:00:00Z`).toLocaleDateString(intlTag(locale ?? 'en'), { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
 export function daysWords(from: string, to: string, half: string | null): string {
-  const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const day = (d: string) => dayIn('en', d);
   if (half) return `the ${half} of ${day(from)}`;
   return from === to ? day(from) : `${day(from)} to ${day(to)}`;
 }
@@ -128,7 +135,7 @@ function overlap(a: Days, b: Days): boolean {
  * Refuses days that overlap the person's others, inside the transaction that writes them, with
  * the person's absences locked: two entered at once can't both pass.
  */
-async function refuseOverlap(tx: Db, user: UserRow, d: Days, except?: string): Promise<void> {
+async function refuseOverlap(tx: Db, user: UserRow, d: Days, except?: string, locale?: Locale): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:absences:${user.id}`}))`);
   const near = await tx
     .select()
@@ -136,7 +143,13 @@ async function refuseOverlap(tx: Db, user: UserRow, d: Days, except?: string): P
     .where(and(eq(absences.userId, user.id), lte(absences.startDate, d.to), gte(absences.endDate, d.from), except ? ne(absences.id, except) : undefined));
   const clash = near.find((r) => overlap(d, { from: r.startDate, to: r.endDate, half: (r.half as AbsenceHalf | null) ?? null }));
   if (clash) {
-    throw conflict(`${user.name} is already away ${daysWords(clash.startDate, clash.endDate, clash.half)}`, 'Change that absence instead, or remove it first.', { absence: clash.id }).said('absences.alreadyAway', { name: user.name, days: daysWords(clash.startDate, clash.endDate, clash.half) });
+    throw conflict(`${user.name} is already away ${daysWords(clash.startDate, clash.endDate, clash.half)}`, 'Change that absence instead, or remove it first.', { absence: clash.id }).said('absences.alreadyAwayOn', {
+      name: user.name,
+      part: clash.half ?? 'day',
+      span: clash.startDate === clash.endDate ? 'one' : 'more',
+      from: dayIn(locale, clash.startDate),
+      to: dayIn(locale, clash.endDate),
+    });
   }
 }
 
@@ -169,7 +182,7 @@ export async function createAbsence(ctx: Ctx, input: CreateAbsenceInput): Promis
   checkDays(d);
   const row = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    await refuseOverlap(tx, user, d);
+    await refuseOverlap(tx, user, d, undefined, ctx.locale);
     const [created] = await tx
       .insert(absences)
       .values({
@@ -217,7 +230,7 @@ export async function updateAbsence(ctx: Ctx, id: string, input: UpdateAbsenceIn
   checkDays(d);
   const updated = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    await refuseOverlap(tx, user, d, row.id);
+    await refuseOverlap(tx, user, d, row.id, ctx.locale);
     const [next] = await tx
       .update(absences)
       .set({

@@ -27,7 +27,7 @@ export function AppPage() {
   return (
     <>
       <PageHead title={found?.title ?? t('apps.appWidgets.app')} crumbs={found ? <span>{found.appTitle}</span> : <Link to="/issues">{t('apps.appWidgets.issues')}</Link>} />
-      {ext.isLoading ? <Loading what={t('apps.appWidgets.theApp')} /> : null}
+      {ext.isLoading ? <Loading what="loadingLine.app" /> : null}
       {ext.error ? <ErrorNote error={ext.error} /> : null}
       {ext.data && !found ? <p className="note">{t('apps.appWidgets.noAppShowsAPage')}</p> : null}
       {found ? <AppFrame ext={found} place={{}} /> : null}

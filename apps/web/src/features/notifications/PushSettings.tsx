@@ -42,7 +42,7 @@ export function PushSettings({ me }: { me: Me }) {
   const devices = usePushDevices(endpoint ?? null, endpoint !== undefined);
   const remove = useRemoveDevice();
   const test = useTestPush();
-  if (settings.isLoading || key.isLoading) return <Loading what={t('notifications.pushSettings.yourPushSettings')} />;
+  if (settings.isLoading || key.isLoading) return <Loading what="loadingLine.pushSettings" />;
   if (settings.error || !settings.data) return <ErrorNote error={settings.error} />;
   if (key.data && !key.data.enabled) return <p className="note">{t('notifications.pushSettings.thisServerSendsNoPush')}</p>;
   const here = devices.data?.find((d) => d.current);

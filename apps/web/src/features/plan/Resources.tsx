@@ -313,7 +313,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
           </p>
         ) : null}
       </div>
-      {busy === 'proposing' && !r ? <Loading what={t('plan.resources.whatLevellingWouldMove')} /> : null}
+      {busy === 'proposing' && !r ? <Loading what="loadingLine.levelling" /> : null}
       {error ? <ErrorNote error={error} /> : null}
       {moved.length ? (
         <ul className="levelling-list">
@@ -426,7 +426,7 @@ export function Resources({ project }: { project: Project }) {
   const schedule = useSchedule(key, null);
   const cal = useMemo(() => workCalendar(schedule.data?.calendar ?? project.settings.plan), [schedule.data?.calendar, project.settings.plan]);
   const [awayOpen, setAwayOpen] = useState(false);
-  if (prefs.isLoading || load.isLoading) return <Loading what={t('plan.resources.whoSBooked')} />;
+  if (prefs.isLoading || load.isLoading) return <Loading what="loadingLine.booked" />;
   if (load.error || !load.data) return <ErrorNote error={load.error} />;
   const l = load.data;
   const choice = <WindowChoice chosen={chosen} busy={setWindow.isPending} onChoose={(w) => setWindow.mutate(w)} />;

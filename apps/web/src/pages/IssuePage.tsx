@@ -285,7 +285,7 @@ export default function IssuePage() {
     return out;
   }, [openSuggestions, issue.data, qc]);
 
-  if (issue.isLoading) return <Loading what={id} />;
+  if (issue.isLoading) return <Loading named={id} />;
   if (issue.error) {
     return (
       <>
@@ -400,7 +400,7 @@ export default function IssuePage() {
           {projectFields.data && assignable ? (
             <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} canEdit={canWrite} />
           ) : (
-            <Loading what={t('loading.fields')} />
+            <Loading what="loadingLine.fields" />
           )}
           <RequestCard issue={data} />
           <VisibleToCard issue={data} canEdit={canWrite} />

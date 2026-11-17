@@ -146,7 +146,7 @@ function Home() {
     return (
       <>
         {head}
-        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what={t('loading.projects')} />}
+        {projects.error ? <ErrorNote error={projects.error} /> : <Loading what="loadingLine.projects" />}
       </>
     );
   }
@@ -256,7 +256,7 @@ function ArticleFiles({ a, canWrite }: { a: ArticleDetail; canWrite: boolean }) 
   const qc = useQueryClient();
   const files = useArticleAttachments(a.id);
   const limits = useAttachmentLimits();
-  if (files.isLoading) return <Loading what={t('loading.files')} />;
+  if (files.isLoading) return <Loading what="loadingLine.files" />;
   if (files.error) return <ErrorNote error={files.error} />;
   return (
     <AttachmentList
@@ -374,7 +374,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
           <Confirm
             label={t('page.articles.deleteIt')}
             title={t('page.articles.delete', { id: a.id, title: a.title })}
-            about={t('page.articles.itsAndItsFilesGo', { v: a.version === 1 ? 'version' : t('page.articles.versions', { version: a.version }), v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
+            about={t('page.articles.itsVersionsAndFilesGo', { n: a.version, v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
             confirm={t('page.articles.deleteIt')}
             onConfirm={() => void remove()}
           />
@@ -398,7 +398,7 @@ function ArticleView() {
   // A box ticked shows ticked while it's saved, as a new version, against the version read (D39).
   const [ticked, setTicked] = useState<string | null>(null);
   const [tickSaid, setTickSaid] = useState<string | null>(null);
-  if (article.isLoading) return <Loading what={id} />;
+  if (article.isLoading) return <Loading named={id} />;
   if (article.error || !article.data) return <NotHere id={id} error={article.error} />;
   const a = article.data;
   const tick = async (index: number, checked: boolean) => {
@@ -518,7 +518,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
 
-  if (mode === 'edit' && existing.isLoading) return <Loading what={id} />;
+  if (mode === 'edit' && existing.isLoading) return <Loading named={id} />;
   if (mode === 'edit' && (existing.error || !existing.data)) return <NotHere id={id ?? ''} error={existing.error} />;
   const projectRow = projects.data?.find((p) => p.key.toUpperCase() === project.toUpperCase());
   const name = existing.data?.project.name ?? projectRow?.name ?? project;
@@ -653,7 +653,7 @@ function History() {
   const detail = useArticleVersion(id, chosen);
   const [said, setSaid] = useState<string | null>(null);
 
-  if (article.isLoading || versions.isLoading) return <Loading what={t('page.articles.itsHistory')} />;
+  if (article.isLoading || versions.isLoading) return <Loading what="loadingLine.articleHistory" />;
   if (article.error || !article.data) return <NotHere id={id} error={article.error} />;
   const a = article.data;
   const restore = async (version: number) => {
@@ -729,7 +729,7 @@ function History() {
                 <Diff lines={d.diff} label={d.against ? t('page.articles.versionAgainstVersion', { version: d.version, against: d.against }) : t('page.articles.version', { version: d.version })} />
               </>
             ) : detail.isLoading ? (
-              <Loading what={t('page.articles.theVersion')} />
+              <Loading what="loadingLine.version" />
             ) : null}
             <Said text={said} tone={said ? 'bad' : undefined} />
             <p className="note">

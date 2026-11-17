@@ -30,7 +30,7 @@ function ChooseProject() {
   return (
     <>
       <PageHead title={t('page.plan.plan')} about={t('page.plan.aProjectSTasksOver')} />
-      {projects.isLoading ? <Loading what={t('loading.projects')} /> : null}
+      {projects.isLoading ? <Loading what="loadingLine.projects" /> : null}
       {projects.error ? <ErrorNote error={projects.error} /> : null}
       {projects.data && live.length === 0 ? <Empty title={t('page.plan.noProjectsYet')}>{t('page.plan.aPlanBelongsToA')}</Empty> : null}
       {live.length ? (
@@ -91,7 +91,7 @@ export default function PlanPage() {
   const projects = useProjects();
   if (!key) return <ChooseProject />;
   if (view && !VIEWS.some((v) => v.id === view)) return <Navigate to={`/plan/${key}`} replace />;
-  if (projects.isLoading) return <Loading what={t('page.plan.thePlan')} />;
+  if (projects.isLoading) return <Loading what="loadingLine.plan" />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const project = projects.data?.find((p) => p.key.toLowerCase() === key.toLowerCase());
   if (!project) {

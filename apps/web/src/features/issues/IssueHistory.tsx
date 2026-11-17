@@ -47,7 +47,7 @@ export function whoOf(actor: Actor, requester?: string | null): Who {
     case 'web':
       return { kind: 'person', name: person, via: t('issues.issueHistory.viaTheWeb') };
     case 'chat':
-      return { kind: 'person', name: person, via: t('issues.issueHistory.via', { v: actor.token ?? 'chat' }) };
+      return { kind: 'person', name: person, via: actor.token ? t('issues.issueHistory.viaNamed', { name: actor.token }) : t('issues.issueHistory.viaChat') };
     case 'api':
       return { kind: 'service', name: actor.token ?? t('issues.issueHistory.aScript'), forWhom: person, via: t('issues.issueHistory.viaTheApi') };
     case 'mcp':
@@ -115,10 +115,12 @@ interface Entry {
 }
 
 /** "undid claude's change": whose change an undo put back, from the history it's in. */
-function undid(e: TrackerEvent, byId: Map<number, TrackerEvent>, what: string): string | undefined {
+function undid(e: TrackerEvent, byId: Map<number, TrackerEvent>, what: 'change' | 'link'): string | undefined {
   if (typeof e.data.undoes !== 'number') return undefined;
   const original = byId.get(e.data.undoes);
-  return t('issues.issueHistory.undid', { v: original ? t('issues.issueHistory.s', { name: whoOf(original.actor).name }) : t('issues.issueHistory.anAgentS'), what: what });
+  const name = original ? whoOf(original.actor).name : null;
+  if (what === 'link') return name ? t('issues.issueHistory.undidLinkOf', { name }) : t('issues.issueHistory.undidAgentLink');
+  return name ? t('issues.issueHistory.undidChangeOf', { name }) : t('issues.issueHistory.undidAgentChange');
 }
 
 function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | null {
@@ -183,8 +185,8 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         ...base,
         did:
           e.type === 'pull_request.linked'
-            ? t('issues.issueHistory.linkedPullRequest', { String: String(data.number ?? ''), String2: String(data.state ?? 'open') })
-            : t('issues.issueHistory.sawPullRequest', { String: String(data.number ?? ''), v: data.state === 'merged' ? 'merged' : data.state === 'closed' ? 'closed' : 'reopened' }),
+            ? t('issues.issueHistory.linkedPullRequestState', { number: String(data.number ?? ''), state: String(data.state ?? 'open') /* a stable code */ })
+            : t('issues.issueHistory.sawPullRequestState', { number: String(data.number ?? ''), state: data.state === 'merged' ? 'merged' : data.state === 'closed' ? 'closed' : 'reopened' }),
         body: (
           <ul className="change-lines">
             <li>{String(data.title ?? '')}</li>
@@ -400,7 +402,7 @@ export function IssueHistory({
   const [ticked, setTicked] = useState<{ id: string; text: string } | null>(null);
   const [tickSaid, setTickSaid] = useState<{ id: string; text: string } | null>(null);
 
-  if (activity.isLoading || comments.isLoading) return <Loading what={t('issues.issueHistory.theHistory')} />;
+  if (activity.isLoading || comments.isLoading) return <Loading what="loadingLine.history" />;
   if (activity.error) return <ErrorNote error={activity.error} />;
   if (comments.error) return <ErrorNote error={comments.error} />;
 

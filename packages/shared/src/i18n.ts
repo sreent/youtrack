@@ -114,3 +114,13 @@ export function messageArguments(source: string): string[] {
   walk(new IntlMessageFormat(source, 'en').getAst() as unknown[]);
   return [...names].sort();
 }
+
+/** A problem's words in any language (D49): its key under problem.* and its values. A value may be another problem, said whole in its place. */
+export type ProblemSaid = { key: string; values?: Record<string, string | number | ProblemSaid> };
+
+/** A problem in a translator's language; a problem among its values is said first, in the same language. */
+export function sayProblem(tr: Translator, p: ProblemSaid): string {
+  const values: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(p.values ?? {})) values[k] = typeof v === 'object' ? sayProblem(tr, v) : v;
+  return tr.t(`problem.${p.key}`, values);
+}

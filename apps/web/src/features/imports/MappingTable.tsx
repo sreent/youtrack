@@ -40,7 +40,7 @@ export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp
   return (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={imp.origin ? t('imports.mappingTable.whatCameFrom', { from: from }) : t('imports.mappingTable.theFileSColumns')}>
       <table className="figures mapping">
-        <caption className="hidden">{tr('imports.mappingTable.eachOfAndWhatIt', { v: imp.origin ? 'field' : 'column', from: from, key: imp.project.key })}</caption>
+        <caption className="hidden">{tr(imp.origin ? 'imports.mappingTable.eachFieldOf' : 'imports.mappingTable.eachColumnOf', { from: from, key: imp.project.key })}</caption>
         <thead>
           <tr>
             <th scope="col">{imp.origin ? t('imports.mappingTable.in', { from: from }) : t('imports.mappingTable.columnInTheFile')}</th>

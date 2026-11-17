@@ -255,7 +255,7 @@ for (const f of walkDir(path.join(root, 'packages/server/src'))) checkFile(f, { 
 for (const k of Object.keys(en)) if (!used.has(k) && !DYNAMIC.some((p) => k.startsWith(p))) say('en.json', `keeps ${k}, which nothing says`);
 
 if (problems.length) {
-  console.error(`${problems.length} problem${problems.length === 1 ? '' : 's'} with a4a's words (D49):\n${problems.slice(0, 200).join('\n')}${problems.length > 200 ? `\n… and ${problems.length - 200} more` : ''}`);
+  console.error(`${problems.length} problem${problems.length === 1 ? '' : 's'} with a4a's words (D49):\n${(process.env.CHECK_WORDS_ALL ? problems : problems.slice(0, 200)).join('\n')}${problems.length > 200 && !process.env.CHECK_WORDS_ALL ? `\n… and ${problems.length - 200} more (CHECK_WORDS_ALL=1 shows them all)` : ''}`);
   process.exit(1);
 }
 console.log(`a4a's words are in its catalogs: ${Object.keys(en).length} messages in ${Object.keys(catalogs).length} languages (${Object.keys(catalogs).sort().join(', ')}), each parsing, with English's placeholders.`);

@@ -54,7 +54,7 @@ export default function ActivityPage() {
             <span className="note" role="status">{t('page.activity.readingTheNewest')}</span>
           ) : null}
         </div>
-        {feed.isLoading ? <Loading what={t('page.activity.theActivity')} /> : null}
+        {feed.isLoading ? <Loading what="loadingLine.activity" /> : null}
         {feed.error ? <ErrorNote error={feed.error} /> : null}
         {feed.data && !events.length ? (
           <section className="card">

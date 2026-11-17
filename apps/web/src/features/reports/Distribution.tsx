@@ -12,7 +12,7 @@ import { formatList, t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 240, left: 40, right: 24, top: 34, bottom: 34 };
 
-const bucketWords = (from: number, to: number) => (to <= 1 ? `${Math.round(from * 24)}–${Math.round(to * 24)}h` : t('reports.distribution.days', { from: from, to: to }));
+const bucketWords = (from: number, to: number) => (to <= 1 ? t('reports.distribution.hours', { from: Math.round(from * 24), to: Math.round(to * 24) }) : t('reports.distribution.days', { from: from, to: to }));
 
 export function DistributionChart({ c, compact }: { c: CycleTime; compact?: boolean }) {
   const titleId = useId();
