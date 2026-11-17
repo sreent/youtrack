@@ -317,7 +317,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | earned value | valeur acquise |
 | what-if | simulation |
 | milestone | jalon |
-| triage | tri |
+| triage | triage (never "tri", which is French for a sort: "triés par") |
 | suggestion | suggestion |
 | tag | étiquette |
 | token | jeton |
