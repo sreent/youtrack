@@ -21,7 +21,7 @@ import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
 import { inboxChanged, mailConfigured, sign, verify } from '../notify/state';
 import { notificationTitle } from '../notify/words';
-import { eventSeen, issueSeenSql, projectAccess, visibleProjectIds } from './access';
+import { eventFor, eventSeen, issueSeenSql, projectAccess, visibleProjectIds } from './access';
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
@@ -40,7 +40,12 @@ export async function eventsOf(
   db: Db,
   s: SchemaSnapshot,
   ids: string[],
-  opts: { last?: number; visible?: (e: TrackerEvent) => boolean | Promise<boolean> } = {},
+  opts: {
+    last?: number;
+    visible?: (e: TrackerEvent) => boolean | Promise<boolean>;
+    /** The event as its reader may read it, or null to leave it out: changes to private fields kept from them taken out (D50). */
+    shape?: (e: TrackerEvent) => TrackerEvent | null;
+  } = {},
 ): Promise<Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>> {
   const last = opts.last ?? 20;
   const out = new Map<string, { events: TrackerEvent[]; reasons: Map<number, NotificationKind> }>();
@@ -52,8 +57,10 @@ export async function eventsOf(
     .where(inArray(notificationEvents.notificationId, ids))
     .orderBy(asc(activities.id));
   for (const r of rows) {
-    const event = toEventDto(s, r.activity);
-    if (opts.visible && !(await opts.visible(event))) continue;
+    const dto = toEventDto(s, r.activity);
+    if (opts.visible && !(await opts.visible(dto))) continue;
+    const event = opts.shape ? opts.shape(dto) : dto;
+    if (!event) continue;
     let entry = out.get(r.notificationId);
     if (!entry) out.set(r.notificationId, (entry = { events: [], reasons: new Map() }));
     entry.events.push(event);
@@ -66,7 +73,7 @@ export async function eventsOf(
 async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> {
   const s = await ctx.app.schema.get();
   const view = await projectAccess(ctx);
-  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, ctx.db, s, e) });
+  const events = await eventsOf(ctx.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, ctx.db, s, e), shape: (e) => eventFor(view, s, e) });
   // What a subscribed one came for (D31), while that subscription lasts.
   const subscribed = rows.filter((r) => r.kind === 'subscribed' && r.subscriptionId);
   const abouts = await aboutSubscriptions(ctx.db, s, subscribed.map((r) => r.subscriptionId!));

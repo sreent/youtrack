@@ -6,7 +6,7 @@ import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSection, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
-import { accessFor, eventSeen } from '../services/access';
+import { accessFor, eventFor, eventSeen } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
 import { aboutSubscriptions } from '../services/subscriptions';
 import { forgetTeamReplyAddress, mintTeamReplyAddress } from '../services/team-replies';
@@ -53,7 +53,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const view = await accessFor(app.db, user);
   if (!n.projectId || !view.canRead(n.projectId)) return null;
 
-  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
+  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e), shape: (e) => eventFor(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const tr = translatorFor(localeOfPerson(app, user));
@@ -139,7 +139,7 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
     return null;
   }
   const s = await app.schema.get();
-  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e) });
+  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e), shape: (e) => eventFor(view, s, e) });
   const l = links(app);
   const token = await unsubscribeToken(app, 'digest', userId);
   const tr = translatorFor(localeOfPerson(app, user));

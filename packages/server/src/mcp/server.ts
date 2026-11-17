@@ -5,6 +5,7 @@ import type { Ctx } from '../context';
 import { excerpt } from '../lib/text';
 import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../search/reference';
 import { searchIssues } from '../search/service';
+import { visibleSchema } from '../services/access';
 import { listComments } from '../services/comments';
 import { projectFieldDtos } from '../services/fields';
 import { getIssue } from '../services/issues';
@@ -110,7 +111,8 @@ export function createMcpServer(ctx: Ctx): McpServer {
     { title: 'Project schema', description: "A project's fields and values", mimeType: 'text/markdown' },
     async (uri, vars) => {
       const p = await getProject(ctx, String(vars.key));
-      const s = await ctx.app.schema.get();
+      // The fields as the caller sees them: a private one kept from them isn't there (D50).
+      const s = await visibleSchema(ctx);
       const fields = projectFieldDtos(s, p.id)
         .map((f) => `- **${f.name}** (${f.type}${f.multi ? ', several' : ''}${f.required ? ', required' : ''})${f.values.length ? `: ${f.values.map((v) => v.name + (v.isResolved ? ' (resolved)' : '')).join(', ')}` : ''}`)
         .join('\n');

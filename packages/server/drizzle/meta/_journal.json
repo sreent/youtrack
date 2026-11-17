@@ -211,6 +211,13 @@
       "when": 1794892283130,
       "tag": "0029_kept_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794899461601,
+      "tag": "0030_private_fields",
+      "breakpoints": true
     }
   ]
 }

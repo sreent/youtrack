@@ -22,7 +22,7 @@ import { todayIn } from '../reports/tz';
 import { zoneOf } from '../services/time-zones';
 import { linkIssues, listLinkTypes } from '../services/links';
 import { getProject, listProjects } from '../services/projects';
-import { projectAccess } from '../services/access';
+import { projectAccess, visibleSchema } from '../services/access';
 import { listTags } from '../services/tags';
 import { listUsers } from '../services/users';
 import { logWork } from '../services/workitems';
@@ -131,7 +131,8 @@ const getProjectTool = defineTool({
   kind: 'reads',
   async run(ctx, input) {
     const p = await getProject(ctx, input.project);
-    const s = await ctx.app.schema.get();
+    // The fields as the caller sees them: a private one kept from them isn't there (D50).
+    const s = await visibleSchema(ctx);
     const fields = projectFieldDtos(s, p.id).map((f) => ({
       name: f.name,
       type: f.type,
@@ -438,7 +439,8 @@ const updateIssueTool = defineTool({
   idempotent: true,
   async preview(ctx, input) {
     const issue = await resolveIssue(ctx, input.issue);
-    const s = await ctx.app.schema.get();
+    // The fields as the caller sees them: a private one kept from them isn't there (D50).
+    const s = await visibleSchema(ctx);
     const project = s.projects.get(issue.projectId)!;
     const res = await ctx.db.transaction(async (tx) =>
       applyChanges(tx as unknown as Db, ctx, issue, {

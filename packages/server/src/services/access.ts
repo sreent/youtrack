@@ -372,6 +372,8 @@ const DOING: Record<Permission, string> = {
   costs: 'see its time and costs',
   boards: 'change its boards',
   manage: 'change its settings',
+  readPrivate: 'see its private fields',
+  editPrivate: 'change its private fields',
 };
 
 /**
@@ -596,7 +598,8 @@ export function scopeSchema(s: SchemaSnapshot, visible: readonly string[] | null
  */
 export async function visibleSchema(ctx: Ctx, db?: Db): Promise<SchemaSnapshot> {
   const [s, view] = [await ctx.app.schema.get(db), await projectAccess(ctx, db)];
-  return scopeSchema(s, view.visibleIds());
+  // Without the private fields they may not see, too (D50).
+  return scopeFields(scopeSchema(s, view.visibleIds()), view);
 }
 
 // ---------------------------------------------------------------------------
@@ -866,4 +869,178 @@ export function requesterSees(project: ProjectRow, viewer: { id: string; email: 
   const domain = emailDomain(viewer.email);
   const settings = (project.settings ?? {}) as { helpdesk?: { organizations?: string[] } };
   return Boolean(domain) && domain === emailDomain(owner.email) && (settings.helpdesk?.organizations ?? []).includes(domain);
+}
+
+// ---------------------------------------------------------------------------
+// Private fields (D50)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whom a private field is kept from: a person's view, or null for everyone at once (a chat channel's
+ * people, a webhook's receiver, what triage tells Claude), who read no private field.
+ */
+export type FieldReader = AccessView | null;
+
+/** Whether they read a project's private fields: their values, and the changes to them. */
+export function readsPrivateIn(view: FieldReader, projectId: string): boolean {
+  return Boolean(view?.allows(projectId, 'readPrivate'));
+}
+
+/** A project's private fields, by id. */
+export function privateFieldIds(s: SchemaSnapshot, projectId: string): Set<string> {
+  return new Set((s.projectFields.get(projectId) ?? []).filter((pf) => pf.private).map((pf) => pf.fieldId));
+}
+
+const hiddenMemo = new WeakMap<SchemaSnapshot, { everyone?: Map<string, Set<string>>; views: WeakMap<AccessView, Map<string, Set<string>>> }>();
+
+/**
+ * The fields kept from them, by project: each project's private fields, where they may not read
+ * them. Empty for whoever reads every private field they can reach, and wherever none is private.
+ */
+export function hiddenFields(view: FieldReader, s: SchemaSnapshot): Map<string, Set<string>> {
+  let memo = hiddenMemo.get(s);
+  if (!memo) hiddenMemo.set(s, (memo = { views: new WeakMap() }));
+  const hit = view ? memo.views.get(view) : memo.everyone;
+  if (hit) return hit;
+  const out = new Map<string, Set<string>>();
+  for (const [projectId, pfs] of s.projectFields) {
+    if (!pfs.some((pf) => pf.private) || readsPrivateIn(view, projectId)) continue;
+    out.set(projectId, privateFieldIds(s, projectId));
+  }
+  if (view) memo.views.set(view, out);
+  else memo.everyone = out;
+  return out;
+}
+
+/** Whether they see a field's values on the issues of a project. */
+export function seesField(view: FieldReader, s: SchemaSnapshot, projectId: string, fieldId: string): boolean {
+  return !hiddenFields(view, s).get(projectId)?.has(fieldId);
+}
+
+/** The projects whose issues keep a field's values from them; none, mostly. */
+export function projectsHiding(view: FieldReader, s: SchemaSnapshot, fieldId: string): string[] {
+  return [...hiddenFields(view, s)].filter(([, ids]) => ids.has(fieldId)).map(([projectId]) => projectId);
+}
+
+/**
+ * SQL over an `issues` row (as `alias`): whether they see this field's values on it. Undefined where
+ * it's kept from them nowhere, which costs nothing. Searches, sorts, counts and reports add it to every
+ * read of the field's values, so an issue whose value is kept from them reads as having none.
+ */
+export function fieldSeenSql(view: FieldReader, s: SchemaSnapshot, fieldId: string, alias = 'issues'): SQL | undefined {
+  const hiding = projectsHiding(view, s, fieldId);
+  return hiding.length ? sql`${ident(alias)}.project_id NOT IN (${list(hiding)})` : undefined;
+}
+
+const fieldScoped = new WeakMap<SchemaSnapshot, WeakMap<AccessView, SchemaSnapshot>>();
+
+/**
+ * The reference data without the fields they may not see (D50). A field private in a project leaves
+ * that project's fields; one kept from them in every project of theirs that has it leaves everything,
+ * values and all, so the query and command languages, completion and prompts answer it as they answer
+ * a field that doesn't exist. `visibleSchema` gives this; pass a view, or null for everyone.
+ */
+export function scopeFields(s: SchemaSnapshot, view: FieldReader): SchemaSnapshot {
+  const hidden = hiddenFields(view, s);
+  if (!hidden.size) return s;
+  const cached = view ? fieldScoped.get(s)?.get(view) : undefined;
+  if (cached) return cached;
+  const seen = new Set<string>();
+  for (const [projectId, pfs] of s.projectFields) for (const pf of pfs) if (!hidden.get(projectId)?.has(pf.fieldId)) seen.add(pf.fieldId);
+  const gone = new Set<string>();
+  for (const ids of hidden.values()) for (const id of ids) if (!seen.has(id)) gone.add(id);
+  const out: SchemaSnapshot = {
+    ...s,
+    fields: new Map([...s.fields].filter(([id]) => !gone.has(id))),
+    fieldsByName: new Map([...s.fieldsByName].filter(([, f]) => !gone.has(f.id))),
+    values: new Map([...s.values].filter(([, v]) => !gone.has(v.fieldId))),
+    valuesByField: new Map([...s.valuesByField].filter(([id]) => !gone.has(id))),
+    projectFields: new Map([...s.projectFields].map(([projectId, pfs]) => [projectId, hidden.has(projectId) ? pfs.filter((pf) => !hidden.get(projectId)!.has(pf.fieldId)) : pfs])),
+  };
+  if (view) {
+    let byView = fieldScoped.get(s);
+    if (!byView) fieldScoped.set(s, (byView = new WeakMap()));
+    byView.set(view, out);
+  }
+  return out;
+}
+
+/** The names a project's hidden fields go by in history, lower-cased: their names, and the ones they had. */
+function hiddenNames(s: SchemaSnapshot, ids: ReadonlySet<string> | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const id of ids ?? []) {
+    const f = s.fields.get(id);
+    if (!f) continue;
+    out.add(f.name.toLowerCase());
+    for (const n of f.formerNames ?? []) out.add(n.toLowerCase());
+  }
+  return out;
+}
+
+/**
+ * An event as they may read it (D50): changes to fields kept from them taken out, and the values a new
+ * issue started with. Null for a change to nothing else, which isn't shown at all. A move also keeps
+ * back what the project it left kept from them.
+ */
+export function eventFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent): TrackerEvent | null {
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  if (!p) return e;
+  const hidden = hiddenFields(view, s);
+  const names = hiddenNames(s, hidden.get(p.id));
+  if (e.type === 'issue.moved') {
+    const from = s.projectsByKey.get(String((e.data as { fromProject?: unknown }).fromProject ?? '').toUpperCase());
+    if (from) for (const n of hiddenNames(s, hidden.get(from.id))) names.add(n);
+  }
+  if (!names.size) return e;
+  const kept = (name: unknown) => typeof name !== 'string' || !names.has(name.toLowerCase());
+  const changes = e.changes.filter((c) => kept(c.field));
+  if (e.type === 'issue.updated' && e.changes.length && !changes.length) return null;
+  let data = e.data;
+  if (e.type === 'issue.created') {
+    const d = e.data as { fields?: Record<string, unknown>; explicitFields?: unknown };
+    data = {
+      ...e.data,
+      ...(d.fields && typeof d.fields === 'object' ? { fields: Object.fromEntries(Object.entries(d.fields).filter(([name]) => kept(name))) } : {}),
+      ...(Array.isArray(d.explicitFields) ? { explicitFields: d.explicitFields.filter(kept) } : {}),
+    };
+  }
+  return changes.length === e.changes.length && data === e.data ? e : { ...e, changes, data };
+}
+
+/**
+ * The same as SQL over `activities`, for what a feed leaves out whole: a change to an issue that was
+ * all to fields kept from them. What's left of a change that did more is `eventFor`'s to trim.
+ */
+export function eventsFieldsSql(view: FieldReader, s: SchemaSnapshot): SQL | undefined {
+  const parts: SQL[] = [];
+  for (const [projectId, ids] of hiddenFields(view, s)) {
+    const names = [...hiddenNames(s, ids)];
+    if (!names.length) continue;
+    parts.push(
+      sql`NOT (${activities.projectId} = ${projectId} AND ${activities.type} = 'issue.updated' AND jsonb_typeof(${activities.payload}->'changes') = 'array' AND jsonb_array_length(${activities.payload}->'changes') > 0 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(${activities.payload}->'changes') seen_fc WHERE lower(seen_fc->>'field') NOT IN (${list(names)})))`,
+    );
+  }
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
+}
+
+/** Of these people, those who read a project's private fields, as each would signing in. */
+export async function whoReadsPrivate(db: Db, projectId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const grants = await projectGrantsOf(db, projectId, [...userIds]);
+  return new Set([...grants].filter(([, g]) => g.permissions.has('readPrivate')).map(([id]) => id));
+}
+
+/**
+ * The caller may set these fields on an issue of the project. One private there that they may not read
+ * answers as a field the project doesn't have (`unknown`'s words); one they read but may not change is
+ * 403, saying which permission it takes.
+ */
+export async function assertCanSetFields(ctx: Ctx, projectId: string, fieldIds: readonly string[], unknown: (fieldId: string) => Error, db?: Db): Promise<void> {
+  const s = await ctx.app.schema.get(db);
+  const own = privateFieldIds(s, projectId);
+  const touched = fieldIds.filter((id) => own.has(id));
+  if (!touched.length) return;
+  const view = await projectAccess(ctx, db);
+  const hidden = touched.find((id) => !seesField(view, s, projectId, id));
+  if (hidden) throw unknown(hidden);
+  await assertCanProject(ctx, projectId, 'editPrivate', db);
 }

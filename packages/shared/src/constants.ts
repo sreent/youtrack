@@ -21,10 +21,14 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
  * project's settings, people, rules, plan and baselines, imports and help desk, and seeing every
  * issue in it, whoever it's limited to.
  */
-export const PERMISSIONS = ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs', 'boards', 'manage'] as const;
+/**
+ * What a role lets someone do in a project (D37). The last two are a project's private fields (D50):
+ * seeing them, and changing them. A manager has both; the built-in viewer and member have neither.
+ */
+export const PERMISSIONS = ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs', 'boards', 'manage', 'readPrivate', 'editPrivate'] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 /** Permissions that change something, which a read-only account or token never has whatever its role. */
-export const WRITING_PERMISSIONS: readonly Permission[] = ['comment', 'create', 'edit', 'delete', 'time', 'boards', 'manage'];
+export const WRITING_PERMISSIONS: readonly Permission[] = ['comment', 'create', 'edit', 'delete', 'time', 'boards', 'manage', 'editPrivate'];
 export const BUILTIN_ROLE_PERMISSIONS: Record<ProjectRole, readonly Permission[]> = {
   viewer: ['read', 'comment', 'costs'],
   member: ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs'],

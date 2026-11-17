@@ -28,6 +28,12 @@ export interface CompileContext {
    * match only comments they see. Left out, every comment counts (rules, which run as nobody in particular).
    */
   commentSeen?: SQL;
+  /**
+   * Over `issues`: whether the asker sees a field's values on the issue (D50), for a field private where
+   * some issues are. Every read of a field's values takes it, so an issue that keeps one from them reads
+   * as having none. Left out, every value counts (rules, whose bot sees them all).
+   */
+  fieldSeen?: (fieldId: string) => SQL | undefined;
 }
 
 export interface CompiledQuery {
@@ -89,6 +95,18 @@ class Compiler {
   /** " AND <the asker sees c>", or nothing: see CompileContext.commentSeen. */
   private seenComments(): SQL {
     return this.cc.commentSeen ? sql` AND ${this.cc.commentSeen}` : sql``;
+  }
+
+  /** " AND <the asker sees this field's values here>", or nothing: see CompileContext.fieldSeen. */
+  private seenField(fieldId: string): SQL {
+    const c = this.cc.fieldSeen?.(fieldId);
+    return c ? sql` AND ${c}` : sql``;
+  }
+
+  /** The start of a read of one field's values on the issue, as `ifv`: its rows, as far as the asker sees them. */
+  private fieldConds(fieldId: string): SQL[] {
+    const c = this.cc.fieldSeen?.(fieldId);
+    return [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${fieldId}`, ...(c ? [c] : [])];
   }
 
   /** The instant a calendar day begins where the asker is: its local midnight, across clock changes too. */
@@ -243,11 +261,11 @@ class Compiler {
   }
 
   private fieldExists(fieldId: string): SQL {
-    return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId})`;
+    return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId}${this.seenField(fieldId)})`;
   }
 
   private optionIn(fieldId: string, valueIds: string[]): SQL {
-    return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId} AND ifv.value_id IN (${list(valueIds)}))`;
+    return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId} AND ifv.value_id IN (${list(valueIds)})${this.seenField(fieldId)})`;
   }
 
   /**
@@ -327,13 +345,13 @@ class Compiler {
             );
             return FALSE;
           }
-          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.user_id = ${u.id})`;
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.user_id = ${u.id}${this.seenField(field.id)})`;
         }
         case 'string':
         case 'text': {
           const raw = v.kind === 'single' ? v.raw : `${v.from ?? ''}`;
           const like = `%${raw.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
-          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.text_value ILIKE ${like})`;
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.text_value ILIKE ${like}${this.seenField(field.id)})`;
         }
         case 'integer':
         case 'float':
@@ -354,7 +372,7 @@ class Compiler {
               );
               return FALSE;
             }
-            return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ${col} = ${n})`;
+            return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ${col} = ${n}${this.seenField(field.id)})`;
           }
           const from = parse(v.from);
           const to = parse(v.to);
@@ -362,7 +380,7 @@ class Compiler {
             this.problem({ key: 'query.invalidRange', values: { field: field.name } }, `Invalid range for ${field.name}`, v.span);
             return FALSE;
           }
-          const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`];
+          const conds = this.fieldConds(field.id);
           if (from !== null) conds.push(sql`${col} >= ${from}`);
           if (to !== null) conds.push(sql`${col} <= ${to}`);
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
@@ -370,7 +388,7 @@ class Compiler {
         case 'date': {
           const range = this.dateRange(v, field.name);
           if (!range) return FALSE;
-          const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`];
+          const conds = this.fieldConds(field.id);
           if (range.from) conds.push(sql`ifv.date_value >= ${range.from}`);
           if (range.to) conds.push(sql`ifv.date_value < ${range.to}`);
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
@@ -380,7 +398,7 @@ class Compiler {
           const range = this.dateRange(v, field.name);
           if (!range) return FALSE;
           this.readsDates = true;
-          const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`, sql`ifv.time_value IS NOT NULL`];
+          const conds = [...this.fieldConds(field.id), sql`ifv.time_value IS NOT NULL`];
           if (range.from) conds.push(sql`ifv.time_value >= ${this.midnight(range.from)}`);
           if (range.to) conds.push(sql`ifv.time_value < ${this.midnight(range.to)}`);
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
@@ -403,7 +421,7 @@ class Compiler {
             );
             return FALSE;
           }
-          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.group_id = ${g.id})`;
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.group_id = ${g.id}${this.seenField(field.id)})`;
         }
       }
     });
@@ -750,20 +768,20 @@ class Compiler {
       case 'version':
       case 'build':
       case 'owned':
-        return sql`(SELECT min(fv.ordinal) FROM issue_field_values ifv JOIN field_values fv ON fv.id = ifv.value_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(fv.ordinal) FROM issue_field_values ifv JOIN field_values fv ON fv.id = ifv.value_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       case 'user':
-        return sql`(SELECT min(lower(u.login)) FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(lower(u.login)) FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       case 'date':
-        return sql`(SELECT min(ifv.date_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(ifv.date_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       case 'datetime':
-        return sql`(SELECT min(ifv.time_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(ifv.time_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       case 'group':
-        return sql`(SELECT min(lower(g.name)) FROM issue_field_values ifv JOIN groups g ON g.id = ifv.group_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(lower(g.name)) FROM issue_field_values ifv JOIN groups g ON g.id = ifv.group_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       case 'string':
       case 'text':
-        return sql`(SELECT min(lower(ifv.text_value)) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(lower(ifv.text_value)) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
       default:
-        return sql`(SELECT min(ifv.number_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+        return sql`(SELECT min(ifv.number_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id}${this.seenField(field.id)})`;
     }
   }
 }

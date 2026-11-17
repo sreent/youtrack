@@ -203,6 +203,11 @@ export const fields = pgTable(
     description: text('description').notNull().default(''),
     ordinal: integer('ordinal').notNull().default(0),
     createdAt: created(),
+    /**
+     * The names it had before it was renamed. History keeps a change under the name the field had
+     * then, so a private field's changes are known by these too (D50).
+     */
+    formerNames: text('former_names').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [uniqueIndex('fields_name_lower').on(sql`lower(${t.name})`)],
 );
@@ -241,6 +246,11 @@ export const projectFields = pgTable(
     defaultValue: jsonb('default_value'),
     /** A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always. */
     condition: text('condition'),
+    /**
+     * Private in this project (D50): its values, and changes to them, reach only people whose role
+     * here may read private fields, and only those who may change them set it.
+     */
+    private: boolean('private').notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.fieldId] })],
 );

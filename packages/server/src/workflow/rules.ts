@@ -46,7 +46,7 @@ import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
 import { lex } from '../search/lexer';
 import { suggest } from '../search/suggest';
-import { assertCanManageProject, canReadProject, projectAccess, requireProject, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
+import { assertCanManageProject, canReadProject, projectAccess, requireProject, scopeFields, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
 import { issueRefsById } from '../services/issue-refs';
 import { findVisibleIssue } from '../services/issues';
 import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
@@ -193,7 +193,8 @@ async function projectIdOf(ctx: Ctx, key: string | null | undefined, need: Proje
  * own project (which they can see); a rule for every project, the projects they can see.
  */
 async function worldFor(ctx: Ctx, projectId: string | null): Promise<SchemaSnapshot> {
-  return projectId ? ruleWorld(await ctx.app.schema.get(), projectId) : visibleSchema(ctx);
+  // Without the private fields kept from them (D50): a rule's words are theirs to read.
+  return projectId ? scopeFields(ruleWorld(await ctx.app.schema.get(), projectId), await projectAccess(ctx)) : visibleSchema(ctx);
 }
 
 function draftFrom(projectId: string | null, input: RuleInput): Draft {
