@@ -121,6 +121,15 @@ export function messageArguments(source: string): string[] {
  */
 export type ProblemSaid = { key: string; values?: Record<string, string | number | ProblemSaid | ProblemSaid[]> };
 
+/**
+ * Which words a subscription is said in (D31, D49), for a message that takes `{tells, select, …}`
+ * and `{name}`: new issues in a project, every change in it, issues coming into a saved search, or
+ * changes to issues in one. Each language words each case whole, in the case its sentence needs.
+ */
+export function subscriptionTells(target: 'project' | 'search', events: 'new' | 'all'): 'projectNew' | 'projectAll' | 'searchNew' | 'searchAll' {
+  return target === 'project' ? (events === 'all' ? 'projectAll' : 'projectNew') : events === 'all' ? 'searchAll' : 'searchNew';
+}
+
 /** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。. */
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
 

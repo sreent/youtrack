@@ -122,6 +122,13 @@ for (const file of walk(server)) {
         unknownKeys.push(`packages/server/src/${rel}:${lineOf(node) + 1}: says problem.${key.text}, which en.json hasn't`);
       }
     }
+    // A reason something stopped (chat/common.ts' stopReason(text, key, values)): its key is a problem's too.
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'stopReason') {
+      const key = node.arguments[1];
+      if (key && (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) && !(`problem.${key.text}` in en)) {
+        unknownKeys.push(`packages/server/src/${rel}:${lineOf(node) + 1}: says problem.${key.text}, which en.json hasn't`);
+      }
+    }
     // A parser's problem (a QueryProblem, a rule's, a move's): an object whose English is written there.
     if (ts.isObjectLiteralExpression(node) && isParserProblem(node)) {
       if (keyedWhereMade(node)) keyed++;

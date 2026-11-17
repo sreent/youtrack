@@ -148,7 +148,13 @@ test('a search is saved, chosen again, and forgotten', async ({ page, api }) => 
 
 test('words become a query, and the page shows the query it read (AI stood in for)', async ({ page }) => {
   await aiOn(page);
-  const ai = await mockWordsToQuery(page, () => ({ query: `project: ${key} Priority: Critical`, explanation: `Issues in project ${key}, Priority: Critical`, valid: true }));
+  // The model's own sentence is for the API; the page counts what it found in a4a's reading of the query.
+  const ai = await mockWordsToQuery(page, () => ({
+    query: `project: ${key} Priority: Critical`,
+    explanation: 'The critical ones, as asked.',
+    valid: true,
+    explained: { body: `in project ${key}, Priority: Critical`, sort: '', zone: null },
+  }));
   await page.goto(`/issues?q=${encodeURIComponent(`project: ${key}`)}`);
   await expect(page.getByRole('list', { name: '3 issues' })).toBeVisible();
 
@@ -163,5 +169,6 @@ test('words become a query, and the page shows the query it read (AI stood in fo
   await expect(page.getByText('Interpreted as:')).toBeVisible();
   await expect(page.getByRole('main').getByText(`project: ${key} Priority: Critical`, { exact: true })).toBeVisible();
   await expect(page.getByRole('list', { name: '1 issue' }).getByRole('link', { name: stale.summary })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: /^1 issue/ })).toHaveText(`1 issue in project ${key}, Priority: Critical`);
   expect(ai.asked).toEqual([{ text: 'the critical ones', project: key }]);
 });

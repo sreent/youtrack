@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBuildSource, issueBuilds, listBuilds, listBuildSources, rotateBuildToken } from '../src/ci/builds';
 import { activities, builds } from '../src/db/schema';
+import { translatorFor } from '../src/i18n';
 import { createHttpApp } from '../src/http/app';
 import { searchIssues } from '../src/search/service';
 import { issueActivity } from '../src/services/activity';
@@ -19,6 +20,7 @@ import { createProject } from '../src/services/projects';
 import { updateUser } from '../src/services/users';
 import { presentField } from '../src/tools/registry';
 import { createIntegration, updateIntegration } from '../src/vcs/integrations';
+import { createRule, deleteRule } from '../src/workflow/rules';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -156,7 +158,8 @@ describe('a CI that posts its builds', () => {
     const change = history.find((e) => e.changes.some((c) => c.field === 'Fixed in build'));
     expect(change?.actor).toMatchObject({ channel: 'ci', token: 'Jenkins: backend', login: 'builds', isBot: true });
     expect(change?.data).toMatchObject({ build: { name: '1.0.1' } });
-    expect(await issueBuilds(w.adminCtx, open.id)).toEqual([expect.objectContaining({ build: '1.0.1', outcome: 'open' })]);
+    // Why it was left, in English for the API, and in the catalogs' words for a page in another language.
+    expect(await issueBuilds(w.adminCtx, open.id)).toEqual([expect.objectContaining({ build: '1.0.1', outcome: 'open', note: 'Not resolved yet', said: { key: 'builds.note.notResolved' } })]);
 
     // Posted again: the same build, nothing marked twice. Once the open one is resolved, it's marked.
     expect((await postBuild({ build: '1.0.1', commits: [a, b] })).body).toMatchObject({ outcome: 'again', marked: 0 });
@@ -180,7 +183,7 @@ describe('a CI that posts its builds', () => {
     expect((await postBuild({ build: '1.0.3', commits: [{ message: `Revert, then ${byMessage.id} again` }] })).body).toMatchObject({ marked: 0 });
     expect(fieldOf(await getIssue(w.adminCtx, byMessage.id), 'Fixed in build')).toBe('1.0.2');
     expect(await issueBuilds(w.adminCtx, byMessage.id)).toEqual([
-      expect.objectContaining({ build: '1.0.3', outcome: 'already', note: 'It says 1.0.2 already' }),
+      expect.objectContaining({ build: '1.0.3', outcome: 'already', note: 'It says 1.0.2 already', said: { key: 'builds.note.saysAlready', values: { build: '1.0.2' } } }),
       expect.objectContaining({ build: '1.0.2', outcome: 'marked' }),
     ]);
   });
@@ -190,11 +193,28 @@ describe('a CI that posts its builds', () => {
     const r = await postBuild({ build: '1.0.4', status: 'failure', commits: [{ message: fixed.id }] });
     expect(r.body).toMatchObject({ status: 'failure', marked: 0 });
     expect(fieldOf(await getIssue(w.adminCtx, fixed.id), 'Fixed in build')).toBeNull();
+    expect(await issueBuilds(w.adminCtx, fixed.id)).toEqual([expect.objectContaining({ build: '1.0.4', outcome: 'refused', note: 'The build failed', said: { key: 'builds.note.failed' } })]);
     const s = await w.app.schema.get();
     const field = [...s.fields.values()].find((f) => f.name === 'Fixed in build')!;
     expect((s.valuesByField.get(field.id) ?? []).map((v) => v.name)).not.toContain('1.0.4');
     // Re-run, it passes: now it's a build.
     expect((await postBuild({ build: '1.0.4', status: 'success' })).body).toMatchObject({ status: 'success', marked: 1 });
+  });
+
+  it("keeps a guard's refusal as the problem it is, for a page to say in its language", async () => {
+    const unowned = await newIssue('Search box loses focus', true);
+    const guard = await createRule(w.adminCtx, { project: 'BACK', name: 'A shipped fix has an owner', kind: 'guard', query: 'has: {Fixed in build}', requires: 'has: Assignee', message: 'A shipped fix needs someone on it.' });
+    try {
+      expect((await postBuild({ build: '1.0.9', commits: [{ message: unowned.id }] })).body).toMatchObject({ marked: 0 });
+      const [left] = await issueBuilds(w.adminCtx, unowned.id);
+      expect(left).toMatchObject({ build: '1.0.9', outcome: 'refused' });
+      // The API's note is the refusal's English; a page says the problem from its key, in its language.
+      expect(left!.note).toContain('A shipped fix needs someone on it');
+      expect(left!.said?.key).toMatch(/^problem\.workflow\./);
+      expect(translatorFor('en').t(left!.said!.key, left!.said!.values)).toContain('A shipped fix needs someone on it');
+    } finally {
+      await deleteRule(w.adminCtx, guard.id);
+    }
   });
 
   it('finds issues by build, and by a range of builds in the order they came', async () => {

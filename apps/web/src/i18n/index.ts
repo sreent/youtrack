@@ -58,6 +58,11 @@ export function t(key: string, values?: MessageValues): string {
   return translator.t(key, values);
 }
 
+/** Whether the page's catalog has a message: a key the server kept with something may be one a later a4a renamed. */
+export function canSay(key: string): boolean {
+  return translator.has(key);
+}
+
 /** A list of things a page draws, joined as the page's language joins a list: "A, B and C", "A、B、C". */
 export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conjunction'): ReactNode {
   if (items.length <= 1) return items[0] ?? null;

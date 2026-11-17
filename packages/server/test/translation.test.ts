@@ -62,6 +62,42 @@ describe('a4a in each person’s language (D49)', () => {
     // Lena reads a4a in German, but what a script of hers reads is the API's words: English.
     const script = await prepareQuery(w.as(lena), query);
     expect(script.explanation).toBe('Issues in project SPR, unresolved, assigned to you sorted by updated (descending)');
+    // In pieces too, for the line on the page that counts what it found.
+    expect(page.explained).toEqual({ body: 'im Projekt SPR, unerledigt und Ihnen zugewiesen', sort: ', sortiert nach updated (absteigend)', zone: null });
+    expect(script.explained).toEqual({ body: 'in project SPR, unresolved, assigned to you', sort: ' sorted by updated (descending)', zone: null });
+  });
+
+  it('counts what a search found in each language, saying its noun once', async () => {
+    const line = async (locale: (typeof LOCALES)[number], query: string, n: number) => {
+      const { explained } = await prepareQuery({ ...w.as(lena), pageLocale: locale }, query);
+      const t = translatorFor(locale).t;
+      const found = explained.body ? t('issues.queryBar.foundWhere', { n, ...explained }) : explained.sort ? t('issues.queryBar.foundSorted', { n, ...explained }) : t('issues.queryBar.foundRecentFirst', { n });
+      return explained.zone ? t('issues.queryBar.foundDatesIn', { found, zone: explained.zone }) : found;
+    };
+    const said = async (query: string, n: number) => Object.fromEntries(await Promise.all(LOCALES.map(async (l) => [l, await line(l, query, n)])));
+    expect(await said('project: SPR #Unresolved', 4)).toEqual({
+      en: '4 issues in project SPR, unresolved',
+      de: '4 Vorgänge: im Projekt SPR und unerledigt',
+      es: 'Incidencias del proyecto SPR y sin resolver: 4',
+      fr: 'Tickets dans le projet SPR, non résolus : 4',
+      ja: '4件の課題：プロジェクト：SPR、未解決',
+    });
+    expect(await said('sort by: Priority', 1)).toEqual({
+      en: '1 issue sorted by Priority',
+      de: '1 Vorgang, sortiert nach Priority',
+      es: 'Todas las incidencias ordenadas por Priority: 1',
+      fr: 'Tous les tickets, triés par Priority : 1',
+      ja: '1件の課題、並び順：Priority',
+    });
+    expect(await said('', 0)).toEqual({
+      en: '0 issues (most recently updated first)',
+      de: '0 Vorgänge (zuletzt aktualisierte zuerst)',
+      es: 'Todas las incidencias (primero las actualizadas más recientemente): 0',
+      fr: 'Tous les tickets (les plus récemment mis à jour d’abord) : 0',
+      ja: '0件の課題（最近更新された順）',
+    });
+    // Lena reads dates in Berlin. "created today" is the query language's, as written.
+    expect((await said('created: today', 2)).de).toBe('2 Vorgänge: created today (Datumsangaben in Europe/Berlin)');
   });
 
   it('has a catalog for every language it speaks, with every English message in it', () => {

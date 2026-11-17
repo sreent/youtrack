@@ -3,7 +3,7 @@
  * project's builds and what each did, the builds an issue is in, and the code-host accounts a
  * person connects on their profile.
  */
-import type { Build, BuildIssueOutcome, BuildSource, BuildSourceCreated, BuildStatus, CodeHostInfo, IssueBuild, IssueDetail, ProviderLogin, VcsIntegration } from '@a4a/shared';
+import type { Build, BuildIssueOutcome, BuildSource, BuildSourceCreated, BuildStatus, CodeHostInfo, IssueBuild, IssueDetail, NoteSaid, ProviderLogin, VcsIntegration } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -15,7 +15,7 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CopyButton } from '../common/CopyButton';
 import { whenRead } from '../common/format';
-import { t, tr } from '../../i18n';
+import { canSay, problemWords, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 export const buildKeys = {
@@ -280,7 +280,7 @@ export function BuildList({ project }: { project: string }) {
                 {b.issues.length ? (
                   <ul className="chips" aria-label={t('builds.builds.whatBuildDid', { name: b.name })}>
                     {b.issues.map((i) => (
-                      <li key={i.issue.id} className="chip" title={i.note ?? OUTCOME[i.outcome].word}>
+                      <li key={i.issue.id} className="chip" title={noteOf(i) ?? OUTCOME[i.outcome].word}>
                         <Link to={`/issues/${i.issue.id}`} className="issue-id">
                           {i.issue.id}
                         </Link>{' '}
@@ -299,6 +299,18 @@ export function BuildList({ project }: { project: string }) {
       </table>
     </Scroll>
   );
+}
+
+/**
+ * Why a build left an issue as it did, in the page's language, from the words a4a kept with the note
+ * (D49). A refusal is said as the problem it was. One recorded before a4a kept them, or one no catalog
+ * has, is the note's English.
+ */
+function noteOf(x: { note: string | null; said: NoteSaid | null }): string | null {
+  const said = x.said;
+  if (!said) return x.note;
+  if (said.key.startsWith('problem.')) return problemWords({ key: said.key.slice('problem.'.length), values: said.values }) ?? x.note;
+  return canSay(said.key) ? t(said.key, said.values) : x.note;
 }
 
 /** The builds an issue is in, under its commits: which one it was fixed in, and any that found it open. */
@@ -323,7 +335,7 @@ export function IssueBuilds({ issue }: { issue: IssueDetail }) {
               <Badge tone={OUTCOME[b.outcome].tone}>{OUTCOME[b.outcome].word}</Badge>
               {b.status !== 'success' ? <Badge tone={STATUS[b.status].tone}>{STATUS[b.status].word}</Badge> : null}
             </p>
-            {b.note || b.finishedAt ? <p className="item-about">{[b.note, b.finishedAt ? whenRead(b.finishedAt) : null].filter(Boolean).join(' · ')}</p> : null}
+            {b.note || b.finishedAt ? <p className="item-about">{[noteOf(b), b.finishedAt ? whenRead(b.finishedAt) : null].filter(Boolean).join(' · ')}</p> : null}
           </li>
         ))}
       </ul>

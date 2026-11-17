@@ -12,8 +12,28 @@ import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { t, tr, inSentence } from '../../i18n';
+import { formatList, inSentence, problemWords, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
+
+/** What a channel hears of, by kind: the words a channel reads (chat/service.ts' aboutChannel). */
+const KIND_WORDS: Record<ChatChangeKind, string> = {
+  created: 'server.chat.kind.created',
+  state: 'server.chat.kind.state',
+  assigned: 'server.chat.kind.assigned',
+  commented: 'server.chat.kind.commented',
+  fields: 'server.chat.kind.fields',
+};
+
+/**
+ * "New issues, state changes and comments in Backend": what a subscription tells its channel, in
+ * the page's language. A channel is told it in the server's, and the API's `about` is English.
+ */
+export function aboutSubscription(s: Pick<ChatSubscription, 'kinds' | 'project' | 'search'>): string {
+  const words = CHAT_CHANGE_KINDS.filter((k) => s.kinds.includes(k)).map((k) => t(KIND_WORDS[k]));
+  const listed = words.length ? formatList(words) : t('server.chat.kind.nothing');
+  const what = `${listed.charAt(0).toUpperCase()}${listed.slice(1)}`;
+  return s.project ? t('server.chat.about.project', { what, project: s.project.name }) : t('server.chat.about.search', { what, search: s.search?.name ?? t('server.chat.about.aSavedSearch') });
+}
 
 export const chatKeys = {
   all: ['chat'] as const,
@@ -73,7 +93,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     onSuccess: (u) => {
       refresh();
       setEditing(false);
-      onSaid({ text: t('chat.chat.hearsOf', { name: u.channel.name, what: inSentence(u.about) }) });
+      onSaid({ text: t('chat.chat.hearsOf', { name: u.channel.name, what: inSentence(aboutSubscription(u)) }) });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -115,10 +135,10 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
           </form>
         ) : (
           <span className="tw:block tw:min-w-48">
-            {s.about}
+            {aboutSubscription(s)}
             {s.ended ? (
               <span className="item-about">
-                <Badge tone="idle">{t('chat.chat.stopped')}</Badge> {s.ended.reason}
+                <Badge tone="idle">{t('chat.chat.stopped')}</Badge> {problemWords(s.ended.said) ?? s.ended.reason}
               </span>
             ) : null}
           </span>
@@ -205,7 +225,7 @@ function AddChannel({ project }: { project: Project }) {
     onSuccess: (s) => {
       void qc.invalidateQueries({ queryKey: chatKeys.all });
       setChannel('');
-      setSaid({ text: t('chat.chat.hearsOf', { name: s.channel.name, what: inSentence(s.about) }) });
+      setSaid({ text: t('chat.chat.hearsOf', { name: s.channel.name, what: inSentence(aboutSubscription(s)) }) });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });

@@ -862,13 +862,25 @@ export const QueryProblemSchema = z
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
 
+export const QueryExplainedSchema = z
+  .object({
+    body: z.string().describe('What the query asks: "in project BACK, unresolved". Empty when it asks nothing.'),
+    sort: z.string().describe('How it sorts, worded to follow body: " sorted by Priority". Empty when it doesn’t say.'),
+    zone: z.string().nullable().describe('The time zone its dates are read in, when it reads any.'),
+  })
+  .describe('The explanation in pieces, in its language, for a page that says how many issues it found: "4 issues in project BACK" (D49).')
+  .meta({ id: 'QueryExplained' });
+export type QueryExplained = z.infer<typeof QueryExplainedSchema>;
+
 export const ParseQueryResultSchema = z
   .object({
     ok: z.boolean(),
     problems: z.array(QueryProblemSchema),
     explanation: z.string().describe('Plain-English reading of the query'),
+    explained: QueryExplainedSchema,
   })
   .meta({ id: 'ParseQueryResult' });
+export type ParseQueryResult = z.infer<typeof ParseQueryResultSchema>;
 
 export const SuggestItemSchema = z
   .object({
@@ -1369,6 +1381,7 @@ export const NLQueryResultSchema = z
     explanation: z.string(),
     valid: z.boolean(),
     problems: z.array(QueryProblemSchema),
+    explained: QueryExplainedSchema.describe('How a4a itself reads the query, in pieces, as /search/parse gives them'),
   })
   .meta({ id: 'NLQueryResult' });
 export type NLQueryResult = z.infer<typeof NLQueryResultSchema>;
@@ -1735,7 +1748,13 @@ export const NotificationSchema = z
     lastAt: timestamp,
     readAt: timestamp.nullable(),
     subscription: z
-      .object({ id: z.string(), about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"') })
+      .object({
+        id: z.string(),
+        about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"'),
+        target: z.enum(['project', 'search']).describe('What it follows, for a page that says about in its own words (D49)'),
+        events: z.enum(SUBSCRIPTION_EVENTS),
+        name: z.string().describe('The project’s name, or the saved search’s'),
+      })
       .nullable()
       .describe('When it came because you subscribed (kind "subscribed"): to what. Null otherwise, or once that subscription has ended'),
   })
@@ -1802,6 +1821,10 @@ export const UnsubscribeSchema = z
       .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
       .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
     what: z.string().describe('What the link stops, in words'),
+    subscription: z
+      .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
+      .nullable()
+      .describe('For a subscription that lasts: what it tells of, for a page that says what in its own words (D49)'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
   .meta({ id: 'Unsubscribe' });
@@ -3164,7 +3187,14 @@ export const ChatSubscriptionSchema = z
     createdBy: UserRefSchema.nullable().describe('Who subscribed the channel, and vouches for its people'),
     createdAt: timestamp,
     ended: z
-      .object({ at: timestamp, reason: z.string() })
+      .object({
+        at: timestamp,
+        reason: z.string(),
+        said: z
+          .object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() })
+          .nullable()
+          .describe('The reason as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null for a reason a chat service gave in its own code'),
+      })
       .nullable()
       .describe('Set when it no longer posts: its channel went, the app was removed, or its subscriber lost the project'),
   })
@@ -3291,6 +3321,16 @@ export const UpdateBuildSourceBody = z.object({
   active: z.boolean().optional(),
 });
 
+/** A note's words in the catalogs, beside its English: a key and its values (D49). */
+export const NoteSaidSchema = z
+  .object({
+    key: z.string().describe('The message: builds.note.<what>, or problem.<key> for a refusal a page says as a problem'),
+    values: z.record(z.string(), z.unknown()).optional().describe('What its words take, by name; a problem among them is a { key, values } of its own'),
+  })
+  .describe('The note in the catalogs, for a page that says it in its person’s language (D49). Null where the note is null, and where it was recorded before a4a kept its words; note is the same in English.')
+  .meta({ id: 'NoteSaid' });
+export type NoteSaid = z.infer<typeof NoteSaidSchema>;
+
 export const BuildIssueSchema = z
   .object({
     issue: IssueRefSchema,
@@ -3298,6 +3338,7 @@ export const BuildIssueSchema = z
       .enum(BUILD_ISSUE_OUTCOMES)
       .describe('marked: the build field set to this build. already: it named a build already. open: not resolved, so left. refused: a guard or a permission said no'),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable().describe('The commit that tied it to the build'),
   })
   .meta({ id: 'BuildIssue' });
@@ -3361,6 +3402,7 @@ export const IssueBuildSchema = z
     url: z.string().nullable(),
     outcome: z.enum(BUILD_ISSUE_OUTCOMES),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable(),
     finishedAt: timestamp.nullable(),
   })

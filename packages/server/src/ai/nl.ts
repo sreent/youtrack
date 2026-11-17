@@ -54,7 +54,8 @@ ${QUERY_LANGUAGE_GUIDE}`;
     }));
     prepared = await prepareQuery(ctx, output.query);
   }
-  return { query: output.query, explanation: output.explanation, valid: prepared.compiled.problems.length === 0, problems: prepared.compiled.problems };
+  // The model's sentence is for whoever asked through the API; a page counts what it found in a4a's own reading.
+  return { query: output.query, explanation: output.explanation, valid: prepared.compiled.problems.length === 0, problems: prepared.compiled.problems, explained: prepared.explained };
 }
 
 // ---------------------------------------------------------------------------

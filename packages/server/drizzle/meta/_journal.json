@@ -197,6 +197,13 @@
       "when": 1794858090169,
       "tag": "0027_translation",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1794890390228,
+      "tag": "0028_build_notes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 import type { Change, Notification, TrackerEvent } from '@a4a/shared';
+import { subscriptionTells } from '@a4a/shared/i18n';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Badge } from '../components/Badges';
@@ -63,7 +64,7 @@ function NotificationEntry({ n }: { n: Notification }) {
             {whenRead(n.lastAt)}
           </time>
         </p>
-        {n.subscription ? <p className="note">{tr('page.inbox.becauseYouSubscribedTo', { about: n.subscription.about })}</p> : null}
+        {n.subscription ? <p className="note">{tr('page.inbox.becauseYouSubscribedTo', { tells: subscriptionTells(n.subscription.target, n.subscription.events), name: n.subscription.name })}</p> : null}
         {changes.length ? <ChangeLines changes={changes} /> : null}
         {links.map((e) => (
           <p key={e.id} className="note">

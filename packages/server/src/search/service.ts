@@ -1,5 +1,5 @@
 import { isOptionType } from '@a4a/shared';
-import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
+import type { CountResult, IssueList, QueryExplained, QueryProblem } from '@a4a/shared';
 import { and, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';
@@ -10,7 +10,7 @@ import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../ser
 import { zoneOf } from '../services/time-zones';
 import { compileQuery, type CompiledQuery } from './compiler';
 import { translatorFor } from '../i18n';
-import { explainParsed } from './explain';
+import { explainParts, explanationOf } from './explain';
 import { withFixes } from './lexer';
 import { parseQuery, type ParsedQuery } from './parser';
 import { buildVocabulary } from './vocabulary';
@@ -19,6 +19,8 @@ export interface PreparedQuery {
   parsed: ParsedQuery;
   compiled: CompiledQuery;
   explanation: string;
+  /** The explanation in pieces, for a page that counts what it found (D49). */
+  explained: QueryExplained;
 }
 
 /**
@@ -52,8 +54,14 @@ export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?
   // A search whose dates depend on where you are says where it read them.
   // In the page's language when a page asks (D49); English for an agent or a script.
   const tr = translatorFor(ctx.pageLocale ?? 'en');
-  const explained = explainParsed(parsed, tr);
-  return { parsed, compiled, explanation: compiled.readsDates ? tr.t('server.query.datesIn', { explanation: explained, zone }) : explained };
+  const parts = explainParts(parsed, tr);
+  const said = explanationOf(parts, tr);
+  return {
+    parsed,
+    compiled,
+    explanation: compiled.readsDates ? tr.t('server.query.datesIn', { explanation: said, zone }) : said,
+    explained: { ...parts, zone: compiled.readsDates ? zone : null },
+  };
 }
 
 function formatProblems(problems: QueryProblem[]): string {
@@ -156,5 +164,6 @@ export async function parseQueryForApi(ctx: Ctx, query: string) {
     ok: prepared.compiled.problems.length === 0,
     problems: prepared.compiled.problems,
     explanation: prepared.explanation,
+    explained: prepared.explained,
   };
 }

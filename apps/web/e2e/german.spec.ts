@@ -94,6 +94,8 @@ test('says a query’s problems in German, as they are typed, and fixes them wit
   await api.createProject({ key, name: `Abfragen ${key}` });
   await page.goto(`/issues?q=${encodeURIComponent(`project: ${key}`)}`);
   const query = page.getByRole('combobox', { name: 'Vorgänge suchen' });
+  // The line counting what it found says its noun once: the count, then what the query asks, in German.
+  await expect(page.getByRole('status').filter({ hasText: /^0 Vorgänge/ })).toHaveText(`0 Vorgänge: im Projekt ${key}`);
 
   // The query's problem carries a key beside its English; the page says it in German. Its guess is a
   // button of its own, so the sentence doesn't say it twice.
