@@ -5,7 +5,7 @@
 import type { IssueDetail } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sayProblem } from '@a4a/shared/i18n';
+import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import { createHttpApp } from '../src/http/app';
 import { translatorFor } from '../src/i18n';
 import { checkProblemWords, type AppError } from '../src/lib/errors';
@@ -302,7 +302,7 @@ describe('a channel’s news, and the line it never crosses', () => {
       reason: 'Security is open to its members alone, and its subscriber doesn’t manage it',
       said: { key: 'chat.stop.membersOnly', values: { project: 'Security' } },
     });
-    expect(sayProblem(translatorFor('de'), ended!.ended!.said!)).toBe('Security ist nur für seine Mitglieder offen, und wer es abonniert hat, verwaltet es nicht.');
+    expect(sayProblem(translatorFor('de'), ended!.ended!.said! as ProblemSaid)).toBe('Security ist nur für seine Mitglieder offen, und wer es abonniert hat, verwaltet es nicht.');
   });
 });
 
