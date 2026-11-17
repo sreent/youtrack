@@ -309,7 +309,8 @@ describe('groups from the identity provider', () => {
     const hidden = await call('GET', '/projects/SECRET/groups', benToken);
     const missing = await call('GET', '/projects/NOPE/groups', benToken);
     expect(hidden.status).toBe(404);
-    expect(JSON.stringify(hidden.body).replace('SECRET', 'X')).toBe(JSON.stringify(missing.body).replace('NOPE', 'X'));
+    // Every mention of the key, its value for a page among them (D49).
+    expect(JSON.stringify(hidden.body).replaceAll('SECRET', 'X')).toBe(JSON.stringify(missing.body).replaceAll('NOPE', 'X'));
     expect((await call('DELETE', `/projects/OPEN/groups/${made.body.id}`, adminToken)).status).toBe(204);
     expect((await call('DELETE', `/groups/${made.body.id}`, adminToken)).status).toBe(204);
     expect((await call('GET', `/groups/${made.body.id}`, adminToken)).status).toBe(404);
