@@ -20,7 +20,7 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
-import { formatList, intlLocale, t, tr } from '../../i18n';
+import { formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Actor = TrackerEvent['actor'];
@@ -109,9 +109,18 @@ interface Entry {
   source?: Comment;
   anchor?: string;
   /** A change an agent made on its own: its event, and whether a person can undo it (D34). */
-  undo?: { event: number; state: NonNullable<TrackerEvent['undo']>['state']; note: string };
+  undo?: { event: number } & NonNullable<TrackerEvent['undo']>;
   /** A comment's reactions, and its id to react to it (D41). */
   reactions?: { id: string; list: Comment['reactions'] };
+}
+
+/**
+ * Where an agent's change stands, in the page's language (D49): who undid it, or each thing that
+ * changed since, a sentence each. On an English page, or for words no catalog has, the server's.
+ */
+function undoNote(u: NonNullable<Entry['undo']>): string {
+  const said = (u.noteWords ?? []).map((w) => problemWords(w));
+  return said.length && said.every((x): x is string => x !== null) ? sentences(said) : u.note;
 }
 
 /** "undid claude's change": whose change an undo put back, from the history it's in. */
@@ -532,7 +541,7 @@ export function IssueHistory({
                   ) : e.limited ? (
                     <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
                   ) : e.undo?.state === 'undone' ? (
-                    <Badge tone="idle" title={e.undo.note}>{t('issues.issueHistory.undone')}</Badge>
+                    <Badge tone="idle" title={undoNote(e.undo)}>{t('issues.issueHistory.undone')}</Badge>
                   ) : null
                 }
                 action={

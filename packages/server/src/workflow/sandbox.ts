@@ -18,7 +18,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { keyedProblem } from '../lib/errors';
+import { checkProblemWords, keyedProblem } from '../lib/errors';
 
 export const SCRIPT_LIMITS = {
   /** Longest a script may be, in characters. */
@@ -71,6 +71,9 @@ export interface ScriptError {
   message: string;
   /** The script's line it stopped at, from 1, when QuickJS says. */
   line: number | null;
+  /** Past its time or memory, its words for a page in another language (D49); none for what QuickJS says. */
+  key?: string;
+  values?: Record<string, string | number>;
 }
 
 export interface ScriptOutcome {
@@ -93,11 +96,20 @@ export interface ScriptProblem {
 
 const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [] });
 
+/** Its words, the same in the worker (sandbox-worker.mjs), where time and memory run out. */
 const tooLong = (limitMs: number): ScriptError => ({
   kind: 'time',
   message: `It ran past ${limitMs} ms and was stopped: a loop that doesn't end, or too much work for one issue`,
   line: null,
+  key: 'script.ranTooLong',
+  values: { ms: String(limitMs) },
 });
+
+/** A keyed error's English in the catalog says what the API says, under tests, as a problem's must (D49). */
+function checked(error: ScriptError | null): ScriptError | null {
+  if (error?.key) checkProblemWords(error.message, undefined, error.values ? { key: error.key, values: error.values } : { key: error.key });
+  return error;
+}
 
 // ---------------------------------------------------------------------------
 // The pool
@@ -294,7 +306,10 @@ export async function runScript(
   const limitMs = opts.timeMs ?? (opts.guard ? SCRIPT_LIMITS.guardTimeMs : SCRIPT_LIMITS.timeMs);
   const started = Date.now();
   const reply = await pool.submit({ kind: 'run', source, input: JSON.stringify(input), timeMs: limitMs, first: Boolean(opts.guard) });
-  if (reply.ok) return reply.result as ScriptOutcome;
-  if (reply.timedOut) return { intents: empty(), error: tooLong(limitMs), ms: Date.now() - started };
+  if (reply.ok) {
+    const out = reply.result as ScriptOutcome;
+    return { ...out, error: checked(out.error) };
+  }
+  if (reply.timedOut) return { intents: empty(), error: checked(tooLong(limitMs)), ms: Date.now() - started };
   return { intents: empty(), error: { kind: 'runtime', message: reply.error, line: null }, ms: Date.now() - started };
 }

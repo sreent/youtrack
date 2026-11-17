@@ -1,11 +1,12 @@
 import type { QueryProblem, ScriptRun } from '@a4a/shared';
+import { scriptRunNote } from '@a4a/shared/notes';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { ErrorLine } from '../../components/States';
 import { ChangeLines } from '../common/ChangeLines';
 import { checkScript } from './api';
-import { problemSaid, t, tr } from '../../i18n';
+import { errorSaid, inPage, problemSaid, t, tr } from '../../i18n';
 
 /** The line (from 1) that a place in the text is on. */
 function lineAt(text: string, at: number): number {
@@ -124,7 +125,7 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
   return (
     <div className="script-run" role="group" aria-label={t('workflow.scriptField.whatItWouldDoTo', { issue: issue })}>
       <p className="label">{tr('workflow.scriptField.whatItWouldDoTo2', { el: <IssueLink id={issue} /> })}</p>
-      {run.error ? <ErrorLine>{run.error.message}</ErrorLine> : null}
+      {run.error ? <ErrorLine>{problemSaid(run.error) ?? run.error.message}</ErrorLine> : null}
       {run.logs.length ? <pre className="script-log">{run.logs.join('\n')}</pre> : null}
       {run.refusal !== null ? <p>{tr('workflow.scriptField.itRefuses', { refusal: run.refusal })}</p> : null}
       {run.applies.length ? (
@@ -138,9 +139,9 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
                 ) : null}
               </span>
               {a.changes.length ? <ChangeLines changes={a.changes} /> : null}
-              {a.errors.map((e) => (
+              {a.errors.map((e, j) => (
                 <p key={e} className="note">
-                  {e}
+                  {errorSaid(a.errorWords?.[j], e)}
                 </p>
               ))}
             </li>
@@ -148,7 +149,7 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
         </ul>
       ) : null}
       {run.comments.length ? <p className="note">{tr('workflow.scriptField.itWouldComment', { join: run.comments.map((c) => `“${c}”`).join(', ') })}</p> : null}
-      <p className="note">{tr('workflow.scriptField.itTookMs', { note: run.note, ms: run.ms })}</p>
+      <p className="note">{tr('workflow.scriptField.itTookMs', { note: inPage((page) => scriptRunNote(page, run)), ms: run.ms })}</p>
     </div>
   );
 }

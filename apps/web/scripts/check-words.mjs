@@ -251,6 +251,8 @@ function checkFile(file, { web }) {
 
 for (const f of walkDir(path.join(root, 'apps/web/src'))) if (!f.includes(`${path.sep}i18n${path.sep}`)) checkFile(f, { web: true });
 for (const f of walkDir(path.join(root, 'packages/server/src'))) checkFile(f, { web: false });
+// What the shared package says with a translator, for a page and the server alike (notes.ts).
+for (const f of walkDir(path.join(root, 'packages/shared/src'))) checkFile(f, { web: false });
 
 for (const k of Object.keys(en)) if (!used.has(k) && !DYNAMIC.some((p) => k.startsWith(p))) say('en.json', `keeps ${k}, which nothing says`);
 

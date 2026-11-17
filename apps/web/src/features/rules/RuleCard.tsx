@@ -9,7 +9,7 @@ import { Confirm } from '../common/Confirm';
 
 import { previewRule, ruleKeys } from './api';
 import { SampleDetail } from './RuleForm';
-import { Sentence } from './words';
+import { previewWords, Sentence } from './words';
 import { intlLocale, problemSaid, t, tr } from '../../i18n';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
@@ -133,7 +133,7 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
       {preview ? (
         <div className="command-preview" role="group" aria-label={t('rules.ruleCard.whatWouldDoNow', { name: rule.name })}>
           <p className="label">{t('rules.ruleCard.whatItWouldDoNow')}</p>
-          <p className="note">{preview.note}</p>
+          <p className="note">{previewWords(preview)}</p>
           {preview.sample.length ? (
             <ul className="command-issues">
               {preview.sample.map((x) => (
