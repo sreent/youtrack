@@ -350,8 +350,9 @@ export async function requestGrouping(tx: Db, s: SchemaSnapshot, issue: IssueRow
   const changes: Change[] = [];
   const patch: { groupId?: string | null; private?: boolean } = {};
   if (spec.requestGroup && spec.requestGroup.groupId !== request.groupId) {
+    // Held until the change commits, so the group can't be deleted from under it.
     const next = spec.requestGroup.groupId
-      ? (await tx.select().from(customerGroups).where(and(eq(customerGroups.id, spec.requestGroup.groupId), eq(customerGroups.projectId, issue.projectId))))[0]
+      ? (await tx.select().from(customerGroups).where(and(eq(customerGroups.id, spec.requestGroup.groupId), eq(customerGroups.projectId, issue.projectId))).for('key share'))[0]
       : null;
     if (spec.requestGroup.groupId && !next) throw groupMissing();
     const [before] = request.groupId ? await tx.select({ name: customerGroups.name }).from(customerGroups).where(eq(customerGroups.id, request.groupId)) : [];

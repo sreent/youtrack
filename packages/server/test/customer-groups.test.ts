@@ -25,6 +25,7 @@ import {
   listCustomerGroups,
   migrateOrganizations,
   removeGroupMember,
+  requesterByEmail,
   updateCustomerGroup,
 } from '../src/services/customer-groups';
 import { openRequest, requestOf, updateRequest } from '../src/services/helpdesk';
@@ -133,8 +134,7 @@ describe('customer groups', () => {
     expect(await of('carl@ACME.COM')).toBe('Acme');
     expect(await of('carl@eu.acme.com')).toBeNull(); // a domain is matched whole
     expect(await of('someone@gmail.com')).toBeNull();
-    const rita = (await import('../src/services/customer-groups')).requesterByEmail;
-    const zoe = await rita(w.app.db, 'zoe@acme.com');
+    const zoe = await requesterByEmail(w.app.db, 'zoe@acme.com');
     expect((await groupOfRequester(w.app.db, back.id, zoe))?.name).toBe('Globex'); // by hand beats the domain
     expect((await listCustomerGroups(w.as(w.viewer), 'BACK')).map((g) => [g.name, g.members])).toEqual([
       ['Acme', 0],
@@ -324,11 +324,16 @@ describe('customer groups', () => {
     for (const from of ['sam@other.org', 'rita@gmail.com']) {
       expect((await receiveMail(w.app, raw(from), { via: 'webhook', desk: back })).outcome).toBe('refused');
     }
-    // Out of the group, out of the conversation.
-    const [{ id: groupId }] = (await listCustomerGroups(w.adminCtx, 'BACK')).filter((g) => g.name === 'Globex') as [{ id: string }];
-    const [zoe] = await w.app.db.select().from(helpdeskRequests).where(eq(helpdeskRequests.issueId, r.uid));
-    expect(zoe?.groupId).toBeTruthy();
-    await removeGroupMember(w.adminCtx, 'BACK', groupId, (await (await import('../src/services/customer-groups')).requesterByEmail(w.app.db, 'rita@gmail.com')).id);
-    expect((await refused(removeGroupMember(w.adminCtx, 'BACK', groupId, 'nobody'))).status).toBe(404);
+    // A group that shares to read takes no answers from its members, by email either.
+    const [row] = await w.app.db.select().from(helpdeskRequests).where(eq(helpdeskRequests.issueId, r.uid));
+    const acme = (await listCustomerGroups(w.adminCtx, 'BACK')).find((g) => g.id === row!.groupId)!;
+    await updateCustomerGroup(w.adminCtx, 'BACK', acme.id, { name: acme.name, domains: acme.domains, sharing: 'read', agents: ['anna', 'ben'] });
+    expect((await receiveMail(w.app, raw('dina@acme.com'), { via: 'webhook', desk: back })).outcome).toBe('refused');
+    // Taken out by hand, Rita is in no group; taking her out again is a 404.
+    const globex = (await listCustomerGroups(w.adminCtx, 'BACK')).find((g) => g.name === 'Globex')!;
+    const rita = await requesterByEmail(w.app.db, 'rita@gmail.com');
+    await removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id);
+    expect(await groupOfRequester(w.app.db, back.id, rita)).toBeNull();
+    expect((await refused(removeGroupMember(w.adminCtx, 'BACK', globex.id, rita.id))).status).toBe(404);
   });
 });

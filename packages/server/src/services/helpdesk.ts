@@ -211,16 +211,18 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
       data: { requester: { name }, ...(input.via === 'email' ? { via: 'email' } : {}), ...(group ? { customerGroup: group.name } : {}) },
       inTransaction: async (tx, row) => {
         const due = settings.firstResponseHours ? new Date(row.createdAt.getTime() + settings.firstResponseHours * 3_600_000) : null;
+        // Held until this commits, so a group deleted meanwhile can't leave the request pointing at nothing.
+        const held = group ? await tx.select({ id: customerGroups.id }).from(customerGroups).where(eq(customerGroups.id, group.id)).for('key share') : [];
         const [request] = await tx
           .insert(helpdeskRequests)
-          .values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId, groupId: group?.id ?? null, private: input.private ?? false })
+          .values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId, groupId: held.length ? group!.id : null, private: input.private ?? false })
           .returning();
         // Its SLA clocks start with it (D45), counted from when it was filed, in its group's hours where it has some.
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // Its group's dedicated agent takes it (D56), as the help desk's agent, in its history.
-        if (group) slaActivities.push(...(await assignToGroupAgent(tx, ctx, row, group)));
+        if (group && held.length) slaActivities.push(...(await assignToGroupAgent(tx, ctx, row, group)));
         // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
         await enqueueMail(tx, app, { kind: 'request-received', dedupeKey: `request:${row.id}:received`, payload: { issueId: row.id, replyable: true }, messageId: received });
       },
