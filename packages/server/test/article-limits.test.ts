@@ -28,6 +28,7 @@ import {
 import { articleUploadTarget, attachmentForDownload, getAttachment, listArticleAttachments, readAttachmentText, storeAttachment } from '../src/services/attachments';
 import { issueTokenFor } from '../src/services/auth';
 import { addComment, listComments } from '../src/services/comments';
+import { appExtensions } from '../src/services/apps';
 import { addGroupMember, createGroup } from '../src/services/groups';
 import { createIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
@@ -113,6 +114,9 @@ describe('an article limited to some people and groups', () => {
     expect(hidden).toEqual(await missingAs(() => getArticle(ben, 'BACK-A-999'), 'BACK-A-999'));
     // Who still sees it: an administrator, a manager, its author, the person and the group named.
     for (const who of [admin, chloe, anna, erin, dan]) expect((await getArticle(who, secret)).title).toContain('kestrel');
+    // Apps' widgets on it are asked for by its id, and answer the same.
+    expect(await missingAs(() => appExtensions(ben, { at: 'article-panel', article: secret }), secret)).toEqual(hidden);
+    expect(await appExtensions(erin, { at: 'article-panel', article: secret })).toEqual([]);
   });
 
   it('is left out of the tree, and its place goes to the next one', async () => {
