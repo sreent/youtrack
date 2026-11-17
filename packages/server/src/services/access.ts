@@ -875,12 +875,13 @@ export function emailDomain(email: string): string {
 }
 
 /**
- * Whether a requester signed in to the portal sees a request: one they made, or a colleague's at a
- * desk that shares requests within their organization (an email domain the desk names). Nothing
- * else of a project, ever: a requester is never a member.
+ * Whether a requester signed in to the portal sees a request: one they made, one they're copied on
+ * (`copied`, D57: they're told of it by email already), or a colleague's at a desk that shares
+ * requests within their organization (an email domain the desk names). Nothing else of a project,
+ * ever: a requester is never a member.
  */
-export function requesterSees(project: ProjectRow, viewer: { id: string; email: string }, owner: { id: string; email: string }): boolean {
-  if (viewer.id === owner.id) return true;
+export function requesterSees(project: ProjectRow, viewer: { id: string; email: string }, owner: { id: string; email: string }, copied = false): boolean {
+  if (viewer.id === owner.id || copied) return true;
   const domain = emailDomain(viewer.email);
   const settings = (project.settings ?? {}) as { helpdesk?: { organizations?: string[] } };
   return Boolean(domain) && domain === emailDomain(owner.email) && (settings.helpdesk?.organizations ?? []).includes(domain);
@@ -1008,6 +1009,9 @@ function hiddenNames(s: SchemaSnapshot, ids: ReadonlySet<string> | undefined): S
  * back what the project it left kept from them.
  */
 export function eventFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent): TrackerEvent | null {
+  // Who is copied on a request is people outside the team, by their addresses (D57): a guest isn't
+  // told, as they aren't told who asked.
+  if (view?.guest && (e.type === 'request.cc_added' || e.type === 'request.cc_removed')) return null;
   const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
   if (!p) return e;
   const hidden = hiddenFields(view, s);

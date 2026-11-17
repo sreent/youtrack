@@ -16,24 +16,30 @@ import { resolveVisibleTo, sameLimits, visibleToDtos } from './visibility';
 
 type CommentRow = typeof comments.$inferSelect;
 
-async function requesterNames(db: Db, rows: CommentRow[]): Promise<Map<string, string>> {
+/**
+ * The names of those outside the team who wrote these comments, by their requester id, and whether
+ * each wrote as someone copied on the request (D57) rather than as its requester.
+ */
+async function requesterNames(db: Db, rows: CommentRow[]): Promise<Map<string, { name: string; copied: boolean }>> {
   const ids = [...new Set(rows.map((r) => r.requesterId).filter((id): id is string => Boolean(id)))];
   if (!ids.length) return new Map();
   const found = await db.select({ id: requesters.id, name: requesters.name }).from(requesters).where(inArray(requesters.id, ids));
-  return new Map(found.map((r) => [r.id, r.name]));
+  const issueIds = [...new Set(rows.filter((r) => r.requesterId).map((r) => r.issueId))];
+  const asked = new Set((await db.select({ requesterId: helpdeskRequests.requesterId }).from(helpdeskRequests).where(inArray(helpdeskRequests.issueId, issueIds))).map((r) => r.requesterId));
+  return new Map(found.map((r) => [r.id, { name: r.name, copied: !asked.has(r.id) }]));
 }
 
 export async function commentDto(
   ctx: Ctx,
   row: CommentRow,
   issueReadable?: string,
-  names?: Map<string, string>,
+  names?: Map<string, { name: string; copied: boolean }>,
   reactions?: Map<string, ReactionSummary[]>,
 ): Promise<Comment> {
   const s = await ctx.app.schema.get();
   const reacted = reactions ?? (await reactionsOf(ctx.db, s, row.issueId, ctx.actor.user.id, { anonymous: Boolean(ctx.actor.guest) }));
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
-  const requesterName = row.requesterId ? ((names ?? (await requesterNames(ctx.db, [row]))).get(row.requesterId) ?? 'The requester') : null;
+  const outside = row.requesterId ? ((names ?? (await requesterNames(ctx.db, [row]))).get(row.requesterId) ?? { name: 'The requester', copied: false }) : null;
   const [visibleTo] = await visibleToDtos(ctx.db, s, [row]);
   return {
     id: row.id,
@@ -46,7 +52,7 @@ export async function commentDto(
     version: row.version,
     visibility: row.visibility as CommentVisibility,
     // A help desk's requester is someone outside: a guest (D37) isn't told who.
-    requester: requesterName !== null ? { name: ctx.actor.guest ? 'The requester' : requesterName } : null,
+    requester: outside !== null ? { name: ctx.actor.guest ? 'The requester' : outside.name, copied: ctx.actor.guest ? false : outside.copied } : null,
     reactions: reacted.get(`comment:${row.id}`) ?? [],
     visibleTo: visibleTo ?? null,
   };

@@ -13,7 +13,7 @@
  *   token is missing or just not theirs.
  */
 import type { HelpdeskRequest, HelpForm, HelpRequestReceived, Sla, TrackedRequest } from '@a4a/shared';
-import { and, asc, eq, isNull, min, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
@@ -31,6 +31,7 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
+import { ccsOf } from './request-ccs';
 import { addWatchers } from './watchers';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
@@ -258,6 +259,9 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     .where(and(eq(comments.issueId, issue.id), eq(comments.visibility, 'public'), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
   const state = (await stateNames(app.db, s, [issue.id])).get(issue.id) ?? null;
+  // Others outside the team who answered: people copied on it (D57), by the names they go by.
+  const otherIds = [...new Set(rows.map((c) => c.requesterId).filter((id): id is string => Boolean(id) && id !== requester.id))];
+  const others = new Map(otherIds.length ? (await app.db.select({ id: requesters.id, name: requesters.name }).from(requesters).where(inArray(requesters.id, otherIds))).map((r) => [r.id, r.name]) : []);
   return {
     project: { name: project?.name ?? '' },
     summary: issue.summary,
@@ -265,14 +269,14 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     createdAt: issue.createdAt.toISOString(),
     state: { name: state, resolved: issue.resolvedAt !== null },
     requester: { name: requester.name, email: requester.email },
-    // The team by name, the requester as "you"; never anything internal.
+    // The team by name, the requester as "you", someone copied on it by name (D57); never anything internal.
     messages: rows.map((c) => {
       const author = c.authorId ? s.users.get(c.authorId) : undefined;
-      const mine = c.requesterId !== null;
+      const mine = c.requesterId === requester.id;
       return {
         id: c.id,
-        from: mine ? ('you' as const) : ('team' as const),
-        name: mine ? requester.name : author ? (author.isBot ? author.login : author.name) : 'The team',
+        from: mine ? ('you' as const) : c.requesterId ? ('cc' as const) : ('team' as const),
+        name: mine ? requester.name : c.requesterId ? (others.get(c.requesterId) ?? '') : author ? (author.isBot ? author.login : author.name) : 'The team',
         text: c.text,
         at: c.createdAt.toISOString(),
       };
@@ -384,6 +388,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     sla,
     emailMuted: row.request.emailMutedAt !== null,
     via: row.request.via === 'email' ? 'email' : 'form',
+    ccs: await ccsOf(ctx.db, s, issue.id),
   };
 }
 

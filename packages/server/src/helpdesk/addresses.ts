@@ -80,20 +80,23 @@ export function newReplyToken(): string {
   return base32(randomBytes(17)).slice(0, 26);
 }
 
-/** Mint a reply token for a request; only its hash is kept. */
-export async function mintReplyToken(db: Db, issueId: string): Promise<string> {
+/**
+ * Mint a reply token for a request; only its hash is kept. `email` is whom the email goes to when
+ * it isn't the requester (someone copied on it, D57): the token then answers for that address alone.
+ */
+export async function mintReplyToken(db: Db, issueId: string, email: string | null = null): Promise<string> {
   const token = newReplyToken();
-  await db.insert(helpdeskReplyTokens).values({ tokenHash: sha256(token), issueId });
+  await db.insert(helpdeskReplyTokens).values({ tokenHash: sha256(token), issueId, email });
   return token;
 }
 
-/** The request a reply address's token belongs to, among these tokens; null when none is known. */
-export async function requestOfReplyTokens(db: Db, tokens: string[]): Promise<string | null> {
+/** The request a reply address's token belongs to, among these tokens, and whom it was sent to (null: its requester); null when none is known. */
+export async function replyTokenOf(db: Db, tokens: string[]): Promise<{ issueId: string; email: string | null } | null> {
   const valid = tokens.filter((t) => REPLY_TOKEN.test(t));
   if (!valid.length) return null;
   const rows = await db
-    .select({ issueId: helpdeskReplyTokens.issueId })
+    .select({ issueId: helpdeskReplyTokens.issueId, email: helpdeskReplyTokens.email })
     .from(helpdeskReplyTokens)
     .where(inArray(helpdeskReplyTokens.tokenHash, valid.map(sha256)));
-  return rows[0]?.issueId ?? null;
+  return rows[0] ?? null;
 }

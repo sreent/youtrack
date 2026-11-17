@@ -1646,6 +1646,11 @@ export const helpdeskReplyTokens = pgTable(
     issueId: text('issue_id')
       .notNull()
       .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    /**
+     * Whom the email was to, when it wasn't the requester: someone copied on the request (D57). A
+     * reply address answers for that address alone, and only while it is copied. Null: the requester.
+     */
+    email: text('email'),
     createdAt: created(),
   },
   (t) => [index('helpdesk_reply_tokens_issue').on(t.issueId)],
@@ -2730,4 +2735,37 @@ export const projectKeyAliases = pgTable(
     renamedAt: created(),
   },
   (t) => [index('project_key_aliases_project').on(t.projectId)],
+);
+
+// ---------------------------------------------------------------------------
+// CCs on help desk requests (wave 4: docs/architecture.md, D57)
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is copied on a help desk request: people outside the team told of what its requester is told
+ * of, who may answer by email. One row per address and request, kept when they're removed, so an
+ * address taken off a request isn't put back by the next email that names it in its Cc.
+ */
+export const requestCcs = pgTable(
+  'request_ccs',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    /** As whoever copied them named them (an email's Cc, the team, the requester); empty for none. */
+    name: text('name').notNull().default(''),
+    /** 'team', 'email' (the Cc of the requester's email) or 'portal' (the requester, signed in). */
+    via: text('via').notNull(),
+    /** Whoever on the team copied them; null when the requester did. */
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    addedAt: ts('added_at').notNull().defaultNow(),
+    /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
+    removedAt: ts('removed_at'),
+    /** 'team', or 'unsubscribe': they stopped it themselves, from an email. */
+    removedVia: text('removed_via'),
+    removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [uniqueIndex('request_ccs_address').on(t.issueId, sql`lower(${t.email})`), index('request_ccs_email').on(sql`lower(${t.email})`)],
 );

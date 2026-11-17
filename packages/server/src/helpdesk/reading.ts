@@ -28,6 +28,8 @@ export interface ReadMail {
   subject: string;
   /** Every address it was sent to, in lower case: To, Cc, and what servers add on delivery. */
   recipients: string[];
+  /** Its Cc header alone, with the names it gives (D57): whom its sender copied. At most 100. */
+  cc: { address: string; name: string }[];
   /** Message-IDs it answers (In-Reply-To and References), with their angle brackets. */
   answers: string[];
   /** All of its words: the text part, or the HTML's words when it has no text part. */
@@ -74,6 +76,7 @@ export async function readMail(raw: Buffer): Promise<ReadMail> {
     from,
     subject: (mail.subject ?? '').replace(/\s+/g, ' ').trim(),
     recipients: recipientsOf(mail, lines),
+    cc: ccOf(mail),
     answers: [...new Set([...ids(mail.inReplyTo), ...ids(mail.references)])],
     text,
     reply,
@@ -109,6 +112,16 @@ function recipientsOf(mail: ParsedMail, lines: { key: string; value: string }[])
   }
   for (const l of lines) if (DELIVERED.has(l.key)) for (const m of l.value.matchAll(ADDRESS)) out.add(m[0].toLowerCase());
   return [...out];
+}
+
+function ccOf(mail: ParsedMail): { address: string; name: string }[] {
+  const list = Array.isArray(mail.cc) ? mail.cc.flatMap((f) => f.value) : (mail.cc?.value ?? []);
+  // A group in the header ("team: a@x, b@y;") lists its members under it.
+  const flat = list.flatMap((a) => (a.group?.length ? a.group : [a]));
+  return flat
+    .filter((a) => a.address)
+    .slice(0, 100)
+    .map((a) => ({ address: a.address!.trim().toLowerCase(), name: (a.name ?? '').replace(/\s+/g, ' ').trim() }));
 }
 
 function ids(value: string | string[] | undefined): string[] {

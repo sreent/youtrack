@@ -10,6 +10,9 @@
  *   (support+token@…), or when it answers an email a4a sent them about it (In-Reply-To, References:
  *   those Message-IDs are random, so only someone who had the email can cite one). Either way it
  *   must come from the requester's address.
+ * - Someone copied on the request (D57) answers the same ways, from their own address, while they
+ *   are copied; a reply address answers for whom it was sent to alone. Either of them may also
+ *   answer the request's first message. Only the requester's own mail copies the people in its Cc.
  * - Mail no person wrote (auto-replies, bounces, lists) and mail a4a or a desk sent itself is set
  *   aside, so nothing loops; a message whose own server says it failed DMARC is refused.
  * - Nobody is ever told of a message set aside or refused, so a forged sender gets no mail.
@@ -27,7 +30,9 @@ import { botCtx, openRequest, postRequesterReply, requestWithRequester } from '.
 import { projectSettings } from '../services/projects';
 import type { ProjectRow } from '../services/schema-cache';
 import { handleTeamReply, teamReplyProject, teamReplyTokensOf } from '../services/team-replies';
-import { deskRecipient, requestOfReplyTokens, splitAddress } from './addresses';
+import { copiedOn, copyFromMail } from '../services/request-ccs';
+import { newId } from '../lib/ids';
+import { deskRecipient, replyTokenOf, splitAddress } from './addresses';
 import { clip, readMail, stripSignature, type MailFile, type ReadMail } from './reading';
 
 export interface Inbound {
@@ -146,22 +151,36 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   if (mail.failedSenderChecks) return { outcome: 'refused', reason: 'its own server says it failed DMARC, so it may not be from who it says' };
   if (await helpHit(app.db, [['mailDesk', desk.id]])) return { outcome: 'refused', reason: 'the help desk is taking too much mail just now' };
 
-  const issueId = (await requestOfReplyTokens(app.db, tokens)) ?? (await answeredRequest(app.db, mail.answers, sender));
+  const byToken = await replyTokenOf(app.db, tokens);
+  const answered = byToken ? null : await answeredRequest(app.db, mail.answers, sender);
+  const threaded = byToken || answered ? null : await threadOf(app.db, desk.id, mail.answers, sender);
+  const issueId = byToken?.issueId ?? answered ?? threaded;
   const found = issueId ? await requestWithRequester(app.db, issueId) : null;
   if (found && found.issue.projectId === desk.id) {
-    const how = tokens.length ? 'by its reply address' : 'answering an email about it';
-    if (found.requester.email.toLowerCase() !== sender) {
+    const how = byToken ? 'by its reply address' : answered ? 'answering an email about it' : 'answering its first message';
+    const isRequester = found.requester.email.toLowerCase() === sender;
+    // Someone copied on it answers as themselves (D57); a reply address answers for whom it was sent to alone.
+    const cc = isRequester ? null : await copiedOn(app.db, found.issue.id, sender);
+    if (byToken?.email && byToken.email.toLowerCase() !== sender) {
+      return { outcome: 'refused', reason: `a reply ${how}, sent from an address it wasn’t sent to`, issueId: found.issue.id };
+    }
+    if (byToken?.email && !cc) return { outcome: 'refused', reason: `a reply ${how}, from someone no longer copied on it`, issueId: found.issue.id };
+    if (!isRequester && (!cc || (byToken && !byToken.email))) {
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address that isn’t the requester’s`, issueId: found.issue.id };
     }
     if (await helpHit(app.db, [['mailReply', found.issue.id]])) {
       return { outcome: 'refused', reason: 'too many replies to this request in an hour', issueId: found.issue.id };
     }
+    // Only the requester's own message copies people (D57): never a CC's, nor mail no person wrote.
+    const copied = isRequester ? await copyFromMail(app, found.issue, found.requester.name, mail.cc.map((c) => ({ email: c.address, name: c.name }))) : null;
     const reply = clip(mail.reply, HELP_LIMITS.reply);
-    if (!reply.text && !mail.files.length) return { outcome: 'ignored', reason: 'it held nothing but what it quoted', issueId: found.issue.id };
+    if (!reply.text && !mail.files.length) return { outcome: 'ignored', reason: withCopied('it held nothing but what it quoted', copied), issueId: found.issue.id };
     const text = reply.text || `Sent ${mail.files.length === 1 ? 'a file' : `${mail.files.length} files`} by email.`;
-    const { commentId } = await postRequesterReply(app, found.issue, { id: found.requester.id, name: found.requester.name }, text, 'email');
+    const author = cc ? await ccRequester(app.db, cc.email, cc.name, mail.from?.name ?? '') : { id: found.requester.id, name: found.requester.name };
+    const { commentId } = await postRequesterReply(app, found.issue, author, text, 'email');
     const left = commentId ? await keepFiles(app, desk.id, { kind: 'comment', issue: found.issue, commentId }, mail, reply.cut) : [];
-    return { outcome: 'reply', reason: withLeftOut(`a reply ${how}`, [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
+    const said = cc ? `a reply ${how}, from someone copied on it` : `a reply ${how}`;
+    return { outcome: 'reply', reason: withLeftOut(withCopied(said, copied), [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
   }
 
   // A new request.
@@ -173,8 +192,54 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   const name = clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text;
   const issue = await openRequest(app, desk, { name, email: sender, summary, description: description.text, via: 'email', threadId: mail.messageId });
   const [row] = await app.db.select().from(issues).where(eq(issues.id, issue.uid));
+  // Whom the requester copied, copied on the request (D57).
+  const copied = row ? await copyFromMail(app, row, name, mail.cc.map((c) => ({ email: c.address, name: c.name }))) : null;
   const left = row ? await keepFiles(app, desk.id, { kind: 'issue', issue: row }, mail, description.cut) : [];
-  return { outcome: 'request', reason: withLeftOut('a new request', [...mail.skipped, ...left]), issueId: issue.uid };
+  return { outcome: 'request', reason: withLeftOut(withCopied('a new request', copied), [...mail.skipped, ...left]), issueId: issue.uid };
+}
+
+/**
+ * The request whose first message this answers (its thread), among the desk's, when its sender is
+ * on it: its requester, or someone copied on it. Copied from the requester's Cc, the first message
+ * is the one email a CC has, so a reply to all of it is their answer, not a new request (D57).
+ */
+async function threadOf(db: Db, deskId: string, answers: string[], sender: string): Promise<string | null> {
+  if (!answers.length) return null;
+  const res = await db.execute(sql`
+    SELECT r.issue_id FROM helpdesk_requests r JOIN requesters q ON q.id = r.requester_id
+    WHERE r.project_id = ${deskId} AND r.thread_id IN (${sql.join(
+      answers.slice(0, 50).map((a) => sql`${a}`),
+      sql`, `,
+    )})
+      AND (lower(q.email) = ${sender}
+        OR EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = r.issue_id AND c.removed_at IS NULL AND lower(c.email) = ${sender}))
+    ORDER BY r.created_at DESC LIMIT 1`);
+  const rows = (res as unknown as { rows: { issue_id: string }[] }).rows;
+  return rows[0]?.issue_id ?? null;
+}
+
+/**
+ * The requester account someone copied on a request answers as (D57): theirs if they have one, as
+ * D45 makes them, else made, named as they sign their mail, or as they were copied, or for their
+ * address. A name they gave the portal stays theirs.
+ */
+async function ccRequester(db: Db, email: string, copiedAs: string, signs: string): Promise<{ id: string; name: string }> {
+  const name = (signs || copiedAs || splitAddress(email)?.local || email).slice(0, HELP_LIMITS.name);
+  const res = await db.execute(sql`
+    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${email}, ${name})
+    ON CONFLICT ((lower(email))) DO UPDATE SET updated_at = requesters.updated_at
+    RETURNING id, name`);
+  const row = (res as unknown as { rows: { id: string; name: string }[] }).rows[0]!;
+  return { id: String(row.id), name: String(row.name) };
+}
+
+/** The log's words for whom a message's Cc copied, and whom it left out. */
+function withCopied(reason: string, copied: { copied: string[]; left: string[] } | null): string {
+  if (!copied) return reason;
+  const parts = [reason];
+  if (copied.copied.length) parts.push(`copied ${copied.copied.join(', ')}`);
+  if (copied.left.length) parts.push(`left out of its Cc ${copied.left.join(', ')}`);
+  return parts.join('; ');
 }
 
 /**
