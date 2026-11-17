@@ -3237,6 +3237,16 @@ export const UpdateBuildSourceBody = z.object({
   active: z.boolean().optional(),
 });
 
+/** A note's words in the catalogs, beside its English: a key and its values (D49). */
+export const NoteSaidSchema = z
+  .object({
+    key: z.string().describe('The message: builds.note.<what>, or problem.<key> for a refusal a page says as a problem'),
+    values: z.record(z.string(), z.unknown()).optional().describe('What its words take, by name; a problem among them is a { key, values } of its own'),
+  })
+  .describe('The note in the catalogs, for a page that says it in its person’s language (D49). Null where the note is null, and where it was recorded before a4a kept its words; note is the same in English.')
+  .meta({ id: 'NoteSaid' });
+export type NoteSaid = z.infer<typeof NoteSaidSchema>;
+
 export const BuildIssueSchema = z
   .object({
     issue: IssueRefSchema,
@@ -3244,6 +3254,7 @@ export const BuildIssueSchema = z
       .enum(BUILD_ISSUE_OUTCOMES)
       .describe('marked: the build field set to this build. already: it named a build already. open: not resolved, so left. refused: a guard or a permission said no'),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable().describe('The commit that tied it to the build'),
   })
   .meta({ id: 'BuildIssue' });
@@ -3307,6 +3318,7 @@ export const IssueBuildSchema = z
     url: z.string().nullable(),
     outcome: z.enum(BUILD_ISSUE_OUTCOMES),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable(),
     finishedAt: timestamp.nullable(),
   })

@@ -2326,7 +2326,10 @@ export const buildIssues = pgTable(
       .references(() => issues.id, { onDelete: 'cascade' }),
     /** 'marked', 'already' (it named a build already), 'open' (not resolved, so left) or 'refused' (note says why). */
     outcome: text('outcome').notNull(),
+    /** Why, in English, for the API. */
     note: text('note'),
+    /** The note in the catalogs, a key and its values, for a page in another language (D49). Null before a4a kept it. */
+    said: jsonb('said').$type<{ key: string; values?: Record<string, unknown> }>(),
     /** The commit that tied the issue to the build. */
     commit: text('commit'),
     createdAt: created(),

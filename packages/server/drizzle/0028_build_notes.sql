@@ -1,0 +1,1 @@
+ALTER TABLE "build_issues" ADD COLUMN "said" jsonb;
