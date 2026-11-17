@@ -40,6 +40,7 @@ import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
 import { AppError, badRequest, conflict, errorWords, forbidden, keyedProblem, noted, notFound, saidProblems, wordsOf } from '../lib/errors';
+import { translatorFor } from '../i18n';
 import { newId } from '../lib/ids';
 import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
@@ -910,9 +911,15 @@ export async function checkRulePart(
   body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command' | 'related' | 'script'; text: string; caret?: number },
 ): Promise<{ problems: QueryProblem[]; description: string; suggestions: SuggestItem[] }> {
   requireScope(ctx, 'read');
+  // What a part reads as, in the page's language when a page asks (D49); English for an agent or a script.
+  const tr = translatorFor(ctx.pageLocale ?? 'en');
   if (body.part === 'script') {
     const problems = await checkScript(body.text);
-    return { problems: problems.map((p) => ({ message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) })), description: problems.length ? '' : 'It compiles.', suggestions: [] };
+    return {
+      problems: problems.map((p) => ({ message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}), ...wordsOf(p) })),
+      description: problems.length ? '' : tr.t('server.rule.itCompiles'),
+      suggestions: [],
+    };
   }
   const projectId = await projectIdOf(ctx, body.project);
   const s = await worldFor(ctx, projectId);
@@ -923,7 +930,7 @@ export async function checkRulePart(
     const parsed = parseCommand(body.text, s, projectIds);
     return {
       problems: [...(scheduled ? meProblems(body.text) : []), ...parsed.problems].sort((a, b) => a.start - b.start),
-      description: describeCommand(parsed.ops),
+      description: describeCommand(parsed.ops, tr),
       suggestions: suggestCommand(body.text, caret, s, projectIds),
     };
   }
@@ -931,7 +938,7 @@ export async function checkRulePart(
   const compiled = compileQuery(p, { s, meId: ctx.actor.user.id });
   return {
     problems: [...(scheduled ? meProblems(body.text) : []), ...compiled.problems].sort((a, b) => a.start - b.start),
-    description: explainParsed(p),
+    description: explainParsed(p, tr),
     suggestions: suggest(s, body.text, caret),
   };
 }

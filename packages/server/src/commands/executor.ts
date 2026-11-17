@@ -4,6 +4,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
+import { translatorFor } from '../i18n';
 import { AppError, asSentence, badRequest, errorWords, keyedProblem, saidProblems } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
@@ -256,6 +257,7 @@ export async function commandSpec(
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {
   return visibleSchema(ctx).then((s) => {
     const parsed = parseCommand(command, s, projectIds);
-    return { problems: parsed.problems, description: describeCommand(parsed.ops) };
+    // In the page's language when a page asks (D49); English for an agent or a script.
+    return { problems: parsed.problems, description: describeCommand(parsed.ops, translatorFor(ctx.pageLocale ?? 'en')) };
   });
 }

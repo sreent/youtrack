@@ -12,7 +12,7 @@ import { runCommand } from '../src/commands/executor';
 import { rules } from '../src/db/schema';
 import { translatorFor } from '../src/i18n';
 import { createIssue } from '../src/services/issues';
-import { createRule, previewRule, testRule } from '../src/workflow/rules';
+import { checkRulePart, createRule, previewRule, testRule } from '../src/workflow/rules';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -178,6 +178,23 @@ describe("a script's test run", () => {
     const looping = await testRule(w.adminCtx, { ...base, kind: 'guard', script: 'while (true) {}', issue });
     expect(looping.error).toMatchObject({ kind: 'time', key: 'script.ranTooLong' });
     expect(runSays(looping)).toMatch(/^Das Skript wurde angehalten: Das Skript lief länger als \d+ ms und wurde angehalten: eine Schleife ohne Ende oder zu viel Arbeit für einen Vorgang\. Nichts von dem/);
+  });
+});
+
+describe("the rule form's reading of a part", () => {
+  it('reads a query, a command and a script in the page’s language, and in English for an agent', async () => {
+    const page = { ...w.adminCtx, pageLocale: 'de' as const };
+    const part = (ctx: typeof w.adminCtx, p: 'query' | 'command' | 'script', text: string) => checkRulePart(ctx, { project: 'BACK', kind: 'change', part: p, text });
+    expect((await part(w.adminCtx, 'command', 'Priority Major tag perf')).description).toBe('set Priority to Major; add tag perf');
+    expect((await part(page, 'command', 'Priority Major tag perf')).description).toBe('Priority auf Major setzen; Tag perf hinzufügen');
+    expect((await part(page, 'command', '')).description).toBe('Keine Änderungen');
+    expect((await part(w.adminCtx, 'query', '#Unresolved')).description).toMatch(/^Issues /);
+    expect((await part(page, 'query', '#Unresolved')).description).toMatch(/^Vorgänge/);
+    expect((await part(w.adminCtx, 'script', "apply('tag x')")).description).toBe('It compiles.');
+    expect((await part(page, 'script', "apply('tag x')")).description).toBe('Das Skript lässt sich kompilieren.');
+    // A script's problem keeps its words on the way, so the page says it in German.
+    const empty = await part(page, 'script', '');
+    expect(empty.problems[0]).toMatchObject({ key: 'rule.writeScript' });
   });
 });
 
