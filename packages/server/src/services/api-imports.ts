@@ -75,7 +75,7 @@ export async function importFromApi(
 ): Promise<Import> {
   const project = await projectFor(ctx, body.project);
   if (body.source === 'youtrack' && body.credentials.email) {
-    throw badRequest('YouTrack takes a token alone', 'Leave the email empty: a permanent token says whose it is.');
+    throw badRequest('YouTrack takes a token alone', 'Leave the email empty: a permanent token says whose it is.').said('apiImports.youtrackTokenAlone');
   }
   const origin: StoredOrigin = {
     kind: body.source,
@@ -96,10 +96,10 @@ export async function importFromApi(
   }
   if (origin.fetch.total === 0) {
     const hint = { youtrack: 'Check the query, such as project: BACK.', jira: 'Check the JQL, such as project = BACK.', github: 'Check the repository, and state: or label: after it.', redmine: "Check the project's identifier.", zendesk: 'Check the date: since 2026-01-01.' }[origin.kind];
-    throw badRequest(`Nothing in ${NAMES[origin.kind]} matches ${origin.query}`, hint);
+    throw badRequest(`Nothing in ${NAMES[origin.kind]} matches ${origin.query}`, hint).said('apiImports.nothingMatches', { source: NAMES[origin.kind], query: origin.query, kind: origin.kind });
   }
   if (origin.fetch.total !== null && origin.fetch.total > MAX_ROWS) {
-    throw badRequest(`${origin.fetch.total.toLocaleString('en')} issues match, more than the ${MAX_ROWS.toLocaleString('en')} one import takes`, 'Narrow the query, and import the rest in another.');
+    throw badRequest(`${origin.fetch.total.toLocaleString('en')} issues match, more than the ${MAX_ROWS.toLocaleString('en')} one import takes`, 'Narrow the query, and import the rest in another.').said('apiImports.tooManyMatch', { total: origin.fetch.total, max: MAX_ROWS });
   }
   const id = newId();
   await ctx.db.insert(imports).values({
@@ -125,9 +125,9 @@ export async function importFromApi(
 export async function continueFetch(ctx: Ctx, id: string, credentials: ImportCredentials): Promise<Import> {
   const { row } = await loadImport(ctx, id);
   const origin = row.origin as StoredOrigin | null;
-  if (!origin) throw badRequest('This import came from a file', 'Upload the file again to import it afresh.');
-  if (origin.fetch.complete) throw conflict('Every issue has been read already', `Check the import, then run it. To read the issues afresh, import from ${NAMES[origin.kind]} again.`);
-  if (statusOf(row) === 'fetching') throw conflict('It is reading the issues already', 'Its progress is on the import.');
+  if (!origin) throw badRequest('This import came from a file', 'Upload the file again to import it afresh.').said('apiImports.cameFromFile');
+  if (origin.fetch.complete) throw conflict('Every issue has been read already', `Check the import, then run it. To read the issues afresh, import from ${NAMES[origin.kind]} again.`).said('apiImports.allReadAlready', { source: NAMES[origin.kind] });
+  if (statusOf(row) === 'fetching') throw conflict('It is reading the issues already', 'Its progress is on the import.').said('apiImports.readingAlready');
   const { reader, account } = await signIn(ctx, origin, credentials);
   const stale = new Date(Date.now() - 60_000);
   const [claimed] = await ctx.db
@@ -135,7 +135,7 @@ export async function continueFetch(ctx: Ctx, id: string, credentials: ImportCre
     .set({ status: 'fetching', heartbeatAt: new Date(), error: null, progressPhase: 'fetching', origin: { ...origin, account: account ?? origin.account } })
     .where(and(eq(imports.id, id), sql`(${imports.status} IN ('failed', 'ready') OR (${imports.status} = 'fetching' AND (${imports.heartbeatAt} IS NULL OR ${imports.heartbeatAt} < ${stale})))`))
     .returning({ id: imports.id });
-  if (!claimed) throw conflict('It is reading the issues already', 'Its progress is on the import.');
+  if (!claimed) throw conflict('It is reading the issues already', 'Its progress is on the import.').said('apiImports.readingAlready');
   start(ctx, id, reader);
   return getImport(ctx, id);
 }
@@ -233,7 +233,7 @@ async function readPages(
         }
         continue;
       }
-      if (n >= MAX_ROWS) throw badRequest(`The query matches more than the ${MAX_ROWS.toLocaleString('en')} issues one import takes`, 'Narrow the query, and import the rest in another.');
+      if (n >= MAX_ROWS) throw badRequest(`The query matches more than the ${MAX_ROWS.toLocaleString('en')} issues one import takes`, 'Narrow the query, and import the rest in another.').said('apiImports.queryTooBig', { max: MAX_ROWS });
       const cells: string[] = [];
       for (const [name, value] of issue.cells) {
         let i = index.get(name);
