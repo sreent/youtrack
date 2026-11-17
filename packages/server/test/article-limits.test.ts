@@ -164,10 +164,10 @@ describe('an article limited to some people and groups', () => {
   });
 
   it('leaves its events out of the feed, and keeps them from webhooks', async () => {
-    const about = (feed: { data: unknown }[]) => feed.filter((e) => (e.data as { article?: { id?: string } }).article?.id === secret);
+    const about = <E extends { data: unknown }>(feed: E[]) => feed.filter((e) => (e.data as { article?: { id?: string } }).article?.id === secret);
     expect(about(await eventFeed(ben, { project: 'BACK' }))).toEqual([]);
-    expect(about(await eventFeed(erin, { project: 'BACK' })).map((e) => (e as { type: string }).type)).toContain('article.created');
-    const created = about(await eventFeed(admin, { project: 'BACK', types: ['article.created'] }))[0] as Parameters<typeof eventLimited>[2];
+    expect(about(await eventFeed(erin, { project: 'BACK' })).map((e) => e.type)).toContain('article.created');
+    const created = about(await eventFeed(admin, { project: 'BACK', types: ['article.created'] }))[0]!;
     expect(await eventLimited(w.app.db, await w.app.schema.get(), created)).toBe(true);
     const open = (await eventFeed(admin, { project: 'BACK', types: ['article.created'] })).find((e) => (e.data as { article?: { id?: string } }).article?.id === plain)!;
     expect(await eventLimited(w.app.db, await w.app.schema.get(), open)).toBe(false);
@@ -231,7 +231,12 @@ describe('what sits under a limited article', () => {
   });
 
   it('hides an article moved under it, at once, and shows it again moved out', async () => {
+    // An agent's preview says who will see it there, before anything moves.
+    const { TOOLS } = await import('../src/tools/registry');
+    const update = TOOLS.find((t) => t.name === 'update_article')!;
+    expect(await update.preview!(erin, update.input.parse({ article: loose, parent: under }))).toContain(`there, only who sees ${top} will see it`);
     await updateArticle(erin, loose, { parent: under });
+    expect(await update.preview!(erin, update.input.parse({ article: loose, parent: null }))).toContain('there, everyone who sees BACK will see it');
     expect((await failure(() => getArticle(ben, loose))).status).toBe(404);
     expect(ids(await articleTree(ben, 'BACK'))).not.toContain(loose);
     expect((await getArticle(erin, loose)).limitedAbove.map((a) => a.id)).toEqual([top]);

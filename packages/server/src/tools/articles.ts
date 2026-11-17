@@ -154,7 +154,14 @@ const updateArticleTool = defineTool({
       const shown = changed.slice(0, 8).map((l) => `${l.op === 'add' ? '+' : '−'} ${excerpt(l.text, 140)}`);
       parts.push(`body: ${diffStats(diff).words}\n${shown.join('\n')}${changed.length > shown.length ? `\n… and ${changed.length - shown.length} more` : ''}`);
     }
-    if (input.parent !== undefined) parts.push(input.parent === null ? 'move it to the top of the tree' : `move it under ${input.parent.toUpperCase()}`);
+    if (input.parent !== undefined) {
+      parts.push(input.parent === null ? 'move it to the top of the tree' : `move it under ${input.parent.toUpperCase()}`);
+      // Who sees it there (D51): a limit above the new place narrows it; out from under one, it widens.
+      const there = input.parent === null ? null : await getArticle(ctx, input.parent).catch(() => undefined);
+      const limitedThere = there ? (there.limited ? there : there.limitedAbove.at(-1)) : undefined;
+      if (limitedThere) parts.push(`there, only who sees ${limitedThere.id} will see it`);
+      else if (there !== undefined && a.limitedAbove.length && !a.limited && input.visibleTo == null) parts.push(`there, everyone who sees ${a.project.key} will see it`);
+    }
     if (input.position !== undefined) parts.push(`put it in place ${input.position + 1}`);
     if (input.visibleTo === null && a.limited) parts.push('let everyone who sees the project see it');
     if (input.visibleTo) parts.push(`let only ${[...input.visibleTo.users, ...input.visibleTo.groups].join(', ') || 'those who always see it'} see it, besides its author and the project's managers`);
