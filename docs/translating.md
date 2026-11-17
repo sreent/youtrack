@@ -345,6 +345,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | suggestion | suggestion |
 | tag | étiquette |
 | token | jeton |
+| scope (of a token) | portée: "la portée admin" |
+| not found | introuvable, after the thing: "Ticket {id} introuvable."; a person's account is "Compte … introuvable" |
 | two-factor sign-in | authentification à deux facteurs |
 | sign in, sign out | se connecter, se déconnecter |
 | login (the name) | identifiant |
