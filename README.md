@@ -108,7 +108,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
   - Search and commands in plain words.
-  - Issue summaries.
+  - Writing help in every text field, in the visual editor and in Markdown: fix spelling and grammar; rewrite shorter, clearer, more formal or friendlier; carry a text on, or draft it from a line (an article from a prompt, a reply to a requester from the request's conversation). Each answer is a suggestion beside what it would replace, to accept, edit or discard; code, links, mentions and ids come back as they went in, and the text keeps its language.
+  - Summaries of an issue, an article or a selection, in the reader's language, read only from what they may see; an issue's summary posted as the assistant's comment; a clearer summary suggested for an issue. Each person asks up to `AI_WRITING_MAX_PER_HOUR` times an hour.
   - An assistant that works through the same tools as MCP and asks before it changes anything.
 - **Projects with their own people**:
   - a project is open to everyone, or seen only by its members and administrators;
@@ -237,6 +238,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `AI_BASE_URL` | the provider's | Where requests go. Needed for `compatible`; for Qwen in mainland China, `https://dashscope.aliyuncs.com/apps/anthropic` |
 | `AI_MODEL` | `claude-opus-5-5`, `deepseek-v4-pro` or `qwen3.8-max` | The model used |
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
+| `AI_WRITING_MAX_PER_HOUR` | `100` | How many times each person may ask for writing and reading help in an hour: every action and summary, on the web, the API and MCP |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
 | `ADMIN_EMAIL` | empty | Their email, so single sign-on can find them by it |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID` | empty | Turn on single sign-on with an OpenID Connect provider: its issuer (https) and a4a's client id there. Register `PUBLIC_URL/api/v1/auth/oidc/callback` as the redirect URI, exactly |
@@ -531,6 +533,7 @@ What it covers, in `apps/web/e2e`:
 - **Access in depth**: an administrator makes a role and a project gives it; an issue and a comment limited to one person are missing to another; a project opened to guests is read signed out.
 - **Private fields**: a manager attaches a field as private, and a viewer finds the issue without it, its value nowhere on the page.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
+- **Writing help**: a line selected in a description fixed, shown as a change, accepted and saved; the whole text rewritten, and the suggestion discarded; an issue summarised and posted as the assistant's comment; a reply drafted on a help desk request and sent; and nothing offered without a provider. The AI is stood in for.
 
 To see what a test did, record a trace and open it:
 

@@ -19,6 +19,8 @@ export interface ToolDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.Zo
   /** May overwrite existing data (MCP destructiveHint). Additive writes are false. */
   destructive?: boolean;
   idempotent?: boolean;
+  /** Asks a4a's own AI: offered only while the server has an AI provider (D59). */
+  needsAI?: boolean;
   run(ctx: Ctx, input: z.infer<S>): Promise<ToolResult>;
   /** For writes: what will happen, in words, for an approval. Uses dry runs where it can. */
   preview?(ctx: Ctx, input: z.infer<S>): Promise<string>;

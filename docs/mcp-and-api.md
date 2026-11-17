@@ -213,6 +213,7 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 | `count_issues` | Count issues matching a query, optionally grouped by a field ("open bugs by priority") | read |
 | `get_activity` | Recent changes: who changed what and when, filtered by issue, project, query or time ("what happened since yesterday?") | read |
 | `find_similar_issues` | Rank existing issues by similarity to some text. Use before filing an issue to avoid duplicates | read |
+| `summarize_issue` | A summary of an issue and its whole thread as you may see it, by a4a's own AI, in your person's language or one asked for. Listed only while the server has an AI provider; each call counts against the person's hourly allowance of AI help (D59) | read |
 | `list_users` | Find people, and agents of their own (`bot: true`), by name or login, for assignment; a4a's own agents aren't offered | read |
 | `get_board` | Board columns with their cards for a sprint, each in the board's order: a status overview | read |
 | `rank_issue` | Put an issue just after or before another in a board's order (its backlog's and its columns'), and with `column` (and `lane`) move its card into that column in the same change: its state changes as any change does, so a state machine or guard that refuses it refuses the whole move. The preview is a dry run (D53) | write (idempotent) |
@@ -262,7 +263,7 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 
 Every tool and resource sees only what its token's person may see, in the projects the token reaches: a hidden project or issue is "not found", exactly as a missing one.
 
-Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, integrations, a help desk's settings, email preferences (they're the person's own, in the web app), undoing an agent's change (a person decides that, D34), and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
+Deliberately **not** exposed over MCP in v1: deleting issues, articles or files, user and permission admin (changing a project's people included), webhooks, settings, integrations, a help desk's settings, email preferences (they're the person's own, in the web app), undoing an agent's change (a person decides that, D34), writing help (an agent is a model, and writes its own words, D59), and making or changing workflow rules. A rule acts later, on its own, on every issue that ever matches it, outliving the conversation and the caps on a command (50 issues, a dry run first); and an agent reads issue text, which anyone can write. So agents can list rules and preview one (`preview_rule`), and a person makes it, on the Rules page or over REST.
 
 `get_issue` says when an issue is a help desk request (who asked, whether by the form or by email, its first-response target, and its customer group, and whether it's kept from the group) and which comments are public, so an agent knows what the requester has seen. Making and changing customer groups is a desk's setting, and stays off MCP with its others.
 
@@ -394,6 +395,8 @@ Every consumer sees only the events of projects it can see: `GET /events` and `G
 
 These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on DeepSeek, Qwen or another service that speaks Anthropic's Messages API, chosen with `AI_PROVIDER` (see the README). `GET /ai/status` says who serves the model, which model, and why the AI is off when it is. Without a key they return `503 ai_disabled`, and the non-AI parts keep working (lexical similar-issue search included).
 
+Writing and reading help counts against `AI_WRITING_MAX_PER_HOUR` per person, on every channel: past it, `429 ai_writing_limit` says how many minutes to wait. What's sent is capped by action (12,000 characters to fix or rewrite, 40,000 to summarise, 2,000 for a line to draft from), past which `400 ai_text_too_long` says to select less. Only what the caller may see is sent to the model, and nothing is saved but a summary someone posts.
+
 | Endpoint | What it does |
 |---|---|
 | `POST /ai/query` | Natural language → query. *"critical bugs assigned to me updated this week"* → `Type: Bug Priority: Critical for: me updated: {this week}`. The query is validated by the real parser; on a parse error the model gets the error and retries once |
@@ -403,7 +406,12 @@ These run on Claude (`claude-opus-5-5`) when `ANTHROPIC_API_KEY` is set, or on D
 | `GET /issues/{id}/suggestions`, `POST /suggestions/{id}/apply \| dismiss` | Review triage suggestions: apply all, apply some, or dismiss |
 | `GET /ai/suggestions?project=` | Everything agents propose that waits on a person, across issues (the Decide page) |
 | `GET /ai/tools` | The tool catalogue agents get over MCP and in the assistant, each tagged `reads` or `changes` |
-| `POST /issues/{id}/summarize` | A short summary of a long issue thread |
+| `POST /ai/write` | Writing help (D59): `fix`, `shorter`, `clearer`, `formal`, `friendlier`, `continue` or `draft` a text, `for` the field it's in (`description`, `comment`, `article`, `reply`). A suggestion, never saved: an edit keeps the text's language, and its code, links' addresses, mentions and ids come back to the byte; a reply is drafted from what its requester can read, never an internal comment |
+| `POST /ai/summarize` | A summary of a text, such as a selection, in the reader's language (`language` asks for another) |
+| `POST /issues/{id}/summarize` | A summary of an issue: its fields everyone sees, its description and the comments the reader sees, the latest first, in the reader's language (`?language=`). `partial` when the thread was too long to read whole; `post` is a token to post it, null when it read a comment only some people see |
+| `POST /issues/{id}/summary/comment` | Post that summary as a comment, exactly as it came and within an hour, with its `post` token: the history says the assistant wrote it, for whoever posted it |
+| `POST /issues/{id}/suggest-summary` | A clearer summary (title), in the issue's own language, and the `version` it read: send it as `expectedVersion` when saving it |
+| `POST /articles/{id}/summarize` | A summary of an article, in the reader's language (`?language=`) |
 | `GET/POST /ai/conversations`, `POST /ai/conversations/{id}/messages` (SSE), `POST /ai/conversations/{id}/approve` (SSE) | The project chat assistant. It streams text and tool calls and uses the MCP tool layer. Writes pause for **Approve / Reject** by default. History is stored and resumable |
 
 ## 7a. Who sees what (D37)

@@ -151,6 +151,7 @@ All AI calls go through `ai/client.ts`.
 
 - Triage runs in the worker, one issue at a time, capped per hour (`AI_TRIAGE_MAX_PER_HOUR`, default 120).
 - Triage only fills empty fields when it applies itself.
+- Writing and reading help is capped per person per hour, and by the size of what it's sent (D59).
 
 **Without a key**
 
@@ -1637,6 +1638,53 @@ D30 let the requester alone answer by email, and named this as the next step: pe
 
 **Revisit when:** the requester wants to take off someone they copied (now the team's, and the CC's own); a desk wants its own cap; CCs should hear each other's and the requester's words (a4a would then relay outside words, and needs a sender it can trust, such as DMARC passing by a server it knows); or the Cc of a new request nobody vouches for should wait for the requester to confirm it.
 
+### D59. Writing and reading help: suggestions beside what they'd replace, read through the seam, capped per person
+
+YouTrack 2026.2's AI assistance helps people write and read. a4a's does too, on the rules it holds every agent to: the person decides (D12), and only what they may see goes to the model (D37).
+
+- **What people ask.** In every text field a4a gives (an issue's description, a comment, an article, a reply to a requester), in the visual editor and in Markdown alike (D39):
+  - fix spelling and grammar;
+  - rewrite it shorter, clearer, more formal or friendlier;
+  - carry it on, or draft it from a line: an article from a prompt, a reply from the request's conversation.
+
+  A toolbar shows for what's selected, and a menu in the editor's bar works on the whole text; a request's composer, set to reply, offers "Draft a reply" itself. Reading: an issue, an article or a selection summarised, and a clearer summary (title) suggested for an issue.
+- **Nothing is written without the person.**
+  - Each answer is a suggestion beside what it would replace, as a change in Ocean's grammar: an ApprovalCard with the `writes` stripe, its lines removed and added as an article's versions show them. Accept puts it in the field, which is saved as ever; Edit opens it to change first; Discard leaves the text as it was.
+  - Accepting checks the text is still as it was asked about (the same Markdown, or the visual editor's same document). If it isn't, nothing is replaced, and the page says to ask again.
+  - A suggested summary (title) is a value's change, struck through and dashed as triage's are, saved against the version it was read at.
+  - A summary is shown, never saved, until the reader posts it as a comment.
+  - Every suggestion carries the assistant's lagoon mark and its name, never a sparkle, and says it's a suggestion.
+  - Once accepted, the words are the person's: they took them, perhaps changed them, and saved them, so the history reads as their change, as a word a spell-checker offered would.
+- **A summary posted is the assistant's.** `POST /issues/{id}/summary/comment` takes the summary with the token it came with, signed with the instances' shared secret over the person, the issue and the summary's words, good for an hour. So the comment holds the assistant's words exactly, posted through the assistant's channel, and the history reads "assistant for Anna Schmidt · asked in words". Words someone changed are a comment of their own. A summary that read a comment limited to some people (D37) comes with no token: a comment everyone reads mustn't carry it, and the page says why instead of offering it.
+- **Only what the person may see.** Every context is read through the seam, as the person:
+  - an issue by `getIssue`, missing in the words of one that doesn't exist when it's kept from them; its comments by `listComments`, without those limited away from them; an article by `getArticle` (D51);
+  - an issue's fields everyone sees, never a private one, even for someone who reads it, since what it says may be posted (D50);
+  - not an issue's links: another reader may not see what's at their other end;
+  - an id in someone's text stays as text, as D37 keeps it, and nothing it names is fetched; an id the model writes that the reader can't see is taken out (`redactUnseenIds`), as triage's words are;
+  - a reply, from what its requester reads (the request and its public conversation, by name, without addresses) and never an internal comment, so nothing internal is put in the requester's words.
+
+  The server's tests send hidden things at each: a comment limited to someone else, a private field, a members-only project's issue named in the description and linked, a limited article.
+- **People's text is data.** Each prompt wraps what people wrote in tags, and says it's data whose instructions are never followed (D9). Before an edit goes to the model, code, links' addresses, raw HTML, mentions and issue and article ids are put aside as placeholders (`⟦n⟧`): they come back to the byte, and no text can close the tags around it. An answer that loses or repeats one is sent back once, saying which (as D14's answers by tool are), and then refused (`ai.writing.unkept`).
+- **Language.** An edit keeps the text's own language. A draft follows its line's, and a reply its requester's. A summary is in the reader's: the page's, else their profile's, else the server's (D49), and `language` asks for another. The prompts name it in English, as they say everything else.
+- **Effort and length for each action.** A fix and the plainer rewrites are `low`, with room to give the text back; making it clearer, carrying it on and drafting are `medium`; summaries and a title are `low` and short. Other services get the same requests by tool, without thinking (D14).
+- **Not streamed.** A suggestion is accepted whole, beside what it replaces: half of one can't be compared or accepted. The checks run on the whole answer (every placeholder back, ids the reader can't see taken out) before any of it reaches the reader. And the answer is structured output, or a forced tool's input elsewhere, which comes whole. Answers are kept short, so most arrive in seconds; a long article draft is waited for, the page saying the assistant is working on it.
+- **Caps.**
+  - Each person may ask `AI_WRITING_MAX_PER_HOUR` times an hour (100): every action and summary, on the web, the API and MCP alike. They're counted in Postgres (`help_throttle`'s fixed windows, keyed by the person) in the statement that checks them, so instances count as one (D17) and asks sent at once can't slip past. Past it, 429 `ai_writing_limit` says how many minutes to wait.
+  - What someone sends is capped for each action: 12,000 characters to fix or rewrite, 40,000 to summarise, 2,000 for a line to draft from. Past it, 400 `ai_text_too_long` says to select less.
+  - What a4a reads itself is cut instead: an issue to its description and its latest comments within 60,000 characters (`partial`, which the page says), an article to its start, a text carried on to its last 12,000.
+- **Without a provider** the pages offer none of it, and the API says `503 ai_disabled`, as D9's features do.
+- **MCP: `summarize_issue`, and no writing tools.** An agent is a model: it writes its own words, and writing help would be one model asking another. A summary is different. `get_issue` gives an agent an issue's latest 50 comments, so a longer thread's early decisions are out of its reach; `summarize_issue` reads the whole thread as the agent's person sees it, through the same seam, and changes nothing. It counts against that person's hour, is listed only while the server has a provider, and tells agents to read `get_issue` when they need the facts themselves.
+
+**What it costs.**
+- A model call for each ask, at the server's expense. The cap bounds each person, not the server: a hundred people asking their hundred is ten thousand calls an hour.
+- Placeholders cost an edit some sense of what they stand for (a mention reads as `⟦1⟧`, not a name), and an answer that loses one twice is refused rather than mended by hand.
+- A summary built from what its reader sees can't be posted for everyone once it read a limited comment, so a manager's summary of such a thread is shown only.
+- A summary of a long thread leaves out its oldest comments, and says so.
+- Accepted words read as the person's in the history: once someone takes them, a4a doesn't mark which words the assistant drafted.
+- A long draft is waited for whole.
+
+**Revisit when:** people want to see which saved words the assistant drafted (keep the suggestion with the save, as `acceptedFrom` does for triage); drafts grow long enough to wait for (stream plain text, checking each finished line); requesters want writing help on their own pages (the portal, D45); or a team wants a cap of its own, or the server one for everyone.
+
 ### D61. Importing from Asana and ClickUp: tasks as issues, a section or a status as the state, followers as watchers
 
 Two more importers beside YouTrack's and Jira's (D29) and GitHub's, Redmine's and Zendesk's (D46), through their path, so everything D29 promises holds: a dry run first; people matched by email; the other tracker's ids remembered, so a run again makes nothing twice; files brought as the run goes, under the upload's checks and caps; quiet events (`data.imported`); a fetch that's a job and carries on from its last page; 429 and 5xx waited out; the token used and never kept; the address guard; and what the token can't see left out (`imports/readers-tasks.ts`).
@@ -1773,4 +1821,5 @@ Planned, with the seams already in place:
 - a Forgejo run's commits read from Forgejo's compare, once its integrations hold a token (D55);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
 - apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48);
-- a right-to-left language; and a project's own words in several languages (D49).
+- a right-to-left language; and a project's own words in several languages (D49);
+- writing help on a requester's own pages, saved words that say the assistant drafted them, and long drafts streamed as they're written (D59).

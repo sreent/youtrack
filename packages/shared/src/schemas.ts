@@ -1500,8 +1500,20 @@ export const ApplySuggestionBody = z.object({
 });
 
 export const SummarizeResultSchema = z
-  .object({ summary: z.string(), model: z.string() })
+  .object({
+    summary: z.string().describe('Markdown. Shown, never saved, unless someone posts it as a comment'),
+    language: z.enum(LOCALES).describe("The language it's written in: the reader's (D49)"),
+    partial: z.boolean().describe('The thread was too long to read whole: it is of the description and the latest comments'),
+    post: z
+      .string()
+      .nullable()
+      .describe(
+        "Posts it as a comment, as the assistant's, within an hour (POST /issues/{id}/summary/comment). Null when it read a comment only some people see, which a comment for everyone mustn't carry",
+      ),
+    model: z.string(),
+  })
   .meta({ id: 'SummarizeResult' });
+export type SummarizeResult = z.infer<typeof SummarizeResultSchema>;
 
 export const ConversationSchema = z
   .object({
@@ -4123,3 +4135,81 @@ export const RequestCcBody = z.object({
   name: z.string().trim().max(HELP_LIMITS.name).optional().describe('Their name, if known'),
 });
 export const RequestCcQuery = z.object({ email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('The address to stop copying') });
+
+// ---------------------------------------------------------------------------
+// AI help with writing and reading (D59)
+// ---------------------------------------------------------------------------
+
+/** What the assistant does to a text: fixes it, rewrites it one way, carries it on, or drafts it from a line. */
+export const WRITING_ACTIONS = ['fix', 'shorter', 'clearer', 'formal', 'friendlier', 'continue', 'draft'] as const;
+export type WritingAction = (typeof WRITING_ACTIONS)[number];
+/** The fields a4a gives for writing: an issue's description, a comment, an article, a reply to a help desk request's requester. */
+export const WRITING_FIELDS = ['description', 'comment', 'article', 'reply'] as const;
+export type WritingField = (typeof WRITING_FIELDS)[number];
+/** The most a text sent for writing help may be, in characters: each action takes less (D59). */
+export const WRITING_TEXT_MAX = 100_000;
+
+export const WritingForSchema = z
+  .object({
+    kind: z.enum(WRITING_FIELDS).describe("The field it's written in. A reply goes to a help desk request's requester, and is drafted from what they can read"),
+    issue: z.string().max(60).optional().describe('The issue it belongs to, by readable id; a reply needs it'),
+    article: z.string().max(60).optional().describe('The article it belongs to, by readable id'),
+    project: z.string().max(40).optional().describe('The project key, for an issue or an article not made yet'),
+    title: z.string().max(500).optional().describe("A new issue's summary or a new article's title, as typed so far"),
+  })
+  .meta({ id: 'WritingFor' });
+export type WritingFor = z.infer<typeof WritingForSchema>;
+
+export const WriteBody = z.object({
+  action: z
+    .enum(WRITING_ACTIONS)
+    .describe(
+      "fix: its spelling and grammar. shorter, clearer, formal, friendlier: it rewritten so. continue: what comes next. draft: a text written from the line sent; for a reply, from the request's public conversation, the line saying what to answer, if anything",
+    ),
+  text: z.string().max(WRITING_TEXT_MAX).describe('Markdown: the selection, or the whole field; for draft, the line to write from'),
+  for: WritingForSchema.optional().describe('Where the text goes. continue and draft read it for what they write'),
+});
+export type WriteInput = z.infer<typeof WriteBody>;
+
+export const WriteResultSchema = z
+  .object({
+    action: z.enum(WRITING_ACTIONS),
+    text: z.string().describe('The suggestion, in Markdown. It replaces the text sent; for continue, it follows it. Nothing is saved'),
+    model: z.string(),
+  })
+  .meta({ id: 'WriteResult' });
+export type WriteResult = z.infer<typeof WriteResultSchema>;
+
+export const SummaryLanguageQuery = z.object({
+  language: z.enum(LOCALES).optional().describe("The summary's language; left out, the reader's (D49)"),
+});
+
+export const SummarizeTextBody = z.object({
+  text: z.string().min(1).max(WRITING_TEXT_MAX).describe('Markdown to summarise, such as what someone selected'),
+  language: z.enum(LOCALES).optional().describe("The summary's language; left out, the reader's (D49)"),
+});
+
+export const TextSummarySchema = z
+  .object({
+    summary: z.string().describe('Markdown. Shown, never saved'),
+    language: z.enum(LOCALES),
+    partial: z.boolean().describe('The text was too long to read whole: it is of its start'),
+    model: z.string(),
+  })
+  .meta({ id: 'TextSummary' });
+export type TextSummary = z.infer<typeof TextSummarySchema>;
+
+export const SummaryCommentBody = z.object({
+  text: z.string().min(1).max(50_000).describe('The summary, exactly as it came'),
+  token: z.string().min(1).max(400).describe("The summary's `post` token"),
+});
+
+export const SuggestedSummarySchema = z
+  .object({
+    current: z.string().describe("The issue's summary now"),
+    summary: z.string().describe('A clearer one, in the same language. Nothing changes until someone saves it'),
+    version: z.number().int().describe("The issue's version it was read at: send it as expectedVersion with the change"),
+    model: z.string(),
+  })
+  .meta({ id: 'SuggestedSummary' });
+export type SuggestedSummary = z.infer<typeof SuggestedSummarySchema>;

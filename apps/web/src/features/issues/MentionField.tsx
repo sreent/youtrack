@@ -30,6 +30,7 @@ export function MentionField({
   autoFocus,
   people: offered,
   onFiles,
+  onSelection,
 }: {
   id: string;
   value: string;
@@ -40,6 +41,8 @@ export function MentionField({
   autoFocus?: boolean;
   people?: User[];
   onFiles?: (files: File[], start: number, end: number) => void;
+  /** What's selected, from where to where, each time it changes (writing help reads it, D59). */
+  onSelection?: (start: number, end: number) => void;
 }) {
   const everyone = useUsers({ enabled: !offered });
   const users = { data: offered ?? everyone.data };
@@ -108,7 +111,10 @@ export function MentionField({
           setCaret(e.target.selectionStart ?? e.target.value.length);
           setActive(0);
         }}
-        onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+        onSelect={(e) => {
+          setCaret(e.currentTarget.selectionStart ?? 0);
+          onSelection?.(e.currentTarget.selectionStart ?? 0, e.currentTarget.selectionEnd ?? 0);
+        }}
         onKeyDown={onKeyDown}
         onBlur={() => setDismissed(typing?.at ?? null)}
         onFocus={() => setDismissed(null)}

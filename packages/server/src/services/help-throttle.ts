@@ -60,8 +60,15 @@ export function throttleKey(limit: HelpLimit, value: string): string {
  * window over its limit ends, or 0 when all of them allow it.
  */
 export async function helpHit(db: Db, hits: [HelpLimit, string][]): Promise<number> {
-  if (!hits.length) return 0;
-  const limits = new Map(hits.map(([limit, value]) => [throttleKey(limit, value), HELP_THROTTLE[limit]]));
+  return countHits(db, new Map(hits.map(([limit, value]) => [throttleKey(limit, value), HELP_THROTTLE[limit]])));
+}
+
+/**
+ * The same count, for a limit of a4a's own beyond the help desk's (each key named by what it limits,
+ * such as `aiWriting:<user id>`, D59): seconds to wait, or 0 while every limit allows it.
+ */
+export async function countHits(db: Db, limits: Map<string, { limit: number; windowMs: number }>): Promise<number> {
+  if (!limits.size) return 0;
   const expired = sql`${helpThrottle.windowEnds} <= now()`;
   const rows = await db
     .insert(helpThrottle)

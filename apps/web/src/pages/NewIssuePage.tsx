@@ -236,7 +236,15 @@ export default function NewIssuePage() {
           </FormField>
           <FormField label={t('page.newIssue.description')}>
             {(id) => (
-              <RichField id={id} label={t('page.newIssue.description')} value={description} onChange={setDescription} rows={8} placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')} />
+              <RichField
+                id={id}
+                label={t('page.newIssue.description')}
+                value={description}
+                onChange={setDescription}
+                rows={8}
+                placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')}
+                writing={{ kind: 'description', project: project || undefined, title: summary || undefined }}
+              />
             )}
           </FormField>
           {asked.length ? (

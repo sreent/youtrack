@@ -1,15 +1,17 @@
-import type { IssueDetail, IssueField, Suggestion, User } from '@a4a/shared';
+import type { IssueDetail, IssueField, Suggestion, SuggestedSummary, SummarizeResult, User } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, useEffect } from 'react';
+import { useId, useMemo, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { ApiError, post } from '../api/client';
+import { ApiError, patch, post } from '../api/client';
 import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
 import { StateBadge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading, PageHead, ErrorLine } from '../components/States';
-import { Who } from '../components/Who';
+import { Avatar, Who } from '../components/Who';
+import { Said } from '../features/common/bits';
+import { SummaryCard } from '../features/writing/WritingHelp';
 import { SuggestionCard } from '../features/decide/SuggestionCard';
 import { errorText, useUpdateIssue } from '../features/issues/api';
 import { CommandBar } from '../features/issues/CommandBar';
@@ -107,6 +109,7 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
               people={people}
               uploadTo={`/issues/${issue.id}/attachments`}
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
+              writing={{ kind: 'description', issue: issue.id }}
             />
           )}
         </FormField>
@@ -146,28 +149,165 @@ function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail;
   );
 }
 
-function Summary({ issue }: { issue: IssueDetail }) {
-  const [state, setState] = useState<{ text: string } | { error: string } | 'asking' | null>(null);
+/**
+ * The issue summarised by the assistant, in the reader's language (D59): shown, never saved, unless the
+ * reader posts it as a comment, which the history then says is the assistant's. One that read a comment
+ * only some people see isn't offered as a comment for everyone.
+ */
+function Summary({ issue, canComment }: { issue: IssueDetail; canComment: boolean }) {
+  const qc = useQueryClient();
+  const [state, setState] = useState<{ result: SummarizeResult } | { error: string } | 'asking' | null>(null);
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [posting, setPosting] = useState(false);
   const ask = async () => {
+    setSaid(null);
     setState('asking');
     try {
-      const r = await post<{ summary: string }>(`/issues/${issue.id}/summarize`);
-      setState({ text: r.summary });
+      setState({ result: await post<SummarizeResult>(`/issues/${issue.id}/summarize`) });
     } catch (e) {
       setState({ error: errorText(e, t('page.issue.theAssistantCouldnTSummarise')) });
     }
   };
+  const postIt = async (r: SummarizeResult) => {
+    setPosting(true);
+    try {
+      await post(`/issues/${issue.id}/summary/comment`, { text: r.summary, token: r.post });
+      await Promise.all([qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'comments') }), qc.invalidateQueries({ queryKey: keys.issueSub(issue.id, 'activity') })]);
+      setState(null);
+      setSaid({ text: t('page.issue.postedAsTheAssistantS') });
+    } catch (e) {
+      setSaid({ text: errorText(e), bad: true });
+    } finally {
+      setPosting(false);
+    }
+  };
   if (state === null)
     return (
-      <button type="button" onClick={() => void ask()}>{t('page.issue.summarise')}</button>
-    );
-  return (
-    <section className="card stack" aria-label={t('page.issue.summaryByTheAssistant')}>
       <div className="cluster">
-        <Who kind="agent" name="assistant" small />
-        <span className="note">{t('page.issue.summarisedTheIssueAndIts')}</span>
+        <button type="button" onClick={() => void ask()}>{t('page.issue.summarise')}</button>
+        {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
       </div>
-      {state === 'asking' ? <p className="note">{t('page.issue.readingTheIssue')}</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
+    );
+  if (state === 'asking' || 'error' in state)
+    return (
+      <section className="card stack" aria-label={t('page.issue.summaryByTheAssistant')}>
+        <div className="cluster">
+          <Who kind="agent" name="assistant" small />
+          <span className="note">{t('page.issue.summarisedTheIssueAndIts')}</span>
+        </div>
+        {state === 'asking' ? <p className="note">{t('page.issue.readingTheIssue')}</p> : <ErrorLine>{state.error}</ErrorLine>}
+      </section>
+    );
+  const r = state.result;
+  const note = [r.partial ? t('page.issue.longThreadSummarised') : '', r.post ? '' : t('page.issue.summaryReadLimitedComments')].filter(Boolean).join(' ');
+  return (
+    <SummaryCard label={t('page.issue.summaryByTheAssistant')} did={t('page.issue.summarisedTheIssueAndIts')} summary={r.summary} note={note || null} onClose={() => setState(null)}>
+      {r.post && canComment ? (
+        <button type="button" onClick={() => void postIt(r)} disabled={posting}>
+          {posting ? t('page.issue.posting') : t('page.issue.postItAsAComment')}
+        </button>
+      ) : null}
+      {said?.bad ? <ErrorLine>{said.text}</ErrorLine> : null}
+    </SummaryCard>
+  );
+}
+
+/**
+ * A clearer summary (title), suggested beside the one the issue has, as a change of a value in Ocean's
+ * grammar: struck through, then the new one dashed until it's accepted. Accepting saves it, against the
+ * version it was read at; editing opens it to change first.
+ */
+function SuggestTitle({ issue }: { issue: IssueDetail }) {
+  const qc = useQueryClient();
+  const [state, setState] = useState<{ s: SuggestedSummary } | { error: string } | 'asking' | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const titleId = useId();
+  const editId = useId();
+  const ask = async () => {
+    setSaid(null);
+    setState('asking');
+    try {
+      setState({ s: await post<SuggestedSummary>(`/issues/${issue.id}/suggest-summary`) });
+    } catch (e) {
+      setState({ error: errorText(e) });
+    }
+  };
+  const accept = async (s: SuggestedSummary, summary: string) => {
+    setBusy(true);
+    try {
+      const next = await patch<IssueDetail>(`/issues/${issue.id}`, { summary: summary.trim(), expectedVersion: s.version });
+      qc.setQueryData(keys.issue(issue.id), next);
+      void qc.invalidateQueries({ queryKey: ['issues', 'list'] });
+      setState(null);
+      setEditing(null);
+      setSaid({ text: t('page.issue.summaryChanged') });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) void qc.invalidateQueries({ queryKey: keys.issue(issue.id) });
+      setSaid({ text: errorText(e), bad: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (state === null || state === 'asking' || 'error' in state)
+    return (
+      <div className="cluster">
+        <button type="button" onClick={() => void ask()} disabled={state === 'asking'}>
+          <Avatar kind="agent" name="assistant" small />
+          {state === 'asking' ? t('page.issue.suggestingASummary') : t('page.issue.suggestASummary')}
+        </button>
+        {state !== null && state !== 'asking' ? <ErrorLine>{state.error}</ErrorLine> : null}
+        {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
+      </div>
+    );
+  const s = state.s;
+  const same = s.summary === s.current;
+  return (
+    <section className="approval compact" aria-labelledby={titleId}>
+      <div className="approval-stripe changes" />
+      <div className="approval-body">
+        <div className="who">
+          <Avatar kind="agent" name="assistant" small />
+          <span>
+            <span className="who-name" id={titleId}>{t('page.issue.aClearerSummary')}</span>
+            <span className="who-about">{t('writing.suggestion.byTheAssistant')}</span>
+          </span>
+        </div>
+        {same ? (
+          <p className="approval-note">{t('page.issue.summaryIsClearAlready')}</p>
+        ) : editing !== null ? (
+          <div className="form-field">
+            <label htmlFor={editId}>{t('writing.suggestion.changeItFirst')}</label>
+            <input id={editId} value={editing} maxLength={500} onChange={(e) => setEditing(e.target.value)} />
+          </div>
+        ) : (
+          <dl className="approval-changes">
+            <div className="pair">
+              <dt>{t('page.issue.summaryWord')}</dt>
+              <dd>
+                <del>{s.current}</del> → <ins className="proposed">{s.summary}</ins>
+              </dd>
+            </div>
+          </dl>
+        )}
+        {said?.bad ? <ErrorLine>{said.text}</ErrorLine> : null}
+        <div className="approval-actions">
+          {same ? null : (
+            <button type="button" className="primary" disabled={busy || (editing !== null && !editing.trim())} onClick={() => void accept(s, editing ?? s.summary)}>
+              {t('writing.suggestion.accept')}
+            </button>
+          )}
+          {same || editing !== null ? null : (
+            <button type="button" onClick={() => setEditing(s.summary)}>
+              {t('writing.suggestion.edit')}
+            </button>
+          )}
+          <button type="button" onClick={() => setState(null)}>
+            {same ? t('writing.close') : t('writing.suggestion.discard')}
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -368,6 +508,7 @@ export default function IssuePage() {
         }
       />
       {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
+      {ai.data?.enabled && canWrite ? <SuggestTitle key={`title-${data.id}`} issue={data} /> : null}
       {moving ? <MoveIssue issue={data} onClose={() => setMoving(false)} /> : null}
       <AppWidgets at="issue-below-summary" issue={data.id} />
       {project.data && !project.data.access.write ? (
@@ -382,7 +523,7 @@ export default function IssuePage() {
           <WorkflowBar key={`workflow-${data.id}`} issue={data} canEdit={canWrite} />
           <Description issue={data} canEdit={canWrite} canReact={canComment} people={membersOnly ? (assignable ?? []) : undefined} />
           <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
-          {ai.data?.enabled ? <Summary issue={data} /> : null}
+          {ai.data?.enabled ? <Summary issue={data} canComment={canComment} /> : null}
           {/* Deciding on what triage suggests is a change to the issue: its members decide. */}
           {canWrite ? openSuggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} compact />) : null}
           <IssueLinks issue={data} canEdit={canWrite} />
