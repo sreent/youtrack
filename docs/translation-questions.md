@@ -55,6 +55,19 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - **Working hours**: a customer group's say "Arbeitszeiten", the desk's SLA settings (`helpdesk.sla.*`) "Arbeitszeit". One term throughout?
 - `helpdesk.groups.addTheGroup` is "Gruppe anlegen", where the button that opens its form says "Gruppe hinzufügen".
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **Whiteboard terms**: a section is "Bereich", the outline "Gliederung", the canvas "Arbeitsfläche" and a note "Notiz" (Miro says "Haftnotiz" and "Frame"). Do they read as a whiteboard's own words?
+- **A note's tone**: its legend is "Art" (`whiteboards.noteDialog.tone`) and the plain tone "Neutral" (`whiteboards.tone.plain`; "Einfach" read as "easy" beside "Problem"). The tones mix kinds (Idee, Frage, Problem) with states (Vereinbart, Zurückgestellt): does "Art" hold both?
+- `page.whiteboard.lookingNow`, read aloud over the list of who has the whiteboard open, is "Gerade anwesend". "Gerade hier" and "Schauen gerade zu" are the alternatives.
+- **Keys**: `page.whiteboard.keys` names them as German keyboards do ("Tabulatortaste", "Leertaste", "Eingabetaste", "Entf", "Umschalt", "Strg"), where the mention fields say "Enter" (`editor.visualEditor.countToMention`). One way throughout?
+- `whiteboards.connectDialog.from` and `to`, an arrow's two ends, are "Von" and "Nach". "Zu" is the alternative to "Nach".
+- **Issues from chat** are "angelegt", as the catalog makes issues everywhere else (`server.chat.issue.title` "Vorgang anlegen", `create` "Anlegen", `actionTitle` "a4a-Vorgang anlegen", `didMake`). Slack's and Teams' own German say "erstellen". Which reads better inside Slack and Teams?
+- **Asana's menus** stay in English ("My settings, Apps, Manage developer apps") in `imports.fromApi.inAsanaMySettingsApps` and `problem.imports.source.tokenRefused`, as ClickUp's do ("Settings, Apps, API Token"), and Asana's token is "Personal Access Token", as the import form's field says. Asana's and ClickUp's German interfaces name them differently.
+- `writing.suggestion.changeItFirst`, the label over a suggestion being edited, is "Vorschlag, den Sie vor dem Übernehmen ändern können": long for a label. "Vorschlag bearbeiten" is shorter, but loses "before you accept it".
+- **Caps said as English says them**: `problem.ai.writing.limit` "…; öfter antwortet er niemandem" and `server.chat.issue.tooFast` "…; mehr darf eine Person nicht". Natural?
+- `whiteboards.convertDialog.preview`, the dry run's button, is "Erst prüfen". "Vorschau" is the usual word, but the button runs the conversion and rolls it back.
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:

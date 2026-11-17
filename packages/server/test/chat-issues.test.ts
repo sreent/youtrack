@@ -431,7 +431,7 @@ describe('Slack: a message shortcut makes an issue', () => {
       const ts = '1700000005.000100';
       slack.threads.set(`C0ENG:${ts}`, [{ ts, user: 'U0BEN', text: 'One more' }]);
       const refused = await openModal(shortcut({ ts, user: 'U0BEN', text: 'One more' }, { user: 'U0ADMIN' }));
-      expect(viewText(refused)).toContain(`Sie haben in den letzten zehn Minuten ${limit} Vorgänge aus dem Chat erstellt`);
+      expect(viewText(refused)).toContain(`Sie haben in den letzten zehn Minuten ${limit} Vorgänge aus dem Chat angelegt`);
       // Ten minutes on, they may again.
       await w.app.db.update(chatIssueSources).set({ madeAt: new Date(Date.now() - 11 * 60_000) }).where(eq(chatIssueSources.createdById, w.admin.id));
       const view = await openModal(shortcut({ ts, user: 'U0BEN', text: 'One more' }, { user: 'U0ADMIN' }));
@@ -526,7 +526,7 @@ describe('Teams: a message action makes an issue', () => {
     await w.app.db.update(users).set({ locale: 'de' }).where(eq(users.id, w.anna.id));
     try {
       const german = JSON.stringify(cardOf((await messageAction('composeExtension/fetchTask', anna(), { messagePayload: teamsMessage() })).body));
-      for (const word of ['"label":"Projekt"', '"label":"Zusammenfassung"', '"title":"Erstellen"', 'Aus der Nachricht von Ben Okafor in General.']) expect(german).toContain(word);
+      for (const word of ['"label":"Projekt"', '"label":"Zusammenfassung"', '"title":"Anlegen"', 'Aus der Nachricht von Ben Okafor in General.']) expect(german).toContain(word);
     } finally {
       await w.app.db.update(users).set({ locale: null }).where(eq(users.id, w.anna.id));
     }
