@@ -62,3 +62,10 @@ export const TEAMS = {
   tenantId: '0e2e0e2e-1111-2222-3333-444455556666',
   url: `http://127.0.0.1:${Number(required('E2E_TEAMS_PORT'))}`,
 } as const;
+
+/** The Forgejo the server lets people connect their accounts at, on this machine (support/forgejo.ts). */
+export const FORGEJO = {
+  url: `http://127.0.0.1:${Number(required('E2E_FORGEJO_PORT'))}`,
+  clientId: 'e2e-forgejo-app',
+  clientSecret: 'e2e-forgejo-secret',
+} as const;

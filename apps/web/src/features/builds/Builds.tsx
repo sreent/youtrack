@@ -364,16 +364,18 @@ export function CodeHostAccounts() {
   const [params, setParams] = useSearchParams();
   const hosts = useQuery({ queryKey: ['me', 'code-hosts'], queryFn: () => get<CodeHostInfo[]>('/me/code-hosts') });
   const logins = useQuery({ queryKey: ['users', meId, 'provider-logins'], queryFn: () => get<ProviderLogin[]>(`/users/${meId}/provider-logins`), enabled: Boolean(meId) });
-  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | { connected: string } | null>(null);
   useEffect(() => {
     const connected = params.get('connected');
     const failure = params.get('connect');
     if (!connected && !failure) return;
-    setSaid(connected ? { text: t('builds.builds.yourAccountIsConnectedIts', { v: hosts.data?.find((h) => h.provider === connected)?.name ?? connected }) } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
+    // The host is named once its name has loaded: the page is back from it before the list is.
+    setSaid(connected ? { connected } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
     params.delete('connected');
     params.delete('connect');
     setParams(params, { replace: true });
-  }, [params, setParams, hosts.data]);
+  }, [params, setParams]);
+  const shown = said && 'connected' in said ? { text: t('builds.builds.yourAccountIsConnectedIts', { v: hosts.data?.find((h) => h.provider === said.connected)?.name ?? said.connected }) } : said;
   const connect = useMutation({
     mutationFn: (provider: string) => post<{ url: string }>(`/me/code-hosts/${provider}/connect`, {}),
     onSuccess: ({ url }) => window.location.assign(url),
@@ -411,7 +413,7 @@ export function CodeHostAccounts() {
           <button key={h.provider} type="button" onClick={() => connect.mutate(h.provider)} disabled={connect.isPending}>{tr('builds.builds.connect', { name: h.name })}</button>
         ))}
       </div>
-      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      <Said text={shown?.text} tone={shown && 'bad' in shown && shown.bad ? 'bad' : undefined} />
     </section>
   );
 }

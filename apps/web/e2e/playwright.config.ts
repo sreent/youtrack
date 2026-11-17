@@ -38,10 +38,12 @@ if (!process.env.E2E_RUN_DIR) {
 process.env.E2E_PORT ||= freePort();
 // Where the chat spec's Bot Framework listens (support/teams.ts): the server is told before it starts.
 process.env.E2E_TEAMS_PORT ||= freePort();
+// Where the Forgejo people connect their accounts at listens (support/forgejo.ts): the server is told before it starts.
+process.env.E2E_FORGEJO_PORT ||= freePort();
 process.env.E2E_NOW ||= new Date().toISOString();
 
 // Read only once the environment is set.
-const { ADMIN, AUTH_FILE, BASE_URL, DATA_DIR, PORT, TEAMS } = await import('./support/env');
+const { ADMIN, AUTH_FILE, BASE_URL, DATA_DIR, FORGEJO, PORT, TEAMS } = await import('./support/env');
 
 export default defineConfig({
   testDir: '.',
@@ -123,6 +125,13 @@ export default defineConfig({
       // Push notifications go to a push service the tests start on this machine (support/push.ts).
       PUSH_ALLOW_HTTP_LOOPBACK: 'true',
       PUSH_HOSTS: '',
+      // People connect their accounts at a Forgejo on this machine (support/forgejo.ts), and a GitHub
+      // integration reads as an app from a GitHub there (support/github.ts): plain http, for tests alone.
+      FORGEJO_URL: FORGEJO.url,
+      FORGEJO_CLIENT_ID: FORGEJO.clientId,
+      FORGEJO_CLIENT_SECRET: FORGEJO.clientSecret,
+      GITEA_URL: '',
+      VCS_ALLOW_HTTP_LOOPBACK: 'true',
       VAPID_PUBLIC_KEY: '',
       VAPID_PRIVATE_KEY: '',
     },
