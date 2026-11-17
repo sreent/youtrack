@@ -124,6 +124,19 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.byDomains`, "Por {domains}": "Por dominio: {domains}" may be clearer.
 - `activity.ledgerEntry.changesWhoIsCopied`, "cambia quién está en copia en una solicitud", is 43 characters on a badge that doesn't wrap.
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A note's tones** (`whiteboards.tone.*`, `whiteboards.kind.note`): plain is "Normal" and parked "Aplazada", since "Aparcada", for a topic set aside, leans to Spain. "Simple" and "En pausa" are the alternatives.
+- **The whiteboard's keys** (`page.whiteboard.keys`, `keysReading`) are "Enter", "Mayús", "Supr", "Tab" and "Espacio", and the catalog's other keys say "Enter" too. Spain's keyboards print "Intro", and Latin America often says "Shift".
+- **An arrow's label** is "Etiqueta" (`whiteboards.connectDialog.label`, `whiteboards.textDialog.label`, `labelArrow`), the catalog's word for a tag as well. "Texto" couldn't be taken for a tag.
+- `whiteboards.connectDialog.from` and `to`, an arrow's ends, are "Desde" and "Hasta", as a transition's are. "Origen" and "Destino" may suit an arrow better.
+- `page.whiteboard.said.undid`: undoing an add or a removal says "Se ha deshecho lo agregado" or "Se ha deshecho lo quitado". Natural enough when a screen reader says it?
+- **ClickUp's List** is "Lista", capitalised as English and ClickUp write it (`imports.fromApi.theListSAddressIn`, `whichTasksAList`, `problem.imports.source.clickupNoList`, `notAClickupList`, and the clickup case of `problem.apiImports.nothingMatches` and `requestRefusedSaying`), so it isn't read as a checklist's "lista". Spanish would usually lower-case it.
+- `page.chat.issuesFromMessagesNeed` keeps "Callback ID" as Slack's app settings name the field, as the page keeps "Basic Information". "ID de callback" is the alternative.
+- `whiteboards.convertDialog.preview`, "Check first", is "Vista previa": with "Comprobar antes", the dialog's three buttons spilled past a 390px screen.
+- `writing.action` and `writing.suggestion.title`: friendlier is "Más cercano". "Más amable" is the alternative.
+- `server.chat.issue.withReplies`, the thread's checkbox in Slack's form, is "Agregar las respuestas posteriores, hasta 20", which says "up to" where English says "the first 20".
+
 ## French
 
 Terms:
