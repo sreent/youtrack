@@ -111,7 +111,7 @@ describe('a4a in each person’s language (D49)', () => {
       zh: '0 个问题（最近更新的在前）',
       ko: '이슈 0개 (최근 업데이트순)',
       pt: 'Todos os itens (os atualizados mais recentemente primeiro): 0',
-      vi: '0 vấn đề (cập nhật gần đây nhất trước)',
+      vi: '0 vấn đề (mới cập nhật xếp trước)',
       th: 'อิชชู 0 รายการ (อัปเดตล่าสุดก่อน)',
     });
     // Lena reads dates in Berlin. "created today" is the query language's, as written.
