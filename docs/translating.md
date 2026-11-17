@@ -43,6 +43,7 @@ German:
 - **Sie**, always: "Speichern Sie zuerst", "Ihr Profil". Never "du".
 - **Buttons are infinitives or nouns**: "Speichern", "Änderung speichern", "Abbrechen". A button that names what it changes says it: "Feld löschen", not "Löschen" alone, where English says "Delete the field".
 - **Status lines are passive or perfect**: "Gespeichert.", "Wird gespeichert…", "{name} ist hinzugefügt."
+- **The loading line is "Lade{v}…"**, since a page puts what it loads after the verb, and sometimes nothing, an issue's id or a file's name: "Lade den Plan…", "Lade BACK-12…", "Lade…". So each word a page loads is a noun phrase in the accusative ("den Verlauf", "Ihren Posteingang", "die Agenten"), never a clause.
 - **Gender**: a4a doesn't guess a person's. It says "die Person", "wer …", "alle, die …" where English says "they". Roles stay as their words, "Administrator", "Manager", "Mitglied", "Betrachter".
 - **Nouns keep their capital** inside a sentence, so a label set into a sentence isn't lower-cased in German (`inSentence()` in the web's `i18n`).
 - **Dates and numbers** come from Intl, never from the catalog: "16. Nov. 2026", "1.234,5", "vor 3 Minuten".
