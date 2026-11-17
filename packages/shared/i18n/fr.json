@@ -5199,7 +5199,7 @@
   "workflow.scriptField.on": " sur {el}",
   "workflow.scriptField.whatItWouldDoTo": "Ce qu’il ferait sur {issue}",
   "workflow.scriptField.whatItWouldDoTo2": "Ce qu’il ferait sur {el}",
-  "workflow.scriptRun.asks": "{commands, plural, =0 {Il ne demande aucune commande.} one {Il demande # commande : {changing, plural, one {# modifierait quelque chose} other {# modifieraient quelque chose}}{failing, plural, =0 {} one {, # échouerait} other {, # échoueraient}}.} other {Il demande # commandes : {changing, plural, one {# modifierait quelque chose} other {# modifieraient quelque chose}}{failing, plural, =0 {} one {, # échouerait} other {, # échoueraient}}.}}",
+  "workflow.scriptRun.asks": "{commands, plural, =0 {Il ne demande aucune commande.} one {Il demande # commande : {changing, plural, =0 {aucune ne modifierait quoi que ce soit} one {# modifierait quelque chose} other {# modifieraient quelque chose}}{failing, plural, =0 {} one {, # échouerait} other {, # échoueraient}}.} other {Il demande # commandes : {changing, plural, =0 {aucune ne modifierait quoi que ce soit} one {# modifierait quelque chose} other {# modifieraient quelque chose}}{failing, plural, =0 {} one {, # échouerait} other {, # échoueraient}}.}}",
   "workflow.scriptRun.doesNothing": "Il ne ferait rien : « {refusal} ».",
   "workflow.scriptRun.nothingSaved": "Rien n’a été enregistré.",
   "workflow.scriptRun.passes": "Il laisserait passer cette modification.{ignored, select, yes { Une garde ne fait que refuser : ce qu’elle applique ou commente est ignoré.} other {}}",
