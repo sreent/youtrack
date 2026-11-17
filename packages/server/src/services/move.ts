@@ -21,7 +21,7 @@ import { issueAliases, issueFieldValues, issueLinks, issues, issueTags, mentions
 import { publishActivities, recordActivity } from '../events/activity';
 import { AppError, badRequest, conflict, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { todayIn } from '../reports/tz';
-import { assertCanWriteProject, canReadProject, projectAccess } from './access';
+import { assertCanWriteProject, canReadProject, projectAccess, seesField } from './access';
 import { issueRef, issueRefsById, readableId, stateNames, type IssueRow } from './issue-refs';
 import { createIssue, fieldValuesOf, resolveIssue } from './issues';
 import { allowedValues, projectByKey, type FieldRow, type ProjectRow, type SchemaSnapshot } from './schema-cache';
@@ -103,6 +103,9 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
   await assertCanWriteProject(ctx, target.id, db);
 
   const current = await fieldValuesOf(db, issue.id);
+  // A private field kept from the mover, here or there, moves as it can, unasked and unsaid: what
+  // doesn't carry is left behind, as a field the other project lacks is (D50).
+  const sees = (fieldId: string) => seesField(view, s, issue.projectId, fieldId) && seesField(view, s, target.id, fieldId);
   const given = new Map(Object.entries(input.fields ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v]));
   const zone = zoneOf(ctx);
   const today = todayIn(zone);
@@ -117,6 +120,11 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
     const choices = isOptionType(f.type) ? allowedValues(s, f.id, target.id).map((v) => v.name) : undefined;
     const problem = (p: Omit<MoveProblem, 'field' | 'choices'>) => problems.push({ field: f.name, ...p, ...(choices ? { choices } : {}) });
     let after: ResolvedValue[] = [];
+    if (!sees(f.id)) {
+      const c = before.length ? await carryValues(db, s, f, target, before) : null;
+      if (c && !c.problem && c.values.length) values.set(f.id, c.values);
+      continue;
+    }
     if (given.has(f.name.toLowerCase())) {
       const g = given.get(f.name.toLowerCase());
       if (g !== null && g !== undefined && !(Array.isArray(g) && !g.length)) {
@@ -149,7 +157,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
     if (before.length || after.length) carried.push({ field: f.name, from: presentValues(s, f, before), to: presentValues(s, f, after) });
   }
   for (const k of given.keys()) {
-    if (!pfs.some((pf) => s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push(keyedProblem({ field: k, message: `${target.key} has no field "${k}"` }, 'move.noField', { project: target.key, field: k }));
+    if (!pfs.some((pf) => sees(pf.fieldId) && s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push(keyedProblem({ field: k, message: `${target.key} has no field "${k}"` }, 'move.noField', { project: target.key, field: k }));
   }
   const droppedValues = [...current.entries()]
     .filter(([fid, vals]) => vals.length && !pfs.some((pf) => pf.fieldId === fid))
@@ -172,7 +180,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
       project: { key: target.key, name: target.name },
       problems,
       carried,
-      dropped: droppedValues.map((d) => d.field),
+      dropped: droppedValues.filter((d) => [...current.keys()].every((fid) => sees(fid) || s.fields.get(fid)?.name !== d.field)).map((d) => d.field),
       leftSprints: sprints.map((r) => r.name),
       moved: false,
     },
@@ -262,10 +270,13 @@ export async function cloneIssue(ctx: Ctx, idOrReadable: string, input: CloneIss
   const values = new Map<string, ResolvedValue[]>();
   if (target) {
     const current = await fieldValuesOf(ctx.db, source.id);
+    const view = await projectAccess(ctx);
     for (const pf of s.projectFields.get(target.id) ?? []) {
       const f = s.fields.get(pf.fieldId);
       const before = f ? current.get(f.id) : undefined;
       if (!f || !before?.length) continue;
+      // A value kept from the one cloning isn't theirs to copy, where it would show or not (D50).
+      if (!seesField(view, s, source.projectId, f.id)) continue;
       // What doesn't carry over is left to the other project's defaults.
       const c = target.id === source.projectId ? { values: before } : await carryValues(ctx.db, s, f, target, before);
       if (c.values?.length) values.set(f.id, c.values);

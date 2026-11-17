@@ -43,7 +43,7 @@ import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
 import type { AwayPart } from '../planning/types';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { canReadProject, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
+import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
@@ -98,7 +98,9 @@ export async function loadPlan(
   const fPriority = field(WELL_KNOWN_FIELDS.priority);
   const fType = field(WELL_KNOWN_FIELDS.type);
 
-  const values = ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : [];
+  // A private field kept from the caller is no value to the plan they read (D50), as a limited issue is no task (D37).
+  const kept = hiddenFields(await projectAccess(ctx), s).get(project.id);
+  const values = (ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : []).filter((v) => !kept?.has(v.fieldId));
   const byIssue = new Map<string, typeof values>();
   for (const v of values) byIssue.set(v.issueId, [...(byIssue.get(v.issueId) ?? []), v]);
   const val = (issueId: string, fieldId: string | undefined) => (fieldId ? byIssue.get(issueId)?.find((v) => v.fieldId === fieldId) : undefined);

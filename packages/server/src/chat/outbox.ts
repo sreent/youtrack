@@ -132,7 +132,8 @@ async function inSearch(app: AppServices, sub: typeof chatSubscriptions.$inferSe
   if (!user || user.banned) return false;
   const [search] = await app.db.select().from(savedSearches).where(eq(savedSearches.id, sub.savedSearchId!));
   if (!search || !(search.shared || search.ownerId === user.id)) return false;
-  const prepared = await prepareQuery(personCtx(app, user), search.query);
+  // As every reader of the channel would read it: a search by a private field finds nothing for it (D50).
+  const prepared = await prepareQuery(personCtx(app, user), search.query, { everyone: true });
   if (prepared.compiled.problems.length) return false;
   return (await meets(app.db, issueId, [prepared.compiled.where ?? sql`TRUE`]))[0] === true;
 }

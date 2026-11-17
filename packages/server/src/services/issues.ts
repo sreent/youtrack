@@ -59,6 +59,7 @@ import {
 import { ensureTags, tagDto } from './tags';
 import { issueIdByAlias, formerIdsOf } from './aliases';
 import { enforceRequiredWhen, fieldsApplying, missingNow, requiredWhen } from './conditions';
+import { ruleWorld } from '../workflow/match';
 import { hasVoted, reactionsOf } from './votes';
 import { todayIn } from '../reports/tz';
 import { zoneOf } from './time-zones';
@@ -274,7 +275,9 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
     hasVoted(ctx.db, row.id, me),
     reactionsOf(ctx.db, s, row.id, me, { anonymous: Boolean(ctx.actor.guest) }),
     formerIdsOf(ctx.db, s, row.id),
-    fieldsApplying(ctx.db, s, row.projectId, row.id),
+    // Answered in the project's words as the caller reads them: a condition that reads a private field
+    // kept from them holds always, as one that no longer reads does, so it says nothing of the value (D50).
+    fieldsApplying(ctx.db, scopeFields(ruleWorld(s, row.projectId), await projectAccess(ctx)), row.projectId, row.id),
   ]);
   return {
     ...base!,

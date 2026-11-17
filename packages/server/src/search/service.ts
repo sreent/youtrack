@@ -30,16 +30,17 @@ export interface PreparedQuery {
  * whose words match only in comments they see. A private field kept from them everywhere is an unknown
  * word too; one kept from them in some projects matches, sorts and counts there as empty (D50).
  */
-export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string }): Promise<PreparedQuery> {
+export async function prepareQuery(ctx: Ctx, query: string, extra?: { projectId?: string; /** Read as everyone at once: no private field (D50), as a chat channel's search is. */ everyone?: boolean }): Promise<PreparedQuery> {
   const view = await projectAccess(ctx);
   const visible = view.visibleIds();
   const full = await ctx.app.schema.get();
-  const s = scopeFields(scopeSchema(full, visible), view);
+  const reader = extra?.everyone ? null : view;
+  const s = scopeFields(scopeSchema(full, visible), reader);
   const vocab = buildVocabulary(s);
   const parsed = parseQuery(query, vocab);
   // Dates are read where the asker is (D31): "today" is their today.
   const zone = zoneOf(ctx);
-  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone, commentSeen: commentSeenSql(view), fieldSeen: (fieldId) => fieldSeenSql(view, full, fieldId) });
+  const compiled = compileQuery(parsed, { s, meId: ctx.actor.user.id, timeZone: zone, commentSeen: commentSeenSql(view), fieldSeen: (fieldId) => fieldSeenSql(reader, full, fieldId) });
   if (extra?.projectId) {
     const scope = sql`${issues.projectId} = ${extra.projectId}`;
     compiled.where = compiled.where ? sql`(${scope} AND ${compiled.where})` : scope;

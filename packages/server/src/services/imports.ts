@@ -49,7 +49,7 @@ import { AppError, asSentence, badRequest, conflict, notFound } from '../lib/err
 import { newId } from '../lib/ids';
 import { excerpt, normalizeName } from '../lib/text';
 import { localDate, timeZoneOrThrow } from '../reports/tz';
-import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject } from './access';
+import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject, visibleSchema } from './access';
 import { formatBytes, storeAttachment, type UploadTarget } from './attachments';
 import { changeSprintInTx } from './boards';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
@@ -105,7 +105,9 @@ export interface Context {
 
 export async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
   const s = await ctx.app.schema.get();
-  const fields = (s.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
+  // The fields as whoever imports sees them: a private one kept from them maps to nothing (D50).
+  const own = await visibleSchema(ctx);
+  const fields = (own.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
   // In a project only its people see, only they can be its reporters, assignees and comment
   // authors: someone else would own, or be told about, an issue they can't open.
   let users = [...s.users.values()].filter((u) => !u.banned);

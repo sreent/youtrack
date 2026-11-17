@@ -46,7 +46,7 @@ import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
 import { lex } from '../search/lexer';
 import { suggest } from '../search/suggest';
-import { assertCanManageProject, canReadProject, projectAccess, requireProject, scopeFields, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
+import { assertCanManageProject, canReadProject, projectAccess, requireProject, scopeFields, touchesNoHiddenSql, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
 import { issueRefsById } from '../services/issue-refs';
 import { findVisibleIssue } from '../services/issues';
 import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
@@ -487,8 +487,11 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
  */
 async function visibleRuns(ctx: Ctx): Promise<SQL | null> {
   const visible = await visibleProjectIds(ctx);
-  if (visible === null) return null;
-  return visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`;
+  // A run that changed a private field kept from the reader isn't in their log: its words say the change (D50).
+  const kept = touchesNoHiddenSql(await projectAccess(ctx), await ctx.app.schema.get(), sql`${ruleRuns.projectId}`, sql`${ruleRuns.changes}`) ?? null;
+  if (visible === null) return kept;
+  const inProjects = visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`;
+  return kept ? sql`(${inProjects} AND ${kept})` : inProjects;
 }
 
 async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {

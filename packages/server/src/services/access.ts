@@ -284,7 +284,7 @@ async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' 
   for (const r of rows) {
     if (limit && !limit.has(r.id)) continue;
     const g = actor.user.banned ? null : grantFor(admin, actor.user.id, r, all);
-    if (g) grants.set(r.id, g);
+    if (g) grants.set(r.id, actor.app ? withoutPrivateFields(g) : g);
   }
   return new AccessView(admin, actor.scopes, grants, admin && !limit && !actor.user.banned, actor.user.id, groupIds);
 }
@@ -881,6 +881,14 @@ export function requesterSees(project: ProjectRow, viewer: { id: string; email: 
  */
 export type FieldReader = AccessView | null;
 
+/**
+ * A person's grant as an app acting for them holds it (D48): without the private fields. An app is
+ * granted issues, not what a project's managers keep to some people; its own agent never had them.
+ */
+function withoutPrivateFields(g: Grant): Grant {
+  return { ...g, permissions: new Set([...g.permissions].filter((p) => p !== 'readPrivate' && p !== 'editPrivate')) };
+}
+
 /** Whether they read a project's private fields: their values, and the changes to them. */
 export function readsPrivateIn(view: FieldReader, projectId: string): boolean {
   return Boolean(view?.allows(projectId, 'readPrivate'));
@@ -1019,6 +1027,21 @@ export function eventsFieldsSql(view: FieldReader, s: SchemaSnapshot): SQL | und
     parts.push(
       sql`NOT (${activities.projectId} = ${projectId} AND ${activities.type} = 'issue.updated' AND jsonb_typeof(${activities.payload}->'changes') = 'array' AND jsonb_array_length(${activities.payload}->'changes') > 0 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(${activities.payload}->'changes') seen_fc WHERE lower(seen_fc->>'field') NOT IN (${list(names)})))`,
     );
+  }
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
+}
+
+/**
+ * SQL over rows that keep changes as a JSON array beside a project (a rule's runs): leaves out a row
+ * with any change to a field kept from them, since what else it says words that change too.
+ */
+export function touchesNoHiddenSql(view: FieldReader, s: SchemaSnapshot, projectId: SQL, changes: SQL): SQL | undefined {
+  const parts: SQL[] = [];
+  for (const [id, ids] of hiddenFields(view, s)) {
+    const names = [...hiddenNames(s, ids)];
+    if (names.length) {
+      parts.push(sql`NOT (${projectId} = ${id} AND jsonb_typeof(${changes}) = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(${changes}) seen_rc WHERE lower(seen_rc->>'field') IN (${list(names)})))`);
+    }
   }
   return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
 }
