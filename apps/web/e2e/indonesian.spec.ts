@@ -78,7 +78,7 @@ test('speaks Indonesian where the browser asks for it, dates and all', async ({ 
   await page.goto('/me');
   await expect(page.getByRole('heading', { name: 'Profil', exact: true })).toBeVisible();
   await expect(page.getByLabel('Bahasa', { exact: true })).toHaveValue('');
-  await expect(page.getByLabel('Bahasa', { exact: true }).locator('option:checked')).toHaveText('Bahasa browser Anda: Bahasa Indonesia');
+  await expect(page.getByLabel('Bahasa', { exact: true }).locator('option:checked')).toHaveText('Bahasa browser: Bahasa Indonesia');
   // The picker names each language as its readers do, Indonesian among them.
   await expect(page.getByLabel('Bahasa', { exact: true }).locator('option[value="id"]')).toHaveText('Bahasa Indonesia');
   await shoot(page, info, 'profile');
