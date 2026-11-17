@@ -15,7 +15,7 @@ import { currentIds } from './aliases';
 import { articleRefsById } from './article-refs';
 import { findIssue } from './issues';
 import { issueRefsById, readableId } from './issue-refs';
-import type { SchemaSnapshot } from './schema-cache';
+import { idWithKeyNow, type SchemaSnapshot } from './schema-cache';
 
 export type MentionSource =
   | { type: 'issue'; id: string; projectId: string }
@@ -37,7 +37,8 @@ export async function indexMentions(db: Db, s: SchemaSnapshot, source: MentionSo
   // An id an issue had before it moved names the issue by the id it has now (D41).
   const now = await currentIds(db, s, refs.filter((r) => r.kind === 'issue').map((r) => r.id));
   for (const found of refs) {
-    const ref = found.kind === 'issue' && now.get(found.id) !== found.id ? { ...found, id: now.get(found.id)! } : found;
+    // An article's id under a key its project had before it was renamed names it as it reads now (D52).
+    const ref = found.kind === 'issue' && now.get(found.id) !== found.id ? { ...found, id: now.get(found.id)! } : found.kind === 'article' ? { ...found, id: idWithKeyNow(s, found.id) } : found;
     if (seen.has(ref.id) || ref.id === self?.toUpperCase() || !s.projectsByKey.has(ref.key)) continue;
     seen.add(ref.id);
     rows.push({

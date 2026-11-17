@@ -12,6 +12,7 @@ import { createHttpApp } from '../src/http/app';
 import { AppError } from '../src/lib/errors';
 import { searchIssues } from '../src/search/service';
 import { eventFeed } from '../src/services/activity';
+import { createArticle, getArticle } from '../src/services/articles';
 import { addComment } from '../src/services/comments';
 import { createDashboard, getDashboard } from '../src/services/dashboards';
 import { createIssue, findIssue, getIssue, updateIssue } from '../src/services/issues';
@@ -104,6 +105,14 @@ describe("renaming a project's key", () => {
     const later = await createIssue(ben, { project: 'WEB', summary: 'Names the old id later', description: 'Like RNA-1' });
     await runMentions(since);
     expect((await mentionsOf(ben, 'RNB-1')).issues.map((i) => i.id).sort()).toEqual([mentioning.id, later.id].sort());
+    // An article's old id, written after the rename, counts as its id now.
+    const article = await createArticle(anna, { project: 'RNB', title: 'How renames work', body: 'Keys stay.' });
+    expect(article.id).toBe('RNB-A-1');
+    const since2 = await lastEventId();
+    const naming = await createIssue(ben, { project: 'WEB', summary: 'Names the article by its old id', description: 'Read RNA-A-1 first.' });
+    await runMentions(since2);
+    expect((await mentionsOf(ben, 'RNB-A-1')).issues.map((i) => i.id)).toEqual([naming.id]);
+    expect((await getArticle(ben, 'RNA-A-1')).id).toBe('RNB-A-1');
     // New issues take the new key; the old one is never given to another issue.
     expect((await createIssue(anna, { project: 'RNA', summary: 'Filed by the old key' })).id).toBe('RNB-3');
     // History is left as it was written, and its ids find the issues.
