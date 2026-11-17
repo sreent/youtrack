@@ -1395,6 +1395,7 @@
   "issues.issueHistory.fromABuild": "desde una compilación",
   "issues.issueHistory.fromVersionControl": "desde el control de versiones",
   "issues.issueHistory.getsItByEmailAnd": "{requester} lo recibe por correo y lo ve en la página de su solicitud.",
+  "issues.issueHistory.getsItByEmailAndCopied": "{requester} y {count, plural, one {# persona en copia} other {# personas en copia}} lo reciben por correo y lo ven en la página de la solicitud.",
   "issues.issueHistory.historyAndComments": "Historial y comentarios",
   "issues.issueHistory.importedItFrom": "la importó de {from} ({v}){on}",
   "issues.issueHistory.internalNote": "Nota interna",

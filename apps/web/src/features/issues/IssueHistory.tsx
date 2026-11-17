@@ -356,8 +356,8 @@ function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: Rea
   );
 }
 
-/** Who sees a comment on a help desk request: the team alone, or the requester too, by email. */
-function Visibility({ value, onChange, requester }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string }) {
+/** Who sees a comment on a help desk request: the team alone, or the requester too, by email, and everyone copied on it (D57). */
+function Visibility({ value, onChange, requester, copied }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string; copied: number }) {
   return (
     <div className="stack tight">
       <div className="modes" role="group" aria-label={t('issues.issueHistory.whoSeesThisComment')}>
@@ -365,7 +365,11 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
         <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>{tr('issues.issueHistory.replyTo', { requester: requester })}</button>
       </div>
       <p className="field-help" id="visibility-help">
-        {value === 'public' ? t('issues.issueHistory.getsItByEmailAnd', { requester: requester }) : t('issues.issueHistory.onlyTheTeamSeesIt', { requester: requester })}
+        {value === 'public'
+          ? copied
+            ? t('issues.issueHistory.getsItByEmailAndCopied', { requester, count: copied })
+            : t('issues.issueHistory.getsItByEmailAnd', { requester: requester })
+          : t('issues.issueHistory.onlyTheTeamSeesIt', { requester: requester })}
       </p>
     </div>
   );
@@ -600,7 +604,7 @@ export function IssueHistory({
             pick([...e.dataTransfer.files]);
           }}
         >
-          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} copied={request.data?.ccs.length ?? 0} /> : null}
           {limit && !(requester && canReply && visibility === 'public') ? (
             <LimitPicker value={limit} onChange={setLimit} always={t('issues.issueHistory.youSManagersAndAdministrators', { key: issue.project.key })} />
           ) : null}

@@ -1395,6 +1395,7 @@
   "issues.issueHistory.fromABuild": "ビルドから",
   "issues.issueHistory.fromVersionControl": "バージョン管理から",
   "issues.issueHistory.getsItByEmailAnd": "{requester}にメールで届き、リクエストのページにも表示されます。",
+  "issues.issueHistory.getsItByEmailAndCopied": "{requester}とCCの{count, plural, other {#人}}にメールで届き、リクエストのページにも表示されます。",
   "issues.issueHistory.historyAndComments": "履歴とコメント",
   "issues.issueHistory.importedItFrom": "{from}（{v}）からインポートしました{on}",
   "issues.issueHistory.internalNote": "内部メモ",
