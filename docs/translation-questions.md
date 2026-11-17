@@ -216,6 +216,40 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
 - `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
+## Indonesian
+
+Indonesian came later than the others, in one pass, by a model working from English, the code and [translating.md](translating.md): nobody has read it again yet, native speaker or not.
+
+Terms:
+
+- **Issue** is *isu*. *Tiket* reads as a help desk's, *masalah* as a problem, which a feature request isn't; many teams simply say "issue". Is *isu* what an Indonesian team would write?
+- **Help desk** is *layanan bantuan*, since its customers read it too (`app.shell`, `page.portal.*`, `server.helpdesk.*`). IT teams mostly say *helpdesk*: is the plain word right for a team's own pages?
+- **Requester** is *pemohon*, which can read as a government form's applicant. *Peminta* and *pelanggan* (a customer, not always right) were the alternatives.
+- **Assignee** is *penerima tugas*, as Google's and Microsoft's Indonesian say it. Offices say *PIC*; *penanggung jawab* was the other candidate.
+- **Viewer** is *pelihat*, Google Drive's word; *pembaca* reads more naturally, but means a reader of text. **Manager** is *manajer*, **member** *anggota*, **guest** *tamu*.
+- **Copied on a request (CC)** is *tembusan*, from Indonesian letters: "menerima tembusan", "tambahkan ke tembusan", "hapus dari tembusan". Email users mostly say "CC" (`helpdesk.requestCcs.*`, `page.portal.copy*`, `server.helpdesk.cc.*`).
+- **Field** is *bidang*, Microsoft's word; *kolom* would clash with a board's columns, and many teams just say "field".
+- **Login**, the handle a person signs in with, is *nama pengguna*, beside *nama* for their name. Does "Nama pengguna" beside "Nama" on the same form read clearly (`page.admin`, `app.auth`)?
+- **Digest** is *ikhtisar*, since an issue's summary is already *ringkasan*.
+- **Days away** is *ketidakhadiran*, and **away** *tidak hadir*. *Cuti* is leave, which a sick day or a training isn't; is *ketidakhadiran* too formal for a calendar?
+- **Levelling** is *perataan beban*, **slack** *kelonggaran*, **earned value** *nilai hasil (EV)*, **booked** *dialokasikan*. Indonesian project managers often keep the English (float, earned value): which would they read faster?
+- **Kept as Indonesian teams say them**: sprint, backlog, story point, velocity, burndown, baseline, milestone, commit, pull request, branch, build, webhook, token, widget, timer and secret. Should any be Indonesian?
+- **The navigation's groups**: *Pekerjaan*, *Rencana*, *Keputusan*, *Penyiapan* (Build: projects, rules, fields, import) and *Pemantauan* (Oversee). *Pemantauan* sits beside *pantau*, which is "watch" for an issue's watchers.
+- **A guard rule** is *aturan penjaga*, a state machine's **moves** are *langkah*, and **triage** is *triase*, the hospital's word.
+
+Phrasing:
+
+- **Undo** is *Batalkan*, and the history says *membatalkan perubahan* (`issues.issueHistory.undo*`, `activity.ledgerEntry.undidAnAgentSChange`), close to *Batal* for Cancel. Google's Indonesian says *Urungkan*.
+- **The history and the ledger carry no tense word**: "Ada mengubah status", not "telah mengubah". Does that read as done?
+- **A ledger's badges** are active phrases, as English's are (`activity.ledgerEntry.badge*`): "berkomentar", "mencatat kerja", "memanggil keluar". The last is stiff for a webhook's call.
+- **A link's own words are data**: in a rule's sentence, "semua isu yang {v} cocok dengan {query}" takes a link type's English, "semua isu yang depends on cocok dengan …" (`rules.words.allLinkedMatchQuery` and its siblings).
+- `rules.words.tellNobody`, "jangan beri tahu siapa pun “…”", for a rule that tells no one, reads as an order not to tell.
+- `server.chat.subscribed`: "{name} membuat saluran ini berlangganan" for someone subscribing a channel.
+- **The help desk's emails** say *Anda*, with no *Yth.*, *Bapak/Ibu* or greeting, as English has none (`server.helpdesk.*`, `server.portal.*`). Is that courteous enough for a company writing to its customers?
+- **Your address** in the help desk's limits is *alamat IP Anda* (`problem.helpdesk.tooManyFromAddress` and its siblings), since *alamat* alone could be an email.
+- `page.profile.you` is *Tentang Anda*, a heading, and `notifications.emailSettings.youHaveNoEmailAddress` points to it.
+- **The issue list's count** joins a search's parts with a comma, as Intl's narrow list does in Indonesian: "4 isu di proyek SPR, belum selesai". *dan* would read more smoothly between two.
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
@@ -226,3 +260,4 @@ These need the code to change, not a catalog:
 - **A rule run's changes** (`rules.run.changed`, `alsoChanged`) are fields and values the server joins with English punctuation: "State: Open → Fixed; Priority: — → High".
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
 - **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese would use 「、」.
+- **Indonesian times**: Intl writes them with a point, "14.05", as Indonesia does, and the issue's history shows that; but a time earlier today is written by the page's code as "14:05" (`whenRead` in the web's `format.ts`), so a page can show both.

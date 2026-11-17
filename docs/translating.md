@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese and French are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Indonesian are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,11 +117,11 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French or Japanese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese or Indonesian yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
-A language is a catalog, as Spanish, Japanese and French came:
+A language is a catalog, as Spanish, Japanese, French and Indonesian came:
 
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
@@ -391,7 +391,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Typography**: sentence case, as English's; quotation marks “…”, ‘…’ inside them; the one-character ellipsis (…); no space before ":", "?" or "!". An Indonesian prefix on an English word takes a hyphen, as EYD writes it ("di-merge"), and an Indonesian verb is taken where there is one ("diunggah", not "di-upload").
 - **Plurals**: Indonesian doesn't inflect for number, and doesn't double a noun after a number or a word of quantity ("3 isu", "semua isu", "beberapa komentar"; never "3 isu-isu"), so each plural keeps `other` alone: `{n, plural, other {# isu}}`. Where English words none or exactly one apart and Indonesian does too, `=0` or `=1` stays beside it: `{n, plural, =0 {Tidak ada isu} other {# isu}}`. A noun without a number is the same for one or many: "Isu" heads the page of them.
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who, in bold, then what was done. So an action is an active verb phrase, with its meN- prefix and no subject: "membuat {issue}", "mengomentari", "melaporkan", "menugaskannya kepada Anda". A badge is a short noun or a passive: "Isu dihapus".
+  - The activity ledger, an issue's history and notifications show who, in bold, then what was done. So an action is an active verb phrase, with its meN- prefix and no subject: "membuat {issue}", "mengomentari", "melaporkan", "menugaskannya kepada Anda". A ledger's badge says what its kind of event does, the same way and as English's do: "berkomentar", "menghapus isu".
   - A webhook's events are joined into "Ketika {join}", with Intl's "atau", so each is a passive clause: "isu dibuat", "komentar ditambahkan".
   - A rule is one sentence, in English's order, which Indonesian shares: its trigger and conditions are clauses, its actions are imperatives, and the words in `<t0>` are "Saat", "jika" and "maka": "<t0>Saat</t0> isu dibuat, <t0>jika</t0> cocok dengan Type: Bug, <t0>maka</t0> terapkan Assignee anna".
   - A loading line is a whole message, one per thing (`loadingLine.*`): "Memuat" and the thing, "Memuat rencana…", "Memuat permintaan Anda…", "Memuat {name}…", and "Memuat…" where nothing is named.
@@ -426,7 +426,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | report (an issue), reported | melaporkan, dilaporkan |
 | assignee, assign | penerima tugas, tugaskan |
 | agent | agen |
-| assistant (its name), the assistant | asisten |
+| assistant (its name), the assistant | assistant, asisten |
 | conversation (with the assistant) | percakapan |
 | workflow | alur kerja |
 | rule | aturan |
