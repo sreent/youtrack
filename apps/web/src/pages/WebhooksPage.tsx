@@ -55,6 +55,10 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'board.issue_ranked': t('page.webhooks.anIssueIsRankedOnABoard'),
   'request.cc_added': t('page.webhooks.someoneIsCopiedOnARequest'),
   'request.cc_removed': t('page.webhooks.someoneStopsBeingCopied'),
+  'whiteboard.created': t('page.webhooks.aWhiteboardIsMade'),
+  'whiteboard.renamed': t('page.webhooks.aWhiteboardIsRenamed'),
+  'whiteboard.deleted': t('page.webhooks.aWhiteboardIsDeleted'),
+  'whiteboard.converted': t('page.webhooks.issuesAreMadeFromAWhiteboard'),
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */

@@ -267,6 +267,13 @@
       "when": 1794921004113,
       "tag": "0037_chat_issue_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794928239375,
+      "tag": "0038_whiteboards",
+      "breakpoints": true
     }
   ]
 }

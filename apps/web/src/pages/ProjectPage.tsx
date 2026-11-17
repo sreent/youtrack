@@ -243,6 +243,7 @@ export default function ProjectPage() {
             <Link className="button" to={`/issues?q=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>{t('page.project.openItsIssues')}</Link>
             <Link className="button" to={`/plan/${p.key}`}>{t('page.project.openItsPlan')}</Link>
             <Link className="button" to={`/rules/${p.key}`}>{t('page.project.openItsRules')}</Link>
+            <Link className="button" to={`/whiteboards?project=${encodeURIComponent(p.key)}`}>{t('page.project.openItsWhiteboards')}</Link>
           </>
         }
       />

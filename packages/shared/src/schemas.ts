@@ -15,6 +15,9 @@ import {
   FIELD_TYPES,
   HELP_LIMITS,
   REQUEST_CC_VIA,
+  WHITEBOARD_KINDS,
+  WHITEBOARD_LIMITS,
+  WHITEBOARD_TONES,
   LEVELING_MODES,
   NOTIFICATION_KINDS,
   PLAY_KINDS,
@@ -4231,3 +4234,218 @@ export const SuggestedSummarySchema = z
   })
   .meta({ id: 'SuggestedSummary' });
 export type SuggestedSummary = z.infer<typeof SuggestedSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// Whiteboards (D58)
+// ---------------------------------------------------------------------------
+
+const wbCoord = z.number().finite().min(-WHITEBOARD_LIMITS.coordinate).max(WHITEBOARD_LIMITS.coordinate);
+const wbSize = z.number().finite().min(WHITEBOARD_LIMITS.minSize).max(WHITEBOARD_LIMITS.maxSize);
+const wbZ = z.number().finite().min(-1e9).max(1e9);
+const wbText = z.string().max(WHITEBOARD_LIMITS.text);
+const wbLabel = z.string().max(WHITEBOARD_LIMITS.label);
+
+export const WhiteboardElementId = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{6,64}$/, 'An element’s id is 6 to 64 letters, digits, hyphens or underscores')
+  .describe('Chosen by whoever adds it (a random UUID will do), so an arrow can name an element added in the same batch, and undoing a removal adds it back as it was');
+
+export const WhiteboardElementSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, or section (a frame that groups what lies inside it)'),
+    x: z.number(),
+    y: z.number(),
+    w: z.number(),
+    h: z.number(),
+    z: z.number().describe('Stacking order: higher is drawn over lower'),
+    text: z.string().nullable().describe("A note's or a text block's words; a section's title"),
+    tone: z.enum(WHITEBOARD_TONES).nullable().describe("A note's tone: what it is, as a meaning (an idea, agreed, a question, a problem, parked)"),
+    label: z.string().nullable().describe("An arrow's label"),
+    from: z.string().nullable().describe("An arrow's start: an element's id"),
+    to: z.string().nullable().describe("An arrow's end: an element's id"),
+    linked: z.string().nullable().describe('An arrow made into a link between its two issues: the link, as said from its start, e.g. "depends on"'),
+    seq: z.number().int().describe('The whiteboard’s change that last changed it'),
+    version: z.number().int().describe('Raised by each change to it'),
+    updatedAt: timestamp,
+    updatedBy: UserRefSchema.nullable(),
+  })
+  .meta({ id: 'WhiteboardElement' });
+export type WhiteboardElement = z.infer<typeof WhiteboardElementSchema>;
+
+/**
+ * What an issue or article card holds, as the caller may see it now. One they may not see (limited,
+ * a project they're not in, deleted) is `shown: false` and nothing else, the same for every reason.
+ */
+export const WhiteboardCardSchema = z
+  .object({
+    element: z.string(),
+    shown: z.boolean(),
+    id: z.string().optional().describe('BACK-12, or BACK-A-3 for an article'),
+    summary: z.string().optional().describe("The issue's summary, or the article's title"),
+    state: OptionValueSchema.nullable().optional(),
+    assignee: UserRefSchema.nullable().optional(),
+    resolved: z.boolean().optional(),
+  })
+  .meta({ id: 'WhiteboardCard' });
+export type WhiteboardCard = z.infer<typeof WhiteboardCardSchema>;
+
+export const WhiteboardViewerSchema = z
+  .object({ user: UserRefSchema, since: timestamp.describe('Looking since') })
+  .meta({ id: 'WhiteboardViewer' });
+export type WhiteboardViewer = z.infer<typeof WhiteboardViewerSchema>;
+
+export const WhiteboardSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    project: ProjectRefSchema,
+    createdBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    seq: z.number().int().describe('Its latest change; its live stream resumes after it'),
+    elements: z.number().int(),
+    access: z.object({
+      edit: z.boolean().describe('May change it: whoever may change its project’s issues'),
+      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers'),
+    }),
+  })
+  .meta({ id: 'Whiteboard' });
+export type Whiteboard = z.infer<typeof WhiteboardSchema>;
+
+export const WhiteboardDetailSchema = z
+  .object({
+    whiteboard: WhiteboardSchema,
+    elements: z.array(WhiteboardElementSchema),
+    cards: z.array(WhiteboardCardSchema),
+    viewers: z.array(WhiteboardViewerSchema).describe('Who is looking at it now'),
+  })
+  .meta({ id: 'WhiteboardDetail' });
+export type WhiteboardDetail = z.infer<typeof WhiteboardDetailSchema>;
+
+export const WhiteboardCreateBody = z.object({
+  project: z.string().trim().min(1).max(40).describe('Its project, by key: who reads the project reads it, and who may change its issues changes it'),
+  name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name),
+});
+export const WhiteboardRenameBody = z.object({ name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name) });
+
+const wbSet = z.object({ x: wbCoord, y: wbCoord, w: wbSize, h: wbSize, z: wbZ, text: wbText, tone: z.enum(WHITEBOARD_TONES), label: wbLabel }).partial();
+
+export const WhiteboardOpSchema = z.discriminatedUnion('op', [
+  z.object({
+    op: z.literal('add'),
+    id: WhiteboardElementId,
+    kind: z.enum(WHITEBOARD_KINDS),
+    x: wbCoord,
+    y: wbCoord,
+    w: wbSize.optional(),
+    h: wbSize.optional(),
+    z: wbZ.optional(),
+    text: wbText.optional(),
+    tone: z.enum(WHITEBOARD_TONES).optional(),
+    label: wbLabel.optional(),
+    issue: z.string().trim().min(1).max(40).optional().describe('An issue card: the issue, e.g. BACK-12'),
+    article: z.string().trim().min(1).max(40).optional().describe('An article card: the article, e.g. BACK-A-3'),
+    from: WhiteboardElementId.optional().describe("An arrow's start"),
+    to: WhiteboardElementId.optional().describe("An arrow's end"),
+  }),
+  z.object({
+    op: z.literal('update'),
+    id: WhiteboardElementId,
+    set: wbSet.refine((v) => Object.keys(v).length > 0, 'Say what changes'),
+    expect: wbSet.optional().describe('Values it must still have, or this change is refused for it alone; the rest of the batch goes on'),
+  }),
+  z.object({ op: z.literal('remove'), id: WhiteboardElementId, expect: wbSet.optional() }),
+]);
+export type WhiteboardOp = z.infer<typeof WhiteboardOpSchema>;
+
+export const WhiteboardBatchBody = z.object({
+  ops: z.array(WhiteboardOpSchema).min(1).max(WHITEBOARD_LIMITS.ops),
+  client: z.string().trim().max(64).optional().describe('Which of a person’s tabs sent it: the live stream says it back, so a page knows its own changes'),
+});
+export type WhiteboardBatchInput = z.input<typeof WhiteboardBatchBody>;
+
+export const WhiteboardBatchResultSchema = z
+  .object({
+    seq: z.number().int(),
+    applied: z.array(z.string()).describe('The elements this batch added, changed or removed'),
+    elements: z.array(WhiteboardElementSchema).describe('Each element it added or changed, as it is now'),
+    removed: z.array(z.string()).describe('What it removed, arrows to removed elements included'),
+    refused: z
+      .array(
+        z.object({
+          id: z.string(),
+          op: z.enum(['add', 'update', 'remove']),
+          reason: z.enum(['gone', 'changed', 'exists']).describe('gone: no such element (removed meanwhile); changed: it no longer has what `expect` said; exists: an element has that id'),
+          element: WhiteboardElementSchema.nullable().describe('The element as it is now, if there is one'),
+        }),
+      )
+      .describe('Changes not made, each for its element alone'),
+  })
+  .meta({ id: 'WhiteboardBatchResult' });
+export type WhiteboardBatchResult = z.infer<typeof WhiteboardBatchResultSchema>;
+
+/** What a page shows of a problem with one item among several, beside the API's English (D49). */
+export const ItemProblemSchema = z
+  .object({
+    message: z.string(),
+    hint: z.string().optional(),
+    said: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).describe('The same problem, for a page to say in its language'),
+  })
+  .meta({ id: 'ItemProblem' });
+export type ItemProblem = z.infer<typeof ItemProblemSchema>;
+
+export const WhiteboardConvertBody = z
+  .object({
+    project: z.string().trim().min(1).max(40).optional().describe('Where the notes’ issues go, by key: a project you may report issues in. Needed with notes'),
+    notes: z.array(WhiteboardElementId).max(WHITEBOARD_LIMITS.convert).default([]).describe('Notes to make issues of: each note’s first line is the summary, the rest the description'),
+    links: z
+      .array(
+        z.object({
+          arrow: WhiteboardElementId,
+          relation: z.string().trim().min(1).max(100).describe('How the issue at its start relates to the one at its end, e.g. "depends on", "relates to"'),
+        }),
+      )
+      .max(WHITEBOARD_LIMITS.convert)
+      .default([])
+      .describe('Arrows between cards that are issues, or become issues here, to make links of'),
+    dryRun: z.boolean().default(false).describe('Say what would happen, and change nothing'),
+  })
+  .refine((v) => v.notes.length + v.links.length > 0, 'Name a note or an arrow');
+export type WhiteboardConvertInput = z.input<typeof WhiteboardConvertBody>;
+
+export const WhiteboardConvertResultSchema = z
+  .object({
+    dryRun: z.boolean(),
+    seq: z.number().int(),
+    notes: z.array(
+      z.object({
+        element: z.string(),
+        ok: z.boolean(),
+        issue: z.string().optional().describe('The issue it became; absent in a dry run'),
+        summary: z.string().optional(),
+        already: z.boolean().optional().describe('It was an issue already: nothing was made'),
+        problem: ItemProblemSchema.optional(),
+      }),
+    ),
+    links: z.array(
+      z.object({
+        element: z.string(),
+        ok: z.boolean(),
+        link: z.string().optional().describe('e.g. "BACK-12 depends on BACK-13"'),
+        made: z.boolean().optional().describe('False when the link was there already: it is never made twice'),
+        problem: ItemProblemSchema.optional(),
+      }),
+    ),
+  })
+  .meta({ id: 'WhiteboardConvertResult' });
+export type WhiteboardConvertResult = z.infer<typeof WhiteboardConvertResultSchema>;
+
+/** A change on a whiteboard's live stream: what one batch or conversion left, for everyone looking. */
+export interface WhiteboardChangeFrame {
+  seq: number;
+  by: UserRef | null;
+  client: string | null;
+  elements: WhiteboardElement[];
+  removed: string[];
+}
