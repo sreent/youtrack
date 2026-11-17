@@ -4933,6 +4933,8 @@
   "rules.words.whoOfEachSubtask": "{who, select, assignee {la persona responsable de cada subtarea} reporter {quien notificó cada subtarea} other {quienes siguen cada subtarea}}",
   "rules.words.whoOfIssue": "{who, select, assignee {su responsable} reporter {quien la notificó} other {quienes la siguen}}",
   "rules.words.whoOfParent": "{who, select, assignee {la persona responsable de su incidencia padre} reporter {quien notificó su incidencia padre} other {quienes siguen su incidencia padre}}",
+  "server.access.articleYouCantSee": "un artículo que no puedes ver",
+  "server.access.issueYouCantSee": "una incidencia que no puedes ver",
   "server.chat.about.aSavedSearch": "una búsqueda guardada",
   "server.chat.about.project": "{what} en {project}",
   "server.chat.about.search": "{what} de las incidencias de “{search}”",

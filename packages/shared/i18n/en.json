@@ -4933,6 +4933,8 @@
   "rules.words.whoOfEachSubtask": "{who, select, assignee {each subtask's assignee} reporter {each subtask's reporter} other {each subtask's watchers}}",
   "rules.words.whoOfIssue": "{who, select, assignee {its assignee} reporter {its reporter} other {its watchers}}",
   "rules.words.whoOfParent": "{who, select, assignee {its parent's assignee} reporter {its parent's reporter} other {its parent's watchers}}",
+  "server.access.articleYouCantSee": "an article you can’t see",
+  "server.access.issueYouCantSee": "an issue you can’t see",
   "server.chat.about.aSavedSearch": "a saved search",
   "server.chat.about.project": "{what} in {project}",
   "server.chat.about.search": "{what} to issues in “{search}”",

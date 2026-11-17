@@ -4933,6 +4933,8 @@
   "rules.words.whoOfEachSubtask": "{who, select, assignee {各サブタスクの担当者} reporter {各サブタスクの報告者} other {各サブタスクのウォッチャー}}",
   "rules.words.whoOfIssue": "{who, select, assignee {この課題の担当者} reporter {この課題の報告者} other {この課題のウォッチャー}}",
   "rules.words.whoOfParent": "{who, select, assignee {親課題の担当者} reporter {親課題の報告者} other {親課題のウォッチャー}}",
+  "server.access.articleYouCantSee": "閲覧できない記事",
+  "server.access.issueYouCantSee": "閲覧できない課題",
   "server.chat.about.aSavedSearch": "保存した検索",
   "server.chat.about.project": "{project}の{what}",
   "server.chat.about.search": "保存した検索「{search}」の{what}",

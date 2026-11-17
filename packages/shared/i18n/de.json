@@ -4933,6 +4933,8 @@
   "rules.words.whoOfEachSubtask": "{who, select, assignee {die zugewiesene Person jeder Unteraufgabe} reporter {die meldende Person jeder Unteraufgabe} other {die Beobachtenden jeder Unteraufgabe}}",
   "rules.words.whoOfIssue": "{who, select, assignee {die zugewiesene Person des Vorgangs} reporter {die meldende Person des Vorgangs} other {die Beobachtenden des Vorgangs}}",
   "rules.words.whoOfParent": "{who, select, assignee {die zugewiesene Person seines übergeordneten Vorgangs} reporter {die meldende Person seines übergeordneten Vorgangs} other {die Beobachtenden seines übergeordneten Vorgangs}}",
+  "server.access.articleYouCantSee": "ein Artikel, den Sie nicht sehen können",
+  "server.access.issueYouCantSee": "ein Vorgang, den Sie nicht sehen können",
   "server.chat.about.aSavedSearch": "eine gespeicherte Suche",
   "server.chat.about.project": "{what} in {project}",
   "server.chat.about.search": "{what} zu Vorgängen in „{search}“",

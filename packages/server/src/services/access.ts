@@ -38,10 +38,12 @@ import {
   type Scope,
   type TrackerEvent,
 } from '@a4a/shared';
+import type { Translator } from '@a4a/shared/i18n';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities, comments, groupMembers, issueAliases, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
+import { translatorFor } from '../i18n';
 import { badRequest, forbidden, notFound } from '../lib/errors';
 import { fieldByName, keysOfProject, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 
@@ -623,11 +625,12 @@ export function canReadIssueId(view: AccessView, s: SchemaSnapshot, readable: un
 
 /**
  * Words an agent wrote that name issues by id (a triage's summary, its reasons), with the ids of
- * issues the caller can't see taken out. People's own words (comments) are left as they wrote them.
+ * issues the caller can't see taken out, in their reader's language (`tr`, D49). People's own words
+ * (comments) are left as they wrote them.
  */
-export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapshot): string {
+export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapshot, tr: Translator): string {
   if (view.visibleIds() === null) return text;
-  return text.replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (canReadIssueId(view, s, id) || !s.projectsByKey.has(keyOfReadableId(id)!) ? id : 'an issue you can’t see'));
+  return text.replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (canReadIssueId(view, s, id) || !s.projectsByKey.has(keyOfReadableId(id)!) ? id : tr.t('server.access.issueYouCantSee')));
 }
 
 /**
@@ -635,6 +638,7 @@ export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapsho
  */
 export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const tr = translatorFor(ctx.locale);
   const named = [...new Set(text.match(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g) ?? [])];
   if (!named.length) return redactUnseenArticleIds(ctx, text);
   const rows: { readable: string; id: string }[] = [];
@@ -647,7 +651,7 @@ export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   }
   const seen = await seenIssueIds(ctx, rows.map((r) => r.id));
   const hidden = new Set(rows.filter((r) => !seen.has(r.id)).map((r) => r.readable.toUpperCase()));
-  return redactUnseenArticleIds(ctx, redactHiddenIds(text, view, s).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? 'an issue you can’t see' : id)));
+  return redactUnseenArticleIds(ctx, redactHiddenIds(text, view, s, tr).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? tr.t('server.access.issueYouCantSee') : id)));
 }
 
 const LINK_EVENTS = ['link.created', 'link.deleted'];
@@ -1291,7 +1295,8 @@ const ARTICLE_ID = /\b([A-Za-z][A-Za-z0-9]*)-A-(\d+)\b/gi;
 
 /**
  * Words an agent wrote, with the ids of articles the caller can't see taken out (D51), as
- * `redactUnseenIds` takes out issues': in a project they can't read, or limited away from them.
+ * `redactUnseenIds` takes out issues': in a project they can't read, or limited away from them;
+ * said in the caller's language (D49).
  */
 export async function redactUnseenArticleIds(ctx: Ctx, text: string): Promise<string> {
   const named = [...new Set([...text.matchAll(ARTICLE_ID)].map((m) => m[0].toUpperCase()))];
@@ -1313,7 +1318,9 @@ export async function redactUnseenArticleIds(ctx: Ctx, text: string): Promise<st
   }
   const seen = await seenArticleIds(ctx, found.map((f) => f.id));
   for (const f of found) if (!seen.has(f.id)) hidden.add(f.readable);
-  return hidden.size ? text.replace(ARTICLE_ID, (id) => (hidden.has(id.toUpperCase()) ? 'an article you can’t see' : id)) : text;
+  if (!hidden.size) return text;
+  const said = translatorFor(ctx.locale).t('server.access.articleYouCantSee');
+  return text.replace(ARTICLE_ID, (id) => (hidden.has(id.toUpperCase()) ? said : id));
 }
 
 // ---------------------------------------------------------------------------
