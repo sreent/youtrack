@@ -427,6 +427,20 @@ Phrasing:
 - **"This instance"** is "Máy chủ này" as a heading (`page.admin.thisInstance`) and "a4a này" in a sentence.
 - **Pronouns**: a person is "người đó" or "họ", and a thing is named again rather than "nó". Some sentences read heavy for it ("lịch sử ghi rằng cân bằng nguồn lực đã dời công việc đó").
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard is "bảng trắng"** (`app.shell.whiteboards`, `page.whiteboards.title`), as Zoom's and Teams' Vietnamese say it; teams may just say "whiteboard". "Xóa bảng trắng {name}?" (`page.whiteboard.deleteTitle`) can also read as wiping it clean; the dialog's text then says what goes.
+- **Its pieces** (`whiteboards.kind.*`): a note is "ghi chú", as the dashboard's is, a card "thẻ", a text "văn bản", a section "khu vực", an arrow "mũi tên", an element "phần tử", the outline "dàn ý" (`page.whiteboard.outline`, as Google Docs says it) and connecting "nối" (`page.whiteboard.connect`). "Phần" for a section would meet "phần đã chọn", writing help's selection. Is "phần tử" too technical, against "đối tượng", Office's word for shapes?
+- **An arrow's label is "chú thích"** (`whiteboards.connectDialog.label`, `whiteboards.textDialog.labelArrow`), since "nhãn" is a tag.
+- **Removing an element is "gỡ bỏ"** (`page.whiteboard.remove`, `page.whiteboard.said.removed`), apart from deleting the whiteboard, "xóa": a card taken off leaves its issue as it was. Would a toolbar's "Xóa" read better?
+- **A note's tones** (`whiteboards.tone.*`): "Thường", "Ý tưởng", "Đã thống nhất", "Câu hỏi", "Khó khăn" for a problem (an issue is "vấn đề") and "Tạm gác" for parked.
+- **Make issues is "Tạo vấn đề"** (`page.whiteboard.convert`, `whiteboards.convertDialog.go`), and a note "trở thành" an issue (`whiteboards.convertDialog.about`).
+- **Writing help is "Hỗ trợ viết"** (`writing.help`), drafting "soạn nháp" ("Soạn nháp bài viết từ nội dung này", `writing.draft`), and a suggestion's title names a version ("Bản ngắn gọn hơn", `writing.suggestion.title`). Discard is "Bỏ qua", as dismissing a triage suggestion is.
+- **A suggested summary is a "tiêu đề"** (`page.issue.suggestASummary`, `page.issue.aClearerSummary`), since it's the issue's title; summarising a thread is "tóm tắt".
+- **ClickUp's List stays "List"** (`imports.fromApi.whichTasksAList`, `problem.imports.source.notAClickupList`), as ClickUp names it, where "danh sách" is any list. A task is "công việc", as the plan's are, and "Personal token" stays English beside "Personal access token" (`imports.fromApi.personalToken`).
+- **A Slack thread is "chuỗi tin nhắn"** (`server.chat.issue.thread`, `page.issue.source.replies`), as Gmail's "chuỗi thư"; "luồng" or "thread" are the alternatives.
+- **Zero is "0 vấn đề"** in `page.whiteboard.said.converted` and `activity.ledgerEntry.whiteboardConverted` ("Đã tạo 0 vấn đề và 2 liên kết."), where English says "no issues".
+
 ## Indonesian
 
 Indonesian came later than the others, in one pass, by a model working from English, the code and [translating.md](translating.md): nobody has read it again yet, native speaker or not.
