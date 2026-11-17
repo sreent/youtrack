@@ -1394,6 +1394,48 @@ People who use a4a don't all read English. a4a says its own words in each person
 
 **Revisit when:** a right-to-left language comes; people want a project's own words (its states, its fields) in several languages; or the API should answer in its caller's language.
 
+### D53. Ranking on the board itself: a card's place and its column in one change, one board at a time
+
+A board already had one order, shared by its backlog and its cards (D43); only the backlog could change it. Now the board can: a card is dragged within its column, or into another column at a place, and its state and its place change together. Its keyboard, a phone and the API do the same.
+
+- **One request, one transaction.** `POST /boards/{id}/rank`, the backlog's, takes the card's `column` (and its `lane`, the `sprint` shown, and the issue's `expectedVersion`) besides `after` or `before`.
+  - Into another column, the board's column field becomes the first of that column's values the issue's project has, through `applyChanges`, the one write path. So a state machine, a guard, a field's condition or a version that has moved on refuses the whole move, its place included, and the card goes back saying why.
+  - Within its column the card keeps its value, so one in a Done column of Fixed and Won't fix stays Won't fix, and its place alone needs no version: an edit to its description doesn't stop a rank.
+  - With a column and neither after nor before (an empty column, or the keyboard's move to the next one), the card keeps its place in the board's order. Without a column it goes to the top, as the backlog's always did.
+  - A move to where the card already is writes nothing and says nothing.
+- **Concurrency.** Every move, the backlog's included, locks the board's row (`FOR NO KEY UPDATE`) before anything else, then the issue's (in `applyChanges`), always in that order.
+  - Two people ranking one column at once both land: the second places its card among the ranks the first left, so two cards put just after the same one end up both after it, the later first.
+  - When a gap is too small for a double to split (or two share a rank), the board's ranks are spaced out again in the same transaction, under the same lock, so a respacing never crosses another move. The server's test of two moves at once fails on Postgres without the lock, and passes with it.
+  - `NO KEY UPDATE` rather than `UPDATE`, so making a sprint, whose foreign key only reads the board's row, doesn't wait for a move.
+  - Ranks are written a thousand rows to a statement. Those that exist are updated in place, so one whose issue was deleted meanwhile is skipped; new ones are inserted after their issues are locked against deletion.
+- **Swimlanes share the board's order.** A lane is the board's order filtered by a field's value, not an order of its own. The backlog has no lanes and shares the order, and a card that changes assignee shouldn't lose its place. So a card dropped into another lane at a place changes its lane's field and its place in the same change, and "just after X" is just after X in X's lane too.
+- **Columns show cards in rank order**, as D43 made them, and the board's view now says its whole order (`order`), so a page places a moved card before the server answers. Placed next to a card without a rank, the rule is D43's, with what the board showed (its cards in the sprint shown) where the backlog uses its own list.
+- **The keyboard does what the pointer does.** On a card's id, Alt and Up or Down moves it a place in its column (and lane); Alt and Left or Right moves it into the next column, keeping its place in the board's order, as a command would leave it.
+  - Left and right keep its place because a state isn't a priority. Putting the card "at the same row" would rank it without anyone choosing where; moved, it can go up or down from there.
+  - Alt and Left or Right is the browser's back and forward too. A card's id takes it, and nothing else on the page does.
+  - The focus stays on the card's id as it moves, put back after each render when it fell to the page, and the card wears the focus ring whole (Ocean's Board), so it's seen wherever it lands.
+  - Each move is said in a live region once saved, in the backlog's words ("Moved BACK-27 above BACK-31.") or the column's ("Moved BACK-27 to In Review, below BACK-19."). At an end, the region says why nothing moved.
+  - Moves go one after another, and a card moved again before its last move is saved is sent with the version that move left. A refusal drops the moves queued behind it on the same card, which were made on top of it.
+- **Touch: a drag waits, a swipe moves.** On a phone the columns are a row to swipe through (D47). A card held still for 220 ms is picked up; a finger that moves 6 px first is a swipe, and the row scrolls and snaps to a column.
+  - Once a card is up, the page doesn't scroll under it, the board scrolls at its edge to the next column, and no long-press menu or text selection starts on it.
+  - Time rather than a handle: a handle would be a second 44 px target on every card, and holding still is how phones pick things up.
+  - The slot where a card would land holds still while the finger or pointer is over it, so it doesn't flicker as the cards make room.
+- **Others see it live.** Each move records `board.issue_ranked` (the board in `data`) in its transaction, published after commit. The live stream carries it to whoever sees the issue, through the access seam (D37), and an open board re-reads its order, within about a second.
+  - It's in the ledger and goes to webhooks that listen for it, and isn't in the issue's history: the place is the board's, not the issue's.
+  - A move into another column is the issue's own `issue.updated` as well.
+- **Permissions are the backlog's**: the edit permission in the issue's project, since placing an issue is work on it (D43).
+  - Within its column a move asks nothing of its state, so someone a state machine or a guard keeps from moving a card to In Progress may still rank it among the Open ones. Into another column, the move takes whatever that change of state takes.
+  - A viewer, and a read-only account or token, can't rank. An issue or an anchor the caller can't see is missing, in the words of one that doesn't exist.
+- **MCP** has `rank_issue`, on the same service: a change, destructive (into another column it overwrites the state), and previewed by a dry run of the column's change.
+
+**What it costs.**
+- Moves on one board are one at a time: a few milliseconds each, longer when a state machine or a guard's script runs (up to D40's limits). Two boards never wait on each other.
+- A move reads every rank of its board, as D43's did, and writes one row, or all of them when the board is spaced out again. The first move next to cards without a place first reads the board's order, one search.
+- Each move is an event: the ledger has a line per rank, and a webhook listening for everything gets each one.
+- A card's id takes Alt and Left or Right from the browser.
+
+**Revisit when:** a board holds tens of thousands of ranks (read only a move's neighbours, and rank by fractional keys rather than doubles); people want a lane's own order; or a card's place should show in its issue's history.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1427,6 +1469,7 @@ People who use a4a don't all read English. a4a says its own words in each person
 | A message to a help desk posted twice, or read twice | Known by its Message-ID within its desk, claimed in the log before the work; a failed claim, or one ten minutes stale, may be handled again (D30) |
 | A help desk mailbox, shared or a desk's own, read by a new lease holder | Its place is a UID within its UIDVALIDITY, in Postgres, and only ever moves on; a message read twice is a duplicate by its Message-ID |
 | Two people undo one agent's change, or someone changes the issue as it's undone | The undo locks the change's row, then the issue, and checks the issue is as the agent left it under those locks: the second undo gets 409 `already_undone`, and a change that got in first makes it refuse with what changed (D34) |
+| Two people rank one board at once, or a gap between two cards runs out | Each move locks the board's row (`FOR NO KEY UPDATE`), then the issue's: moves on one board are one at a time, each placed among the ranks the last left, and a respacing of the whole board happens inside the move that needed it. A card's column and its place change in that one transaction, all or nothing (D53) |
 
 ## Security
 
@@ -1491,7 +1534,7 @@ Planned, with the seams already in place:
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
-- ranking cards by dragging on the board itself, a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
+- a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - SLAs per customer, with a calendar per organization; passwords or single sign-on for the requesters' portal; colleagues answering each other's requests (D45);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
