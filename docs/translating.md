@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese and Indonesian are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese, Indonesian and Thai are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,11 +117,11 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese or Indonesian yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese, Indonesian or Thai yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
-A language is a catalog, as Spanish, Japanese, French and Indonesian came:
+A language is a catalog, as Spanish, Japanese, French, Indonesian and Thai came:
 
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
@@ -978,3 +978,121 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 **Why isu for issue**: it is the word Indonesian developers already say, in KBBI's spelling, and it covers a bug, a task and a request alike. "Masalah" is a problem, which a feature request isn't; "tiket" reads as a help desk's or a train's; "tugas" is a task, one kind of issue among others.
 
 **Checking Indonesian**: the checks above, then `e2e/indonesian.spec.ts`: a person of its own signs in through an Indonesian browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads Indonesian walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), an issue's history (`issues.issueHistory.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
+## Thai
+
+`th.json`, as Thai teams read a tracker, for Thailand: Thai script, Gregorian years, Arabic digits.
+
+- **Polite and plain, with no speaker in it.** Sentences are whole and polite, as Thai software for teams writes them, and carry no particle: never ครับ or ค่ะ, which say the speaker's gender, nor นะ, which is talk. คุณ is the reader, where a sentence must address them: “คุณเข้าสู่ระบบด้วย {login}”. Thai leaves out whom it has already named, so a sentence never says เขา or เธอ (either can read as one gender): it leaves the person out, or names them again.
+- **Buttons and labels are short verb phrases or nouns**, never sentences: “บันทึก”, “บันทึกการเปลี่ยนแปลง”, “ลบฟิลด์”. A status line says what's done with แล้ว and what's going on with กำลัง: “บันทึกแล้ว”, “กำลังบันทึก…”, “เพิ่ม {name} แล้ว”.
+- **Instructions are bare verbs**, as Thai apps give them: “เลือกโปรเจกต์”, “ลองอีกครั้ง”. โปรด only where English says please, where something is asked of someone; never กรุณา, which reads as a notice.
+- **Typography:**
+  - No space between words. A space between phrases, clauses and sentences, where Thai pauses, and on each side of a value, a number, an id or a Latin word: “เปิด {issue}”, “อิชชู {n} รายการ”, “ตาม Type: Bug”. None before `:` or `)`, or inside “”. A value that is itself Thai, a piece the page translates, joins as a word does: “ใช้{formName} ของคุณ” reads “ใช้ชื่อผู้ใช้ a4a ของคุณ”.
+  - **No full stop.** Thai ends a sentence with a space, and its last with nothing. A message of two sentences has a space between them; sentences a page joins (`sentences()`, a problem's list of problems) are joined by a space (`SENTENCE_GAP`), so no Thai message ends in a full stop and none needs one. A question ends in `?` after its question word (“ลบอิชชูนี้ไหม?”), as Thai's ปรัศนี does. `.` stays only inside abbreviations (พ.ย.) and code.
+  - Quotation marks are “…”, the ellipsis is one character (…), and digits are Arabic, never Thai ones (๑๒๓).
+- **Line breaks and badges.** A Thai line breaks only at a space or where the browser's dictionary finds a word's end, and a transliterated word it doesn't know can't break at all. So badges and buttons are a word or two (“ปิดแล้ว”, “เกินกำหนด”), and the pages the browser spec shoots were looked at at 390px, where none spills.
+- **Font.** Ocean sets Thai in IBM Plex Sans Thai, which it bundles for Thai's letters alone (`unicode-range`), after IBM Plex Sans for Latin (`--font-sans`): the two share their weights and x-height, so a Latin id inside a Thai sentence sits level with it. Plex Sans Thai is loopless, the modern style of Thai screens. `e2e/thai.spec.ts` asks the browser which font drew the Thai on each page (Chromium's `CSS.getPlatformFontsForNode`), and fails unless it's Plex Sans Thai; the container's shots show Plex Sans Thai, served from Ocean's own files, not a system font.
+- **Plurals**: Thai has none, so each plural keeps `other` alone and counts as Thai counts: the noun, the number, then its classifier: `{n, plural, other {อิชชู # รายการ}}`. รายการ counts issues, requests, comments, changes and things; คน people; ครั้ง times; ข้อ rules and points; ตัว agents and bots; ไฟล์, วัน, ชั่วโมง, โปรเจกต์, บอร์ด, กลุ่ม, แอป count themselves (“3 ไฟล์”). A plural English words otherwise for none or one keeps `=0` or `=1` where Thai does too: `{n, plural, =0 {ไม่มีเวลาเหลือ} other {มีเวลาเหลือ # วัน}}`. A plain count of none stays a count: “อิชชู 0 รายการ”.
+- **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Thai says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
+- **Pieces a page joins.** Thai's order is English's, subject, verb, object, so the pieces join as English's do:
+  - The activity ledger, an issue's history and notifications show who in bold, then what they did: a verb phrase with no subject, and no tense, since its time is shown beside it: “สร้าง {issue}”, “แสดงความคิดเห็นใน {issue}”, “มอบหมาย {issue} ให้คุณ”. A badge is a short verb phrase, as a Thai label is: “ลบอิชชู”. Who acted for someone is “ในนาม {name}”, never สำหรับ.
+  - A webhook's events are joined by Intl's “หรือ” after “เมื่อ”, each an event as Thai says one happens, with มีการ: “มีการสร้างอิชชู”, not the passive ถูก, which says something bad befell it.
+  - A rule is one sentence: “เมื่อ” before its trigger, “ถ้า” before its conditions and “ให้” before its actions, the words in `<t0>`: “<t0>เมื่อ</t0>มีการสร้างอิชชู <t0>ถ้า</t0>ตรงกับ Type: Bug <t0>ให้</t0>ใช้ Assignee anna”.
+- **A loading line is a whole message**, one per thing (`loadingLine.*`): “กำลังโหลด” and the thing, with no owner: “กำลังโหลดแผน…”, “กำลังโหลดกล่องจดหมาย…” for “Loading your inbox…”. A thing's own name or id reads “กำลังโหลด {name}…”, and nothing, “กำลังโหลด…”.
+- **Lists and units** are Intl's, spaced as Thai sets Latin off. Intl's Thai list is made for Thai words: a bare space between items, และ glued to the next (“แอปเปิล ส้ม และกล้วย”, “SPRและที่ยังไม่ปิด”). Most of a4a's lists are names and ids, so `listParts` (in `packages/shared/src/i18n.ts`, under every list the server and the web make) spaces และ and หรือ off from an item that isn't Thai, and turns a bare space beside one into a comma, as Intl's Thai "or" list has it: “Anna Schmidt, Ben Okafor และอีก 3 คน”, “ในโปรเจกต์ SPR และที่ยังไม่ปิด”. A list of Thai words stays as Intl writes it. Units take Intl's short width, which keeps the space Thai puts before a unit (“1.5 ชม.”), where the narrow one other languages use glues it on (“1.5ชม.”).
+- **Dates and numbers** come from Intl, in `th-TH-u-ca-gregory-nu-latn`: “17 พ.ย. 2026”, “1,234.5”, “3 นาทีที่ผ่านมา”. Intl's `th` counts years in the Buddhist era (2569 for 2026), as Thai forms and banks do. a4a's pages, emails, push and chat write Gregorian years instead, unmarked, because every date a4a takes from people is Gregorian: a query's `updated: 2026-11-01`, a command's `Due 2026-12-01`, a date field's ISO value, an import's and a commit's times. A Buddhist year beside them would be a sum to do in one's head, and a due date 543 years out is still a valid date, so a slip wouldn't show. Thai software teams read Gregorian years in the tools they work in, which are mostly in English; a Buddhist-era year is 25xx, so neither reads as the other. Digits are Arabic, Thai's own default in Intl, made explicit with `nu-latn`.
+- **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
+- **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is whole Thai, and every case stays: `{state, select, merged {เมิร์จแล้ว} closed {ปิดแล้ว} other {เปิดอีกครั้ง}}`. A field's `{type}` in a problem is such a code too, with `other` keeping the code.
+- **Problems** say what went wrong, then the fix, a space between and no full stop: “ไม่พบอิชชู {id} ใช้รหัสที่อ่านได้ เช่น BACK-12”. Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Thai message, after “ข้อผิดพลาด: ”, “เหตุผล: ” or “คำตอบ: ”, and brings its own punctuation. A problem held in another's values (`{problems}`, `{reasons}`, a parser's `{problem}`) is said whole in Thai, and Thai joins sentences with a space, so it stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `sort by`, `State`), and a rule's choices are said as the rule form names them.
+- **You and your**: ของคุณ where English's "your" tells the reader's things from others' (“คำขอของคุณ” on the portal, “โทเค็นของคุณ”), and nothing where the owner is plain: “โปรไฟล์”, “ตัวจับเวลา”, “กำลังโหลดกล่องจดหมาย…”. A button the reader presses for themself, which English words with "my" (“Save my week”), says ของฉัน, as Thai apps name the reader's own (“บันทึกสัปดาห์ของฉัน”). คุณ stays where the reader must be told from someone else: “ทำงานในนามของคุณ”, “ในนาม {login} ไม่ใช่คุณ”.
+- **The help desk** is a company's to its customers. A request is คำขอ: “ส่งคำขอ” in an issue's history and notifications, “ขอความช่วยเหลือ” on the form and the portal. Its emails to requesters are polite as Thai customer mail is, and name the requester with คุณ before the name, a space between, since a name may be Thai or Latin: “คุณ {name}”. They say why they came: “คุณได้รับอีเมลนี้เนื่องจากคุณส่งคำขอถึง {desk}”.
+
+| English | Thai |
+|---|---|
+| issue | อิชชู |
+| summary (an issue's title) | หัวเรื่อง |
+| description | คำอธิบาย |
+| subtask, parent | งานย่อย, อิชชูหลัก |
+| project | โปรเจกต์ |
+| lead (of a project) | หัวหน้าโปรเจกต์ |
+| board | บอร์ด |
+| sprint | สปรินต์ |
+| committed (a sprint's commitment) | ที่ตกลงไว้ |
+| blocker | อุปสรรค |
+| backlog | แบ็กล็อก |
+| help desk | เฮลป์เดสก์ |
+| SLA at risk, breached | เสี่ยง, เกินกำหนด |
+| request (help desk) | คำขอ |
+| requester | ผู้ร้องขอ |
+| copied on a request (CC), copy, stop copying | สำเนา, ส่งสำเนาถึง, เลิกส่งสำเนา |
+| customer group, kept from the group | กลุ่มลูกค้า, ซ่อนจากกลุ่ม |
+| reporter; report (an issue), reported | ผู้รายงาน; รายงาน, รายงานโดย |
+| assignee; assign | ผู้รับผิดชอบ; มอบหมาย |
+| agent | เอเจนต์ |
+| assistant (its name), the assistant | assistant, ผู้ช่วย |
+| conversation (with the assistant) | บทสนทนา |
+| comment, mention | ความคิดเห็น, กล่าวถึง |
+| attachment | ไฟล์แนบ |
+| workflow | เวิร์กโฟลว์ |
+| rule | กฎ |
+| if (a rule's or a transition's condition) | ถ้า, after a trigger's “เมื่อ” |
+| state machine | เครื่องสถานะ |
+| transition | การเปลี่ยนสถานะ |
+| state | สถานะ |
+| knowledge base | ฐานความรู้ |
+| article | บทความ |
+| inbox | กล่องจดหมาย |
+| notification | การแจ้งเตือน |
+| digest | สรุป |
+| subscription, subscribe | การสมัครรับ, สมัครรับ |
+| watch, watcher | ติดตาม, ผู้ติดตาม |
+| timesheet | ใบลงเวลา |
+| work logged, log time | เวลาที่บันทึก, บันทึกเวลา |
+| estimate | ประมาณการ |
+| rate (per hour) | อัตราต่อชั่วโมง |
+| days away, away | วันที่ไม่อยู่, ไม่อยู่ |
+| levelling | การปรับระดับทรัพยากร |
+| slack (in a plan) | เวลาลอยตัว |
+| booked (hours in a plan) | ที่ลงแผนไว้: “ชั่วโมงที่ลงแผนไว้”, never จอง |
+| critical path | เส้นทางวิกฤต |
+| milestone | ไมล์สโตน |
+| what-if | จำลองสถานการณ์ |
+| baseline | แผนฐาน |
+| earned value, earned | มูลค่าที่ได้รับ (EV), ได้รับ |
+| cost and schedule performance (CPI, SPI) | ดัชนีต้นทุน (CPI), ดัชนีกำหนดการ (SPI) |
+| triage | คัดกรอง |
+| suggestion | คำแนะนำ |
+| tag | แท็ก |
+| token, revoke | โทเค็น, เพิกถอน |
+| scope (of a token) | ขอบเขต |
+| fingerprint (of a token) | ลายนิ้วมือ |
+| allow (an app) | อนุญาต: “แอปที่คุณอนุญาต” |
+| not found | ไม่พบ, before the thing: “ไม่พบอิชชู {id}” |
+| two-factor sign-in | การยืนยันแบบ 2 ขั้นตอน |
+| sign in, sign out | เข้าสู่ระบบ, ออกจากระบบ |
+| login (a person's handle) | ชื่อผู้ใช้ |
+| identity provider | ผู้ให้บริการข้อมูลประจำตัว |
+| single sign-on | การเข้าสู่ระบบครั้งเดียว (SSO) |
+| webhook, delivery | เว็บฮุก, การส่ง |
+| post (a4a or a provider sending to an address) | ส่ง; โพสต์ is for chat messages |
+| secret | รหัสลับ |
+| commit, pull request, branch | คอมมิต, พูลรีเควสต์, แบรนช์ |
+| merge, merged | เมิร์จ, เมิร์จแล้ว |
+| build (CI), CI | บิลด์, CI |
+| field, value | ฟิลด์, ค่า |
+| link (between issues), unlink | ลิงก์, ยกเลิกลิงก์ |
+| link, unlink (a chat account) | เชื่อมบัญชี, ยกเลิกการเชื่อมบัญชี |
+| duplicate | ซ้ำ |
+| resolve, resolved, resolution | ปิด, ปิดแล้ว, การปิด (an SLA's: เป้าหมายการปิด) |
+| dashboard, widget | แดชบอร์ด, วิดเจ็ต |
+| report | รายงาน |
+| settings | การตั้งค่า |
+| app, handler (of an app) | แอป, ตัวจัดการ |
+| person, people | ผู้ใช้; คน counts them |
+| role, permission | บทบาท, สิทธิ์ |
+| member, viewer, manager, administrator, guest | สมาชิก, ผู้ดู, ผู้จัดการ, ผู้ดูแลระบบ, ผู้เยี่ยมชม |
+
+**Where the words come from.** Jira and YouTrack have no Thai interface, so Thai teams read both in English and say their words as Thai loanwords: อิชชู, สปรินต์, แบ็กล็อก, บอร์ด, คอมมิต, เมิร์จ. The catalog writes those in Thai script, spelled by the Royal Institute's rules for loanwords, and takes Thai's own word where teams use one: ผู้รับผิดชอบ for the assignee, คำขอ for a request, ความคิดเห็น and กล่าวถึง as Facebook's and YouTube's Thai say them, เข้าสู่ระบบ as every Thai sign-in page does.
+
+**Why อิชชู for issue.** It's what Thai teams say for what Jira and YouTrack call an issue. ปัญหา, Redmine's and Mantis's Thai, makes "create issue" สร้างปัญหา, Thai for making trouble, and "this issue has a problem" ปัญหานี้มีปัญหา, while a4a's problems are its own word; and a feature isn't one. ทิกเก็ต reads as a support ticket, the help desk's, and งาน is taken by work: work logged, working hours, a plan's booked work.
+
+**Checking Thai**: the checks above, and `e2e/thai.spec.ts`. It signs a person of its own in, through the sign-in page of a Thai browser, and opens the issues, an issue, the inbox and the profile, with a date in Gregorian years; and it shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px, where nothing may spill sideways, and asks the browser which font drew the Thai. A reader of Thai can read those shots, set a profile's language to ไทย and walk the pages, and read the pieces of one prefix together, since a page joins them: `activity.ledgerEntry.*`, `issues.issueHistory.*`, `server.notify.*`, `rules.words.*`.

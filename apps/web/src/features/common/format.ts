@@ -1,6 +1,6 @@
 /** Times, money and counts, as Ocean writes them, in the page's language (D49). */
 import { formatPeriod } from '@a4a/shared/periods';
-import { intlLocale, t } from '../../i18n';
+import { getLocale, intlLocale, t } from '../../i18n';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -81,9 +81,15 @@ export function excerpt(text: string, max = 140): string {
 
 export const ISSUE_ID = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
 
+/**
+ * Intl's narrowest unit width for the page's language. Thai's narrow glues the unit to its number
+ * ("1.5ชม.") while Thai sets a number off with a space, so Thai takes the short width ("1.5 ชม.").
+ */
+const unitDisplay = (): 'narrow' | 'short' => (getLocale() === 'th' ? 'short' : 'narrow');
+
 /** Hours as a figure with its unit in the page's language, at most one decimal: "16h", "5.3h" in English (D49). */
 export function hoursWords(h: number): string {
-  return new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: 'hour', unitDisplay: 'narrow', maximumFractionDigits: 1 }).format(h);
+  return new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: 'hour', unitDisplay: unitDisplay(), maximumFractionDigits: 1 }).format(h);
 }
 
 const PERIOD_UNITS = { w: 'week', d: 'day', h: 'hour', m: 'minute' } as const;
@@ -95,6 +101,6 @@ const PERIOD_UNITS = { w: 'week', d: 'day', h: 'hour', m: 'minute' } as const;
 export function periodWords(minutes: number, opts?: Parameters<typeof formatPeriod>[1]): string {
   const parts = formatPeriod(minutes, opts)
     .split(' ')
-    .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: 'narrow' }).format(Number(p.slice(0, -1))));
+    .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: unitDisplay() }).format(Number(p.slice(0, -1))));
   return new Intl.ListFormat(intlLocale(), { type: 'unit', style: 'narrow' }).format(parts);
 }

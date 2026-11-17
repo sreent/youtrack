@@ -386,6 +386,37 @@ Phrasing:
 - **Your address** in the help desk's limits is *alamat IP Anda* (`problem.helpdesk.tooManyFromAddress` and its siblings), since *alamat* alone could be an email.
 - `page.profile.you` is *Tentang Anda*, a heading, and `notifications.emailSettings.youHaveNoEmailAddress` points to it.
 - **The issue list's count** joins a search's parts with a comma, as Intl's narrow list does in Indonesian: "4 isu di proyek SPR, belum selesai". *dan* would read more smoothly between two.
+## Thai
+
+Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. docs/translating.md's Thai section gives the reasons for each choice below.
+
+Terms:
+
+- **An issue is อิชชู**, the word Thai teams say for Jira's and YouTrack's issues, in the Royal Institute's spelling. ทิกเก็ต (French's "ticket") reads as a support ticket, ปัญหา (Redmine's) makes "create issue" สร้างปัญหา and clashes with a4a's problems, and งาน is taken by work logged. Would a team rather read "Issue" in Latin letters, as many Thai developers write it?
+- **A project is โปรเจกต์**, as teams say it; โครงการ is the formal word, and Microsoft's.
+- **A request is คำขอ**, and **a requester ผู้ร้องขอ**. คำขอ is also an HTTP request in the API's problems (`problem.attachments.noBody`, `problem.tooLarge`): is that confusing?
+- **Resolve is ปิด** ("close"), resolved ปิดแล้ว, since แก้ไข is every Thai app's Edit. ปิด also closes a pull request and a dialog.
+- **Subscribe is สมัครรับ** and **watch ติดตาม**, though YouTube's Thai says ติดตาม for subscribe.
+- **The inbox is กล่องจดหมาย**, Gmail's word, for an inbox of notifications.
+- **Days away are วันที่ไม่อยู่**, not วันลา (leave), since an absence may be a conference; is it natural?
+- **A login is ชื่อผู้ใช้** (a username); **undo is เลิกทำ**, Microsoft's; **dismissing a suggestion is ละเว้น**.
+- **Loanwords in Thai letters**: คอมมิต, แบรนช์, เมิร์จ, บิลด์, เว็บฮุก, สปรินต์, แบ็กล็อก, เฮลป์เดสก์, and the long พูลรีเควสต์. Thai developers often write these in Latin letters instead.
+- **The navigation's groups**: งาน (Work), แผนงาน (Plan), สร้าง (Build), กำกับดูแล (Oversee), ตัดสินใจ (Decide).
+- **Classifiers**: รายการ counts issues, requests and most things (“อิชชู 4 รายการ”); bots are “บอต # ตัว”; a count of zero says “อิชชู 0 รายการ” rather than ไม่มีอิชชู.
+
+Typography and phrasing:
+
+- **No full stop**: sentences, a problem and its fix included, are separated by a space. Do the longer problems read as two sentences, or run on?
+- **Questions end in ไหม?** (“ลบ {name} ไหม?”). Thai software also writes หรือไม่, or no question mark.
+- **Gregorian years, unmarked**: “17 พ.ย. 2026”, with no ค.ศ. A Thai reader who expects the Buddhist era sees 2026; should a4a mark the era, or offer the Buddhist one by choice?
+- **Lists**: a4a departs from Intl's Thai list where an item is Latin: “Anna Schmidt และ Vera Viewer” for Intl's “Anna SchmidtและVera Viewer”, and a comma between Latin names where Intl puts a bare space. Is that how a Thai writer would set it?
+- **Units** take Intl's short width (“1.5 ชม.”, “0 นาที”) for the space before the unit.
+- **A space on each side of a value**, as names and ids need. Where a value is itself Thai (a piece the page translates, like the sign-in form's name) the space reads as a pause mid-phrase; the sign-in page's were found in its shots and fixed. Others are left where the value may be Thai or Latin: the copy button's “คัดลอก {what} แล้ว” says “คัดลอก โทเค็น แล้ว” as well as “คัดลอก URL แล้ว”, and a role, a recipient or a `{whenWords}` may be either. Should a4a join such values by script, as `listParts` does for lists?
+- **The chat bot speaks without a pronoun** (“ยังไม่รู้ว่าคุณเป็นใครใน a4a”), as Thai drops it; does it read as a bot or as a person?
+- **Requesters are named “คุณ {name}”**, with a space since a name may be Latin, and no เรียน: “คุณ {name} เราได้รับคำขอของคุณแล้ว”.
+- **The passive ถูก** is avoided in events (มีการ…), but stays where it is neutral: ถูกระงับ (banned), ถูกกล่าวถึง (mentioned).
+- **Free text moved to the end**, after ข้อผิดพลาด:, เหตุผล: or คำตอบ: (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Natural?
+- **The font**: IBM Plex Sans Thai is loopless. For long text some readers find a looped face (Plex Sans Thai Looped) easier; Ocean bundles the loopless one only.
 
 ## What a catalog can't say yet
 
