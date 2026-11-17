@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {Nenhum item criado} one {# item criado} other {# itens criados}}, {links, plural, =0 {nenhum vínculo} one {# vínculo} other {# vínculos}}.",
   "page.whiteboard.said.gone": "Este quadro branco foi excluído, ou você não pode mais vê-lo.",
   "page.whiteboard.said.moved": "{n, plural, one {# elemento movido.} other {# elementos movidos.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, one {Não foi refeito: alguém o alterou depois, e ele fica como essa pessoa o deixou.} other {# não foram refeitos: alguém os alterou depois, e eles ficam como foram deixados.}}",
   "page.whiteboard.said.notUndone": "{n, plural, one {Não foi desfeito: alguém o alterou depois, e ele fica como essa pessoa o deixou.} other {# não foram desfeitos: alguém os alterou depois, e eles ficam como foram deixados.}}",
   "page.whiteboard.said.nothingToRedo": "Nada a refazer.",
   "page.whiteboard.said.nothingToUndo": "Nada a desfazer.",

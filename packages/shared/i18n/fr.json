@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {Aucun ticket créé} =1 {Un ticket créé} other {# tickets créés}}, {links, plural, =0 {aucun lien} =1 {un lien} other {# liens}}.",
   "page.whiteboard.said.gone": "Ce tableau blanc a été supprimé, ou vous ne pouvez plus le voir.",
   "page.whiteboard.said.moved": "{n, plural, one {# élément déplacé.} other {# éléments déplacés.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, one {Pas rétabli : quelqu’un l’a modifié depuis, et il reste tel qu’on l’a laissé.} other {# pas rétablis : quelqu’un les a modifiés depuis, et ils restent tels qu’on les a laissés.}}",
   "page.whiteboard.said.notUndone": "{n, plural, one {Pas annulé : quelqu’un l’a modifié depuis, et il reste tel qu’on l’a laissé.} other {# pas annulés : quelqu’un les a modifiés depuis, et ils restent tels qu’on les a laissés.}}",
   "page.whiteboard.said.nothingToRedo": "Rien à rétablir.",
   "page.whiteboard.said.nothingToUndo": "Rien à annuler.",

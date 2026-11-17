@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {Keine Vorgänge} one {# Vorgang} other {# Vorgänge}} und {links, plural, =0 {keine Verknüpfungen} one {# Verknüpfung} other {# Verknüpfungen}} angelegt.",
   "page.whiteboard.said.gone": "Dieses Whiteboard wurde gelöscht, oder Sie können es nicht mehr sehen.",
   "page.whiteboard.said.moved": "{n, plural, one {# Element verschoben.} other {# Elemente verschoben.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, one {Nicht wiederholt: Jemand hat es inzwischen geändert, und es bleibt, wie diese Person es hinterlassen hat.} other {# Elemente nicht wiederholt: Jemand hat sie inzwischen geändert, und sie bleiben so.}}",
   "page.whiteboard.said.notUndone": "{n, plural, one {Nicht rückgängig gemacht: Jemand hat es inzwischen geändert, und es bleibt, wie diese Person es hinterlassen hat.} other {# Elemente nicht rückgängig gemacht: Jemand hat sie inzwischen geändert, und sie bleiben so.}}",
   "page.whiteboard.said.nothingToRedo": "Nichts zu wiederholen.",
   "page.whiteboard.said.nothingToUndo": "Nichts rückgängig zu machen.",

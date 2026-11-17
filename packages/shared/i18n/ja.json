@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {{links, plural, =0 {課題もリンクも作成しませんでした。} other {#件のリンクを作成しました。}}} other {{links, plural, =0 {{n, number}件の課題を作成しました。} other {{n, number}件の課題と#件のリンクを作成しました。}}}}",
   "page.whiteboard.said.gone": "このホワイトボードは削除されたか、閲覧できなくなりました。",
   "page.whiteboard.said.moved": "{n, plural, other {#個の要素を移動しました。}}",
+  "page.whiteboard.said.notRedone": "{n, plural, =1 {やり直せませんでした。その後ほかの人が変更したため、その変更が残っています。} other {#個はやり直せませんでした。その後ほかの人が変更したため、その変更が残っています。}}",
   "page.whiteboard.said.notUndone": "{n, plural, =1 {元に戻せませんでした。その後ほかの人が変更したため、その変更が残っています。} other {#個は元に戻せませんでした。その後ほかの人が変更したため、その変更が残っています。}}",
   "page.whiteboard.said.nothingToRedo": "やり直す操作はありません。",
   "page.whiteboard.said.nothingToUndo": "元に戻す操作はありません。",

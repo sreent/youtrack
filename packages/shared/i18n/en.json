@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {No issues made} one {Made # issue} other {Made # issues}}, {links, plural, =0 {no links} one {# link} other {# links}}.",
   "page.whiteboard.said.gone": "This whiteboard was deleted, or you can no longer see it.",
   "page.whiteboard.said.moved": "{n, plural, one {Moved # element.} other {Moved # elements.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, one {Not redone: someone changed it since, and it stays as they left it.} other {# not redone: someone changed them since, and they stay as they were left.}}",
   "page.whiteboard.said.notUndone": "{n, plural, one {Not undone: someone changed it since, and it stays as they left it.} other {# not undone: someone changed them since, and they stay as they were left.}}",
   "page.whiteboard.said.nothingToRedo": "Nothing to redo.",
   "page.whiteboard.said.nothingToUndo": "Nothing to undo.",

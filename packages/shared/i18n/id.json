@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, other {# isu}} dan {links, plural, other {# tautan}} dibuat.",
   "page.whiteboard.said.gone": "Papan tulis ini sudah dihapus, atau Anda tidak dapat melihatnya lagi.",
   "page.whiteboard.said.moved": "{n, plural, other {# elemen dipindahkan.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, =1 {Tidak diulangi: seseorang mengubahnya sejak itu, jadi elemen itu tetap seperti yang ditinggalkan orang tersebut.} other {# tidak diulangi: seseorang mengubahnya sejak itu, jadi semuanya tetap seperti yang ditinggalkan.}}",
   "page.whiteboard.said.notUndone": "{n, plural, =1 {Tidak dibatalkan: seseorang mengubahnya sejak itu, jadi elemen itu tetap seperti yang ditinggalkan orang tersebut.} other {# tidak dibatalkan: seseorang mengubahnya sejak itu, jadi semuanya tetap seperti yang ditinggalkan.}}",
   "page.whiteboard.said.nothingToRedo": "Tidak ada yang dapat diulangi.",
   "page.whiteboard.said.nothingToUndo": "Tidak ada yang dapat dibatalkan.",

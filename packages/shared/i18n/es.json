@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, =0 {{links, plural, =0 {No se ha creado ninguna incidencia ni ningún enlace.} one {Se ha creado # enlace y ninguna incidencia.} other {Se han creado # enlaces y ninguna incidencia.}}} one {Se {links, plural, =0 {ha} other {han}} creado # incidencia{links, plural, =0 { y ningún enlace} one { y # enlace} other { y # enlaces}}.} other {Se han creado # incidencias{links, plural, =0 { y ningún enlace} one { y # enlace} other { y # enlaces}}.}}",
   "page.whiteboard.said.gone": "Esta pizarra se ha eliminado o ya no puedes verla.",
   "page.whiteboard.said.moved": "{n, plural, one {Se ha movido # elemento.} other {Se han movido # elementos.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, one {No se ha rehecho: alguien lo cambió después, y queda como lo dejó.} other {No se han rehecho # elementos: alguien los cambió después, y quedan como los dejó.}}",
   "page.whiteboard.said.notUndone": "{n, plural, one {No se ha deshecho: alguien lo cambió después, y queda como lo dejó.} other {No se han deshecho # elementos: alguien los cambió después, y quedan como los dejó.}}",
   "page.whiteboard.said.nothingToRedo": "No hay nada que rehacer.",
   "page.whiteboard.said.nothingToUndo": "No hay nada que deshacer.",

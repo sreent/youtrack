@@ -191,7 +191,7 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | single sign-on | inicio de sesión único |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
-| request (HTTP) | requisição |
+| request (HTTP) | solicitud |
 | secret | secreto |
 | commit, pull request, branch | commit, pull request (la), rama |
 | build (CI) | compilación |

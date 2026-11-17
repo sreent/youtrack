@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "已创建 {n, plural, other {# 个问题}}和 {links, plural, other {# 个链接}}。",
   "page.whiteboard.said.gone": "这个白板已被删除，或者你已无法查看它。",
   "page.whiteboard.said.moved": "{n, plural, other {已移动 # 个元素。}}",
+  "page.whiteboard.said.notRedone": "{n, plural, =1 {未重做：此后有人更改了它，它会保持对方留下的样子。} other {# 个元素未重做：此后有人更改了它们，它们会保持对方留下的样子。}}",
   "page.whiteboard.said.notUndone": "{n, plural, =1 {未撤销：此后有人更改了它，它会保持对方留下的样子。} other {# 个元素未撤销：此后有人更改了它们，它们会保持对方留下的样子。}}",
   "page.whiteboard.said.nothingToRedo": "没有可重做的操作。",
   "page.whiteboard.said.nothingToUndo": "没有可撤销的操作。",

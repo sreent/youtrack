@@ -181,7 +181,7 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
     undoStack.current.push(step);
     const r = await send(step.redo, null).catch(() => null);
     if (r && !r.refused.length) announce(t('page.whiteboard.said.redid', { what: step.what, n: step.n }));
-    else if (r) announce(t('page.whiteboard.said.notUndone', { n: r.refused.length }));
+    else if (r) announce(t('page.whiteboard.said.notRedone', { n: r.refused.length }));
   };
 
   // Undo and redo from anywhere on the page but a field or a dialog.

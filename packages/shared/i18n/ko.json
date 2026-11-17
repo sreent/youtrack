@@ -3435,6 +3435,7 @@
   "page.whiteboard.said.converted": "{n, plural, other {이슈 #개와}} {links, plural, other {링크 #개를}} 만들었습니다.",
   "page.whiteboard.said.gone": "이 화이트보드는 삭제되었거나 더 이상 볼 수 없습니다.",
   "page.whiteboard.said.moved": "{n, plural, other {요소 #개를 옮겼습니다.}}",
+  "page.whiteboard.said.notRedone": "{n, plural, =1 {다시 실행하지 못했습니다: 그 사이 누군가 바꿔서 지금 그대로 둡니다.} other {#개를 다시 실행하지 못했습니다: 그 사이 누군가 바꿔서 지금 그대로 둡니다.}}",
   "page.whiteboard.said.notUndone": "{n, plural, =1 {실행 취소하지 못했습니다: 그 사이 누군가 바꿔서 지금 그대로 둡니다.} other {#개를 실행 취소하지 못했습니다: 그 사이 누군가 바꿔서 지금 그대로 둡니다.}}",
   "page.whiteboard.said.nothingToRedo": "다시 실행할 것이 없습니다.",
   "page.whiteboard.said.nothingToUndo": "실행 취소할 것이 없습니다.",
