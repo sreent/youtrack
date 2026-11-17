@@ -36,13 +36,13 @@ import {
   type IssueBuild,
 } from '@a4a/shared';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, gt, inArray, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z, ZodError } from 'zod';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { BUILDS_BOT, WORKFLOW_BOT } from '../db/defaults';
-import { buildIssues, buildSources, builds, issues, vcsIntegrations, vcsLinks } from '../db/schema';
+import { buildIssues, buildSources, builds, fieldValues, issues, vcsIntegrations, vcsLinks } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { RateLimiter } from '../http/middleware';
 import { randomToken, sha256 } from '../lib/crypto';
@@ -50,7 +50,7 @@ import { AppError, asSentence, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { requireProject, seenIssueIds } from '../services/access';
-import { addFieldValue, attachField, createField } from '../services/fields';
+import { attachField, createField } from '../services/fields';
 import { issueRefsById, type IssueRow } from '../services/issue-refs';
 import { applyChanges, fieldValuesOf, findIssue, resolveIssue } from '../services/issues';
 import { fieldByName, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -344,6 +344,32 @@ function settle(before: BuildRow | undefined, facts: BuildFacts): { status: Buil
   return { status, url: url ?? before.url, finishedAt: facts.finishedAt ?? before.finishedAt ?? new Date() };
 }
 
+/**
+ * The build field's value a passing build becomes, made in the transaction that settles the build
+ * and with it alone: a schema read there could wait on that very transaction (PGlite has one
+ * connection). One the field has, by any case of its name, is the build's (D41: a build field takes
+ * the same build twice); the table is read, since the snapshot may be older than it. Values are made
+ * one at a time per field, so each comes after the last in the order CI reported them (D46's ranges).
+ */
+async function valueFor(tx: Db, s: SchemaSnapshot, field: FieldRow, name: string, projectId: string): Promise<string> {
+  const ours = (v: { name: string; projectId: string | null }) => v.name.toLowerCase() === name.toLowerCase() && (v.projectId === null || v.projectId === projectId);
+  const known = (s.valuesByField.get(field.id) ?? []).find(ours);
+  if (known) return known.id;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`a4a:build-values:${field.id}`}))`);
+  const [had] = await tx
+    .select({ id: fieldValues.id })
+    .from(fieldValues)
+    .where(and(eq(fieldValues.fieldId, field.id), sql`lower(${fieldValues.name}) = ${name.toLowerCase()}`, or(isNull(fieldValues.projectId), eq(fieldValues.projectId, projectId))))
+    .limit(1);
+  if (had) return had.id;
+  const [last] = await tx.select({ ordinal: sql<number>`coalesce(max(${fieldValues.ordinal}), -1)` }).from(fieldValues).where(eq(fieldValues.fieldId, field.id));
+  const [made] = await tx
+    .insert(fieldValues)
+    .values({ id: newId(), fieldId: field.id, projectId, name, ordinal: Number(last?.ordinal ?? -1) + 1 })
+    .returning({ id: fieldValues.id });
+  return made!.id;
+}
+
 /** Record a build, and if it succeeded, mark the resolved issues its commits name. */
 export async function recordBuild(app: AppServices, source: SourceRow, facts: BuildFacts, opts: RecordOptions = {}): Promise<Recorded> {
   const s = await app.schema.get();
@@ -368,7 +394,7 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
     if (same && opts.quietIfSame) return { build: before!, before, same };
     let valueId: string | null = before?.valueId ?? null;
     if (next.status === 'success' && field && !valueId) {
-      valueId = (await addFieldValue({ ...ctx, db: tx }, field.id, { name: facts.name, project: project.key })).id;
+      valueId = await valueFor(tx, s, field, facts.name, source.projectId);
       madeValue = true;
     }
     const values = {
