@@ -36,6 +36,15 @@ Phrasing:
 - **Telling people**: a rule's preview and its runs say "informieren" (`rules.preview.shown`, `rules.run.told`, `toldNobody`), and a rule's sentence says "benachrichtigen". One word throughout?
 - `workflow.scriptRun.posts`: "Es würde einen Kommentar schreiben". "posten" and "anlegen" are the alternatives.
 
+From the read of wave 4's messages (D50 to D55):
+
+- `server.access.issueYouCantSee` and `articleYouCantSee` ("ein Vorgang, den Sie nicht sehen können") stand in for an id inside someone's text, so their case can't be known: the nominative reads wrong after "Siehe" or a preposition.
+- **Reading as a GitHub App**: "nicht mehr als App lesen" (`stopReadingAsTheApp` and its siblings) can read as "no more than". "Lesen als App beenden" is the alternative. "installiert auf dem Repository" may be better as "im Repository".
+- "ausscheiden", for a person who leaves (`page.integrations.aGithubIntegrationCanRead`), may be too formal; "das Team verlassen" is the alternative.
+- `articles.articleTree.limited` is "Eingeschränkt", where the catalog says "beschränkt" elsewhere.
+- `board.board.movedTo`, moved to the top of a column, says "nach" twice ("nach In Review ganz nach oben verschoben").
+- `problem.ci.giteaIntegrationNeeded` and its GitHub sibling say "Sagen Sie, welche …". "Geben Sie an, …" is more usual in German interfaces.
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -72,6 +81,15 @@ Phrasing:
 - `rules.preview.actsScheduled`: a rule reaching other issues acts "por" each of them, and one acting on them "sobre" each. Does the difference read?
 - `problem.chat.stop.disconnectedBy`: in "{name} lo desconectó.", "lo" is a connection the sentence never names.
 
+From the read of wave 4's messages (D50 to D55):
+
+- `articles.visibleTo.letEveryoneSeeIt` and its issue twin, "Que lo vea todo el mundo", aren't infinitives, as buttons are meant to be. "Mostrarlo a todo el mundo" is the alternative.
+- `page.project.keyFormer`: "Antes usaba {keys}." Is "usaba" clear under the "Clave" heading, or is "Claves anteriores: {keys}." better?
+- **The board's moves**: "la mueven un puesto" (`board.board.chooseACardSId`, `dragACardToAnother`) matches the backlog. "una posición" may be more usual.
+- `problem.vcs.githubApp.answered` and its siblings: "{host} respondió {status}". "respondió con {status}" reads more naturally.
+- "leer como GitHub App", in about 15 messages: "como" in the sense of "in the capacity of".
+- `projects.projectFields.everyone` is "Todos", a short checkbox label, where the catalog says "Todo el mundo" elsewhere.
+
 ## French
 
 Terms:
@@ -107,6 +125,16 @@ Phrasing:
 - `rules.run.scheduled` keeps "worker", an English loanword ("a repris le worker").
 - `problem.chat.stop.membersOnly`: "…et la personne qui l’a abonné ne le gère pas" is correct, "l’" being the channel, but heavy.
 
+From the read of wave 4's messages (D50 to D55):
+
+- `page.integrations.readsAsTheGithubApp` ("lit en tant que GitHub App {app}, installée sur {account}") is a badge a little longer than English's, and badges don't wrap. Check it on a 390px screen.
+- `activity.ledgerEntry.rankedOn`: "a classé {issue} sur {str}", where {str} is the board's bare name. "sur le tableau {str}" may read more clearly.
+- `page.project.keyFormer`: "Avant, il s’appelait {keys}." uses "s’appeler" for a key, which isn't the project's name.
+- "{key} reste à ce projet pour de bon" (`page.project.keyAbout`, `keyRenameAbout`, `problem.projectKeys.taken`) is correct but plain.
+- `problem.access.roleDoesNotAllow`: "un rôle qui le permet". Careful French may want "qui le permette".
+- `page.integrations.changeTheApp`, "Changer d’application", suggests another app, though the form also takes a new key for the same one. "Modifier l’application" is the alternative.
+- `builds.builds.byItsFileSuchAs`: "compté sur tous les workflows du dépôt", or "numéroté sur l’ensemble des workflows du dépôt".
+
 ## Japanese
 
 Terms:
@@ -138,6 +166,14 @@ Phrasing:
 - `problem.rule.wouldDoNothing` and `wouldRefuse` end on the quoted refusal (「…：「{refusal}」」) with no 。, since the refusal brings its own punctuation. Acceptable?
 - `builds.note.*` have no 。, as English has no full stop, since they sit as notes beside a status.
 
+From the read of wave 4's messages (D50 to D55):
+
+- `articles.visibleTo.limitedNow` and its issue twin: `{audience}` can be 「関係者のみ」, which gives 「…関係者のみに限定しました。関係者は常に…」. This is the 関係者 question above, now for articles too.
+- `articles.articleTree.limited` is 限定公開. Does it read as "limited to some people", or as YouTube's "unlisted"? 閲覧制限 is the alternative.
+- 「GitHub Appとして読み取る」 (`page.integrations.readAsAGithubApp` and its family): would 「GitHub Appとしてアクセス」 read more naturally?
+- 「異動や退職」 for a person who leaves (`page.integrations.aGithubIntegrationCanRead`, `aPersonSTokenStopsWorking`).
+- The board's drop text puts the state between the column and の (「Done（Fixedとして）のBACK-19の上に移動」), which may read awkwardly to a screen reader user.
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
@@ -147,3 +183,4 @@ These need the code to change, not a catalog:
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
 - **A rule run's changes** (`rules.run.changed`, `alsoChanged`) are fields and values the server joins with English punctuation: "State: Open → Fixed; Priority: — → High".
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
+- **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese would use 「、」.
