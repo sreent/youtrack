@@ -3907,7 +3907,7 @@
   "problem.query.sortField": "Falta un campo después de “sort by:”.",
   "problem.query.unexpected": "No se esperaba “{token}”.",
   "problem.query.unexpectedAfterSort": "No se esperaba “{token}” después de “sort by”.",
-  "problem.query.unexpectedBrace": "No se esperaba '}'.",
+  "problem.query.unexpectedBrace": "No se esperaba “'}'”.",
   "problem.query.unexpectedInSort": "No se esperaba “{token}” en “sort by”.",
   "problem.query.unknownBuild": "La compilación “{build}” no existe para {field}. {hasGuess, select, yes {¿Querías decir “{guess}”?} other {{n, plural, =0 {Todavía no hay compilaciones.} other {Últimas compilaciones: {builds}.}}}}",
   "problem.query.unknownField": "El campo “{field}” no existe.{hasGuess, select, yes { ¿Querías decir “{guess}”?} other {}}",
