@@ -23,6 +23,8 @@ import { addDays, todayISO } from '../src/lib/dates';
 import { createHttpApp } from '../src/http/app';
 import { issueTokenFor } from '../src/services/auth';
 import { toolByName } from '../src/tools/registry';
+import { notesIn } from '@a4a/shared/notes';
+import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -159,6 +161,9 @@ describe('rules on a change', () => {
     const [failed] = await listRuleRuns(w.adminCtx, { rule: broken.id });
     expect(failed).toMatchObject({ outcome: 'failed', issue: issue.id });
     expect(failed!.message).toContain('Payments');
+    // A page says the run in its own language, from its words: the command's problem whole, as words of its own (D49).
+    expect(failed!.said).toEqual([{ key: 'problem.workflow.commandMisfit', values: { project: 'WEB', problems: [expect.objectContaining({ key: 'command.unknownValue' })] } }]);
+    expect(notesIn(translatorFor('de'), failed!.said, failed!.message)).toMatch(/^Der Befehl passt nicht zu WEB: Unbekannter Wert „Payments“ für Subsystem\./);
     expect(tagsOf(await getIssue(w.adminCtx, issue.id))).toEqual(['money']);
     expect((await listRuleRuns(w.adminCtx, { rule: fine.id }))[0]).toMatchObject({ outcome: 'applied' });
     // The outbox went on past it: a later change is handled too.

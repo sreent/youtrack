@@ -76,8 +76,22 @@ export async function freshPostgres(): Promise<{ url: string; drop(): Promise<vo
     drop: async () => {
       const c = new pgLib.Client({ connectionString: base });
       await c.connect();
-      await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
-      await c.end();
+      try {
+        // FORCE ends the test's own connections. A role that isn't a superuser can't end autovacuum's
+        // (42501), which a file that wrote a lot may have started on its database. It's done in a
+        // moment, so try again.
+        for (let attempt = 1; ; attempt++) {
+          try {
+            await c.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+            break;
+          } catch (e) {
+            if ((e as { code?: string }).code !== '42501' || attempt === 40) throw e;
+            await new Promise((r) => setTimeout(r, 250));
+          }
+        }
+      } finally {
+        await c.end();
+      }
     },
   };
 }

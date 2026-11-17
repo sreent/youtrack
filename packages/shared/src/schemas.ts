@@ -836,6 +836,10 @@ export const EventSchema = z
       .object({
         state: z.enum(UNDO_STATES),
         note: z.string().describe('What changed since, or who undid it and when; empty when it can be undone'),
+        noteWords: z
+          .array(z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }))
+          .optional()
+          .describe("The note as a page says it, in its person's language (D49): each reason's key under problem.* and its values"),
       })
       .optional()
       .describe("Only in an issue's history, on a change an agent made on its own: whether a person can still undo it (POST /events/{id}/undo)"),
@@ -858,13 +862,25 @@ export const QueryProblemSchema = z
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
 
+export const QueryExplainedSchema = z
+  .object({
+    body: z.string().describe('What the query asks: "in project BACK, unresolved". Empty when it asks nothing.'),
+    sort: z.string().describe('How it sorts, worded to follow body: " sorted by Priority". Empty when it doesn’t say.'),
+    zone: z.string().nullable().describe('The time zone its dates are read in, when it reads any.'),
+  })
+  .describe('The explanation in pieces, in its language, for a page that says how many issues it found: "4 issues in project BACK" (D49).')
+  .meta({ id: 'QueryExplained' });
+export type QueryExplained = z.infer<typeof QueryExplainedSchema>;
+
 export const ParseQueryResultSchema = z
   .object({
     ok: z.boolean(),
     problems: z.array(QueryProblemSchema),
     explanation: z.string().describe('Plain-English reading of the query'),
+    explained: QueryExplainedSchema,
   })
   .meta({ id: 'ParseQueryResult' });
+export type ParseQueryResult = z.infer<typeof ParseQueryResultSchema>;
 
 export const SuggestItemSchema = z
   .object({
@@ -900,11 +916,40 @@ export const CommandBody = z.object({
     .optional()
     .describe("In the web app: the assistant read this command from the person's words (POST /ai/command), so each issue's history says it came via the assistant"),
 });
+/**
+ * A problem's words, for a page to say it in its person's language (D49): its key under problem.* in
+ * the catalogs and the values it takes. Beside English a program reads, such as a list of errors.
+ */
+export const ProblemWordsSchema = z
+  .object({
+    key: z.string().describe('The problem in the catalogs, problem.<key>'),
+    values: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('What its words take, by name: a word or a number, another problem ({ key, values }), or a list of them'),
+  })
+  .meta({ id: 'ProblemWords' });
+export type ProblemWords = z.infer<typeof ProblemWordsSchema>;
+
+/** A note's words in the catalogs, beside its English: a key and its values (D49). */
+export const NoteSaidSchema = z
+  .object({
+    key: z.string().describe('The message: builds.note.<what>, vcs.why.<what>, rules.run.<what>, or problem.<key> for one a page says as a problem'),
+    values: z.record(z.string(), z.unknown()).optional().describe('What its words take, by name; a problem among them is a { key, values } of its own'),
+  })
+  .describe('The note in the catalogs, for a page that says it in its person’s language (D49). Null where the note is null, and where it was recorded before a4a kept its words; note is the same in English.')
+  .meta({ id: 'NoteSaid' });
+export type NoteSaid = z.infer<typeof NoteSaidSchema>;
+
 export const CommandIssueResultSchema = z
   .object({
     issue: z.string(),
     changes: z.array(ChangeSchema),
     errors: z.array(z.string()),
+    errorWords: z
+      .array(ProblemWordsSchema)
+      .optional()
+      .describe("Each of errors as a page says it, in its person's language, in the same order (D49). The English in errors is the same"),
   })
   .meta({ id: 'CommandIssueResult' });
 export const CommandResultSchema = z
@@ -1346,6 +1391,7 @@ export const NLQueryResultSchema = z
     explanation: z.string(),
     valid: z.boolean(),
     problems: z.array(QueryProblemSchema),
+    explained: QueryExplainedSchema.describe('How a4a itself reads the query, in pieces, as /search/parse gives them'),
   })
   .meta({ id: 'NLQueryResult' });
 export type NLQueryResult = z.infer<typeof NLQueryResultSchema>;
@@ -1712,7 +1758,13 @@ export const NotificationSchema = z
     lastAt: timestamp,
     readAt: timestamp.nullable(),
     subscription: z
-      .object({ id: z.string(), about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"') })
+      .object({
+        id: z.string(),
+        about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"'),
+        target: z.enum(['project', 'search']).describe('What it follows, for a page that says about in its own words (D49)'),
+        events: z.enum(SUBSCRIPTION_EVENTS),
+        name: z.string().describe('The project’s name, or the saved search’s'),
+      })
       .nullable()
       .describe('When it came because you subscribed (kind "subscribed"): to what. Null otherwise, or once that subscription has ended'),
   })
@@ -1779,6 +1831,10 @@ export const UnsubscribeSchema = z
       .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
       .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
     what: z.string().describe('What the link stops, in words'),
+    subscription: z
+      .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
+      .nullable()
+      .describe('For a subscription that lasts: what it tells of, for a page that says what in its own words (D49)'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
   .meta({ id: 'Unsubscribe' });
@@ -2017,6 +2073,10 @@ export const RuleRunSchema = z
     issue: z.string().nullable().describe('Readable id of the issue it acted on, or null for a scheduled run as a whole'),
     outcome: z.enum(RULE_OUTCOMES),
     message: z.string(),
+    said: z
+      .array(NoteSaidSchema)
+      .nullable()
+      .describe("The message in the catalogs, a sentence each, for a page in another language (D49). Null for a run recorded before a4a kept them, and where the message is the rule's own words"),
     changes: z.array(ChangeSchema),
     by: UserRefSchema.nullable().describe('Whose change set it off, or whose change it refused'),
     at: timestamp,
@@ -2083,12 +2143,34 @@ export const RulePreviewSchema = z
           issue: IssueRefSchema,
           changes: z.array(ChangeSchema),
           errors: z.array(z.string()),
+          errorWords: z
+            .array(ProblemWordsSchema)
+            .optional()
+            .describe("Each of errors as a page says it, in its person's language, in the same order (D49)"),
           via: IssueRefSchema.nullable().optional().describe('When the rule acts on related issues: the matching issue this one is related to'),
           told: z.array(UserRefSchema).optional().describe('Whom it would tell about this issue'),
         }),
       )
       .describe('A few of the issues it would act on, with what the command would change on each (a dry run)'),
     note: z.string().describe('What the preview shows, in words'),
+    says: z
+      .object({
+        shows: z
+          .enum(['issues', 'fixUnderlined', 'fixScript', 'adminOnly'])
+          .describe('"issues": the issues it would act on; otherwise why it shows none: a part to fix, its script to fix, or a script only an administrator runs unsaved'),
+        kind: z.enum(RULE_KINDS),
+        scripted: z.boolean(),
+        trigger: z.enum(RULE_TRIGGERS).nullable(),
+        field: z.string().nullable().describe('The field whose change sets it off, if one'),
+        schedule: RuleScheduleSchema.nullable(),
+        target: RuleTargetSchema.nullable().describe('The issues it acts on, when not the issue itself'),
+        query: z.string(),
+        outside: z.number().int().describe('Issues it would act on in another project, which a rule of its project leaves alone'),
+        project: z.string().nullable().describe("Its project's key; null for a rule for every project"),
+        shown: z.number().int().describe('How many issues the sample shows'),
+        tells: z.boolean().describe('Whether it tells anyone'),
+      })
+      .describe("What note says, as data, for a page to say it in its person's language (D49)"),
   })
   .meta({ id: 'RulePreview' });
 export type RulePreview = z.infer<typeof RulePreviewSchema>;
@@ -2198,6 +2280,7 @@ export const VcsCommitSchema = z
     command: z.string().nullable().describe('The command it gave this issue ("BACK-12 #Fixed" gives "Fixed")'),
     applied: z.boolean().nullable().describe('Whether the command was applied; null when it gave none'),
     note: z.string().nullable().describe('What the command changed, or why it was not applied'),
+    said: NoteSaidSchema.nullable().describe('The note in the catalogs, for a page in another language (D49); null where it is only field names and values, and before a4a kept it'),
     integration: VcsSourceSchema,
   })
   .meta({ id: 'VcsCommit' });
@@ -2707,7 +2790,13 @@ export const ScriptRunSchema = z
   .object({
     ok: z.boolean().describe('It ran to its end'),
     error: z
-      .object({ kind: z.enum(SCRIPT_ERROR_KINDS), message: z.string(), line: z.number().int().nullable() })
+      .object({
+        kind: z.enum(SCRIPT_ERROR_KINDS),
+        message: z.string(),
+        line: z.number().int().nullable(),
+        key: z.string().optional().describe('Past its time or memory: the problem in the catalogs, problem.<key> (D49). What the JavaScript engine says has none'),
+        values: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+      })
       .nullable()
       .describe('Where it went wrong: its syntax, an error as it ran, or past its time or memory'),
     logs: z.array(z.string()).describe('What it wrote with log()'),
@@ -2720,11 +2809,27 @@ export const ScriptRunSchema = z
           issue: IssueRefSchema.nullable().describe('The issue the command is for'),
           changes: z.array(ChangeSchema).describe('What it would change there (a dry run)'),
           errors: z.array(z.string()),
+          errorWords: z
+            .array(ProblemWordsSchema)
+            .optional()
+            .describe("Each of errors as a page says it, in its person's language, in the same order (D49)"),
         }),
       )
       .describe('The commands it asked for, and what each would change'),
     ms: z.number().int(),
     note: z.string(),
+    says: z
+      .object({
+        outcome: z
+          .enum(['stopped', 'refuses', 'passes', 'doesNothing', 'asks'])
+          .describe('"stopped": its script stopped; a guard "refuses" or "passes" the change; "doesNothing": it refused; "asks": the commands it asks for'),
+        ignored: z.boolean().describe('A guard that applied or commented: a guard only refuses, so that is ignored'),
+        commands: z.number().int(),
+        changing: z.number().int().describe('Commands that would change something'),
+        failing: z.number().int().describe('Commands that would fail'),
+        comments: z.number().int(),
+      })
+      .describe("What note says, as data, for a page to say it in its person's language (D49)"),
   })
   .meta({ id: 'ScriptRun' });
 export type ScriptRun = z.infer<typeof ScriptRunSchema>;
@@ -3097,7 +3202,14 @@ export const ChatSubscriptionSchema = z
     createdBy: UserRefSchema.nullable().describe('Who subscribed the channel, and vouches for its people'),
     createdAt: timestamp,
     ended: z
-      .object({ at: timestamp, reason: z.string() })
+      .object({
+        at: timestamp,
+        reason: z.string(),
+        said: z
+          .object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() })
+          .nullable()
+          .describe('The reason as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null for a reason a chat service gave in its own code'),
+      })
       .nullable()
       .describe('Set when it no longer posts: its channel went, the app was removed, or its subscriber lost the project'),
   })
@@ -3147,7 +3259,7 @@ export const ChatStatusSchema = z
       botId: z.string().nullable(),
       tenantId: z.string().nullable(),
       messagingEndpoint: z.string().describe("The bot's messaging endpoint, for Azure Bot Service"),
-      teams: z.array(z.object({ id: z.string(), name: z.string(), installedAt: timestamp, removed: z.string().nullable() })),
+      teams: z.array(z.object({ id: z.string(), name: z.string(), installedAt: timestamp, removed: z.string().nullable(), removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe('Why it stopped as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null while it runs, for a reason a chat service gave in its own code, and for one kept before a4a kept its words') })),
     }),
     slack: z.object({
       connected: z.boolean(),
@@ -3155,6 +3267,7 @@ export const ChatStatusSchema = z
       connectedBy: UserRefSchema.nullable(),
       connectedAt: timestamp.nullable(),
       removed: z.string().nullable().describe('Why it stopped: the app was removed, or its token revoked'),
+      removedSaid: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).nullable().describe('Why it stopped as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null while it runs, for a reason a chat service gave in its own code, and for one kept before a4a kept its words'),
       requestUrls: z
         .object({ commands: z.string(), interactivity: z.string(), events: z.string() })
         .describe("Where Slack sends what people do, for the app's settings"),
@@ -3231,6 +3344,7 @@ export const BuildIssueSchema = z
       .enum(BUILD_ISSUE_OUTCOMES)
       .describe('marked: the build field set to this build. already: it named a build already. open: not resolved, so left. refused: a guard or a permission said no'),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable().describe('The commit that tied it to the build'),
   })
   .meta({ id: 'BuildIssue' });
@@ -3294,6 +3408,7 @@ export const IssueBuildSchema = z
     url: z.string().nullable(),
     outcome: z.enum(BUILD_ISSUE_OUTCOMES),
     note: z.string().nullable(),
+    said: NoteSaidSchema.nullable(),
     commit: z.string().nullable(),
     finishedAt: timestamp.nullable(),
   })

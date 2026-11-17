@@ -94,6 +94,8 @@ test('says a query’s problems in German, as they are typed, and fixes them wit
   await api.createProject({ key, name: `Abfragen ${key}` });
   await page.goto(`/issues?q=${encodeURIComponent(`project: ${key}`)}`);
   const query = page.getByRole('combobox', { name: 'Vorgänge suchen' });
+  // The line counting what it found says its noun once: the count, then what the query asks, in German.
+  await expect(page.getByRole('status').filter({ hasText: /^0 Vorgänge/ })).toHaveText(`0 Vorgänge: im Projekt ${key}`);
 
   // The query's problem carries a key beside its English; the page says it in German. Its guess is a
   // button of its own, so the sentence doesn't say it twice.
@@ -110,6 +112,29 @@ test('says a query’s problems in German, as they are typed, and fixes them wit
   await page.getByRole('button', { name: 'Fixed', exact: true }).click();
   await expect(query).toHaveValue(`project: ${key} State: Fixed`);
   await expect(query).not.toHaveAttribute('aria-invalid', 'true');
+});
+
+test('says what a rule would do in German: its preview, and why each issue breaks a guard', async ({ page, api }, info) => {
+  const key = uniqueKey('RV');
+  const project = await api.createProject({ key, name: `Regeln ${key}` });
+  for (const summary of ['Notiz eins', 'Notiz zwei']) await api.createIssue({ project: key, summary });
+  // The server sends what a preview says as data, and each issue's errors with their words (D49).
+  await api.post('/rules', { project: key, name: 'Notizen markieren', kind: 'change', trigger: 'created', query: 'summary: Notiz', command: 'tag notiert' });
+  await api.post('/rules', { project: key, name: 'Nur Kritisches', kind: 'guard', query: 'summary: Notiz', requires: 'Priority: Critical', message: 'Erst kritisch.' });
+  await page.goto(`/rules/${key}`);
+  const rules = page.getByRole('region', { name: `Regeln in ${project.name}` });
+
+  await rules.getByRole('listitem').filter({ hasText: 'Notizen markieren' }).getByRole('button', { name: 'Vorschau anzeigen' }).click();
+  const tags = page.getByRole('group', { name: 'Was Notizen markieren jetzt tun würde' });
+  await expect(tags).toContainText('2 Vorgänge entsprechen ihr jetzt. Die Regel handelt bei einem Vorgang nur, wenn ein Vorgang angelegt wird.');
+  await expect(tags.getByText(/issues? match|acts on|Here is/)).toHaveCount(0);
+
+  await rules.getByRole('listitem').filter({ hasText: 'Nur Kritisches' }).getByRole('button', { name: 'Vorschau anzeigen' }).click();
+  const guard = page.getByRole('group', { name: 'Was Nur Kritisches jetzt tun würde' });
+  await expect(guard).toContainText('2 davon verletzen die Regel');
+  await expect(guard.getByText('Verletzt die Regel bereits: Er entspricht „summary: Notiz“, aber nicht „Priority: Critical“.').first()).toBeVisible();
+  await expect(guard.getByText(/Already breaks|break the rule/)).toHaveCount(0);
+  await shoot(page, info, 'rule-preview');
 });
 
 test('a language chosen on the profile goes over the browser’s, and back', async ({ page }) => {

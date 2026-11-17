@@ -17,6 +17,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import type { ProblemSaid } from '@a4a/shared/i18n';
 
 const tsvector = customType<{ data: string }>({
   dataType() {
@@ -721,7 +722,10 @@ export const ruleRuns = pgTable(
     /** Whose change set it off, or whose change it refused. */
     actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
     outcome: text('outcome').notNull(),
+    /** What it did, in English, for the API. */
     message: text('message').notNull().default(''),
+    /** The message in the catalogs, a sentence each, for a page in another language (D49). Null before a4a kept them, and where the message is the rule's own words. */
+    said: jsonb('said').$type<{ key: string; values?: Record<string, unknown> }[]>(),
     changes: jsonb('changes'),
     createdAt: created(),
   },
@@ -819,7 +823,10 @@ export const vcsLinks = pgTable(
     /** The command a commit gave this issue ("BACK-12 #Fixed"), whether it was applied, and why not. */
     command: text('command'),
     commandApplied: boolean('command_applied'),
+    /** What it changed, or why not, in English, for the API. */
     commandNote: text('command_note'),
+    /** The note in the catalogs, a key and its values, for a page in another language (D49). Null before a4a kept it, and where the note is only field names and values. */
+    commandSaid: jsonb('command_said').$type<{ key: string; values?: Record<string, unknown> }>(),
     happenedAt: ts('happened_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -2132,6 +2139,8 @@ export const chatWorkspaces = pgTable(
     createdAt: created(),
     removedAt: ts('removed_at'),
     removedReason: text('removed_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    removedSaid: jsonb('removed_said').$type<ProblemSaid>(),
   },
   (t) => [uniqueIndex('chat_workspaces_external').on(t.platform, t.externalId)],
 );
@@ -2151,6 +2160,8 @@ export const chatChannels = pgTable(
     /** When a4a found it can't post there any more (deleted, archived, the bot taken out), and why. */
     goneAt: ts('gone_at'),
     goneReason: text('gone_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    goneSaid: jsonb('gone_said').$type<ProblemSaid>(),
   },
   (t) => [uniqueIndex('chat_channels_external').on(t.workspaceId, t.externalId)],
 );
@@ -2175,6 +2186,8 @@ export const chatSubscriptions = pgTable(
     createdAt: created(),
     endedAt: ts('ended_at'),
     endedReason: text('ended_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    endedSaid: jsonb('ended_said').$type<ProblemSaid>(),
   },
   (t) => [index('chat_subscriptions_channel').on(t.channelId), index('chat_subscriptions_project').on(t.projectId)],
 );
@@ -2326,7 +2339,10 @@ export const buildIssues = pgTable(
       .references(() => issues.id, { onDelete: 'cascade' }),
     /** 'marked', 'already' (it named a build already), 'open' (not resolved, so left) or 'refused' (note says why). */
     outcome: text('outcome').notNull(),
+    /** Why, in English, for the API. */
     note: text('note'),
+    /** The note in the catalogs, a key and its values, for a page in another language (D49). Null before a4a kept it. */
+    said: jsonb('said').$type<{ key: string; values?: Record<string, unknown> }>(),
     /** The commit that tied the issue to the build. */
     commit: text('commit'),
     createdAt: created(),

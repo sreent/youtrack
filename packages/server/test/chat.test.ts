@@ -5,10 +5,13 @@
 import type { IssueDetail } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import { createHttpApp } from '../src/http/app';
+import { translatorFor } from '../src/i18n';
+import { checkProblemWords, type AppError } from '../src/lib/errors';
 import { chatConsumer, ChatWorker, queueChatPosts } from '../src/chat/outbox';
 import { teamsAppPackage } from '../src/chat/package';
-import { acceptChatLink, chatLinkInfo, createChatSubscription, listChatChannels, listChatSubscriptions, myChatAccounts } from '../src/chat/service';
+import { acceptChatLink, chatLinkInfo, chatStatus, createChatSubscription, listChatChannels, listChatSubscriptions, myChatAccounts } from '../src/chat/service';
 import type { Ctx, UserRow } from '../src/context';
 import { cardIssue } from '../src/chat/cards';
 import { teamsChannelPost } from '../src/chat/teams';
@@ -17,7 +20,7 @@ import { OutboxWorker } from '../src/events/worker';
 import { newId } from '../src/lib/ids';
 import { addComment } from '../src/services/comments';
 import { createIssue, getIssue, setIssueVisibility, updateIssue } from '../src/services/issues';
-import { addMember } from '../src/services/members';
+import { addMember, updateMember } from '../src/services/members';
 import { createProject } from '../src/services/projects';
 import { toolByName } from '../src/tools/registry';
 import { FakeSlack, FakeTeams } from './fake-chat';
@@ -288,6 +291,18 @@ describe('a channel’s news, and the line it never crosses', () => {
     await expect(createChatSubscription(w.as(w.viewer), { channel: general!.id, project: 'SEC' })).rejects.toThrow();
     const sub = await createChatSubscription(w.as(w.ben), { channel: general!.id, project: 'SEC', kinds: ['created'] });
     expect(sub.about).toBe('New issues in Security');
+
+    // Once its subscriber no longer manages the project, the next news ends it, saying why: in
+    // English for the API, and as a problem's words a page says in its own language.
+    await updateMember(w.adminCtx, 'SEC', 'ben', { role: 'member' });
+    await createIssue(w.as(w.anna), { project: 'SEC', summary: 'Rotate the signing keys' });
+    await deliver();
+    const [ended] = (await listChatSubscriptions(w.adminCtx)).filter((s) => s.id === sub.id);
+    expect(ended!.ended).toMatchObject({
+      reason: 'Security is open to its members alone, and its subscriber doesn’t manage it',
+      said: { key: 'chat.stop.membersOnly', values: { project: 'Security' } },
+    });
+    expect(sayProblem(translatorFor('de'), ended!.ended!.said! as ProblemSaid)).toBe('Security ist nur für seine Mitglieder offen, und wer es abonniert hat, verwaltet es nicht.');
   });
 });
 
@@ -410,7 +425,14 @@ describe('when posting fails', () => {
     await deliver();
     const subs = (await listChatSubscriptions(w.as(w.anna))).filter((s) => s.channel.id === releases!.id);
     expect(subs[0]!.ended?.reason).toBe('ConversationNotFound');
+    // Teams' own code has no words: a page shows it as it came.
+    expect(subs[0]!.ended?.said).toBeNull();
     expect(subs[0]!.channel.gone).toBe('ConversationNotFound');
+    // Subscribing it again is refused with the reason inside the problem, in the English it came in.
+    const refused = await createChatSubscription(w.as(w.anna), { channel: releases!.id, project: 'BACK' }).catch((e: AppError) => e);
+    expect(refused).toMatchObject({ words: { key: 'chat.channelGoneWhy', values: { channel: 'Releases', why: { key: 'inItsOwnWords', values: { words: 'ConversationNotFound.' } } } } });
+    // The catalog's English says what the API says.
+    expect(() => checkProblemWords((refused as AppError).message, (refused as AppError).hint, (refused as AppError).words!)).not.toThrow();
   });
 });
 
@@ -478,6 +500,17 @@ describe('Slack', () => {
     expect((await fromSlack('events', body, slack.signed(body), 'application/json')).status).toBe(200);
     const subs = (await listChatSubscriptions(w.adminCtx)).filter((s) => s.channel.platform === 'slack');
     expect(subs.every((s) => s.ended?.reason === 'The app was removed from Slack')).toBe(true);
+    expect(subs.every((s) => s.ended?.said?.key === 'chat.stop.slackAppRemoved')).toBe(true);
+    // The chat page says why the workspace stopped in its own language: the status carries the words.
+    const { slack: status } = await chatStatus(w.adminCtx);
+    expect(status).toMatchObject({ connected: false, removed: expect.any(String), removedSaid: { key: 'chat.stop.slackAppRemoved' } });
+    expect(sayProblem(translatorFor('de'), status.removedSaid as ProblemSaid)).toBe('Die App wurde aus Slack entfernt.');
+    // A channel there can't be subscribed again: the reason is said inside the problem, in a page's language.
+    const channel = subs[0]!.channel;
+    const refused = (await createChatSubscription(w.adminCtx, { channel: channel!.id, project: 'BACK' }).catch((e: AppError) => e)) as AppError;
+    expect(refused.words).toMatchObject({ key: 'chat.channelGoneWhy', values: { why: { key: 'chat.stop.slackAppRemoved' } } });
+    expect(sayProblem(translatorFor('de'), refused.words!)).toBe(`a4a kann nicht mehr in ${channel.name} posten. Die App wurde aus Slack entfernt.`);
+    expect(() => checkProblemWords(refused.message, refused.hint, refused.words!)).not.toThrow();
   });
 });
 

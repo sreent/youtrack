@@ -21,7 +21,8 @@ import {
   type ChatSubscription,
   type CreateChatSubscriptionInput,
 } from '@a4a/shared';
-import type { Translator } from '@a4a/shared/i18n';
+import { joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { problemIn } from '@a4a/shared/notes';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
@@ -39,7 +40,7 @@ import { createIssue, getIssue } from '../services/issues';
 import { findFollowableSearch } from '../services/subscriptions';
 import { userRefDto } from '../services/values';
 import { cardIssue, type CardIssue } from './cards';
-import { channelTr, chatCtx, personTr, type Answer } from './common';
+import { channelTr, chatCtx, personTr, stopReason, type Answer, type StopReason } from './common';
 
 type WorkspaceRow = typeof chatWorkspaces.$inferSelect;
 type ChannelRow = typeof chatChannels.$inferSelect;
@@ -94,26 +95,29 @@ export async function upsertChannel(db: Db, workspaceId: string, externalId: str
   return row!;
 }
 
-/** End the subscriptions of a channel, or of every channel of a workspace, saying why. */
-async function endSubscriptions(db: Db, channelIds: string[], reason: string): Promise<void> {
+/** End the subscriptions of a channel, or of every channel of a workspace, saying why: in English, and in its words (D49). */
+async function endSubscriptions(db: Db, channelIds: string[], reason: StopReason): Promise<void> {
   if (!channelIds.length) return;
   await db
     .update(chatSubscriptions)
-    .set({ endedAt: new Date(), endedReason: reason })
+    .set({ endedAt: new Date(), endedReason: reason.text, endedSaid: reason.said })
     .where(and(inArray(chatSubscriptions.channelId, channelIds), isNull(chatSubscriptions.endedAt)));
 }
 
 /** a4a can't post to a channel any more: it's marked, and what it was subscribed to ends. */
-export async function markChannelGone(db: Db, channelId: string, reason: string): Promise<void> {
-  await db.update(chatChannels).set({ goneAt: new Date(), goneReason: reason }).where(and(eq(chatChannels.id, channelId), isNull(chatChannels.goneAt)));
+export async function markChannelGone(db: Db, channelId: string, reason: StopReason): Promise<void> {
+  await db
+    .update(chatChannels)
+    .set({ goneAt: new Date(), goneReason: reason.text, goneSaid: reason.said })
+    .where(and(eq(chatChannels.id, channelId), isNull(chatChannels.goneAt)));
   await endSubscriptions(db, [channelId], reason);
 }
 
 /** The app, or the bot, is gone from a workspace: every channel's subscriptions there end. */
-export async function markWorkspaceRemoved(db: Db, workspaceId: string, reason: string, opts: { forgetSecrets?: boolean } = {}): Promise<void> {
+export async function markWorkspaceRemoved(db: Db, workspaceId: string, reason: StopReason, opts: { forgetSecrets?: boolean } = {}): Promise<void> {
   await db
     .update(chatWorkspaces)
-    .set({ removedAt: new Date(), removedReason: reason, ...(opts.forgetSecrets ? { botToken: null, signingSecret: null } : {}) })
+    .set({ removedAt: new Date(), removedReason: reason.text, removedSaid: reason.said, ...(opts.forgetSecrets ? { botToken: null, signingSecret: null } : {}) })
     .where(eq(chatWorkspaces.id, workspaceId));
   const channels = await db.select({ id: chatChannels.id }).from(chatChannels).where(eq(chatChannels.workspaceId, workspaceId));
   await endSubscriptions(db, channels.map((c) => c.id), reason);
@@ -124,13 +128,20 @@ export async function channelByExternal(db: Db, workspaceId: string, externalId:
   return row;
 }
 
+/** Why a4a can no longer post to a channel, or nothing while it can: its workspace's reason first. */
+function goneReason(c: ChannelRow, ws: WorkspaceRow): StopReason | null {
+  if (ws.removedAt) return ws.removedReason ? { text: ws.removedReason, said: ws.removedSaid ?? null } : stopReason('The app was removed', 'chat.stop.appRemoved');
+  if (c.goneAt) return c.goneReason ? { text: c.goneReason, said: c.goneSaid ?? null } : stopReason('a4a can no longer post there', 'chat.stop.cantPostThere');
+  return null;
+}
+
 function channelDto(c: ChannelRow, ws: WorkspaceRow): ChatChannel {
   return {
     id: c.id,
     platform: ws.platform as ChatPlatform,
     workspace: ws.name,
     name: c.name,
-    gone: ws.removedAt ? (ws.removedReason ?? 'The app was removed') : c.goneAt ? (c.goneReason ?? 'a4a can no longer post there') : null,
+    gone: goneReason(c, ws)?.text ?? null,
   };
 }
 
@@ -178,7 +189,7 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
       messagingEndpoint: `${base}/teams/messages`,
       teams: workspaces
         .filter((w) => w.platform === 'teams')
-        .map((w) => ({ id: w.id, name: w.name, installedAt: w.createdAt.toISOString(), removed: w.removedAt ? (w.removedReason ?? 'removed') : null })),
+        .map((w) => ({ id: w.id, name: w.name, installedAt: w.createdAt.toISOString(), removed: w.removedAt ? (w.removedReason ?? 'removed') : null, removedSaid: w.removedAt ? (w.removedSaid ?? null) : null })),
     },
     slack: {
       connected: Boolean(slack && !slack.removedAt),
@@ -186,6 +197,7 @@ export async function chatStatus(ctx: Ctx): Promise<ChatStatus> {
       connectedBy: by ? userRefDto(by) : null,
       connectedAt: slack ? slack.createdAt.toISOString() : null,
       removed: slack?.removedAt ? (slack.removedReason ?? 'removed') : null,
+      removedSaid: slack?.removedAt ? (slack.removedSaid ?? null) : null,
       requestUrls: { commands: `${base}/slack/commands`, interactivity: `${base}/slack/interactions`, events: `${base}/slack/events` },
     },
     channels: [...all.values()].map((r) => channelDto(r.channel, r.workspace)),
@@ -225,13 +237,21 @@ const ENGLISH = translatorFor('en');
  * its members alone, they manage it, since the channel's people may not be members. Null when they may;
  * otherwise why not, in words for the page.
  */
-export async function whyNotFor(db: Db, userId: string | null, projectId: string, projectName: string): Promise<string | null> {
-  if (!userId) return 'Its subscriber’s account is gone';
+export async function whyNotFor(db: Db, userId: string | null, projectId: string, projectName: string): Promise<StopReason | null> {
+  if (!userId) return stopReason('Its subscriber’s account is gone', 'chat.stop.subscriberGone');
   const grant = (await projectGrantsOf(db, projectId, [userId])).get(userId);
-  if (!grant) return `Its subscriber can no longer see ${projectName}`;
+  if (!grant) return stopReason(`Its subscriber can no longer see ${projectName}`, 'chat.stop.subscriberCantSee', { project: projectName });
   const [p] = await db.select({ visibility: projects.visibility }).from(projects).where(eq(projects.id, projectId));
-  if (p?.visibility === 'members' && !grant.permissions.has('manage')) return `${projectName} is open to its members alone, and its subscriber doesn’t manage it`;
+  if (p?.visibility === 'members' && !grant.permissions.has('manage')) {
+    return stopReason(`${projectName} is open to its members alone, and its subscriber doesn’t manage it`, 'chat.stop.membersOnly', { project: projectName });
+  }
   return null;
+}
+
+/** When a subscription stopped and why: in English, and in its words for a page (D49). One ended before a4a kept the words says it in English. */
+function endedOf(r: SubscriptionRow): NonNullable<ChatSubscription['ended']> {
+  const why: StopReason = r.endedReason ? { text: r.endedReason, said: r.endedSaid ?? null } : stopReason('It stopped', 'chat.stop.itStopped');
+  return { at: r.endedAt!.toISOString(), reason: why.text, said: why.said };
 }
 
 async function subscriptionDtos(ctx: Ctx, rows: SubscriptionRow[]): Promise<ChatSubscription[]> {
@@ -257,7 +277,7 @@ async function subscriptionDtos(ctx: Ctx, rows: SubscriptionRow[]): Promise<Chat
       about: aboutChannel(r.kinds, { project: project?.name, search: search?.name }, ENGLISH),
       createdBy: by ? userRefDto(by) : null,
       createdAt: r.createdAt.toISOString(),
-      ended: r.endedAt ? { at: r.endedAt.toISOString(), reason: r.endedReason ?? 'It stopped' } : null,
+      ended: r.endedAt ? endedOf(r) : null,
     });
   }
   return out;
@@ -307,10 +327,11 @@ export async function createChatSubscription(ctx: Ctx, input: CreateChatSubscrip
   const [ch] = [...(await channelsWithWorkspaces(ctx.db, [input.channel])).values()];
   if (!ch) throw notFound('Channel', 'GET /chat/channels lists those a4a can post to.').said('chat.channelNotFound');
   if (ch.channel.goneAt || ch.workspace.removedAt) {
-    const why = channelDto(ch.channel, ch.workspace).gone;
-    throw badRequest(`a4a can no longer post to ${ch.channel.name}`, why ?? undefined).said(
+    const why = goneReason(ch.channel, ch.workspace);
+    // The reason is a problem of its own in the sentence: said in the page's language, or in the English it was kept in.
+    throw badRequest(`a4a can no longer post to ${ch.channel.name}`, why?.text).said(
       why ? 'chat.channelGoneWhy' : 'chat.channelGone',
-      why ? { channel: ch.channel.name, why: asSentence(why) } : { channel: ch.channel.name },
+      why ? { channel: ch.channel.name, why: why.said ?? { key: 'inItsOwnWords', values: { words: asSentence(why.text) } } } : { channel: ch.channel.name },
     );
   }
   const kinds = kindsFrom(input.kinds);
@@ -527,13 +548,18 @@ export async function issueForCard(ctx: Ctx, id: string): Promise<CardIssue> {
 }
 
 /**
- * What a command did to an issue, in a line, in its person's language: its changes, or why not. The
- * command's own words (what it changes, a problem with how it's written) are the command language's.
+ * What a command did to an issue, in a line, in its person's language (D49): its changes, or why not.
+ * A command's keywords and what people named (fields, values, tags) stay as written, the command
+ * language's; what a4a says of them is said in their language: a problem with how it's written, why it
+ * failed on the issue, and what it changed (run it with `tr`, so its description is in theirs too).
  */
 export function commandOutcome(res: Awaited<ReturnType<typeof runCommand>>, tr: Translator): { text: string; bad: boolean } {
-  if (res.problems.length) return { text: res.problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; '), bad: true };
+  if (res.problems.length) {
+    const said = res.problems.map((p) => asSentence(problemFor(tr, { message: p.message, hint: p.hint, words: p.key ? { key: p.key, ...(p.values ? { values: p.values } : {}) } : undefined })));
+    return { text: joinSentences(tr, said), bad: true };
+  }
   const r = res.results[0];
-  if (r?.errors.length) return { text: r.errors.join('; '), bad: true };
+  if (r?.errors.length) return { text: joinSentences(tr, r.errors.map((e, i) => problemIn(tr, r.errorWords?.[i] as ProblemSaid | undefined, asSentence(e)))), bad: true };
   if (!r?.changes.length) return { text: tr.t('server.chat.nothingToChange'), bad: false };
   return { text: tr.t('server.chat.done', { change: res.description }), bad: false };
 }
@@ -579,7 +605,7 @@ export async function runChatCommand(app: AppServices, platform: ChatPlatform, u
     if ((m = /^([A-Za-z][A-Za-z0-9]*-\d+)\s*(.*)$/.exec(text))) {
       const id = m[1]!.toUpperCase();
       if (!m[2]) return { text: id, locale, issues: [await issueForCard(ctx, id)] };
-      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }), tr);
+      const outcome = commandOutcome(await runCommand(ctx, { issues: [id], command: m[2] }, tr), tr);
       return { text: outcome.text, locale, issues: [await issueForCard(ctx, id)] };
     }
     return { text: tr.t('server.chat.unknown', { text: excerpt(text, 60) }), locale };

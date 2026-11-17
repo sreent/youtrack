@@ -1,4 +1,4 @@
-import type { NLQueryResult, QueryProblem, SuggestItem } from '@a4a/shared';
+import type { NLQueryResult, ParseQueryResult, QueryExplained, SuggestItem } from '@a4a/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, get, post, qs } from '../../api/client';
 import { Who } from '../../components/Who';
@@ -8,17 +8,25 @@ import { t, problemWords } from '../../i18n';
 
 export const checkQuery: Checker = async (text, caret) => {
   const [parsed, next] = await Promise.all([
-    post<{ ok: boolean; problems: QueryProblem[]; explanation: string }>('/search/parse', { query: text }),
+    post<ParseQueryResult>('/search/parse', { query: text }),
     get<{ items: SuggestItem[] }>(`/search/suggest${qs({ query: text, caret })}`),
   ]);
-  return { problems: parsed.problems, about: parsed.explanation, suggestions: next.items };
+  return { problems: parsed.problems, about: parsed.explanation, explained: parsed.explained, suggestions: next.items };
 };
 
-/** "4 issues in project BACK, unresolved", from the count and the query read in words. */
-export function foundLine(total: number, about: string): string {
-  const count = t('issues.queryBar.issues', { n: total });
-  if (/^(all )?issues\b/i.test(about)) return count + about.replace(/^(all )?issues/i, '');
-  return about ? `${count}: ${about}` : count;
+/**
+ * "4 issues in project BACK, unresolved": the count, then what the query asks and how it sorts,
+ * read by the server in the page's language. A query not read yet is its count alone.
+ */
+export function foundLine(total: number, explained: QueryExplained | null): string {
+  if (!explained) return t('issues.queryBar.issues', { n: total });
+  const { body, sort, zone } = explained;
+  const line = body
+    ? t('issues.queryBar.foundWhere', { n: total, body, sort })
+    : sort
+      ? t('issues.queryBar.foundSorted', { n: total, sort })
+      : t('issues.queryBar.foundRecentFirst', { n: total });
+  return zone ? t('issues.queryBar.foundDatesIn', { found: line, zone }) : line;
 }
 
 interface Props {
@@ -43,7 +51,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const lang = useLanguage(checkQuery, text, !words);
-  const [inForce, setInForce] = useState<{ text: string; about: string } | null>(null);
+  const [inForce, setInForce] = useState<{ text: string; explained: QueryExplained | null } | null>(null);
 
   // The query in force changed. If this bar sent it, keep what the person sees (their words
   // and what the agent read them as); if it came from elsewhere (a saved search, the back
@@ -66,8 +74,8 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t
   );
   // Remember how the query in force reads, for the line that says what it found.
   useEffect(() => {
-    if (!words && lang.checked && text === value) setInForce({ text, about: lang.about });
-  }, [words, lang.checked, lang.about, text, value]);
+    if (!words && lang.checked && text === value) setInForce({ text, explained: lang.explained });
+  }, [words, lang.checked, lang.explained, text, value]);
 
   const submit = useCallback(async () => {
     setError(null);
@@ -109,7 +117,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t
     requestAnimationFrame(() => input.current?.focus());
   };
 
-  const about = read && read.valid && read.query === value ? read.explanation : inForce && inForce.text === value ? inForce.about : '';
+  const explained = read && read.valid && read.query === value ? read.explained : inForce && inForce.text === value ? inForce.explained : null;
 
   return (
     <div className="query">
@@ -157,7 +165,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t
       ) : null}
       {found !== undefined && found !== null && !asking ? (
         <p className="query-found" role="status">
-          {foundLine(found, about)}
+          {foundLine(found, explained)}
         </p>
       ) : null}
     </div>

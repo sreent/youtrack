@@ -1,5 +1,6 @@
 /** A notification's email, and the daily digest: rendered when sent, from what is true then. */
 import type { IssueRef, NotificationKind } from '@a4a/shared';
+import { subscriptionTells } from '@a4a/shared/i18n';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
@@ -7,7 +8,7 @@ import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSec
 import { mailHost, type MailRow } from '../mail/outbox';
 import { accessFor, eventSeen } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
-import { aboutInline, aboutSubscriptions } from '../services/subscriptions';
+import { aboutSubscriptions } from '../services/subscriptions';
 import { forgetTeamReplyAddress, mintTeamReplyAddress } from '../services/team-replies';
 import { zoneOfUser } from '../services/time-zones';
 import { emailPrefs, emailSends, levelSends } from './notifier';
@@ -91,11 +92,11 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
     lead: t('server.mail.lead', { title, id: issue.id, summary: issue.summary }),
     sections,
     action: n.issueId ? { label: t('server.mail.open', { id: issue.id }), url: l.issue(issue.id) } : { label: t('server.mail.openInbox'), url: l.inbox },
-    why: `${stopKind === 'subscription' ? t('server.mail.whySubscribed', { about: aboutInline(sub!.about) }) : t('server.mail.why', { because: because(tr, kind) })}${replyTo ? ` ${t('server.mail.replyToComment')}` : ''}`,
+    why: `${stopKind === 'subscription' ? t('server.mail.whySubscribed', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name }) : t('server.mail.why', { because: because(tr, kind) })}${replyTo ? ` ${t('server.mail.replyToComment')}` : ''}`,
     stop: {
       label:
         stopKind === 'subscription'
-          ? t('server.mail.stopSubscription', { about: aboutInline(sub!.about) })
+          ? t('server.mail.stopSubscription', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name })
           : stopKind === 'watching'
             ? t('server.mail.stopWatching')
             : t('server.mail.stopIssues'),

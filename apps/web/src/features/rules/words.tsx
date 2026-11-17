@@ -1,19 +1,16 @@
-import type { Rule, RuleNotify, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
+import type { Rule, RuleNotify, RulePreview, RuleRelated, RuleRun, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
+import { notesIn, previewNote, scheduleWordsIn, targetIn, triggerWordsIn } from '@a4a/shared/notes';
 import type React from 'react';
-import { formatList, listNodes, t as tx, tr } from '../../i18n';
+import { formatList, inPage, listNodes, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** As the server says them (workflow/words.ts): a rule's parts in words. */
 export function triggerWords(trigger: RuleTrigger | null, field: string | null): string {
-  if (trigger === 'created') return tx('rules.words.anIssueIsCreated');
-  if (trigger === 'commented') return tx('rules.words.anIssueGetsAComment');
-  return field ? tx('rules.words.anIssueSChanges', { field: field }) : tx('rules.words.anIssueChanges');
+  return inPage((t) => triggerWordsIn(t, trigger, field));
 }
 
 export function scheduleWords(schedule: RuleSchedule | null): string {
-  if (!schedule) return tx('rules.words.onASchedule');
-  if (schedule.every === 'hour') return tx('rules.words.everyHour');
-  return tx('rules.words.everyDayAt', { every: schedule.every === 'weekday' ? 'weekday' : 'day', at: schedule.at ?? '09:00' });
+  return inPage((t) => scheduleWordsIn(t, schedule));
 }
 
 /**
@@ -21,8 +18,28 @@ export function scheduleWords(schedule: RuleSchedule | null): string {
  * it's linked to (by the link's phrase), or none for the issue itself.
  */
 function targetOf(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): { target: string; phrase: string } {
-  const to = t?.to ?? 'issue';
-  return { target: to === 'parent' || to === 'subtasks' || to === 'linked' ? to : 'none', phrase: t?.phrase?.trim() || tx('rules.words.isLinkedTo') };
+  return inPage((page) => targetIn(page, t));
+}
+
+/**
+ * What a rule's run did, in the page's language (D49): from its words, a sentence each; a run recorded
+ * before a4a kept them, or one that is the rule's own words, as its message says.
+ */
+export function runWords(run: Pick<RuleRun, 'said' | 'message'>): string {
+  return inPage((t) => notesIn(t, run.said, run.message));
+}
+
+/** What a script logged as it ran, from a run's words, or after " Logged: " in a run's English from before. */
+export function runLogged(run: Pick<RuleRun, 'said' | 'message'>): string | null {
+  const logged = run.said?.find((n) => n.key === 'rules.run.logged');
+  if (logged) return inPage((t) => notesIn(t, [logged], ''));
+  const at = run.said ? -1 : run.message.indexOf(' Logged: ');
+  return at >= 0 ? run.message.slice(at + 1) : null;
+}
+
+/** What a rule's preview shows, in the page's language, from what the server says it shows (D49). */
+export function previewWords(p: Pick<RulePreview, 'matching' | 'breaking' | 'says'>): string {
+  return inPage((t) => previewNote(t, p));
 }
 
 /** Whom of an issue a rule tells: a stable code its messages select on (D49). */

@@ -121,8 +121,27 @@ export function messageArguments(source: string): string[] {
  */
 export type ProblemSaid = { key: string; values?: Record<string, string | number | ProblemSaid | ProblemSaid[]> };
 
+/**
+ * Which words a subscription is said in (D31, D49), for a message that takes `{tells, select, …}`
+ * and `{name}`: new issues in a project, every change in it, issues coming into a saved search, or
+ * changes to issues in one. Each language words each case whole, in the case its sentence needs.
+ */
+export function subscriptionTells(target: 'project' | 'search', events: 'new' | 'all'): 'projectNew' | 'projectAll' | 'searchNew' | 'searchAll' {
+  return target === 'project' ? (events === 'all' ? 'projectAll' : 'projectNew') : events === 'all' ? 'searchAll' : 'searchNew';
+}
+
 /** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。. */
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
+
+/** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
+/** Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has. */
+export function intlTag(locale: Locale): string {
+  return locale === 'en' ? 'en-GB' : locale;
+}
+
+export function joinSentences(tr: Translator, sentences: readonly string[]): string {
+  return sentences.filter(Boolean).join(SENTENCE_GAP[tr.locale]);
+}
 
 /** A problem in a translator's language; the problems among its values are said first, in the same language. */
 /**

@@ -360,11 +360,11 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
       if (done.get(issue.id) === 'marked' || done.get(issue.id) === 'already') continue;
       if (!succeeded || !valueId) {
         // A build that didn't succeed marks nothing; what it holds is kept, for when it's run again and passes.
-        const note = status === 'cancelled' ? 'The build was cancelled' : 'The build failed';
+        const { note, said } = status === 'cancelled' ? noted('The build was cancelled', 'builds.note.cancelled') : noted('The build failed', 'builds.note.failed');
         await app.db
           .insert(buildIssues)
-          .values({ buildId: build!.id, issueId: issue.id, outcome: 'refused', note, commit })
-          .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: 'refused', note, commit } });
+          .values({ buildId: build!.id, issueId: issue.id, outcome: 'refused', note, said, commit })
+          .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: 'refused', note, said, commit } });
         continue;
       }
       const r = await markIssue(app, ctx, s, build!, field, valueId, issue, commit);
@@ -388,6 +388,10 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
   return { build: finalRow!, again: Boolean(before), marked, said };
 }
 
+/** Why a build left an issue as it did: in English for the API, and its words in the catalogs for a page (D49). */
+type Noted = { note: string | null; said: { key: string; values?: Record<string, unknown> } | null };
+const noted = (note: string, key: string, values?: Record<string, unknown>): Noted => ({ note, said: values ? { key, values } : { key } });
+
 /** One issue a build's commits name: marked when it's resolved and names no build yet, in a transaction of its own. */
 async function markIssue(
   app: AppServices,
@@ -404,12 +408,13 @@ async function markIssue(
   const outcome = await app.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const [locked] = await tx.select().from(issues).where(eq(issues.id, issue.id)).for('update');
-    if (!locked) return { outcome: 'refused' as const, note: 'It was deleted' };
-    let out: { outcome: BuildIssueOutcome; note: string | null };
+    if (!locked) return { outcome: 'refused' as const, ...noted('It was deleted', 'builds.note.deleted') };
+    let out: { outcome: BuildIssueOutcome } & Noted;
     const has = (await fieldValuesOf(tx, locked.id)).get(field.id) ?? [];
-    if (!locked.resolvedAt) out = { outcome: 'open', note: 'Not resolved yet' };
-    else if (has.some((v) => v.valueId === valueId)) out = { outcome: 'already', note: null };
-    else if (has.length && !field.multi) out = { outcome: 'already', note: `It says ${s.values.get(has[0]!.valueId ?? '')?.name ?? 'another build'} already` };
+    const other = has.length ? s.values.get(has[0]!.valueId ?? '')?.name : undefined;
+    if (!locked.resolvedAt) out = { outcome: 'open', ...noted('Not resolved yet', 'builds.note.notResolved') };
+    else if (has.some((v) => v.valueId === valueId)) out = { outcome: 'already', note: null, said: null };
+    else if (has.length && !field.multi) out = { outcome: 'already', ...(other ? noted(`It says ${other} already`, 'builds.note.saysAlready', { build: other }) : noted('It says another build already', 'builds.note.saysAnother')) };
     else {
       try {
         const res = await tx.transaction(async (spRaw) =>
@@ -419,16 +424,17 @@ async function markIssue(
           }),
         );
         activities.push(...res.activities);
-        out = { outcome: 'marked', note: null };
+        out = { outcome: 'marked', note: null, said: null };
       } catch (e) {
         if (!(e instanceof AppError)) throw e;
-        out = { outcome: 'refused', note: excerpt(e.message, 500) };
+        // A guard's or a permission's refusal: a page says it as the problem it is, in its language.
+        out = { outcome: 'refused', note: excerpt(e.message, 500), said: e.words ? { key: `problem.${e.words.key}`, ...(e.words.values ? { values: e.words.values } : {}) } : null };
       }
     }
     await tx
       .insert(buildIssues)
-      .values({ buildId: build.id, issueId: locked.id, outcome: out.outcome, note: out.note, commit })
-      .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: out.outcome, note: out.note, commit } });
+      .values({ buildId: build.id, issueId: locked.id, outcome: out.outcome, note: out.note, said: out.said, commit })
+      .onConflictDoUpdate({ target: [buildIssues.buildId, buildIssues.issueId], set: { outcome: out.outcome, note: out.note, said: out.said, commit } });
     return out;
   });
   const words: Record<BuildIssueOutcome, string> = {
@@ -691,7 +697,7 @@ export async function listBuilds(ctx: Ctx, projectKey: string, opts: { limit?: n
     issues: touched
       .filter((t) => t.buildId === b.id && refs.has(t.issueId))
       .sort((x, y) => (refs.get(x.issueId)!.id < refs.get(y.issueId)!.id ? -1 : 1))
-      .map((t) => ({ issue: refs.get(t.issueId)!, outcome: t.outcome as BuildIssueOutcome, note: t.note, commit: t.commit })),
+      .map((t) => ({ issue: refs.get(t.issueId)!, outcome: t.outcome as BuildIssueOutcome, note: t.note, said: t.said ?? null, commit: t.commit })),
   }));
 }
 
@@ -712,6 +718,7 @@ export async function issueBuilds(ctx: Ctx, idOrReadable: string): Promise<Issue
     url: b.url,
     outcome: t.outcome as BuildIssueOutcome,
     note: t.note,
+    said: t.said ?? null,
     commit: t.commit,
     finishedAt: b.finishedAt?.toISOString() ?? null,
   }));

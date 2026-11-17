@@ -4,7 +4,9 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
-import { AppError, asSentence, badRequest, keyedProblem, saidProblems } from '../lib/errors';
+import type { Translator } from '@a4a/shared/i18n';
+import { translatorFor } from '../i18n';
+import { AppError, asSentence, badRequest, errorWords, keyedProblem, saidProblems } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
 import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
@@ -30,7 +32,11 @@ export interface CommandRequest {
   meId?: string;
 }
 
-export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<CommandResult & { description: string }> {
+/**
+ * Apply a command to issues, or try it (`dryRun`). Its `description` says what it changes, in `words`'
+ * language when given (a chat reply in its person's, D49), else in English, as the API's words are.
+ */
+export async function runCommand(ctx: Ctx, req: CommandRequest, words?: Translator): Promise<CommandResult & { description: string }> {
   requireScope(ctx, req.dryRun ? 'read' : 'write');
   if (req.issues.length > MAX_BULK_ISSUES) {
     throw badRequest(`A command can change at most ${MAX_BULK_ISSUES} issues at once`, 'Split the list into smaller batches.').said('command.tooManyIssues', { max: MAX_BULK_ISSUES });
@@ -47,7 +53,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   if (missing.length) throw badRequest(`Unknown issues: ${missing.join(', ')}`).said('command.unknownIssues', { ids: missing.join(', ') });
   const projectIds = [...new Set(rows.map((r) => r.projectId))];
   const parsed = parseCommand(req.command, s, projectIds);
-  const description = describeCommand(parsed.ops);
+  const description = describeCommand(parsed.ops, words);
   if (parsed.problems.length) {
     return { applied: false, problems: parsed.problems, results: [], description };
   }
@@ -72,7 +78,8 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
       moves = await sprintMoves(ctx, issue, parsed.ops);
       if (moves.length) await assertCanWriteProject(ctx, issue.projectId);
     } catch (e) {
-      results.push({ issue: rid, changes: [], errors: [e instanceof Error ? e.message : String(e)] });
+      const msg = e instanceof Error ? e.message : String(e);
+      results.push({ issue: rid, changes: [], errors: [msg], errorWords: [errorWords(e, msg)] });
       continue;
     }
     try {
@@ -94,10 +101,10 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
         return { ...applied, changes: [...applied.changes, ...sprintChanges] };
       });
       activities.push(...res.activities);
-      results.push({ issue: rid, changes: res.changes, errors });
+      results.push({ issue: rid, changes: res.changes, errors, errorWords: [] });
     } catch (e) {
       const msg = e instanceof AppError ? (e.hint ? `${e.message} (${e.hint})` : e.message) : String(e);
-      results.push({ issue: rid, changes: [], errors: [msg] });
+      results.push({ issue: rid, changes: [], errors: [msg], errorWords: [errorWords(e, msg)] });
     }
   }
   await publishActivities(ctx.app, activities);
@@ -255,6 +262,7 @@ export async function commandSpec(
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {
   return visibleSchema(ctx).then((s) => {
     const parsed = parseCommand(command, s, projectIds);
-    return { problems: parsed.problems, description: describeCommand(parsed.ops) };
+    // In the page's language when a page asks (D49); English for an agent or a script.
+    return { problems: parsed.problems, description: describeCommand(parsed.ops, translatorFor(ctx.pageLocale ?? 'en')) };
   });
 }

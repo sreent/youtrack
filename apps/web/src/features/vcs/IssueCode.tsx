@@ -6,7 +6,7 @@ import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { whenRead } from '../common/format';
 import { IssueBuilds } from '../builds/Builds';
-import { t, tr } from '../../i18n';
+import { commandNote, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** Under the issue's own key, so the live feed refreshes it with the issue. */
@@ -40,7 +40,7 @@ function author(c: Pick<VcsCommit, 'author'>): string {
 function Command({ commit }: { commit: VcsCommit }) {
   if (!commit.command) return null;
   // The badge says whether; the words say what it changed, or why not.
-  const why = (commit.note ?? '').replace(/^Not applied:\s*/i, '');
+  const why = commandNote(commit.said, commit.note);
   return (
     <p className="code-command">
       <code>#{commit.command}</code>

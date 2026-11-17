@@ -8,7 +8,8 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
 const catalogs = import.meta.glob<{ default: Record<string, string> }>('../../../../packages/shared/i18n/*.json');
@@ -58,6 +59,11 @@ export function t(key: string, values?: MessageValues): string {
   return translator.t(key, values);
 }
 
+/** Whether the page's catalog has a message: a key the server kept with something may be one a later a4a renamed. */
+export function canSay(key: string): boolean {
+  return translator.has(key);
+}
+
 /** A list of things a page draws, joined as the page's language joins a list: "A, B and C", "A、B、C". */
 export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conjunction'): ReactNode {
   if (items.length <= 1) return items[0] ?? null;
@@ -94,6 +100,35 @@ export function problemWords(e: unknown): string | null {
 export function problemSaid(p: { key?: string; values?: Record<string, string | number> }, guessShown = false): string | null {
   if (!p.key) return null;
   return problemWords(guessShown && p.values?.hasGuess === 'yes' ? { key: p.key, values: { ...p.values, hasGuess: 'no' } } : p);
+}
+
+/**
+ * What went wrong, as the server gave it: in the page's language by its words (D49), else in the
+ * English it came in. A script's engine's own words have none, and stay as it said them.
+ */
+export function errorSaid(words: unknown, english: string): string {
+  return problemWords(words) ?? english;
+}
+
+/** Sentences one after the other, as the page's language puts them: a space, but none after Japanese's 。. */
+export function sentences(parts: readonly string[]): string {
+  return joinSentences(translator, parts);
+}
+
+/**
+ * A commit's command note, in the page's language (D49): why it wasn't applied (without the API's
+ * "Not applied:"), or what it did. One kept before a4a kept its words, or one that is only field names
+ * and values, as its English says it.
+ */
+export function commandNote(said: unknown, note: unknown): string {
+  const english = (typeof note === 'string' ? note : '').replace(/^Not applied:\s*/i, '');
+  const kept = said && typeof said === 'object' && typeof (said as { key?: unknown }).key === 'string' ? (said as { key: string; values?: Record<string, unknown> }) : null;
+  return noteIn(translator, kept, english);
+}
+
+/** Words the shared package says with a translator (`@a4a/shared/notes`), said in the page's language. */
+export function inPage<T>(say: (tr: Translator) => T): T {
+  return say(translator);
 }
 
 /** The language the page is in. */

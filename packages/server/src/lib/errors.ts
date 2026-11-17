@@ -50,7 +50,7 @@ export const aiDisabled = () =>
  * Words of a problem's own that someone wrote (a script's refusal, a rule's message), ended as a
  * page's sentence ends them: the value a keyed problem places where the API puts them whole (D49).
  */
-export const asSentence = (words: string): string => (/[.!?…:]["”’)]*$/.test(words.trim()) ? words.trim() : `${words.trim()}.`);
+export const asSentence = (words: string): string => (/[.!?…:。！？]["”’)」』）]*$/.test(words.trim()) ? words.trim() : `${words.trim()}.`);
 
 /** A problem as a page says it: its words, then its fix, each a sentence. */
 const sentence = (s: string) => asSentence(s);
@@ -130,3 +130,19 @@ export const saidProblem = (p: SaidAs): ProblemSaid =>
 
 /** A parser's problems as one problem's value: each said whole, with its fix, on a page (D49). */
 export const saidProblems = (problems: readonly SaidAs[]): ProblemSaid[] => problems.map(saidProblem);
+
+/**
+ * What went wrong for one issue, as a page says it (D49): a keyed problem by its key, anything else
+ * (what a script's engine said, or an error no catalog has) in the English it came in, `message`.
+ */
+export const errorWords = (e: unknown, message: string): ProblemSaid =>
+  e instanceof AppError && e.words ? e.words : { key: 'inItsOwnWords', values: { words: asSentence(message) } };
+
+/**
+ * One of the words a server writes about something it shows, beside the API's English (D49), checked
+ * as a keyed problem's are: under tests, the catalog's English must say what `message` says.
+ */
+export function noted(message: string, key: string, values?: Record<string, string | number>): { message: string; words: ProblemSaid } {
+  checkProblemWords(message, undefined, values ? { key, values } : { key });
+  return { message, words: values ? { key, values } : { key } };
+}

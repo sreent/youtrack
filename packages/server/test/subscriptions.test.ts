@@ -20,6 +20,8 @@ import { createProject } from '../src/services/projects';
 import { createSavedSearch, updateSavedSearch } from '../src/services/saved-searches';
 import { listSubscriptions, subscribe, unsubscribe, updateSubscription } from '../src/services/subscriptions';
 import { toolByName } from '../src/tools/registry';
+import { subscriptionTells } from '@a4a/shared/i18n';
+import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 import { fakeSmtp, type FakeSmtp } from './smtp';
 
@@ -75,7 +77,7 @@ describe('subscriptions to a project', () => {
     const issue = await createIssue(as(w.ben), { project: 'BACK', summary: 'Exports time out on big projects' });
     await run();
     const [n] = await told(w.anna, issue.id);
-    expect(n).toMatchObject({ kind: 'subscribed', title: 'Ben Okafor reported it', subscription: { id: sub.id, about: 'new issues in Backend' } });
+    expect(n).toMatchObject({ kind: 'subscribed', title: 'Ben Okafor reported it', subscription: { id: sub.id, about: 'new issues in Backend', target: 'project', events: 'new', name: 'Backend' } });
     await readAll(w.anna);
 
     // A change to it isn't a new issue, and she doesn't watch it.
@@ -160,7 +162,7 @@ describe('subscriptions to a saved search', () => {
     const fresh = await createIssue(as(w.ben), { project: 'BACK', summary: 'Payments double-charge', fields: { Priority: 'Critical' } });
     const later = await createIssue(as(w.ben), { project: 'BACK', summary: 'Search is slow', fields: { Priority: 'Normal' } });
     await run();
-    expect(await told(w.anna, fresh.id)).toMatchObject([{ kind: 'subscribed', subscription: { about: 'issues coming into “Critical in BACK”' } }]);
+    expect(await told(w.anna, fresh.id)).toMatchObject([{ kind: 'subscribed', subscription: { about: 'issues coming into “Critical in BACK”', target: 'search', events: 'new', name: 'Critical in BACK' } }]);
     expect(await told(w.anna, later.id)).toEqual([]);
     await updateIssue(as(w.ben), later.id, { fields: { Priority: 'Critical' } });
     await run();
@@ -263,7 +265,12 @@ describe('subscriptions by email', () => {
     expect(mail?.text).toContain('Stop emails about new issues in Web app');
     const token = /unsubscribe\?token=([^\s"&<>]+)/.exec(mail!.text)![1]!;
     const link = decodeURIComponent(token);
-    expect(await describeUnsubscribe(w.app, link)).toEqual({ kind: 'subscription', what: 'Emails about new issues in Web app. Your inbox in a4a still has them.', done: false });
+    expect(await describeUnsubscribe(w.app, link)).toEqual({
+      kind: 'subscription',
+      what: 'Emails about new issues in Web app. Your inbox in a4a still has them.',
+      subscription: { target: 'project', events: 'new', name: 'Web app' },
+      done: false,
+    });
     expect(await applyUnsubscribe(w.app, link)).toMatchObject({ kind: 'subscription', done: true });
     expect((await listSubscriptions(as(w.anna))).find((s) => s.id === sub.id)).toMatchObject({ email: false });
     smtp.messages.length = 0;
@@ -276,6 +283,38 @@ describe('subscriptions by email', () => {
     expect(smtp.messages.filter((m) => m.to.includes('anna@example.com'))).toEqual([]);
     expect(issue.id).toBeTruthy();
     await unsubscribe(as(w.anna), sub.id);
+  });
+
+  it('names the subscription in its person’s language, in the case each sentence needs', async () => {
+    await w.app.db.update(users).set({ locale: 'de' }).where(eq(users.id, w.viewer.id));
+    const sub = await subscribe(as(w.viewer), { project: 'WEB', events: 'all', email: true });
+    await flush();
+    const issue = await createIssue(as(w.ben), { project: 'WEB', summary: 'Coupons stack twice' });
+    await run();
+    await mailer.drain();
+    const mail = smtp.messages.find((m) => m.to.includes('vera@example.com'));
+    // German says "abonniert" with its accusative, and "zu" with its dative.
+    expect(mail?.text).toContain('Sie erhalten dies, weil Sie jede Änderung in Web app abonniert haben.');
+    expect(mail?.text).toContain('E-Mails zu jeder Änderung in Web app abbestellen');
+    // The inbox and the unsubscribe page get what to word it from; their English stays for the API.
+    const [n] = await told(w.viewer, issue.id);
+    expect(n!.subscription).toEqual({ id: sub.id, about: 'every change in Web app', target: 'project', events: 'all', name: 'Web app' });
+    const token = /unsubscribe\?token=([^\s"&<>]+)/.exec(mail!.text)![1]!;
+    expect(await describeUnsubscribe(w.app, decodeURIComponent(token))).toEqual({
+      kind: 'subscription',
+      what: 'Emails about every change in Web app. Your inbox in a4a still has them.',
+      subscription: { target: 'project', events: 'all', name: 'Web app' },
+      done: false,
+    });
+    // What a German page makes of them: the inbox's line and the unsubscribe page's.
+    const de = translatorFor('de');
+    const tells = subscriptionTells(n!.subscription!.target, n!.subscription!.events);
+    expect(de.t('page.inbox.becauseYouSubscribedTo', { tells, name: 'Web app' })).toBe('Weil Sie jede Änderung in Web app abonniert haben.');
+    expect(de.t('page.unsubscribe.subscription', { tells, name: 'Web app' })).toBe('E-Mails zu jeder Änderung in Web app. Ihr Posteingang in a4a enthält sie weiterhin.');
+    expect(de.t('page.unsubscribe.what', { kind: 'digest' })).toBe('Der tägliche Überblick.');
+    await w.app.db.update(users).set({ locale: null }).where(eq(users.id, w.viewer.id));
+    await unsubscribe(as(w.viewer), sub.id);
+    smtp.messages.length = 0;
   });
 
   it('sends nothing when the person asks for no email at all', async () => {

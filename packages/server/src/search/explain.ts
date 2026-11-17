@@ -80,12 +80,26 @@ function node(n: QueryNode, tr: Translator): string {
   }
 }
 
-/** The query in words, in a reader's language: English unless a page asked for its own. */
-export function explainParsed(parsed: ParsedQuery, tr: Translator = ENGLISH): string {
+/**
+ * The query's words in pieces: what it asks ("in project BACK, unresolved", '' for nothing) and how
+ * it sorts, worded to follow what it asks (" sorted by Priority", '' when it doesn't say). A page
+ * puts them after the count of what it found, "4 issues in project BACK", in its own words.
+ */
+export function explainParts(parsed: ParsedQuery, tr: Translator = ENGLISH): { body: string; sort: string } {
   const body = parsed.root ? node(parsed.root, tr) : '';
   const sort = parsed.sort.length
     ? tr.t('server.query.sortedBy', { sorts: list(tr, parsed.sort.map((s) => (s.dir === 'desc' ? tr.t('server.query.descending', { field: s.display }) : s.display)), 'conjunction', 'narrow') })
     : '';
+  return { body, sort };
+}
+
+/** The pieces as one sentence: "Issues in project BACK, unresolved", "All issues (most recently updated first)". */
+export function explanationOf({ body, sort }: { body: string; sort: string }, tr: Translator = ENGLISH): string {
   if (!body) return sort ? tr.t('server.query.allIssuesSorted', { sort }) : tr.t('server.query.allIssuesRecentFirst');
   return tr.t('server.query.issues', { body, sort });
+}
+
+/** The query in words, in a reader's language: English unless a page asked for its own. */
+export function explainParsed(parsed: ParsedQuery, tr: Translator = ENGLISH): string {
+  return explanationOf(explainParts(parsed, tr), tr);
 }

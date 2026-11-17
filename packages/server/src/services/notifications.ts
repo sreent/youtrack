@@ -86,7 +86,7 @@ async function dtos(ctx: Ctx, rows: NotificationRow[]): Promise<Notification[]> 
       firstAt: r.firstEventAt.toISOString(),
       lastAt: r.lastEventAt.toISOString(),
       readAt: r.readAt?.toISOString() ?? null,
-      subscription: sub && sub.userId === r.userId ? { id: r.subscriptionId!, about: aboutInline(sub.about) } : null,
+      subscription: sub && sub.userId === r.userId ? { id: r.subscriptionId!, about: aboutInline(sub.about), target: sub.target, events: sub.events, name: sub.name } : null,
     };
   });
 }
@@ -237,10 +237,11 @@ const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
 };
 
 /** What a link stops, in words: a subscription's, by what it tells of. */
-async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<string> {
-  if (kind !== 'subscription') return WORDS[kind];
+async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<Pick<Unsubscribe, 'what' | 'subscription'>> {
+  if (kind !== 'subscription') return { what: WORDS[kind], subscription: null };
   const about = (await aboutSubscriptions(app.db, await app.schema.get(), [subject])).get(subject);
-  return about ? `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.` : 'Emails from a subscription that has ended.';
+  if (!about) return { what: 'Emails from a subscription that has ended.', subscription: null };
+  return { what: `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.`, subscription: { target: about.target, events: about.events, name: about.name } };
 }
 
 /** For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the request's issue id. */
@@ -258,7 +259,7 @@ async function readToken(app: AppServices, token: string): Promise<{ kind: Unsub
 
 export async function describeUnsubscribe(app: AppServices, token: string): Promise<Unsubscribe> {
   const { kind, subject } = await readToken(app, token);
-  return { kind, what: await wordsFor(app, kind, subject), done: await isStopped(app.db, kind, subject) };
+  return { kind, ...(await wordsFor(app, kind, subject)), done: await isStopped(app.db, kind, subject) };
 }
 
 async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promise<boolean> {
@@ -295,7 +296,7 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
     else if (kind === 'watching' && prefs.email === 'all') await saveSettings(app.db, subject, { email: 'direct' });
     else if (kind === 'direct') await saveSettings(app.db, subject, { email: 'none' });
   }
-  return { kind, what: await wordsFor(app, kind, subject), done: true };
+  return { kind, ...(await wordsFor(app, kind, subject)), done: true };
 }
 
 /** Notifications of a person, unread and not emailed, whose latest event falls in (since, until]: a digest's. */

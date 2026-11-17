@@ -9,7 +9,7 @@ import { chatKeys, ChatSubscriptionTable, useChatSubscriptions } from '../featur
 import { AdminOnly, errorText, FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
-import { t as tx, tr } from '../i18n';
+import { problemWords, t as tx, tr } from '../i18n';
 
 const useChatStatus = () => useQuery({ queryKey: chatKeys.status, queryFn: () => get<ChatStatus>('/chat/status') });
 
@@ -59,8 +59,9 @@ function Teams({ status }: { status: ChatStatus }) {
               <span>
                 <span className="item-name">{team.name}</span>
                 <span className="item-about">{tr('page.chat.addedChannels', { when: ago(team.installedAt), length: channels.filter((c) => c.workspace === team.name && !c.gone).length })}</span>
+                {team.removed ? <span className="item-about">{problemWords(team.removedSaid) ?? team.removed}</span> : null}
               </span>
-              {team.removed ? <Badge tone="idle">{team.removed}</Badge> : <Badge tone="good">{tx('page.chat.inTheTeam')}</Badge>}
+              {team.removed ? <Badge tone="idle">{tx('chat.chat.stopped')}</Badge> : <Badge tone="good">{tx('page.chat.inTheTeam')}</Badge>}
             </li>
           ))}
         </ul>
@@ -128,7 +129,11 @@ function Slack({ status }: { status: ChatStatus }) {
             connect.mutate();
           }}
         >
-          {s.removed ? <p className="note">{tr('page.chat.itStopped', { removed: s.removed })}</p> : null}
+          {s.removed ? (
+            <p className="note">
+              <Badge tone="idle">{tx('chat.chat.stopped')}</Badge> {problemWords(s.removedSaid) ?? s.removed}
+            </p>
+          ) : null}
           <FormField label={tx('page.chat.botToken')} help={tx('page.chat.underOauthPermissionsInThe')}>
             {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required className="mono" />}
           </FormField>

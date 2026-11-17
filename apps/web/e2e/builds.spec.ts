@@ -5,12 +5,12 @@
  */
 import { fieldValue, unique, uniqueKey } from './support/api';
 import { expect, test } from './support/fixtures';
-import { THIRD_AUTH_FILE } from './support/env';
+import { AUTH_FILE, THIRD_AUTH_FILE } from './support/env';
 
 // The third of the flows' administrators (support/env.ts says why).
 test.use({ storageState: THIRD_AUTH_FILE });
 
-test('a build from CI marks the resolved issue its commits name, and says so', async ({ page, api, playwright }) => {
+test('a build from CI marks the resolved issue its commits name, and says so', async ({ page, api, playwright, browser }) => {
   const key = uniqueKey('BU');
   const project = await api.createProject({ key, name: `Builds ${key}` });
   const fixed = await api.createIssue({ project: key, summary: 'Checkout rounds twice', fields: { Type: 'Bug' } });
@@ -52,10 +52,22 @@ test('a build from CI marks the resolved issue its commits name, and says so', a
   await expect(row.getByRole('link', { name: fixed.id })).toBeVisible();
   await expect(row).toContainText('fixed in it');
   await expect(row).toContainText('not resolved yet');
+  await expect(row.getByRole('listitem').filter({ hasText: open.id })).toHaveAttribute('title', 'Not resolved yet');
   await expect(page.getByRole('heading', { name: `Builds of ${project.name}` })).toBeVisible();
 
   await page.goto(`/issues/${fixed.id}`);
   const builds = page.getByRole('region', { name: 'Commits and pull requests' }).getByRole('group', { name: 'Builds' });
   await expect(builds.getByRole('link', { name: 'Build 2.0.1' })).toHaveAttribute('href', 'https://ci.acme.example/job/backend/201/');
   await expect(builds).toContainText('fixed in it');
+
+  // A German page says why a build left an issue in German: a4a kept the note's words beside its English.
+  const german = await browser.newContext({ locale: 'de-DE', storageState: AUTH_FILE });
+  const deutsch = await german.newPage();
+  await deutsch.goto(`/builds/${key}`);
+  const zeile = deutsch.getByRole('region', { name: 'Tabelle der Builds' }).getByRole('row').filter({ hasText: '2.0.1' });
+  await expect(zeile.getByRole('listitem').filter({ hasText: open.id })).toHaveAttribute('title', 'Noch nicht erledigt');
+  await deutsch.goto(`/issues/${open.id}`);
+  const gebaut = deutsch.getByRole('region', { name: 'Commits und Pull Requests' }).getByRole('group', { name: 'Builds' });
+  await expect(gebaut).toContainText('Noch nicht erledigt ·');
+  await german.close();
 });

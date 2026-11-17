@@ -7,7 +7,7 @@ import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
-import { t, tr, problemWords } from '../../i18n';
+import { errorSaid, t, tr, problemWords } from '../../i18n';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -110,7 +110,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
 
   const current = preview && preview.command === command ? preview.result : words && read ? read.preview : null;
   const changing = current ? current.results.filter((r) => r.changes.length > 0).length : 0;
-  const errors = current ? current.results.flatMap((r) => r.errors.map((e) => `${r.issue}: ${e}`)) : [];
+  const errors = current ? current.results.flatMap((r) => r.errors.map((e, i) => `${r.issue}: ${errorSaid(r.errorWords?.[i], e)}`)) : [];
 
   const askWords = async () => {
     if (!text.trim()) return;
@@ -228,8 +228,8 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
                 <span className="issue-id">{r.issue}</span>
                 <span className="command-summary">{summaries.get(r.issue) ?? ''}</span>
                 {r.changes.length ? <ChangeLines changes={r.changes} /> : <ChangeLines changes={[]} same={[t('issues.commandBar.nothingChanges')]} />}
-                {r.errors.map((e) => (
-                  <ErrorLine key={e}>{e}</ErrorLine>
+                {r.errors.map((e, i) => (
+                  <ErrorLine key={e}>{errorSaid(r.errorWords?.[i], e)}</ErrorLine>
                 ))}
               </li>
             ))}
@@ -240,7 +240,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       <label className="command-comment">{tr('issues.commandBar.aCommentIfYouWant', { el: <textarea value={comment} onChange={(e) => setComment(e.target.value)} /> })}</label>
 
       {error ? <ErrorLine>{error}</ErrorLine> : null}
-      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: failed.map((f) => `${f.issue} (${f.errors.join('; ')})`).join(', ') })}</ErrorLine> : null}
+      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: failed.map((f) => `${f.issue} (${f.errors.map((e, i) => errorSaid(f.errorWords?.[i], e)).join('; ')})`).join(', ') })}</ErrorLine> : null}
 
       <div className="dialog-actions">
         {hint ? <p className="command-hint">{hint}</p> : null}

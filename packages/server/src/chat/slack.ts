@@ -15,7 +15,7 @@ import { findVisibleIssue } from '../services/issues';
 import type { Translator } from '@a4a/shared/i18n';
 import { problemFor, translatorFor } from '../i18n';
 import { cardChange, fallbackText, slackBlocks, type CardIssue } from './cards';
-import { callable, channelTr, ChatCallError, chatCtx, openSecret, personTr, retryAfterMs, sealSecret, type Answer } from './common';
+import { callable, channelTr, ChatCallError, chatCtx, openSecret, personTr, retryAfterMs, sealSecret, stopError, stopReason, type Answer, type StopReason } from './common';
 import {
   channelByExternal,
   chatStatus,
@@ -37,10 +37,10 @@ type WorkspaceRow = typeof chatWorkspaces.$inferSelect;
 
 const MAX_AGE_S = 5 * 60;
 /** Slack's answers that mean a channel can't be posted to, and those that mean the app is gone. */
-const CHANNEL_GONE: Record<string, string> = {
-  channel_not_found: 'The channel was deleted, or a4a can’t see it',
-  is_archived: 'The channel was archived',
-  not_in_channel: 'a4a isn’t in the channel: invite it with /invite @a4a',
+const CHANNEL_GONE: Record<string, StopReason> = {
+  channel_not_found: stopReason('The channel was deleted, or a4a can’t see it', 'chat.stop.channelNotFound'),
+  is_archived: stopReason('The channel was archived', 'chat.stop.channelArchived'),
+  not_in_channel: stopReason('a4a isn’t in the channel: invite it with /invite @a4a', 'chat.stop.notInChannel'),
 };
 const APP_GONE = new Set(['invalid_auth', 'account_inactive', 'token_revoked', 'token_expired', 'not_authed', 'team_access_not_granted', 'no_permission']);
 
@@ -94,14 +94,14 @@ export async function slackCall(app: AppServices, token: string, method: string,
   if (body.ok === true) return body;
   const error = typeof body.error === 'string' ? body.error : `HTTP ${res.status}`;
   if (error === 'ratelimited') throw new ChatCallError('Slack is limiting a4a', 'retry', retryAfterMs(res.headers.get('retry-after')));
-  if (CHANNEL_GONE[error]) throw new ChatCallError(CHANNEL_GONE[error], 'gone');
-  if (APP_GONE.has(error)) throw new ChatCallError(`Slack refused a4a's token (${error}): the app was removed, or its token revoked`, 'removed');
+  if (CHANNEL_GONE[error]) throw stopError('gone', CHANNEL_GONE[error]);
+  if (APP_GONE.has(error)) throw stopError('removed', stopReason(`Slack refused a4a's token (${error}): the app was removed, or its token revoked`, 'chat.stop.slackTokenRefused', { error }));
   throw new ChatCallError(`Slack said ${error}`, 'failed');
 }
 
 const tokenOf = (app: AppServices, ws: WorkspaceRow) => {
   const token = openSecret(app, ws.botToken);
-  if (!token) throw new ChatCallError('a4a can’t read the Slack token it keeps (SECRET_KEY changed?)', 'removed');
+  if (!token) throw stopError('removed', stopReason('a4a can’t read the Slack token it keeps (SECRET_KEY changed?)', 'chat.stop.slackTokenUnreadable'));
   return token;
 };
 
@@ -144,7 +144,7 @@ export async function disconnectSlack(ctx: Ctx): Promise<void> {
   requireScope(ctx, 'admin');
   const ws = await slackWorkspace(ctx.app);
   if (!ws) throw notFound('Slack connection').said('chat.slackConnectionNotFound');
-  await markWorkspaceRemoved(ctx.db, ws.id, `Disconnected by ${ctx.actor.user.name}`, { forgetSecrets: true });
+  await markWorkspaceRemoved(ctx.db, ws.id, stopReason(`Disconnected by ${ctx.actor.user.name}`, 'chat.stop.disconnectedBy', { name: ctx.actor.user.name }), { forgetSecrets: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -237,14 +237,14 @@ export async function slackInteraction(app: AppServices, ws: WorkspaceRow, paylo
   try {
     if (action.action_id === 'assign') {
       issueId = String(action.value ?? '').toUpperCase();
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.assigned'), bad: false };
     } else if (action.action_id === 'state') {
       const [id, ...state] = String(action.selected_option?.value ?? '').split('|');
       issueId = (id ?? '').toUpperCase();
       const name = state.join('|');
       const field = [...(await app.schema.get()).fields.values()].find((f) => f.type === 'state');
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${field?.name ?? 'State'} ${name}` }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.moved', { state: name }), bad: false };
     } else return;
   } catch (e) {
@@ -296,7 +296,7 @@ export async function slackEvent(app: AppServices, ws: WorkspaceRow, body: Recor
   if (body.type !== 'event_callback' || body.team_id !== ws.externalId) return {};
   const e = (body.event ?? {}) as Record<string, unknown>;
   const channelId = typeof e.channel === 'string' ? e.channel : ((e.channel as { id?: string } | undefined)?.id ?? '');
-  const gone = async (reason: string) => {
+  const gone = async (reason: StopReason) => {
     const row = await channelByExternal(app.db, ws.id, channelId);
     if (row) await markChannelGone(app.db, row.id, reason);
   };
@@ -306,11 +306,11 @@ export async function slackEvent(app: AppServices, ws: WorkspaceRow, body: Recor
       break;
     case 'channel_deleted':
     case 'group_deleted':
-      await gone('The channel was deleted');
+      await gone(stopReason('The channel was deleted', 'chat.stop.channelDeleted'));
       break;
     case 'channel_archive':
     case 'group_archive':
-      await gone('The channel was archived');
+      await gone(stopReason('The channel was archived', 'chat.stop.channelArchived'));
       break;
     case 'channel_rename':
     case 'group_rename': {
@@ -327,11 +327,11 @@ export async function slackEvent(app: AppServices, ws: WorkspaceRow, body: Recor
       }
       break;
     case 'member_left_channel':
-      if (e.user === ws.botUserId) await gone('a4a was taken out of the channel');
+      if (e.user === ws.botUserId) await gone(stopReason('a4a was taken out of the channel', 'chat.stop.takenOutOfChannel'));
       break;
     case 'app_uninstalled':
     case 'tokens_revoked':
-      await markWorkspaceRemoved(app.db, ws.id, 'The app was removed from Slack', { forgetSecrets: true });
+      await markWorkspaceRemoved(app.db, ws.id, stopReason('The app was removed from Slack', 'chat.stop.slackAppRemoved'), { forgetSecrets: true });
       break;
     default:
       break;

@@ -3,7 +3,7 @@
  * and what an answer to someone is.
  */
 import { CHAT_PLATFORM_NAMES, type ChatPlatform } from '@a4a/shared';
-import type { Locale, Translator } from '@a4a/shared/i18n';
+import type { Locale, ProblemSaid, Translator } from '@a4a/shared/i18n';
 import { effectiveScopes, type AppServices, type Ctx, type UserRow } from '../context';
 import { localeOfPerson, translatorFor } from '../i18n';
 import { open, seal } from '../lib/secret-box';
@@ -47,6 +47,18 @@ export function callable(app: AppServices, url: string, hosts: readonly string[]
   return u.protocol === 'https:' && hosts.includes(u.hostname.toLowerCase());
 }
 
+/**
+ * Why a4a stopped posting to a channel, to a workspace, or for a subscription: in English, for the
+ * API, and as a problem's words, problem.chat.stop.*, for a page in another language (D49). A reason
+ * a chat service gave in its own code has no words: a page shows it as it came.
+ */
+export interface StopReason {
+  text: string;
+  said: ProblemSaid | null;
+}
+
+export const stopReason = (text: string, key: string, values?: Record<string, string | number>): StopReason => ({ text, said: values ? { key, values } : { key } });
+
 /** A call to the chat service that failed: what to do about it. */
 export class ChatCallError extends Error {
   constructor(
@@ -55,10 +67,20 @@ export class ChatCallError extends Error {
     readonly outcome: 'retry' | 'gone' | 'removed' | 'failed',
     /** For retry: how long the service asked a4a to wait. */
     readonly retryAfterMs?: number,
+    /** For gone and removed: the message as a problem's words, kept with the reason (D49). */
+    readonly said?: ProblemSaid,
   ) {
     super(message);
   }
+
+  /** Why it stopped, as markChannelGone and markWorkspaceRemoved keep it. */
+  get reason(): StopReason {
+    return { text: this.message, said: this.said ?? null };
+  }
 }
+
+/** A call error that stops a channel or a workspace, with its words. */
+export const stopError = (outcome: 'gone' | 'removed', reason: StopReason): ChatCallError => new ChatCallError(reason.text, outcome, undefined, reason.said ?? undefined);
 
 /** Seconds from a Retry-After header, as milliseconds; a date there too. */
 export function retryAfterMs(header: string | null | undefined): number | undefined {

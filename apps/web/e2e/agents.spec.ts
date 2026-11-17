@@ -84,6 +84,11 @@ test('an agent’s change that someone changed meanwhile isn’t undone, and the
 
   // Its history says so too, without being asked.
   const events = await api.get<TrackerEvent[]>(`/issues/${issue.id}/activity`);
-  expect(events.find((e) => e.actor.login === bot.login)?.undo).toEqual({ state: 'changed_since', note: `State is Fixed now: ${ADMIN.name} changed it since` });
+  expect(events.find((e) => e.actor.login === bot.login)?.undo).toEqual({
+    state: 'changed_since',
+    note: `State is Fixed now: ${ADMIN.name} changed it since`,
+    // Its words, so a page in another language says it in its own (D49).
+    noteWords: [{ key: 'agents.stop.fieldChanged', values: { field: 'State', hasValue: 'yes', value: 'Fixed', hasBy: 'yes', by: ADMIN.name } }],
+  });
   await agent.dispose();
 });

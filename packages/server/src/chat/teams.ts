@@ -18,7 +18,7 @@ import { AppError, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { addComment } from '../services/comments';
 import { cardAttachment, cardChange, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
-import { callable, channelTr, ChatCallError, chatCtx, personTr, retryAfterMs, type Answer } from './common';
+import { callable, channelTr, ChatCallError, chatCtx, personTr, retryAfterMs, stopError, stopReason, type Answer } from './common';
 import {
   channelByExternal,
   commandOutcome,
@@ -201,7 +201,8 @@ async function connector(app: AppServices, serviceUrl: string, method: 'GET' | '
   }
   if (res.status === 403 || res.status === 404) {
     const why = /BotNotInConversationRoster|BotDisabledByAdmin/i.test(code) ? 'removed' : 'gone';
-    throw new ChatCallError(code || `Teams answered ${res.status}`, why);
+    // Teams' own code is said as it came; a bare status, in words.
+    throw stopError(why, code ? { text: code, said: null } : stopReason(`Teams answered ${res.status}`, 'chat.stop.teamsAnswered', { status: String(res.status) }));
   }
   throw new ChatCallError(`Teams answered ${res.status}${code ? ` (${code})` : ''}`, 'failed');
 }
@@ -306,7 +307,15 @@ async function onConversationUpdate(app: AppServices, a: TeamsActivity): Promise
   if (!teamId || a.conversation?.conversationType !== 'channel') return;
   if (botMember(app, a.membersRemoved, a.recipient?.id) || event === 'teamDeleted' || event === 'teamArchived' || event === 'teamHardDeleted') {
     const ws = await workspaceOf(app, teamId);
-    if (ws) await markWorkspaceRemoved(app.db, ws.id, event === 'teamDeleted' || event === 'teamHardDeleted' ? 'The team was deleted' : event === 'teamArchived' ? 'The team was archived' : 'a4a was removed from the team');
+    if (ws) {
+      const why =
+        event === 'teamDeleted' || event === 'teamHardDeleted'
+          ? stopReason('The team was deleted', 'chat.stop.teamDeleted')
+          : event === 'teamArchived'
+            ? stopReason('The team was archived', 'chat.stop.teamArchived')
+            : stopReason('a4a was removed from the team', 'chat.stop.removedFromTeam');
+      await markWorkspaceRemoved(app.db, ws.id, why);
+    }
     return;
   }
   const ws = await teamOf(app, a);
@@ -322,7 +331,7 @@ async function onConversationUpdate(app: AppServices, a: TeamsActivity): Promise
   if (event === 'channelCreated' || event === 'channelRenamed' || event === 'channelRestored') await upsertChannel(app.db, ws.id, channel.id, channel.name ?? 'A channel');
   if (event === 'channelDeleted') {
     const row = await channelByExternal(app.db, ws.id, channel.id);
-    if (row) await markChannelGone(app.db, row.id, 'The channel was deleted');
+    if (row) await markChannelGone(app.db, row.id, stopReason('The channel was deleted', 'chat.stop.channelDeleted'));
   }
 }
 
@@ -386,7 +395,7 @@ async function onAction(app: AppServices, a: TeamsActivity): Promise<Record<stri
   let note: { text: string; bad?: boolean } | null = null;
   try {
     if (verb === 'assign') {
-      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }), tr);
+      const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: 'for me' }, tr), tr);
       note = o.bad ? o : { text: tr.t('server.chat.assigned') };
     } else if (verb === 'state') {
       const state = typeof data.state === 'string' ? data.state.trim() : '';
@@ -395,7 +404,7 @@ async function onAction(app: AppServices, a: TeamsActivity): Promise<Record<stri
         const current = await issueForCard(ctx, issueId);
         const field = (await app.schema.get()).fields;
         const stateField = [...field.values()].find((f) => f.type === 'state' && current.states.includes(state));
-        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }), tr);
+        const o = commandOutcome(await runCommand(ctx, { issues: [issueId], command: `${stateField?.name ?? 'State'} ${state}` }, tr), tr);
         note = o.bad ? o : { text: tr.t('server.chat.moved', { state }) };
       }
     } else if (verb === 'comment') {
@@ -436,7 +445,7 @@ export async function handleTeamsActivity(app: AppServices, a: TeamsActivity): P
       case 'installationUpdate':
         if (/^remove/.test(a.action ?? '') && a.conversation?.conversationType === 'channel') {
           const ws = await workspaceOf(app, a.channelData?.team?.id);
-          if (ws) await markWorkspaceRemoved(app.db, ws.id, 'a4a was removed from the team');
+          if (ws) await markWorkspaceRemoved(app.db, ws.id, stopReason('a4a was removed from the team', 'chat.stop.removedFromTeam'));
         }
         return { status: 200 };
       case 'message':

@@ -39,7 +39,8 @@ import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
-import { AppError, badRequest, conflict, forbidden, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
+import { AppError, badRequest, conflict, errorWords, forbidden, keyedProblem, noted, notFound, saidProblems, wordsOf } from '../lib/errors';
+import { translatorFor } from '../i18n';
 import { newId } from '../lib/ids';
 import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
@@ -96,6 +97,9 @@ export function botCtx(app: AppServices, bot: UserRow, projectId: string): Ctx {
 /** Fields an "updated" rule can wait for besides the project's own. */
 const BUILT_IN_FIELDS = ['Summary', 'Description', 'Tags'];
 const PREVIEW_SAMPLE = 5;
+
+/** What went wrong for an issue in a preview, as a page says it (D49): a problem's key and values. */
+type Words = NonNullable<RulePreview['sample'][number]['errorWords']>[number];
 
 const trimmed = (v: string | null | undefined): string | null => {
   const t = v?.trim();
@@ -428,6 +432,7 @@ function runDto(s: SchemaSnapshot, row: RunRow, ruleName: string): RuleRun {
     issue: row.issueKey,
     outcome: row.outcome as RuleRun['outcome'],
     message: row.message,
+    said: row.said ?? null,
     changes: (row.changes as Change[] | null) ?? [],
     by: by ? userRefDto(by) : null,
     at: row.createdAt.toISOString(),
@@ -757,12 +762,15 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
   const s = await worldFor(ctx, d.projectId);
   const problems = await ruleProblems(ctx, s, d);
   const sentence = ruleSentence(d);
+  // The issues it acts on, or null for each issue itself, which a saved rule's target calls "issue".
+  const reach = d.target && d.target.to !== 'issue' ? d.target : null;
+  const says = (shows: RulePreview['says']['shows'], more: Partial<RulePreview['says']> = {}) => noteSays(s, d, reach, shows, more);
   const empty = { matching: 0, breaking: null, sample: [] };
   if (problems.some((p) => p.part === 'query' || p.part === 'requires')) {
-    return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.' };
+    return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.', says: says('fixUnderlined') };
   }
   if (problems.some((p) => p.part === 'related' || p.part === 'target')) {
-    return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.' };
+    return { ok: false, problems, sentence, ...empty, note: 'Fix what is underlined to see the issues it would touch.', says: says('fixUnderlined') };
   }
   const me = ctx.actor.user.id;
   const when = condition(s, d.query, { meId: me, projectId: d.projectId });
@@ -780,31 +788,33 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
     const breaking = await count(breakingWhere);
     const rows = await ctx.db.select().from(issues).where(breakingWhere).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
     const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.id));
+    const already = noted(`Already breaks it: it matches “${d.query}” but not “${d.requires ?? ''}”`, 'rule.alreadyBreaks', { query: d.query, requires: d.requires ?? '' });
     return {
       ok: problems.length === 0,
       problems,
       sentence,
       matching,
       breaking,
-      sample: rows.map((r) => ({ issue: refs.get(r.id)!, changes: [], errors: [`Already breaks it: it matches “${d.query}” but not “${d.requires}”`] })),
+      sample: rows.map((r) => ({ issue: refs.get(r.id)!, changes: [], errors: [already.message], errorWords: [already.words] })),
+      says: says('issues', { shown: rows.length }),
       note: breaking
         ? `${plural(matching, 'issue matches', 'issues match')} “${d.query}” now, and ${plural(breaking, 'of them breaks', 'of them break')} the rule: they were changed before it. It doesn't change them; it refuses only a change that makes an issue break it.`
         : `${plural(matching, 'issue matches', 'issues match')} “${d.query}” now, and all of them keep the rule. From now on it refuses a change that would make an issue break it.`,
     };
   }
 
-  if (d.script) return previewScript(ctx, s, d, where, matching, problems, sentence);
+  if (d.script) return previewScript(ctx, s, d, where, matching, problems, sentence, says);
   const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
   const full = await ctx.app.schema.get();
   // The issues it would act on: each matching one, or the issues related to it that the rule reaches.
   const acted: { target: typeof issues.$inferSelect; via: typeof issues.$inferSelect | null }[] = [];
   let outside = 0;
   for (const r of rows) {
-    if (!d.target) {
+    if (!reach) {
       acted.push({ target: r, via: null });
       continue;
     }
-    for (const t of await targetIssues(ctx.db, full, d.target.to, d.target.phrase ?? null, r.id)) {
+    for (const t of await targetIssues(ctx.db, full, reach.to, reach.phrase ?? null, r.id)) {
       if (d.projectId && t.projectId !== d.projectId) outside++;
       else if (await canReadProject(ctx, t.projectId)) acted.push({ target: t, via: r });
     }
@@ -823,7 +833,7 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
     // The agent reaches only the project of the issue it acts on, so each project's issues get their own.
     const bot = s.usersByLogin.get(WORKFLOW_BOT);
     if (bot) {
-      const byId = new Map<string, { changes: Change[]; errors: string[] }>();
+      const byId = new Map<string, { changes: Change[]; errors: string[]; errorWords?: Words[] }>();
       for (const projectId of new Set(targets.map((r) => r.projectId))) {
         const dry = await runCommand(botCtx(ctx.app, bot, projectId), {
           issues: [...new Set(targets.filter((r) => r.projectId === projectId).map((r) => r.id))],
@@ -836,16 +846,16 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
       }
       sample = sample.map((x) => {
         const r = byId.get(x.issue.id);
-        return r ? { ...x, changes: r.changes, errors: r.errors } : x;
+        return r ? { ...x, changes: r.changes, errors: r.errors, errorWords: r.errorWords ?? r.errors.map((m) => errorWords(null, m)) } : x;
       });
     }
   }
-  const acts = d.kind === 'change' ? `It acts on one only when ${triggerWords(d.trigger, d.field)}.` : `${scheduleWords(d.schedule)}, ${d.target ? 'it acts for each of them' : 'it acts on each of them'}.`;
-  const onWhat = d.target ? ` It acts on${targetWords(d.target).replace(/^ to/, '')}.` : '';
+  const acts = d.kind === 'change' ? `It acts on one only when ${triggerWords(d.trigger, d.field)}.` : `${scheduleWords(d.schedule)}, ${reach ? 'it acts for each of them' : 'it acts on each of them'}.`;
+  const onWhat = reach ? ` It acts on${targetWords(reach).replace(/^ to/, '')}.` : '';
   const key = d.projectId ? (s.projects.get(d.projectId)?.key ?? 'its project') : null;
   const left = outside ? ` ${plural(outside, 'issue it would act on is', 'issues it would act on are')} in another project, and a rule of ${key} leaves ${outside === 1 ? 'it' : 'them'} alone.` : '';
   const shown = sample.length
-    ? ` Here is what it would do to ${sample.length} of ${d.target ? 'those' : 'them'}, as they are now${d.notify ? ', and whom it would tell (whoever sets it off is never told)' : ''}.`
+    ? ` Here is what it would do to ${sample.length} of ${reach ? 'those' : 'them'}, as they are now${d.notify ? ', and whom it would tell (whoever sets it off is never told)' : ''}.`
     : '';
   return {
     ok: problems.length === 0,
@@ -855,6 +865,26 @@ export async function previewRule(ctx: Ctx, input: RuleInput): Promise<RulePrevi
     breaking: null,
     sample,
     note: `${plural(matching, 'issue matches', 'issues match')} it now. ${acts}${onWhat}${left}${shown}`,
+    says: says('issues', { outside, shown: sample.length }),
+  };
+}
+
+/** What a rule's preview note says, as data a page words in its person's language (D49). The note says it in English. */
+function noteSays(s: SchemaSnapshot, d: Draft, reach: RuleTarget | null, shows: RulePreview['says']['shows'], more: Partial<RulePreview['says']> = {}): RulePreview['says'] {
+  return {
+    shows,
+    kind: d.kind,
+    scripted: Boolean(d.script),
+    trigger: d.trigger,
+    field: d.field,
+    schedule: d.schedule,
+    target: reach,
+    query: d.query,
+    outside: 0,
+    project: d.projectId ? (s.projects.get(d.projectId)?.key ?? null) : null,
+    shown: 0,
+    tells: Boolean(d.notify),
+    ...more,
   };
 }
 
@@ -882,9 +912,15 @@ export async function checkRulePart(
   body: { project: string | null; kind: RuleKind; part: 'query' | 'requires' | 'command' | 'related' | 'script'; text: string; caret?: number },
 ): Promise<{ problems: QueryProblem[]; description: string; suggestions: SuggestItem[] }> {
   requireScope(ctx, 'read');
+  // What a part reads as, in the page's language when a page asks (D49); English for an agent or a script.
+  const tr = translatorFor(ctx.pageLocale ?? 'en');
   if (body.part === 'script') {
     const problems = await checkScript(body.text);
-    return { problems: problems.map((p) => ({ message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) })), description: problems.length ? '' : 'It compiles.', suggestions: [] };
+    return {
+      problems: problems.map((p) => ({ message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}), ...wordsOf(p) })),
+      description: problems.length ? '' : tr.t('server.rule.itCompiles'),
+      suggestions: [],
+    };
   }
   const projectId = await projectIdOf(ctx, body.project);
   const s = await worldFor(ctx, projectId);
@@ -895,7 +931,7 @@ export async function checkRulePart(
     const parsed = parseCommand(body.text, s, projectIds);
     return {
       problems: [...(scheduled ? meProblems(body.text) : []), ...parsed.problems].sort((a, b) => a.start - b.start),
-      description: describeCommand(parsed.ops),
+      description: describeCommand(parsed.ops, tr),
       suggestions: suggestCommand(body.text, caret, s, projectIds),
     };
   }
@@ -903,7 +939,7 @@ export async function checkRulePart(
   const compiled = compileQuery(p, { s, meId: ctx.actor.user.id });
   return {
     problems: [...(scheduled ? meProblems(body.text) : []), ...compiled.problems].sort((a, b) => a.start - b.start),
-    description: explainParsed(p),
+    description: explainParsed(p, tr),
     suggestions: suggest(s, body.text, caret),
   };
 }
@@ -928,17 +964,26 @@ function testChange(ctx: Ctx, s: SchemaSnapshot, d: Draft): ScriptChange {
 }
 
 /** A scripted rule's preview: what its script would do to a few of the issues it matches now, as the workflow agent, saving nothing. */
-async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, matching: number, problems: RuleProblem[], sentence: string): Promise<RulePreview> {
+async function previewScript(
+  ctx: Ctx,
+  s: SchemaSnapshot,
+  d: Draft,
+  where: SQL,
+  matching: number,
+  problems: RuleProblem[],
+  sentence: string,
+  says: (shows: RulePreview['says']['shows'], more?: Partial<RulePreview['says']>) => RulePreview['says'],
+): Promise<RulePreview> {
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   const ok = problems.length === 0;
   const counted = `${plural(matching, 'issue matches', 'issues match')} its query now.`;
-  if (problems.some((p) => p.part === 'script')) return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Fix its script to see what it would do.` };
+  if (problems.some((p) => p.part === 'script')) return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Fix its script to see what it would do.`, says: says('fixScript') };
   const full = await ctx.app.schema.get();
   // A script runs on the server: anyone who reads the project previews one an administrator saved;
   // only an administrator runs one of their own (D40).
   const saved = full.rules.some((r) => r.script === d.script && r.projectId === d.projectId);
   if (!saved && !ctx.actor.scopes.includes('admin')) {
-    return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Only administrators run a script that isn't saved.` };
+    return { ok, problems, sentence, matching, breaking: null, sample: [], note: `${counted} Only administrators run a script that isn't saved.`, says: says('adminOnly') };
   }
   const rows = await ctx.db.select().from(issues).where(where).orderBy(desc(issues.updatedAt), asc(issues.id)).limit(PREVIEW_SAMPLE);
   const refs = await issueRefsById(ctx.db, s, rows.map((r) => r.id));
@@ -949,13 +994,21 @@ async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, 
     const guard = d.kind === 'guard';
     const run = await dryRunScript(actor, full, r, d.script!, testChange(ctx, full, d), { meId: ctx.actor.user.id, guard, timeMs: guard ? SCRIPT_LIMITS.guardTimeMs : undefined });
     const self = refs.get(r.id)?.id;
-    const errors = [
-      ...(run.error ? [run.error.message] : []),
-      ...(run.refusal !== null ? [guard ? `Would refuse a change to it: “${run.refusal}”` : `Would do nothing: “${run.refusal}”`] : []),
-      ...run.applies.flatMap((a) => a.errors),
-      ...run.applies.filter((a) => a.issue && a.issue.id !== self && a.changes.length).map((a) => `Would also change ${a.issue!.id}`),
+    // Each with its words, for a page in its person's language (D49): what the script's engine said stays as it said it.
+    const errors: { message: string; words: Words }[] = [
+      ...(run.error ? [{ message: run.error.message, words: run.error.key ? { key: run.error.key, ...(run.error.values ? { values: run.error.values } : {}) } : errorWords(null, run.error.message) }] : []),
+      ...(run.refusal !== null
+        ? [guard ? noted(`Would refuse a change to it: “${run.refusal}”`, 'rule.wouldRefuse', { refusal: run.refusal }) : noted(`Would do nothing: “${run.refusal}”`, 'rule.wouldDoNothing', { refusal: run.refusal })]
+        : []),
+      ...run.applies.flatMap((a) => a.errors.map((message, i) => ({ message, words: a.errorWords?.[i] ?? errorWords(null, message) }))),
+      ...run.applies.filter((a) => a.issue && a.issue.id !== self && a.changes.length).map((a) => noted(`Would also change ${a.issue!.id}`, 'rule.wouldAlsoChange', { id: a.issue!.id })),
     ];
-    sample.push({ issue: refs.get(r.id)!, changes: run.applies.filter((a) => a.issue?.id === self).flatMap((a) => a.changes), errors });
+    sample.push({
+      issue: refs.get(r.id)!,
+      changes: run.applies.filter((a) => a.issue?.id === self).flatMap((a) => a.changes),
+      errors: errors.map((e) => e.message),
+      errorWords: errors.map((e) => e.words),
+    });
   }
   const what =
     d.kind === 'guard' ? 'It runs on every change to an issue that matches, and may refuse it' : d.kind === 'schedule' ? `${scheduleWords(d.schedule)}, it runs on each of them` : `It runs on one when ${triggerWords(d.trigger, d.field)}`;
@@ -967,6 +1020,7 @@ async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, 
     breaking: null,
     sample,
     note: `${counted} ${what}.${sample.length ? ` Here is what its script would do to ${sample.length} of them, as they are now (a dry run: nothing was saved).` : ''}`,
+    says: says('issues', { shown: sample.length }),
   };
 }
 

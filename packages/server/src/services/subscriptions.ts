@@ -276,9 +276,21 @@ export async function savedSearchChanged(app: AppServices, db: Db, search: Searc
 // For the inbox and email: what brought a notification
 // ---------------------------------------------------------------------------
 
-/** What each of these subscriptions tells of, in words ("New issues in Backend"), by id. Ended ones are left out. */
-export async function aboutSubscriptions(db: Db, s: SchemaSnapshot, ids: string[]): Promise<Map<string, { about: string; userId: string; email: boolean }>> {
-  const out = new Map<string, { about: string; userId: string; email: boolean }>();
+/** What brought a notification: a subscription, said in English for the API, and what a page or an email words it from (D49). */
+export interface SubscriptionAbout {
+  /** "New issues in Backend". */
+  about: string;
+  target: 'project' | 'search';
+  events: SubscriptionEvents;
+  /** The project's name, or the saved search's. */
+  name: string;
+  userId: string;
+  email: boolean;
+}
+
+/** What each of these subscriptions tells of, by id. Ended ones are left out. */
+export async function aboutSubscriptions(db: Db, s: SchemaSnapshot, ids: string[]): Promise<Map<string, SubscriptionAbout>> {
+  const out = new Map<string, SubscriptionAbout>();
   const unique = [...new Set(ids)];
   if (!unique.length) return out;
   const rows = await db
@@ -292,6 +304,9 @@ export async function aboutSubscriptions(db: Db, s: SchemaSnapshot, ids: string[
     const project = r.sub.projectId ? (s.projects.get(r.sub.projectId) ?? r.project) : null;
     out.set(r.sub.id, {
       about: aboutWords(project ? { project } : { search: r.search }, eventsOf(r.sub)),
+      target: project ? 'project' : 'search',
+      events: eventsOf(r.sub),
+      name: project ? project.name : r.search!.name,
       userId: r.sub.userId,
       email: r.sub.email,
     });
