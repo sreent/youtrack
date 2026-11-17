@@ -8,7 +8,7 @@ import { ErrorLine, ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useMachines, workflowKeys } from './api';
-import { t, t as tx, tr } from '../../i18n';
+import { problemSaid, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 interface Row {
@@ -48,7 +48,7 @@ function Words({ t }: { t: StateTransition }) {
 }
 
 function problemWords(p: WorkflowProblem): string {
-  return `${p.transition !== null && p.transition !== undefined ? t('workflow.machines.transition', { v: p.transition + 1 }) : ''}${p.message}${p.hint ? `. ${p.hint}` : ''}`;
+  return `${p.transition !== null && p.transition !== undefined ? t('workflow.machines.transition', { v: p.transition + 1 }) : ''}${problemSaid(p) ?? `${p.message}${p.hint ? `. ${p.hint}` : ''}`}`;
 }
 
 /** The form for one machine: which field, and its transitions, a row each. */

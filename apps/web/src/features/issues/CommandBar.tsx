@@ -100,7 +100,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
     const timer = setTimeout(() => {
       post<Preview>('/commands', { issues: ids, command, dryRun: true })
         .then((result) => live && setPreview({ command, result }))
-        .catch((e) => live && setError(e instanceof ApiError ? e.message : t('issues.commandBar.couldNotPreviewTheCommand')));
+        .catch((e) => live && setError(e instanceof ApiError ? (problemWords(e) ?? e.message) : t('issues.commandBar.couldNotPreviewTheCommand')));
     }, 220);
     return () => {
       live = false;

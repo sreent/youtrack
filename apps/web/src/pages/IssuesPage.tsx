@@ -10,7 +10,7 @@ import { CommandBar } from '../features/issues/CommandBar';
 import { SearchSubscription } from '../features/notifications/Subscriptions';
 import { IssueList } from '../features/issues/IssueList';
 import { QueryBar } from '../features/issues/QueryBar';
-import { t, tr } from '../i18n';
+import { problemWords, t, tr } from '../i18n';
 
 const PAGE = 50;
 
@@ -30,7 +30,7 @@ function SavedSearches({ query, onPick }: { query: string; onPick: (q: string) =
       setName('');
       await qc.invalidateQueries({ queryKey: keys.savedSearches });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('page.issues.couldNotSaveTheSearch'));
+      setError(e instanceof ApiError ? (problemWords(e) ?? e.message) : t('page.issues.couldNotSaveTheSearch'));
     }
   };
 

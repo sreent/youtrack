@@ -2,7 +2,7 @@ import type { QueryProblem, SuggestItem } from '@a4a/shared';
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Avatar } from '../../components/Who';
 import { Icon } from '../../components/Icon';
-import { t, tr } from '../../i18n';
+import { problemSaid, t, tr } from '../../i18n';
 
 /**
  * What the server says about some text: its problems, a reading of it in words, and what
@@ -252,7 +252,7 @@ export function LanguageField({ text, onText, onCaret, onEnter, label, placehold
       {shown.map((p, i) => (
         <p className="query-problems" id={problemIds[i]} key={`${p.start}-${p.end}-${p.message}`}>
           <Icon name="cross" />
-          <strong>{p.message}</strong>
+          <strong>{problemSaid(p, p.fix !== undefined) ?? p.message}</strong>
           {p.fix !== undefined ? (
             <>
               <span aria-hidden="true">·</span>
@@ -260,7 +260,7 @@ export function LanguageField({ text, onText, onCaret, onEnter, label, placehold
                   {p.fix}
                 </button> })}</span>
             </>
-          ) : p.hint ? (
+          ) : p.hint && !problemSaid(p) ? (
             <>
               <span aria-hidden="true">·</span>
               <span>{p.hint}</span>

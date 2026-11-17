@@ -9,7 +9,7 @@ import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useActions, workflowKeys } from './api';
 import { ScriptField, useScriptProblems } from './ScriptField';
-import { t, tr } from '../../i18n';
+import { problemSaid, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 function ActionForm({ project, action, isAdmin, onDone, onCancel }: { project: string; action?: WorkflowAction; isAdmin: boolean; onDone: (a: WorkflowAction) => void; onCancel?: () => void }) {
@@ -74,10 +74,7 @@ function ActionForm({ project, action, isAdmin, onDone, onCancel }: { project: s
         {(id, help) => <input id={id} aria-describedby={help} className="mono" value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="#Unresolved" />}
       </FormField>
       {problems.map((p) => (
-        <ErrorLine key={`${p.part}-${p.message}`}>
-          {p.message}
-          {p.hint ? `. ${p.hint}` : ''}
-        </ErrorLine>
+        <ErrorLine key={`${p.part}-${p.message}`}>{problemSaid(p) ?? `${p.message}${p.hint ? `. ${p.hint}` : ''}`}</ErrorLine>
       ))}
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       <div className="cluster end">
@@ -129,8 +126,8 @@ function ActionCard({ action, manages, isAdmin, onEdit }: { action: WorkflowActi
       {action.problems.map((p) => (
         <div className="error-note" role="note" key={`${p.part}-${p.message}`}>
           <Icon name="cross" />
-          <strong>{p.message}</strong>
-          {p.hint ? <p>{p.hint}</p> : null}
+          <strong>{problemSaid(p) ?? p.message}</strong>
+          {p.hint && !problemSaid(p) ? <p>{p.hint}</p> : null}
         </div>
       ))}
       {manages ? (

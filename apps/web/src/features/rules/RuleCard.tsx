@@ -10,7 +10,7 @@ import { Confirm } from '../common/Confirm';
 import { previewRule, ruleKeys } from './api';
 import { SampleDetail } from './RuleForm';
 import { Sentence } from './words';
-import { intlLocale, t, tr } from '../../i18n';
+import { intlLocale, problemSaid, t, tr } from '../../i18n';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
 function input(rule: Rule, canCall: boolean): RuleInput {
@@ -126,8 +126,8 @@ export function RuleCard({ rule, canManage, canCall = false, onEdit }: { rule: R
       {rule.problems.map((p) => (
         <div className="error-note" role="note" key={`${p.part}-${p.start}-${p.message}`}>
           <Icon name="cross" />
-          <strong>{tr('rules.ruleCard.partNoLongerReads', { part: p.part /* a stable code the message selects on */, message: p.message })}</strong>
-          <p>{tr('rules.ruleCard.itDoesNothingUntilIt', { v: p.fix ? t('rules.ruleCard.didYouMean', { fix: p.fix }) : p.hint ? ` ${p.hint}` : '' })}</p>
+          <strong>{tr('rules.ruleCard.partNoLongerReads', { part: p.part /* a stable code the message selects on */, message: problemSaid(p, Boolean(p.fix)) ?? p.message })}</strong>
+          <p>{tr('rules.ruleCard.itDoesNothingUntilIt', { v: p.fix ? t('rules.ruleCard.didYouMean', { fix: p.fix }) : p.hint && !problemSaid(p) ? ` ${p.hint}` : '' })}</p>
         </div>
       ))}
       {preview ? (

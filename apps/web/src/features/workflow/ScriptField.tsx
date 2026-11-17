@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon';
 import { ErrorLine } from '../../components/States';
 import { ChangeLines } from '../common/ChangeLines';
 import { checkScript } from './api';
-import { t, tr } from '../../i18n';
+import { problemSaid, t, tr } from '../../i18n';
 
 /** The line (from 1) that a place in the text is on. */
 function lineAt(text: string, at: number): number {
@@ -106,8 +106,8 @@ export function ScriptField({ text, onText, problems, label, describedBy }: { te
       {problems.map((p, i) => (
         <p className="query-problems" id={problemIds[i]} key={`${p.start}-${p.message}`}>
           <Icon name="cross" />
-          <strong>{p.message}</strong>
-          {p.hint ? (
+          <strong>{problemSaid(p) ?? p.message}</strong>
+          {p.hint && !problemSaid(p) ? (
             <>
               <span aria-hidden="true">·</span>
               <span>{p.hint}</span>
