@@ -50,7 +50,7 @@ async function findGroup(db: Db, ref: string): Promise<GroupRow | undefined> {
 
 async function requireGroup(db: Db, ref: string): Promise<GroupRow> {
   const g = await findGroup(db, ref);
-  if (!g) throw notFound(`Group ${ref}`, 'Use its id or its name, as in GET /groups.');
+  if (!g) throw notFound(`Group ${ref}`, 'Use its id or its name, as in GET /groups.').said('groups.notFoundUseIdOrName', { ref });
   return g;
 }
 
@@ -119,9 +119,9 @@ function takenError(e: unknown, input: { name?: string; providerName?: string | 
   const constraint = uniqueViolation(e);
   if (constraint === null) throw e;
   if (constraint.includes('provider')) {
-    throw conflict(`Another group already comes from "${input.providerName}" at the identity provider`, 'One group per name there: change that one, or use another name.');
+    throw conflict(`Another group already comes from "${input.providerName}" at the identity provider`, 'One group per name there: change that one, or use another name.').said('groups.providerNameTaken', { providerName: String(input.providerName) });
   }
-  throw conflict(`There's already a group called "${input.name}"`, 'Choose another name, or add people to that one.');
+  throw conflict(`There's already a group called "${input.name}"`, 'Choose another name, or add people to that one.').said('groups.nameTaken', { name: String(input.name) });
 }
 
 export async function createGroup(ctx: Ctx, input: { name: string; description?: string; providerName?: string | null }): Promise<GroupDetail> {
@@ -196,7 +196,7 @@ export async function deleteGroup(ctx: Ctx, ref: string): Promise<void> {
 
 function personFor(s: SchemaSnapshot, login: string): UserRow {
   const u = findUser(s, login);
-  if (!u) throw notFound(`User ${login}`, 'Use their login, as in GET /users.');
+  if (!u) throw notFound(`User ${login}`, 'Use their login, as in GET /users.').said('groups.userNotFound', { login });
   return u;
 }
 
@@ -204,7 +204,7 @@ function keptByProvider(g: GroupRow): never {
   throw badRequest(
     `Who is in ${g.name} comes from the identity provider`,
     `It's set at each sign-in, from the groups the provider says someone is in (as "${g.providerName}"). Change it there, or make the group one kept by hand: PATCH /groups/${g.id} with providerName null.`,
-  );
+  ).said('groups.fromProvider', { name: g.name, providerName: String(g.providerName), id: g.id });
 }
 
 export async function addGroupMember(ctx: Ctx, ref: string, login: string): Promise<GroupDetail> {
@@ -213,7 +213,7 @@ export async function addGroupMember(ctx: Ctx, ref: string, login: string): Prom
   if (g.providerName) keptByProvider(g);
   const user = personFor(await ctx.app.schema.get(), login);
   const [row] = await ctx.db.insert(groupMembers).values({ groupId: g.id, userId: user.id, addedById: ctx.actor.user.id }).onConflictDoNothing().returning();
-  if (!row) throw conflict(`${user.name} is already in ${g.name}`);
+  if (!row) throw conflict(`${user.name} is already in ${g.name}`).said('groups.alreadyIn', { name: user.name, name2: g.name });
   accessChanged(ctx.app);
   return getGroup(ctx, g.id);
 }
@@ -224,7 +224,7 @@ export async function removeGroupMember(ctx: Ctx, ref: string, login: string): P
   if (g.providerName) keptByProvider(g);
   const user = personFor(await ctx.app.schema.get(), login);
   const [gone] = await ctx.db.delete(groupMembers).where(and(eq(groupMembers.groupId, g.id), eq(groupMembers.userId, user.id))).returning();
-  if (!gone) throw notFound(`${user.login} in ${g.name}`);
+  if (!gone) throw notFound(`${user.login} in ${g.name}`).said('groups.memberNotFound', { login: user.login, name: g.name });
   accessChanged(ctx.app);
 }
 
@@ -340,7 +340,7 @@ export async function addProjectGroup(ctx: Ctx, key: string, input: { group: str
   const g = await requireGroup(ctx.db, input.group);
   await writeProjectGroup(ctx, project, async (tx) => {
     const [row] = await tx.insert(projectGroupRoles).values({ projectId: project.id, groupId: g.id, role, addedById: ctx.actor.user.id }).onConflictDoNothing().returning();
-    if (!row) throw conflict(`${g.name} already has a role in ${project.key}`, `Change its role instead: PATCH /projects/${project.key}/groups/${g.id}.`);
+    if (!row) throw conflict(`${g.name} already has a role in ${project.key}`, `Change its role instead: PATCH /projects/${project.key}/groups/${g.id}.`).said('groups.hasRoleAlready', { name: g.name, key: project.key, id: g.id });
     return { type: 'project.group.added', data: { group: g.id, name: g.name, role } };
   });
   return (await listProjectGroups(ctx, project.key)).find((r) => r.group.id === g.id)!;
@@ -356,7 +356,7 @@ export async function updateProjectGroup(ctx: Ctx, key: string, ref: string, inp
       .from(projectGroupRoles)
       .where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)))
       .for('update');
-    if (!before) throw notFound(`${g.name} among ${project.key}'s groups`, `Give it a role first: POST /projects/${project.key}/groups.`);
+    if (!before) throw notFound(`${g.name} among ${project.key}'s groups`, `Give it a role first: POST /projects/${project.key}/groups.`).said('groups.notInProjectGiveRole', { name: g.name, key: project.key });
     await tx.update(projectGroupRoles).set({ role: role }).where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)));
     return { type: 'project.group.changed', data: { group: g.id, name: g.name, from: before.role, to: role } };
   });
@@ -371,7 +371,7 @@ export async function removeProjectGroup(ctx: Ctx, key: string, ref: string): Pr
       .delete(projectGroupRoles)
       .where(and(eq(projectGroupRoles.projectId, project.id), eq(projectGroupRoles.groupId, g.id)))
       .returning();
-    if (!gone) throw notFound(`${g.name} among ${project.key}'s groups`);
+    if (!gone) throw notFound(`${g.name} among ${project.key}'s groups`).said('groups.notInProject', { name: g.name, key: project.key });
     return { type: 'project.group.removed', data: { group: g.id, name: g.name, role: gone.role } };
   });
 }
