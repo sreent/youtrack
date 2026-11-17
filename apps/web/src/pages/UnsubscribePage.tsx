@@ -63,6 +63,8 @@ export default function UnsubscribePage() {
       {d.done ? (
         d.kind === 'request' ? (
           <p className="note">{t('page.unsubscribe.yourRequestSPageStill')}</p>
+        ) : d.kind === 'cc' ? (
+          <p className="note">{t('page.unsubscribe.noLongerCopied')}</p>
         ) : (
           <p className="note">{tr('page.unsubscribe.changedYourMindChooseWhat', { t0: (c: ReactNode) => <Link to="/me">{c}</Link> })}</p>
         )

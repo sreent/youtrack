@@ -99,8 +99,8 @@ interface Entry {
   did?: React.ReactNode;
   body?: React.ReactNode;
   comment?: string;
-  /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
-  public?: 'reply' | 'theirs';
+  /** A comment the requester of a help desk request sees: theirs, the team's reply to them, or one by someone copied on it (D57). */
+  public?: 'reply' | 'theirs' | 'copied';
   /** Who a limited comment is for, besides those who always see it (D37). */
   limited?: string;
   /** A comment's own files, under its words; and its id, for links to it. */
@@ -293,6 +293,13 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.called':
       return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? t('issues.issueHistory.appliedARule') }) };
+    case 'request.cc_added':
+    case 'request.cc_removed': {
+      // Someone copied on a help desk request, or no longer (D57); stopped from an email's link, it's them.
+      const email = String((data.cc as { email?: unknown } | undefined)?.email ?? '');
+      const via = String(data.via ?? 'team') /* a stable code */;
+      return { ...base, did: e.type === 'request.cc_added' ? t('issues.issueHistory.ccAdded', { via, email }) : t('issues.issueHistory.ccRemoved', { via, email }) };
+    }
     case 'sla.warning':
     case 'sla.breached': {
       // What time alone brought to a request's targets (D45), said by the help desk's agent.
@@ -324,7 +331,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     at: c.createdAt,
     who: whoOf(actor, c.requester?.name),
     comment: c.text,
-    public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+    public: c.visibility === 'public' ? (c.requester ? (c.requester.copied ? 'copied' : 'theirs') : 'reply') : undefined,
     limited: c.visibleTo ? audience(c.visibleTo) : undefined,
     files,
     anchor: `comment-${c.id}`,
@@ -538,6 +545,8 @@ export function IssueHistory({
                     <Badge grammar="outside">{tr('issues.issueHistory.publicSentTo', { v: requester ?? t('issues.issueHistory.theRequester2') })}</Badge>
                   ) : e.public === 'theirs' ? (
                     <Badge grammar="outside">{t('issues.issueHistory.publicTheRequesterWroteIt')}</Badge>
+                  ) : e.public === 'copied' ? (
+                    <Badge grammar="outside">{t('issues.issueHistory.publicSomeoneCopiedWroteIt')}</Badge>
                   ) : e.limited ? (
                     <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
                   ) : e.undo?.state === 'undone' ? (

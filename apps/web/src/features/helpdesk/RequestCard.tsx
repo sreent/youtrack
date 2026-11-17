@@ -3,6 +3,7 @@ import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
 import { useRequestInfo } from '../notifications/api';
 import { RequestSla } from './Sla';
+import { RequestCcs } from './RequestCcs';
 import { intlLocale, t, tr } from '../../i18n';
 
 /** A length of time as people say it: "40 minutes", "3 hours", "2 days". */
@@ -36,8 +37,8 @@ export function SlaBadge({ sla, since, now = Date.now() }: { sla: Sla; since: st
   }
 }
 
-/** Who asked, through the help desk, and where it stands against its first-response target. */
-export function RequestCard({ issue }: { issue: IssueDetail }) {
+/** Who asked, through the help desk, where it stands against its first-response target, and who is copied (D57). */
+export function RequestCard({ issue, canEdit = false }: { issue: IssueDetail; canEdit?: boolean }) {
   const info = useRequestInfo(issue);
   const r = info.data;
   if (!r) return null;
@@ -52,6 +53,7 @@ export function RequestCard({ issue }: { issue: IssueDetail }) {
           ? t('helpdesk.requestCard.theyStoppedEmailsAboutIt')
           : t('helpdesk.requestCard.publicRepliesAndChangesOf')}
       </p>
+      <RequestCcs issue={issue.id} r={r} canEdit={canEdit} />
     </section>
   );
 }

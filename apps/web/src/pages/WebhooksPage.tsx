@@ -53,6 +53,8 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'build.recorded': t('page.webhooks.ciReportsABuild'),
   'project.key.changed': t('page.webhooks.aProjectSKeyIsRenamed'),
   'board.issue_ranked': t('page.webhooks.anIssueIsRankedOnABoard'),
+  'request.cc_added': t('page.webhooks.someoneIsCopiedOnARequest'),
+  'request.cc_removed': t('page.webhooks.someoneStopsBeingCopied'),
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
