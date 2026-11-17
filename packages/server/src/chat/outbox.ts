@@ -19,7 +19,7 @@ import { prepareQuery } from '../search/service';
 import { assigneeFieldIdOf, eventLimited } from '../services/access';
 import { personCtx } from '../services/subscriptions';
 import { meets } from '../workflow/match';
-import { ChatCallError } from './common';
+import { ChatCallError, stopError, stopReason } from './common';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
 import { slackPost } from './slack';
 import { teamsChannelPost, teamsSend } from './teams';
@@ -108,7 +108,7 @@ export async function queueChatPosts(app: AppServices, event: TrackerEvent): Pro
     const why = await whyNotFor(app.db, sub.createdById, row.projectId, project.name);
     if (why) {
       // For a project's subscription that's the end of it; a search's only skips this project.
-      if (sub.projectId) await app.db.update(chatSubscriptions).set({ endedAt: new Date(), endedReason: why }).where(eq(chatSubscriptions.id, sub.id));
+      if (sub.projectId) await app.db.update(chatSubscriptions).set({ endedAt: new Date(), endedReason: why.text, endedSaid: why.said }).where(eq(chatSubscriptions.id, sub.id));
       continue;
     }
     const inserted = await app.db
@@ -185,7 +185,7 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
   try {
     let ref: string | null;
     if (where.workspace.platform === 'teams') {
-      if (!where.workspace.serviceUrl) throw new ChatCallError('The team has no service URL', 'removed');
+      if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The team has no service URL', 'chat.stop.noServiceUrl'));
       ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, job.event));
     } else {
       ref = await slackPost(app, where.workspace, where.channel.externalId, issue, job.event);
@@ -194,8 +194,8 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
     return 'sent';
   } catch (e) {
     const err = e instanceof ChatCallError ? e : new ChatCallError(e instanceof Error ? e.message : String(e), 'retry');
-    if (err.outcome === 'gone') await markChannelGone(app.db, where.channel.id, err.message);
-    if (err.outcome === 'removed') await markWorkspaceRemoved(app.db, where.workspace.id, err.message);
+    if (err.outcome === 'gone') await markChannelGone(app.db, where.channel.id, err.reason);
+    if (err.outcome === 'removed') await markWorkspaceRemoved(app.db, where.workspace.id, err.reason);
     const giveUp = err.outcome !== 'retry' || row.attempts >= MAX_ATTEMPTS;
     const wait = Math.max(err.retryAfterMs ?? 0, CHAT_BACKOFF_MS[Math.min(row.attempts, CHAT_BACKOFF_MS.length) - 1] ?? CHAT_BACKOFF_MS[0]!);
     await settle(app.db, row.id, { status: giveUp ? 'failed' : 'pending', sendAfter: new Date(now.getTime() + wait), lastError: err.message.slice(0, 500) });

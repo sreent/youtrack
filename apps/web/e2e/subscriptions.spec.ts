@@ -31,7 +31,7 @@ async function sessionOf(playwright: PlaywrightWorkerArgs['playwright'], login: 
   return session;
 }
 
-test('a person subscribes to a project and to a saved search, and hears of what comes in', async ({ page, api, playwright }) => {
+test('a person subscribes to a project and to a saved search, and hears of what comes in', async ({ page, api, playwright, browser }) => {
   const key = uniqueKey('SU');
   const project = await api.createProject({ key, name: `Subscribed ${key}` });
   const rita = `rita.${unique()}`;
@@ -74,6 +74,15 @@ test('a person subscribes to a project and to a saved search, and hears of what 
   await expect(entry(normal).getByText(`Because you subscribed to new issues in ${project.name}.`)).toBeVisible({ timeout: 30_000 });
   await expect(entry(critical).getByText(`Because you subscribed to issues coming into “${search}”.`)).toBeVisible({ timeout: 30_000 });
   await expect(entry(normal)).toContainText('Wes Ward reported it');
+
+  // In a German browser the inbox says what brought each in German, in the case its sentence needs.
+  const german = await browser.newContext({ locale: 'de-DE', storageState: { cookies: [], origins: [] } });
+  expect((await german.request.post('/api/v1/auth/login', { data: { login: rita, password: 'rita-pass-1' }, headers: { origin: BASE_URL } })).status()).toBe(200);
+  const deutsch = await german.newPage();
+  await deutsch.goto('/inbox');
+  await expect(deutsch.getByText(`Weil Sie neue Vorgänge in ${project.name} abonniert haben.`)).toBeVisible();
+  await expect(deutsch.getByText(`Weil Sie neu hinzukommende Vorgänge in „${search}“ abonniert haben.`)).toBeVisible();
+  await german.close();
 
   // Her profile lists both: one changes, the other ends.
   await page.goto('/me');

@@ -1725,7 +1725,13 @@ export const NotificationSchema = z
     lastAt: timestamp,
     readAt: timestamp.nullable(),
     subscription: z
-      .object({ id: z.string(), about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"') })
+      .object({
+        id: z.string(),
+        about: z.string().describe('What it tells you of: "new issues in Backend", "issues coming into “Critical bugs”"'),
+        target: z.enum(['project', 'search']).describe('What it follows, for a page that says about in its own words (D49)'),
+        events: z.enum(SUBSCRIPTION_EVENTS),
+        name: z.string().describe('The project’s name, or the saved search’s'),
+      })
       .nullable()
       .describe('When it came because you subscribed (kind "subscribed"): to what. Null otherwise, or once that subscription has ended'),
   })
@@ -1792,6 +1798,10 @@ export const UnsubscribeSchema = z
       .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
       .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
     what: z.string().describe('What the link stops, in words'),
+    subscription: z
+      .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
+      .nullable()
+      .describe('For a subscription that lasts: what it tells of, for a page that says what in its own words (D49)'),
     done: z.boolean().describe('Whether it is stopped now'),
   })
   .meta({ id: 'Unsubscribe' });
@@ -3110,7 +3120,14 @@ export const ChatSubscriptionSchema = z
     createdBy: UserRefSchema.nullable().describe('Who subscribed the channel, and vouches for its people'),
     createdAt: timestamp,
     ended: z
-      .object({ at: timestamp, reason: z.string() })
+      .object({
+        at: timestamp,
+        reason: z.string(),
+        said: z
+          .object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() })
+          .nullable()
+          .describe('The reason as a problem’s words, problem.<key> in the catalogs, for a page in another language (D49). Null for a reason a chat service gave in its own code'),
+      })
       .nullable()
       .describe('Set when it no longer posts: its channel went, the app was removed, or its subscriber lost the project'),
   })

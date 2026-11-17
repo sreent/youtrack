@@ -1,4 +1,5 @@
 import type { Unsubscribe } from '@a4a/shared';
+import { subscriptionTells } from '@a4a/shared/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
@@ -7,6 +8,12 @@ import { Lone } from '../app/Auth';
 import { ErrorNote, Loading } from '../components/States';
 import { t, tr, inSentence } from '../i18n';
 import type { ReactNode } from 'react';
+
+/** What the link stops, in the page's language (D49): by its kind, and a subscription by what it tells of. */
+function whatWords(d: Unsubscribe): string {
+  if (d.subscription) return t('page.unsubscribe.subscription', { tells: subscriptionTells(d.subscription.target, d.subscription.events), name: d.subscription.name });
+  return t('page.unsubscribe.what', { kind: d.kind });
+}
 
 /**
  * Where an email's "Stop emails like this" leads. Opening it changes nothing (mail scanners open
@@ -51,7 +58,7 @@ export default function UnsubscribePage() {
   return (
     <Lone>
       <h1>{d.done ? t('page.unsubscribe.stopped') : t('page.unsubscribe.stopTheseEmails')}</h1>
-      <p>{d.done ? t('page.unsubscribe.noMoreOfThese', { what: inSentence(d.what) }) : d.what}</p>
+      <p>{d.done ? t('page.unsubscribe.noMoreOfThese', { what: inSentence(whatWords(d)) }) : whatWords(d)}</p>
       {error ? <ErrorNote error={error} /> : null}
       {d.done ? (
         d.kind === 'request' ? (

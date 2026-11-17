@@ -1,5 +1,5 @@
 {
-  "id": "403d3f6d-5d56-45f0-807f-bd3d82f7f0ce",
+  "id": "6aa0bbe5-1832-49d3-87ad-43e35bc6e69e",
   "prevId": "e310c8df-e6bf-4dbb-a255-2c178178867c",
   "version": "7",
   "dialect": "postgresql",
@@ -3474,6 +3474,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "gone_said": {
+          "name": "gone_said",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -3826,6 +3832,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "ended_said": {
+          "name": "ended_said",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -4000,6 +4012,12 @@
         "removed_reason": {
           "name": "removed_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "removed_said": {
+          "name": "removed_said",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }

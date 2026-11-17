@@ -17,6 +17,7 @@ import {
   timestamp,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import type { ProblemSaid } from '@a4a/shared/i18n';
 
 const tsvector = customType<{ data: string }>({
   dataType() {
@@ -2132,6 +2133,8 @@ export const chatWorkspaces = pgTable(
     createdAt: created(),
     removedAt: ts('removed_at'),
     removedReason: text('removed_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    removedSaid: jsonb('removed_said').$type<ProblemSaid>(),
   },
   (t) => [uniqueIndex('chat_workspaces_external').on(t.platform, t.externalId)],
 );
@@ -2151,6 +2154,8 @@ export const chatChannels = pgTable(
     /** When a4a found it can't post there any more (deleted, archived, the bot taken out), and why. */
     goneAt: ts('gone_at'),
     goneReason: text('gone_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    goneSaid: jsonb('gone_said').$type<ProblemSaid>(),
   },
   (t) => [uniqueIndex('chat_channels_external').on(t.workspaceId, t.externalId)],
 );
@@ -2175,6 +2180,8 @@ export const chatSubscriptions = pgTable(
     createdAt: created(),
     endedAt: ts('ended_at'),
     endedReason: text('ended_reason'),
+    /** The reason as a problem's words, for a page in another language (D49). Null before a4a kept them. */
+    endedSaid: jsonb('ended_said').$type<ProblemSaid>(),
   },
   (t) => [index('chat_subscriptions_channel').on(t.channelId), index('chat_subscriptions_project').on(t.projectId)],
 );

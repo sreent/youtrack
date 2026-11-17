@@ -12,7 +12,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { formatList, t, tr, inSentence } from '../../i18n';
+import { formatList, inSentence, problemWords, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** What a channel hears of, by kind: the words a channel reads (chat/service.ts' aboutChannel). */
@@ -138,7 +138,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
             {aboutSubscription(s)}
             {s.ended ? (
               <span className="item-about">
-                <Badge tone="idle">{t('chat.chat.stopped')}</Badge> {s.ended.reason}
+                <Badge tone="idle">{t('chat.chat.stopped')}</Badge> {problemWords(s.ended.said) ?? s.ended.reason}
               </span>
             ) : null}
           </span>

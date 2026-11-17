@@ -121,5 +121,27 @@ test('a channel is told of a project’s issues, and someone is linked by a link
   await row.getByRole('button', { name: /^Stop / }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Stop it' }).click();
   await expect(channels.getByText('General hears of it no more.')).toBeVisible();
+
+  // A channel deleted in Teams stops what it hears of, and its row says why: in English here, and in
+  // German on a German page, from the reason's words a4a kept.
+  await channels.getByLabel('Channel').selectOption({ label: `Releases, ${teamName} on Microsoft Teams` });
+  await channels.getByRole('button', { name: 'Tell the channel' }).click();
+  await expect(channels.getByText(/^Releases hears of /)).toBeVisible();
+  const deleted = await send({
+    type: 'conversationUpdate',
+    recipient: { id: `28:${TEAMS.appId}` },
+    conversation: { id: team, conversationType: 'channel', tenantId: TEAMS.tenantId },
+    channelData: { eventType: 'channelDeleted', tenant: { id: TEAMS.tenantId }, team: { id: team, name: teamName }, channel: { id: releases, name: 'Releases' } },
+  });
+  expect(deleted.status()).toBe(200);
+  await page.reload();
+  const releasesRow = channels.getByRole('region', { name: `Table of the channels told of ${project.name}` }).getByRole('row').filter({ hasText: 'Releases' });
+  await expect(releasesRow).toContainText('stopped');
+  await expect(releasesRow).toContainText('The channel was deleted');
+  const german2 = await browser.newContext({ locale: 'de-DE', storageState: AUTH_FILE });
+  const deutsch2 = await german2.newPage();
+  await deutsch2.goto(`/projects/${key}`);
+  await expect(deutsch2.getByRole('region', { name: 'Chat-Kanäle' }).getByRole('row').filter({ hasText: 'Releases' })).toContainText('Der Kanal wurde gelöscht.');
+  await german2.close();
   await bot.dispose();
 });
