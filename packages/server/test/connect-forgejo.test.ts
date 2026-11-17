@@ -140,10 +140,13 @@ describe('connecting your Forgejo account', () => {
   });
 
   it('says how to set it up where it is not', async () => {
-    const bare = await createWorld({ projects: false });
+    // The same server without FORGEJO_*: nothing to connect to.
+    const hosts = w.app.config.codeHosts;
+    w.app.config.codeHosts = { github: hosts.github };
     try {
-      const e = await startConnect(systemCtx(bare.app, bare.anna, 'web'), 'gitea').catch((x: unknown) => x);
+      const e = await startConnect(web(), 'gitea').catch((x: unknown) => x);
       expect(e).toMatchObject({ status: 400, words: { key: 'vcs.connectNotSetUpForge' } });
+      expect(codeHosts(w.app).find((h) => h.provider === 'gitea')).toEqual({ provider: 'gitea', name: 'Gitea or Forgejo', available: false });
       // Only https outside tests: plain http to this machine needs VCS_ALLOW_HTTP_LOOPBACK.
       expect(loadConfig().vcsAllowHttpLoopback).toBe(false);
       process.env.VCS_ALLOW_HTTP_LOOPBACK = 'true';
@@ -153,7 +156,7 @@ describe('connecting your Forgejo account', () => {
         delete process.env.VCS_ALLOW_HTTP_LOOPBACK;
       }
     } finally {
-      await bare.close();
+      w.app.config.codeHosts = hosts;
     }
   });
 });
