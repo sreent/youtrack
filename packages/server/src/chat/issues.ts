@@ -209,6 +209,16 @@ export function describeWithReplies(description: string, replies: ChatReply[]): 
   return { text: whole.text, cut: cut || whole.cut };
 }
 
+/** The issue a form made before, as they see it now: limited away from them since, it's missing, in the words for that. */
+async function madeBefore(ctx: Ctx, issueId: string, tr: Translator): Promise<MadeIssue | Refusal> {
+  try {
+    return { issue: await getIssue(ctx, issueId), again: true };
+  } catch (e) {
+    if (e instanceof AppError) return refusal('form', problemFor(tr, e));
+    throw e;
+  }
+}
+
 /** Thrown inside the making transaction, to roll it back. */
 class NotMade extends Error {
   constructor(readonly why: 'again' | 'tooFast') {
@@ -235,7 +245,7 @@ export async function makeChatIssue(
   input: { project: string; summary: string; description: string; replies: number; cut: boolean },
   tr: Translator,
 ): Promise<MadeIssue | Refusal> {
-  if (draft.issueId) return { issue: await getIssue(ctx, draft.issueId), again: true };
+  if (draft.issueId) return madeBefore(ctx, draft.issueId, tr);
   const me = ctx.actor.user;
   const limit = ctx.app.config.chatIssueLimit;
   const source = {
@@ -273,7 +283,8 @@ export async function makeChatIssue(
     if (e instanceof NotMade && e.why === 'tooFast') return tooFast(ctx, tr);
     if (e instanceof NotMade) {
       const [made] = await ctx.db.select({ issueId: chatIssueSources.issueId }).from(chatIssueSources).where(eq(chatIssueSources.id, draft.id));
-      if (made?.issueId) return { issue: await getIssue(ctx, made.issueId), again: true };
+      // Made by the other sending; or gone, pruned as it expired meanwhile.
+      return made?.issueId ? madeBefore(ctx, made.issueId, tr) : refusal('form', tr.t('server.chat.issue.expired'));
     }
     // What the project asks of a new issue (a required field, a guard) is said as it would be anywhere.
     if (e instanceof AppError) return refusal('form', problemFor(tr, e));

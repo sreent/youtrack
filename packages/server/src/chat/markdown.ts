@@ -68,7 +68,7 @@ export function slackMentions(text: string): string[] {
 function slackToken(inner: string, names: ReadonlyMap<string, string>): string {
   const [target = '', ...rest] = inner.split('|');
   const label = unescapeSlack(rest.join('|'));
-  if (/^@[UW][A-Z0-9]+$/.test(target)) return named(names.get(target.slice(1)) ?? label ?? target.slice(1));
+  if (/^@[UW][A-Z0-9]+$/.test(target)) return named(names.get(target.slice(1)) || label || target.slice(1));
   if (target.startsWith('#')) return `#${escapeMd(label || target.slice(1))}`;
   if (target.startsWith('!subteam^')) return named(label.replace(/^@/, '') || target.slice(9));
   if (/^!(here|channel|everyone)$/.test(target)) return named(target.slice(1));

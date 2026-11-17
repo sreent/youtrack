@@ -427,7 +427,7 @@ function issueView(form: IssueForm, tr: Translator, from: string, thread: boolea
         { optional: true, ...(form.cut ? { hint: plain(tr.t('server.chat.issue.cut', { max: FORM_MAX })) } : {}) },
       ),
       ...(thread
-        ? [input('replies', tr.t('server.chat.issue.thread'), { type: 'checkboxes', action_id: 'value', options: [{ text: plain(tr.t('server.chat.issue.withReplies', { max: REPLIES_MAX })), value: 'yes' }] }, { optional: true })]
+        ? [input('replies', tr.t('server.chat.issue.thread'), { type: 'checkboxes', action_id: 'value', options: [{ text: plain(tr.t('server.chat.issue.withReplies', { max: REPLIES_MAX }), 75), value: 'yes' }] }, { optional: true })]
         : []),
       ...(form.files ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: slackText(tr.t('server.chat.issue.files', { n: form.files })) }] }] : []),
     ],

@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { teamsManifest } from '../src/chat/package';
 import { mrkdwnToMarkdown, teamsHtmlToMarkdown } from '../src/chat/markdown';
 import type { UserRow } from '../src/context';
-import { activities, chatAccounts, chatIssueSources, issueWatchers, userIdentities, users } from '../src/db/schema';
+import { activities, chatAccounts, chatIssueSources, issues, issueWatchers, userIdentities, users } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
 import { newId } from '../src/lib/ids';
 import { connectSlack } from '../src/chat/slack';
@@ -329,8 +329,7 @@ describe('Slack: a message shortcut makes an issue', () => {
     const rows = await w.app.db.select().from(chatIssueSources).where(eq(chatIssueSources.id, view.private_metadata!));
     expect(rows).toHaveLength(1);
     const issue = await madeFrom(view);
-    const [{ n }] = (await w.app.db.execute(`SELECT count(*)::int AS n FROM issues WHERE summary = 'Twice'`)).rows as { n: number }[];
-    expect(n).toBe(1);
+    expect(await w.app.db.select({ id: issues.id }).from(issues).where(eq(issues.summary, 'Twice'))).toHaveLength(1);
     await expect.poll(() => slack.callsOf('chat.postEphemeral').filter((c) => String(c.body.text) === `${issue.id} was created from this message already.`).length).toBe(2);
   });
 

@@ -1692,6 +1692,7 @@ Linked, a file stays under the chat's own access. Bringing one is a drop on the 
 **What it costs.**
 
 - Opening a form: three calls to Slack side by side, within its three seconds (the channel, the permalink, people's names), and a draft row. Sending one: one call for the thread, and names for its replies, then one transaction.
+- Reading an issue in full (`GET /issues/{id}`, `get_issue`, the page) looks its source up too: one more query, by the issue's id.
 - A row per form opened, pruned once an hour after it expires unsent; a row per Slack request and Teams activity, pruned once an hour after its window. The chat's prune runs hourly now, not daily.
 - The thread, and the files, are as the chat holds them when the form is sent: an edit after isn't followed.
 - Slack's modal lists 100 projects, by name: someone who may create in more sees the first 100. Teams' list filters as they type.
