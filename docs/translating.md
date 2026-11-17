@@ -48,6 +48,7 @@ German:
 - **Nouns keep their capital** inside a sentence, so a label set into a sentence isn't lower-cased in German (`inSentence()` in the web's `i18n`).
 - **Dates and numbers** come from Intl, never from the catalog: "16. Nov. 2026", "1.234,5", "vor 3 Minuten".
 - Quotation marks are „…“, and the ellipsis is one character, as in English.
+- **English the page passes in**: where a page gives a message an English word as a value ('change' or 'link' to an undo, 'merged' to a pull request, 'you', 'below', 'add'), the German selects on it, `{v, select, below {unter} other {über}}`, and puts the noun where German wants it: "hat die Änderung von Ada rückgängig gemacht".
 
 ## The terms
 
