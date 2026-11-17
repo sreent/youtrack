@@ -16,12 +16,12 @@ import {
   type ScheduleTask,
   type WhatIfResult,
 } from '@a4a/shared';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, workItems } from '../db/schema';
+import { baselines, baselineTasks, issueFieldValues, issueLinks, issues, projects, workItems } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
-import { todayISO } from '../lib/dates';
+import { addDays, maxDate, minDate, todayISO } from '../lib/dates';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import {
@@ -39,8 +39,11 @@ import {
   type ScheduledTask,
   type ScheduleResult,
 } from '../planning';
+import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
+import type { AwayPart } from '../planning/types';
 import { searchIssueRows } from '../search/service';
-import { assertCanReadProject } from './access';
+import { absencesForPlan } from './absences';
+import { canReadProject, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
@@ -62,21 +65,27 @@ function localDate(d: Date): string {
   return todayISO(d);
 }
 
-async function projectFor(ctx: Ctx, key: string): Promise<{ s: SchemaSnapshot; project: ProjectRow }> {
-  requireScope(ctx, 'read');
-  const s = await ctx.app.schema.get();
-  const project = projectByKey(s, key);
-  if (!project) throw notFound(`Project ${key}`);
-  await assertCanReadProject(ctx, project.id);
-  return { s, project };
+async function projectFor(ctx: Ctx, key: string, need: ProjectNeed = 'read'): Promise<{ s: SchemaSnapshot; project: ProjectRow }> {
+  const project = await requireProject(ctx, key, need);
+  return { s: await ctx.app.schema.get(), project };
 }
 
 /** Everything the engine needs about a project, as plain data. */
-export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; baselineId?: string; today?: string } = {}): Promise<Loaded> {
-  const { s, project } = await projectFor(ctx, key);
+export async function loadPlan(
+  ctx: Ctx,
+  key: string,
+  opts: { query?: string; baselineId?: string; today?: string; need?: ProjectNeed } = {},
+): Promise<Loaded> {
+  const { s, project } = await projectFor(ctx, key, opts.need);
   const rows: IssueRow[] = opts.query?.trim()
     ? (await searchIssueRows(ctx, opts.query, { projectId: project.id, limit: MAX_PLAN_ISSUES })).rows
-    : await ctx.db.select().from(issues).where(eq(issues.projectId, project.id)).orderBy(asc(issues.number)).limit(MAX_PLAN_ISSUES);
+    : await ctx.db
+        .select()
+        .from(issues)
+        // A plan holds the issues the caller sees (D37): its managers, who level it, see them all.
+        .where(and(eq(issues.projectId, project.id), issueSeenSql(await projectAccess(ctx), s)))
+        .orderBy(asc(issues.number))
+        .limit(MAX_PLAN_ISSUES);
   const ids = rows.map((r) => r.id);
   const rid = new Map(rows.map((r) => [r.id, readableId(s, r)]));
 
@@ -115,8 +124,12 @@ export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; ba
     }
   }
   if (externalIds.size) {
+    // A dependency on an issue in another project is named only when the caller can see it: the
+    // plan's warnings must not give away an issue they can't open.
+    const view = await projectAccess(ctx);
     const ext = await ctx.db.select().from(issues).where(inArray(issues.id, [...externalIds]));
-    for (const e of ext) rid.set(e.id, readableId(s, e));
+    const seen = await seenIssueIds(ctx, ext.map((e) => e.id));
+    for (const e of ext) if (view.canRead(e.projectId) && seen.has(e.id)) rid.set(e.id, readableId(s, e));
   }
 
   const work = ids.length ? await ctx.db.select().from(workItems).where(inArray(workItems.issueId, ids)) : [];
@@ -163,20 +176,23 @@ export async function loadPlan(ctx: Ctx, key: string, opts: { query?: string; ba
   const resources: PlanResource[] = [...people]
     .map((id) => s.users.get(id))
     .filter((u): u is NonNullable<typeof u> => Boolean(u))
-    .map((u) => ({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate }));
+    .map((u) => ({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate, week: u.workWeek }));
   const items: PlanWorkItem[] = work.map((w) => ({ taskId: rid.get(w.issueId)!, authorId: w.authorId, date: w.date, minutes: w.minutes, hourlyRate: w.hourlyRate }));
 
   let baseline: PlanBaseline | null = null;
   if (opts.baselineId) {
     const [b] = await ctx.db.select().from(baselines).where(and(eq(baselines.id, opts.baselineId), eq(baselines.projectId, project.id)));
-    if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`);
+    if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`).said('planning.baselineNotFoundList', { project: project.key });
     const bt = await ctx.db.select().from(baselineTasks).where(eq(baselineTasks.baselineId, b.id));
     baseline = { id: b.id, name: b.name, tasks: bt.map((t) => ({ id: t.readableId, start: t.start, finish: t.finish, effortMinutes: t.effortMinutes, cost: t.cost })) };
   }
 
   const plan = projectSettings(project).plan;
+  const today = opts.today ?? todayISO();
+  // Each person's days away, so their work lands on the days they're there (D36).
+  const away = await absencesForPlan(ctx.db, resources.map((r) => r.id), today);
   return {
-    input: { today: opts.today ?? todayISO(), calendar: plan, tasks, resources, workItems: items, baseline },
+    input: { today, calendar: plan, tasks, resources, workItems: items, baseline, absences: away },
     project,
     s,
     refs,
@@ -229,7 +245,32 @@ function scheduleDto(l: Loaded, r: ScheduleResult): Schedule {
     tasks: r.tasks.map((t) => taskDto(l, t)),
     warnings: r.warnings,
     baseline: r.baseline,
+    away: awayDto(l, r),
   };
+}
+
+/** Assignees' days away on the plan's working days between its start and finish, for the Gantt (D36, D43). */
+function awayDto(l: Loaded, r: ScheduleResult): Schedule['away'] {
+  const assignees = new Set(r.tasks.map((t) => t.assigneeId).filter((id): id is string => Boolean(id)));
+  const cal = normalizeCalendar(l.input.calendar);
+  const byLogin = new Map<string, Map<string, AwayPart>>();
+  for (const a of l.input.absences ?? []) {
+    const login = assignees.has(a.resourceId) ? l.s.users.get(a.resourceId)?.login : undefined;
+    if (!login) continue;
+    const days = byLogin.get(login) ?? new Map<string, AwayPart>();
+    byLogin.set(login, days);
+    const last = a.half ? a.from : minDate(a.to, r.finish);
+    for (let d = maxDate(a.from, r.start); d <= last; d = addDays(d, 1)) {
+      if (d > r.finish || !isWorkingDay(cal, d)) continue;
+      const had = days.get(d);
+      // A morning and an afternoon away are the whole day.
+      days.set(d, !a.half || had === 'day' || (had && had !== a.half) ? 'day' : a.half);
+    }
+  }
+  return [...byLogin]
+    .filter(([, days]) => days.size > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([assignee, days]) => ({ assignee, days: [...days].sort(([a], [b]) => (a < b ? -1 : 1)).map(([date, part]) => ({ date, part })) }));
 }
 
 export async function getSchedule(ctx: Ctx, key: string, opts: { query?: string; baseline?: string } = {}): Promise<Schedule> {
@@ -248,22 +289,22 @@ export interface OverrideInput {
 function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[] {
   return list.map((o) => {
     const id = o.issue.toUpperCase();
-    if (!l.refs.has(id)) throw badRequest(`${o.issue} is not in this plan`);
+    if (!l.refs.has(id)) throw badRequest(`${o.issue} is not in this plan`).said('planning.notInPlan', { issue: o.issue });
     const out: PlanOverride = { id };
     if (o.delayDays !== undefined) out.delayDays = o.delayDays;
     if (o.estimate !== undefined) {
       const m = parsePeriod(o.estimate);
-      if (m === null) throw badRequest(`"${o.estimate}" is not a duration`);
+      if (m === null) throw badRequest(`"${o.estimate}" is not a duration`).said('planning.notADuration', { estimate: o.estimate });
       out.effortMinutes = m;
     }
     if (o.assignee !== undefined) {
       if (o.assignee === null) out.assigneeId = null;
       else {
         const u = findUser(l.s, o.assignee, ctx.actor.user.id);
-        if (!u) throw badRequest(`Unknown user "${o.assignee}"`);
+        if (!u) throw badRequest(`Unknown user "${o.assignee}"`).said('planning.unknownUser', { assignee: o.assignee });
         out.assigneeId = u.id;
         if (!l.input.resources.some((r) => r.id === u.id)) {
-          l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate });
+          l.input.resources.push({ id: u.id, login: u.login, name: u.name, capacityHoursPerDay: u.capacityHoursPerDay, hourlyRate: u.hourlyRate, week: u.workWeek });
         }
       }
     }
@@ -274,7 +315,12 @@ function toOverrides(l: Loaded, ctx: Ctx, list: OverrideInput[]): PlanOverride[]
 
 export async function whatIfSchedule(ctx: Ctx, key: string, body: { query?: string; baseline?: string; overrides: OverrideInput[] }): Promise<WhatIfResult> {
   const l = await loadPlan(ctx, key, { query: body.query, baselineId: body.baseline });
-  const res = whatIf(l.input, toOverrides(l, ctx, body.overrides));
+  const planned = new Set(l.input.resources.map((r) => r.id));
+  const overrides = toOverrides(l, ctx, body.overrides);
+  // Someone a what-if gives work to is planned around their own days away too.
+  const added = l.input.resources.map((r) => r.id).filter((id) => !planned.has(id));
+  if (added.length) l.input.absences = [...(l.input.absences ?? []), ...(await absencesForPlan(ctx.db, added, l.input.today))];
+  const res = whatIf(l.input, overrides);
   return { before: res.before, after: scheduleDto(l, res.after), finishDeltaDays: res.finishDeltaDays, impacted: res.impacted.map((i) => ({ issue: i.id, summary: i.summary, startDeltaDays: i.startDeltaDays, finishDeltaDays: i.finishDeltaDays })) };
 }
 
@@ -310,7 +356,8 @@ export async function level(
   opts: { query?: string; mode: LevelingMode; dryRun: boolean; expect?: Record<string, string> },
 ): Promise<LevelingResult> {
   if (!opts.dryRun) requireScope(ctx, 'write');
-  const l = await loadPlan(ctx, key, { query: opts.query });
+  // Applying writes Start dates, which is work on issues: members may, as for each issue by hand.
+  const l = await loadPlan(ctx, key, { query: opts.query, need: opts.dryRun ? 'read' : 'write' });
   const p = levelResources(l.input, opts.mode);
   const changes = p.changes.map((c) => ({
     issue: c.id,
@@ -333,26 +380,38 @@ export async function level(
       `The plan of ${l.project.key} changed since this levelling was proposed`,
       'Review the new proposal, then level again.',
       { starts },
-    );
+    ).said('planning.planChanged', { project: l.project.key });
   }
   if (!opts.dryRun && writes.length) {
     const startField = fieldByName(l.s, WELL_KNOWN_FIELDS.startDate);
     if (!startField || !(l.s.projectFields.get(l.project.id) ?? []).some((pf) => pf.fieldId === startField.id)) {
-      throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.');
+      throw badRequest(`${l.project.key} has no "${WELL_KNOWN_FIELDS.startDate}" field to record levelled starts`, 'Attach the field in the project settings.').said('planning.noStartDateField', { project: l.project.key, field: WELL_KNOWN_FIELDS.startDate });
     }
     // One transaction: the person agreed to the whole proposal, so it lands whole or not at all.
     const activities = await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
       const out: ActivityRow[] = [];
+      if (p.keepStart) {
+        // Part of what was proposed, not a change of settings: the plan begins where it did.
+        // Only plan.startDate, in SQL, so a settings change made meanwhile is kept.
+        await tx
+          .update(projects)
+          .set({
+            settings: sql`jsonb_set(coalesce(${projects.settings}, '{}'::jsonb), '{plan}', coalesce(${projects.settings}->'plan', '{}'::jsonb) || jsonb_build_object('startDate', ${p.keepStart}::text))`,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, l.project.id));
+      }
       for (const [id, start] of writes) {
         const row = l.rowsById.get(id);
-        if (!row) throw notFound(`Issue ${id}`);
+        if (!row) throw notFound(`Issue ${id}`).said('notFound.issue', { id });
         const fields = resolveFieldsInput(l.s, l.project, { [WELL_KNOWN_FIELDS.startDate]: start }, ctx.actor.user.id);
         const res = await applyChanges(tx, ctx, row, { fields });
         out.push(...res.activities);
       }
       return out;
     });
+    if (p.keepStart) ctx.app.schema.invalidate();
     await publishActivities(ctx.app, activities);
   }
   return {
@@ -365,6 +424,7 @@ export async function level(
     changes,
     starts,
     unresolved: p.unresolved,
+    keepsStart: writes.length ? p.keepStart : null,
   };
 }
 
@@ -374,7 +434,8 @@ function sameStarts(a: Record<string, string>, b: Record<string, string>): boole
 }
 
 export async function getCostReport(ctx: Ctx, key: string, opts: { baseline?: string } = {}): Promise<CostReport> {
-  const l = await loadPlan(ctx, key, { baselineId: opts.baseline });
+  // Costs are for roles that see time and costs (D37).
+  const l = await loadPlan(ctx, key, { baselineId: opts.baseline, need: 'costs' });
   const schedule = computeSchedule(l.input);
   const c = computeCosts(l.input, schedule);
   return {
@@ -437,8 +498,8 @@ export async function getBaseline(ctx: Ctx, id: string): Promise<Baseline> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row) throw notFound('Baseline');
-  await assertCanReadProject(ctx, row.projectId);
+  // A baseline of a project the caller can't see is not found, as one that doesn't exist.
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
   return baselineDto(ctx, s, row);
 }
 
@@ -453,7 +514,8 @@ export async function createBaseline(
   internal: { asOf?: string; createdAt?: Date } = {},
 ): Promise<Baseline> {
   requireScope(ctx, 'write');
-  const l = await loadPlan(ctx, key, { query: input.query, today: internal.asOf });
+  // Baselines are the plan of record: its managers keep them.
+  const l = await loadPlan(ctx, key, { query: input.query, today: internal.asOf, need: 'manage' });
   const schedule = computeSchedule(l.input);
   const leaves = schedule.tasks.filter((t) => !t.isSummary);
   const plannedCost = leaves.reduce((sum, t) => sum + t.plannedCost, 0);
@@ -503,8 +565,9 @@ export async function createBaseline(
 
 export async function deleteBaseline(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(baselines).where(eq(baselines.id, id));
-  if (!row) throw notFound('Baseline');
-  await assertCanReadProject(ctx, row.projectId);
+  if (!row || !(await canReadProject(ctx, row.projectId))) throw notFound('Baseline').said('planning.baselineNotFound');
+  await requireProject(ctx, s.projects.get(row.projectId)?.key ?? '', 'manage');
   await ctx.db.delete(baselines).where(eq(baselines.id, id));
 }

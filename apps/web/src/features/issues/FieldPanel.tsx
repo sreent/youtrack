@@ -1,11 +1,14 @@
 import type { FieldValue, IssueDetail, IssueField, ProjectField, User } from '@a4a/shared';
-import { formatPeriod } from '@a4a/shared/periods';
+import { periodWords } from '../common/format';
+import { isOptionType, isOwnAgent } from '@a4a/shared/constants';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Avatar, Who } from '../../components/Who';
+import { ApiError } from '../../api/client';
 import { errorText, useUpdateIssue } from './api';
 import { isOption, isPeriod, isUser } from './fields';
 import { ErrorLine } from '../../components/States';
+import { formatList, intlLocale, t } from '../../i18n';
 
 /** A value triage worked out, waiting for a person. */
 export interface Proposal {
@@ -19,27 +22,51 @@ interface Choice {
   text: string;
   view: React.ReactNode;
   kind?: string;
+  /** Its name, when its view doesn't say it in words (a PriorityMeter is named "Priority"). */
+  label?: string;
 }
 
-const EMPTY: Record<string, string> = { Assignee: 'Unassigned', 'Due date': 'No due date', 'Start date': 'No start date', 'Fix versions': 'None yet' };
-const emptyWords = (name: string) => EMPTY[name] ?? 'Not set';
+const EMPTY: Record<string, string> = { Assignee: t('issues.fieldPanel.unassigned'), 'Due date': t('issues.fieldPanel.noDueDate'), 'Start date': t('issues.fieldPanel.noStartDate'), 'Fix versions': t('issues.fieldPanel.noneYet') };
+const emptyWords = (name: string) => EMPTY[name] ?? t('issues.fieldPanel.notSet');
 
-function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }) {
+/** A field whose values show as a PriorityMeter, which names itself "Priority" whatever it shows. */
+const isMeter = (field: ProjectField) => field.name === 'Priority';
+
+function optionView(field: ProjectField, v: { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean }, wordId?: string) {
   if (field.type === 'state') return <Badge tone={v.tone}>{v.name}</Badge>;
-  if (field.name === 'Priority') return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} />;
+  if (isMeter(field)) return <PriorityMeter value={{ id: '', name: v.name, tone: v.tone, ordinal: v.ordinal, isResolved: v.isResolved }} wordId={wordId} />;
   return <>{v.name}</>;
+}
+
+/** A moment in the reader's own time: "20 Nov 2026, 15:30". */
+function formatMoment(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/** A moment as a datetime-local input takes it, in the reader's own time. */
+function localInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. */
+/**
+ * The value as a button that opens its choices in a listbox, as Ocean's FieldPanel draws it. It is
+ * named by its label and itself ("State, In Progress"), or by its label and `valueNameId`, the
+ * element whose words say the value, when the view's own name doesn't (a PriorityMeter's).
+ */
 function ChoiceValue({
   labelId,
   name,
   view,
+  valueNameId,
   choices,
   chosen,
   multi,
@@ -49,6 +76,7 @@ function ChoiceValue({
   labelId: string;
   name: string;
   view: React.ReactNode;
+  valueNameId?: string;
   choices: Choice[];
   chosen: Set<string>;
   multi: boolean;
@@ -112,7 +140,7 @@ function ChoiceValue({
         type="button"
         className={proposedId ? 'fields-value proposed' : 'fields-value'}
         id={`${id}-value`}
-        aria-labelledby={`${labelId} ${id}-value`}
+        aria-labelledby={`${labelId} ${valueNameId ?? `${id}-value`}`}
         aria-describedby={proposedId}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -141,6 +169,7 @@ function ChoiceValue({
               key={c.key}
               id={`${listId}-${i}`}
               role="option"
+              aria-label={c.label}
               aria-selected={chosen.has(c.key)}
               className={i === active ? 'active' : undefined}
               onMouseDown={(e) => e.preventDefault()}
@@ -170,11 +199,12 @@ function TextValue({
   labelId: string;
   initial: string;
   mono?: boolean;
-  type: 'text' | 'date';
+  type: 'text' | 'date' | 'datetime-local';
   placeholder: string;
   proposedId?: string;
   onSave: (v: string) => Promise<void>;
 }) {
+  const ownId = useId();
   const [text, setText] = useState(initial);
   const [editingDate, setEditingDate] = useState(false);
   useEffect(() => setText(initial), [initial]);
@@ -189,10 +219,11 @@ function TextValue({
   const cls = ['fields-value', mono ? 'mono' : '', proposedId ? 'proposed' : ''].filter(Boolean).join(' ');
 
   // A date reads as words at rest ("No due date", "12 Nov 2026") and becomes a date field to change it.
-  if (type === 'date' && !editingDate) {
+  // At rest it's a button, so, like a choice, it's named by its label and the words it shows.
+  if ((type === 'date' || type === 'datetime-local') && !editingDate) {
     return (
-      <button type="button" className={cls} aria-labelledby={labelId} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
-        {initial ? formatDate(initial) : <span className="empty">{placeholder}</span>}
+      <button type="button" className={cls} id={ownId} aria-labelledby={`${labelId} ${ownId}`} aria-describedby={proposedId} onClick={() => setEditingDate(true)}>
+        {initial ? (type === 'date' ? formatDate(initial) : formatMoment(initial)) : <span className="empty">{placeholder}</span>}
       </button>
     );
   }
@@ -204,7 +235,7 @@ function TextValue({
       aria-describedby={proposedId}
       value={text}
       placeholder={placeholder}
-      autoFocus={type === 'date'}
+      autoFocus={type !== 'text'}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         void save();
@@ -236,21 +267,40 @@ interface Props {
   fields: ProjectField[];
   users: User[];
   proposals: Map<string, Proposal>;
+  /** False for someone who may only read the issue's project. */
+  canEdit?: boolean;
 }
 
-/** Ocean's FieldPanel: an issue's fields beside it, each value a control. */
-export function FieldPanel({ issue, fields, users, proposals }: Props) {
+const NO_PROPOSALS = new Map<string, Proposal>();
+
+/**
+ * Ocean's FieldPanel: an issue's fields beside it, each value a control. Without `canEdit` (someone
+ * who may only read the project), each value is its words alone, and nothing waits to be accepted.
+ */
+export function FieldPanel({ issue, fields, users, proposals: offered, canEdit = true }: Props) {
   const id = useId();
+  // Accepting a value is a change to the issue, so only someone who may change it is asked.
+  const proposals = canEdit ? offered : NO_PROPOSALS;
   const update = useUpdateIssue(issue);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const byId = new Map(issue.fields.map((f) => [f.fieldId, f]));
 
+  // A change refused for a field it makes required (D41) waits here for that field's value.
+  const [waiting, setWaiting] = useState<{ fields: Record<string, string | string[] | null>; need: string } | null>(null);
   const set = async (name: string, value: string | string[] | null) => {
     setErrors((e) => ({ ...e, [name]: '' }));
+    const fields = waiting && waiting.need === name ? { ...waiting.fields, [name]: value } : { [name]: value };
     try {
-      await update({ fields: { [name]: value } });
+      await update({ fields });
+      setWaiting(null);
     } catch (e) {
+      const need = e instanceof ApiError ? (e.details as { requiredField?: string } | undefined)?.requiredField : undefined;
+      if (need && need !== name) {
+        setWaiting({ fields, need });
+        setErrors((x) => ({ ...x, [need]: t('issues.fieldPanel.chooseItAndChangeWith', { errorText: errorText(e), join: formatList(Object.keys(fields)), n: Object.keys(fields).length }) }));
+        return;
+      }
       setErrors((x) => ({ ...x, [name]: errorText(e) }));
       throw e;
     }
@@ -268,14 +318,16 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
     }
   };
 
-  const people = users.filter((u) => !u.banned);
-  const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal);
+  // People, and agents an administrator added; a4a's own agents take no work (D34).
+  const people = users.filter((u) => !u.banned && !isOwnAgent(u));
+  // A field with a condition shows only while the issue matches it, or while a change waits for it.
+  const sorted = [...fields].sort((a, b) => a.ordinal - b.ordinal).filter((pf) => byId.get(pf.fieldId)?.applies !== false || waiting?.need === pf.name);
 
   return (
-    <aside className="fields" aria-label={`Fields of ${issue.id}`}>
+    <aside className="fields" aria-label={t('issues.fieldPanel.fieldsOf', { id: issue.id })}>
       <dl className="fields-list">
         <div className="fields-row">
-          <dt>Project</dt>
+          <dt>{t('issues.fieldPanel.project')}</dt>
           <dd>
             {issue.project.name} <span className="issue-id">{issue.project.key}</span>
           </dd>
@@ -287,38 +339,46 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
           const proposedId = proposal ? `${labelId}-proposed` : undefined;
           let control: React.ReactNode;
 
-          if (pf.type === 'enum' || pf.type === 'state' || pf.type === 'version') {
-            const chosenValues = f?.value === null || f?.value === undefined ? [] : Array.isArray(f.value) ? f.value.filter(isOption) : isOption(f.value) ? [f.value] : [];
+          if (isOptionType(pf.type) || pf.type === 'group') {
+            const raw: unknown[] = f?.value === null || f?.value === undefined ? [] : Array.isArray(f.value) ? f.value : [f.value];
+            // A group is named, without a tone or an order of its own.
+            type Shown = { name: string; tone: FieldValue['tone']; ordinal: number; isResolved: boolean };
+            const chosenValues = raw.flatMap((v): Shown[] =>
+              isOption(v) ? [v] : typeof v === 'object' && v !== null && 'name' in v ? [{ name: String((v as { name: unknown }).name), tone: null, ordinal: 0, isResolved: false }] : [],
+            );
             const chosen = new Set(chosenValues.map((v) => v.name));
             const values = pf.values.filter((v) => !v.archived || chosen.has(v.name));
             const shown = proposal ? values.find((v) => v.name === proposal.value) : null;
+            // A meter's word, not the meter, says which value it is.
+            const wordId = isMeter(pf) && !pf.multi && (shown || chosenValues.length) ? `${labelId}-word` : undefined;
             const view = shown ? (
-              optionView(pf, shown)
+              optionView(pf, shown, wordId)
             ) : chosenValues.length ? (
               pf.multi ? (
                 <span className="mono">{chosenValues.map((v) => v.name).join(', ')}</span>
               ) : (
-                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone })
+                optionView(pf, values.find((v) => v.name === chosenValues[0]!.name) ?? { ...chosenValues[0]!, tone: chosenValues[0]!.tone }, wordId)
               )
             ) : (
               <span className="empty">{emptyWords(pf.name)}</span>
             );
-            control = (
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
                 view={view}
+                valueNameId={wordId}
                 multi={pf.multi}
                 chosen={chosen}
                 proposedId={proposedId}
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
-                  ...values.map((v) => ({
-                    key: v.name,
-                    text: v.name,
-                    view: optionView(pf, v),
-                    kind: chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? 'resolves it' : undefined,
-                  })),
+                  ...values.map((v) => {
+                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? t('issues.fieldPanel.resolvesIt') : v.owner ? v.owner.name : undefined;
+                    return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? [v.name, kind].filter(Boolean).join(', ') : undefined };
+                  }),
                 ]}
                 onPick={(keys) => void set(pf.name, pf.multi ? keys : keys[0] || null).catch(() => {})}
               />
@@ -327,11 +387,18 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
             const u = f && isUser(f.value) ? f.value : null;
             const proposedUser = proposal ? people.find((p) => p.login === proposal.value || p.name === proposal.value) : null;
             const shownUser = proposedUser ?? u;
-            control = (
+            const view = shownUser ? (
+              <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small />
+            ) : (
+              <span className="empty">{emptyWords(pf.name)}</span>
+            );
+            control = !canEdit ? (
+              <span className="fields-value">{view}</span>
+            ) : (
               <ChoiceValue
                 labelId={labelId}
                 name={pf.name}
-                view={shownUser ? <Who kind={shownUser.isBot ? 'agent' : 'person'} name={shownUser.isBot ? shownUser.login : shownUser.name} small /> : <span className="empty">{emptyWords(pf.name)}</span>}
+                view={view}
                 multi={false}
                 chosen={new Set(u ? [u.login] : [''])}
                 proposedId={proposedId}
@@ -347,13 +414,32 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                 onPick={(keys) => void set(pf.name, keys[0] || null).catch(() => {})}
               />
             );
+          } else if (pf.type === 'datetime') {
+            const iso = typeof f?.value === 'string' ? f.value : '';
+            control = !canEdit ? (
+              <span className="fields-value">{iso ? formatMoment(iso) : <span className="empty">{emptyWords(pf.name)}</span>}</span>
+            ) : (
+              <TextValue
+                labelId={labelId}
+                initial={iso ? localInput(iso) : ''}
+                type="datetime-local"
+                placeholder={emptyWords(pf.name)}
+                proposedId={proposedId}
+                onSave={(v) => set(pf.name, v === '' ? null : new Date(v).toISOString())}
+              />
+            );
           } else {
             const initial = pf.type === 'date' ? (typeof f?.value === 'string' ? f.value.slice(0, 10) : '') : currentText(f);
-            control = (
+            const mono = pf.type === 'period' || pf.type === 'integer' || pf.type === 'float';
+            control = !canEdit ? (
+              <span className={mono ? 'fields-value mono' : 'fields-value'}>
+                {initial ? (pf.type === 'date' ? formatDate(initial) : initial) : <span className="empty">{emptyWords(pf.name)}</span>}
+              </span>
+            ) : (
               <TextValue
                 labelId={labelId}
                 initial={proposal ? proposal.value : initial}
-                mono={pf.type === 'period' || pf.type === 'integer' || pf.type === 'float'}
+                mono={mono}
                 type={pf.type === 'date' ? 'date' : 'text'}
                 placeholder={emptyWords(pf.name)}
                 proposedId={proposedId}
@@ -371,10 +457,10 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
                   <p className="fields-proposed" id={proposedId}>
                     <Avatar kind="agent" name="triage" small />
                     <span>
-                      <strong>triage</strong> {proposal.reason}
+                      <strong>{t('issues.fieldPanel.triage')}</strong> {proposal.reason}
                     </span>
                     <button type="button" disabled={busy === pf.name} onClick={() => void accept(pf.name, proposal)}>
-                      {busy === pf.name ? 'Accepting…' : 'Accept'}
+                      {busy === pf.name ? t('issues.fieldPanel.accepting') : t('issues.fieldPanel.accept')}
                     </button>
                   </p>
                 ) : null}
@@ -386,13 +472,13 @@ export function FieldPanel({ issue, fields, users, proposals }: Props) {
           );
         })}
         <div className="fields-row">
-          <dt>Spent time</dt>
+          <dt>{t('issues.fieldPanel.spentTime')}</dt>
           <dd>
-            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty">None yet</span>}</span>
+            <span className="mono">{issue.spentMinutes ? periodWords(issue.spentMinutes) : <span className="empty">{t('issues.fieldPanel.noneYet')}</span>}</span>
           </dd>
         </div>
       </dl>
-      {proposals.size ? <p className="fields-foot">Dashed values were worked out by an agent: check them, and accept each one you agree with.</p> : null}
+      {proposals.size ? <p className="fields-foot">{t('issues.fieldPanel.dashedValuesWereWorkedOut')}</p> : null}
     </aside>
   );
 }

@@ -8,6 +8,195 @@
       "when": 1794765713401,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794805719093,
+      "tag": "0001_access_and_sso",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794808438011,
+      "tag": "0002_login_throttle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794808857931,
+      "tag": "0003_files_and_knowledge_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794811325864,
+      "tag": "0004_reports_dashboards_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794811896661,
+      "tag": "0005_notifications_and_help_desk",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794812408599,
+      "tag": "0006_rules_and_version_control",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794835152009,
+      "tag": "0007_oauth_for_mcp",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794838447878,
+      "tag": "0008_rules_across_issues",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794838663033,
+      "tag": "0009_absences",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794838888168,
+      "tag": "0010_groups_and_saml",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794839111999,
+      "tag": "0011_helpdesk_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794839328246,
+      "tag": "0012_agents_as_themselves",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794839510340,
+      "tag": "0013_subscriptions_and_time_zones",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794839713214,
+      "tag": "0014_vcs_emails_and_logins",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1794839818799,
+      "tag": "0015_api_imports",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794844303236,
+      "tag": "0016_issues_and_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794847830280,
+      "tag": "0017_scripted_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794848095944,
+      "tag": "0018_access_depth",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794848634410,
+      "tag": "0019_identity_depth",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794849436684,
+      "tag": "0020_editor",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794851381749,
+      "tag": "0021_agile_and_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794852693680,
+      "tag": "0022_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794853393310,
+      "tag": "0023_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794854401721,
+      "tag": "0024_mobile",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794854835064,
+      "tag": "0025_helpdesk_depth",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794856477779,
+      "tag": "0026_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794858090169,
+      "tag": "0027_translation",
+      "breakpoints": true
     }
   ]
 }

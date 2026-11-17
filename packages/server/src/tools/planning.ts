@@ -83,7 +83,8 @@ const getScheduleTool = defineTool({
 const getResourceLoadTool = defineTool({
   name: 'get_resource_load',
   title: 'Resource load',
-  description: 'Who is over capacity on which days, from the current plan. Use it before re-assigning work or levelling.',
+  description:
+    "Who is over capacity on which days, and who is away, from the current plan: work skips a person's days away, and a half day away halves their capacity. Use it before re-assigning work or levelling.",
   input: z.object({ project: z.string(), from: z.string().optional(), to: z.string().optional() }),
   kind: 'reads',
   async run(ctx, input) {
@@ -100,6 +101,8 @@ const getResourceLoadTool = defineTool({
           overallocatedDays: r.overallocatedDays,
           peakLoad: `${Math.round(r.peakLoadPct)}%`,
           overDays: r.days.filter((d) => d.hours > d.capacity + 0.01).slice(0, 15).map((d) => ({ date: d.date, hours: d.hours, capacity: d.capacity, tasks: d.tasks.map((t) => t.issue) })),
+          // When, never why: that is the person's.
+          awayDays: r.days.filter((d) => d.away).slice(0, 30).map((d) => ({ date: d.date, part: d.away })),
         })),
       },
       summary: `${load.resources.filter((r) => r.overallocatedDays > 0).length} people over capacity`,
@@ -156,6 +159,7 @@ const levelResourcesTool = defineTool({
       `Move ${moved.length} task starts in ${key} (finish ${p.finishBefore} → ${p.finishAfter}):`,
       ...moved.map((c) => `${c.issue}: ${c.fromStart} → ${c.toStart}`),
       ...(follow ? [`${follow} more follow their predecessors`] : []),
+      ...(p.keepsStart ? [`${key} has no start date of its own: it is set to ${p.keepsStart}, where it begins now, so nothing else moves`] : []),
     ].join('\n');
   },
   async run(ctx, input) {

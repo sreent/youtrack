@@ -23,15 +23,18 @@ export async function getSettings(ctx: Ctx): Promise<Settings> {
     instanceName: ((await getSetting(ctx.db, 'instanceName')) as string | undefined) ?? APP_NAME,
     defaultTriageMode: ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest',
     publicUrl: ctx.app.config.publicUrl,
+    requireTwoFactor: (await getSetting(ctx.db, 'requireTwoFactor')) === true,
   };
 }
 
 export async function updateSettings(
   ctx: Ctx,
-  input: { instanceName?: string; defaultTriageMode?: TriageMode },
+  input: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean },
 ): Promise<Settings> {
   requireScope(ctx, 'admin');
   if (input.instanceName !== undefined) await setSetting(ctx.db, 'instanceName', input.instanceName);
   if (input.defaultTriageMode !== undefined) await setSetting(ctx.db, 'defaultTriageMode', input.defaultTriageMode);
+  // From the next sign-in on, every password sign-in asks for a code; someone without an app sets one up then (D38).
+  if (input.requireTwoFactor !== undefined) await setSetting(ctx.db, 'requireTwoFactor', input.requireTwoFactor);
   return getSettings(ctx);
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeLoad, computeSchedule, levelResources } from '../../src/planning';
-import { hours, plan, span, task } from './fixtures';
+import { calendar, hours, plan, span, task, TODAY } from './fixtures';
 
 describe('computeLoad', () => {
   // Anna has A (2 days) and B (1 day) from Monday: 16h on Monday.
@@ -16,8 +16,8 @@ describe('computeLoad', () => {
     expect([load.from, load.to, load.unassignedHours]).toEqual(['2026-11-16', '2026-11-17', 8]);
     const anna = load.resources.find((r) => r.resourceId === 'u-anna')!;
     expect(anna.days).toEqual([
-      { date: '2026-11-16', hours: 16, capacity: 8, tasks: [{ issue: 'A', hours: 8 }, { issue: 'B', hours: 8 }] },
-      { date: '2026-11-17', hours: 8, capacity: 8, tasks: [{ issue: 'A', hours: 8 }] },
+      { date: '2026-11-16', hours: 16, capacity: 8, away: null, tasks: [{ issue: 'A', hours: 8 }, { issue: 'B', hours: 8 }] },
+      { date: '2026-11-17', hours: 8, capacity: 8, away: null, tasks: [{ issue: 'A', hours: 8 }] },
     ]);
     expect([anna.totalHours, anna.overallocatedDays, anna.peakLoadPct]).toEqual([24, 1, 200]);
     const ben = load.resources.find((r) => r.resourceId === 'u-ben')!;
@@ -84,6 +84,25 @@ describe('levelResources', () => {
     expect(applied.finish).toBe(r.finishAfter);
     for (const c of r.changes) expect([c.id, ...span(applied, c.id)]).toEqual([c.id, c.toStart, c.toFinish]);
     expect(r.changes.find((c) => c.id === 'F')).toMatchObject({ toStart: '2026-11-23', toFinish: '2026-11-23', movedBy: 'dependencies' });
+  });
+
+  it('keeps where a plan without a start date of its own begins, when the levelled starts would move it', () => {
+    const r = levelResources(input, 'allow_delay');
+    expect(r.keepStart).toBe(TODAY);
+    // Written as Start dates, as applying does, with the start kept: the plan is the proposal.
+    const written = input.tasks.map((t) => (r.levelledStarts[t.id] ? { ...t, startConstraint: r.levelledStarts[t.id]! } : t));
+    const applied = computeSchedule(plan(written, { calendar: calendar({ startDate: r.keepStart }) }));
+    expect(applied.finish).toBe(r.finishAfter);
+    for (const c of r.changes) expect([c.id, ...span(applied, c.id)]).toEqual([c.id, c.toStart, c.toFinish]);
+    expect(span(applied, 'A')[0]).toBe(TODAY);
+    // Without it, the plan would begin at the earliest levelled start (D's, Wednesday), and A with it.
+    expect(span(computeSchedule(plan(written)), 'A')[0]).toBe('2026-11-18');
+  });
+
+  it('keeps nothing when the plan has a start date, or an earlier Start date already sets it', () => {
+    expect(levelResources(plan(input.tasks, { calendar: calendar({ startDate: TODAY }) }), 'allow_delay').keepStart).toBeNull();
+    const dated = plan(input.tasks.map((t) => (t.id === 'A' ? { ...t, startConstraint: TODAY } : t)));
+    expect(levelResources(dated, 'allow_delay').keepStart).toBeNull();
   });
 
   it('within_slack never moves the finish and reports what it could not level', () => {

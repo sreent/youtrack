@@ -8,6 +8,7 @@ import { Icon } from '../../components/Icon';
 import { ErrorNote } from '../../components/States';
 import { Avatar } from '../../components/Who';
 import { Linked } from '../common/bits';
+import { t, t as tx, tr } from '../../i18n';
 
 /** A field's value as the server compares it with a suggestion: logins, names, presentations. */
 function present(f: IssueField): string | null {
@@ -28,10 +29,10 @@ function present(f: IssueField): string | null {
 /** What was there before an agent's value, as the history says it. */
 function before(field: string, value: string | null): string {
   if (value) return value;
-  return field.toLowerCase() === 'assignee' ? 'Unassigned' : 'Not set';
+  return field.toLowerCase() === 'assignee' ? tx('decide.suggestionCard.unassigned') : tx('decide.suggestionCard.notSet');
 }
 
-const CONFIDENCE: Record<'low' | 'medium' | 'high', string> = { low: 'unsure', medium: 'fairly sure', high: 'sure' };
+const CONFIDENCE: Record<'low' | 'medium' | 'high', string> = { low: tx('decide.suggestionCard.unsure'), medium: tx('decide.suggestionCard.fairlySure'), high: tx('decide.suggestionCard.sure') };
 const RANK: Record<Suggestion['status'], number> = { pending: 0, partially_applied: 1, applied: 2, dismissed: 2 };
 
 /** Pending, or partly accepted with more to decide. */
@@ -130,10 +131,10 @@ export function SuggestionCard({
       const n = picked.length;
       setAnswer(next);
       setUnticked(new Set());
-      if (compact) setSaid(`You added ${n === 1 ? 'the tag' : `${n} tags`}.`);
+      if (compact) setSaid(tx('decide.suggestionCard.youAdded', { v: n === 1 ? tx('decide.suggestionCard.theTag') : tx('decide.suggestionCard.tags2', { n: n }) }));
       else if (next.status === 'applied')
-        setSaid(n === items.length && !accepted ? 'You applied it.' : `You applied ${n === 1 ? 'the last of it' : 'the rest'}.`);
-      else setSaid(`You applied ${n}. The rest stays open.`);
+        setSaid(n === items.length && !accepted ? tx('decide.suggestionCard.youAppliedIt') : tx('decide.suggestionCard.youApplied', { v: n === 1 ? tx('decide.suggestionCard.theLastOfIt') : tx('decide.suggestionCard.theRest') }));
+      else setSaid(tx('decide.suggestionCard.youAppliedTheRestStays', { n: n }));
       refresh();
       if (next.status === 'applied') onDone?.();
     },
@@ -142,7 +143,7 @@ export function SuggestionCard({
     mutationFn: () => post<Suggestion>(`/suggestions/${suggestion.id}/dismiss`),
     onSuccess: (next) => {
       setAnswer(next);
-      setSaid(accepted || s.status === 'partially_applied' ? 'You dismissed the rest. What you accepted stays.' : 'You dismissed it. Nothing changed.');
+      setSaid(accepted || s.status === 'partially_applied' ? tx('decide.suggestionCard.youDismissedTheRestWhat') : tx('decide.suggestionCard.youDismissedItNothingChanged'));
       refresh();
       onDone?.();
     },
@@ -152,26 +153,29 @@ export function SuggestionCard({
 
   if (compact && !open && !said && !p.duplicates.length && !p.tags.length) return null;
 
-  const tagWords = openTags.length === 1 ? 'a tag' : 'tags';
-  const likeWords = `${p.duplicates.length === 1 ? 'an issue' : 'issues'} like this one`;
+  const likeWords = tx(p.duplicates.length === 1 ? 'decide.suggestionCard.anIssueLikeThisOne' : 'decide.suggestionCard.issuesLikeThisOne');
   const title = compact
     ? openTags.length && p.duplicates.length
-      ? `triage suggests ${tagWords}, and found ${likeWords}`
+      ? tx('decide.suggestionCard.triageSuggestsTagsAndFound', { n: openTags.length, likeWords: likeWords })
       : openTags.length
-        ? `triage suggests ${tagWords}`
+        ? tx('decide.suggestionCard.triageSuggestsTags', { n: openTags.length })
         : p.duplicates.length
-          ? `triage found ${likeWords}`
-          : 'triage suggests changes'
+          ? tx('decide.suggestionCard.triageFound', { likeWords: likeWords })
+          : tx('decide.suggestionCard.triageSuggestsChanges')
     : null;
-  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? `${accepted} of ${fields.length + tags.length} accepted` : null]
+  const about = [compact ? null : summary, ago(s.createdAt), accepted && open ? tx('decide.suggestionCard.acceptedOf', { accepted: accepted, total: fields.length + tags.length }) : null]
     .filter(Boolean)
     .join(' · ');
 
   let resolved: string | null = null;
   if (!said && !open) {
-    const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? 'You' : s.resolvedBy.name) : 'Someone';
-    const when = s.resolvedAt ? ` ${ago(s.resolvedAt)}` : '';
-    resolved = s.status === 'dismissed' ? `${who} dismissed it${when}.` : `${who} applied it${when}.`;
+    const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? tx('decide.suggestionCard.you') : s.resolvedBy.name) : tx('decide.suggestionCard.someone');
+    // The time is a value of the sentence, so a language puts it where it goes.
+    const when = s.resolvedAt ? ago(s.resolvedAt) : null;
+    resolved =
+      s.status === 'dismissed'
+        ? when ? t('decide.suggestionCard.whoDismissedItWhen', { who: who, when: when }) : t('decide.suggestionCard.whoDismissedIt', { who: who })
+        : when ? t('decide.suggestionCard.whoAppliedItWhen', { who: who, when: when }) : t('decide.suggestionCard.whoAppliedIt', { who: who });
   }
 
   const pick = (key: string, label: React.ReactNode, aria?: string) =>
@@ -197,9 +201,7 @@ export function SuggestionCard({
           <span>
             <Heading className="approval-title" id={titleId}>
               {title ?? (
-                <>
-                  triage {fields.length || tags.length ? 'suggests changes to' : 'found issues like'} <IssueLink id={s.issueId} />
-                </>
+                <>{tr(fields.length || tags.length ? 'decide.suggestionCard.triageSuggestsChangesTo' : 'decide.suggestionCard.triageFoundIssuesLike', { el: <IssueLink id={s.issueId} /> })}</>
               )}
             </Heading>
             <span className="who-about">{about}</span>
@@ -212,7 +214,7 @@ export function SuggestionCard({
           </p>
         ) : null}
         {compact && open && openFields.length === 0 && fields.some((f) => f.open) ? (
-          <p className="approval-note">Its values are dashed in the fields: accept each one you agree with.</p>
+          <p className="approval-note">{tx('decide.suggestionCard.itsValuesAreDashedIn')}</p>
         ) : null}
 
         {hasWell ? (
@@ -235,7 +237,7 @@ export function SuggestionCard({
                           </>
                         ) : (
                           <span>
-                            <span className="approval-accepted">{f.value}</span> <span className="approval-state">accepted</span>
+                            <span className="approval-accepted">{f.value}</span> <span className="approval-state">{tx('decide.suggestionCard.accepted')}</span>
                           </span>
                         )}
                       </dd>
@@ -245,7 +247,7 @@ export function SuggestionCard({
               : null}
             {tags.length ? (
               <div className="pair">
-                <dt>{tags.length === 1 ? 'Tag' : 'Tags'}</dt>
+                <dt>{tags.length === 1 ? tx('decide.suggestionCard.tag') : tx('decide.suggestionCard.tags')}</dt>
                 <dd className="approval-stack">
                   {tags.map((t) => {
                     const key = `tag:${t.name}`;
@@ -253,11 +255,11 @@ export function SuggestionCard({
                       <span key={key} className="approval-tag">
                         {t.open ? (
                           <>
-                            {pick(key, <ins className="proposed">{t.name}</ins>, `Tag ${t.name}`)} <span className="approval-state">to add</span>
+                            {pick(key, <ins className="proposed">{t.name}</ins>, tx('decide.suggestionCard.tag2', { name: t.name }))} <span className="approval-state">{tx('decide.suggestionCard.toAdd')}</span>
                           </>
                         ) : (
                           <>
-                            <span className="chip">{t.name}</span> <span className="approval-state">added</span>
+                            <span className="chip">{t.name}</span> <span className="approval-state">{tx('decide.suggestionCard.added')}</span>
                           </>
                         )}
                       </span>
@@ -268,7 +270,7 @@ export function SuggestionCard({
             ) : null}
             {p.duplicates.map((d) => (
               <div className="pair" key={`dup:${d.issue}`}>
-                <dt>{d.verdict === 'duplicate' ? 'Same as' : 'Related to'}</dt>
+                <dt>{d.verdict === 'duplicate' ? tx('decide.suggestionCard.sameAs') : tx('decide.suggestionCard.relatedTo')}</dt>
                 <dd className="approval-stack">
                   <span>
                     <IssueLink id={d.issue} /> {d.summary}
@@ -284,35 +286,35 @@ export function SuggestionCard({
 
         {!compact && p.summary ? (
           <p className="approval-why">
-            <strong>Why: </strong>
+            <strong>{tx('decide.suggestionCard.why')}</strong>
             <Linked text={p.summary} />
           </p>
         ) : null}
 
         {open ? (
           <>
-            {choosing && picked.length === 0 ? <p className="approval-note">Tick what to {compact ? 'add' : 'apply'}, or dismiss it.</p> : null}
+            {choosing && picked.length === 0 ? <p className="approval-note">{tr(compact ? 'decide.suggestionCard.tickWhatToAdd' : 'decide.suggestionCard.tickWhatToApply')}</p> : null}
             {!compact && !items.length ? (
-              <p className="approval-note">There's nothing here left to apply. Open the issues it found, then dismiss it.</p>
+              <p className="approval-note">{tx('decide.suggestionCard.thereSNothingHereLeft')}</p>
             ) : null}
             <div className={compact ? 'cluster' : 'approval-actions'}>
               {items.length ? (
                 <button type="button" className={compact ? undefined : 'primary'} disabled={busy || picked.length === 0} onClick={() => apply.mutate()}>
                   {apply.isPending
-                    ? 'Applying…'
+                    ? tx('decide.suggestionCard.applying')
                     : compact
                       ? picked.length === 1
-                        ? 'Add the tag'
-                        : `Add ${picked.length} tags`
+                        ? tx('decide.suggestionCard.addTheTag')
+                        : tx('decide.suggestionCard.addTags', { length: picked.length })
                       : picked.length < items.length
-                        ? `Apply ${picked.length} of ${items.length}`
+                        ? tx('decide.suggestionCard.applyOf', { length: picked.length, length2: items.length })
                         : accepted
-                          ? 'Apply the rest'
-                          : 'Apply'}
+                          ? tx('decide.suggestionCard.applyTheRest')
+                          : tx('decide.suggestionCard.apply')}
                 </button>
               ) : null}
               <button type="button" disabled={busy} onClick={() => dismiss.mutate()}>
-                {dismiss.isPending ? 'Dismissing…' : compact && fields.some((f) => f.open) ? 'Dismiss all of it' : 'Dismiss'}
+                {dismiss.isPending ? tx('decide.suggestionCard.dismissing') : compact && fields.some((f) => f.open) ? tx('decide.suggestionCard.dismissAllOfIt') : tx('decide.suggestionCard.dismiss')}
               </button>
             </div>
             {said ? (
@@ -332,7 +334,7 @@ export function SuggestionCard({
         {compact ? null : (
           <p className="approval-signed">
             <Icon name="audit" />
-            {open ? `What you apply goes in ${s.issueId}'s history as your change.` : `It's in ${s.issueId}'s history.`}
+            {open ? tx('decide.suggestionCard.whatYouApplyGoesIn', { issueId: s.issueId }) : tx('decide.suggestionCard.itSInSHistory', { issueId: s.issueId })}
           </p>
         )}
       </div>

@@ -7,6 +7,8 @@ import { FormField } from '../features/common/bits';
 import { count } from '../features/common/format';
 import { useIssueSummaries, usePendingSuggestions } from '../features/common/queries';
 import { SuggestionCard } from '../features/decide/SuggestionCard';
+import { t, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 /** The Decide page: what agents propose, one decision each, until someone applies or dismisses it. */
 export default function SuggestionsPage() {
@@ -30,13 +32,13 @@ export default function SuggestionsPage() {
   return (
     <>
       <PageHead
-        title="Suggestions"
-        about="What agents suggest for your issues waits here for a person. Nothing changes until someone applies it, all of it or a value at a time."
-        meta={list.data ? <span>{waiting ? `${count(waiting, 'suggestion')} ${waiting === 1 ? 'waits' : 'wait'} on you` : 'Nothing waits on you'}</span> : null}
+        title={t('page.suggestions.suggestions')}
+        about={t('page.suggestions.whatAgentsSuggestForYour')}
+        meta={list.data ? <span>{waiting ? count(waiting, 'page.suggestions.waitOnYou') : t('page.suggestions.nothingWaitsOnYou')}</span> : null}
       />
       <div className="stack">
         <div className="cluster">
-          <FormField label="Project" className="inline">
+          <FormField label={t('page.suggestions.project')} className="inline">
             {(id) => (
               <select
                 id={id}
@@ -46,7 +48,7 @@ export default function SuggestionsPage() {
                   setSearch(e.target.value ? { project: e.target.value } : {}, { replace: true });
                 }}
               >
-                <option value="">All projects</option>
+                <option value="">{t('page.suggestions.allProjects')}</option>
                 {(projects.data ?? []).map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.key} · {p.name}
@@ -56,33 +58,25 @@ export default function SuggestionsPage() {
             )}
           </FormField>
         </div>
-        {list.isLoading ? <Loading what="suggestions" /> : null}
+        {list.isLoading ? <Loading what="loadingLine.suggestions" /> : null}
         {list.error ? <ErrorNote error={list.error} /> : null}
         {list.data && !shown.length ? (
           <section className="card">
-            <h2>{project ? `Nothing waits on you in ${projectName ?? project}` : 'Nothing waits on you'}</h2>
-            <p className="note">
-              When triage reads a new issue, what it suggests (fields, tags and issues it looks like) waits here until someone applies it or dismisses it.
-            </p>
+            <h2>{project ? t('page.suggestions.nothingWaitsOnYouIn', { v: projectName ?? project }) : t('page.suggestions.nothingWaitsOnYou')}</h2>
+            <p className="note">{t('page.suggestions.whenTriageReadsANew')}</p>
             {ai.data && !ai.data.enabled ? (
-              <p className="note">
-                Triage needs AI, which is off on this server. To turn it on, set <code>ANTHROPIC_API_KEY</code> where the server runs, and restart it.
-              </p>
+              <p className="note">{tr('page.suggestions.triageNeedsAiWhichIs', { code: <code>ANTHROPIC_API_KEY</code> })}</p>
             ) : projects.data && !triageOn.length ? (
-              <p className="note">
-                Triage is off in every project. Each project chooses how far it goes, on its page under <Link to="/projects">Projects</Link>.
-              </p>
+              <p className="note">{tr('page.suggestions.triageIsOffInEvery', { t0: (c: ReactNode) => <Link to="/projects">{c}</Link> })}</p>
             ) : (
-              <p className="note">
-                Each project chooses how far triage goes, on its page under <Link to="/projects">Projects</Link>.
-              </p>
+              <p className="note">{tr('page.suggestions.eachProjectChoosesHowFar', { t0: (c: ReactNode) => <Link to="/projects">{c}</Link> })}</p>
             )}
           </section>
         ) : null}
-        {shown.length && summaries.isLoading ? <Loading what="the issues they're about" /> : null}
+        {shown.length && summaries.isLoading ? <Loading what="loadingLine.suggestionIssues" /> : null}
         {shown.length && !summaries.isLoading ? (
           <div className="approvals">
-            <h2 className="hidden">Waiting on you</h2>
+            <h2 className="hidden">{t('page.suggestions.waitingOnYou')}</h2>
             {shown.map((s) => {
               const issue = summaries.data?.get(s.issueId);
               return (

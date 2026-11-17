@@ -19,7 +19,7 @@ export async function ensureTags(tx: Db, ctx: Ctx, names: string[]): Promise<Tag
   for (const raw of names) {
     const name = raw.trim().replace(/^#/, '');
     if (!name) continue;
-    if (name.length > 60) throw badRequest(`Tag "${name.slice(0, 20)}…" is too long`);
+    if (name.length > 60) throw badRequest(`Tag "${name.slice(0, 20)}…" is too long`).said('tags.tooLong', { start: name.slice(0, 20) });
     const existing =
       s.tagsByName.get(name.toLowerCase()) ??
       (await tx.select().from(tags).where(sql`lower(${tags.name}) = ${name.toLowerCase()}`))[0];
@@ -40,7 +40,8 @@ export async function ensureTags(tx: Db, ctx: Ctx, names: string[]): Promise<Tag
       if (again) out.push(again);
     }
   }
-  if (created) ctx.app.schema.invalidate();
+  // Inside the caller's transaction: other instances must reload once it commits, not before.
+  if (created) await ctx.app.schema.invalidateOnCommit(tx);
   return out;
 }
 
@@ -52,7 +53,7 @@ export async function listTags(ctx: Ctx): Promise<Tag[]> {
 export async function createTag(ctx: Ctx, input: { name: string }): Promise<Tag> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
-  if (s.tagsByName.has(input.name.trim().toLowerCase())) throw badRequest(`Tag "${input.name}" already exists`);
+  if (s.tagsByName.has(input.name.trim().toLowerCase())) throw badRequest(`Tag "${input.name}" already exists`).said('tags.exists', { name: input.name });
   const [row] = await ctx.db
     .insert(tags)
     .values({ id: newId(), name: input.name.trim(), createdById: ctx.actor.user.id })
@@ -68,7 +69,7 @@ export async function updateTag(ctx: Ctx, id: string, input: { name?: string }):
     .set({ ...(input.name ? { name: input.name.trim() } : {}) })
     .where(eq(tags.id, id))
     .returning();
-  if (!row) throw notFound('Tag');
+  if (!row) throw notFound('Tag').said('tags.notFound');
   ctx.app.schema.invalidate();
   return tagDto(row);
 }
@@ -76,6 +77,6 @@ export async function updateTag(ctx: Ctx, id: string, input: { name?: string }):
 export async function deleteTag(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'write');
   const res = await ctx.db.delete(tags).where(eq(tags.id, id)).returning({ id: tags.id });
-  if (!res.length) throw notFound('Tag');
+  if (!res.length) throw notFound('Tag').said('tags.notFound');
   ctx.app.schema.invalidate();
 }

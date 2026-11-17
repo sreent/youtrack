@@ -1,3 +1,4 @@
+import { isOptionType } from '@a4a/shared';
 import type { FieldType } from '@a4a/shared';
 import { allowedValues, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 
@@ -7,7 +8,11 @@ export type TermKind =
   | { kind: 'project' }
   | { kind: 'issueId' }
   | { kind: 'textAttr'; column: 'summary' | 'description' }
-  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' }
+  | { kind: 'userAttr'; column: 'reporter' | 'updatedBy' | 'commenter' | 'watcher' | 'voter' }
+  | { kind: 'votes' }
+  | { kind: 'sla'; target?: 'first_response' | 'resolution' }
+  | { kind: 'slaDue'; target: 'first_response' | 'resolution' }
+  | { kind: 'requester' }
   | { kind: 'dateAttr'; column: 'created' | 'updated' | 'resolved' }
   | { kind: 'tag' }
   | { kind: 'has' }
@@ -22,7 +27,7 @@ export interface TermDef {
   name: string;
   term: TermKind;
   /** The value type used for parsing and completion. */
-  valueType: FieldType | 'project' | 'issue' | 'tag' | 'has' | 'sprint';
+  valueType: FieldType | 'project' | 'issue' | 'tag' | 'has' | 'sprint' | 'sla';
   description: string;
 }
 
@@ -44,6 +49,17 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   'updated by': { name: 'updated by', term: { kind: 'userAttr', column: 'updatedBy' }, valueType: 'user', description: 'Who last changed it' },
   updater: { name: 'updated by', term: { kind: 'userAttr', column: 'updatedBy' }, valueType: 'user', description: 'Who last changed it' },
   commenter: { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
+  watcher: { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it (watcher: me)' },
+  'watched by': { name: 'watcher', term: { kind: 'userAttr', column: 'watcher' }, valueType: 'user', description: 'Who watches it' },
+  voter: { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it (voter: me)' },
+  'voted by': { name: 'voter', term: { kind: 'userAttr', column: 'voter' }, valueType: 'user', description: 'Who voted for it' },
+  votes: { name: 'votes', term: { kind: 'votes' }, valueType: 'integer', description: 'How many people voted for it (votes: 3 .. *)' },
+  sla: { name: 'sla', term: { kind: 'sla' }, valueType: 'sla', description: 'A help desk request against its SLA targets: on track, at risk, paused, breached, met (D45)' },
+  'first response': { name: 'first response', term: { kind: 'sla', target: 'first_response' }, valueType: 'sla', description: "A help desk request against its first-response target" },
+  resolution: { name: 'resolution', term: { kind: 'sla', target: 'resolution' }, valueType: 'sla', description: 'A help desk request against its resolution target' },
+  'first response due': { name: 'first response due', term: { kind: 'slaDue', target: 'first_response' }, valueType: 'date', description: "When a request's first-response target runs out, while it counts" },
+  'resolution due': { name: 'resolution due', term: { kind: 'slaDue', target: 'resolution' }, valueType: 'date', description: "When a request's resolution target runs out, while it counts" },
+  requester: { name: 'requester', term: { kind: 'requester' }, valueType: 'string', description: 'Who asked, through the help desk: an email or a name' },
   'commented by': { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
   for: { name: 'for', term: { kind: 'assigneeAlias' }, valueType: 'user', description: 'Assignee (shortcut)' },
   created: { name: 'created', term: { kind: 'dateAttr', column: 'created' }, valueType: 'date', description: 'Creation date' },
@@ -58,7 +74,15 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   links: { name: 'links', term: { kind: 'links' }, valueType: 'issue', description: 'Linked to an issue in any way' },
 };
 
-export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work'];
+export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request', 'votes'];
+
+/**
+ * sla: values (D45): a request's status (the worst of its targets), or any target waiting within it
+ * (due), waiting past it (overdue), or stopped after it (missed).
+ */
+export const SLA_VALUES = ['on track', 'at risk', 'paused', 'breached', 'met', 'overdue', 'due', 'missed'];
+/** first response: and resolution: values: how that one target's clock stands. */
+export const SLA_TARGET_VALUES = ['due', 'at risk', 'paused', 'overdue', 'met', 'missed', 'breached'];
 
 export interface Vocabulary {
   snapshot: SchemaSnapshot;
@@ -116,10 +140,11 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
       const t = def.term;
       if (t.kind === 'custom') {
         if (t.field.type === 'user') return userNames();
-        if (t.field.type === 'enum' || t.field.type === 'state' || t.field.type === 'version') {
+        if (isOptionType(t.field.type)) {
           return [...new Set(allowedValues(s, t.field.id, null).map((v) => v.name))];
         }
-        if (t.field.type === 'date') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d'];
+        if (t.field.type === 'date' || t.field.type === 'datetime') return ['today', 'yesterday', 'tomorrow', '{this week}', '{last week}', '{this month}', '-7d', 'Overdue'];
+        if (t.field.type === 'group') return [...s.groups.values()].map((g) => g.name);
         return [];
       }
       switch (t.kind) {
@@ -134,6 +159,10 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
           return [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES];
         case 'dateAttr':
           return ['today', 'yesterday', '{this week}', '{last week}', '{this month}', '{last month}', '-7d', '-30d'];
+        case 'sla':
+          return t.target ? SLA_TARGET_VALUES : SLA_VALUES;
+        case 'slaDue':
+          return ['today', 'tomorrow', '{this week}', '{next week}'];
         default:
           return [];
       }
@@ -141,4 +170,4 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
   };
 }
 
-export const SORT_ATTRIBUTES = ['created', 'updated', 'resolved date', 'summary', 'issue id', 'spent time'];
+export const SORT_ATTRIBUTES = ['created', 'updated', 'resolved date', 'summary', 'issue id', 'spent time', 'votes'];

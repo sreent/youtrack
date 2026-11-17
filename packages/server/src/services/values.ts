@@ -1,6 +1,7 @@
-import { formatPeriod, parsePeriod, TONES, type IssueFieldValue, type OptionValue, type Tone, type UserRef } from '@a4a/shared';
+import { formatPeriod, isOwnAgent, parsePeriod, TONES, type GroupValue, type IssueFieldValue, type OptionValue, type Tone, type UserRef } from '@a4a/shared';
 import type { issueFieldValues } from '../db/schema';
 import { parseDateInput } from '../lib/dates';
+import { formatInstant, parseDateTimeInput } from '../lib/datetime';
 import { badRequest } from '../lib/errors';
 import { didYouMean } from '../lib/text';
 import {
@@ -22,6 +23,16 @@ export interface ResolvedValue {
   textValue?: string | null;
   numberValue?: number | null;
   dateValue?: string | null;
+  /** A group field's value (D41). */
+  groupId?: string | null;
+  /** A date-and-time field's value: an ISO instant (D41). */
+  timeValue?: string | null;
+}
+
+/** A value as a row of issue_field_values takes it (an instant as a Date). */
+export function valueRow(v: ResolvedValue): Omit<ResolvedValue, 'timeValue'> & { timeValue?: Date | null } {
+  const { timeValue, ...rest } = v;
+  return timeValue === undefined ? rest : { ...rest, timeValue: timeValue === null ? null : new Date(timeValue) };
 }
 
 const EMPTY_WORDS = new Set(['', 'none', 'null', 'empty', 'unassigned', 'no value']);
@@ -40,16 +51,20 @@ export function resolveFieldInput(
   projectId: string,
   raw: string | number | null | string[],
   meId: string,
+  /** What "today" is for a date ("today", "tomorrow", "+3d"): where whoever asks is (D31). The server's when not given. */
+  today?: string,
+  /** Where a date and time written without an offset is read (D31, D41). The server's when not given. */
+  zone?: string,
 ): ResolvedValue[] {
   if (raw === null) return [];
   const items = Array.isArray(raw) ? raw : [raw];
   if (!field.multi && items.length > 1) {
-    throw badRequest(`Field "${field.name}" takes a single value`);
+    throw badRequest(`Field "${field.name}" takes a single value`).said('values.singleValue', { field: field.name });
   }
   const out: ResolvedValue[] = [];
   for (const item of items) {
     if (typeof item === 'string' && isEmptyWord(item)) continue;
-    out.push(resolveOne(s, field, projectId, item, meId));
+    out.push(resolveOne(s, field, projectId, item, meId, today, zone));
   }
   return out;
 }
@@ -60,20 +75,24 @@ function resolveOne(
   projectId: string,
   item: string | number,
   meId: string,
+  today?: string,
+  zone?: string,
 ): ResolvedValue {
   const text = String(item).trim();
   switch (field.type) {
     case 'enum':
     case 'state':
-    case 'version': {
+    case 'version':
+    case 'build':
+    case 'owned': {
       const v = findValue(s, field.id, projectId, text);
       if (!v) {
         const names = allowedValues(s, field.id, projectId).map((x) => x.name);
         const guess = didYouMean(text, names);
-        throw badRequest(
-          `Unknown value "${text}" for ${field.name}`,
-          guess ? `Did you mean "${guess}"? Allowed: ${names.join(', ')}` : `Allowed: ${names.join(', ')}`,
-        );
+        // Builds can run to hundreds: the latest few say enough.
+        const shown = field.type === 'build' ? [...names].reverse().slice(0, 10) : names;
+        const allowed = `${field.type === 'build' ? 'Latest builds' : 'Allowed'}: ${shown.join(', ')}`;
+        throw badRequest(`Unknown value "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"? ${allowed}` : allowed).said('values.unknownValue', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', list: field.type === 'build' ? 'builds' : 'values', values: shown.join(', ') });
       }
       return { valueId: v.id };
     }
@@ -81,32 +100,48 @@ function resolveOne(
       const u = findUser(s, text, meId);
       if (!u) {
         const guess = didYouMean(text, [...s.usersByLogin.keys()]);
-        throw badRequest(`Unknown user "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : 'Use a login, a full name, or "me".');
+        throw badRequest(`Unknown user "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : 'Use a login, a full name, or "me".').said('values.unknownUser', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '' });
       }
-      if (u.banned) throw badRequest(`User "${u.login}" is banned`);
+      if (u.banned) throw badRequest(`User "${u.login}" is banned`).said('values.userBanned', { login: u.login });
+      // a4a's own agents act for a4a itself and take no work; an agent an administrator added does (D34).
+      if (isOwnAgent(u)) throw badRequest(`${u.login} is a4a's own agent, and takes no work`, `Give ${field.name} a person, or an agent an administrator added.`).said('values.ownAgent', { login: u.login, field: field.name });
       return { userId: u.id };
+    }
+    case 'group': {
+      const g = s.groupsByName.get(text.toLowerCase());
+      if (!g) {
+        const names = [...s.groups.values()].map((x) => x.name);
+        const guess = didYouMean(text, names);
+        throw badRequest(`Unknown group "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'An administrator makes groups under Administration.').said('values.unknownGroup', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', n: names.length, groups: names.join(', ') });
+      }
+      return { groupId: g.id };
+    }
+    case 'datetime': {
+      const d = parseDateTimeInput(text, zone);
+      if (!d) throw badRequest(`${field.name} expects a date and time, got "${text}"`, 'Write 2026-11-20 15:00 (read where you are), an ISO instant such as 2026-11-20T14:00Z, now, tomorrow 09:30 or +2h.').said('values.notADateTime', { field: field.name, text });
+      return { timeValue: d.toISOString() };
     }
     case 'string':
     case 'text':
       return { textValue: text };
     case 'integer': {
       const n = Number(text);
-      if (!Number.isInteger(n)) throw badRequest(`${field.name} expects a whole number, got "${text}"`);
+      if (!Number.isInteger(n)) throw badRequest(`${field.name} expects a whole number, got "${text}"`).said('values.notAWholeNumber', { field: field.name, text });
       return { numberValue: n };
     }
     case 'float': {
       const n = Number(text);
-      if (!Number.isFinite(n)) throw badRequest(`${field.name} expects a number, got "${text}"`);
+      if (!Number.isFinite(n)) throw badRequest(`${field.name} expects a number, got "${text}"`).said('values.notANumber', { field: field.name, text });
       return { numberValue: n };
     }
     case 'date': {
-      const d = parseDateInput(text);
-      if (!d) throw badRequest(`${field.name} expects a date (YYYY-MM-DD, today, tomorrow, +3d), got "${text}"`);
+      const d = today ? parseDateInput(text, today) : parseDateInput(text);
+      if (!d) throw badRequest(`${field.name} expects a date (YYYY-MM-DD, today, tomorrow, +3d), got "${text}"`).said('values.notADate', { field: field.name, text });
       return { dateValue: d };
     }
     case 'period': {
       const minutes = parsePeriod(typeof item === 'number' ? item : text);
-      if (minutes === null) throw badRequest(`${field.name} expects a duration like "2d 4h" or "90m", got "${text}"`);
+      if (minutes === null) throw badRequest(`${field.name} expects a duration like "2d 4h" or "90m", got "${text}"`).said('values.notADuration', { field: field.name, text });
       return { numberValue: minutes };
     }
   }
@@ -124,6 +159,8 @@ function presentOne(s: SchemaSnapshot, field: FieldRow, r: ResolvedValue): strin
     case 'enum':
     case 'state':
     case 'version':
+    case 'build':
+    case 'owned':
       return r.valueId ? (s.values.get(r.valueId)?.name ?? '?') : null;
     case 'user':
       return r.userId ? (s.users.get(r.userId)?.login ?? '?') : null;
@@ -137,6 +174,10 @@ function presentOne(s: SchemaSnapshot, field: FieldRow, r: ResolvedValue): strin
       return r.dateValue ?? null;
     case 'period':
       return r.numberValue === null || r.numberValue === undefined ? null : formatPeriod(r.numberValue);
+    case 'group':
+      return r.groupId ? (s.groups.get(r.groupId)?.name ?? '?') : null;
+    case 'datetime':
+      return r.timeValue ? formatInstant(new Date(r.timeValue)) : null;
   }
 }
 
@@ -144,8 +185,14 @@ export function toneOf(t: string | null | undefined): Tone | null {
   return t && (TONES as readonly string[]).includes(t) ? (t as Tone) : null;
 }
 
-export function optionDto(v: FieldValueRow): OptionValue {
-  return { id: v.id, name: v.name, tone: toneOf(v.tone), isResolved: v.isResolved, ordinal: v.ordinal };
+export function optionDto(v: FieldValueRow, s?: SchemaSnapshot): OptionValue {
+  const owner = v.ownerId && s ? s.users.get(v.ownerId) : undefined;
+  return { id: v.id, name: v.name, tone: toneOf(v.tone), isResolved: v.isResolved, ordinal: v.ordinal, ...(s && v.ownerId !== undefined ? { owner: owner ? userRefDto(owner) : null } : {}) };
+}
+
+export function groupValueDto(s: SchemaSnapshot, id: string): GroupValue | null {
+  const g = s.groups.get(id);
+  return g ? { id: g.id, name: g.name } : null;
 }
 
 export function userRefDto(u: UserRow): UserRef {
@@ -157,11 +204,13 @@ export function fieldValueDto(s: SchemaSnapshot, field: FieldRow, rows: Resolved
   switch (field.type) {
     case 'enum':
     case 'state':
-    case 'version': {
+    case 'version':
+    case 'build':
+    case 'owned': {
       const opts = rows
         .map((r) => (r.valueId ? s.values.get(r.valueId) : undefined))
         .filter((v): v is FieldValueRow => Boolean(v))
-        .map(optionDto);
+        .map((v) => optionDto(v, field.type === 'owned' ? s : undefined));
       return field.multi ? opts : (opts[0] ?? null);
     }
     case 'user': {
@@ -183,12 +232,18 @@ export function fieldValueDto(s: SchemaSnapshot, field: FieldRow, rows: Resolved
       const m = rows[0]?.numberValue;
       return m === null || m === undefined ? null : { minutes: m, presentation: formatPeriod(m) };
     }
+    case 'group': {
+      const gs = rows.map((r) => (r.groupId ? groupValueDto(s, r.groupId) : null)).filter((g): g is GroupValue => Boolean(g));
+      return field.multi ? gs : (gs[0] ?? null);
+    }
+    case 'datetime':
+      return rows[0]?.timeValue ?? null;
   }
 }
 
 export function sameValues(a: ResolvedValue[], b: ResolvedValue[]): boolean {
   const key = (r: ResolvedValue) =>
-    [r.valueId ?? '', r.userId ?? '', r.textValue ?? '', r.numberValue ?? '', r.dateValue ?? ''].join('|');
+    [r.valueId ?? '', r.userId ?? '', r.textValue ?? '', r.numberValue ?? '', r.dateValue ?? '', r.groupId ?? '', r.timeValue ?? ''].join('|');
   const ka = a.map(key).sort();
   const kb = b.map(key).sort();
   return ka.length === kb.length && ka.every((k, i) => k === kb[i]);
@@ -201,5 +256,22 @@ export function rowToResolved(r: IFVRow): ResolvedValue {
     textValue: r.textValue,
     numberValue: r.numberValue,
     dateValue: r.dateValue,
+    groupId: r.groupId,
+    timeValue: r.timeValue ? r.timeValue.toISOString() : null,
   };
+}
+
+/**
+ * Who an owned field's change hands the issue to (D41): the owner of the first value it gains that
+ * has one. Undefined when none does, or for any other field.
+ */
+export function ownerOfNew(s: SchemaSnapshot, field: FieldRow, before: ResolvedValue[], after: ResolvedValue[]) {
+  if (field.type !== 'owned') return undefined;
+  for (const v of after) {
+    if (!v.valueId || before.some((b) => b.valueId === v.valueId)) continue;
+    const ownerId = s.values.get(v.valueId)?.ownerId;
+    const owner = ownerId ? s.users.get(ownerId) : undefined;
+    if (owner) return owner;
+  }
+  return undefined;
 }

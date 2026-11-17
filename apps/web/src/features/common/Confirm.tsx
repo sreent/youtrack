@@ -1,4 +1,5 @@
 import { useId, useRef } from 'react';
+import { t } from '../../i18n';
 
 /**
  * Ocean's Confirm: a danger button that asks first, in the browser's own dialog, before what
@@ -13,9 +14,12 @@ export function Confirm({
   onConfirm,
   disabled,
   small,
+  name,
 }: {
   /** The button's word: "Revoke it". */
   label: string;
+  /** Its name for screen readers, where the word alone repeats down a list: "Delete report.log". */
+  name?: string;
   /** A question that names the thing: "Revoke the token claude-code?" */
   title: string;
   /** What goes with it, and that nobody can bring it back. */
@@ -35,16 +39,14 @@ export function Confirm({
   };
   return (
     <>
-      <button type="button" className={small ? 'danger small' : 'danger'} onClick={open} disabled={disabled}>
+      <button type="button" className={small ? 'danger small' : 'danger'} onClick={open} disabled={disabled} aria-label={name}>
         {label}
       </button>
       <dialog ref={dialog} className="dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-about`}>
         <h2 id={`${id}-title`}>{title}</h2>
         <p id={`${id}-about`}>{about}</p>
         <div className="dialog-actions">
-          <button type="button" ref={keep} onClick={() => dialog.current?.close()}>
-            Keep it
-          </button>
+          <button type="button" ref={keep} onClick={() => dialog.current?.close()}>{t('common.confirm.keepIt')}</button>
           <button
             type="button"
             className="danger primary"

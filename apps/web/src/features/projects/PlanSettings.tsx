@@ -6,16 +6,12 @@ import { keys } from '../../api/queries';
 import { Icon } from '../../components/Icon';
 import { errorText, FormField, Said } from '../common/bits';
 import { dateRead } from '../common/format';
+import { t, weekdayNames } from '../../i18n';
 
-const DAYS: { n: number; name: string; short: string }[] = [
-  { n: 1, name: 'Monday', short: 'Mon' },
-  { n: 2, name: 'Tuesday', short: 'Tue' },
-  { n: 3, name: 'Wednesday', short: 'Wed' },
-  { n: 4, name: 'Thursday', short: 'Thu' },
-  { n: 5, name: 'Friday', short: 'Fri' },
-  { n: 6, name: 'Saturday', short: 'Sat' },
-  { n: 0, name: 'Sunday', short: 'Sun' },
-];
+const LONG = weekdayNames('long');
+const SHORT = weekdayNames();
+/** Monday first, as a working week reads; n as getDay() counts. */
+const DAYS: { n: number; name: string; short: string }[] = [1, 2, 3, 4, 5, 6, 0].map((n) => ({ n, name: LONG[n]!, short: SHORT[n]! }));
 
 interface Form {
   startDate: string;
@@ -65,7 +61,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
       qc.setQueryData(keys.project(p.key), p);
       void qc.invalidateQueries({ queryKey: keys.projects });
       void qc.invalidateQueries({ queryKey: ['plan'] });
-      setSaid('The plan settings are saved. The plan uses them from now on.');
+      setSaid(t('projects.planSettings.thePlanSettingsAreSaved'));
     },
     onError: (e) => setSaid(errorText(e)),
   });
@@ -84,7 +80,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
       onSubmit={(e) => {
         e.preventDefault();
         if (!form.workingDays.length) {
-          setSaid('Choose at least one working day.');
+          setSaid(t('projects.planSettings.chooseAtLeastOneWorking'));
           return;
         }
         save.mutate();
@@ -92,7 +88,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
     >
       <fieldset className="unframed stack" disabled={!canEdit || save.isPending}>
         <div className="form-fields">
-          <FormField label="Starts" help="Empty: from its earliest task, or today.">
+          <FormField label={t('projects.planSettings.starts')} help={t('projects.planSettings.emptyFromItsEarliestTask')}>
             {(id, help) => (
               <input
                 id={id}
@@ -103,7 +99,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
               />
             )}
           </FormField>
-          <FormField label="Hours in a working day" help="A day of estimate, such as “2d”, is this many hours.">
+          <FormField label={t('projects.planSettings.hoursInAWorkingDay')} help={t('projects.planSettings.aDayOfEstimateSuch')}>
             {(id, help) => (
               <input
                 id={id}
@@ -118,7 +114,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
               />
             )}
           </FormField>
-          <FormField label="Budget" help="Empty: no budget to compare costs with.">
+          <FormField label={t('projects.planSettings.budget')} help={t('projects.planSettings.emptyNoBudgetToCompare')}>
             {(id, help) => (
               <input
                 id={id}
@@ -131,7 +127,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
               />
             )}
           </FormField>
-          <FormField label="Currency">
+          <FormField label={t('projects.planSettings.currency')}>
             {(id) => (
               <input
                 id={id}
@@ -145,7 +141,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
           </FormField>
         </div>
         <fieldset className="choice-group">
-          <legend>Working days</legend>
+          <legend>{t('projects.planSettings.workingDays')}</legend>
           {DAYS.map((d) => (
             <label key={d.n} className="choice">
               <input type="checkbox" checked={form.workingDays.includes(d.n)} onChange={() => toggleDay(d.n)} />
@@ -157,7 +153,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
           ))}
         </fieldset>
         <fieldset className="choice-group">
-          <legend>Days off</legend>
+          <legend>{t('projects.planSettings.daysOff')}</legend>
           <div className="cluster">
             {form.holidays.length ? (
               <ul className="chips">
@@ -168,7 +164,7 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
                       <button
                         type="button"
                         className="chip-remove"
-                        aria-label={`Remove ${dateRead(h)}`}
+                        aria-label={t('projects.planSettings.remove', { dateRead: dateRead(h) })}
                         onClick={() => setForm((f) => ({ ...f, holidays: f.holidays.filter((x) => x !== h) }))}
                       >
                         <Icon name="cross" />
@@ -178,14 +174,12 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
                 ))}
               </ul>
             ) : (
-              <span className="note">None: every working day counts.</span>
+              <span className="note">{t('projects.planSettings.noneEveryWorkingDayCounts')}</span>
             )}
             {canEdit ? (
               <span className="cluster">
-                <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label="A day off to add" />
-                <button type="button" onClick={addDay} disabled={!day}>
-                  Add the day
-                </button>
+                <input type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label={t('projects.planSettings.aDayOffToAdd')} />
+                <button type="button" onClick={addDay} disabled={!day}>{t('projects.planSettings.addTheDay')}</button>
               </span>
             ) : null}
           </div>
@@ -194,12 +188,10 @@ export function PlanSettings({ project, canEdit }: { project: Project; canEdit: 
       {canEdit ? (
         <div className="cluster">
           <button type="submit" disabled={!dirty || save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save the plan settings'}
+            {save.isPending ? t('projects.planSettings.saving') : t('projects.planSettings.saveThePlanSettings')}
           </button>
           {dirty ? (
-            <button type="button" className="link" onClick={() => setForm(JSON.parse(saved) as Form)}>
-              Put them back
-            </button>
+            <button type="button" className="link" onClick={() => setForm(JSON.parse(saved) as Form)}>{t('projects.planSettings.putThemBack')}</button>
           ) : null}
           <Said text={said} tone={save.isError ? 'bad' : undefined} />
         </div>

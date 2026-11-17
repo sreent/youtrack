@@ -6,8 +6,7 @@ import { issueLinks, linkTypes } from '../db/schema';
 import { publishActivities } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { findIssue } from './issues';
-import { applyChanges, issueLinksOf, resolveIssue, resolveLinkPhrase } from './issues';
+import { applyChanges, findVisibleIssue, issueLinksOf, resolveIssue, resolveLinkPhrase } from './issues';
 
 export async function listLinkTypes(ctx: Ctx): Promise<LinkType[]> {
   const s = await ctx.app.schema.get();
@@ -49,7 +48,10 @@ export async function listLinks(ctx: Ctx, issueId: string): Promise<IssueLink[]>
   return issueLinksOf(ctx, issue.id);
 }
 
-/** Link `issueId` to `other` using a phrase from issueId's point of view ("depends on"). */
+/**
+ * Link `issueId` to `other` using a phrase from issueId's point of view ("depends on"). A link
+ * changes both issues, so it needs write access to both (applyChanges checks the other end).
+ */
 export async function linkIssues(
   ctx: Ctx,
   issueId: string,
@@ -60,13 +62,13 @@ export async function linkIssues(
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const issue = await resolveIssue(ctx, issueId);
-  const target = await findIssue(ctx.db, s, other);
-  if (!target) throw notFound(`Issue ${other}`);
+  const target = await findVisibleIssue(ctx, other);
+  if (!target) throw notFound(`Issue ${other}`).said('notFound.issue', { id: other });
   const phrase = resolveLinkPhrase(s, relation);
   const result = await ctx.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, issue, { links: [{ phrase, target, remove }] }),
   );
-  if (!result.changes.length && remove) throw badRequest(`${issueId} is not linked that way to ${other}`);
+  if (!result.changes.length && remove) throw badRequest(`${issueId} is not linked that way to ${other}`).said('links.notLinked', { issue: issueId, other });
   await publishActivities(ctx.app, result.activities);
   return issueLinksOf(ctx, issue.id);
 }
@@ -75,11 +77,12 @@ export async function deleteLinkById(ctx: Ctx, linkId: string): Promise<void> {
   requireScope(ctx, 'write');
   const s = await ctx.app.schema.get();
   const [link] = await ctx.db.select().from(issueLinks).where(eq(issueLinks.id, linkId));
-  if (!link) throw notFound('Link');
+  // A link to an issue the caller can't see is not found, exactly as one that doesn't exist.
+  const source = link ? await findVisibleIssue(ctx, link.sourceId) : undefined;
+  const target = link ? await findVisibleIssue(ctx, link.targetId) : undefined;
+  if (!link || !source || !target) throw notFound('Link').said('links.linkNotFound');
   const type = s.linkTypes.find((t) => t.id === link.typeId);
-  if (!type) throw notFound('Link type');
-  const source = await resolveIssue(ctx, link.sourceId);
-  const target = await resolveIssue(ctx, link.targetId);
+  if (!type) throw notFound('Link type').said('links.linkTypeNotFound');
   const phrase = s.linkPhrases.find((p) => p.type.id === type.id && (p.direction === 'outward' || p.direction === 'both'))!;
   const result = await ctx.db.transaction(async (tx) =>
     applyChanges(tx as unknown as Db, ctx, source, { links: [{ phrase, target, remove: true }] }),

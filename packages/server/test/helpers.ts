@@ -1,5 +1,5 @@
 import { adminCtx, createRuntime, systemCtx, type Runtime } from '../src/app-services';
-import { loadConfig } from '../src/config';
+import { loadConfig, type Config } from '../src/config';
 import type { Ctx, UserRow } from '../src/context';
 import { openDatabase } from '../src/db/client';
 import { createProject } from '../src/services/projects';
@@ -19,8 +19,8 @@ export interface TestWorld {
 }
 
 /** A fresh in-memory database with defaults, three people and two projects (BACK, WEB). */
-export async function createWorld(opts: { projects?: boolean; people?: boolean } = {}): Promise<TestWorld> {
-  const config = loadConfig({ aiEnabled: false, seedDemo: false });
+export async function createWorld(opts: { projects?: boolean; people?: boolean; config?: Partial<Config> } = {}): Promise<TestWorld> {
+  const config = loadConfig({ aiEnabled: false, seedDemo: false, smtpUrl: undefined, ...opts.config });
   const pg = await freshPostgres();
   const database = await openDatabase(pg ? { url: pg.url } : { memory: true });
   const app = await createRuntime(config, database);

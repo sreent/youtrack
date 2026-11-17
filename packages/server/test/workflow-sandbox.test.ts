@@ -1,0 +1,133 @@
+/** The sandbox scripted workflows run in (D40): what a script reaches, what it asks, and how it's stopped. */
+import { describe, expect, it } from 'vitest';
+import { checkScript, runScript, SANDBOX_WORKERS, sandboxStats, SCRIPT_LIMITS } from '../src/workflow/sandbox';
+
+const input = {
+  issue: { id: 'BACK-1', summary: 'Checkout fails', fields: { State: 'Open', Priority: 'Critical' }, tags: ['urgent'], parent: null, subtasks: [] },
+  change: { kind: 'updated', by: { login: 'anna', name: 'Anna', agent: false }, changes: [{ field: 'Priority', from: 'Major', to: 'Critical' }] },
+  project: { key: 'BACK', name: 'Backend' },
+};
+
+/**
+ * Ample time for a run that isn't about the time limit: a limit of a few hundred ms is the machine's
+ * as much as the script's, and suites running side by side can hold a thread up past it.
+ */
+const AMPLE = { timeMs: 5_000 };
+
+describe('the sandbox', () => {
+  it('runs a script on the issue it is given, and writes down what it asks', async () => {
+    const out = await runScript(
+      `if (issue.fields.Priority === 'Critical' && !issue.tags.includes('triaged')) {
+        apply('tag triaged');
+        comment('Critical: tagged for the next stand-up.');
+        log('changed by', change.by.login, change.changes);
+      }`,
+      input,
+      AMPLE,
+    );
+    expect(out.error).toBeNull();
+    expect(out.intents.applies).toEqual([{ command: 'tag triaged', to: null }]);
+    expect(out.intents.comments).toEqual(['Critical: tagged for the next stand-up.']);
+    expect(out.intents.logs).toEqual(['changed by anna [{"field":"Priority","from":"Major","to":"Critical"}]']);
+  });
+
+  it('reaches nothing outside: no network, timers, modules or process', async () => {
+    const out = await runScript(`log(typeof fetch, typeof setTimeout, typeof require, typeof process, typeof XMLHttpRequest, typeof globalThis.__input)`, input, AMPLE);
+    expect(out.intents.logs).toEqual(['undefined undefined undefined undefined undefined undefined']);
+  });
+
+  it("can't change what it was given", async () => {
+    const out = await runScript(`"use strict"; issue.fields.State = 'Fixed';`, input, AMPLE);
+    expect(out.error).toMatchObject({ kind: 'runtime' });
+    expect(out.error!.message).toMatch(/TypeError/);
+  });
+
+  it('stops a script that runs too long, or takes too much memory', async () => {
+    const loop = await runScript('while (true) {}', input, { timeMs: 40 });
+    expect(loop.error).toMatchObject({ kind: 'time' });
+    expect(loop.ms).toBeLessThan(1000);
+    // Many small allocations reach the memory limit in well under a second.
+    const hog = await runScript('const xs = []; for (let i = 0; ; i++) xs.push({ i, s: "a" + i });', input, { timeMs: 10_000 });
+    expect(hog.error).toMatchObject({ kind: 'memory' });
+  });
+
+  it('stops a script that allocates megabytes at once at its limit, in a worker thread, and carries on', async () => {
+    // A built-in that allocates megabytes runs for seconds before QuickJS looks at its interrupt:
+    // the main thread ends its worker at the limit, and meanwhile goes on with everything else.
+    let ticks = 0;
+    const tick = setInterval(() => ticks++, 10);
+    const started = Date.now();
+    const strings = await runScript('const xs = []; for (let i = 0; ; i++) xs.push("x".repeat(1000000) + i);', input);
+    const took = Date.now() - started;
+    clearInterval(tick);
+    // Ended at its limit; or, if QuickJS ran out of memory first, sooner.
+    expect(['time', 'memory']).toContain(strings.error?.kind);
+    // Within a second of its limit, however busy the machine: before, it ran 4 to 15 s.
+    expect(took).toBeLessThan(SCRIPT_LIMITS.timeMs + 1_000);
+    expect(ticks).toBeGreaterThan(5);
+    // A guard's limit, 60 ms, holds the same way.
+    const guardStarted = Date.now();
+    const arrays = await runScript('const xs = []; for (;;) xs.push(new Array(100000).fill(1));', input, { guard: true });
+    expect(['time', 'memory']).toContain(arrays.error?.kind);
+    expect(Date.now() - guardStarted).toBeLessThan(SCRIPT_LIMITS.guardTimeMs + 1_000);
+    // The pool replaced what it ended, and the next run is as any other.
+    expect((await runScript("log('still here')", input, AMPLE)).intents.logs).toEqual(['still here']);
+    expect(sandboxStats()).toMatchObject({ workers: SANDBOX_WORKERS });
+  });
+
+  it('ends a worker at the limit and starts another in its place', async () => {
+    const before = sandboxStats();
+    // Megabyte strings, kept: the time QuickJS takes near its memory limit is spent where it looks at no interrupt.
+    const runs = await Promise.all(
+      Array.from({ length: 3 }, () => runScript('const xs = []; for (let i = 0; ; i++) xs.push("x".repeat(1000000) + i);', input, { timeMs: 100 })),
+    );
+    const ended = runs.filter((r) => r.error?.kind === 'time').length;
+    expect(ended + runs.filter((r) => r.error?.kind === 'memory').length).toBe(3);
+    expect(sandboxStats().replaced - before.replaced).toBeGreaterThanOrEqual(ended > 0 ? 1 : 0);
+    expect((await runScript("log('fresh')", input, AMPLE)).intents.logs).toEqual(['fresh']);
+  });
+
+  it('runs scripts side by side, a guard ahead of the rest', async () => {
+    // Ample limits for the runs that should finish: this is about running side by side, and a
+    // machine busy with other suites can hold a thread up past a limit of a few hundred ms.
+    const ample = 5_000;
+    const runs = await Promise.all([
+      runScript("log('a')", input, { timeMs: ample }),
+      runScript("log('b')", input, { timeMs: ample }),
+      runScript("refuse('no')", input, { guard: true, timeMs: ample }),
+      runScript('while (true) {}', input, { timeMs: 30 }),
+    ]);
+    expect(runs.map((r) => r.intents.logs[0] ?? r.intents.refusal ?? r.error?.kind)).toEqual(['a', 'b', 'no', 'time']);
+  });
+
+  it('says where a script went wrong, and what a function was given wrongly', async () => {
+    const out = await runScript('const a = 1;\nnothing();\n', input, AMPLE);
+    expect(out.error).toMatchObject({ kind: 'runtime', line: 2 });
+    expect(out.error!.message).toMatch(/'nothing' is not defined \(line 2\)/);
+    const bad = await runScript('apply(42)', input, AMPLE);
+    expect(bad.error!.message).toMatch(/apply\(\) takes a command/);
+  });
+
+  it('keeps a run to its limits', async () => {
+    const out = await runScript(`for (let i = 0; i < ${SCRIPT_LIMITS.applies + 5}; i++) apply('tag t' + i)`, input, AMPLE);
+    expect(out.error!.message).toMatch(new RegExp(`${SCRIPT_LIMITS.applies} commands at most`));
+    expect(out.intents.applies).toHaveLength(SCRIPT_LIMITS.applies);
+  });
+
+  it('refuses in its own words, and names an issue to change by its id', async () => {
+    const out = await runScript(`refuse('Say why in a comment first.'); apply('State Fixed', 'back-7')`, input, AMPLE);
+    expect(out.intents.refusal).toBe('Say why in a comment first.');
+    expect(out.intents.applies).toEqual([{ command: 'State Fixed', to: 'BACK-7' }]);
+  });
+
+  it('checks syntax without running anything, at the line it is on', async () => {
+    expect(await checkScript("apply('tag ok')")).toEqual([]);
+    const source = "const a = 1;\nconst b = ;\napply('x')";
+    const [p] = await checkScript(source);
+    expect(p).toMatchObject({ line: 2 });
+    expect(source.slice(p!.start, p!.end)).toBe('const b = ;');
+    expect(await checkScript('   ')).toMatchObject([{ message: 'Write what it does, in JavaScript' }]);
+    // Compiling runs nothing: a loop that never ends is only checked.
+    expect(await checkScript('while (true) {}')).toEqual([]);
+  });
+});

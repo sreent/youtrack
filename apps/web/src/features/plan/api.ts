@@ -19,7 +19,7 @@ export const planKeys = {
   project: (key: string) => ['plan', key] as const,
   schedule: (key: string, baseline: string | null) => ['plan', key, 'schedule', baseline ?? ''] as const,
   baselines: (key: string) => ['plan', key, 'baselines'] as const,
-  resources: (key: string) => ['plan', key, 'resources'] as const,
+  resources: (key: string, from = '', to = '') => ['plan', key, 'resources', from, to] as const,
   costs: (key: string, baseline: string | null) => ['plan', key, 'costs', baseline ?? ''] as const,
   whatIf: (key: string, baseline: string | null, change: WhatIfChange) => ['plan', key, 'what-if', baseline ?? '', JSON.stringify(change)] as const,
 };
@@ -43,8 +43,15 @@ export function useSchedule(key: string, baseline: string | null, enabled = true
   });
 }
 
-export function useResourceLoad(key: string) {
-  return useQuery({ queryKey: planKeys.resources(key), queryFn: () => get<ResourceLoad>(`/projects/${key}/resources`), retry: false });
+/** Who's booked over the days asked for; without them, from today to the plan's end. */
+export function useResourceLoad(key: string, range: { from?: string; to?: string } = {}, enabled = true) {
+  return useQuery({
+    queryKey: planKeys.resources(key, range.from, range.to),
+    queryFn: () => get<ResourceLoad>(`/projects/${key}/resources${qs({ from: range.from, to: range.to })}`),
+    placeholderData: sameProject<ResourceLoad>(key),
+    enabled,
+    retry: false,
+  });
 }
 
 export function useCosts(key: string, baseline: string | null, enabled = true) {

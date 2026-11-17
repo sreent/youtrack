@@ -1,10 +1,11 @@
 import { EVENT_TYPES, type TrackerEvent, type Webhook } from '@a4a/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
-import { webhookDeliveries, webhooks } from '../db/schema';
+import { rules, webhookDeliveries, webhooks } from '../db/schema';
 import { hmacSha256, randomToken } from '../lib/crypto';
-import { badRequest, notFound } from '../lib/errors';
+import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
+import { eventLimited } from '../services/access';
 import { projectByKey } from '../services/schema-cache';
 import type { OutboxConsumer } from './worker';
 
@@ -26,10 +27,14 @@ async function dto(ctx: Ctx, row: WebhookRow): Promise<Webhook> {
   };
 }
 
+/** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
+const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called');
+
 function validateEvents(events: string[]): string[] {
-  const known = new Set<string>(EVENT_TYPES);
+  const known = new Set<string>(SUBSCRIBABLE);
   for (const e of events) {
-    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${EVENT_TYPES.join(', ')}`);
+    if (e === 'rule.called') throw badRequest('A rule calls only the webhook it names, so a webhook can\'t listen for "rule.called"', 'Choose this webhook in the rule instead.').said('webhooks.ruleCalledNotListenable');
+    if (e !== '*' && !known.has(e)) throw badRequest(`Unknown event type "${e}"`, `Use "*" or one of: ${SUBSCRIBABLE.join(', ')}`).said('webhooks.unknownEvent', { event: e, events: SUBSCRIBABLE.join(', ') });
   }
   return [...new Set(events)];
 }
@@ -47,8 +52,8 @@ export async function createWebhook(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const project = input.project ? projectByKey(s, input.project) : undefined;
-  if (input.project && !project) throw notFound(`Project ${input.project}`);
-  if (!/^https?:\/\//i.test(input.url)) throw badRequest('Webhook URLs must be http(s)');
+  if (input.project && !project) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
+  if (!/^https?:\/\//i.test(input.url)) throw badRequest('Webhook URLs must be http(s)').said('webhooks.urlScheme');
   const secret = randomToken('whsec_', 24);
   const [row] = await ctx.db
     .insert(webhooks)
@@ -76,7 +81,7 @@ export async function updateWebhook(
   if (input.project === null) projectId = null;
   else if (input.project) {
     const p = projectByKey(s, input.project);
-    if (!p) throw notFound(`Project ${input.project}`);
+    if (!p) throw notFound(`Project ${input.project}`).said('notFound.project', { id: input.project });
     projectId = p.id;
   }
   const [row] = await ctx.db
@@ -89,14 +94,49 @@ export async function updateWebhook(
     })
     .where(eq(webhooks.id, id))
     .returning();
-  if (!row) throw notFound('Webhook');
+  if (!row) throw notFound('Webhook').said('webhooks.notFound');
   return dto(ctx, row);
 }
 
 export async function deleteWebhook(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'admin');
+  // A rule that calls it would lose its call without a word: it has to let go of the webhook first.
+  const callers = await ctx.db.select({ name: rules.name }).from(rules).where(eq(rules.callWebhookId, id)).limit(3);
+  if (callers.length) {
+    throw conflict(
+      `The rule${callers.length > 1 ? 's' : ''} ${callers.map((r) => `"${r.name}"`).join(', ')} call${callers.length > 1 ? '' : 's'} this webhook`,
+      'Change the rule so it calls another webhook, or none, then remove this one.',
+    ).said('webhooks.calledByRules', { count: callers.length, rules: callers.map((r) => `"${r.name}"`).join(', ') });
+  }
   const res = await ctx.db.delete(webhooks).where(eq(webhooks.id, id)).returning({ id: webhooks.id });
-  if (!res.length) throw notFound('Webhook');
+  if (!res.length) throw notFound('Webhook').said('webhooks.notFound');
+}
+
+/** Where a webhook is, without its path or anything secret in it: "https://ops.example.com". */
+export function webhookOrigin(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/**
+ * Whether a rule may call this address: https, or plain http to this machine itself. A rule calls on
+ * its own, every time it acts, with what it knows of an issue, so it never sends that in the clear
+ * over a network.
+ */
+export function callableUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:') return true;
+    return u.protocol === 'http:' && LOOPBACK.has(u.hostname);
+  } catch {
+    return false;
+  }
 }
 
 export async function listDeliveries(ctx: Ctx, id: string) {
@@ -175,8 +215,13 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
   return {
     name: 'webhooks',
     async handle(event) {
-      const hooks = await app.db.select().from(webhooks).where(eq(webhooks.active, true));
+      // A rule's call is for the one webhook it names, whatever that webhook listens for.
       const s = await app.schema.get();
+      // A webhook's address is outside a4a, where nobody's access is known: what's limited to some
+      // people (D37) isn't sent there, a rule's call included.
+      if (await eventLimited(app.db, s, event)) return;
+      if (event.type === 'rule.called') return callFromRule(app, event);
+      const hooks = await app.db.select().from(webhooks).where(eq(webhooks.active, true));
       const matching = hooks.filter((h) => {
         if (!h.events.includes('*') && !h.events.includes(event.type)) return false;
         if (!h.projectId) return true;
@@ -187,10 +232,27 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
   };
 }
 
+/**
+ * A workflow rule's call (workflow/engine.ts writes it with the change it goes with): sent to the
+ * webhook it names, signed with that webhook's secret, and logged with its deliveries. A paused
+ * webhook sends nothing, as for any other event; an address that stopped being https isn't called.
+ */
+async function callFromRule(app: AppServices, event: TrackerEvent): Promise<void> {
+  const id = (event.data as { webhook?: unknown }).webhook;
+  if (typeof id !== 'string') return;
+  const [hook] = await app.db.select().from(webhooks).where(eq(webhooks.id, id));
+  if (!hook || !hook.active) return;
+  if (!callableUrl(hook.url)) {
+    console.warn(`webhooks: a rule's call to webhook ${hook.id} was not sent: its address is not https`);
+    return;
+  }
+  await deliver(app, hook, event);
+}
+
 export async function testWebhook(ctx: Ctx, id: string): Promise<{ delivered: boolean }> {
   requireScope(ctx, 'admin');
   const [hook] = await ctx.db.select().from(webhooks).where(and(eq(webhooks.id, id)));
-  if (!hook) throw notFound('Webhook');
+  if (!hook) throw notFound('Webhook').said('webhooks.notFound');
   const event: TrackerEvent = {
     id: 0,
     type: 'issue.updated',
@@ -201,6 +263,7 @@ export async function testWebhook(ctx: Ctx, id: string): Promise<{ delivered: bo
       name: ctx.actor.user.name,
       channel: ctx.actor.channel,
       token: ctx.actor.tokenName,
+      isBot: ctx.actor.user.isBot,
     },
     project: null,
     issue: null,

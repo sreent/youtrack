@@ -1,0 +1,28 @@
+{
+  "name": "time-by-person",
+  "title": "Time by person",
+  "version": "1.0.0",
+  "vendor": "a4a examples",
+  "description": "Who logged how much time on an issue, on the issue's side panel.",
+  "icon": "icon.svg",
+  "a4a": ">=1.0.0",
+  "permissions": { "read": ["issues", "time"], "write": [] },
+  "widgets": [
+    {
+      "name": "time",
+      "title": "Time by person",
+      "at": "issue-panel",
+      "entry": "widgets/time.html",
+      "height": 160,
+      "uses": { "read": [], "write": [] }
+    }
+  ],
+  "handlers": [
+    {
+      "name": "by-person",
+      "title": "Time on an issue, by person",
+      "file": "handlers/by-person.js",
+      "uses": { "read": ["issues", "time"], "write": [] }
+    }
+  ]
+}

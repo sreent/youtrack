@@ -14,10 +14,12 @@ A query is a list of terms; terms side by side must all match ("and").
 ## Attributes
 - \`project: BACK\` · \`issue id: BACK-12\` (or just type \`BACK-12\`)
 - \`summary: words\` · \`description: words\`
-- \`reporter: ben\` (also \`by:\`) · \`updated by: anna\` · \`commenter: chloe\`
+- \`reporter: ben\` (also \`by:\`) · \`updated by: anna\` · \`commenter: chloe\` · \`watcher: me\` (issues you watch; also \`watched by:\`)
 - \`created: 2026-01-01 .. 2026-01-31\` · \`updated: today\` · \`resolved date: {this week}\`
 - \`tag: regression\` · \`sprint: Sprint 14\` · \`spent time: 1d .. *\`
-- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`
+- \`votes: 5 .. *\` (how many voted for it) · \`voter: me\` (issues you voted for; also \`voted by:\`) · \`sort by: votes desc\`
+- \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`, \`watchers\`, \`votes\`, \`request\` (came in through a help desk)
+- Help desk: \`requester: jane@example.com\` (or a name) · \`sla: breached\` (a request's status, the worst of its targets: on track, at risk, paused, breached, met), \`sla: overdue\` (a target past due, still open), \`sla: due\`, \`sla: missed\` · \`first response: overdue\`, \`resolution: at risk\` (one target: due, at risk, paused, overdue, met, missed, breached) · \`resolution due: today\`, \`first response due: {this week}\`
 - Links: \`depends on: BACK-3\`, \`is required for: BACK-3\`, \`subtask of: BACK-1\`, \`parent for: BACK-5\`, \`duplicates: BACK-7\`, \`relates to: WEB-2\`, \`links: BACK-3\` (any link)
 
 ## Shortcuts
@@ -27,16 +29,22 @@ A query is a list of terms; terms side by side must all match ("and").
 Other words search summaries, descriptions and comments, by prefix: \`login saf\`. Quote an exact phrase: \`"rate limit"\`.
 
 ## Dates
-\`today\`, \`yesterday\`, \`tomorrow\`, \`{this week}\`, \`{last week}\`, \`{this month}\`, \`{last month}\`, \`{this year}\`, \`-7d\` (7 days ago), \`+2w\`, \`YYYY-MM-DD\`. Ranges: \`a .. b\`, open ends with \`*\`.
+\`today\`, \`yesterday\`, \`tomorrow\`, \`{this week}\`, \`{last week}\`, \`{this month}\`, \`{last month}\`, \`{this year}\`, \`-7d\` (7 days ago), \`+2w\`, \`YYYY-MM-DD\`, \`Overdue\` (any day before today: \`Due date: Overdue\`). Ranges: \`a .. b\`, open ends with \`*\`.
 
 ## Combining and sorting
 \`and\`, \`or\`, parentheses: \`(Type: Bug or Type: Feature) project: WEB\`
 \`sort by: Priority, updated desc\` — fields with values sort by their order (most important first).
 
+## From plain words
+- "Open", "to do" and "not done" mean unresolved: \`#Unresolved\`. \`State: Open\` is only the state called Open.
+- "Newest first" is \`sort by: created desc\`; "recently changed", \`sort by: updated desc\`.
+
 ## Examples
 - My open work, most important first: \`for: me #Unresolved sort by: Priority\`
 - Critical bugs reported this week: \`Type: Bug Priority: Show-stopper, Critical created: {this week}\`
 - Untriaged: \`State: Submitted has: -Assignee\`
+- What you follow that's still open: \`watcher: me #Unresolved sort by: updated desc\`
+- Help desk requests waiting too long: \`has: request sla: overdue\`
 - Blockers of BACK-3: \`is required for: BACK-3 #Unresolved\`
 `;
 

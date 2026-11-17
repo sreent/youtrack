@@ -1,0 +1,163 @@
+# What every change to a4a must pass before it merges.
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, design check, tests and build (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lowest Node a4a supports (package.json's engines) and the current one.
+        node: ['20.19', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # The web app's design check (its look is all Ocean's), then the server's tests on embedded PGlite.
+      - run: pnpm test
+      - run: pnpm build
+
+  postgres:
+    name: Server tests on Postgres 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # Each test file makes its own database on this server, and drops it after.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @a4a/server test
+
+  s3:
+    name: Files in an S3-compatible bucket (MinIO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # test/s3-live.test.ts runs against this server; everywhere else it's skipped.
+      TEST_S3_ENDPOINT: http://localhost:9000
+      TEST_S3_BUCKET: a4a-ci
+      TEST_S3_ACCESS_KEY_ID: a4a-ci
+      TEST_S3_SECRET_ACCESS_KEY: a4a-ci-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # MinIO's community edition comes as source only (its images are gone from Docker Hub), so it's
+      # built: a pinned commit through Go's module proxy, which keeps every version it has served.
+      # The binary is cached by that version, so most runs don't build it.
+      - uses: actions/cache@v4
+        id: minio
+        with:
+          path: ~/minio-bin
+          key: minio-v0.0.0-20260212201848-7aac2a2c5b7c-${{ runner.os }}
+      - if: steps.minio.outputs.cache-hit != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - if: steps.minio.outputs.cache-hit != 'true'
+        name: Build MinIO
+        run: GOBIN="$HOME/minio-bin" go install github.com/minio/minio@v0.0.0-20260212201848-7aac2a2c5b7c
+      - name: Start MinIO
+        run: |
+          mkdir -p "$RUNNER_TEMP/minio-data"
+          MINIO_ROOT_USER="$TEST_S3_ACCESS_KEY_ID" MINIO_ROOT_PASSWORD="$TEST_S3_SECRET_ACCESS_KEY" \
+            nohup "$HOME/minio-bin/minio" server "$RUNNER_TEMP/minio-data" --address :9000 > "$RUNNER_TEMP/minio.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:9000/minio/health/live && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/minio.log"
+          exit 1
+      - run: pnpm --filter @a4a/server exec vitest run test/s3-live.test.ts
+
+  e2e:
+    name: Browser tests, Chromium, against the production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          # @axe-core/playwright needs 22.12 or later.
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # From where Playwright is pinned, so the browser matches it.
+      - run: pnpm --filter @a4a/web exec playwright install --with-deps chromium
+      # Builds first. With CI set, Playwright retries twice and runs up to four workers.
+      - run: pnpm test:e2e --trace off
+      - name: Keep the report and the failures' screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7
+
+  live-ai:
+    name: AI against ${{ matrix.provider }}, live
+    # Real models cost a little, so on main and on request only; pull requests can't read secrets anyway.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [anthropic, deepseek, qwen]
+    env:
+      AI_PROVIDER: ${{ matrix.provider }}
+      # Each job gets its own provider's key only. Without that repository secret, its tests skip and say why.
+      ANTHROPIC_API_KEY: ${{ matrix.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY || '' }}
+      DEEPSEEK_API_KEY: ${{ matrix.provider == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
+      QWEN_API_KEY: ${{ matrix.provider == 'qwen' && secrets.QWEN_API_KEY || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @a4a/server test:live

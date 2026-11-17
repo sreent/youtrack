@@ -2,7 +2,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import {
   CommandBody,
   CommandResultSchema,
-  CommentBody,
+  CloneIssueBody,
   CommentSchema,
   CountBody,
   CountResultSchema,
@@ -13,12 +13,20 @@ import {
   IssueListQuery,
   IssueListSchema,
   LinkBody,
+  MoveIssueBody,
+  MovePlanSchema,
+  NewCommentBody,
   ParseQueryResultSchema,
   SavedSearchBody,
   SavedSearchSchema,
+  SetVisibilityBody,
   QueryProblemSchema,
+  ReactBody,
+  ReactionSummarySchema,
   SuggestItemSchema,
+  UpdateCommentBody,
   UpdateIssueBody,
+  VoteSchema,
   WorkItemBody,
   WorkItemSchema,
   patchBody,
@@ -27,14 +35,17 @@ import { z } from 'zod';
 import { parseCommandForApi, runCommand } from '../../commands/executor';
 import { suggestCommand } from '../../commands/parser';
 import { countIssues, parseQueryForApi, searchIssues } from '../../search/service';
+import { cloneIssue, moveIssue } from '../../services/move';
+import { reactToComment, reactToIssue, setVote } from '../../services/votes';
 import { suggest } from '../../search/suggest';
 import { issueActivity } from '../../services/activity';
-import { addComment, deleteComment, listComments, updateComment } from '../../services/comments';
-import { createIssue, deleteIssue, getIssue, resolveIssue, updateIssue } from '../../services/issues';
+import { addComment, deleteComment, listComments, setCommentVisibility, updateComment } from '../../services/comments';
+import { createIssue, deleteIssue, getIssue, resolveIssue, setIssueVisibility, updateIssue } from '../../services/issues';
 import { deleteLinkById, linkIssues, listLinks } from '../../services/links';
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, updateSavedSearch } from '../../services/saved-searches';
 import { deleteWorkItem, listWorkItems, logWork } from '../../services/workitems';
 import { requireScope, withChannel } from '../../context';
+import { visibleSchema } from '../../services/access';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -76,16 +87,103 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     await deleteIssue(ctx, params.id);
     return null;
   });
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/issues/{id}/visibility',
+      tags,
+      summary: 'Limit who sees an issue',
+      description:
+        "Limit it to some people and groups (D37), or send `visibleTo: null` to lift the limit. Its reporter, its assignee, the project's managers and administrators always see it; to anyone else it's missing, in the same words as an issue that doesn't exist. Takes the edit permission, and you can't limit it away from yourself.",
+      params: Id,
+      body: SetVisibilityBody,
+      response: IssueDetailSchema,
+    },
+    ({ ctx, params, body }) => setIssueVisibility(ctx, params.id, body),
+  );
   route(app, { method: 'get', path: '/issues/{id}/activity', tags, summary: "An issue's history: who changed what, when, and through which channel", params: Id, response: z.array(EventSchema) }, ({ ctx, params }) => issueActivity(ctx, params.id));
 
   // Comments
   route(app, { method: 'get', path: '/issues/{id}/comments', tags: ['Comments'], summary: 'List comments', params: Id, response: z.array(CommentSchema) }, ({ ctx, params }) => listComments(ctx, params.id));
-  route(app, { method: 'post', path: '/issues/{id}/comments', tags: ['Comments'], summary: 'Add a comment (Markdown)', params: Id, body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => addComment(ctx, params.id, body.text));
-  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment', params: z.object({ id: z.string() }), body: CommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text));
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/comments',
+      tags: ['Comments'],
+      summary: 'Add a comment (Markdown)',
+      description:
+        '`@login` mentions a person: they are told, and watch the issue. On a help desk request, `visibility: "public"` also sends it to the requester, by email and on their tracking page; comments are internal unless you say so. `visibleTo` limits it to some people and groups (D37): its author, the project\'s managers and administrators still see it.',
+      params: Id,
+      body: NewCommentBody,
+      response: CommentSchema,
+    },
+    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility, visibleTo: body.visibleTo }),
+  );
+  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment, against the version you read', params: z.object({ id: z.string() }), body: UpdateCommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text, body.expectedVersion));
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/comments/{id}/visibility',
+      tags: ['Comments'],
+      summary: 'Limit who sees a comment',
+      description: "Its author or a manager of the project may. Send `visibleTo: null` to lift the limit. A public comment, which went to a help desk's requester, can't be limited.",
+      params: z.object({ id: z.string() }),
+      body: SetVisibilityBody,
+      response: CommentSchema,
+    },
+    ({ ctx, params, body }) => setCommentVisibility(ctx, params.id, body.visibleTo),
+  );
   route(app, { method: 'delete', path: '/comments/{id}', tags: ['Comments'], summary: 'Delete your comment', params: z.object({ id: z.string() }), status: 204 }, async ({ ctx, params }) => {
     await deleteComment(ctx, params.id);
     return null;
   });
+
+  // Moving, cloning, votes and reactions (D41)
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/move',
+      tags: ['Issues'],
+      summary: 'Move an issue to another project',
+      description:
+        "It takes the project's next number, and its old id keeps finding it. Values carry over by name; what doesn't is a problem, and nothing moves until each has a value in `fields` (or null). `dryRun` says what would happen. A move with problems left is refused with the plan in the error's details.",
+      params: Id,
+      body: MoveIssueBody,
+      response: MovePlanSchema,
+      status: 200,
+    },
+    ({ ctx, params, body }) => moveIssue(ctx, params.id, body),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/clone',
+      tags: ['Issues'],
+      summary: 'Clone an issue',
+      description: 'Its summary, description, values and tags, in its project or another, linked back ("clones") and under the same parent. Comments, files, work, votes and other links stay with the original.',
+      params: Id,
+      body: CloneIssueBody,
+      response: IssueDetailSchema,
+    },
+    ({ ctx, params, body }) => cloneIssue(ctx, params.id, body),
+  );
+  route(app, { method: 'post', path: '/issues/{id}/vote', tags: ['Issues'], summary: 'Vote for an issue', params: Id, response: VoteSchema, status: 200 }, ({ ctx, params }) => setVote(ctx, params.id, true));
+  route(app, { method: 'delete', path: '/issues/{id}/vote', tags: ['Issues'], summary: 'Take your vote back', params: Id, response: VoteSchema, status: 200 }, ({ ctx, params }) => setVote(ctx, params.id, false));
+  route(
+    app,
+    { method: 'post', path: '/issues/{id}/reactions', tags: ['Issues'], summary: "React to an issue's description, or take the reaction back", params: Id, body: ReactBody, response: z.array(ReactionSummarySchema), status: 200 },
+    ({ ctx, params, body }) => reactToIssue(ctx, params.id, body.emoji),
+  );
+  route(
+    app,
+    { method: 'post', path: '/comments/{id}/reactions', tags: ['Comments'], summary: 'React to a comment, or take the reaction back', params: z.object({ id: z.string() }), body: ReactBody, response: z.array(ReactionSummarySchema), status: 200 },
+    ({ ctx, params, body }) => reactToComment(ctx, params.id, body.emoji),
+  );
 
   // Links
   route(app, { method: 'get', path: '/issues/{id}/links', tags: ['Links'], summary: "An issue's links", params: Id, response: z.array(IssueLinkSchema) }, ({ ctx, params }) => listLinks(ctx, params.id));
@@ -134,7 +232,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ ctx, query }) => {
       requireScope(ctx, 'read');
-      const s = await ctx.app.schema.get();
+      const s = await visibleSchema(ctx);
       return { items: suggest(s, query.query, Math.min(query.caret ?? query.query.length, query.query.length)) };
     },
   );
@@ -171,7 +269,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       requireScope(ctx, 'read');
       const rows = await Promise.all(body.issues.map((id) => resolveIssue(ctx, id)));
       const projectIds = [...new Set(rows.map((r) => r.projectId))];
-      const s = await ctx.app.schema.get();
+      const s = await visibleSchema(ctx);
       const parsed = await parseCommandForApi(ctx, body.command, projectIds);
       return { ...parsed, suggestions: suggestCommand(body.command, Math.min(body.caret ?? body.command.length, body.command.length), s, projectIds) };
     },

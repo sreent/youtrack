@@ -1,4 +1,5 @@
 import type { QueryProblem } from '@a4a/shared';
+import { guessWords, keyedProblem } from '../lib/errors';
 import { didYouMean, editDistance } from '../lib/text';
 import { lex, type Token } from './lexer';
 import { SORT_ATTRIBUTES, type TermDef, type Vocabulary } from './vocabulary';
@@ -93,7 +94,7 @@ class Parser {
     while (this.peek() && !this.atSortBy()) {
       // Stray closing parens etc.
       const t = this.peek()!;
-      this.problems.push({ message: `Unexpected "${t.value}"`, start: t.start, end: t.end });
+      this.problems.push(keyedProblem({ message: `Unexpected "${t.value}"`, start: t.start, end: t.end }, 'query.unexpected', { token: t.value }));
       this.pos++;
       if (this.peek() && !this.atSortBy()) {
         const more = this.parseOr();
@@ -110,7 +111,7 @@ class Parser {
       this.pos++;
       if (!this.peek() || this.atSortBy() || this.peek()?.kind === 'rparen') {
         const t = this.tokens[this.pos - 1]!;
-        this.problems.push({ message: '"or" needs something after it', start: t.start, end: t.end });
+        this.problems.push(keyedProblem({ message: '"or" needs something after it', start: t.start, end: t.end }, 'query.orNeedsMore'));
         break;
       }
       items.push(this.parseAnd());
@@ -137,7 +138,7 @@ class Parser {
     if (t.kind === 'minus') {
       this.pos++;
       if (!this.peek()) {
-        this.problems.push({ message: 'Nothing to exclude after "-"', start: t.start, end: t.end });
+        this.problems.push(keyedProblem({ message: 'Nothing to exclude after "-"', start: t.start, end: t.end }, 'query.nothingToExclude'));
         return null;
       }
       const inner = this.parseUnary();
@@ -153,13 +154,13 @@ class Parser {
         this.pos++;
         const inner = this.peek()?.kind === 'rparen' ? ({ kind: 'and', items: [] } as QueryNode) : this.parseOr();
         if (this.peek()?.kind === 'rparen') this.pos++;
-        else this.problems.push({ message: 'Missing closing )', start: t.start, end: t.end });
+        else this.problems.push(keyedProblem({ message: 'Missing closing )', start: t.start, end: t.end }, 'query.missingParen'));
         return inner;
       }
       case 'hash':
         this.pos++;
         if (!t.value) {
-          this.problems.push({ message: 'Expected a value after #', start: t.start, end: t.end });
+          this.problems.push(keyedProblem({ message: 'Expected a value after #', start: t.start, end: t.end }, 'query.valueAfterHash'));
           return null;
         }
         return { kind: 'hash', value: t.value, span: { start: t.start, end: t.end } };
@@ -182,7 +183,7 @@ class Parser {
       case 'minus':
       default:
         this.pos++;
-        this.problems.push({ message: `Unexpected "${t.value}"`, start: t.start, end: t.end });
+        this.problems.push(keyedProblem({ message: `Unexpected "${t.value}"`, start: t.start, end: t.end }, 'query.unexpected', { token: t.value }));
         return null;
     }
   }
@@ -195,19 +196,25 @@ class Parser {
     const span = { start: first.start, end: colon.end };
     if (!ahead.def) {
       const guess = didYouMean(ahead.name, this.vocab.termNames());
-      this.problems.push({
-        message: `Unknown field "${first.value}"`,
-        start: first.start,
-        end: colon.start,
-        hint: guess ? `Did you mean "${guess}"?` : undefined,
-        fix: guess ?? undefined,
-      });
+      this.problems.push(
+        keyedProblem(
+          {
+            message: `Unknown field "${first.value}"`,
+            start: first.start,
+            end: colon.start,
+            hint: guess ? `Did you mean "${guess}"?` : undefined,
+            fix: guess ?? undefined,
+          },
+          'query.unknownField',
+          { field: first.value, ...guessWords(guess) },
+        ),
+      );
       this.parseValues(undefined); // consume values to keep going
       return null;
     }
     const values = this.parseValues(ahead.def);
     if (!values.length) {
-      this.problems.push({ message: `Expected a value after "${ahead.def.name}:"`, start: first.start, end: colon.end });
+      this.problems.push(keyedProblem({ message: `Expected a value after "${ahead.def.name}:"`, start: first.start, end: colon.end }, 'query.valueAfterField', { field: ahead.def.name }));
       return null;
     }
     span.end = values[values.length - 1]!.span.end;
@@ -232,7 +239,7 @@ class Parser {
   private parseValueItem(def: TermDef | undefined): ValueNode | null {
     const t = this.peek();
     if (!t) return null;
-    const isDate = def?.valueType === 'date';
+    const isDate = def?.valueType === 'date' || def?.valueType === 'datetime';
     let negated = false;
     let start = t.start;
     if (t.kind === 'minus') {
@@ -249,7 +256,7 @@ class Parser {
     }
     const atom = this.parseAtom(def);
     if (atom === null) {
-      if (negated) this.problems.push({ message: 'Expected a value after "-"', start, end: start + 1 });
+      if (negated) this.problems.push(keyedProblem({ message: 'Expected a value after "-"', start, end: start + 1 }, 'query.valueAfterMinus'));
       return null;
     }
     if (negated) return { kind: 'single', raw: atom.raw, negated: true, span: { start, end: atom.end } };
@@ -272,7 +279,7 @@ class Parser {
         to = atom.raw === '*' ? null : atom.raw;
         end = atom.end;
       } else {
-        this.problems.push({ message: 'Expected the end of the range after ".."', start: span.start, end: span.end + 2 });
+        this.problems.push(keyedProblem({ message: 'Expected the end of the range after ".."', start: span.start, end: span.end + 2 }, 'query.rangeEnd'));
       }
     }
     return { kind: 'range', from: raw === '*' ? null : raw, to, span: { start: span.start, end } };
@@ -363,7 +370,7 @@ class Parser {
     const sortTok = this.peek()!;
     this.pos += 2; // sort by
     if (this.peek()?.kind === 'colon') this.pos++;
-    else this.problems.push({ message: 'Expected ":" after "sort by"', start: sortTok.start, end: sortTok.end });
+    else this.problems.push(keyedProblem({ message: 'Expected ":" after "sort by"', start: sortTok.start, end: sortTok.end }, 'query.sortColon'));
     const items: SortItem[] = [];
     const sortable = new Set([...SORT_ATTRIBUTES, ...[...this.vocab.snapshot.fields.values()].map((f) => f.name.toLowerCase())]);
     const display = new Map<string, string>([...this.vocab.snapshot.fields.values()].map((f) => [f.name.toLowerCase(), f.name]));
@@ -378,7 +385,7 @@ class Parser {
       }
       if (!words.length) {
         const t = this.peek()!;
-        this.problems.push({ message: `Unexpected "${t.value}" in sort by`, start: t.start, end: t.end });
+        this.problems.push(keyedProblem({ message: `Unexpected "${t.value}" in sort by`, start: t.start, end: t.end }, 'query.unexpectedInSort', { token: t.value }));
         this.pos++;
         continue;
       }
@@ -395,12 +402,13 @@ class Parser {
       }
       if (!sortable.has(name)) {
         const guess = didYouMean(name, [...sortable]);
-        this.problems.push({
-          message: `Cannot sort by "${name}"`,
-          start: words[0]!.start,
-          end,
-          hint: guess ? `Did you mean "${guess}"?` : undefined,
-        });
+        this.problems.push(
+          keyedProblem(
+            { message: `Cannot sort by "${name}"`, start: words[0]!.start, end, hint: guess ? `Did you mean "${guess}"?` : undefined },
+            'query.cannotSortBy',
+            { name, ...guessWords(guess) },
+          ),
+        );
       } else {
         items.push({ field: name, display: display.get(name) ?? name, dir, span: { start: words[0]!.start, end } });
       }
@@ -410,12 +418,12 @@ class Parser {
       }
       if (this.peek()) {
         const t = this.peek()!;
-        this.problems.push({ message: `Unexpected "${t.value}" after sort by`, start: t.start, end: t.end });
+        this.problems.push(keyedProblem({ message: `Unexpected "${t.value}" after sort by`, start: t.start, end: t.end }, 'query.unexpectedAfterSort', { token: t.value }));
         this.pos++;
       }
     }
     if (!items.length && !this.problems.length) {
-      this.problems.push({ message: 'Expected a field after "sort by:"', start: sortTok.start, end: sortTok.end });
+      this.problems.push(keyedProblem({ message: 'Expected a field after "sort by:"', start: sortTok.start, end: sortTok.end }, 'query.sortField'));
     }
     return items;
   }

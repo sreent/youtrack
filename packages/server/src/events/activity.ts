@@ -21,6 +21,8 @@ export interface ActivityInput {
 
 /** Insert an activity row inside the caller's transaction. Publish it after commit. */
 export async function recordActivity(tx: Db, ctx: Ctx, input: ActivityInput): Promise<ActivityRow> {
+  // A change a workflow rule made says so, whatever kind of change it is (see AutomationCause).
+  const payload = ctx.automation ? { ...input.payload, data: { ...(input.payload.data ?? {}), automation: ctx.automation } } : input.payload;
   const [row] = await tx
     .insert(activities)
     .values({
@@ -30,7 +32,7 @@ export async function recordActivity(tx: Db, ctx: Ctx, input: ActivityInput): Pr
       actorId: ctx.actor.authMethod === 'system' && ctx.actor.user.id === 'system' ? null : ctx.actor.user.id,
       channel: ctx.actor.channel,
       tokenName: ctx.actor.tokenName,
-      payload: input.payload,
+      payload,
     })
     .returning();
   return row!;
@@ -50,6 +52,7 @@ export function toEventDto(s: SchemaSnapshot, row: ActivityRow): TrackerEvent {
       name: actor?.name ?? null,
       channel: row.channel as TrackerEvent['actor']['channel'],
       token: row.tokenName,
+      isBot: actor?.isBot ?? false,
     },
     project: project?.key ?? null,
     issue: payload.issue ?? null,
@@ -58,8 +61,16 @@ export function toEventDto(s: SchemaSnapshot, row: ActivityRow): TrackerEvent {
   };
 }
 
+/**
+ * After commit: wake this instance's live feed and worker (the bus), and tell the
+ * other instances which ids committed (NOTIFY). A lost notification only delays
+ * delivery until the next one, a LISTEN reconnect or the backstop poll, since every
+ * reader works from the log itself; so a failure here is logged, never thrown at a
+ * caller whose change is already committed.
+ */
 export async function publishActivities(app: AppServices, rows: ActivityRow[]): Promise<void> {
   if (!rows.length) return;
   const s = await app.schema.get();
   for (const row of rows) app.bus.publish(toEventDto(s, row));
+  await app.signals.announceEvents(rows.map((r) => r.id)).catch((e) => console.warn(`live events: NOTIFY failed (${e instanceof Error ? e.message : e})`));
 }

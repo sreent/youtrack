@@ -3,17 +3,26 @@
  * days, then levelling, proposed before anything moves. Applying sends the starts the person
  * was shown; if the plan changed meanwhile the server refuses (409), and the new proposal is
  * shown for them to decide again. Nothing is ever re-applied on its own.
+ *
+ * The grid's days are each person's choice, kept for them (D36); a day someone is away says so,
+ * and half a day away is dashed, with what's left of the day.
  */
 import type { LevelingMode, LevelingResult, Project, ResourceLoad, Schedule } from '@a4a/shared';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { useMe } from '../../api/queries';
 import { Badge } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { ErrorNote, Loading } from '../../components/States';
 import { Who } from '../../components/Who';
+import { usePreferences, useSetLoadWindow } from '../away/api';
+import { DaysAway } from '../away/DaysAway';
+import { FormField } from '../common/bits';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
 import { dayMonth, mondayOf, span, spanWords, weekdayName, workCalendar, type WorkCalendar } from './dates';
-import { andList, days, hours, plural, shift } from './format';
+import { andList, hours, shift } from './format';
+import { WindowChoice, windowRange } from './LoadWindow';
+import { t, tr } from '../../i18n';
 
 type Day = ResourceLoad['resources'][number]['days'][number];
 
@@ -28,16 +37,31 @@ function tasksTitle(day: Day): string | undefined {
   return day.tasks.length ? day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`).join(', ') : undefined;
 }
 
+const AWAY_WORDS = { morning: t('plan.resources.awayInTheMorning'), afternoon: t('plan.resources.awayInTheAfternoon') } as const;
+
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   const ws = weekStart ? ' week-start' : '';
-  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>away</td>;
+  // A day someone is away says so; a day of no hours that isn't one is "off". Neither says why.
+  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>{day.away === 'day' ? 'away' : 'off'}</td>;
+  const half = day.away === 'morning' || day.away === 'afternoon' ? day.away : null;
+  const part = half ? ' part' : '';
+  const said = half ? `, ${AWAY_WORDS[half]}` : '';
   if (day.hours > day.capacity + 0.01) {
     return (
-      <td className={`load-cell over${ws}`} title={tasksTitle(day)}>
+      <td className={`load-cell over${part}${ws}`} title={tasksTitle(day)}>
         <Icon name="clock" />
         {hours(day.hours)}
-        <span>of {hours(day.capacity)}</span>
-        <span className="hidden">, over</span>
+        <span>{tr('plan.resources.of', { hours: hours(day.capacity) })}</span>
+        <span className="hidden">{tr('plan.resources.over', { said: said })}</span>
+      </td>
+    );
+  }
+  if (half) {
+    return (
+      <td className={`load-cell${part}${ws}`} data-load={loadLevel(day.hours, day.capacity)} title={tasksTitle(day)}>
+        {hours(day.hours)}
+        <span>{tr('plan.resources.of', { hours: hours(day.capacity) })}</span>
+        <span className="hidden">{said}</span>
       </td>
     );
   }
@@ -48,7 +72,7 @@ function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   );
 }
 
-function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.ReactNode }) {
+function LoadGrid({ load, choice, children }: { load: ResourceLoad; choice?: React.ReactNode; children?: React.ReactNode }) {
   const titleId = useId();
   const aboutId = useId();
   const dates = load.resources[0]?.days.map((d) => d.date) ?? [];
@@ -56,19 +80,17 @@ function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.Rea
   const last = dates[dates.length - 1];
   const when = first && last ? spanWords(first, last) : '';
   const starts = dates.map((d, i) => i > 0 && mondayOf(d) !== mondayOf(dates[i - 1]!));
+  const away = load.resources.some((r) => r.days.some((d) => d.away));
   return (
     <section className="load load-box" aria-labelledby={titleId}>
-      <h2 id={titleId}>Who's booked, and how much</h2>
-      <p className="note" id={aboutId}>
-        Hours booked against each person's capacity, {when}. Weekends are the gap between the weeks.
-      </p>
-      <div className="load-scroll" tabIndex={0} role="group" aria-label={`Hours booked, ${when}`}>
+      <h2 id={titleId}>{t('plan.resources.whoSBookedAndHow')}</h2>
+      {choice}
+      <p className="note" id={aboutId}>{tr('plan.resources.hoursBookedAgainstEachPerson', { when: when, v: away ? t('plan.resources.aDaySomeoneIsAway') : null })}</p>
+      <div className="load-scroll" tabIndex={0} role="group" aria-label={t('plan.resources.hoursBooked', { when: when })}>
         <table className="load-grid" aria-labelledby={titleId} aria-describedby={aboutId}>
           <thead>
             <tr>
-              <th scope="col" className="load-who">
-                Person
-              </th>
+              <th scope="col" className="load-who">{t('plan.resources.person')}</th>
               {dates.map((d, i) => (
                 <th key={d} scope="col" className={starts[i] ? 'week-start' : undefined}>
                   {weekdayName(d)} <span>{dayMonth(d)}</span>
@@ -80,7 +102,7 @@ function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.Rea
             {load.resources.map((r) => (
               <tr key={r.user.id}>
                 <th scope="row" className="load-who">
-                  <Who kind={r.user.isBot ? 'agent' : 'person'} name={r.user.isBot ? r.user.login : r.user.name} about={`${hours(r.capacityHoursPerDay)} a day`} small />
+                  <Who kind={r.user.isBot ? 'agent' : 'person'} name={r.user.isBot ? r.user.login : r.user.name} about={t('plan.resources.aDay', { hours: hours(r.capacityHoursPerDay) })} small />
                 </th>
                 {r.days.map((d, i) => (
                   <LoadCell key={d.date} day={d} weekStart={Boolean(starts[i])} />
@@ -90,30 +112,22 @@ function LoadGrid({ load, children }: { load: ResourceLoad; children?: React.Rea
           </tbody>
         </table>
       </div>
-      <ul className="load-key" aria-label="What the shades mean">
-        <li>Share of the day booked:</li>
-        <li>
-          <span className="load-cell" data-load="1" />a quarter
-        </li>
-        <li>
-          <span className="load-cell" data-load="2" />
-          half
-        </li>
-        <li>
-          <span className="load-cell" data-load="3" />
-          three quarters
-        </li>
-        <li>
-          <span className="load-cell" data-load="4" />
-          all of it
-        </li>
-        <li>
-          <span className="load-cell over" />
-          over it, with the hours
-        </li>
+      <ul className="load-key" aria-label={t('plan.resources.whatTheShadesMean')}>
+        <li>{t('plan.resources.shareOfTheDayBooked')}</li>
+        <li>{tr('plan.resources.aQuarter', { el: <span className="load-cell" data-load="1" /> })}</li>
+        <li>{tr('plan.resources.half', { el: <span className="load-cell" data-load="2" /> })}</li>
+        <li>{tr('plan.resources.threeQuarters', { el: <span className="load-cell" data-load="3" /> })}</li>
+        <li>{tr('plan.resources.allOfIt', { el: <span className="load-cell" data-load="4" /> })}</li>
+        <li>{tr('plan.resources.overItWithTheHours', { el: <span className="load-cell over" /> })}</li>
+        {away ? (
+          <>
+            <li>{tr('plan.resources.away', { el: <span className="load-cell off" /> })}</li>
+            <li>{tr('plan.resources.halfADayAway', { el: <span className="load-cell part" data-load="0" /> })}</li>
+          </>
+        ) : null}
       </ul>
       {load.unassignedHours > 0 ? (
-        <p className="note">{hours(load.unassignedHours)} of work in these days has nobody assigned, so it isn't in the grid.</p>
+        <p className="note">{tr('plan.resources.ofWorkInTheseDays', { hours: hours(load.unassignedHours) })}</p>
       ) : null}
       {children}
     </section>
@@ -205,22 +219,24 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     try {
       const done = await applyLevelling(projectKey, m, result.starts);
       const first = moved[0];
+      const kept = done.keepsStart ? t('plan.resources.itsStartIsSetTo', { dayMonth: dayMonth(done.keepsStart) }) : '';
       setNotice({
         kind: 'levelled',
-        text: `Levelled ${plural(moved.length, 'task')}`,
+        text: t('plan.resources.levelledTasks', { n: moved.length }),
         detail:
-          moved.length === 1 && first
-            ? `${first.issue} now starts ${dayMonth(first.toStart)}. Its history says levelling moved it. The plan ends ${dayMonth(done.finishAfter)}.`
-            : `Their start dates changed, and each one's history says levelling moved it. The plan ends ${dayMonth(done.finishAfter)}.`,
+          (moved.length === 1 && first
+            ? t('plan.resources.nowStartsItsHistorySays', { issue: first.issue, dayMonth: dayMonth(first.toStart), dayMonth2: dayMonth(done.finishAfter) })
+            : t('plan.resources.theirStartDatesChangedAnd', { dayMonth: dayMonth(done.finishAfter) })) + kept,
       });
       await invalidate();
       await propose(m);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         // The plan changed since the person saw this proposal: show them the new one, and the
-        // load it answers, to decide again.
+        // load it answers, to decide again. The load is read first, so the new proposal isn't
+        // taken for one the plan has moved on from when the load lands after it.
         setNotice({ kind: 'changed' });
-        void invalidate();
+        await invalidate();
         await propose(m);
       } else {
         setError(e);
@@ -242,24 +258,24 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     : [];
   const unresolved = r?.unresolved ?? [];
 
-  let title = 'Levelling';
+  let title = t('plan.resources.levelling2');
   let about: React.ReactNode = null;
   if (r) {
     if (r.overallocatedDaysBefore === 0 && !r.changes.length) {
-      title = 'Nobody is booked over their day';
-      about = 'Levelling has nothing to move.';
+      title = t('plan.resources.nobodyIsBookedOverTheir');
+      about = t('plan.resources.levellingHasNothingToMove');
     } else if (!moved.length) {
-      title = mode === 'within_slack' ? "Levelling can't fix this within slack" : "Levelling can't find room";
+      title = mode === 'within_slack' ? t('plan.resources.levellingCanTFixThis') : t('plan.resources.levellingCanTFindRoom');
       about =
         mode === 'within_slack'
-          ? `${unresolved.length ? `${named(unresolved)} can't move without moving the finish, ${dayMonth(r.finishBefore)}.` : 'No task can move within its slack.'} Allow delay to see what it would take.`
-          : `${unresolved.length ? `${named(unresolved)} can't find a day with room.` : 'No task can move.'} Nothing moves.`;
+          ? t('plan.resources.allowDelayToSeeWhat', { v: unresolved.length ? t('plan.resources.canTMoveWithoutMoving', { named: named(unresolved), dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.noTaskCanMoveWithin') })
+          : t('plan.resources.nothingMoves', { v: unresolved.length ? t('plan.resources.canTFindADay', { named: named(unresolved) }) : t('plan.resources.noTaskCanMove') });
     } else {
-      title = `Levelling would move ${plural(moved.length, 'task')}`;
-      const outcome = r.overallocatedDaysAfter === 0 ? 'So nobody is booked over their day.' : `So fewer days are over: ${r.overallocatedDaysAfter} instead of ${r.overallocatedDaysBefore}.`;
+      title = t('plan.resources.levellingWouldMoveTasks', { n: moved.length });
+      const outcome = r.overallocatedDaysAfter === 0 ? t('plan.resources.soNobodyIsBookedOver') : t('plan.resources.soFewerDaysAreOver', { overallocatedDaysAfter: r.overallocatedDaysAfter, overallocatedDaysBefore: r.overallocatedDaysBefore });
       const finish =
-        mode === 'within_slack' || !finishMoves ? `The plan still ends on ${dayMonth(r.finishBefore)}.` : `The plan would end on ${dayMonth(r.finishAfter)} instead of ${dayMonth(r.finishBefore)}.`;
-      about = `${outcome} ${finish} Nothing moves until you level ${moved.length === 1 ? 'it' : 'them'}.`;
+        mode === 'within_slack' || !finishMoves ? t('plan.resources.thePlanStillEndsOn', { dayMonth: dayMonth(r.finishBefore) }) : t('plan.resources.thePlanWouldEndOn', { dayMonth: dayMonth(r.finishAfter), dayMonth2: dayMonth(r.finishBefore) });
+      about = t('plan.resources.nothingMovesUntilYouLevelThem', { outcome: outcome, finish: finish, n: moved.length });
     }
   }
 
@@ -267,18 +283,14 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
     <section className="levelling" aria-labelledby={titleId} aria-busy={busy !== null}>
       <h3 id={titleId}>{title}</h3>
       {about ? <p className="note">{about}</p> : null}
-      <div className="modes" role="group" aria-label="How far levelling may move tasks">
-        <button type="button" aria-pressed={mode === 'within_slack'} onClick={() => setMode('within_slack')} disabled={busy === 'levelling'}>
-          Within slack
-        </button>
-        <button type="button" aria-pressed={mode === 'allow_delay'} onClick={() => setMode('allow_delay')} disabled={busy === 'levelling'}>
-          Allow delay
-        </button>
+      <div className="modes" role="group" aria-label={t('plan.resources.howFarLevellingMayMove')}>
+        <button type="button" aria-pressed={mode === 'within_slack'} onClick={() => setMode('within_slack')} disabled={busy === 'levelling'}>{t('plan.resources.withinSlack')}</button>
+        <button type="button" aria-pressed={mode === 'allow_delay'} onClick={() => setMode('allow_delay')} disabled={busy === 'levelling'}>{t('plan.resources.allowDelay')}</button>
       </div>
       <p className="note">
         {mode === 'within_slack'
-          ? "Within slack, a task only moves as far as it may without moving the plan's finish."
-          : 'Allowing delay, a task may move past its slack, and the finish may move with it.'}
+          ? t('plan.resources.withinSlackATaskOnly')
+          : t('plan.resources.allowingDelayATaskMay')}
       </p>
       {/* Always there, so what lands in it is heard: what levelling just did, or that the plan has moved on. */}
       <div className="levelling-status" aria-live="polite">
@@ -290,20 +302,18 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
         ) : null}
         {notice?.kind === 'changed' ? (
           <p role="alert">
-            <Badge tone="warn">Nothing was levelled</Badge>
-            <span className="note">The plan changed since this was proposed. This is the new proposal: check it, and level again if it still looks right.</span>
+            <Badge tone="warn">{t('plan.resources.nothingWasLevelled')}</Badge>
+            <span className="note">{t('plan.resources.thePlanChangedSinceThis')}</span>
           </p>
         ) : null}
         {stale ? (
           <p>
-            <span className="note">The plan has changed since this was proposed.</span>
-            <button type="button" className="link" onClick={() => void propose(mode)}>
-              Propose again
-            </button>
+            <span className="note">{t('plan.resources.thePlanHasChangedSince')}</span>
+            <button type="button" className="link" onClick={() => void propose(mode)}>{t('plan.resources.proposeAgain')}</button>
           </p>
         ) : null}
       </div>
-      {busy === 'proposing' && !r ? <Loading what="what levelling would move" /> : null}
+      {busy === 'proposing' && !r ? <Loading what="loadingLine.levelling" /> : null}
       {error ? <ErrorNote error={error} /> : null}
       {moved.length ? (
         <ul className="levelling-list">
@@ -315,7 +325,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
       {following.length ? (
         <details>
           <summary>
-            {following.length === 1 ? '1 more task follows its predecessors, and moves with them' : `${following.length} more tasks follow their predecessors, and move with them`}
+            {following.length === 1 ? t('plan.resources.n1MoreTaskFollowsIts') : t('plan.resources.moreTasksFollowTheirPredecessors', { length: following.length })}
           </summary>
           <ul className="levelling-list">
             {following.map((c) => (
@@ -327,33 +337,32 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
       {r && moved.length && finishMoves ? (
         <ul className="change-lines">
           <li>
-            <span className="change-field">The plan ends:</span> <del>{dayMonth(r.finishBefore)}</del> → <ins>{dayMonth(r.finishAfter)}</ins>
+            <span className="change-field">{t('plan.resources.thePlanEnds')}</span> <del>{dayMonth(r.finishBefore)}</del> → <ins>{dayMonth(r.finishAfter)}</ins>
           </li>
         </ul>
+      ) : null}
+      {r && moved.length && r.keepsStart ? (
+        <p className="note">{tr('plan.resources.thePlanHasNoStart', { dayMonth: dayMonth(r.keepsStart) })}</p>
       ) : null}
       {nowLate.length ? (
         <div className="badges">
           {nowLate.map((c) => (
-            <Badge key={c.issue} tone="bad">
-              {c.issue} would be {days(Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish)))} late: it's due {dayMonth(deadlines.get(c.issue)!)}
-            </Badge>
+            <Badge key={c.issue} tone="bad">{tr('plan.resources.wouldBeDaysLate', { issue: c.issue, n: (Math.max(1, cal.between(deadlines.get(c.issue)!, c.toFinish))), dayMonth: dayMonth(deadlines.get(c.issue)!) })}</Badge>
           ))}
         </div>
       ) : null}
       {r && moved.length && unresolved.length ? (
-        <p className="note">
-          {named(unresolved)} can't be levelled {mode === 'within_slack' ? 'within slack' : 'at all'}, so {unresolved.length === 1 ? 'it stays' : 'they stay'} where {unresolved.length === 1 ? 'it is' : 'they are'}.
-        </p>
+        <p className="note">{tr(mode === 'within_slack' ? 'plan.resources.cantBeLevelledWithinSlack' : 'plan.resources.cantBeLevelledAtAll', { named: named(unresolved), n: unresolved.length })}</p>
       ) : null}
       {r && moved.length ? (
         <div className="levelling-actions">
           <button type="button" className="primary" onClick={() => void level()} disabled={busy !== null || stale}>
-            {busy === 'levelling' ? 'Levelling…' : `Level ${plural(moved.length, 'task')}`}
+            {busy === 'levelling' ? t('plan.resources.levelling') : t('plan.resources.levelTasks', { n: moved.length })}
           </button>
           <p className="note">
             {mode === 'within_slack'
-              ? `${moved.length === 1 ? 'It moves' : 'Each moves'} within ${moved.length === 1 ? 'its' : 'its'} slack, and ${moved.length === 1 ? 'its' : 'each one’s'} history says levelling moved it.`
-              : `${moved.length === 1 ? 'Its start date changes' : 'Their start dates change'}, and the history says levelling moved ${moved.length === 1 ? 'it' : 'them'}; the tasks after ${moved.length === 1 ? 'it' : 'them'} follow.`}
+              ? t('plan.resources.movesWithinSlackHistorySays', { n: moved.length })
+              : t('plan.resources.startDatesChangeHistorySays', { n: moved.length })}
           </p>
         </div>
       ) : null}
@@ -361,32 +370,110 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
   );
 }
 
+/**
+ * Days away for the plan's people, in the browser's own dialog: your own, and, as the project's
+ * manager, anyone's in the grid. Their work moves as soon as they're saved.
+ */
+function DaysAwayDialog({ people, meLogin, open, onClose }: { people: { login: string; name: string }[]; meLogin: string; open: boolean; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [login, setLogin] = useState(people.find((p) => p.login === meLogin)?.login ?? people[0]?.login ?? '');
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    else if (!open && d.open) d.close();
+  }, [open]);
+  const person = people.find((p) => p.login === login) ?? people[0];
+  return (
+    <dialog ref={ref} className="dialog wide" aria-labelledby={titleId} onClose={onClose}>
+      <h2 id={titleId}>{t('plan.resources.daysAway')}</h2>
+      <p>{t('plan.resources.plansSkipAPersonS')}</p>
+      {open && person ? (
+        <div className="stack">
+          {people.length > 1 ? (
+            <FormField label={t('plan.resources.whose')}>
+              {(id) => (
+                <select id={id} value={person.login} onChange={(e) => setLogin(e.target.value)}>
+                  {people.map((p) => (
+                    <option key={p.login} value={p.login}>
+                      {p.login === meLogin ? t('plan.resources.you', { name: p.name }) : p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+          ) : null}
+          <DaysAway person={person} you={person.login === meLogin} canEnter />
+        </div>
+      ) : null}
+      <div className="dialog-actions">
+        <button type="button" onClick={onClose}>{t('plan.resources.done')}</button>
+      </div>
+    </dialog>
+  );
+}
+
 export function Resources({ project }: { project: Project }) {
   const key = project.key;
-  const load = useResourceLoad(key);
+  const me = useMe();
+  const prefs = usePreferences();
+  const setWindow = useSetLoadWindow();
+  const chosen = prefs.data?.loadWindow ?? null;
+  const range = useMemo(() => windowRange(chosen), [chosen]);
+  // The person's window first, so the grid isn't read twice: once for the plan's days, once for theirs.
+  const load = useResourceLoad(key, range, !prefs.isLoading);
   const schedule = useSchedule(key, null);
   const cal = useMemo(() => workCalendar(schedule.data?.calendar ?? project.settings.plan), [schedule.data?.calendar, project.settings.plan]);
-  if (load.isLoading) return <Loading what="who's booked" />;
+  const [awayOpen, setAwayOpen] = useState(false);
+  if (prefs.isLoading || load.isLoading) return <Loading what="loadingLine.booked" />;
   if (load.error || !load.data) return <ErrorNote error={load.error} />;
   const l = load.data;
-  if (!l.resources.length || !l.resources[0]?.days.length) {
+  const choice = <WindowChoice chosen={chosen} busy={setWindow.isPending} onChoose={(w) => setWindow.mutate(w)} />;
+
+  // Whose days away this page may enter: your own, or, as its manager, everyone's in the grid.
+  const meLogin = me.data?.login ?? '';
+  const writes = Boolean(me.data?.auth.scopes.includes('write'));
+  const people = l.resources.filter((r) => !r.user.isBot).map((r) => ({ login: r.user.login, name: r.user.name }));
+  const enterable = !writes ? [] : project.access?.manage ? people : people.filter((p) => p.login === meLogin);
+  const awayButton = enterable.length ? (
+    <button type="button" onClick={() => setAwayOpen(true)}>{t('plan.resources.daysAway')}</button>
+  ) : null;
+  // Outside Ocean's layout rows, whose children lose their margins: the dialog centres itself by its own.
+  const awayDialog = enterable.length ? <DaysAwayDialog people={enterable} meLogin={meLogin} open={awayOpen} onClose={() => setAwayOpen(false)} /> : null;
+
+  if (!l.resources.length) {
     return (
       <section className="card">
-        <h2>Nobody is booked yet</h2>
-        <p className="note">
-          {l.resources.length
-            ? `${project.name} has no work left to place from today on.`
-            : `Nobody is assigned to ${project.name}'s tasks, so there's no load to show.`}{' '}
-          Load comes from each task's estimate, spread over its working days, against its assignee's hours a day.
-        </p>
+        <h2>{t('plan.resources.nobodyIsBookedYet')}</h2>
+        <p className="note">{tr('plan.resources.nobodyIsAssignedToS', { name: project.name })}</p>
+      </section>
+    );
+  }
+  if (!l.resources[0]?.days.length) {
+    return (
+      <section className="card stack">
+        <h2>{t('plan.resources.noWorkingDaysToShow')}</h2>
+        {choice}
+        <p className="note">{tr('plan.resources.loadComesFromEachTask', { v: range.from ? t('plan.resources.theseDaysHaveNoWorking') : t('plan.resources.hasNoWorkLeftTo', { name: project.name }) })}</p>
       </section>
     );
   }
   return (
     <div>
-      <LoadGrid load={l}>
+      <LoadGrid
+        load={l}
+        choice={
+          <div className="cluster">
+            {choice}
+            <span className="grow" />
+            {awayButton}
+          </div>
+        }
+      >
         <Levelling projectKey={key} load={l} schedule={schedule.data} cal={cal} />
       </LoadGrid>
+      {awayDialog}
     </div>
   );
 }

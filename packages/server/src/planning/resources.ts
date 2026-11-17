@@ -5,8 +5,9 @@
  * delays tasks until their assignee has room; it is not an optimiser.
  */
 import { isISODate, maxDate, minDate } from '../lib/dates';
+import { availabilities, type Availability } from './availability';
 import { addWorkingDays, listWorkingDays, nextWorkingDay, normalizeCalendar, workingDaysBetween } from './calendar';
-import { buildPlan } from './schedule';
+import { buildPlan, type PlanModel } from './schedule';
 import type {
   LevelingChange,
   LevelingMode,
@@ -37,19 +38,25 @@ type Bookings = Map<string, Map<string, number>>;
 
 interface Spread {
   days: string[];
-  hoursPerDay: number;
+  /** Hours on each of `days`. */
+  hours: number[];
 }
 
 /**
- * An unresolved leaf task's remaining hours spread evenly over its working
- * days in [start, finish] (for a task in progress, from today on), or null
- * when it has no remaining hours to place.
+ * An unresolved leaf task's remaining hours spread over its assignee's working days in
+ * [start, finish] (for a task in progress, from today on), evenly, a half day away taking half
+ * a day's share; or null when it has no remaining hours to place.
  */
-function spreadOf(cal: PlanCalendar, today: string, t: ScheduledTask, start = t.start, finish = t.finish): Spread | null {
+function spreadOf(a: Availability, today: string, t: ScheduledTask, start = t.start, finish = t.finish): Spread | null {
   if (t.isSummary || t.resolved || t.isMilestone || t.remainingMinutes <= 0) return null;
-  const from = t.scheduledFrom === 'actual' ? nextWorkingDay(cal, maxDate(today, start)) : start;
-  const days = listWorkingDays(cal, from, finish);
-  return days.length > 0 ? { days, hoursPerDay: t.remainingMinutes / 60 / days.length } : null;
+  const from = t.scheduledFrom === 'actual' ? nextWorkingDay(a.cal, maxDate(today, start)) : start;
+  const days = listWorkingDays(a.cal, from, finish);
+  if (days.length === 0) return null;
+  const remaining = t.remainingMinutes / 60;
+  if (!a.hasAbsences) return { days, hours: days.map(() => remaining / days.length) };
+  const shares = days.map((d) => a.share(d));
+  const total = shares.reduce((sum, x) => sum + x, 0);
+  return { days, hours: shares.map((x) => (remaining * x) / total) };
 }
 
 function resourceMap(resources: readonly PlanResource[]): Map<string, PlanResource> {
@@ -60,6 +67,11 @@ function resourceMap(resources: readonly PlanResource[]): Map<string, PlanResour
 
 function capacityOf(r: PlanResource): number {
   return Math.max(0, finite(r.capacityHoursPerDay, 0));
+}
+
+/** Hours they can work on a day: all their capacity, half of it on a half day away, none on a day away. */
+function capacityOn(r: PlanResource, a: Availability, d: string): number {
+  return capacityOf(r) * a.share(d);
 }
 
 /** The task's assignee if they are a plan resource; anyone else counts as unassigned. */
@@ -80,32 +92,34 @@ function ownerOf(t: ScheduledTask, resources: Map<string, PlanResource>): string
  */
 export function computeLoad(input: PlanInput, schedule: ScheduleResult, from?: string, to?: string): ResourceLoadResult {
   const cal = normalizeCalendar(input.calendar);
+  const availabilityOf = availabilities(cal, input.absences, input.today, input.resources);
   const window = loadWindow(cal, schedule, from, to);
   const inWindow = new Set(window.days);
   const resources = resourceMap(input.resources);
   const load = new Map<string, Map<string, Map<string, number>>>();
   let unassigned = 0;
   for (const t of schedule.tasks) {
-    const spread = spreadOf(cal, schedule.today, t);
-    if (!spread) continue;
     const owner = ownerOf(t, resources);
-    for (const d of spread.days) {
-      if (!inWindow.has(d)) continue;
+    const spread = spreadOf(availabilityOf(owner), schedule.today, t);
+    if (!spread) continue;
+    spread.days.forEach((d, i) => {
+      if (!inWindow.has(d)) return;
+      const h = spread.hours[i]!;
       if (owner === null) {
-        unassigned += spread.hoursPerDay;
-        continue;
+        unassigned += h;
+        return;
       }
       const days = load.get(owner) ?? new Map<string, Map<string, number>>();
       load.set(owner, days);
       const tasks = days.get(d) ?? new Map<string, number>();
       days.set(d, tasks);
-      tasks.set(t.id, (tasks.get(t.id) ?? 0) + spread.hoursPerDay);
-    }
+      tasks.set(t.id, (tasks.get(t.id) ?? 0) + h);
+    });
   }
   return {
     from: window.from,
     to: window.to,
-    resources: [...resources.values()].map((r) => loadRow(r, window.days, load.get(r.id))),
+    resources: [...resources.values()].map((r) => loadRow(r, availabilityOf(r.id), window.days, load.get(r.id))),
     unassignedHours: hours2(unassigned),
   };
 }
@@ -127,24 +141,24 @@ function loadWindow(cal: PlanCalendar, schedule: ScheduleResult, from?: string, 
   return { from: start, to: truncated ? last : end, days };
 }
 
-function loadRow(r: PlanResource, days: readonly string[], byDay?: Map<string, Map<string, number>>): ResourceLoadRow {
-  const capacity = capacityOf(r);
+function loadRow(r: PlanResource, a: Availability, days: readonly string[], byDay?: Map<string, Map<string, number>>): ResourceLoadRow {
   let total = 0;
   let overallocated = 0;
   let peak = 0;
   const rows: ResourceLoadDay[] = days.map((date) => {
+    const capacity = capacityOn(r, a, date);
     const tasks = byDay?.get(date) ?? new Map<string, number>();
     const hours = [...tasks.values()].reduce((s, h) => s + h, 0);
     total += hours;
     if (hours > capacity + TOLERANCE) overallocated++;
     if (capacity > 0) peak = Math.max(peak, (hours / capacity) * 100);
     const shares = [...tasks].map(([issue, h]) => ({ issue, hours: hours2(h) }));
-    shares.sort((a, b) => b.hours - a.hours || compareIds(a.issue, b.issue));
-    return { date, hours: hours2(hours), capacity, tasks: shares };
+    shares.sort((x, y) => y.hours - x.hours || compareIds(x.issue, y.issue));
+    return { date, hours: hours2(hours), capacity: hours2(capacity), away: a.away(date), tasks: shares };
   });
   return {
     resourceId: r.id,
-    capacityHoursPerDay: capacity,
+    capacityHoursPerDay: capacityOf(r),
     totalHours: hours2(total),
     overallocatedDays: overallocated,
     peakLoadPct: round(peak, 1),
@@ -174,14 +188,16 @@ export function levelResources(
   mode: LevelingMode,
   overrides: readonly PlanOverride[] = [],
 ): LevelingProposal {
-  const { schedule, calendar: cal, graph, tasks } = buildPlan(input, overrides);
+  const model = buildPlan(input, overrides);
+  const { schedule, calendar: cal, graph, tasks, anchor, anchorWith } = model;
   const resources = resourceMap(input.resources);
   const today = schedule.today;
   const leaves = graph.leaves.map((id) => tasks.get(id)!);
   const planned = new Set(leaves.filter((t) => !t.resolved && t.scheduledFrom !== 'actual').map((t) => t.id));
+  const ofOwner = (t: ScheduledTask): Availability => model.availabilityOf(ownerOf(t, resources));
 
   const booked: Bookings = new Map();
-  for (const t of leaves) if (!planned.has(t.id)) book(booked, cal, today, t, resources, t);
+  for (const t of leaves) if (!planned.has(t.id)) book(booked, ofOwner(t), today, t, resources, t);
 
   const placed = new Map<string, Placement>();
   const unresolved = new Set<string>();
@@ -201,24 +217,26 @@ export function levelResources(
 
   while (ready.length > 0) {
     ready.sort((a, b) => byLevelingPriority(a.task, a.earliest, b.task, b.earliest));
-    const { task, earliest } = ready.shift()!;
+    const { task, earliest: from } = ready.shift()!;
     const owner = ownerOf(task, resources);
-    const hoursPerDay = task.durationDays > 0 ? task.remainingMinutes / 60 / task.durationDays : 0;
+    const avail = ofOwner(task);
+    // The first day it could start is one its assignee works; that much isn't levelling's doing.
+    const earliest = model.spanOf(task.id, from).start;
     let start = earliest;
-    if (owner && !task.isMilestone && task.durationDays > 0 && hoursPerDay > 0) {
+    if (owner && !task.isMilestone && task.durationDays > 0 && task.remainingMinutes > 0) {
       const latest =
         mode === 'within_slack'
           ? maxDate(task.lateStart, earliest)
           : addWorkingDays(cal, earliest, LEVEL_SEARCH_DAYS);
-      const capacity = capacityOf(resources.get(owner)!);
-      const slot = findSlot(cal, booked.get(owner), capacity, hoursPerDay, earliest, task.durationDays, latest);
+      const r = resources.get(owner)!;
+      const slot = findSlot(avail, booked.get(owner), (d) => capacityOn(r, avail, d), earliest, latest, (s) => loadAt(model, avail, today, task, s));
       if (slot === null) unresolved.add(task.id);
       else start = slot;
       if (start > earliest) delayedForResources.add(task.id);
     }
-    const placement = { start, finish: task.isMilestone ? start : addWorkingDays(cal, start, task.durationDays - 1) };
+    const placement = model.spanOf(task.id, start);
     placed.set(task.id, placement);
-    book(booked, cal, today, task, resources, placement);
+    book(booked, avail, today, task, resources, placement);
     for (const s of graph.leafSuccs.get(task.id)!) {
       if (!planned.has(s)) continue;
       const left = waiting.get(s)! - 1;
@@ -242,17 +260,21 @@ export function levelResources(
       delayDays: workingDaysBetween(cal, t.start, datesAfter(t).start),
       movedBy: delayedForResources.has(t.id) ? ('resources' as const) : ('dependencies' as const),
     }));
+  // Writing a Start date on a task that only follows its predecessors would pin it there
+  // (and turn a task with a due date but no estimate into a start-to-due window).
+  const levelledStarts = Object.fromEntries(changes.filter((c) => c.movedBy === 'resources').map((c) => [c.id, c.toStart]));
   return {
     mode,
     finishBefore: schedule.finish,
     finishAfter: leaves.map((t) => datesAfter(t).finish).reduce(maxDate, schedule.finish),
-    overallocatedDaysBefore: overallocatedDays(cal, today, leaves, resources, (t) => t),
-    overallocatedDaysAfter: overallocatedDays(cal, today, leaves, resources, datesAfter),
+    overallocatedDaysBefore: overallocatedDays(today, leaves, resources, ofOwner, (t) => t),
+    overallocatedDaysAfter: overallocatedDays(today, leaves, resources, ofOwner, datesAfter),
     changes,
     unresolved: order.filter((t) => unresolved.has(t.id)).map((t) => t.id),
-    // Writing a Start date on a task that only follows its predecessors would pin it there
-    // (and turn a task with a due date but no estimate into a start-to-due window).
-    levelledStarts: Object.fromEntries(changes.filter((c) => c.movedBy === 'resources').map((c) => [c.id, c.toStart])),
+    levelledStarts,
+    // The plan applied must be the plan proposed: if the written starts would move where it
+    // begins, it keeps beginning where it did.
+    keepStart: anchorWith(levelledStarts) !== anchor ? anchor : null,
   };
 }
 
@@ -265,71 +287,77 @@ function byLevelingPriority(a: ScheduledTask, aEarliest: string, b: ScheduledTas
   return a.slackDays - b.slackDays || compareIds(a.id, b.id);
 }
 
+/** The hours a task not yet started would put on each of its days, were it to start on `start`. */
+function loadAt(model: PlanModel, a: Availability, today: string, t: ScheduledTask, start: string): Spread {
+  const span = model.spanOf(t.id, start);
+  return spreadOf(a, today, t, span.start, span.finish) ?? { days: [], hours: [] };
+}
+
 /**
- * The first working day d in [earliest, latest] such that the resource has
- * room for `hours` on each of the `duration` working days from d. A task that
- * alone exceeds capacity needs days with nothing else booked.
+ * The first of the resource's working days d in [earliest, latest] such that they have room,
+ * on each day the task would take from d, for the hours it would put there. A task that alone
+ * exceeds a day's capacity needs that day with nothing else booked.
  */
 function findSlot(
-  cal: PlanCalendar,
+  a: Availability,
   used: Map<string, number> | undefined,
-  capacity: number,
-  hours: number,
+  capacity: (d: string) => number,
   earliest: string,
-  duration: number,
   latest: string,
+  loadFrom: (start: string) => Spread,
 ): string | null {
-  const fits = (d: string): boolean => {
+  const fits = (d: string, hours: number): boolean => {
     const booked = used?.get(d) ?? 0;
-    return hours > capacity + TOLERANCE ? booked <= TOLERANCE : booked + hours <= capacity + TOLERANCE;
+    const room = capacity(d);
+    return hours > room + TOLERANCE ? booked <= TOLERANCE : booked + hours <= room + TOLERANCE;
   };
   let start = earliest;
   while (start <= latest) {
-    let day = start;
-    let clash: string | null = null;
-    for (let i = 0; i < duration; i++) {
-      if (!fits(day)) {
-        clash = day;
-        break;
-      }
-      if (i < duration - 1) day = addWorkingDays(cal, day, 1);
-    }
+    const spread = loadFrom(start);
+    const clash = spread.days.find((d, i) => !fits(d, spread.hours[i]!)) ?? null;
     if (clash === null) return start;
-    start = addWorkingDays(cal, clash, 1); // every start up to the clash would include it
+    start = addWorkingDays(a.cal, clash, 1); // every start up to the clash would include it
   }
   return null;
 }
 
 function book(
   booked: Bookings,
-  cal: PlanCalendar,
+  a: Availability,
   today: string,
   t: ScheduledTask,
   resources: Map<string, PlanResource>,
   dates: Placement,
 ): void {
   const owner = ownerOf(t, resources);
-  const spread = owner ? spreadOf(cal, today, t, dates.start, dates.finish) : null;
+  const spread = owner ? spreadOf(a, today, t, dates.start, dates.finish) : null;
   if (!owner || !spread) return;
   const days = booked.get(owner) ?? new Map<string, number>();
   booked.set(owner, days);
-  for (const d of spread.days) days.set(d, (days.get(d) ?? 0) + spread.hoursPerDay);
+  spread.days.forEach((d, i) => days.set(d, (days.get(d) ?? 0) + spread.hours[i]!));
 }
 
 /** Resource-days over capacity, summed over resources, with each task at `datesOf(task)`. */
 function overallocatedDays(
-  cal: PlanCalendar,
   today: string,
   leaves: readonly ScheduledTask[],
   resources: Map<string, PlanResource>,
+  availabilityOf: (t: ScheduledTask) => Availability,
   datesOf: (t: ScheduledTask) => Placement,
 ): number {
   const booked: Bookings = new Map();
-  for (const t of leaves) book(booked, cal, today, t, resources, datesOf(t));
+  const ofPerson = new Map<string, Availability>();
+  for (const t of leaves) {
+    const a = availabilityOf(t);
+    const owner = ownerOf(t, resources);
+    if (owner) ofPerson.set(owner, a);
+    book(booked, a, today, t, resources, datesOf(t));
+  }
   let count = 0;
   for (const [id, days] of booked) {
-    const capacity = capacityOf(resources.get(id)!);
-    for (const hours of days.values()) if (hours > capacity + TOLERANCE) count++;
+    const r = resources.get(id)!;
+    const a = ofPerson.get(id)!;
+    for (const [d, hours] of days) if (hours > capacityOn(r, a, d) + TOLERANCE) count++;
   }
   return count;
 }

@@ -1,0 +1,112 @@
+{
+  "name": "a4a-vscode",
+  "displayName": "a4a",
+  "description": "a4a's issues in VS Code: yours and a saved search's, open beside the code, changed with a command, made from a selection, named in a commit, and a4a's MCP tools for VS Code's agent.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "a4a",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sreent/youtrack"
+  },
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "a4a",
+      "properties": {
+        "a4a.url": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Your a4a's address, e.g. `https://a4a.acme.example`."
+        },
+        "a4a.query": {
+          "type": "string",
+          "default": "for: me #Unresolved sort by: updated desc",
+          "markdownDescription": "What the **Issues** view lists: an a4a search, e.g. a saved search's query."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "a4a",
+          "title": "a4a",
+          "icon": "media/a4a.svg"
+        }
+      ]
+    },
+    "views": {
+      "a4a": [
+        {
+          "id": "a4a.issues",
+          "name": "Issues"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "a4a.issues",
+        "contents": "Sign in to your a4a to see your issues here.\n[Sign in](command:a4a.signIn)\n[Use an API token](command:a4a.useToken)"
+      }
+    ],
+    "commands": [
+      { "command": "a4a.signIn", "title": "Sign in", "category": "a4a" },
+      { "command": "a4a.useToken", "title": "Use an API token", "category": "a4a" },
+      { "command": "a4a.signOut", "title": "Sign out", "category": "a4a" },
+      { "command": "a4a.refresh", "title": "Refresh", "category": "a4a", "icon": "$(refresh)" },
+      { "command": "a4a.search", "title": "Search issues", "category": "a4a", "icon": "$(search)" },
+      { "command": "a4a.openIssue", "title": "Open an issue", "category": "a4a" },
+      { "command": "a4a.applyCommand", "title": "Apply a command to an issue", "category": "a4a" },
+      { "command": "a4a.newIssueFromSelection", "title": "New issue from the selection", "category": "a4a" },
+      { "command": "a4a.insertIssueId", "title": "Name an issue in the commit message", "category": "a4a", "icon": "$(issues)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "a4a.search", "when": "view == a4a.issues", "group": "navigation" },
+        { "command": "a4a.refresh", "when": "view == a4a.issues", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "a4a.applyCommand", "when": "view == a4a.issues && viewItem == issue" }
+      ],
+      "editor/context": [
+        { "command": "a4a.newIssueFromSelection", "when": "editorHasSelection", "group": "a4a" }
+      ],
+      "scm/title": [
+        { "command": "a4a.insertIssueId", "when": "scmProvider == git", "group": "navigation" }
+      ]
+    },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "a4a",
+        "label": "a4a"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "package": "node scripts/build.mjs && vsce package --no-dependencies --out dist/a4a.vsix"
+  },
+  "dependencies": {
+    "@sreent/ocean": "github:sreent/ocean#ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/vscode": "1.101.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.10",
+    "typescript": "5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

@@ -1,3 +1,4 @@
+import { isOptionType } from '@a4a/shared';
 import type { SuggestItem } from '@a4a/shared';
 import type { SchemaSnapshot } from '../services/schema-cache';
 import { lex, type Token } from './lexer';
@@ -88,7 +89,7 @@ export function suggest(s: SchemaSnapshot, query: string, caret: number, limit =
     const specials = ['Unresolved', 'Resolved', 'me', 'Unassigned'];
     for (const sp of specials) if (matches(sp, prefix)) push({ label: `#${sp}`, insert: `#${sp} `, kind: 'keyword', replaceStart, replaceEnd: caret });
     for (const f of s.fields.values()) {
-      if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+      if (!isOptionType(f.type)) continue;
       for (const v of s.valuesByField.get(f.id) ?? []) {
         if (!v.archived && matches(v.name, prefix)) {
           push({ label: `#${v.name}`, insert: `#${quoteValue(v.name)} `, kind: 'value', description: f.name, replaceStart, replaceEnd: caret });

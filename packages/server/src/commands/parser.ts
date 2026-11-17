@@ -1,14 +1,38 @@
-import type { QueryProblem, SuggestItem } from '@a4a/shared';
+import { isOwnAgent, type QueryProblem, type SuggestItem, isOptionType } from '@a4a/shared';
 import { fixValue, lex, type Token } from '../search/lexer';
+import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { didYouMean, editDistance } from '../lib/text';
-import { allowedValues, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
+import { actionsFor, allowedValues, machinesFor, transitionsOf, type FieldRow, type LinkPhrase, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
 
 export type CommandOp =
   | { kind: 'field'; field: FieldRow; mode: 'set' | 'add' | 'remove'; raw: string[]; display: string }
   | { kind: 'tag'; mode: 'add' | 'remove'; name: string }
   | { kind: 'link'; mode: 'add' | 'remove'; phrase: LinkPhrase; targets: string[] }
-  | { kind: 'comment'; text: string };
+  /** `at`: where the comment clause starts in the command, so it can be taken out. */
+  | { kind: 'comment'; text: string; at: number }
+  /** A project's custom action, by name (D40): what it does is read in each issue's project. */
+  | { kind: 'action'; name: string }
+  /** A state machine's transition, by name (D40): its field moves to `to`, by that transition. */
+  | { kind: 'transition'; name: string; field: string; to: string }
+  /** Into or out of a sprint of a board of the issue's project, by its name (D43). */
+  | { kind: 'sprint'; mode: 'add' | 'remove'; name: string };
+
+type Named = { kind: 'action'; name: string } | { kind: 'transition'; name: string; field: string; to: string };
+
+/** The names of the custom actions and transitions in these projects, which read as commands. */
+export function namedCommands(s: SchemaSnapshot, projectIds: string[]): Named[] {
+  const out = new Map<string, Named>();
+  for (const pid of projectIds) {
+    for (const a of actionsFor(s, pid)) if (a.enabled && !out.has(a.name.toLowerCase())) out.set(a.name.toLowerCase(), { kind: 'action', name: a.name });
+    for (const m of machinesFor(s, pid)) {
+      if (!m.enabled) continue;
+      const field = s.fields.get(m.fieldId)?.name ?? '';
+      for (const t of transitionsOf(m)) if (!out.has(t.name.toLowerCase())) out.set(t.name.toLowerCase(), { kind: 'transition', name: t.name, field, to: t.to });
+    }
+  }
+  return [...out.values()];
+}
 
 export interface ParsedCommand {
   ops: CommandOp[];
@@ -37,6 +61,7 @@ class CommandParser {
   private fieldPhrases: Phrase<FieldRow>[];
   private linkPhrases: Phrase<LinkPhrase>[];
   private valuePhrases: Phrase<{ field: FieldRow; value: string }>[];
+  private namedPhrases: Phrase<Named>[];
   private fieldsInScope: FieldRow[];
 
   constructor(
@@ -52,12 +77,13 @@ class CommandParser {
     this.linkPhrases = phrases(s.linkPhrases.map((p) => [p.phrase, p]));
     const valueEntries: [string, { field: FieldRow; value: string }][] = [];
     for (const f of this.fieldsInScope) {
-      if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+      if (!isOptionType(f.type)) continue;
       const names = new Set<string>();
       for (const pid of projectIds) for (const v of allowedValues(s, f.id, pid)) names.add(v.name);
       for (const n of names) valueEntries.push([n, { field: f, value: n }]);
     }
     this.valuePhrases = phrases(valueEntries);
+    this.namedPhrases = phrases(namedCommands(s, projectIds).map((n) => [n.name, n]));
   }
 
   private peek(o = 0) {
@@ -69,10 +95,13 @@ class CommandParser {
     return t?.kind === 'word' ? t.value.toLowerCase() : null;
   }
 
-  /** `fix` is the text to put in the token's place, when there's a likely one. */
-  private problem(message: string, t: Token | undefined, hint?: string, fix?: string | null) {
+  /**
+   * `words` say it on a page in another language (D49); the API carries the English. `fix` is the
+   * text to put in the token's place, when there's a likely one.
+   */
+  private problem(words: QueryProblemWords, message: string, t: Token | undefined, hint?: string, fix?: string | null) {
     const start = t?.start ?? this.input.length;
-    this.problems.push({ message, start, end: t?.end ?? start, hint, ...(fix ? { fix } : {}) });
+    this.problems.push(keyedProblem({ message, start, end: t?.end ?? start, hint, ...(fix ? { fix } : {}) }, words.key, words.values));
   }
 
   /** Longest phrase matching the upcoming words. */
@@ -101,7 +130,30 @@ class CommandParser {
     const w = this.word();
     if (!w) return false;
     if (['add', 'remove', 'tag', 'untag', 'for', 'comment'].includes(w)) return true;
-    return this.matchPhrase(this.fieldPhrases).length > 0 || this.matchPhrase(this.linkPhrases).length > 0;
+    if (w === 'sprint' && this.sprintClause()) return true;
+    return this.matchPhrase(this.fieldPhrases).length > 0 || this.matchPhrase(this.linkPhrases).length > 0 || this.matchPhrase(this.namedPhrases).length > 0;
+  }
+
+  /**
+   * "sprint" begins the sprint clause (D43), unless the issues have a field called Sprint: then it
+   * is that field, as it always was.
+   */
+  private sprintClause(): boolean {
+    return !this.fieldsInScope.some((f) => f.name.toLowerCase() === 'sprint' || f.name.toLowerCase() === 'sprints');
+  }
+
+  /** A sprint's name: one quoted or braced token, or the words up to the next clause. */
+  private readSprintName(): string | null {
+    const t = this.peek();
+    if (!t) return null;
+    if (t.kind === 'quoted' || t.kind === 'braced') {
+      this.pos++;
+      return t.value;
+    }
+    const first = this.pos;
+    while (this.peek() && this.peek()!.kind !== 'comma' && this.peek()!.kind !== 'hash' && (this.pos === first || !this.atClauseStart())) this.pos++;
+    if (this.pos === first) return null;
+    return this.input.slice(this.tokens[first]!.start, this.tokens[this.pos - 1]!.end).trim() || null;
   }
 
   parse(): ParsedCommand {
@@ -126,7 +178,7 @@ class CommandParser {
       mode = w;
       this.pos++;
       if (!this.peek()) {
-        this.problem(`Expected something to ${w}`, t);
+        this.problem({ key: 'command.somethingTo', values: { word: w } }, `Expected something to ${w}`, t);
         return;
       }
     }
@@ -134,31 +186,53 @@ class CommandParser {
     if (w2 === 'tag' || w2 === 'tags') {
       this.pos++;
       const name = this.readAtom();
-      if (!name) return this.problem('Expected a tag name', this.peek() ?? t);
+      if (!name) return this.problem({ key: 'command.tagName' }, 'Expected a tag name', this.peek() ?? t);
       this.ops.push({ kind: 'tag', mode: mode === 'remove' ? 'remove' : 'add', name });
       return;
     }
     if (w2 === 'untag') {
       this.pos++;
       const name = this.readAtom();
-      if (!name) return this.problem('Expected a tag name after untag', this.peek() ?? t);
+      if (!name) return this.problem({ key: 'command.tagNameAfterUntag' }, 'Expected a tag name after untag', this.peek() ?? t);
       this.ops.push({ kind: 'tag', mode: 'remove', name });
       return;
     }
     if (w2 === 'comment') {
       const start = this.peek()!.end;
-      this.ops.push({ kind: 'comment', text: this.input.slice(start).trim() });
+      this.ops.push({ kind: 'comment', text: this.input.slice(start).trim(), at: this.peek()!.start });
       this.pos = this.tokens.length;
+      return;
+    }
+    if ((w2 === 'sprint' || w2 === 'sprints') && this.sprintClause()) {
+      this.pos++;
+      const name = this.readSprintName();
+      if (!name) return this.problem({ key: 'command.sprintName' }, 'Expected the name of a sprint', this.peek() ?? t, 'e.g. "sprint Sprint 4", or "remove sprint Sprint 4"');
+      this.ops.push({ kind: 'sprint', mode: mode === 'remove' ? 'remove' : 'add', name });
       return;
     }
     if (w2 === 'for') {
       this.pos++;
       const assignee = this.fieldsInScope.find((f) => f.type === 'user' && f.name.toLowerCase() === 'assignee') ?? this.fieldsInScope.find((f) => f.type === 'user');
-      if (!assignee) return this.problem('These issues have no Assignee field', t);
+      if (!assignee) return this.problem({ key: 'command.noAssigneeField' }, 'These issues have no Assignee field', t);
       const user = this.readUser();
-      if (!user) return this.problem('Expected a user after "for"', this.peek() ?? t);
+      if (!user) return this.problem({ key: 'command.userAfterFor' }, 'Expected a user after "for"', this.peek() ?? t);
       this.ops.push({ kind: 'field', field: assignee, mode: 'set', raw: [user], display: `${assignee.name} ${user}` });
       return;
+    }
+    // An action or a transition, by its name, when no field, link or value reads longer: a value
+    // as long as it wins, since setting it goes by the machine's transition anyway.
+    const named = mode === 'set' ? this.matchPhrase(this.namedPhrases)[0] : undefined;
+    if (named) {
+      const longest = Math.max(
+        this.matchPhrase(this.linkPhrases)[0]?.length ?? 0,
+        this.matchPhrase(this.fieldPhrases)[0]?.length ?? 0,
+        this.matchPhrase(this.valuePhrases)[0]?.length ?? 0,
+      );
+      if (named.length > longest) {
+        this.pos += named.length;
+        this.ops.push(named.item);
+        return;
+      }
     }
     const link = this.matchPhrase(this.linkPhrases)[0];
     if (link) {
@@ -174,7 +248,7 @@ class CommandParser {
         }
         break;
       }
-      if (!targets.length) return this.problem(`Expected an issue id after "${link.item.display}"`, this.peek() ?? t);
+      if (!targets.length) return this.problem({ key: 'command.issueAfterLink', values: { phrase: link.item.display } }, `Expected an issue id after "${link.item.display}"`, this.peek() ?? t);
       this.ops.push({ kind: 'link', mode: mode === 'remove' ? 'remove' : 'add', phrase: link.item, targets });
       return;
     }
@@ -186,7 +260,7 @@ class CommandParser {
       const raw = this.readFieldValue(field.item);
       if (raw === null) {
         // Say a value is missing only if reading it didn't already say what was wrong with it.
-        if (this.problems.length === reported) this.problem(`Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
+        if (this.problems.length === reported) this.problem({ key: 'command.valueFor', values: { field: field.item.name } }, `Expected a value for ${field.item.name}`, this.peek() ?? fieldTok);
         return;
       }
       const effective = mode === 'set' && field.item.multi ? 'add' : mode;
@@ -199,10 +273,12 @@ class CommandParser {
       const tok = this.peek()!;
       this.pos += values[0]!.length;
       if (fieldsHit.length > 1) {
+        const names = fieldsHit.map((f) => f.field.name);
         this.problem(
-          `"${values[0]!.item.value}" is a value of ${fieldsHit.map((f) => f.field.name).join(' and ')}`,
+          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, first: names[0]!, last: names[names.length - 1]!, fields: names.join(' and ') } },
+          `"${values[0]!.item.value}" is a value of ${names.join(' and ')}`,
           tok,
-          `Say which one, e.g. "${fieldsHit[0]!.field.name} ${values[0]!.item.value}"`,
+          `Say which one, e.g. "${names[0]} ${values[0]!.item.value}"`,
         );
         return;
       }
@@ -214,10 +290,30 @@ class CommandParser {
     // Unknown word
     const tok = this.peek()!;
     this.pos++;
+    if (ISSUE_ID.test(tok.value)) {
+      // The command already applies to the chosen issues; another issue only follows a link phrase.
+      let end = tok.end;
+      while (end < this.input.length && /\s/.test(this.input[end]!)) end++;
+      this.problems.push(
+        keyedProblem(
+          {
+            message: `"${tok.value}" is an issue id, not a command`,
+            start: tok.start,
+            end,
+            hint: `A command applies to the chosen issues, so leave it out. To link to ${tok.value}, say how, e.g. "relates to ${tok.value}".`,
+            fix: '',
+          },
+          'command.issueIdNotCommand',
+          { id: tok.value },
+        ),
+      );
+      return;
+    }
     const vocabulary = [
       ...this.fieldsInScope.map((f) => f.name),
       ...this.valuePhrases.map((v) => v.item.value),
       ...this.s.linkPhrases.map((p) => p.display),
+      ...this.namedPhrases.map((n) => n.item.name),
       'tag',
       'untag',
       'for',
@@ -226,7 +322,13 @@ class CommandParser {
       'comment',
     ];
     const guess = didYouMean(tok.value, vocabulary);
-    this.problem(`Unknown command "${tok.value}"`, tok, guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".', guess);
+    this.problem(
+      { key: 'command.unknown', values: { word: tok.value, ...guessWords(guess) } },
+      `Unknown command "${tok.value}"`,
+      tok,
+      guess ? `Did you mean "${guess}"?` : 'Use a field name and value, e.g. "State Fixed", or "tag urgent".',
+      guess,
+    );
   }
 
   /** quoted / braced / single word */
@@ -327,7 +429,9 @@ class CommandParser {
     switch (field.type) {
       case 'enum':
       case 'state':
-      case 'version': {
+      case 'version':
+      case 'build':
+      case 'owned': {
         const candidates = this.valuePhrases.filter((v) => v.item.field.id === field.id);
         const hit = this.matchPhrase(candidates)[0];
         if (hit) {
@@ -340,10 +444,12 @@ class CommandParser {
         const typed = this.input.slice(t.start, last.end);
         const guess = near?.value ?? didYouMean(t.value, candidates.map((c) => c.item.value));
         const span = { ...t, end: last.end };
+        const known = candidates.map((c) => c.item.value);
         this.problem(
+          { key: 'command.unknownValue', values: { value: typed, field: field.name, ...guessWords(guess), n: known.length, allowed: known.join(', ') } },
           `Unknown value "${typed}" for ${field.name}`,
           span,
-          guess ? `Did you mean "${guess}"?` : `Values: ${candidates.map((c) => c.item.value).join(', ')}`,
+          guess ? `Did you mean "${guess}"?` : known.length ? `Values: ${known.join(', ')}` : 'There are no values yet.',
           guess ? fixValue(this.input, t.start, last.end, guess) : null,
         );
         this.pos += near?.words ?? 1;
@@ -362,11 +468,51 @@ class CommandParser {
             this.pos++;
             return t.value;
           }
-          this.problem(`"${t.value}" is not a duration for ${field.name}`, t, 'Use e.g. 2d, 4h or 1w 2d');
+          this.problem({ key: 'command.notADuration', values: { value: t.value, field: field.name } }, `"${t.value}" is not a duration for ${field.name}`, t, 'Use e.g. 2d, 4h or 1w 2d');
           this.pos++;
           return null;
         }
         return parts.join(' ');
+      }
+      case 'group': {
+        // A group's name may run over several words ("Backend team"): the longest that names one.
+        let best = 0;
+        let typed = '';
+        for (let k = 1; k <= 4; k++) {
+          const words = this.tokens.slice(this.pos, this.pos + k);
+          if (words.length < k || words.some((w) => w.kind !== 'word')) break;
+          typed = words.map((w) => w.value).join(' ');
+          if (this.s.groupsByName.has(typed.toLowerCase())) best = k;
+        }
+        const k = Math.max(best, 1);
+        const value = this.tokens
+          .slice(this.pos, this.pos + k)
+          .map((w) => w.value)
+          .join(' ');
+        this.pos += k;
+        return value;
+      }
+      case 'datetime': {
+        // "2026-11-20T15:00", "+2h", "now": the words that touch; then a time after a day ("tomorrow 09:30").
+        const glued = (): string => {
+          let out = this.tokens[this.pos]!.value;
+          let end = this.tokens[this.pos]!.end;
+          this.pos++;
+          while (this.peek() && this.peek()!.start === end && (this.peek()!.kind === 'word' || this.peek()!.kind === 'colon')) {
+            out += this.peek()!.value;
+            end = this.peek()!.end;
+            this.pos++;
+          }
+          return out;
+        };
+        const first = glued();
+        const next = this.peek();
+        const after = this.tokens[this.pos + 1];
+        const isDay = /^(\d{4}-\d{2}-\d{2}|today|tomorrow|yesterday)$/i.test(first);
+        if (isDay && next?.kind === 'word' && /^\d{1,2}$/.test(next.value) && after?.kind === 'colon' && after.start === next.end) {
+          return `${first} ${glued()}`;
+        }
+        return first;
       }
       default: {
         // date, numbers, strings: one word (strings may be multi-word until the next clause)
@@ -409,6 +555,12 @@ export function describeCommand(ops: CommandOp[]): string {
           return `${op.mode === 'add' ? 'link' : 'unlink'}: ${op.phrase.display} ${op.targets.join(', ')}`;
         case 'comment':
           return 'add a comment';
+        case 'action':
+          return `run the action “${op.name}”`;
+        case 'transition':
+          return `${op.name}: set ${op.field} to ${op.to}`;
+        case 'sprint':
+          return `${op.mode === 'add' ? 'add to' : 'remove from'} sprint ${op.name}`;
       }
     })
     .join('; ');
@@ -435,7 +587,8 @@ export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, 
   };
   const people = (): [string, SuggestItem['kind'], string?][] => [
     ['me', 'user'],
-    ...[...s.users.values()].filter((u) => !u.banned).map((u): [string, SuggestItem['kind'], string] => [u.login, 'user', u.name]),
+    // Whoever may take work: people, and agents an administrator added; not a4a's own agents (D34).
+    ...[...s.users.values()].filter((u) => !u.banned && !isOwnAgent(u)).map((u): [string, SuggestItem['kind'], string] => [u.login, 'user', u.isBot ? `${u.login} (agent)` : u.name]),
   ];
 
   /** What fits after the given words (lower case), or null when they say nothing about it. */
@@ -452,9 +605,10 @@ export function suggestCommand(input: string, caret: number, s: SchemaSnapshot, 
   const anything = (): [string, SuggestItem['kind'], string?][] => [
     ...fields.map((f): [string, SuggestItem['kind'], string] => [f.name, 'field', f.type]),
     ...fields
-      .filter((f) => f.type === 'enum' || f.type === 'state' || f.type === 'version')
+      .filter((f) => isOptionType(f.type))
       .flatMap((f) => valuesOf(f.id).map((n): [string, SuggestItem['kind'], string] => [n, 'value', f.name])),
     ...s.linkPhrases.map((p): [string, SuggestItem['kind'], string] => [p.display, 'keyword', 'Link to another issue']),
+    ...namedCommands(s, projectIds).map((n): [string, SuggestItem['kind'], string] => [n.name, 'keyword', n.kind === 'action' ? 'Action' : `${n.field} → ${n.to}`]),
     ...['tag', 'untag', 'for me', 'remove', 'add', 'comment'].map((k): [string, SuggestItem['kind']] => [k, 'keyword']),
   ];
 

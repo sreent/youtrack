@@ -3,10 +3,10 @@ import { Link } from 'react-router';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoards } from '../features/board/api';
-import { plural } from '../features/plan/format';
+import { t, tr } from '../i18n';
 
 function projectsOf(b: Board): string {
-  if (!b.projects.length) return 'No project';
+  if (!b.projects.length) return t('page.boards.noProject');
   return b.projects.map((p) => `${p.name} (${p.key})`).join(', ');
 }
 
@@ -14,19 +14,15 @@ export default function BoardsPage() {
   const boards = useBoards();
   return (
     <>
-      <PageHead title="Boards" about="Each board shows a project's issues as columns of how they stand. A sprint board shows one sprint at a time; a kanban board shows everything that's on it." />
-      {boards.isLoading ? <Loading what="boards" /> : null}
+      <PageHead title={t('page.boards.boards')} about={t('page.boards.eachBoardShowsAProject')} />
+      {boards.isLoading ? <Loading what="loadingLine.boards" /> : null}
       {boards.error ? <ErrorNote error={boards.error} /> : null}
       {boards.data && boards.data.length === 0 ? (
-        <Empty title="No boards yet">
-          A board shows a project's issues as columns of their state. Make one through the API, with <code>POST /api/v1/boards</code>, and it shows here.
-        </Empty>
+        <Empty title={t('page.boards.noBoardsYet')}>{tr('page.boards.aBoardShowsAProject', { code: <code>POST /api/v1/boards</code> })}</Empty>
       ) : null}
       {boards.data && boards.data.length > 0 ? (
         <section className="card" aria-labelledby="boards-title">
-          <h2 id="boards-title" className="hidden">
-            All boards
-          </h2>
+          <h2 id="boards-title" className="hidden">{t('page.boards.allBoards')}</h2>
           <ul className="directory">
             {boards.data.map((b) => (
               <li key={b.id}>
@@ -35,12 +31,9 @@ export default function BoardsPage() {
                   <Link to={`/boards/${b.id}`}>
                     {b.name}
                   </Link>
-                  <span className="chip">{b.sprintsEnabled ? 'Sprints' : 'Kanban'}</span>
+                  <span className="chip">{b.sprintsEnabled ? t('page.boards.sprints') : t('page.boards.kanban')}</span>
                 </div>
-                <p className="note">
-                  {projectsOf(b)} · {plural(b.columns.length, 'column')} by {b.columnField}
-                  {b.swimlaneField ? `, in lanes by ${b.swimlaneField}` : ''}
-                </p>
+                <p className="note">{tr('page.boards.columnsBy', { projectsOf: projectsOf(b), n: b.columns.length, columnField: b.columnField, v: b.swimlaneField ? t('page.boards.inLanesBy', { swimlaneField: b.swimlaneField }) : '' })}</p>
               </li>
             ))}
           </ul>

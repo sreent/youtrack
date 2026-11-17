@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { t } from '../../i18n';
 
 export interface Rung<V extends string> {
   value: V;
@@ -42,7 +43,7 @@ export function LadderChoice<V extends string>({
                 <label className="rung">
                   <span className="lvl">
                     {r.lvl}
-                    {now ? ' · now' : ''}
+                    {now ? t('common.ladder.now') : ''}
                   </span>
                   <span className="rung-name">
                     <input type="radio" name={name} value={r.value} checked={now} onChange={() => onChange?.(r.value)} />

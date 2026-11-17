@@ -1,13 +1,21 @@
+import { isOptionType } from '@a4a/shared';
 import type { Ctx } from '../context';
-import { todayISO } from '../lib/dates';
+import { todayIn } from '../reports/tz';
+import { visibleSchema } from '../services/access';
+import { zoneOf } from '../services/time-zones';
 import { allowedValues, type SchemaSnapshot } from '../services/schema-cache';
 
-/** A compact picture of the tracker for prompts: projects, fields and values, people, tags, link phrases. */
+/**
+ * A compact picture of the tracker for prompts: projects, fields and values, people, tags, link
+ * phrases. Only what the caller can see goes to Claude: a project they can't see isn't named.
+ */
 export async function schemaSummary(ctx: Ctx, opts: { projectId?: string; maxUsers?: number } = {}): Promise<string> {
-  const s = await ctx.app.schema.get();
+  const s = await visibleSchema(ctx);
   const projects = opts.projectId ? [s.projects.get(opts.projectId)!].filter(Boolean) : [...s.projects.values()].filter((p) => !p.archived);
   const lines: string[] = [];
-  lines.push(`Today: ${todayISO()}. You act for ${ctx.actor.user.name} (login "${ctx.actor.user.login}"; "me" in queries).`);
+  // Today where the person is (D31), which is what "today" in their queries means too.
+  const zone = zoneOf(ctx);
+  lines.push(`Today: ${todayIn(zone)} (${zone}). You act for ${ctx.actor.user.name} (login "${ctx.actor.user.login}"; "me" in queries).`);
   lines.push(`Projects: ${projects.map((p) => `${p.key} (${p.name})`).join(', ')}`);
   lines.push('Fields:');
   for (const line of fieldLines(s, projects.map((p) => p.id))) lines.push(`- ${line}`);
@@ -25,13 +33,13 @@ function fieldLines(s: SchemaSnapshot, projectIds: string[]): string[] {
   for (const id of fieldIds) {
     const f = s.fields.get(id);
     if (!f) continue;
-    if (f.type === 'enum' || f.type === 'state' || f.type === 'version') {
+    if (isOptionType(f.type)) {
       const values = new Map<string, boolean>();
       for (const pid of projectIds) for (const v of allowedValues(s, f.id, pid)) values.set(v.name, v.isResolved);
       const list = [...values].map(([n, resolved]) => (resolved ? `${n} (resolved)` : n)).join(', ');
       out.push(`${f.name} (${f.type}${f.multi ? ', several' : ''}): ${list || '(no values)'}`);
     } else {
-      out.push(`${f.name} (${f.type}${f.type === 'period' ? ', e.g. 2d 4h' : f.type === 'date' ? ', YYYY-MM-DD' : ''})`);
+      out.push(`${f.name} (${f.type}${f.type === 'period' ? ', e.g. 2d 4h' : f.type === 'date' ? ', YYYY-MM-DD' : f.type === 'datetime' ? ', YYYY-MM-DD HH:mm' : f.type === 'group' ? ', a group name' : ''})`);
     }
   }
   return out;

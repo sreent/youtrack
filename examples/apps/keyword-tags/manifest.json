@@ -1,0 +1,24 @@
+{
+  "name": "keyword-tags",
+  "title": "Keyword tags",
+  "version": "1.0.0",
+  "vendor": "a4a examples",
+  "description": "Tags a new issue whose summary says a project's keyword.",
+  "icon": "icon.svg",
+  "a4a": ">=1.0.0",
+  "permissions": { "read": ["issues"], "write": ["issues"] },
+  "settings": [
+    { "name": "keyword", "title": "Keyword", "type": "text", "scope": "project", "default": "crash", "description": "A new issue whose summary says it is tagged." },
+    { "name": "tag", "title": "Tag", "type": "text", "scope": "app", "default": "needs-triage", "description": "The tag it gets." }
+  ],
+  "rules": [
+    {
+      "name": "tag-keyword",
+      "title": "Tag issues that say the keyword",
+      "file": "rules/tag-keyword.js",
+      "kind": "change",
+      "on": "created",
+      "uses": { "read": ["issues"], "write": ["issues"] }
+    }
+  ]
+}

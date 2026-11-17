@@ -8,6 +8,7 @@ import { Badge } from '../../components/Badges';
 import { errorText, useStateTones } from './api';
 import { isOption } from './fields';
 import { ErrorLine } from '../../components/States';
+import { t, tr } from '../../i18n';
 
 function RefBadge({ issue, tones }: { issue: IssueRef; tones: Map<string, Tone> }) {
   if (!issue.state) return null;
@@ -23,12 +24,14 @@ function refOf(i: IssueDetail): IssueRef {
 const READABLE_ID = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 
 /** Ocean's IssueLinks: an issue's links grouped by what they say, and a way to add one. */
-export function IssueLinks({ issue }: { issue: IssueDetail }) {
+/** `canEdit` false: someone who may only read its project sees the links, with nothing to change them. */
+export function IssueLinks({ issue, canEdit = true }: { issue: IssueDetail; canEdit?: boolean }) {
   const id = useId();
   const qc = useQueryClient();
   const types = useLinkTypes();
   const tones = useStateTones();
   const [adding, setAdding] = useState(false);
+  // not words: the link type's name, as a4a names it
   const [relation, setRelation] = useState('relates to');
   const [target, setTarget] = useState('');
   const [found, setFound] = useState<{ for: string; issue: IssueRef | null; error?: string } | null>(null);
@@ -61,7 +64,7 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
     const timer = setTimeout(() => {
       get<IssueDetail>(`/issues/${wanted}`)
         .then((i) => live && setFound({ for: wanted, issue: refOf(i) }))
-        .catch(() => live && setFound({ for: wanted, issue: null, error: `There's no issue ${wanted} you can see` }));
+        .catch(() => live && setFound({ for: wanted, issue: null, error: t('issues.issueLinks.thereSNoIssueYou', { wanted: wanted }) }));
     }, 250);
     return () => {
       live = false;
@@ -102,30 +105,25 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
     <section className="card issue-links-box" aria-labelledby={`${id}-title`}>
       <div className="issue-links">
         <div className="issue-links-head">
-          <h2 id={`${id}-title`}>Links</h2>
-          <button type="button" aria-expanded={adding} aria-controls={`${id}-add`} onClick={() => setAdding((a) => !a)}>
-            Add link
-          </button>
+          <h2 id={`${id}-title`}>{t('issues.issueLinks.links')}</h2>
+          {canEdit ? (
+            <button type="button" aria-expanded={adding} aria-controls={`${id}-add`} onClick={() => setAdding((a) => !a)}>{t('issues.issueLinks.addLink')}</button>
+          ) : null}
         </div>
         {adding ? (
           <fieldset className="link-add" id={`${id}-add`}>
-            <legend>A link from {issue.id}</legend>
+            <legend>{tr('issues.issueLinks.aLinkFrom', { id: issue.id })}</legend>
             <div className="link-add-fields">
-              <label htmlFor={`${id}-relation`}>
-                What it says
-                <select id={`${id}-relation`} value={relation} onChange={(e) => setRelation(e.target.value)}>
+              <label htmlFor={`${id}-relation`}>{tr('issues.issueLinks.whatItSays', { el: <select id={`${id}-relation`} value={relation} onChange={(e) => setRelation(e.target.value)}>
                   {phrases.map((p) => (
                     <option key={p}>{p}</option>
                   ))}
-                </select>
-              </label>
-              <label htmlFor={`${id}-to`}>
-                To
-                <input
+                </select> })}</label>
+              <label htmlFor={`${id}-to`}>{tr('issues.issueLinks.to', { el: <input
                   id={`${id}-to`}
                   type="text"
                   value={target}
-                  placeholder="BACK-46"
+                  placeholder={t('issues.issueLinks.back46')}
                   autoFocus
                   aria-describedby={found ? `${id}-found` : undefined}
                   onChange={(e) => setTarget(e.target.value)}
@@ -135,8 +133,7 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                       void link();
                     }
                   }}
-                />
-              </label>
+                /> })}</label>
             </div>
             {found && found.for === wanted ? (
               found.issue ? (
@@ -149,13 +146,11 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                 <ErrorLine id={`${id}-found`}>{found.error}</ErrorLine>
               )
             ) : null}
-            {wanted === issue.id ? <ErrorLine>An issue can’t link to itself.</ErrorLine> : null}
+            {wanted === issue.id ? <ErrorLine>{t('issues.issueLinks.anIssueCanTLink')}</ErrorLine> : null}
             <div className="link-add-actions">
-              <button type="button" onClick={() => setAdding(false)}>
-                Cancel
-              </button>
+              <button type="button" onClick={() => setAdding(false)}>{t('issues.issueLinks.cancel')}</button>
               <button type="button" className="primary" disabled={!ready || busy} onClick={() => void link()}>
-                {busy ? 'Linking…' : 'Link it'}
+                {busy ? t('issues.issueLinks.linking') : t('issues.issueLinks.linkIt')}
               </button>
             </div>
           </fieldset>
@@ -163,7 +158,7 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
         {error ? (
           <ErrorLine>{error}</ErrorLine>
         ) : null}
-        {groups.length === 0 && !adding ? <p className="note">No links yet. A link says how this issue stands to another: what it depends on, what it duplicates, what it’s part of.</p> : null}
+        {groups.length === 0 && !adding ? <p className="note">{t('issues.issueLinks.noLinksYetALink')}</p> : null}
         {groups.map(([phrase, links]) => (
           <div className="link-group" key={phrase}>
             <h3 className="label">
@@ -176,9 +171,9 @@ export function IssueLinks({ issue }: { issue: IssueDetail }) {
                   <Link to={`/issues/${l.issue.id}`}>{l.issue.summary}</Link>
                   <span className="cluster">
                     <RefBadge issue={l.issue} tones={tones} />
-                    <button type="button" className="link" aria-label={`Unlink ${l.issue.id}`} onClick={() => void unlink(l)}>
-                      Unlink
-                    </button>
+                    {canEdit ? (
+                      <button type="button" className="link" aria-label={t('issues.issueLinks.unlink', { id: l.issue.id })} onClick={() => void unlink(l)}>{t('issues.issueLinks.unlink2')}</button>
+                    ) : null}
                   </span>
                 </li>
               ))}

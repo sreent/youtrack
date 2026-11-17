@@ -1,7 +1,8 @@
-import type { FieldType } from '@a4a/shared';
+import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
-import { fields, fieldValues, linkTypes, projectFields, projects, tags, users } from '../db/schema';
+import { warmSandbox } from '../workflow/sandbox';
+import { appProjects, apps, fields, fieldValues, groups, linkTypes, projectFields, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -10,6 +11,10 @@ export type ProjectFieldRow = typeof projectFields.$inferSelect;
 export type TagRow = typeof tags.$inferSelect;
 export type LinkTypeRow = typeof linkTypes.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
+export type RuleRow = typeof rules.$inferSelect;
+export type GroupRow = typeof groups.$inferSelect;
+export type MachineRow = typeof stateMachines.$inferSelect;
+export type ActionRow = typeof workflowActions.$inferSelect;
 
 export interface LinkPhrase {
   phrase: string; // lower-case
@@ -33,15 +38,53 @@ export interface SchemaSnapshot {
   linkPhrases: LinkPhrase[];
   users: Map<string, UserRow>;
   usersByLogin: Map<string, UserRow>;
+  /** Workflow rules, oldest first, so the write path finds a project's guards without a query. */
+  rules: RuleRow[];
+  /** Groups, for a group field's values (D41). */
+  groups: Map<string, GroupRow>;
+  groupsByName: Map<string, GroupRow>;
+  /** State machines (D40): the write path checks a move of a state field without a query. */
+  machines: MachineRow[];
+  /** Custom actions (D40), by position: the command language reads their names. */
+  actions: ActionRow[];
+  /** Installed apps (D48), by id, and where each runs: a rule an app installed acts only there. */
+  apps: Map<string, AppRow>;
   loadedAt: number;
+}
+
+/** An installed app as the snapshot keeps it: enough to say where it runs, and as whom. */
+export interface AppRow {
+  id: string;
+  name: string;
+  title: string;
+  version: string;
+  agentId: string;
+  enabled: boolean;
+  allProjects: boolean;
+  granted: { read: string[]; write: string[] };
+  /** Projects an administrator chose it for. */
+  chosen: Set<string>;
+  /** Projects whose managers turned it off. */
+  off: Set<string>;
+}
+
+/** Whether an app runs and shows in a project: on, chosen there (or for every project), and not turned off there. */
+export function appEnabledIn(app: AppRow, projectId: string): boolean {
+  return app.enabled && (app.allProjects || app.chosen.has(projectId)) && !app.off.has(projectId);
+}
+
+/** The projects an app runs in. */
+export function appProjectIds(s: SchemaSnapshot, app: AppRow): string[] {
+  return [...s.projects.keys()].filter((id) => appEnabledIn(app, id));
 }
 
 const TTL_MS = 60_000;
 
 /**
  * Small, frequently read reference data (fields, values, projects, tags, link
- * types, users). Reloaded after local writes and at most once a minute
- * otherwise, so several server instances sharing Postgres converge quickly.
+ * types, users, workflow rules). Reloaded after a write on any instance: locally at once, on the
+ * others when the write's NOTIFY arrives. A reload at most a minute old is the
+ * safety net for a notification that was lost.
  */
 export class SchemaCache {
   private snapshot: SchemaSnapshot | null = null;
@@ -52,10 +95,28 @@ export class SchemaCache {
    * hidden for a whole TTL.
    */
   private generation = 0;
+  /** Tells the other instances (set by the runtime; see Signals.announceSchemaChange). */
+  broadcast: ((tx?: Db) => Promise<void>) | null = null;
 
   constructor(private db: Db) {}
 
+  /** After a committed write: reload here, and tell the other instances. */
   invalidate(): void {
+    this.drop();
+    this.broadcast?.().catch((e) => console.warn(`schema cache: NOTIFY failed (${e instanceof Error ? e.message : e}); other instances reload within a minute`));
+  }
+
+  /**
+   * Inside a transaction: reload here now, and on every instance (this one too)
+   * once `tx` commits; nothing is sent if it rolls back.
+   */
+  async invalidateOnCommit(tx: Db): Promise<void> {
+    this.drop();
+    await this.broadcast?.(tx);
+  }
+
+  /** A change another instance made: reload here only. */
+  drop(): void {
     this.generation++;
     this.snapshot = null;
     this.loading = null;
@@ -103,6 +164,14 @@ export class SchemaCache {
     const tagRows = await db.select().from(tags).orderBy(asc(tags.name));
     const linkRows = await db.select().from(linkTypes).orderBy(asc(linkTypes.ordinal));
     const userRows = await db.select().from(users).orderBy(asc(users.login));
+    const ruleRows = await db.select().from(rules).orderBy(asc(rules.createdAt), asc(rules.id));
+    const groupRows = await db.select().from(groups).orderBy(asc(groups.name));
+    const machineRows = await db.select().from(stateMachines).orderBy(asc(stateMachines.createdAt), asc(stateMachines.id));
+    const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
+    const appRows = await db.select().from(apps).orderBy(asc(apps.name));
+    const appProjectRows = await db.select().from(appProjects);
+    // Scripts run in the sandbox's worker threads (D40): start them now, so no run waits for one to load.
+    if (ruleRows.some((r) => r.script) || actionRows.some((a) => a.script)) warmSandbox();
     const snap: SchemaSnapshot = {
       fields: new Map(),
       fieldsByName: new Map(),
@@ -117,8 +186,29 @@ export class SchemaCache {
       linkPhrases: [],
       users: new Map(),
       usersByLogin: new Map(),
+      rules: ruleRows,
+      groups: new Map(groupRows.map((g) => [g.id, g])),
+      groupsByName: new Map(groupRows.map((g) => [g.name.toLowerCase(), g])),
+      machines: machineRows,
+      actions: actionRows,
+      apps: new Map(),
       loadedAt: Date.now(),
     };
+    for (const a of appRows) {
+      const granted = (a.granted ?? {}) as { read?: string[]; write?: string[] };
+      snap.apps.set(a.id, {
+        id: a.id,
+        name: a.name,
+        title: a.title,
+        version: a.version,
+        agentId: a.agentId,
+        enabled: a.enabled,
+        allProjects: a.allProjects,
+        granted: { read: granted.read ?? [], write: granted.write ?? [] },
+        chosen: new Set(appProjectRows.filter((r) => r.appId === a.id && r.chosen).map((r) => r.projectId)),
+        off: new Set(appProjectRows.filter((r) => r.appId === a.id && r.off).map((r) => r.projectId)),
+      });
+    }
     for (const f of fieldRows) {
       const row = f as FieldRow;
       snap.fields.set(f.id, row);
@@ -212,6 +302,48 @@ export function findUser(s: SchemaSnapshot, loginOrName: string, meId?: string):
   if (byLogin) return byLogin;
   for (const u of s.users.values()) if (u.name.toLowerCase() === v) return u;
   return undefined;
+}
+
+/** A project's state machines (D40): one per state field at most. */
+export function machinesFor(s: SchemaSnapshot, projectId: string): MachineRow[] {
+  return s.machines.filter((m) => m.projectId === projectId);
+}
+
+/** A state machine's transitions, as they were checked when it was saved. */
+export function transitionsOf(m: MachineRow): StateTransition[] {
+  const list = Array.isArray(m.transitions) ? (m.transitions as unknown[]) : [];
+  return list.flatMap((x): StateTransition[] => {
+    if (!x || typeof x !== 'object') return [];
+    const t = x as Record<string, unknown>;
+    if (typeof t.name !== 'string' || typeof t.to !== 'string' || !Array.isArray(t.from)) return [];
+    return [
+      {
+        name: t.name,
+        from: t.from.filter((f): f is string => typeof f === 'string'),
+        to: t.to,
+        condition: typeof t.condition === 'string' && t.condition.trim() ? t.condition : null,
+        command: typeof t.command === 'string' && t.command.trim() ? t.command : null,
+      },
+    ];
+  });
+}
+
+/** A project's custom actions (D40), in their order. */
+export function actionsFor(s: SchemaSnapshot, projectId: string): ActionRow[] {
+  return s.actions.filter((a) => a.projectId === projectId);
+}
+
+/** The rules that apply in a project: its own and the global ones, oldest first. */
+export function rulesFor(s: SchemaSnapshot, projectId: string): RuleRow[] {
+  return s.rules.filter((r) => {
+    if (r.projectId !== projectId && r.projectId !== null) return false;
+    // An app's rule acts only where its app runs (D48).
+    if (r.appId) {
+      const app = s.apps.get(r.appId);
+      return Boolean(app && appEnabledIn(app, projectId));
+    }
+    return true;
+  });
 }
 
 export function stateField(s: SchemaSnapshot): FieldRow | undefined {

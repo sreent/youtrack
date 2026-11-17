@@ -1,63 +1,91 @@
+/**
+ * A query in words (D49): what the issues list and the query bar say a search finds. A page gets it in
+ * its own language; an agent or a script, in English, as the API's words are. The query language's own
+ * words in it (fields, values, #Unresolved as a tag) stay as written.
+ */
+import type { Translator } from '@a4a/shared/i18n';
+import { intlTag, translatorFor } from '../i18n';
 import type { ParsedQuery, QueryNode, ValueNode } from './parser';
 
-function value(v: ValueNode): string {
+const ENGLISH = translatorFor('en');
+
+/** A list as the reader's language joins one: "a or b", "a, b und c", "a、b、c". */
+function list(tr: Translator, items: string[], type: 'conjunction' | 'disjunction', style: 'long' | 'narrow' = 'long'): string {
+  return new Intl.ListFormat(intlTag(tr.locale), { type, style }).format(items);
+}
+
+/** "me" is whoever reads it: "you", in their language, where a value names people. */
+function value(v: ValueNode, tr: Translator, people = false): string {
   if (v.kind === 'range') {
-    if (v.from && v.to) return `between ${v.from} and ${v.to}`;
-    if (v.from) return `${v.from} or later`;
-    if (v.to) return `up to ${v.to}`;
-    return 'any';
+    if (v.from && v.to) return tr.t('server.query.between', { from: v.from, to: v.to });
+    if (v.from) return tr.t('server.query.orLater', { from: v.from });
+    if (v.to) return tr.t('server.query.upTo', { to: v.to });
+    return tr.t('server.query.any');
   }
-  return v.negated ? `not ${v.raw}` : v.raw;
+  const raw = people && v.raw.toLowerCase() === 'me' ? tr.t('server.query.you') : v.raw;
+  return v.negated ? tr.t('server.query.not', { value: raw }) : raw;
 }
 
-function values(vs: ValueNode[]): string {
-  const pos = vs.filter((v) => !(v.kind === 'single' && v.negated)).map(value);
-  const neg = vs.filter((v) => v.kind === 'single' && v.negated).map(value);
+function values(vs: ValueNode[], tr: Translator, people = false): string {
+  const pos = vs.filter((v) => !(v.kind === 'single' && v.negated)).map((v) => value(v, tr, people));
+  const neg = vs.filter((v) => v.kind === 'single' && v.negated).map((v) => value(v, tr, people));
   const parts: string[] = [];
-  if (pos.length) parts.push(pos.length === 1 ? pos[0]! : `${pos.slice(0, -1).join(', ')} or ${pos[pos.length - 1]}`);
-  if (neg.length) parts.push(neg.join(' and '));
-  return parts.join(' and ');
+  if (pos.length) parts.push(list(tr, pos, 'disjunction'));
+  if (neg.length) parts.push(list(tr, neg, 'conjunction'));
+  return list(tr, parts, 'conjunction');
 }
 
-function node(n: QueryNode): string {
+/** Which SLA target, as a code its message words. */
+const slaTarget = (target: string | null | undefined) => (target === 'first_response' ? 'first_response' : 'resolution');
+
+function node(n: QueryNode, tr: Translator): string {
   switch (n.kind) {
     case 'and':
-      return n.items.map(node).filter(Boolean).join(', ');
+      return list(tr, n.items.map((i) => node(i, tr)).filter(Boolean), 'conjunction', 'narrow');
     case 'or':
-      return `(${n.items.map(node).join(' or ')})`;
+      return tr.t('server.query.group', { inner: list(tr, n.items.map((i) => node(i, tr)), 'disjunction') });
     case 'not':
-      return `not (${node(n.item)})`;
+      return tr.t('server.query.notGroup', { inner: node(n.item, tr) });
     case 'text':
-      return n.exact ? `containing the phrase "${n.text}"` : `matching "${n.text}"`;
+      return tr.t(n.exact ? 'server.query.containingPhrase' : 'server.query.matchingText', { text: n.text });
     case 'hash': {
       const v = n.value.toLowerCase();
-      if (v === 'unresolved') return 'unresolved';
-      if (v === 'resolved') return 'resolved';
-      if (v === 'me' || v === 'my') return 'assigned to you';
+      if (v === 'unresolved') return tr.t('server.query.unresolved');
+      if (v === 'resolved') return tr.t('server.query.resolved');
+      if (v === 'me' || v === 'my') return tr.t('server.query.assignedToYou');
       return `#${n.value}`;
     }
     case 'term': {
       const name = n.def.name;
       const t = n.def.term;
       if (t.kind === 'has') {
-        const set = n.values.filter((v) => !(v.kind === 'single' && v.negated)).map(value);
+        const set = n.values.filter((v) => !(v.kind === 'single' && v.negated)).map((v) => value(v, tr));
         const unset = n.values.filter((v) => v.kind === 'single' && v.negated).map((v) => (v.kind === 'single' ? v.raw : ''));
-        return [set.length ? `with ${set.join(', ')} set` : '', unset.length ? `without ${unset.join(', ')}` : ''].filter(Boolean).join(' and ');
+        const parts = [set.length ? tr.t('server.query.withSet', { fields: list(tr, set, 'conjunction') }) : '', unset.length ? tr.t('server.query.without', { fields: list(tr, unset, 'conjunction') }) : ''];
+        return list(tr, parts.filter(Boolean), 'conjunction');
       }
-      if (t.kind === 'assigneeAlias') return `assigned to ${values(n.values).replace(/\bme\b/g, 'you')}`;
-      if (t.kind === 'project') return `in project ${values(n.values)}`;
-      if (t.kind === 'dateAttr') return `${name} ${values(n.values)}`;
-      if (t.kind === 'linkPhrase') return `that ${name} ${values(n.values)}`;
-      return `${name}: ${values(n.values).replace(/\bme\b/g, 'you')}`;
+      // "Ihnen zugewiesen", not "zugewiesen an Sie": you alone is a phrase of its own.
+      const youAlone = n.values.length === 1 && n.values[0]!.kind === 'single' && !n.values[0]!.negated && n.values[0]!.raw.toLowerCase() === 'me';
+      if (t.kind === 'assigneeAlias') return youAlone ? tr.t('server.query.assignedToYou') : tr.t('server.query.assignedTo', { values: values(n.values, tr, true) });
+      if (t.kind === 'userAttr' && t.column === 'watcher') return youAlone ? tr.t('server.query.watchedByYou') : tr.t('server.query.watchedBy', { values: values(n.values, tr, true) });
+      if (t.kind === 'sla') return t.target ? tr.t('server.query.slaTargetIs', { target: slaTarget(t.target), values: values(n.values, tr) }) : tr.t('server.query.slaIs', { values: values(n.values, tr) });
+      if (t.kind === 'slaDue') return tr.t('server.query.slaTargetDue', { target: slaTarget(t.target), values: values(n.values, tr) });
+      if (t.kind === 'requester') return tr.t('server.query.askedForBy', { values: values(n.values, tr) });
+      if (t.kind === 'project') return tr.t('server.query.inProject', { values: values(n.values, tr) });
+      // A date's and a field's name are the query language's: "created", "Priority".
+      if (t.kind === 'dateAttr') return `${name} ${values(n.values, tr)}`;
+      if (t.kind === 'linkPhrase') return tr.t('server.query.thatLinked', { name, values: values(n.values, tr) });
+      return `${name}: ${values(n.values, tr, true)}`;
     }
   }
 }
 
-export function explainParsed(parsed: ParsedQuery): string {
-  const body = parsed.root ? node(parsed.root) : '';
+/** The query in words, in a reader's language: English unless a page asked for its own. */
+export function explainParsed(parsed: ParsedQuery, tr: Translator = ENGLISH): string {
+  const body = parsed.root ? node(parsed.root, tr) : '';
   const sort = parsed.sort.length
-    ? ` sorted by ${parsed.sort.map((s) => `${s.display}${s.dir === 'desc' ? ' (descending)' : ''}`).join(', ')}`
+    ? tr.t('server.query.sortedBy', { sorts: list(tr, parsed.sort.map((s) => (s.dir === 'desc' ? tr.t('server.query.descending', { field: s.display }) : s.display)), 'conjunction', 'narrow') })
     : '';
-  if (!body) return `All issues${sort || ' (most recently updated first)'}`;
-  return `Issues ${body}${sort}`;
+  if (!body) return sort ? tr.t('server.query.allIssuesSorted', { sort }) : tr.t('server.query.allIssuesRecentFirst');
+  return tr.t('server.query.issues', { body, sort });
 }

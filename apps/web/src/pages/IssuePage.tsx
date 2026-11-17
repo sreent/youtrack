@@ -1,9 +1,10 @@
-import type { IssueDetail, IssueField, Suggestion } from '@a4a/shared';
+import type { IssueDetail, IssueField, Suggestion, User } from '@a4a/shared';
+import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useMemo, useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
 import { ApiError, post } from '../api/client';
-import { keys, useAIStatus, useIssue, useMe, useProjectFields, useSuggestions, useUsers } from '../api/queries';
+import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
 import { StateBadge } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
@@ -17,7 +18,21 @@ import { isOption, isPeriod, isUser } from '../features/issues/fields';
 import { IssueHistory } from '../features/issues/IssueHistory';
 import { IssueLinks } from '../features/issues/IssueLinks';
 import { WorkLog } from '../features/issues/WorkLog';
+import { IssueFiles } from '../features/attachments/IssueFiles';
+import { IssueArticles } from '../features/articles/IssueArticles';
+import { IssueCode } from '../features/vcs/IssueCode';
 import { FormField } from '../components/Form';
+import { RequestCard, SlaBadge } from '../features/helpdesk/RequestCard';
+import { WatchersCard, WatchToggle } from '../features/issues/Watching';
+import { CloneButton, MoveIssue, ReactionBar, VoteToggle } from '../features/issues/Moves';
+import { VisibleToCard } from '../features/issues/VisibleTo';
+import { useRequestInfo } from '../features/notifications/api';
+import { useProjectGroups } from '../features/groups/api';
+import { WorkflowBar } from '../features/workflow/WorkflowBar';
+import { AppWidgets } from '../features/apps/AppWidgets';
+import { attachmentKeys } from '../features/attachments/api';
+import { RichField } from '../features/editor/RichField';
+import { intlLocale, t, tr } from '../i18n';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -32,12 +47,34 @@ function presented(f: IssueField | undefined): string | null {
 
 const open = (s: Suggestion) => s.status === 'pending' || s.status === 'partially_applied';
 
-function Description({ issue }: { issue: IssueDetail }) {
+/**
+ * The issue's description: read, with its checklist ticked in place by who may change the issue
+ * (saved against the version read: a change made meanwhile says so and reloads); or written in
+ * the editor, where a pasted picture becomes one of the issue's files, in the text (D39).
+ */
+function Description({ issue, canEdit, canReact, people }: { issue: IssueDetail; canEdit: boolean; canReact: boolean; people?: User[] }) {
+  const qc = useQueryClient();
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.description);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // A box ticked shows ticked while it's saved.
+  const [ticked, setTicked] = useState<string | null>(null);
+
+  const tick = async (index: number, checked: boolean) => {
+    const next = toggleTask(issue.description, index, checked);
+    if (next === null) return;
+    setError(null);
+    setTicked(next);
+    try {
+      await update({ description: next });
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setTicked(null);
+    }
+  };
 
   if (editing) {
     return (
@@ -57,34 +94,54 @@ function Description({ issue }: { issue: IssueDetail }) {
           }
         }}
       >
-        <FormField label="Description">{(id) => <textarea id={id} value={text} onChange={(e) => setText(e.target.value)} rows={10} autoFocus />}</FormField>
+        <FormField label={t('page.issue.description')}>
+          {(id) => (
+            <RichField
+              id={id}
+              label={t('page.issue.description')}
+              value={text}
+              onChange={setText}
+              rows={10}
+              tall
+              autoFocus
+              people={people}
+              uploadTo={`/issues/${issue.id}/attachments`}
+              onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
+            />
+          )}
+        </FormField>
         {error ? <ErrorLine>{error}</ErrorLine> : null}
         <div className="cluster end">
-          <button type="button" onClick={() => setEditing(false)}>
-            Cancel
-          </button>
+          <button type="button" onClick={() => setEditing(false)}>{t('page.issue.cancel')}</button>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Save'}
+            {busy ? t('page.issue.saving') : t('page.issue.save')}
           </button>
         </div>
       </form>
     );
   }
   return (
-    <section className="card stack" aria-label="Description">
-      {issue.description.trim() ? <Markdown text={issue.description} /> : <p className="note">No description yet.</p>}
-      <div className="cluster">
-        <button
-          type="button"
-          className="link"
-          onClick={() => {
-            setText(issue.description);
-            setEditing(true);
-          }}
-        >
-          Edit the description
-        </button>
-      </div>
+    <section className="card stack" aria-label={t('page.issue.description')}>
+      {issue.description.trim() ? (
+        <Markdown text={ticked ?? issue.description} onToggleTask={canEdit && ticked === null ? (i, on) => void tick(i, on) : undefined} />
+      ) : (
+        <p className="note">{t('page.issue.noDescriptionYet')}</p>
+      )}
+      {error ? <ErrorLine>{error}</ErrorLine> : null}
+      <ReactionBar reactions={issue.reactions} path={`/issues/${issue.id}/reactions`} issue={issue.id} canReact={canReact} />
+      {canEdit ? (
+        <div className="cluster">
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setText(issue.description);
+              setError(null);
+              setEditing(true);
+            }}
+          >{t('page.issue.editTheDescription')}</button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -97,39 +154,39 @@ function Summary({ issue }: { issue: IssueDetail }) {
       const r = await post<{ summary: string }>(`/issues/${issue.id}/summarize`);
       setState({ text: r.summary });
     } catch (e) {
-      setState({ error: errorText(e, 'The assistant couldn’t summarise this issue.') });
+      setState({ error: errorText(e, t('page.issue.theAssistantCouldnTSummarise')) });
     }
   };
   if (state === null)
     return (
-      <button type="button" onClick={() => void ask()}>
-        Summarise
-      </button>
+      <button type="button" onClick={() => void ask()}>{t('page.issue.summarise')}</button>
     );
   return (
-    <section className="card stack" aria-label="Summary by the assistant">
+    <section className="card stack" aria-label={t('page.issue.summaryByTheAssistant')}>
       <div className="cluster">
         <Who kind="agent" name="assistant" small />
-        <span className="note">summarised the issue and its discussion</span>
+        <span className="note">{t('page.issue.summarisedTheIssueAndIts')}</span>
       </div>
-      {state === 'asking' ? <p className="note">Reading the issue…</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
+      {state === 'asking' ? <p className="note">{t('page.issue.readingTheIssue')}</p> : 'text' in state ? <Markdown text={state.text} /> : <ErrorLine>{state.error}</ErrorLine>}
     </section>
   );
 }
 
-function Title({ issue }: { issue: IssueDetail }) {
+/** The summary, changed in place by someone who may change the issue; for anyone else, its words. */
+function Title({ issue, canEdit }: { issue: IssueDetail; canEdit: boolean }) {
   const update = useUpdateIssue(issue);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(issue.summary);
   const [error, setError] = useState<string | null>(null);
+  if (!canEdit) return <>{issue.summary}</>;
   if (!editing)
     return (
       <span
         className="editable"
         role="button"
         tabIndex={0}
-        title="Change the summary"
-        aria-label={`${issue.summary}. Change the summary`}
+        title={t('page.issue.changeTheSummary')}
+        aria-label={t('page.issue.changeTheSummary2', { summary: issue.summary })}
         onClick={() => {
           setText(issue.summary);
           setEditing(true);
@@ -160,13 +217,9 @@ function Title({ issue }: { issue: IssueDetail }) {
         }
       }}
     >
-      <input className="grow" aria-label="Summary" value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
-      <button type="submit" className="primary">
-        Save
-      </button>
-      <button type="button" onClick={() => setEditing(false)}>
-        Cancel
-      </button>
+      <input className="grow" aria-label={t('page.issue.summary')} value={text} onChange={(e) => setText(e.target.value)} autoFocus onKeyDown={(e) => e.key === 'Escape' && setEditing(false)} />
+      <button type="submit" className="primary">{t('page.issue.save')}</button>
+      <button type="button" onClick={() => setEditing(false)}>{t('page.issue.cancel')}</button>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
     </form>
   );
@@ -180,8 +233,28 @@ export default function IssuePage() {
   const ai = useAIStatus();
   const users = useUsers();
   const projectFields = useProjectFields(issue.data?.project.key);
+  const project = useProject(issue.data?.project.key);
+  const membersOnly = project.data?.visibility === 'members';
+  const members = useMembers(membersOnly ? project.data?.key : undefined);
+  const groups = useProjectGroups(membersOnly ? (project.data?.key ?? '') : '', membersOnly);
+  // In a members-only project, only its people, the people in its groups (D27) and administrators can be given its issues.
+  const assignable = useMemo(() => {
+    if (!users.data || (membersOnly && (!members.data || !groups.data))) return undefined;
+    if (!membersOnly) return users.data;
+    const logins = new Set([...(members.data ?? []).map((m) => m.user.login), ...(groups.data ?? []).flatMap((g) => g.people.map((p) => p.login))]);
+    return users.data.filter((u) => u.role === 'admin' || logins.has(u.login));
+  }, [users.data, members.data, groups.data, membersOnly]);
   const suggestions = useSuggestions(id, Boolean(issue.data));
+  const request = useRequestInfo(issue.data);
   const [commanding, setCommanding] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const navigate = useNavigate();
+  // An id it had before it moved finds it; the address then says the id it has now (D41).
+  const asked = id.toUpperCase();
+  const movedFrom = issue.data && issue.data.id !== asked && issue.data.formerIds.includes(asked) ? asked : null;
+  useEffect(() => {
+    if (movedFrom && issue.data) navigate(`/issues/${issue.data.id}${window.location.hash}`, { replace: true, state: { movedFrom } });
+  }, [movedFrom, issue.data, navigate]);
   const [triaging, setTriaging] = useState<string | null>(null);
 
   // Each field's value as triage last worked it out, while it differs from the issue's own.
@@ -212,16 +285,19 @@ export default function IssuePage() {
     return out;
   }, [openSuggestions, issue.data, qc]);
 
-  if (issue.isLoading) return <Loading what={id} />;
+  if (issue.isLoading) return <Loading named={id} />;
   if (issue.error) {
     return (
       <>
-        <PageHead title={id} crumbs={<Link to="/issues">Issues</Link>} />
-        {issue.error instanceof ApiError && issue.error.status === 404 ? <p className="note">There’s no issue {id}, or you can’t see it.</p> : <ErrorNote error={issue.error} />}
+        <PageHead title={id} crumbs={<Link to="/issues">{t('page.issue.issues')}</Link>} />
+        {issue.error instanceof ApiError && issue.error.status === 404 ? <p className="note">{tr('page.issue.thereSNoIssueOr', { id: id })}</p> : <ErrorNote error={issue.error} />}
       </>
     );
   }
   const data = issue.data!;
+  // What the project lets you do; until it's known, the page offers everything and the server decides.
+  const canWrite = project.data?.access.write ?? true;
+  const canComment = project.data?.access.comment ?? true;
 
   const triage = async () => {
     setTriaging('asking');
@@ -239,20 +315,23 @@ export default function IssuePage() {
       <PageHead
         crumbs={
           <>
-            <Link to="/issues">Issues</Link> / <Link to={`/issues?q=${encodeURIComponent(`project: ${data.project.key}`)}`}>{data.project.name}</Link>
+            <Link to="/issues">{t('page.issue.issues')}</Link> / <Link to={`/issues?q=${encodeURIComponent(`project: ${data.project.key}`)}`}>{data.project.name}</Link>
           </>
         }
-        title={<Title issue={data} />}
+        title={<Title issue={data} canEdit={canWrite} />}
         badges={
           <>
             <span className="issue-id">{data.id}</span>
+            {data.formerIds.length ? <span className="note">{tr('page.issue.was', { join: data.formerIds.join(', ') })}</span> : null}
             <StateBadge fields={data.fields} />
+            {request.data ? <SlaBadge sla={request.data.firstResponse} since={request.data.createdAt} /> : null}
           </>
         }
         meta={
           <>
             <span>
-              Reported by {data.reporter?.name ?? 'someone'} <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}</time>
+              {request.data ? t('page.issue.askedByThroughTheHelp', { name: request.data.requester.name }) : t('page.issue.reportedBy', { v: data.reporter?.name ?? t('page.issue.someone') })}{' '}
+              <time dateTime={data.createdAt}>{new Date(data.createdAt).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' })}</time>
             </span>
             {data.tags.length ? (
               <span className="chips">
@@ -267,36 +346,67 @@ export default function IssuePage() {
         }
         actions={
           <>
+            <WatchToggle issue={data.id} />
+            <VoteToggle issue={data} mine={Boolean(me.data && data.reporter?.id === me.data.id)} />
+            {canWrite ? <CloneButton issue={data} /> : null}
+            {canWrite ? (
+              <button type="button" aria-expanded={moving} onClick={() => setMoving(!moving)}>{t('page.issue.move')}</button>
+            ) : null}
             {ai.data?.enabled ? (
-              <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title="Ask triage to work out its fields and look for duplicates">
+              <button type="button" onClick={() => void triage()} disabled={triaging === 'asking'} title={t('page.issue.askTriageToWorkOut')}>
                 <Icon name="agent" />
-                {triaging === 'asking' ? 'Triaging…' : 'Triage'}
+                {triaging === 'asking' ? t('page.issue.triaging') : t('page.issue.triage')}
               </button>
             ) : null}
-            <button type="button" className="primary" onClick={() => setCommanding(true)}>
-              <Icon name="command" />
-              Apply a command
-            </button>
+            {canWrite ? (
+              <button type="button" className="primary" onClick={() => setCommanding(true)}>{tr('page.issue.applyACommand', { el: <Icon name="command" /> })}</button>
+            ) : null}
           </>
         }
       />
       {triaging && triaging !== 'asking' ? <ErrorLine>{triaging}</ErrorLine> : null}
+      {moving ? <MoveIssue issue={data} onClose={() => setMoving(false)} /> : null}
+      <AppWidgets at="issue-below-summary" issue={data.id} />
+      {project.data && !project.data.access.write ? (
+        <p className="note">
+          {project.data.access.comment
+            ? t('page.issue.youCanReadSIssues', { key: project.data.key })
+            : t('page.issue.youCanReadSIssues2', { key: project.data.key })}
+        </p>
+      ) : null}
       <div className="split">
         <div className="stack">
-          <Description issue={data} />
+          <WorkflowBar key={`workflow-${data.id}`} issue={data} canEdit={canWrite} />
+          <Description issue={data} canEdit={canWrite} canReact={canComment} people={membersOnly ? (assignable ?? []) : undefined} />
+          <IssueFiles key={`files-${data.id}`} issue={data} me={me.data} canEdit={canWrite} />
           {ai.data?.enabled ? <Summary issue={data} /> : null}
-          {openSuggestions.map((s) => (
-            <SuggestionCard key={s.id} suggestion={s} compact />
-          ))}
-          <IssueLinks issue={data} />
-          <IssueHistory issue={data} me={me.data} />
-          <WorkLog issue={data} me={me.data} />
+          {/* Deciding on what triage suggests is a change to the issue: its members decide. */}
+          {canWrite ? openSuggestions.map((s) => <SuggestionCard key={s.id} suggestion={s} compact />) : null}
+          <IssueLinks issue={data} canEdit={canWrite} />
+          <IssueArticles issueId={data.id} />
+          <IssueCode issue={data} />
+          <IssueHistory
+            issue={data}
+            me={me.data}
+            canComment={canComment}
+            canReply={canWrite}
+            canUndo={canWrite}
+            canManage={project.data?.access.manage ?? false}
+            people={membersOnly ? (assignable ?? []) : undefined}
+          />
+          <WorkLog issue={data} me={me.data} canEdit={canWrite} />
         </div>
-        {projectFields.data && users.data ? (
-          <FieldPanel issue={data} fields={projectFields.data} users={users.data} proposals={proposals} />
-        ) : (
-          <Loading what="fields" />
-        )}
+        <div className="stack">
+          {projectFields.data && assignable ? (
+            <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} canEdit={canWrite} />
+          ) : (
+            <Loading what="loadingLine.fields" />
+          )}
+          <RequestCard issue={data} />
+          <VisibleToCard issue={data} canEdit={canWrite} />
+          <WatchersCard issue={data.id} />
+          <AppWidgets at="issue-panel" issue={data.id} />
+        </div>
       </div>
       <CommandBar issues={[{ id: data.id, summary: data.summary }]} open={commanding} onClose={() => setCommanding(false)} />
     </>

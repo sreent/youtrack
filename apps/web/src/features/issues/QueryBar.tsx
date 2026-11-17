@@ -4,6 +4,7 @@ import { ApiError, get, post, qs } from '../../api/client';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
+import { t, problemWords } from '../../i18n';
 
 export const checkQuery: Checker = async (text, caret) => {
   const [parsed, next] = await Promise.all([
@@ -15,7 +16,7 @@ export const checkQuery: Checker = async (text, caret) => {
 
 /** "4 issues in project BACK, unresolved", from the count and the query read in words. */
 export function foundLine(total: number, about: string): string {
-  const count = `${total} ${total === 1 ? 'issue' : 'issues'}`;
+  const count = t('issues.queryBar.issues', { n: total });
   if (/^(all )?issues\b/i.test(about)) return count + about.replace(/^(all )?issues/i, '');
   return about ? `${count}: ${about}` : count;
 }
@@ -34,7 +35,7 @@ interface Props {
 }
 
 /** Ocean's QueryBar: the query language with its problems and suggestions, or plain words for an agent to read. */
-export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = 'Search issues', autoFocus }: Props) {
+export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = t('issues.queryBar.searchIssues'), autoFocus }: Props) {
   const [text, setText] = useState(value);
   const [words, setWords] = useState(false);
   const [read, setRead] = useState<NLQueryResult | null>(null);
@@ -94,7 +95,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = '
         setText(res.query);
       }
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message}${e.hint ? `. ${e.hint}` : ''}` : 'The assistant could not read that.');
+      setError(e instanceof ApiError ? (problemWords(e) ?? `${e.message}${e.hint ? `. ${e.hint}` : ''}`) : t('issues.queryBar.theAssistantCouldNotRead'));
     } finally {
       setAsking(false);
     }
@@ -117,8 +118,8 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = '
         onText={setText}
         onCaret={lang.setCaret}
         onEnter={() => void submit()}
-        label={words ? 'Ask in words' : label}
-        placeholder={words ? 'critical bugs nobody has picked up this week' : 'project: BACK #Unresolved for: me'}
+        label={words ? t('issues.queryBar.askInWords') : label}
+        placeholder={words ? t('issues.queryBar.criticalBugsNobodyHasPicked') : t('issues.queryBar.projectBackUnresolvedForMe')}
         problems={lang.problems}
         suggestions={lang.suggestions}
         words={words}
@@ -128,18 +129,16 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = '
           pressed: words,
           onToggle: toggleWords,
           disabled: !aiEnabled,
-          title: aiEnabled ? 'An agent turns your words into a query' : 'AI is off on this server',
+          title: aiEnabled ? t('issues.queryBar.anAgentTurnsYourWords') : t('issues.queryBar.aiIsOffOnThis'),
         }}
       />
       {asking ? (
-        <p className="query-found" role="status">
-          Reading your words…
-        </p>
+        <p className="query-found" role="status">{t('issues.queryBar.readingYourWords')}</p>
       ) : null}
       {read && !asking ? (
         <p className="query-read">
           <Who kind="agent" name="assistant" small />
-          <span>Interpreted as:</span>
+          <span>{t('issues.queryBar.interpretedAs')}</span>
           <code>{read.query}</code>
           <button
             type="button"
@@ -150,9 +149,7 @@ export function QueryBar({ value, onSubmit, found, project, aiEnabled, label = '
               setRead(null);
               requestAnimationFrame(() => input.current?.focus());
             }}
-          >
-            Edit
-          </button>
+          >{t('issues.queryBar.edit')}</button>
         </p>
       ) : null}
       {error ? (

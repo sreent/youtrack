@@ -1,25 +1,41 @@
-import { parsePeriod, type QueryProblem } from '@a4a/shared';
+import { parsePeriod, type QueryProblem, isOptionType } from '@a4a/shared';
 import { sql, type SQL } from 'drizzle-orm';
 import { issues } from '../db/schema';
-import { parseDateExpression, todayISO, type DateRange } from '../lib/dates';
+import { isISODate, parseDateExpression, type DateRange } from '../lib/dates';
+import { serverTimeZone, startOfDay, todayIn } from '../reports/tz';
 import { didYouMean } from '../lib/text';
 import { parseReadableId } from '../services/issue-refs';
 import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
+import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { fixValue } from './lexer';
 import type { ParsedQuery, QueryNode, SortItem, Span, ValueNode } from './parser';
-import { HAS_ATTRIBUTES, type TermDef } from './vocabulary';
+import { HAS_ATTRIBUTES, SLA_TARGET_VALUES, SLA_VALUES, type TermDef } from './vocabulary';
 
 export interface CompileContext {
   s: SchemaSnapshot;
   meId: string;
   today?: string;
+  /** The moment "sla: overdue" is judged at, and "today" when it isn't given (tests). */
+  now?: Date;
+  /**
+   * The time zone dates are read in (D31): what "today" is, and where a day begins and ends for
+   * created, updated and resolved. The asker's own, or the server's when there is none.
+   */
+  timeZone?: string;
+  /**
+   * Over a `comments` row as `c`: whether the asker sees it (D37). Text, "commenter" and "has: comments"
+   * match only comments they see. Left out, every comment counts (rules, which run as nobody in particular).
+   */
+  commentSeen?: SQL;
 }
 
 export interface CompiledQuery {
   where: SQL | null;
   orderBy: SQL[];
   problems: QueryProblem[];
+  /** Whether its dates depend on the time zone it was read in (D31). */
+  readsDates?: boolean;
 }
 
 const TRUE = sql`TRUE`;
@@ -55,25 +71,38 @@ export function prefixTsQuery(text: string): string | null {
   return words.map((w) => `${w}:*`).join(' & ');
 }
 
-function localMidnight(iso: string): Date {
-  return new Date(`${iso}T00:00:00`);
-}
-
 class Compiler {
   problems: QueryProblem[] = [];
+  /** Whether a date in it depends on where the asker is: "today" and its kind, or a moment's day. */
+  readsDates = false;
   private today: string;
+  private zone: string;
 
   constructor(
     private cc: CompileContext,
     private input = '',
   ) {
-    this.today = cc.today ?? todayISO();
+    this.zone = cc.timeZone ?? serverTimeZone();
+    this.today = cc.today ?? todayIn(this.zone, (cc.now ?? new Date()).getTime());
   }
 
-  /** `guess` is a value that would fix it; the problem then carries the text to put in the span's place. */
-  private problem(message: string, span: Span, hint?: string, guess?: string | null) {
+  /** " AND <the asker sees c>", or nothing: see CompileContext.commentSeen. */
+  private seenComments(): SQL {
+    return this.cc.commentSeen ? sql` AND ${this.cc.commentSeen}` : sql``;
+  }
+
+  /** The instant a calendar day begins where the asker is: its local midnight, across clock changes too. */
+  private midnight(iso: string): Date {
+    return new Date(startOfDay(iso, this.zone));
+  }
+
+  /**
+   * `words` say it on a page in another language (D49); the API carries the English. `guess` is a value
+   * that would fix it; the problem then carries the text to put in the span's place.
+   */
+  private problem(words: QueryProblemWords, message: string, span: Span, hint?: string, guess?: string | null) {
     const fix = guess && this.input ? fixValue(this.input, span.start, span.end, guess) : undefined;
-    this.problems.push({ message, start: span.start, end: span.end, hint, ...(fix ? { fix } : {}) });
+    this.problems.push(keyedProblem({ message, start: span.start, end: span.end, hint, ...(fix ? { fix } : {}) }, words.key, words.values));
   }
 
   compile(node: QueryNode): SQL {
@@ -112,13 +141,13 @@ class Compiler {
     if (exact) {
       const like = `%${text.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
       parts.push(
-        sql`(${issues.summary} ILIKE ${like} OR ${issues.description} ILIKE ${like} OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.text ILIKE ${like}))`,
+        sql`(${issues.summary} ILIKE ${like} OR ${issues.description} ILIKE ${like} OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.text ILIKE ${like}))`,
       );
     } else {
       const q = prefixTsQuery(text);
       if (q) {
         parts.push(
-          sql`(${issues.searchVector} @@ to_tsquery('english', ${q}) OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.search_vector @@ to_tsquery('english', ${q})))`,
+          sql`(${issues.searchVector} @@ to_tsquery('english', ${q}) OR EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.search_vector @@ to_tsquery('english', ${q})))`,
         );
       }
     }
@@ -140,7 +169,7 @@ class Compiler {
     // Option values (e.g. #Critical, #Bug, #{In Progress})
     const matches: SQL[] = [];
     for (const f of s.fields.values()) {
-      if (f.type !== 'enum' && f.type !== 'state' && f.type !== 'version') continue;
+      if (!isOptionType(f.type)) continue;
       const ids = (s.valuesByField.get(f.id) ?? []).filter((v) => v.name.toLowerCase() === lower).map((v) => v.id);
       if (ids.length) matches.push(this.optionIn(f.id, ids));
     }
@@ -158,7 +187,13 @@ class Compiler {
       ...[...s.values.values()].map((v) => v.name),
     ];
     const guess = didYouMean(raw, options);
-    this.problem(`Unknown value "#${raw}"`, span, guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.', guess);
+    this.problem(
+      { key: 'query.unknownHashValue', values: { value: raw, ...guessWords(guess) } },
+      `Unknown value "#${raw}"`,
+      span,
+      guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.',
+      guess,
+    );
     return FALSE;
   }
 
@@ -181,7 +216,7 @@ class Compiler {
       case 'assigneeAlias': {
         const f = this.assigneeField();
         if (!f) {
-          this.problem('There is no Assignee field', span);
+          this.problem({ key: 'query.noAssigneeField' }, 'There is no Assignee field', span);
           return FALSE;
         }
         return this.customField(f, values, span);
@@ -215,6 +250,35 @@ class Compiler {
     return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${fieldId} AND ifv.value_id IN (${list(valueIds)}))`;
   }
 
+  /**
+   * Builds in a range (`fixed in build: 120 .. 130`): a build field's values come in the order CI
+   * reported them (D46), so a range is the builds from one to the other, both included. An open end
+   * (`*`) runs to the first or the latest.
+   */
+  private buildRange(field: FieldRow, from: string | null, to: string | null, span: Span): SQL | null {
+    const all = this.cc.s.valuesByField.get(field.id) ?? [];
+    const ordinalOf = (raw: string, pick: 'min' | 'max'): number | null => {
+      const found = all.filter((x) => x.name.toLowerCase() === raw.toLowerCase()).map((x) => x.ordinal);
+      if (found.length) return pick === 'min' ? Math.min(...found) : Math.max(...found);
+      const names = [...new Set(all.map((x) => x.name))];
+      const guess = didYouMean(raw, names);
+      const latest = names.slice(-10).reverse().join(', ');
+      this.problem(
+        { key: 'query.unknownBuild', values: { build: raw, field: field.name, ...guessWords(guess), n: names.length, builds: latest } },
+        `Unknown build "${raw}" for ${field.name}`,
+        span,
+        guess ? `Did you mean "${guess}"?` : names.length ? `Latest builds: ${latest}` : 'There are no builds yet.',
+        guess,
+      );
+      return null;
+    };
+    const lo = from === null ? -Infinity : ordinalOf(from, 'min');
+    const hi = to === null ? Infinity : ordinalOf(to, 'max');
+    if (lo === null || hi === null) return FALSE;
+    const ids = all.filter((x) => x.ordinal >= lo && x.ordinal <= hi).map((x) => x.id);
+    return ids.length ? this.optionIn(field.id, ids) : FALSE;
+  }
+
   private customField(field: FieldRow, values: ValueNode[], span: Span): SQL {
     const s = this.cc.s;
     return this.combine(values, (v) => {
@@ -222,9 +286,12 @@ class Compiler {
       switch (field.type) {
         case 'enum':
         case 'state':
-        case 'version': {
+        case 'version':
+        case 'build':
+        case 'owned': {
+          if (v.kind === 'range' && field.type === 'build') return this.buildRange(field, v.from, v.to, v.span);
           if (v.kind === 'range') {
-            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
             return null;
           }
           const lower = v.raw.toLowerCase();
@@ -232,20 +299,32 @@ class Compiler {
           if (!ids.length) {
             const names = [...new Set((s.valuesByField.get(field.id) ?? []).map((x) => x.name))];
             const guess = didYouMean(v.raw, names);
-            this.problem(`Unknown value "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : `Values: ${names.join(', ')}`, guess);
+            this.problem(
+              { key: 'query.unknownValue', values: { value: v.raw, field: field.name, ...guessWords(guess), n: names.length, allowed: names.join(', ') } },
+              `Unknown value "${v.raw}" for ${field.name}`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : names.length ? `Values: ${names.join(', ')}` : 'There are no values yet.',
+              guess,
+            );
             return FALSE;
           }
           return this.optionIn(field.id, ids);
         }
         case 'user': {
           if (v.kind === 'range') {
-            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
             return null;
           }
           const u = findUser(s, v.raw, this.cc.meId);
           if (!u) {
             const guess = didYouMean(v.raw, [...s.usersByLogin.keys()]);
-            this.problem(`Unknown user "${v.raw}"`, v.span, guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".', guess);
+            this.problem(
+              { key: 'query.unknownUserInField', values: { user: v.raw, ...guessWords(guess) } },
+              `Unknown user "${v.raw}"`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".',
+              guess,
+            );
             return FALSE;
           }
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.user_id = ${u.id})`;
@@ -268,7 +347,11 @@ class Compiler {
           if (v.kind === 'single') {
             const n = parse(v.raw);
             if (n === undefined || n === null) {
-              this.problem(`"${v.raw}" is not a valid ${field.type === 'period' ? 'duration' : 'number'} for ${field.name}`, v.span);
+              this.problem(
+                { key: field.type === 'period' ? 'query.notADurationFor' : 'query.notANumberFor', values: { value: v.raw, field: field.name } },
+                `"${v.raw}" is not a valid ${field.type === 'period' ? 'duration' : 'number'} for ${field.name}`,
+                v.span,
+              );
               return FALSE;
             }
             return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ${col} = ${n})`;
@@ -276,7 +359,7 @@ class Compiler {
           const from = parse(v.from);
           const to = parse(v.to);
           if (from === undefined || to === undefined) {
-            this.problem(`Invalid range for ${field.name}`, v.span);
+            this.problem({ key: 'query.invalidRange', values: { field: field.name } }, `Invalid range for ${field.name}`, v.span);
             return FALSE;
           }
           const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`];
@@ -292,20 +375,55 @@ class Compiler {
           if (range.to) conds.push(sql`ifv.date_value < ${range.to}`);
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
         }
+        case 'datetime': {
+          // A moment, asked about by the day: the asker's days (D41).
+          const range = this.dateRange(v, field.name);
+          if (!range) return FALSE;
+          this.readsDates = true;
+          const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`, sql`ifv.time_value IS NOT NULL`];
+          if (range.from) conds.push(sql`ifv.time_value >= ${this.midnight(range.from)}`);
+          if (range.to) conds.push(sql`ifv.time_value < ${this.midnight(range.to)}`);
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ${sql.join(conds, sql` AND `)})`;
+        }
+        case 'group': {
+          if (v.kind === 'range') {
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
+            return null;
+          }
+          const g = s.groupsByName.get(v.raw.toLowerCase());
+          if (!g) {
+            const names = [...s.groups.values()].map((x) => x.name);
+            const guess = didYouMean(v.raw, names);
+            this.problem(
+              { key: 'query.unknownGroup', values: { group: v.raw, field: field.name, ...guessWords(guess), n: names.length, groups: names.join(', ') } },
+              `Unknown group "${v.raw}" for ${field.name}`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'There are no groups yet.',
+              guess,
+            );
+            return FALSE;
+          }
+          return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.group_id = ${g.id})`;
+        }
       }
     });
   }
 
   private dateRange(v: ValueNode, what: string): DateRange | null {
+    // "today", "{this week}", "-7d" and "overdue" are read where the asker is.
+    const words = v.kind === 'single' ? [v.raw] : [v.from, v.to];
+    if (words.some((w) => w && !isISODate(w.trim()))) this.readsDates = true;
     if (v.kind === 'single') {
       const r = parseDateExpression(v.raw, this.today);
-      if (!r) this.problem(`"${v.raw}" is not a date for ${what}`, v.span, 'Use YYYY-MM-DD, today, {this week}, -7d or a range "a .. b".');
+      if (!r) {
+        this.problem({ key: 'query.notADate', values: { value: v.raw, field: what } }, `"${v.raw}" is not a date for ${what}`, v.span, 'Use YYYY-MM-DD, today, {this week}, -7d or a range "a .. b".');
+      }
       return r;
     }
     const from = v.from ? parseDateExpression(v.from, this.today) : null;
     const to = v.to ? parseDateExpression(v.to, this.today) : null;
     if ((v.from && !from) || (v.to && !to)) {
-      this.problem(`Invalid date range for ${what}`, v.span, 'Use e.g. 2026-01-01 .. 2026-01-31 or -7d .. today');
+      this.problem({ key: 'query.invalidDateRange', values: { field: what } }, `Invalid date range for ${what}`, v.span, 'Use e.g. 2026-01-01 .. 2026-01-31 or -7d .. today');
       return null;
     }
     return { from: from?.from ?? null, to: to?.to ?? null };
@@ -315,20 +433,21 @@ class Compiler {
     const parsed = parseReadableId(raw);
     const p = parsed ? this.cc.s.projectsByKey.get(parsed.key) : undefined;
     if (!parsed || !p) {
-      if (!silent) this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
+      if (!silent) this.problem({ key: 'query.notAnIssueId', values: { value: raw } }, `"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return silent ? null : FALSE;
     }
-    return sql`(${issues.projectId} = ${p.id} AND ${issues.number} = ${parsed.number})`;
+    // An id it had before it moved finds it too (D41).
+    return sql`((${issues.projectId} = ${p.id} AND ${issues.number} = ${parsed.number}) OR ${issues.id} IN (SELECT a.issue_id FROM issue_aliases a WHERE a.project_id = ${p.id} AND a.number = ${parsed.number}))`;
   }
 
   private issueIdSubquery(raw: string, span: Span): SQL | null {
     const parsed = parseReadableId(raw);
     const p = parsed ? this.cc.s.projectsByKey.get(parsed.key) : undefined;
     if (!parsed || !p) {
-      this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
+      this.problem({ key: 'query.notAnIssueId', values: { value: raw } }, `"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return null;
     }
-    return sql`(SELECT x.id FROM issues x WHERE x.project_id = ${p.id} AND x.number = ${parsed.number})`;
+    return sql`(SELECT coalesce((SELECT x.id FROM issues x WHERE x.project_id = ${p.id} AND x.number = ${parsed.number}), (SELECT a.issue_id FROM issue_aliases a WHERE a.project_id = ${p.id} AND a.number = ${parsed.number})))`;
   }
 
   private tagCondition(lowerNames: string[]): SQL {
@@ -346,7 +465,7 @@ class Compiler {
         const p = s.projectsByKey.get(single.toUpperCase()) ?? [...s.projects.values()].find((x) => x.name.toLowerCase() === lower);
         if (!p) {
           const guess = didYouMean(single, [...s.projects.values()].flatMap((x) => [x.key, x.name]));
-          this.problem(`Unknown project "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownProject', values: { project: single, ...guessWords(guess) } }, `Unknown project "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         return sql`${issues.projectId} = ${p.id}`;
@@ -366,27 +485,31 @@ class Compiler {
         const u = findUser(s, single, this.cc.meId);
         if (!u) {
           const guess = didYouMean(single, [...s.usersByLogin.keys()]);
-          this.problem(`Unknown user "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownUser', values: { user: single, ...guessWords(guess) } }, `Unknown user "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         if (t.column === 'reporter') return sql`${issues.reporterId} = ${u.id}`;
         if (t.column === 'updatedBy') return sql`${issues.updatedById} = ${u.id}`;
-        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL AND c.author_id = ${u.id})`;
+        if (t.column === 'watcher') return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id} AND w.user_id = ${u.id})`;
+        if (t.column === 'voter') return sql`EXISTS (SELECT 1 FROM issue_votes iv WHERE iv.issue_id = ${issues.id} AND iv.user_id = ${u.id})`;
+        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()} AND c.author_id = ${u.id})`;
       }
       case 'dateAttr': {
         const range = this.dateRange(v, def.name);
         if (!range) return FALSE;
+        // A moment's day is where the asker is, even for a date written out.
+        this.readsDates = true;
         const col = t.column === 'created' ? issues.createdAt : t.column === 'updated' ? issues.updatedAt : issues.resolvedAt;
         const conds: SQL[] = [sql`${col} IS NOT NULL`];
-        if (range.from) conds.push(sql`${col} >= ${localMidnight(range.from)}`);
-        if (range.to) conds.push(sql`${col} < ${localMidnight(range.to)}`);
+        if (range.from) conds.push(sql`${col} >= ${this.midnight(range.from)}`);
+        if (range.to) conds.push(sql`${col} < ${this.midnight(range.to)}`);
         return andAll(conds);
       }
       case 'tag': {
         if (!single) return this.rangeNotSupported(def, v);
         if (!s.tagsByName.has(single.toLowerCase())) {
           const guess = didYouMean(single, [...s.tags.values()].map((x) => x.name));
-          this.problem(`Unknown tag "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownTag', values: { tag: single, ...guessWords(guess) } }, `Unknown tag "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         return this.tagCondition([single.toLowerCase()]);
@@ -394,6 +517,23 @@ class Compiler {
       case 'has':
         if (!single) return this.rangeNotSupported(def, v);
         return this.hasCondition(single, v.span);
+      case 'sla':
+        if (!single) return this.rangeNotSupported(def, v);
+        return this.slaCondition(single, v.span, t.target ?? null);
+      case 'slaDue': {
+        const range = this.dateRange(v, def.name);
+        if (!range) return FALSE;
+        this.readsDates = true;
+        const conds: SQL[] = [sql`k.met_at IS NULL`, sql`k.due_at IS NOT NULL`];
+        if (range.from) conds.push(sql`k.due_at >= ${this.midnight(range.from)}`);
+        if (range.to) conds.push(sql`k.due_at < ${this.midnight(range.to)}`);
+        return sql`EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id} AND k.target = ${t.target} AND ${andAll(conds)})`;
+      }
+      case 'requester': {
+        if (!single) return this.rangeNotSupported(def, v);
+        const like = `%${single.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r JOIN requesters q ON q.id = r.requester_id WHERE r.issue_id = ${issues.id} AND (lower(q.email) = ${single.toLowerCase()} OR q.name ILIKE ${like}))`;
+      }
       case 'sprint':
         if (!single) return this.rangeNotSupported(def, v);
         return sql`EXISTS (SELECT 1 FROM sprint_issues si JOIN sprints sp ON sp.id = si.sprint_id WHERE si.issue_id = ${issues.id} AND lower(sp.name) = ${single.toLowerCase()})`;
@@ -402,7 +542,7 @@ class Compiler {
         if (v.kind === 'single') {
           const n = parsePeriod(v.raw);
           if (n === null) {
-            this.problem(`"${v.raw}" is not a duration`, v.span);
+            this.problem({ key: 'query.notADuration', values: { value: v.raw } }, `"${v.raw}" is not a duration`, v.span);
             return FALSE;
           }
           return sql`${total} = ${n}`;
@@ -412,6 +552,27 @@ class Compiler {
         const conds: SQL[] = [];
         if (from !== null) conds.push(sql`${total} >= ${from}`);
         if (to !== null) conds.push(sql`${total} <= ${to}`);
+        return andAll(conds);
+      }
+      case 'votes': {
+        const count = (x: string | null): number | null | undefined => (x === null ? null : /^\d+$/.test(x.trim()) ? Number(x.trim()) : undefined);
+        if (v.kind === 'single') {
+          const n = count(v.raw);
+          if (n === undefined || n === null) {
+            this.problem({ key: 'query.notVotes', values: { value: v.raw } }, `"${v.raw}" is not a number of votes`, v.span, 'Use a number, e.g. votes: 3, or a range, e.g. votes: 5 .. *');
+            return FALSE;
+          }
+          return sql`${issues.votes} = ${n}`;
+        }
+        const from = v.from ? count(v.from) : null;
+        const to = v.to ? count(v.to) : null;
+        if (from === undefined || to === undefined) {
+          this.problem({ key: 'query.invalidVotesRange' }, 'Invalid range for votes', v.span, 'Use e.g. votes: 5 .. * or votes: 1 .. 3');
+          return FALSE;
+        }
+        const conds: SQL[] = [];
+        if (from !== null) conds.push(sql`${issues.votes} >= ${from}`);
+        if (to !== null) conds.push(sql`${issues.votes} <= ${to}`);
         return andAll(conds);
       }
       case 'links': {
@@ -439,7 +600,7 @@ class Compiler {
   }
 
   private rangeNotSupported(def: TermDef, v: ValueNode): SQL {
-    this.problem(`Ranges are not supported for ${def.name}`, v.span);
+    this.problem({ key: 'query.noRanges', values: { field: def.name } }, `Ranges are not supported for ${def.name}`, v.span);
     return FALSE;
   }
 
@@ -454,7 +615,7 @@ class Compiler {
         return sql`${issues.description} <> ''`;
       case 'comments':
       case 'comment':
-        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL)`;
+        return sql`EXISTS (SELECT 1 FROM comments c WHERE c.issue_id = ${issues.id} AND c.deleted_at IS NULL${this.seenComments()})`;
       case 'links':
         return sql`EXISTS (SELECT 1 FROM issue_links l WHERE l.source_id = ${issues.id} OR l.target_id = ${issues.id})`;
       case 'tags':
@@ -469,10 +630,80 @@ class Compiler {
       case 'work':
       case 'spent time':
         return sql`EXISTS (SELECT 1 FROM work_items w WHERE w.issue_id = ${issues.id})`;
+      case 'watchers':
+      case 'watcher':
+        return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id})`;
+      case 'request':
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id})`;
+      case 'votes':
+        return sql`${issues.votes} > 0`;
     }
     const guess = didYouMean(raw, [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES]);
-    this.problem(`Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
+    this.problem({ key: 'query.unknownHas', values: { name: raw, ...guessWords(guess) } }, `Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
     return FALSE;
+  }
+
+  /**
+   * A help desk request against its SLA targets (D45, services/sla.ts): each target's clock row
+   * holds when it runs out and turns at risk while it counts, so each value is a comparison with now.
+   * Without a target, the request's status, the worst of its targets, or any target in a state.
+   */
+  private slaCondition(raw: string, span: Span, target: 'first_response' | 'resolution' | null): SQL {
+    const lower = raw.toLowerCase().replace(/\s+/g, ' ');
+    const allowed = target ? SLA_TARGET_VALUES : SLA_VALUES;
+    if (!allowed.includes(lower)) {
+      const guess = didYouMean(raw, allowed);
+      const name = target === 'first_response' ? 'first response' : (target ?? 'sla');
+      this.problem(
+        { key: 'query.unknownValue', values: { value: raw, field: name, ...guessWords(guess), n: allowed.length, allowed: allowed.join(', ') } },
+        `Unknown value "${raw}" for ${name}`,
+        span,
+        guess ? `Did you mean "${guess}"?` : `Values: ${allowed.join(', ')}`,
+        guess,
+      );
+      return FALSE;
+    }
+    const now = this.cc.now ?? new Date();
+    const breached = sql`(k.breached_at IS NOT NULL OR (k.met_at IS NULL AND k.due_at IS NOT NULL AND k.due_at <= ${now}))`;
+    const state = (value: string): SQL => {
+      switch (value) {
+        case 'overdue':
+          return sql`k.met_at IS NULL AND ${breached}`;
+        case 'due':
+          return sql`k.met_at IS NULL AND NOT ${breached}`;
+        case 'met':
+          return sql`k.met_at IS NOT NULL AND k.breached_at IS NULL`;
+        case 'missed':
+          return sql`k.met_at IS NOT NULL AND k.breached_at IS NOT NULL`;
+        case 'breached':
+          return breached;
+        case 'at risk':
+          return sql`k.met_at IS NULL AND k.running_since IS NOT NULL AND NOT ${breached} AND k.warn_at <= ${now}`;
+        case 'paused':
+          return sql`k.met_at IS NULL AND k.running_since IS NULL AND NOT ${breached}`;
+        default: // on track
+          return sql`k.met_at IS NULL AND k.running_since IS NOT NULL AND NOT ${breached} AND (k.warn_at IS NULL OR k.warn_at > ${now})`;
+      }
+    };
+    const any = (value: string, only?: string): SQL =>
+      sql`EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id}${only ? sql` AND k.target = ${only}` : sql``} AND ${state(value)})`;
+    if (target) return any(lower, target);
+    // The status: Breached, then Met (every target met), At risk, On track, Paused, as services/sla.ts statusOf.
+    const isBreached = sql`(${any('breached')})`;
+    switch (lower) {
+      case 'breached':
+        return isBreached;
+      case 'met':
+        return sql`(EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id}) AND NOT EXISTS (SELECT 1 FROM sla_clocks k WHERE k.issue_id = ${issues.id} AND NOT (${state('met')})))`;
+      case 'at risk':
+        return sql`(NOT ${isBreached} AND ${any('at risk')})`;
+      case 'on track':
+        return sql`(NOT ${isBreached} AND NOT ${any('at risk')} AND ${any('on track')})`;
+      case 'paused':
+        return sql`(NOT ${isBreached} AND NOT ${any('at risk')} AND NOT ${any('on track')} AND ${any('paused')})`;
+      default: // overdue, due, missed: any target
+        return any(lower);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -508,6 +739,8 @@ class Compiler {
         return sql`lower(${issues.summary})`;
       case 'spent time':
         return sql`(SELECT coalesce(sum(w.minutes), 0) FROM work_items w WHERE w.issue_id = ${issues.id})`;
+      case 'votes':
+        return sql`${issues.votes}`;
     }
     const field = fieldByName(this.cc.s, name);
     if (!field) return null;
@@ -515,11 +748,17 @@ class Compiler {
       case 'enum':
       case 'state':
       case 'version':
+      case 'build':
+      case 'owned':
         return sql`(SELECT min(fv.ordinal) FROM issue_field_values ifv JOIN field_values fv ON fv.id = ifv.value_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'user':
         return sql`(SELECT min(lower(u.login)) FROM issue_field_values ifv JOIN users u ON u.id = ifv.user_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'date':
         return sql`(SELECT min(ifv.date_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+      case 'datetime':
+        return sql`(SELECT min(ifv.time_value) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
+      case 'group':
+        return sql`(SELECT min(lower(g.name)) FROM issue_field_values ifv JOIN groups g ON g.id = ifv.group_id WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
       case 'string':
       case 'text':
         return sql`(SELECT min(lower(ifv.text_value)) FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id})`;
@@ -535,5 +774,5 @@ export function compileQuery(parsed: ParsedQuery, cc: CompileContext): CompiledQ
   const orderBy = c.orderBy(parsed.sort);
   // Report problems left to right, whichever stage found them.
   const problems = [...parsed.problems, ...c.problems].sort((a, b) => a.start - b.start || a.end - b.end);
-  return { where, orderBy, problems };
+  return { where, orderBy, problems, readsDates: c.readsDates };
 }

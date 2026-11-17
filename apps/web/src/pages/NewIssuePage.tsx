@@ -1,4 +1,5 @@
 import type { IssueDetail, ProjectField, SimilarIssue } from '@a4a/shared';
+import { isOwnAgent } from '@a4a/shared/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -8,9 +9,12 @@ import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Who } from '../components/Who';
 import { useStateTones } from '../features/issues/api';
 import { Badge } from '../components/Badges';
+import { RichField } from '../features/editor/RichField';
 import { FormField } from '../components/Form';
+import { t, tr } from '../i18n';
 
 /** Fields worth setting while reporting; the rest can wait for triage or the team. */
+// not words: a field's name, as a4a names it
 const ASKED = ['Type', 'Priority', 'Assignee', 'Subsystem', 'Due date'];
 
 function newKey(): string {
@@ -59,19 +63,17 @@ function Similar({ summary, description, project, judge }: { summary: string; de
     <section className="card issue-links-box" aria-labelledby="similar-title" aria-live="polite">
       <div className="issue-links stack">
         <div className="issue-links-head">
-          <h2 id="similar-title">{result.judged ? 'What the agent thinks these are' : 'Issues that may be the same'}</h2>
+          <h2 id="similar-title">{result.judged ? t('page.newIssue.whatTheAgentThinksThese') : t('page.newIssue.issuesThatMayBeThe')}</h2>
           {judge && !result.judged ? (
             <button type="button" onClick={() => void askAgent()} disabled={judging}>
-              {judging ? 'Reading them…' : 'Ask an agent which are duplicates'}
+              {judging ? t('page.newIssue.readingThem') : t('page.newIssue.askAnAgentWhichAre')}
             </button>
           ) : null}
         </div>
       {result.judged ? (
-        <p className="note">
-          <Who kind="agent" name="triage" small /> read each against your words.
-        </p>
+        <p className="note">{tr('page.newIssue.readEachAgainstYourWords', { el: <Who kind="agent" name="triage" small /> })}</p>
       ) : (
-        <p className="note">Found by their words. If one of these is what you’re reporting, add to it instead.</p>
+        <p className="note">{t('page.newIssue.foundByTheirWordsIf')}</p>
       )}
       {shown.length ? (
         <ul className="link-list">
@@ -83,14 +85,14 @@ function Similar({ summary, description, project, judge }: { summary: string; de
               </Link>
               <span className="badges">
                 {s.issue.state ? <Badge tone={tones.get(s.issue.state) ?? null}>{s.issue.state}</Badge> : null}
-                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? 'likely the same' : 'related'}</Badge> : null}
+                {s.verdict ? <Badge>{s.verdict === 'duplicate' ? t('page.newIssue.likelyTheSame') : t('page.newIssue.related')}</Badge> : null}
               </span>
               {s.reason ? <p className="note">{s.reason}</p> : null}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="note">None of them is the same as this.</p>
+        <p className="note">{t('page.newIssue.noneOfThemIsThe')}</p>
       )}
       </div>
     </section>
@@ -104,12 +106,13 @@ function FieldInput({ field, value, onChange }: { field: ProjectField; value: st
       <FormField label={field.name}>
         {(id) => (
           <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-            <option value="">Unassigned</option>
+            <option value="">{t('page.newIssue.unassigned')}</option>
+            {/* People, and agents an administrator added; a4a's own agents take no work (D34). */}
             {(users.data ?? [])
-              .filter((u) => !u.banned && !u.isBot)
+              .filter((u) => !u.banned && !isOwnAgent(u))
               .map((u) => (
                 <option key={u.id} value={u.login}>
-                  {u.name}
+                  {u.isBot ? t('page.newIssue.agent', { login: u.login }) : u.name}
                 </option>
               ))}
           </select>
@@ -124,7 +127,7 @@ function FieldInput({ field, value, onChange }: { field: ProjectField; value: st
     <FormField label={field.name}>
       {(id) => (
         <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{field.defaultValue ? 'The project’s default' : 'Not set'}</option>
+          <option value="">{field.defaultValue ? t('page.newIssue.theProjectSDefault') : t('page.newIssue.notSet')}</option>
           {field.values
             .filter((v) => !v.archived)
             .map((v) => (
@@ -138,6 +141,21 @@ function FieldInput({ field, value, onChange }: { field: ProjectField; value: st
   );
 }
 
+/**
+ * What another app shared into a4a (its share target, D47): a page's title, its words, its address.
+ * Android often puts the address in the words; either way it ends up once in the description.
+ */
+export function fromShare(params: URLSearchParams): { summary: string; description: string } {
+  const title = params.get('title')?.trim() ?? '';
+  const text = params.get('text')?.trim() ?? '';
+  const url = params.get('url')?.trim() ?? '';
+  const words = text && text !== title ? text : '';
+  const firstLine = words.split('\n').find((l) => l.trim())?.trim() ?? '';
+  const summary = (title || (firstLine && !/^https?:\/\//.test(firstLine) ? firstLine : '') || url).slice(0, 500);
+  const description = [words === summary ? '' : words, url && !words.includes(url) && url !== summary ? url : ''].filter(Boolean).join('\n\n');
+  return { summary, description };
+}
+
 export default function NewIssuePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -145,8 +163,9 @@ export default function NewIssuePage() {
   const projects = useProjects();
   const ai = useAIStatus();
   const [project, setProject] = useState(params.get('project') ?? '');
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
+  const shared = useMemo(() => fromShare(params), [params]);
+  const [summary, setSummary] = useState(shared.summary);
+  const [description, setDescription] = useState(shared.description);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -175,16 +194,16 @@ export default function NewIssuePage() {
     }
   };
 
-  if (projects.isLoading) return <Loading what="projects" />;
+  if (projects.isLoading) return <Loading what="loadingLine.projects" />;
   if (projects.error) return <ErrorNote error={projects.error} />;
   const triageOn = ai.data?.enabled;
 
   return (
     <>
       <PageHead
-        crumbs={<Link to="/issues">Issues</Link>}
-        title="New issue"
-        about={triageOn ? 'Say what happened. Triage suggests a type, a priority and who could take it; nothing changes until someone accepts it.' : 'Say what happened, and what you expected instead.'}
+        crumbs={<Link to="/issues">{t('page.newIssue.issues')}</Link>}
+        title={t('page.newIssue.newIssue')}
+        about={triageOn ? t('page.newIssue.sayWhatHappenedTriageSuggests') : t('page.newIssue.sayWhatHappenedAndWhat')}
       />
       <div className="split">
         <form
@@ -194,7 +213,7 @@ export default function NewIssuePage() {
             if (summary.trim() && project) void create();
           }}
         >
-          <FormField label="Project">
+          <FormField label={t('page.newIssue.project')}>
             {(id) => (
               <select id={id} value={project} onChange={(e) => setProject(e.target.value)} required>
                 {(projects.data ?? [])
@@ -207,12 +226,12 @@ export default function NewIssuePage() {
               </select>
             )}
           </FormField>
-          <FormField label="Summary">
-            {(id) => <input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={500} autoFocus placeholder="Login fails on Safari with SSO" />}
+          <FormField label={t('page.newIssue.summary')}>
+            {(id) => <input id={id} value={summary} onChange={(e) => setSummary(e.target.value)} required maxLength={500} autoFocus placeholder={t('page.newIssue.loginFailsOnSafariWith')} />}
           </FormField>
-          <FormField label="Description">
+          <FormField label={t('page.newIssue.description')}>
             {(id) => (
-              <textarea id={id} value={description} onChange={(e) => setDescription(e.target.value)} rows={8} placeholder={'Steps, what you expected, what happened instead.\nMarkdown works here.'} />
+              <RichField id={id} label={t('page.newIssue.description')} value={description} onChange={setDescription} rows={8} placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')} />
             )}
           </FormField>
           {asked.length ? (
@@ -224,11 +243,9 @@ export default function NewIssuePage() {
           ) : null}
           {error ? <ErrorNote error={error} /> : null}
           <div className="cluster end">
-            <Link to="/issues" className="button">
-              Cancel
-            </Link>
+            <Link to="/issues" className="button">{t('page.newIssue.cancel')}</Link>
             <button type="submit" className="primary" disabled={!summary.trim() || !project || busy}>
-              {busy ? 'Reporting…' : 'Report it'}
+              {busy ? t('page.newIssue.reporting') : t('page.newIssue.reportIt')}
             </button>
           </div>
         </form>

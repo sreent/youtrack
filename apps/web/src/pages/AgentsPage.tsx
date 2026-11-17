@@ -2,7 +2,7 @@ import type { ApiToken, Scope } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, post } from '../api/client';
-import { keys, useMe, useTokens } from '../api/queries';
+import { keys, useMe, useProjects, useTokens } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText, FormField, Said, Scroll } from '../features/common/bits';
@@ -11,6 +11,10 @@ import { CopyButton } from '../features/common/CopyButton';
 import { dateRead } from '../features/common/format';
 import { Hint } from '../features/common/Hint';
 import { useAITools, type AITool } from '../features/common/queries';
+import { AllowedApps, SignInInstead } from '../features/agents/OAuthApps';
+import { AgentAccounts } from '../features/agents/AgentAccounts';
+import { t, t as tx, tr } from '../i18n';
+import type { ReactNode } from 'react';
 
 type Created = ApiToken & { token: string };
 type Client = 'claude-code' | 'http' | 'desktop';
@@ -18,52 +22,53 @@ type Client = 'claude-code' | 'http' | 'desktop';
 const PLACEHOLDER = 'a4a_your_token';
 
 const SCOPES: { scope: Scope; about: string }[] = [
-  { scope: 'read', about: 'Search and read issues, projects, boards and plans. A read-only token is the safe way to let an agent explore.' },
-  { scope: 'write', about: 'Also create and change issues, comment, link them and log work, as you can.' },
-  { scope: 'admin', about: 'Also change projects, fields, people and settings. Only for tools you trust with the whole instance.' },
+  { scope: 'read', about: tx('page.agents.searchAndReadIssuesProjects') },
+  { scope: 'write', about: tx('page.agents.alsoCreateAndChangeIssues') },
+  { scope: 'admin', about: tx('page.agents.alsoChangeProjectsFieldsPeople') },
 ];
 
 const RESOURCES: { uri: string; about: string }[] = [
-  { uri: 'a4a://guide/query-language', about: 'The search syntax, with examples.' },
-  { uri: 'a4a://guide/commands', about: 'The command syntax.' },
-  { uri: 'a4a://projects/{key}', about: "A project's schema: its fields, their values, and the link types." },
-  { uri: 'a4a://issues/{id}', about: 'An issue, as Markdown. Its list holds the 50 most recently updated.' },
+  { uri: 'a4a://guide/query-language', about: tx('page.agents.theSearchSyntaxWithExamples') },
+  { uri: 'a4a://guide/commands', about: tx('page.agents.theCommandSyntax') },
+  { uri: 'a4a://projects/{key}', about: tx('page.agents.aProjectSSchemaIts') },
+  { uri: 'a4a://issues/{id}', about: tx('page.agents.anIssueAsMarkdownIts') },
 ];
 
 const PROMPTS: { name: string; args: string; about: string }[] = [
   {
     name: 'work_on_issue',
     args: 'issue_id',
-    about: 'Read the issue and its links, take it and move it to In Progress, comment as it goes, link follow-ups, and resolve it with a summary.',
+    about: tx('page.agents.readTheIssueAndIts'),
   },
   {
     name: 'triage_backlog',
     args: 'project',
-    about: 'Review untriaged issues, propose Type, Priority, Assignee and tags, flag duplicates, and apply what you confirm.',
+    about: tx('page.agents.reviewUntriagedIssuesProposeType'),
   },
-  { name: 'report_bug', args: 'description', about: 'Look for duplicates first, then file a well-made bug: steps, expected and actual, environment.' },
-  { name: 'status_report', args: 'project, since?', about: 'Progress, blockers and risks, from the activity and the counts.' },
-  { name: 'release_notes', args: 'project, query?', about: 'Release notes from resolved issues, grouped by type.' },
+  { name: 'report_bug', args: 'description', about: tx('page.agents.lookForDuplicatesFirstThen') },
+  { name: 'status_report', args: 'project, since?', about: tx('page.agents.progressBlockersAndRisksFrom') },
+  { name: 'release_notes', args: 'project, query?', about: tx('page.agents.releaseNotesFromResolvedIssues') },
   {
     name: 'schedule_review',
     args: 'project, baseline?',
-    about: 'The critical path, people booked over their day, slipping tasks and cost against the baseline, with what to do about them.',
+    about: tx('page.agents.theCriticalPathPeopleBooked'),
   },
 ];
 
 function snippet(client: Client, origin: string, token: string): string {
+  // not words: a command to paste
   if (client === 'claude-code') return `claude mcp add --transport http a4a ${origin}/mcp --header "Authorization: Bearer ${token}"`;
-  if (client === 'http') return JSON.stringify({ mcpServers: { a4a: { url: `${origin}/mcp`, headers: { Authorization: `Bearer ${token}` } } } }, null, 2);
+  if (client === 'http') return JSON.stringify({ mcpServers: { a4a: { url: `${origin}/mcp`, headers: { Authorization: t('page.agents.bearer', { token: token }) } } } }, null, 2);
   return JSON.stringify({ mcpServers: { a4a: { command: 'npx', args: ['a4a-mcp'], env: { A4A_URL: origin, A4A_TOKEN: token } } } }, null, 2);
 }
 
 const CLIENTS: { id: Client; label: string; where: string }[] = [
-  { id: 'claude-code', label: 'Claude Code', where: 'Run this in a terminal, in the folder you work in.' },
-  { id: 'http', label: 'Cursor and other HTTP clients', where: 'Put this in your client’s MCP settings, such as .cursor/mcp.json.' },
+  { id: 'claude-code', label: tx('page.agents.claudeCode'), where: t('page.agents.runThisInATerminal') },
+  { id: 'http', label: tx('page.agents.cursorAndOtherHttpClients'), where: t('page.agents.putThisInYourClient') },
   {
     id: 'desktop',
-    label: 'Claude Desktop',
-    where: 'Put this in claude_desktop_config.json, then restart Claude Desktop. It runs the a4a-mcp bridge over stdio, with Node.js.',
+    label: tx('page.agents.claudeDesktop'),
+    where: t('page.agents.putThisInClaudeDesktop'),
   },
 ];
 
@@ -74,7 +79,7 @@ function ToolRow({ tool }: { tool: AITool }) {
         <code>{tool.name}</code>
         <strong>{tool.title}</strong>
         <Badge grammar={tool.kind}>{tool.kind}</Badge>
-        {tool.destructive ? <span className="chip">can overwrite</span> : null}
+        {tool.destructive ? <span className="chip">{tx('page.agents.canOverwrite')}</span> : null}
       </div>
       <p>{tool.description}</p>
     </li>
@@ -87,10 +92,14 @@ export default function AgentsPage() {
   const me = useMe();
   const tokens = useTokens();
   const tools = useAITools();
+  const projects = useProjects();
   const origin = window.location.origin;
   const isAdmin = Boolean(me.data?.auth.scopes.includes('admin'));
   const [name, setName] = useState('claude-code');
   const [scopes, setScopes] = useState<Set<Scope>>(() => new Set<Scope>(['read', 'write']));
+  // Every project you can see, or only these (by key).
+  const [reach, setReach] = useState<'all' | 'some'>('all');
+  const [only, setOnly] = useState<Set<string>>(() => new Set());
   const [expires, setExpires] = useState('90');
   const [created, setCreated] = useState<Created | null>(null);
   const [client, setClient] = useState<Client>('claude-code');
@@ -102,6 +111,7 @@ export default function AgentsPage() {
         name: name.trim(),
         scopes: SCOPES.map((s) => s.scope).filter((s) => scopes.has(s)),
         expiresInDays: expires === 'never' ? null : Number(expires),
+        ...(reach === 'some' ? { projects: [...only] } : {}),
       }),
     onSuccess: (t) => {
       setCreated(t);
@@ -113,7 +123,7 @@ export default function AgentsPage() {
     mutationFn: (t: ApiToken) => del(`/me/tokens/${t.id}`),
     onSuccess: (_, t) => {
       if (created?.id === t.id) setCreated(null);
-      setSaid({ text: `The token ${t.name} is revoked. Anything using it can't reach a4a any more.` });
+      setSaid({ text: tx('page.agents.theTokenIsRevokedAnything', { name: t.name }) });
       void qc.invalidateQueries({ queryKey: keys.tokens });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -129,6 +139,16 @@ export default function AgentsPage() {
       if (s === 'admin' && next.has('admin')) next.add('read');
       return next;
     });
+  const pick = (key: string) =>
+    setOnly((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  // A token limited to projects never administers: administration reaches every project.
+  const limitedAdmin = reach === 'some' && scopes.has('admin');
+  const noProjects = reach === 'some' && !only.size;
 
   const token = created?.token ?? PLACEHOLDER;
   const current = CLIENTS.find((c) => c.id === client)!;
@@ -138,16 +158,17 @@ export default function AgentsPage() {
   return (
     <>
       <PageHead
-        title="Agents and tokens"
-        about="Let an agent such as Claude Code work in a4a over MCP. It acts as you, with no more than its token allows, and every change it makes is kept in the activity under its name."
+        title={tx('page.agents.agentsAndTokens')}
+        about={tx('page.agents.letAnAgentSuchAs')}
       />
       <div className="split">
         <div className="stack">
           <section className="card" aria-labelledby="connect">
-            <h2 id="connect">Connect an agent</h2>
+            <h2 id="connect">{tx('page.agents.connectAnAgent')}</h2>
+            <SignInInstead />
             <ol className="steps">
               <li>
-                <h3>Create a token for it</h3>
+                <h3>{tx('page.agents.createATokenForIt')}</h3>
                 <form
                   className="form"
                   onSubmit={(e) => {
@@ -157,24 +178,24 @@ export default function AgentsPage() {
                 >
                   <div className="tw:grid tw:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] tw:items-start tw:gap-x-4 tw:gap-y-3 tw:max-[640px]:grid-cols-1">
                     <FormField
-                      label="Name"
-                      help={`Name it after the agent, in lower case: the activity shows its changes as “${name.trim() || 'claude-code'} for ${me.data?.name ?? 'you'}”.`}
+                      label={tx('page.agents.name')}
+                      help={me.data?.name ? tx('page.agents.nameItAfterTheAgentFor', { agent: name.trim() || 'claude-code', name: me.data.name }) : tx('page.agents.nameItAfterTheAgentForYou', { agent: name.trim() || 'claude-code' })}
                     >
                       {(id, help) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby={help} />}
                     </FormField>
-                    <FormField label="Expires">
+                    <FormField label={tx('page.agents.expires')}>
                       {(id) => (
                         <select id={id} value={expires} onChange={(e) => setExpires(e.target.value)}>
-                          <option value="30">In 30 days</option>
-                          <option value="90">In 90 days</option>
-                          <option value="365">In a year</option>
-                          <option value="never">Never</option>
+                          <option value="30">{tx('page.agents.in30Days')}</option>
+                          <option value="90">{tx('page.agents.in90Days')}</option>
+                          <option value="365">{tx('page.agents.inAYear')}</option>
+                          <option value="never">{tx('page.agents.never')}</option>
                         </select>
                       )}
                     </FormField>
                   </div>
                   <fieldset className="choice-group column">
-                    <legend>What it may do</legend>
+                    <legend>{tx('page.agents.whatItMayDo')}</legend>
                     {SCOPES.map((s) => {
                       const barred = s.scope === 'admin' && !isAdmin;
                       return (
@@ -182,38 +203,60 @@ export default function AgentsPage() {
                           <input type="checkbox" checked={scopes.has(s.scope)} onChange={() => toggle(s.scope)} disabled={barred} />
                           <span>
                             <span className="mono">{s.scope}</span>
-                            <small className="field-help">{barred ? 'Your role can’t give it: a token never does more than you may.' : s.about}</small>
+                            <small className="field-help">{barred ? tx('page.agents.yourRoleCanTGive') : s.about}</small>
                           </span>
                         </label>
                       );
                     })}
                   </fieldset>
+                  <fieldset className="choice-group column">
+                    <legend>{tx('page.agents.whereItMay')}</legend>
+                    <label className="choice">
+                      <input type="radio" name="token-reach" checked={reach === 'all'} onChange={() => setReach('all')} />
+                      <span>{tr('page.agents.everyProjectYouCanSee', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
+                    </label>
+                    <label className="choice">
+                      <input type="radio" name="token-reach" checked={reach === 'some'} onChange={() => setReach('some')} />
+                      <span>{tr('page.agents.onlySomeProjectsThereIt', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
+                    </label>
+                  </fieldset>
+                  {reach === 'some' ? (
+                    <fieldset className="choice-group columns">
+                      <legend>{tx('page.agents.itsProjects')}</legend>
+                      {(projects.data ?? []).map((p) => (
+                        <label key={p.id} className="choice">
+                          <input type="checkbox" checked={only.has(p.key)} onChange={() => pick(p.key)} />
+                          <span>
+                            <span className="mono">{p.key}</span> {p.name}
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : null}
                   <div className="cluster">
-                    <button type="submit" className="primary" disabled={create.isPending || !scopes.size || !name.trim()}>
-                      {create.isPending ? 'Creating…' : 'Create the token'}
+                    <button type="submit" className="primary" disabled={create.isPending || !scopes.size || !name.trim() || limitedAdmin || noProjects}>
+                      {create.isPending ? tx('page.agents.creating') : tx('page.agents.createTheToken')}
                     </button>
-                    {!scopes.size ? <span className="note">Choose at least one thing it may do.</span> : null}
+                    {!scopes.size ? <span className="note">{tx('page.agents.chooseAtLeastOneThing')}</span> : null}
+                    {noProjects ? <span className="note">{tx('page.agents.chooseAtLeastOneProject')}</span> : null}
+                    {limitedAdmin ? <span className="note">{tx('page.agents.aTokenLimitedToProjects')}</span> : null}
                   </div>
                   {create.error ? <ErrorNote error={create.error} /> : null}
                 </form>
                 {created ? (
                   <div className="secret" role="status">
-                    <p>
-                      <strong>Copy it now.</strong> This is the only time a4a shows the token {created.name}: it keeps only a fingerprint of it.
-                    </p>
+                    <p>{tr('page.agents.copyItNowThisIs', { t0: (c: ReactNode) => <strong>{c}</strong>, name: created.name })}</p>
                     <code>{created.token}</code>
                     <div className="cluster">
-                      <CopyButton text={created.token} label="Copy the token" what="the token" />
-                      <button type="button" className="link" onClick={() => setCreated(null)}>
-                        I've kept it
-                      </button>
+                      <CopyButton text={created.token} label={tx('page.agents.copyTheToken')} what={t('page.agents.theToken')} />
+                      <button type="button" className="link" onClick={() => setCreated(null)}>{tx('page.agents.iVeKeptIt')}</button>
                     </div>
                   </div>
                 ) : null}
               </li>
               <li>
-                <h3>Add a4a to the agent</h3>
-                <div className="modes" role="group" aria-label="Which agent">
+                <h3>{tx('page.agents.addA4aToTheAgent')}</h3>
+                <div className="modes" role="group" aria-label={tx('page.agents.whichAgent')}>
                   {CLIENTS.map((c) => (
                     <button key={c.id} type="button" aria-pressed={client === c.id} onClick={() => setClient(c.id)}>
                       {c.label}
@@ -222,13 +265,13 @@ export default function AgentsPage() {
                 </div>
                 <p className="note">{current.where}</p>
                 <div className="stack tight">
-                  <pre className="snippet" aria-label={`For ${current.label}`}>
+                  <pre className="snippet" aria-label={tx('page.agents.for', { label: current.label })}>
                     {snippet(client, origin, token)}
                   </pre>
                   <div className="cluster">
-                    <CopyButton text={snippet(client, origin, token)} label="Copy it" what={`the setup for ${current.label}`} />
+                    <CopyButton text={snippet(client, origin, token)} label={tx('page.agents.copyIt')} what={t('page.agents.theSetupFor', { label: current.label })} />
                     <span className="note">
-                      {created ? `It has the token ${created.name} in it.` : `Create a token above and it goes in place of ${PLACEHOLDER}.`}
+                      {created ? tx('page.agents.itHasTheTokenIn', { name: created.name }) : tx('page.agents.createATokenAboveAnd', { PLACEHOLDER: PLACEHOLDER })}
                     </span>
                   </div>
                 </div>
@@ -238,25 +281,26 @@ export default function AgentsPage() {
 
           <section className="card" aria-labelledby="your-tokens">
             <div className="section-head">
-              <h2 id="your-tokens">Your tokens</h2>
-              <span className="note">Each acts as you, never beyond your role.</span>
+              <h2 id="your-tokens">{tx('page.agents.yourTokens')}</h2>
+              <span className="note">{tx('page.agents.eachActsAsYouNever')}</span>
             </div>
             <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-            {tokens.isLoading ? <Loading what="your tokens" /> : null}
+            {tokens.isLoading ? <Loading what="loadingLine.yourTokens" /> : null}
             {tokens.error ? <ErrorNote error={tokens.error} /> : null}
-            {tokens.data && !tokens.data.length ? <p className="note">You have no tokens yet. Create one above for each agent or script.</p> : null}
+            {tokens.data && !tokens.data.length ? <p className="note">{tx('page.agents.youHaveNoTokensYet')}</p> : null}
             {tokens.data?.length ? (
-              <Scroll label="Table of your tokens">
+              <Scroll label={tx('page.agents.tableOfYourTokens')}>
                 <table className="figures middle">
                   <thead>
                     <tr>
-                      <th scope="col">Name</th>
-                      <th scope="col">May</th>
-                      <th scope="col">Last used</th>
-                      <th scope="col">Created</th>
-                      <th scope="col">Expires</th>
+                      <th scope="col">{tx('page.agents.name')}</th>
+                      <th scope="col">{tx('page.agents.may')}</th>
+                      <th scope="col">{tx('page.agents.where')}</th>
+                      <th scope="col">{tx('page.agents.lastUsed')}</th>
+                      <th scope="col">{tx('page.agents.created')}</th>
+                      <th scope="col">{tx('page.agents.expires')}</th>
                       <th scope="col">
-                        <span className="hidden">Revoke</span>
+                        <span className="hidden">{tx('page.agents.revoke')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -276,18 +320,33 @@ export default function AgentsPage() {
                             ))}
                           </span>
                         </td>
-                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">Never</span>}</td>
+                        <td>
+                          {t.projects === null ? (
+                            tx('page.agents.everyProject')
+                          ) : t.projects.length ? (
+                            <span className="chips">
+                              {t.projects.map((k) => (
+                                <span key={k} className="chip mono">
+                                  {k}
+                                </span>
+                              ))}
+                            </span>
+                          ) : (
+                            <span className="muted">{tx('page.agents.noProjectAnyMore')}</span>
+                          )}
+                        </td>
+                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('page.agents.never')}</span>}</td>
                         <td>
                           <time dateTime={t.createdAt}>{ago(t.createdAt)}</time>
                         </td>
-                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">Never</span>}</td>
+                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('page.agents.never')}</span>}</td>
                         <td className="fit">
                           <Confirm
                             small
-                            label="Revoke it"
-                            title={`Revoke the token ${t.name}?`}
-                            about="Anything using it loses access at once, and nobody can bring it back. You can create another."
-                            confirm="Revoke it"
+                            label={tx('page.agents.revokeIt')}
+                            title={tx('page.agents.revokeTheToken', { name: t.name })}
+                            about={tx('page.agents.anythingUsingItLosesAccess')}
+                            confirm={tx('page.agents.revokeIt')}
                             disabled={revoke.isPending}
                             onConfirm={() => revoke.mutate(t)}
                           />
@@ -300,29 +359,29 @@ export default function AgentsPage() {
             ) : null}
           </section>
 
+          <AllowedApps />
+          {isAdmin ? <AgentAccounts /> : null}
+
           <section className="card" aria-labelledby="what-agents-get">
             <div className="section-head">
-              <h2 id="what-agents-get">What agents get</h2>
+              <h2 id="what-agents-get">{tx('page.agents.whatAgentsGet')}</h2>
               <Hint
-                label="What do the colours mean?"
-                hint="Grey means a tool only reads. Coral means it changes a record, so a client can ask you before it runs."
+                label={tx('page.agents.whatDoTheColoursMean')}
+                hint={tx('page.agents.greyMeansAToolOnly')}
               />
             </div>
-            <p className="note section-note">
-              The same tools the assistant uses, task-shaped and named for people: they take ids such as BACK-12 and values by name. None of them deletes, and a
-              command stops at 50 issues and can be previewed first.
-            </p>
-            {tools.isLoading ? <Loading what="the tools" /> : null}
+            <p className="note section-note">{tx('page.agents.theSameToolsTheAssistant')}</p>
+            {tools.isLoading ? <Loading what="loadingLine.tools" /> : null}
             {tools.error ? <ErrorNote error={tools.error} /> : null}
             {tools.data ? (
               <>
-                <h3>What they read ({reads.length})</h3>
+                <h3>{tr('page.agents.whatTheyRead', { length: reads.length })}</h3>
                 <ul className="tool-list">
                   {reads.map((t) => (
                     <ToolRow key={t.name} tool={t} />
                   ))}
                 </ul>
-                <h3>What they change ({changes.length})</h3>
+                <h3>{tr('page.agents.whatTheyChange', { length: changes.length })}</h3>
                 <ul className="tool-list">
                   {changes.map((t) => (
                     <ToolRow key={t.name} tool={t} />
@@ -330,7 +389,7 @@ export default function AgentsPage() {
                 </ul>
               </>
             ) : null}
-            <h3>What they can read as context</h3>
+            <h3>{tx('page.agents.whatTheyCanReadAs')}</h3>
             <ul className="tool-list">
               {RESOURCES.map((r) => (
                 <li key={r.uri}>
@@ -341,8 +400,8 @@ export default function AgentsPage() {
                 </li>
               ))}
             </ul>
-            <h3>Ready-made prompts</h3>
-            <p className="note">In Claude Code they're slash commands, such as /mcp__a4a__work_on_issue BACK-12.</p>
+            <h3>{tx('page.agents.readyMadePrompts')}</h3>
+            <p className="note">{tx('page.agents.inClaudeCodeTheyRe')}</p>
             <ul className="tool-list">
               {PROMPTS.map((p) => (
                 <li key={p.name}>
@@ -357,68 +416,65 @@ export default function AgentsPage() {
           </section>
         </div>
 
-        <aside className="stack" aria-label="An agent's facts">
-          <section className="agent-facts" aria-label="Facts of an agent over MCP">
-            <h3>Agent facts</h3>
+        <aside className="stack" aria-label={tx('page.agents.anAgentSFacts')}>
+          <section className="agent-facts" aria-label={tx('page.agents.factsOfAnAgentOver')}>
+            <h3>{tx('page.agents.agentFacts')}</h3>
             <div className="per">
-              <span>An agent over MCP</span>
-              <span className="mono">/mcp</span>
+              <span>{tx('page.agents.anAgentOverMcp')}</span>
+              <span className="mono">{tx('page.agents.mcp')}</span>
             </div>
             <div className="rule" />
             <dl>
               <div className="pair">
-                <dt>Works for</dt>
-                <dd>you, with its token</dd>
+                <dt>{tx('page.agents.worksFor')}</dt>
+                <dd>{tx('page.agents.youWithItsToken')}</dd>
               </div>
               <div className="pair">
-                <dt>Autonomy</dt>
-                <dd>asks first, if its client does</dd>
+                <dt>{tx('page.agents.autonomy')}</dt>
+                <dd>{tx('page.agents.asksFirstIfItsClient')}</dd>
               </div>
               <div className="pair">
-                <dt>Reads</dt>
-                <dd>issues, boards, plans, activity</dd>
+                <dt>{tx('page.agents.reads')}</dt>
+                <dd>{tx('page.agents.issuesBoardsPlansActivity')}</dd>
               </div>
               <div className="pair">
-                <dt>Changes</dt>
-                <dd>issues, comments, links, work</dd>
+                <dt>{tx('page.agents.changes')}</dt>
+                <dd>{tx('page.agents.issuesCommentsLinksWork')}</dd>
               </div>
               <div className="pair">
-                <dt>Deletes</dt>
-                <dd>nothing</dd>
+                <dt>{tx('page.agents.deletes')}</dt>
+                <dd>{tx('page.agents.nothing')}</dd>
               </div>
               <div className="pair">
-                <dt>Outside content</dt>
-                <dd>none</dd>
+                <dt>{tx('page.agents.outsideContent')}</dt>
+                <dd>{tx('page.agents.none')}</dd>
               </div>
               <div className="pair">
-                <dt>Data</dt>
-                <dd>what you may see</dd>
+                <dt>{tx('page.agents.data')}</dt>
+                <dd>{tx('page.agents.whatYouMaySee')}</dd>
               </div>
             </dl>
             <div className="thin" />
             <div className="per">
-              <span>Limits</span>
-              <span>per call</span>
+              <span>{tx('page.agents.limits')}</span>
+              <span>{tx('page.agents.perCall')}</span>
             </div>
             <dl>
               <div className="pair">
-                <dt>Issues in a command</dt>
-                <dd>50 at most</dd>
+                <dt>{tx('page.agents.issuesInACommand')}</dt>
+                <dd>{tx('page.agents.n50AtMost')}</dd>
               </div>
               <div className="pair">
-                <dt>Tools that read</dt>
+                <dt>{tx('page.agents.toolsThatRead')}</dt>
                 <dd>{tools.data ? reads.length : '…'}</dd>
               </div>
               <div className="pair">
-                <dt>Tools that change</dt>
+                <dt>{tx('page.agents.toolsThatChange')}</dt>
                 <dd>{tools.data ? changes.length : '…'}</dd>
               </div>
             </dl>
             <div className="thin" />
-            <p className="foot">
-              It changes things only with a write token. Every change is kept in the activity as yours, with the token's name; revoke the token and it stops at
-              once.
-            </p>
+            <p className="foot">{tx('page.agents.itChangesThingsOnlyWith')}</p>
           </section>
         </aside>
       </div>
