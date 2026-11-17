@@ -248,6 +248,19 @@ Phrasing:
 - **The chat bot's help** (`server.chat.help`) keeps its commands and their straight quotes in English (`subscribe "My bugs"`), so they copy as typed.
 - **Imports' statuses** agree with *importação* (concluída, pronta, parada), and a rule is *ela* while a script is *ele*: "Ela roda um script".
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard is *quadro branco***, never shortened, since *quadro* alone is the agile board (`app.shell.whiteboards`, `page.whiteboards.*`). It makes the ledger's badges long: "alteração de quadro branco" (`activity.ledgerEntry.changesAWhiteboard`). Its pieces are *nota*, *texto*, *cartão* (as the board's cards), *seção* and *seta*, and an arrow's label is a *rótulo*.
+- **The outline is *Estrutura*** (`page.whiteboard.outline`, `whiteboards.outline.title`), as Google Docs says "estrutura do documento", so the keys' help says "na ordem da estrutura" (`page.whiteboard.keys`). *Sumário* or *Lista* are the alternatives.
+- `page.whiteboard.canvas` is "A tela", a heading only screen readers hear; *tela* is also a screen. *Área de desenho* is the alternative.
+- **A note's tones** agree with *nota* (`whiteboards.tone.*`, `whiteboards.kind.note`): Simples, Ideia, Combinada, Pergunta, Problema, Em espera. *Combinada* is the Brazilian "combinado", but could read as "combined"; *Acordada* or *Decidida* are the alternatives, and *Estacionada*, from the facilitators' "estacionamento", for parked.
+- **Convert to issues** is "Criar itens" on the buttons (`page.whiteboard.convert`, `whiteboards.convertDialog.title`, `whiteboards.convertDialog.go`) and *virar item* in sentences ("Cada nota vira um item", `whiteboards.convertDialog.about`, `problem.whiteboards.notANote`). *Converter em itens* is the alternative.
+- **Choosing elements is *escolher*** ("2 escolhidos", `page.whiteboard.said.chosen`, `page.whiteboard.keys`), as the issue list says; on a canvas, Brazilian software mostly says *selecionar*.
+- **The toolbar's buttons have no article** ("Adicionar nota", `page.whiteboard.addNote`), and the dialogs they open keep English's ("Adicionar uma nota", `whiteboards.noteDialog.addTitle`), as the catalog's buttons and headings do elsewhere. Do they read well side by side?
+- `activity.ledgerEntry.whiteboardConverted` puts its counts after a colon ("criou a partir do quadro branco X: nenhum item e 2 vínculos"), since "criou nenhum item" isn't Portuguese.
+- **A Slack thread is a *conversa*** (`server.chat.issue.thread`, `page.issue.source.replies`), as Slack's Brazilian Portuguese names threads, as far as the translator recalls. Many teams say "thread", and *conversa* is also what someone has with the assistant.
+- `issues.watching.wroteTheMessage` is "escreveu a mensagem de origem", and the card beside it, `page.issue.source.title`, is "Origem".
+
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone: no second reader has gone over it, and no native speaker has read it. Its 5,467 messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
