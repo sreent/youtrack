@@ -229,6 +229,16 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
 - `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **Connect** on a whiteboard draws an arrow, so it's 「矢印でつなぐ」 (`page.whiteboard.connect`, `whiteboards.connectDialog.*`, `page.whiteboard.said.connected`), with 始点 and 終点 for the arrow's ends; 接続 stays for networks and accounts. Is つなぐ natural on a toolbar, or would 線でつなぐ or コネクター read better?
+- **A whiteboard's name is quoted**, 「ホワイトボード「{name}」を作成しました」 (`activity.ledgerEntry.whiteboardCreated` and its siblings, `issues.issueHistory.madeFromWhiteboard`, `page.whiteboard.deleteTitle`), though English has no quotes and the catalog writes ダッシュボード{name} and ロール{name} without them. Should every name people give be quoted the same way?
+- `writing.help` is 文章作成サポート, where 執筆サポート read as writing a manuscript. Does it fit a comment's field?
+- **Asana's and ClickUp's menus** are named in English (`imports.fromApi.inAsanaMySettingsApps`, `inClickupSettingsApps`, `problem.imports.source.tokenRefused`): My settings, Apps, Manage developer apps. Asana has a Japanese interface: should they say マイ設定、アプリ… as Redmine's and Zendesk's say their Japanese labels?
+- **The chat bot names itself a4a**, never 私 (`server.chat.issue.notInChannel`, `onlyChannels`), and keeps a space after 「/invite @a4a」 so the command copies cleanly, while `server.chat.linkedSlack` writes 「/a4a helpと送ると」 without one.
+- `whiteboards.convertDialog.relation` is 「{from}から見た{to}との関係」, so the link phrase chosen under it (depends on) reads in its direction. Too heavy for a label?
+- `whiteboards.tone.plain` is 標準 beside アイデア, 合意済み, 質問, 問題 and 保留: is 通常 better? A note's kind puts its tone in brackets, 「付箋（問題）」, since 「問題の付箋」 reads as "the note in question".
+
 ## Brazilian Portuguese
 
 `pt.json` was written in one pass, all 5,467 messages, by a model working from English, the code and the section in [translating.md](translating.md), with German's, French's and Japanese's catalogs beside it. Nobody has read it a second time, and no native speaker has read it at all.
