@@ -272,7 +272,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Vous**, always: "Enregistrez d'abord", "Votre profil". Never "tu".
 - **Buttons are infinitives**: "Enregistrer", "Annuler", "Supprimer le champ". A status line is a past participle or a short sentence: "Enregistré.", "Enregistrement…".
 - **Gender**: a4a never guesses a person's, and nothing agrees with the reader or the actor: "{who} vous mentionne" (not "vous a mentionné·e"), "Commenté par {them}", "vos abonnements" (not "vous êtes abonné"), "en accès invité" (not "en tant qu'invité"). A person is "la personne", "qui…", "toute personne qui…"; no "·e" endings, which screen readers read badly. The built-in roles are words for anyone: **Admin**, **Gestionnaire**, **Membre**, **Lecture seule**, **Accès invité**; in a sentence a role follows "le rôle", bare ("{name} a maintenant le rôle membre").
-- **Counts**: French's "one" takes in 0 ("0 ticket"), so a message that says "un" or "une" for one takes `=1` beside it: "{n, plural, =1 {Vers le ticket} other {Vers # tickets}}".
+- **Counts**: French's "one" takes in 0 ("0 ticket"), so a message that says "un" or "une" for one takes `=1` beside it: "{n, plural, =1 {Pour le ticket} other {Pour # tickets}}". A participle that agrees with a number the message doesn't count is left out or turned: "bannis : {banned}", "Enregistré : {formatPeriod} sur {issue}".
+- **English the page passes in**: some values are English words or codes ("an" for an app with no name, "merged", "field"/"column", "points"/"hours"/"issues", "link"/"change"). The French selects on them, as Spanish does: `{v, select, merged {fusionnée} closed {fermée} other {rouverte}}`. A rule's people (`rules.words.whoAssignee`, `whoReporter`, `whoWatchers`) are such keys too, "responsable", "signalement", "suivi", which `rules.words.its` and its neighbours select on to say "son responsable", "les personnes qui suivent ses sous-tâches".
 - **Typography, as France sets it**: a no-break space (U+00A0) before ":", a narrow one (U+202F) before ";", "?" and "!" and inside « », and ’ for the apostrophe. The catalog holds those characters, so edit it with them. A plain ' before "{" would quote the brace in ICU; ’ never does.
 - **Accents on capitals**: État, À, Échec.
 - **What a page loads**: the words after "Chargement" carry their "de" ("des agents", "de vos abonnements"), so "Chargement{v}…" reads "Chargement des agents…".
@@ -310,6 +311,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | days away, away | absences, indisponible |
 | levelling | nivellement |
 | slack (in a plan) | marge |
+| booked (hours in a plan) | planifié: "heures planifiées", never "réservé" |
 | critical path | chemin critique |
 | baseline | référence |
 | earned value | valeur acquise |
@@ -329,9 +331,12 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | commit, pull request, branch | commit, pull request, branche |
 | field, value | champ, valeur |
 | link (between issues) | lien |
+| unlink | supprimer le lien (issues); dissocier (a chat account) |
+| duplicate | doublon |
 | resolve, resolved | résoudre, résolu |
 | dashboard, widget | tableau de bord, widget |
 | report | rapport |
+| settings | paramètres |
 | app | application |
 | handler (of an app) | gestionnaire |
 
