@@ -160,7 +160,7 @@ export async function disconnectSlack(ctx: Ctx): Promise<void> {
 export async function slackPost(app: AppServices, ws: WorkspaceRow, channel: string, issue: CardIssue, event: TrackerEvent): Promise<string | null> {
   const tr = channelTr(app);
   const change = cardChange(event, tr);
-  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, change), blocks: slackBlocks(issue, tr, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
+  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, tr, change), blocks: slackBlocks(issue, tr, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
   return typeof res.ts === 'string' ? res.ts : null;
 }
 
@@ -590,7 +590,7 @@ async function slackIssueMade(app: AppServices, ws: WorkspaceRow, ctx: Ctx, slac
     app,
     tokenOf(app, ws),
     'chat.postMessage',
-    { channel, thread_ts: thread, text: fallbackText(issue, change), blocks: slackBlocks(issue, words, { change }), unfurl_links: false, unfurl_media: false },
+    { channel, thread_ts: thread, text: fallbackText(issue, words, change), blocks: slackBlocks(issue, words, { change }), unfurl_links: false, unfurl_media: false },
     { json: true },
   );
 }

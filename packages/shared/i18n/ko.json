@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "바꿀 것이 없습니다: 이미 그렇습니다.",
   "server.chat.openInA4a": "a4a에서 열기",
   "server.chat.otherWorkspace": "이 a4a는 다른 Slack 워크스페이스에 연결되어 있습니다.",
+  "server.chat.preview": "{who} {did}: {issue}",
   "server.chat.refresh": "새로고침",
   "server.chat.reported": "{id}을(를) 보고했습니다.",
   "server.chat.sayWhich": "프로젝트나 저장된 검색을 말하세요: subscribe BACK 또는 subscribe \"My bugs\".",

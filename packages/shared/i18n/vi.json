@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "Không có gì để thay đổi: vấn đề đã như vậy.",
   "server.chat.openInA4a": "Mở trong a4a",
   "server.chat.otherWorkspace": "a4a này đã kết nối với một không gian làm việc Slack khác.",
+  "server.chat.preview": "{who} {did}: {issue}",
   "server.chat.refresh": "Làm mới",
   "server.chat.reported": "Đã báo cáo {id}.",
   "server.chat.sayWhich": "Hãy cho biết dự án hoặc tìm kiếm đã lưu nào: subscribe BACK, hoặc subscribe \"Lỗi của tôi\".",

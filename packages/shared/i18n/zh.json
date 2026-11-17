@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "无需更改：已经是这样。",
   "server.chat.openInA4a": "在 a4a 中打开",
   "server.chat.otherWorkspace": "此 a4a 已连接到另一个 Slack 工作区。",
+  "server.chat.preview": "{who} {did}：{issue}",
   "server.chat.refresh": "刷新",
   "server.chat.reported": "已报告 {id}。",
   "server.chat.sayWhich": "说明是哪个项目或已保存的搜索：subscribe BACK，或 subscribe \"My bugs\"。",

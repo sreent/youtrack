@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "変更なし：すでにその状態です。",
   "server.chat.openInA4a": "a4aで開く",
   "server.chat.otherWorkspace": "このa4aは別のSlackワークスペースに接続されています。",
+  "server.chat.preview": "{who} {did}：{issue}",
   "server.chat.refresh": "更新",
   "server.chat.reported": "{id}を報告しました。",
   "server.chat.sayWhich": "プロジェクトか保存した検索を指定してください：subscribe BACK、または subscribe \"My bugs\"",

@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "No hay nada que cambiar: ya es así.",
   "server.chat.openInA4a": "Abrir en a4a",
   "server.chat.otherWorkspace": "Este a4a está conectado a otro espacio de trabajo de Slack.",
+  "server.chat.preview": "{who} {did}: {issue}",
   "server.chat.refresh": "Actualizar",
   "server.chat.reported": "Se ha notificado {id}.",
   "server.chat.sayWhich": "Di qué proyecto o qué búsqueda guardada: subscribe BACK, o subscribe \"My bugs\".",

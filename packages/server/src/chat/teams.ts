@@ -18,7 +18,7 @@ import { chatChannels, chatWorkspaces } from '../db/schema';
 import { AppError, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { addComment } from '../services/comments';
-import { bindTemplate, cardAttachment, cardChange, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
+import { bindTemplate, cardAttachment, cardChange, previewOf, teamsChangeCard, teamsIssueCard, type CardIssue } from './cards';
 import { checkIssueForm, creatableProjects, draftFor, isRefusal, makeChatIssue, openIssueForm, threadMayHear, type IssueForm, type MadeIssue, type Refusal } from './issues';
 import { escapeMd, FORM_MAX, teamsHtmlToMarkdown } from './markdown';
 import { TEAMS_ISSUE_COMMAND } from './package';
@@ -262,7 +262,7 @@ function answerActivity(answer: Answer, refreshFor?: string): Record<string, unk
 export function teamsChannelPost(app: AppServices, issue: CardIssue, event: TrackerEvent): Record<string, unknown> {
   const tr = channelTr(app);
   const change = cardChange(event, tr);
-  return { summary: `${change.who} ${change.did}: ${issue.id}`, attachments: [cardAttachment(teamsChangeCard(issue, change, tr))] };
+  return { summary: previewOf(tr, change, issue.id), attachments: [cardAttachment(teamsChangeCard(issue, change, tr))] };
 }
 
 /** Whom a4a doesn't know yet: the language their Teams says, else the server's (D49). */
@@ -664,7 +664,7 @@ async function teamsThreadLink(app: AppServices, ctx: Ctx, draft: { workspaceId:
   const words = channelTr(app);
   const change = { who: ctx.actor.user.name, did: words.t('server.chat.issue.didMake'), details: [], kind: 'created' as const };
   await teamsSend(app, ws.serviceUrl, `${channel.externalId};messageid=${draft.threadRef}`, {
-    summary: `${change.who} ${change.did}: ${issue.id}`,
+    summary: previewOf(words, change, issue.id),
     attachments: [cardAttachment(teamsChangeCard(issue, change, words))],
   });
 }

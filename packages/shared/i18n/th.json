@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "ไม่มีอะไรให้เปลี่ยน: เป็นอย่างนั้นอยู่แล้ว",
   "server.chat.openInA4a": "เปิดใน a4a",
   "server.chat.otherWorkspace": "a4a นี้เชื่อมต่อกับ Slack workspace อื่น",
+  "server.chat.preview": "{who} {did}: {issue}",
   "server.chat.refresh": "รีเฟรช",
   "server.chat.reported": "รายงาน {id} แล้ว",
   "server.chat.sayWhich": "ระบุโปรเจกต์หรือการค้นหาที่บันทึกไว้: subscribe BACK หรือ subscribe \"My bugs\"",

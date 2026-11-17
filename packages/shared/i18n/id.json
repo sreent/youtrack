@@ -5262,6 +5262,7 @@
   "server.chat.nothingToChange": "Tidak ada yang perlu diubah: sudah seperti itu.",
   "server.chat.openInA4a": "Buka di a4a",
   "server.chat.otherWorkspace": "a4a ini terhubung ke workspace Slack lain.",
+  "server.chat.preview": "{who} {did}: {issue}",
   "server.chat.refresh": "Muat ulang",
   "server.chat.reported": "{id} dilaporkan.",
   "server.chat.sayWhich": "Sebutkan proyek atau pencarian tersimpan yang mana: subscribe BACK, atau subscribe \"My bugs\".",
