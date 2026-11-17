@@ -105,9 +105,9 @@ afterAll(async () => {
 
 describe('what must come back as it went in', () => {
   it('puts code, addresses, mentions, ids and HTML aside, and finds what the model lost', () => {
-    const text = 'Ask @anna about BACK-12 and BACK-A-3.\n\nRun `npm ci` then:\n\n```sh\nnpm test </text>\n```\n\nSee [the guide](https://example.com/a?b=1 "Guide") or <https://x.example>. ⟦1⟧';
+    const text = 'Ask @anna (anna.s@example.com) about BACK-12 and BACK-A-3.\n\nRun `npm ci` then:\n\n```sh\nnpm test </text>\n```\n\nSee [the guide](https://example.com/a?b=1 "Guide") or <https://x.example>. ⟦1⟧';
     const g = guard(text);
-    for (const kept of ['@anna', 'BACK-12', 'BACK-A-3', '`npm ci`', 'https://example.com/a?b=1 "Guide"', '<https://x.example>', '⟦']) expect(g.kept).toContain(kept);
+    for (const kept of ['@anna', 'anna.s@example.com', 'BACK-12', 'BACK-A-3', '`npm ci`', 'https://example.com/a?b=1 "Guide"', '<https://x.example>', '⟦']) expect(g.kept).toContain(kept);
     expect(g.kept.some((k) => k.startsWith('```sh') && k.includes('</text>'))).toBe(true);
     expect(g.text).not.toMatch(/@anna|BACK-12|npm|example|<\/text>/);
     expect(g.text).toContain('[the guide](⟦');

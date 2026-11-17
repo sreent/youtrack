@@ -119,6 +119,7 @@ const INLINE = new RegExp(
     /(?<=\]\()[^()\s]+(?:\s+"[^"\n]*")?(?=\))/.source, // a link's or a picture's address, and its title
     /^ {0,3}\[[^\]\n]+\]:[^\n]*/.source, // a reference's definition
     /\bhttps?:\/\/[^\s<>()[\]]*[^\s<>()[\].,;:!?'"’”]/.source, // an address on its own
+    /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+/.source, // an email address
     /(?<![\p{L}\p{N}_@./-])@[A-Za-z0-9._-]*[A-Za-z0-9_]/u.source, // a mention
     /\b[A-Z][A-Z0-9]*-(?:A-)?\d+\b/.source, // an issue's or an article's id
     /[⟦⟧]/.source, // the placeholders' own marks, when the text has them
