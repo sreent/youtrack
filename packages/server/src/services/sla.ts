@@ -15,12 +15,12 @@
  * - The status is a field of the project ("SLA status": On track, At risk, Paused, Breached, Met),
  *   kept by the help desk's agent, so boards, reports and rules read it as any field.
  */
-import { SLA_STATUSES, SLA_TARGETS, type RequestSla, type SlaClock, type SlaClockState, type SlaPolicy, type SlaPolicyInput, type SlaReport, type SlaStatus, type SlaTarget } from '@a4a/shared';
+import { SLA_STATUSES, SLA_TARGETS, type BusinessHours, type RequestSla, type SlaClock, type SlaClockState, type SlaPolicy, type SlaPolicyInput, type SlaReport, type SlaStatus, type SlaTarget } from '@a4a/shared';
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskRequests, issueFieldValues, issues, projectFields, slaClocks, slaPolicies } from '../db/schema';
+import { comments, customerGroups, helpdeskRequests, issueFieldValues, issues, projectFields, slaClocks, slaPolicies } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { addBusinessMs, businessMsBetween, calendarOf, type Calendar } from '../helpdesk/business-time';
 import { badRequest, notFound, saidProblem } from '../lib/errors';
@@ -28,7 +28,7 @@ import { newId } from '../lib/ids';
 import { addDays } from '../lib/dates';
 import { localDate, startOfDay, timeZoneOrThrow } from '../reports/tz';
 import { condition, meets, ruleWorld } from '../workflow/match';
-import { requireProject } from './access';
+import { issueSeenSql, projectAccess, requireProject } from './access';
 import { createFieldRaw } from './fields';
 import { issueRefsById, stateNames } from './issue-refs';
 import { applyChanges, type FieldChangeSpec } from './issues';
@@ -239,6 +239,36 @@ function safeCalendar(project: ProjectRow): Calendar | null {
   }
 }
 
+/** The hours a request's SLA counts in: its customer group's own, where it has some (D56), else its desk's. */
+async function requestCalendar(db: Db, project: ProjectRow, groupId: string | null): Promise<Calendar | null> {
+  if (groupId) {
+    const [g] = await db.select({ hours: customerGroups.businessHours }).from(customerGroups).where(eq(customerGroups.id, groupId));
+    if (g?.hours) {
+      try {
+        return calendarOf(g.hours as BusinessHours);
+      } catch {
+        return null;
+      }
+    }
+  }
+  return safeCalendar(project);
+}
+
+/**
+ * A request changing customer group (D56): each clock counting now closes its stretch in the hours
+ * it had, and starts another, so the time it used stays as it was counted; `syncClocks` then counts
+ * what's left in the new group's hours.
+ */
+export async function restartStretches(tx: Db, project: ProjectRow, issueId: string, oldGroupId: string | null, at: Date): Promise<void> {
+  const cal = await requestCalendar(tx, project, oldGroupId);
+  for (const c of await tx.select().from(slaClocks).where(eq(slaClocks.issueId, issueId))) {
+    if (!c.runningSince || c.metAt) continue;
+    const next: ClockValues = { ...c };
+    closeStretch(next, at.getTime(), c.targetMinutes * 60_000, cal);
+    await tx.update(slaClocks).set({ usedMs: next.usedMs, breachedAt: next.breachedAt, runningSince: at, updatedAt: at }).where(and(eq(slaClocks.issueId, issueId), eq(slaClocks.target, c.target)));
+  }
+}
+
 /** Close the stretch now counting at `end`: the time it used, and when it went past its target if it did meanwhile. */
 function closeStretch(c: ClockValues, end: number, targetMs: number, cal: Calendar | null): void {
   if (!c.runningSince) return;
@@ -368,7 +398,7 @@ export async function syncClocks(tx: Db, app: AppServices, s: SchemaSnapshot, is
   const project = s.projects.get(issue.projectId);
   if (!project) return [];
   const now = at.getTime();
-  const cal = safeCalendar(project);
+  const cal = await requestCalendar(tx, project, request.groupId);
   const policy = await coveringPolicy(tx, s, issue, project, await policiesOf(tx, project.id));
   const state = (await stateNames(tx, s, [issue.id])).get(issue.id) ?? null;
   const waitingState = isWaitingState(project, state);
@@ -517,7 +547,8 @@ function clockDto(c: ClockRow, now: number, cal: Calendar | null): SlaClock {
 /** A request's SLA as it stands, for its page. */
 export async function requestSla(db: Db, s: SchemaSnapshot, issueId: string, projectId: string, waitingSince: Date | null, now = Date.now()): Promise<RequestSla> {
   const project = s.projects.get(projectId);
-  const cal = project ? safeCalendar(project) : null;
+  const [request] = await db.select({ groupId: helpdeskRequests.groupId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issueId));
+  const cal = project ? await requestCalendar(db, project, request?.groupId ?? null) : null;
   const clocks = await db.select().from(slaClocks).where(eq(slaClocks.issueId, issueId)).orderBy(asc(slaClocks.target));
   const policyId = clocks.find((c) => c.policyId)?.policyId ?? null;
   const [policy] = policyId ? await db.select({ id: slaPolicies.id, name: slaPolicies.name }).from(slaPolicies).where(eq(slaPolicies.id, policyId)) : [];
@@ -544,14 +575,19 @@ export async function slaReport(ctx: Ctx, key: string, opts: { from?: string; to
   if (from > to) throw badRequest('The report starts after it ends', 'Give a from date on or before the to date.').said('sla.reportStartsAfterEnd');
   const start = new Date(startOfDay(mondayOf(from), tz));
   const end = new Date(startOfDay(addDays(to, 1), tz));
+  // Only the requests the reader sees count, as every report counts (D37).
+  const seen = issueSeenSql(await projectAccess(ctx), await ctx.app.schema.get());
   const rows = await ctx.db
-    .select({ target: slaClocks.target, policy: slaPolicies.name, metAt: slaClocks.metAt, breachedAt: slaClocks.breachedAt, dueAt: slaClocks.dueAt })
+    .select({ target: slaClocks.target, policy: slaPolicies.name, group: customerGroups.name, metAt: slaClocks.metAt, breachedAt: slaClocks.breachedAt, dueAt: slaClocks.dueAt })
     .from(slaClocks)
     .innerJoin(helpdeskRequests, eq(helpdeskRequests.issueId, slaClocks.issueId))
+    .innerJoin(issues, eq(issues.id, slaClocks.issueId))
     .leftJoin(slaPolicies, eq(slaPolicies.id, slaClocks.policyId))
+    .leftJoin(customerGroups, eq(customerGroups.id, helpdeskRequests.groupId))
     .where(
       and(
         eq(helpdeskRequests.projectId, project.id),
+        seen,
         or(and(gte(slaClocks.metAt, start), lt(slaClocks.metAt, end)), and(gte(slaClocks.breachedAt, start), lt(slaClocks.breachedAt, end)), and(isNull(slaClocks.metAt), isNull(slaClocks.breachedAt), gte(slaClocks.dueAt, start), lt(slaClocks.dueAt, sql`least(${end}, now())`))),
       ),
     );
@@ -563,20 +599,33 @@ export async function slaReport(ctx: Ctx, key: string, opts: { from?: string; to
     if (!counts) byPolicy.set(policy, (counts = { firstResponse: { met: 0, breached: 0 }, resolution: { met: 0, breached: 0 } }));
     return counts;
   };
+  // The whole period by customer group (D56), each target counted as the weeks count it.
+  const byGroup = new Map<string | null, { firstResponse: { met: number; breached: number }; resolution: { met: number; breached: number } }>();
   for (const r of rows) {
     const breachedAt = r.breachedAt ?? (r.dueAt && !r.metAt && r.dueAt.getTime() <= Date.now() ? r.dueAt : null);
     const at = breachedAt ?? r.metAt;
     if (!at || at < start || at >= end) continue;
-    const counts = slot(mondayOf(localDate(at.getTime(), tz)), r.policy ?? '(none)')[r.target === 'first_response' ? 'firstResponse' : 'resolution'];
-    if (breachedAt) counts.breached++;
-    else counts.met++;
+    const which = r.target === 'first_response' ? 'firstResponse' : 'resolution';
+    const counts = slot(mondayOf(localDate(at.getTime(), tz)), r.policy ?? '(none)')[which];
+    let group = byGroup.get(r.group ?? null);
+    if (!group) byGroup.set(r.group ?? null, (group = { firstResponse: { met: 0, breached: 0 }, resolution: { met: 0, breached: 0 } }));
+    if (breachedAt) {
+      counts.breached++;
+      group[which].breached++;
+    } else {
+      counts.met++;
+      group[which].met++;
+    }
   }
   const out: SlaReport['weeks'] = [];
   for (let week = mondayOf(from); week <= to; week = addDays(week, 7)) {
     const byPolicy = weeks.get(week);
     out.push({ week, policies: byPolicy ? [...byPolicy.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([policy, c]) => ({ policy, ...c })) : [] });
   }
-  return { timeZone: tz, weeks: out };
+  const groups = [...byGroup.entries()]
+    .sort(([a], [b]) => (a === null ? 1 : b === null ? -1 : a.localeCompare(b)))
+    .map(([group, c]) => ({ group, ...c }));
+  return { timeZone: tz, weeks: out, groups };
 }
 
 function mondayOf(date: string): string {

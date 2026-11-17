@@ -552,6 +552,17 @@ class Compiler {
         const like = `%${single.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
         return sql`EXISTS (SELECT 1 FROM helpdesk_requests r JOIN requesters q ON q.id = r.requester_id WHERE r.issue_id = ${issues.id} AND (lower(q.email) = ${single.toLowerCase()} OR q.name ILIKE ${like}))`;
       }
+      case 'customer': {
+        // A request's customer group (D56), by name: the groups of the desks the asker reads (scopeSchema).
+        if (!single) return this.rangeNotSupported(def, v);
+        const names = [...new Set([...s.customerGroups.values()].map((g) => g.name))];
+        if (!names.some((n) => n.toLowerCase() === single.toLowerCase())) {
+          const guess = didYouMean(single, names);
+          this.problem({ key: 'query.unknownCustomer', values: { name: single, ...guessWords(guess) } }, `No customer group is called "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          return FALSE;
+        }
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r JOIN customer_groups g ON g.id = r.group_id WHERE r.issue_id = ${issues.id} AND lower(g.name) = ${single.toLowerCase()})`;
+      }
       case 'sprint':
         if (!single) return this.rangeNotSupported(def, v);
         return sql`EXISTS (SELECT 1 FROM sprint_issues si JOIN sprints sp ON sp.id = si.sprint_id WHERE si.issue_id = ${issues.id} AND lower(sp.name) = ${single.toLowerCase()})`;
@@ -653,6 +664,8 @@ class Compiler {
         return sql`EXISTS (SELECT 1 FROM issue_watchers w WHERE w.issue_id = ${issues.id})`;
       case 'request':
         return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id})`;
+      case 'customer':
+        return sql`EXISTS (SELECT 1 FROM helpdesk_requests r WHERE r.issue_id = ${issues.id} AND r.group_id IS NOT NULL)`;
       case 'votes':
         return sql`${issues.votes} > 0`;
     }

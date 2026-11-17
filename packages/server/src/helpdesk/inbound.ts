@@ -13,6 +13,9 @@
  * - Someone copied on the request (D57) answers the same ways, from their own address, while they
  *   are copied; a reply address answers for whom it was sent to alone. Either of them may also
  *   answer the request's first message. Only the requester's own mail copies the people in its Cc.
+ * - Someone of its customer group (D56), where the group lets its members answer each other's and
+ *   the request isn't kept private, answers from their own address by the requester's reply
+ *   address, forwarded to them: a4a mails them nothing of their own.
  * - Mail no person wrote (auto-replies, bounces, lists) and mail a4a or a desk sent itself is set
  *   aside, so nothing loops; a message whose own server says it failed DMARC is refused.
  * - Nobody is ever told of a message set aside or refused, so a forged sender gets no mail.
@@ -27,11 +30,11 @@ import { AppError } from '../lib/errors';
 import { formatBytes, storeAttachment, type UploadTarget } from '../services/attachments';
 import { helpHit } from '../services/help-throttle';
 import { botCtx, openRequest, postRequesterReply, requestWithRequester } from '../services/helpdesk';
+import { commentingColleague, requesterByEmail } from '../services/customer-groups';
 import { projectSettings } from '../services/projects';
 import type { ProjectRow } from '../services/schema-cache';
 import { handleTeamReply, teamReplyProject, teamReplyTokensOf } from '../services/team-replies';
 import { copiedOn, copyFromMail } from '../services/request-ccs';
-import { newId } from '../lib/ids';
 import { deskRecipient, replyTokenOf, splitAddress } from './addresses';
 import { clip, readMail, stripSignature, type MailFile, type ReadMail } from './reading';
 
@@ -165,7 +168,13 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address it wasn’t sent to`, issueId: found.issue.id };
     }
     if (byToken?.email && !cc) return { outcome: 'refused', reason: `a reply ${how}, from someone no longer copied on it`, issueId: found.issue.id };
-    if (!isRequester && (!cc || (byToken && !byToken.email))) {
+    // Someone of its customer group, where the group lets its members answer each other's (D56), writes
+    // as themselves: by the requester's reply address, forwarded to them, since a4a mails them nothing.
+    const colleague =
+      !isRequester && !cc && byToken && !byToken.email
+        ? await commentingColleague(app.db, found.request, sender, clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text)
+        : null;
+    if (!isRequester && !colleague && (!cc || (byToken && !byToken.email))) {
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address that isn’t the requester’s`, issueId: found.issue.id };
     }
     if (await helpHit(app.db, [['mailReply', found.issue.id]])) {
@@ -176,10 +185,13 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
     const reply = clip(mail.reply, HELP_LIMITS.reply);
     if (!reply.text && !mail.files.length) return { outcome: 'ignored', reason: withCopied('it held nothing but what it quoted', copied), issueId: found.issue.id };
     const text = reply.text || `Sent ${mail.files.length === 1 ? 'a file' : `${mail.files.length} files`} by email.`;
-    const author = cc ? await ccRequester(app.db, cc.email, cc.name, mail.from?.name ?? '') : { id: found.requester.id, name: found.requester.name };
-    const { commentId } = await postRequesterReply(app, found.issue, author, text, 'email');
+    // Someone copied on it writes as their own requester account, made if they have none (D45).
+    const author = cc
+      ? await requesterByEmail(app.db, cc.email, clip(mail.from?.name || cc.name, HELP_LIMITS.name).text)
+      : (colleague ?? { id: found.requester.id, name: found.requester.name });
+    const { commentId } = await postRequesterReply(app, found.issue, { id: author.id, name: author.name }, text, 'email', { colleague: Boolean(colleague) });
     const left = commentId ? await keepFiles(app, desk.id, { kind: 'comment', issue: found.issue, commentId }, mail, reply.cut) : [];
-    const said = cc ? `a reply ${how}, from someone copied on it` : `a reply ${how}`;
+    const said = cc ? `a reply ${how}, from someone copied on it` : colleague ? `a reply ${how}, from someone of its customer group` : `a reply ${how}`;
     return { outcome: 'reply', reason: withLeftOut(withCopied(said, copied), [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
   }
 
@@ -217,21 +229,6 @@ async function threadOf(db: Db, deskId: string, answers: string[], sender: strin
     ORDER BY r.created_at DESC LIMIT 1`);
   const rows = (res as unknown as { rows: { issue_id: string }[] }).rows;
   return rows[0]?.issue_id ?? null;
-}
-
-/**
- * The requester account someone copied on a request answers as (D57): theirs if they have one, as
- * D45 makes them, else made, named as they sign their mail, or as they were copied, or for their
- * address. A name they gave the portal stays theirs.
- */
-async function ccRequester(db: Db, email: string, copiedAs: string, signs: string): Promise<{ id: string; name: string }> {
-  const name = (signs || copiedAs || splitAddress(email)?.local || email).slice(0, HELP_LIMITS.name);
-  const res = await db.execute(sql`
-    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${email}, ${name})
-    ON CONFLICT ((lower(email))) DO UPDATE SET updated_at = requesters.updated_at
-    RETURNING id, name`);
-  const row = (res as unknown as { rows: { id: string; name: string }[] }).rows[0]!;
-  return { id: String(row.id), name: String(row.name) };
 }
 
 /** The log's words for whom a message's Cc copied, and whom it left out. */

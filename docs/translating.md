@@ -64,6 +64,7 @@ German:
 | request (help desk) | Anfrage |
 | requester | anfragende Person |
 | copied on a request (CC), copy, stop copying | in Kopie, in Kopie setzen, aus der Kopie nehmen |
+| customer group, kept from the group | Kundengruppe, vor der Gruppe verborgen |
 | reporter | meldende Person |
 | assignee | Bearbeiter (a column), zugewiesene Person |
 | agent | Agent |
@@ -154,6 +155,7 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | request (help desk) | solicitud |
 | requester | solicitante, la persona solicitante |
 | copied on a request (CC), copy, stop copying | en copia, poner en copia, quitar de la copia |
+| customer group | grupo de clientes |
 | reporter | informante; "quien la notificó" in a sentence |
 | report (an issue), reported | notificar, notificada |
 | assignee | responsable |
@@ -238,6 +240,7 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | request (help desk) | リクエスト |
 | requester | 依頼者 |
 | copied on a request (CC), copy, stop copying | CC, CCに追加, CCから外す |
+| customer group | 顧客グループ |
 | reporter | 報告者 |
 | assignee | 担当者 |
 | agent | エージェント |
@@ -321,6 +324,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | request (help desk) | demande |
 | requester | la personne qui a fait la demande; "Demandé par" in a table |
 | copied on a request (CC), copy, stop copying | en copie, mettre en copie, retirer de la copie |
+| customer group | groupe de clients |
 | reporter | la personne qui l'a signalé; "Signalé par" in a table |
 | assignee | responsable |
 | lead (of a project) | responsable du projet |

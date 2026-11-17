@@ -69,7 +69,9 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
       .where(and(eq(comments.id, String(p.commentId ?? '')), eq(comments.visibility, 'public'), isNull(comments.deletedAt)));
     if (!comment) return null; // deleted, or made internal, before it went
     const author = comment.authorId ? s.users.get(comment.authorId) : undefined;
-    const who = author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam');
+    // Someone of its customer group answered it (D56): by their own name.
+    const [colleague] = comment.requesterId ? await app.db.select({ name: requesters.name }).from(requesters).where(eq(requesters.id, comment.requesterId)) : [];
+    const who = colleague ? colleague.name : author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam');
     lead = tr.t('server.helpdesk.replied', { who });
     quote = comment.text;
   } else {
@@ -122,12 +124,12 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   };
 }
 
-/** The team's public reply, as a line and its words; null when it's gone, or no longer public. */
+/** The team's public reply, as a line and its words; null when it's gone, no longer public, or not the team's (D57: only the team's words go out). */
 async function publicReply(app: AppServices, s: SchemaSnapshot, tr: Translator, commentId: string): Promise<{ lead: string; quote: string } | null> {
   const [comment] = await app.db
     .select()
     .from(comments)
-    .where(and(eq(comments.id, commentId), eq(comments.visibility, 'public'), isNull(comments.deletedAt)));
+    .where(and(eq(comments.id, commentId), eq(comments.visibility, 'public'), isNull(comments.deletedAt), isNull(comments.requesterId)));
   if (!comment) return null;
   const author = comment.authorId ? s.users.get(comment.authorId) : undefined;
   return { lead: author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam'), quote: comment.text };

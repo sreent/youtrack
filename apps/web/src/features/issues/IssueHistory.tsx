@@ -99,8 +99,8 @@ interface Entry {
   did?: React.ReactNode;
   body?: React.ReactNode;
   comment?: string;
-  /** A comment the requester of a help desk request sees: theirs, the team's reply to them, or one by someone copied on it (D57). */
-  public?: 'reply' | 'theirs' | 'copied';
+  /** A comment the requester of a help desk request sees: theirs, the team's reply to them, or one by someone copied on it (D57) or of their customer group (D56). */
+  public?: 'reply' | 'theirs' | 'copied' | 'colleague';
   /** Who a limited comment is for, besides those who always see it (D37). */
   limited?: string;
   /** A comment's own files, under its words; and its id, for links to it. */
@@ -331,7 +331,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     at: c.createdAt,
     who: whoOf(actor, c.requester?.name),
     comment: c.text,
-    public: c.visibility === 'public' ? (c.requester ? (c.requester.copied ? 'copied' : 'theirs') : 'reply') : undefined,
+    public: c.visibility === 'public' ? (c.requester ? (c.requester.as === 'requester' ? 'theirs' : c.requester.as) : 'reply') : undefined,
     limited: c.visibleTo ? audience(c.visibleTo) : undefined,
     files,
     anchor: `comment-${c.id}`,
@@ -551,6 +551,8 @@ export function IssueHistory({
                     <Badge grammar="outside">{t('issues.issueHistory.publicTheRequesterWroteIt')}</Badge>
                   ) : e.public === 'copied' ? (
                     <Badge grammar="outside">{t('issues.issueHistory.publicSomeoneCopiedWroteIt')}</Badge>
+                  ) : e.public === 'colleague' ? (
+                    <Badge grammar="outside">{t('issues.issueHistory.publicAColleagueWroteIt')}</Badge>
                   ) : e.limited ? (
                     <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
                   ) : e.undo?.state === 'undone' ? (

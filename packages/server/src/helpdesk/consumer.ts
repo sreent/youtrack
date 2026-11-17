@@ -25,11 +25,12 @@ export function helpdeskConsumer(app: AppServices): OutboxConsumer {
 
 export async function mailRequester(app: AppServices, event: TrackerEvent): Promise<void> {
   if (!mailConfigured(app)) return;
-  const data = event.data as { visibility?: string; requester?: unknown; commentId?: string };
+  const data = event.data as { visibility?: string; requester?: unknown; colleague?: unknown; commentId?: string };
   let kind: 'request-reply' | 'request-state';
   let payload: Record<string, unknown>;
   if (event.type === 'comment.created') {
-    if (data.visibility !== 'public' || data.requester || !data.commentId) return;
+    // Their own replies never go back to them; a colleague's, from their customer group (D56), does.
+    if (data.visibility !== 'public' || (data.requester && !data.colleague) || !data.commentId) return;
     kind = 'request-reply';
     payload = { commentId: data.commentId };
   } else {
@@ -56,7 +57,9 @@ export async function mailRequester(app: AppServices, event: TrackerEvent): Prom
   }
   // Those copied on it when it happened are told the same (D57), each by an email of their own:
   // its reply address answers for them, its link takes them off. The requester's stopping isn't theirs.
-  for (const cc of await ccsToTell(app.db, row.issueId, new Date(event.occurredAt))) {
+  // Only the team's words reach them: a colleague's answer (D56) goes to its requester alone.
+  const teamWords = !(event.type === 'comment.created' && data.requester);
+  for (const cc of teamWords ? await ccsToTell(app.db, row.issueId, new Date(event.occurredAt)) : []) {
     const one = await enqueueMail(app.db, app, {
       kind,
       dedupeKey: `request-event:${event.id}:cc:${cc.id}`,

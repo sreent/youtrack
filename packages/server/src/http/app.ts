@@ -25,6 +25,7 @@ import { helpdeskRoutes } from './routes/helpdesk';
 import { helpdeskMailRoutes } from './routes/helpdesk-mail';
 import { helpdeskDepthRoutes, portalRoutes } from './routes/helpdesk-depth';
 import { requestCcRoutes } from './routes/request-ccs';
+import { customerGroupRoutes } from './routes/customer-groups';
 import { issueRoutes } from './routes/issues';
 import { notificationRoutes } from './routes/notifications';
 import { planningRoutes } from './routes/planning';
@@ -100,6 +101,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskRoutes(api);
   helpdeskMailRoutes(api);
   helpdeskDepthRoutes(api);
+  customerGroupRoutes(api);
   portalRoutes(api);
   requestCcRoutes(api);
   workflowRoutes(api);

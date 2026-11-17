@@ -18,6 +18,7 @@ import { ProjectKey } from '../features/projects/ProjectKey';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { CustomerGroups } from '../features/helpdesk/CustomerGroups';
 import { WorkTypes } from '../features/projects/WorkTypes';
 import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
@@ -287,6 +288,13 @@ export default function ProjectPage() {
           <span className="note">{t('page.project.targetsForTheTeamS')}</span>
         </div>
         <SlaSettings project={p} canEdit={canEdit} />
+      </section>
+      <section className="card" aria-labelledby="customer-groups">
+        <div className="section-head">
+          <h2 id="customer-groups">{t('page.project.customerGroups')}</h2>
+          <span className="note">{t('page.project.customerGroupsNote')}</span>
+        </div>
+        <CustomerGroups project={p} canEdit={canEdit} />
       </section>
       {canEdit ? (
         <section className="card" aria-labelledby="helpdesk-mail">

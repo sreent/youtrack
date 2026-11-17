@@ -18,7 +18,8 @@ import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { issueActivity } from '../src/services/activity';
 import { addComment, listComments } from '../src/services/comments';
-import { openRequest, requestOf, trackRequest } from '../src/services/helpdesk';
+import { createCustomerGroup, requesterByEmail } from '../src/services/customer-groups';
+import { openRequest, requestOf, trackRequest, updateRequest } from '../src/services/helpdesk';
 import { newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
 import { applyUnsubscribe, describeUnsubscribe } from '../src/services/notifications';
@@ -192,7 +193,7 @@ describe('CCs on a help desk request', () => {
     const got = await mailIn(raw);
     expect(got).toMatchObject({ outcome: 'reply', reason: 'a reply by its reply address, from someone copied on it' });
     const last = (await listComments(w.adminCtx, id)).at(-1)!;
-    expect(last).toMatchObject({ text: 'Thursday works. I can let the technician in.', visibility: 'public', requester: { name: 'Alice Ames', copied: true }, author: { login: 'helpdesk' } });
+    expect(last).toMatchObject({ text: 'Thursday works. I can let the technician in.', visibility: 'public', requester: { name: 'Alice Ames', as: 'copied' }, author: { login: 'helpdesk' } });
     // A requester account for that address, as the portal makes them.
     const [account] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'alice@example.org'));
     expect(account?.name).toBe('Alice Ames');
@@ -343,5 +344,51 @@ describe('CCs on a help desk request', () => {
     expect(row).toMatchObject({ via: 'portal', removedAt: null });
     // A guest isn't told who is copied, as they aren't told who asked.
     expect((await issueActivity(w.adminCtx, id)).some((e) => e.type === 'request.cc_added')).toBe(true);
+  });
+});
+
+describe('CCs and customer groups together (D56, D57)', () => {
+  it('keeps them apart: a colleague’s answer reaches the requester alone, a CC hears only the team, and each grant stands alone', async () => {
+    await createCustomerGroup(w.adminCtx, 'BACK', { name: 'Initech', domains: ['initech.example'], sharing: 'comment' });
+    const got = await mailIn(message({ from: 'Peter Gibbons <peter@initech.example>', cc: 'Bob Slydell <bob@consult.example>', subject: 'TPS cover sheets', body: 'The new cover sheets are missing.' }));
+    expect(got.outcome).toBe('request');
+    const issue = await issueOf('TPS cover sheets');
+    const tid = `BACK-${issue.number}`;
+    expect((await requestOf(w.adminCtx, tid)).group?.name).toBe('Initech');
+    await flush();
+
+    // Milton, of the same company, answers on the portal: his words reach Peter, never Bob.
+    const milton = await requesterByEmail(w.app.db, 'milton@initech.example', 'Milton');
+    const bobHad = mailsTo('bob@consult.example').length;
+    expect((await portalReply(w.app, milton, tid, 'I have a stapler too.')).messages.at(-1)).toMatchObject({ from: 'you' });
+    await flush();
+    expect(newestTo('peter@initech.example').text).toContain('I have a stapler too.');
+    expect(mailsTo('bob@consult.example')).toHaveLength(bobHad);
+    // Each page says as whom they wrote.
+    expect((await listComments(w.adminCtx, tid)).at(-1)).toMatchObject({ requester: { name: 'Milton', as: 'colleague' } });
+    const peter = await requesterByEmail(w.app.db, 'peter@initech.example');
+    expect((await portalRequest(w.app, peter, tid)).messages.at(-1)).toMatchObject({ from: 'colleague', name: 'Milton' });
+
+    // The team's public reply reaches both, Bob by a reply address of his own.
+    await addComment(as(w.anna), tid, 'New cover sheets are on their way.', { visibility: 'public' });
+    await flush();
+    expect(newestTo('bob@consult.example').text).toContain('New cover sheets are on their way.');
+    expect(newestTo('peter@initech.example').text).toContain('New cover sheets are on their way.');
+
+    // Kept from the group, Milton finds it missing; Bob, copied, still sees it and answers.
+    await updateRequest(as(w.anna), tid, { private: true });
+    await expect(portalRequest(w.app, milton, tid)).rejects.toMatchObject({ status: 404 });
+    const bob = await requesterByEmail(w.app.db, 'bob@consult.example');
+    expect(await portalRequest(w.app, bob, tid)).toMatchObject({ copied: true, canReply: true });
+
+    // Peter's reply address answers for Peter, and for a colleague who may answer; never for Bob.
+    const peterMail = newestTo('peter@initech.example');
+    expect((await mailIn(message({ from: 'bob@consult.example', to: peterMail.replyTo, subject: 'Re: TPS cover sheets', body: 'Yeah.' }))).outcome).toBe('refused');
+    expect((await mailIn(message({ from: 'milton@initech.example', to: peterMail.replyTo, subject: 'Re: TPS cover sheets', body: 'Excuse me.' }))).outcome).toBe('refused');
+    await updateRequest(as(w.anna), tid, { private: false });
+    expect(await mailIn(message({ from: 'milton@initech.example', to: peterMail.replyTo, subject: 'Re: TPS cover sheets', body: 'I believe you have my stapler.' }))).toMatchObject({
+      outcome: 'reply',
+      reason: 'a reply by its reply address, from someone of its customer group',
+    });
   });
 });

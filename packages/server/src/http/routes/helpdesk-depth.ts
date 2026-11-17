@@ -12,6 +12,7 @@ import {
   PortalReplyBody,
   PortalRequestDetailSchema,
   PortalRequestSchema,
+  PortalRequestUpdateBody,
   PortalSignInBody,
   DeskMailboxBody,
   DeskMailboxSchema,
@@ -40,6 +41,7 @@ import {
   portalRequest,
   portalRequester,
   portalRequests,
+  portalSetPrivate,
   redeemSignIn,
   renameRequester,
   requestSignIn,
@@ -227,7 +229,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(
     app,
-    { method: 'get', path: '/portal/requests', tags, summary: 'My requests, and my organization’s where a desk shares them', auth: 'none', response: z.array(PortalRequestSchema) },
+    { method: 'get', path: '/portal/requests', tags, summary: 'My requests, and my customer group’s where it shares them', auth: 'none', response: z.array(PortalRequestSchema) },
     async ({ c }) => {
       c.header('cache-control', 'no-store');
       return portalRequests(c.get('runtime'), await who(c));
@@ -243,7 +245,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(
     app,
-    { method: 'post', path: '/portal/requests/{id}/replies', tags, summary: 'Reply to a request of mine', description: 'A public comment in their name; the team is told.', auth: 'none', params: Id, body: PortalReplyBody, response: PortalRequestDetailSchema, status: 200 },
+    { method: 'post', path: '/portal/requests/{id}/replies', tags, summary: 'Reply to a request of mine, or of my customer group where it lets its members answer', description: 'A public comment in their name; the team is told, and a colleague’s reply reaches the request’s requester by email.', auth: 'none', params: Id, body: PortalReplyBody, response: PortalRequestDetailSchema, status: 200 },
     async ({ c, params, body }) => {
       sameOrigin(c);
       const r = await who(c);
@@ -258,7 +260,27 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       const r = await who(c);
       await hit(c, [['portalAct', r.id]], 'Too many requests just now', 'helpdesk.tooManyRequestsNow');
-      return portalNewRequest(c.get('runtime'), r, { desk: body.desk, summary: body.summary, description: body.description ?? '' });
+      return portalNewRequest(c.get('runtime'), r, { desk: body.desk, summary: body.summary, description: body.description ?? '', private: body.private ?? false });
+    },
+  );
+  route(
+    app,
+    {
+      method: 'patch',
+      path: '/portal/requests/{id}',
+      tags,
+      summary: 'Keep a request of mine from my customer group, or share it again',
+      description: "Its requester's alone (D56); the team keeps one private on its page. In the request's history.",
+      auth: 'none',
+      params: Id,
+      body: PortalRequestUpdateBody,
+      response: PortalRequestDetailSchema,
+    },
+    async ({ c, params, body }) => {
+      sameOrigin(c);
+      const r = await who(c);
+      await hit(c, [['portalAct', r.id]], 'Too many replies just now', 'helpdesk.tooManyRepliesNow');
+      return portalSetPrivate(c.get('runtime'), r, params.id, body.private);
     },
   );
   route(

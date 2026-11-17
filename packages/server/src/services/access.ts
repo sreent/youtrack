@@ -589,6 +589,8 @@ export function scopeSchema(s: SchemaSnapshot, visible: readonly string[] | null
     projectsByKey: new Map([...s.projectsByKey].filter(([, p]) => ids.has(p.id))),
     formerKeys: new Map([...s.formerKeys].filter(([id]) => ids.has(id))),
     projectFields: new Map([...s.projectFields].filter(([id]) => ids.has(id))),
+    // A desk's customer groups name its customers: only its readers learn them (D56).
+    customerGroups: new Map([...s.customerGroups].filter(([, g]) => ids.has(g.projectId))),
   };
   if (byKey.size > 64) byKey.clear();
   byKey.set(cacheKey, out);
@@ -874,17 +876,28 @@ export function emailDomain(email: string): string {
   return email.trim().toLowerCase().split('@').pop() ?? '';
 }
 
+/** A help desk request as the portal's seam reads it: who asked, the customer group it was filed under, and whether it's kept from the group. */
+export type RequestSharing = { requesterId: string; groupId: string | null; private: boolean };
+
 /**
- * Whether a requester signed in to the portal sees a request: one they made, one they're copied on
- * (`copied`, D57: they're told of it by email already), or a colleague's at a desk that shares
- * requests within their organization (an email domain the desk names). Nothing else of a project,
+ * Whether a requester signed in to the portal sees a request: one they made; one they're copied on
+ * (`copied`, D57: they're told of it by email already); or one filed under a customer group they're
+ * in whose members share their requests (D56; `groups`: what each of their groups shares with them,
+ * services/customer-groups.ts), unless its requester or the team kept it private. Being copied and
+ * being in its group are grants of their own: neither changes the other. Nothing else of a project,
  * ever: a requester is never a member.
  */
-export function requesterSees(project: ProjectRow, viewer: { id: string; email: string }, owner: { id: string; email: string }, copied = false): boolean {
-  if (viewer.id === owner.id || copied) return true;
-  const domain = emailDomain(viewer.email);
-  const settings = (project.settings ?? {}) as { helpdesk?: { organizations?: string[] } };
-  return Boolean(domain) && domain === emailDomain(owner.email) && (settings.helpdesk?.organizations ?? []).includes(domain);
+export function requesterSees(request: RequestSharing, viewer: { id: string }, groups: ReadonlyMap<string, 'none' | 'read' | 'comment'>, copied = false): boolean {
+  if (request.requesterId === viewer.id || copied) return true;
+  if (request.private || !request.groupId) return false;
+  const sharing = groups.get(request.groupId);
+  return sharing === 'read' || sharing === 'comment';
+}
+
+/** Whether they may answer it: their own, one they're copied on (D57), or one their group shares to comment on (D56). */
+export function requesterMayComment(request: RequestSharing, viewer: { id: string }, groups: ReadonlyMap<string, 'none' | 'read' | 'comment'>, copied = false): boolean {
+  if (request.requesterId === viewer.id || copied) return true;
+  return requesterSees(request, viewer, groups) && groups.get(request.groupId!) === 'comment';
 }
 
 // ---------------------------------------------------------------------------

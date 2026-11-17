@@ -253,6 +253,13 @@
       "when": 1794914019254,
       "tag": "0035_request_ccs",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794917183908,
+      "tag": "0036_customer_groups",
+      "breakpoints": true
     }
   ]
 }

@@ -71,6 +71,7 @@ import { changeOf } from '../workflow/script-issue';
 import { enforceScriptGuards } from '../workflow/scripts';
 import { actsAsAgent, keepAgentChange, textHash, type FieldsUndo } from './agent-changes';
 import { afterRequestChange } from './sla';
+import { requestGrouping, writeGrouping } from './customer-groups';
 import {
   fieldValueDto,
   presentValues,
@@ -386,6 +387,10 @@ export interface ChangeSpec {
   visibleTo?: Limits;
   /** Who sees the comment (D37); not limited when left out. */
   commentVisibleTo?: Limits;
+  /** A help desk request's customer group (D56), by id, or null for none: a change to it, like a field's. */
+  requestGroup?: { groupId: string | null };
+  /** Whether a help desk request is kept from its customer group's other members (D56). */
+  requestPrivate?: boolean;
 }
 
 export interface ApplyResult {
@@ -568,6 +573,10 @@ export async function applyChanges(
     changes.push({ field: 'Visible to', from: await describeLimits(tx, s, issue), to: await describeLimits(tx, s, spec.visibleTo) });
   }
 
+  // A help desk request's customer group, and whether it's kept from the group (D56): its request's row.
+  const grouping = spec.requestGroup !== undefined || spec.requestPrivate !== undefined ? await requestGrouping(tx, s, issue, spec) : null;
+  if (grouping) changes.push(...grouping.changes);
+
   const comment = spec.comment?.trim();
   if (comment) changes.push({ field: 'Comment', from: null, to: excerpt(comment, 200) });
 
@@ -607,6 +616,7 @@ export async function applyChanges(
   if (toRemove.length) {
     await tx.delete(issueTags).where(and(eq(issueTags.issueId, issue.id), inArray(issueTags.tagId, toRemove.map((t) => t.id))));
   }
+  if (grouping) await writeGrouping(tx, ctx.app, s, issue, grouping);
 
   const resolvedAt = await computeResolvedAt(tx, s, issue, fieldUpdates);
   const fieldOrMetaChanged = changes.some((c) => c.field !== 'Links' && c.field !== 'Comment');
@@ -816,7 +826,9 @@ function isCommentOnly(spec: ChangeSpec): boolean {
     !spec.addTags?.length &&
     !spec.removeTags?.length &&
     !spec.links?.length &&
-    spec.visibleTo === undefined
+    spec.visibleTo === undefined &&
+    spec.requestGroup === undefined &&
+    spec.requestPrivate === undefined
   );
 }
 

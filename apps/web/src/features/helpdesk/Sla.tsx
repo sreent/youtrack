@@ -89,7 +89,6 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
   const [counting, setCounting] = useState(bh ? 'hours' : 'always');
   const [waiting, setWaiting] = useState(h.waitingStates.join(', '));
   const [resume, setResume] = useState(h.resumeState ?? '');
-  const [orgs, setOrgs] = useState(h.organizations.join(', '));
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
   const save = useMutation({
@@ -103,7 +102,6 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
                 : { timeZone: zone.trim(), hours: days.sort().map((day) => ({ day, from, to })), holidays: holidays.split(/\s+/).map((x) => x.trim()).filter(Boolean) },
             waitingStates: list(waiting),
             resumeState: resume.trim() || null,
-            organizations: list(orgs).map((x) => x.toLowerCase()),
           },
         },
       }),
@@ -181,9 +179,6 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
           <FormField label={t('helpdesk.sla.whenTheyAnswerMoveIt')} help={t('helpdesk.sla.aStateOrLeaveIt')}>
             {(id, help) => <input id={id} value={resume} placeholder={t('helpdesk.sla.open')} onChange={(e) => setResume(e.target.value)} aria-describedby={help} />}
           </FormField>
-          <FormField label={t('helpdesk.sla.organizations')} help={t('helpdesk.sla.emailDomainsWhoseRequestersSee')}>
-            {(id, help) => <input id={id} value={orgs} placeholder="acme.com" onChange={(e) => setOrgs(e.target.value)} aria-describedby={help} />}
-          </FormField>
           <div className="cluster end">
             <button type="submit" className="primary">{t('helpdesk.sla.saveWorkingHours')}</button>
           </div>
@@ -260,6 +255,36 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
                     </tr>
                   )),
                 )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {report.data?.groups.length ? (
+        <section aria-label={t('helpdesk.sla.byCustomerGroup')}>
+          <h3>{t('helpdesk.sla.byCustomerGroup')}</h3>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">{t('helpdesk.sla.customerGroup')}</th>
+                  <th scope="col">{t('helpdesk.sla.firstResponseMet')}</th>
+                  <th scope="col">{t('helpdesk.sla.breached')}</th>
+                  <th scope="col">{t('helpdesk.sla.resolutionMet')}</th>
+                  <th scope="col">{t('helpdesk.sla.breached')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.data.groups.map((x) => (
+                  <tr key={x.group ?? ''}>
+                    <td>{x.group ?? t('helpdesk.sla.noGroup')}</td>
+                    <td>{x.firstResponse.met}</td>
+                    <td>{x.firstResponse.breached}</td>
+                    <td>{x.resolution.met}</td>
+                    <td>{x.resolution.breached}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

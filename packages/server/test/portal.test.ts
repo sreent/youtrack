@@ -12,6 +12,7 @@ import { createHttpApp } from '../src/http/app';
 import { MailWorker } from '../src/mail/outbox';
 import { notifierConsumer } from '../src/notify/notifier';
 import { addComment } from '../src/services/comments';
+import { createCustomerGroup } from '../src/services/customer-groups';
 import { openRequest } from '../src/services/helpdesk';
 import { updateProject } from '../src/services/projects';
 import { createWorld, type TestWorld } from './helpers';
@@ -71,7 +72,9 @@ beforeAll(async () => {
   w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, notifyWindowMs: 60_000, trustProxy: 1 } });
   await w.app.db.update(users).set({ email: 'anna@example.com' }).where(eq(users.id, w.anna.id));
   w.app.schema.invalidate();
-  await updateProject(w.adminCtx, 'BACK', { lead: 'anna', settings: { helpdesk: { enabled: true, organizations: ['acme.com'], captcha: true } } });
+  await updateProject(w.adminCtx, 'BACK', { lead: 'anna', settings: { helpdesk: { enabled: true, captcha: true } } });
+  // D45's organization, as a customer group whose members read each other's requests (D56).
+  await createCustomerGroup(w.adminCtx, 'BACK', { name: 'Acme', domains: ['acme.com'], sharing: 'read' });
   await updateProject(w.adminCtx, 'WEB', { settings: { helpdesk: { enabled: true } } });
   http = createHttpApp(w.app);
   outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), helpdeskConsumer(w.app)], {}, [], () => {});
@@ -95,7 +98,7 @@ describe('the portal', () => {
     const token = signInToken('new@example.org');
     const first = await b.req('POST', '/portal/sign-in/redeem', { token });
     expect(first.status).toBe(200);
-    expect(first.body).toMatchObject({ email: 'new@example.org', name: 'new', organization: null });
+    expect(first.body).toMatchObject({ email: 'new@example.org', name: 'new', groups: [] });
     expect((await b.req('GET', '/portal/me')).body.email).toBe('new@example.org');
     // Used once: a second time, or by someone else, it's no good.
     expect((await browser('10.1.0.2').req('POST', '/portal/sign-in/redeem', { token })).status).toBe(401);
@@ -120,7 +123,7 @@ describe('the portal', () => {
     await addComment(w.as(w.anna), mine.id, 'We are on it, Rita.', { visibility: 'public' });
 
     const rita = await signedIn('rita@acme.com', '10.1.2.1');
-    expect((await rita.req('GET', '/portal/me')).body.organization).toBe('acme.com');
+    expect((await rita.req('GET', '/portal/me')).body.groups).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, name: 'Acme', sharing: 'read' }]);
     const list = (await rita.req('GET', '/portal/requests')).body as { id: string; requester: { mine: boolean } }[];
     expect(list.map((r) => r.id).sort()).toEqual([mine.id, colleague.id].sort());
     expect(list.find((r) => r.id === colleague.id)!.requester.mine).toBe(false);

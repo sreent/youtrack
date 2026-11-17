@@ -43,9 +43,13 @@ import { issueMoveTools } from './issue-moves';
 import { projectKeyTools } from './project-keys';
 import { boardTools } from './boards';
 import { requestCcTools } from './request-ccs';
+import { customerGroupTools } from './customer-groups';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
+
+/** Who outside the team wrote a comment, as get_issue says it (D56, D57). */
+const OUTSIDE_AS = { requester: 'the requester', copied: 'copied on the request', colleague: 'of the requester’s customer group' } as const;
 import { defineTool, type ToolDef } from './types';
 
 // ---------------------------------------------------------------------------
@@ -228,7 +232,7 @@ const getIssueTool = defineTool({
         links: i.links.map((l) => ({ relation: l.phrase, id: l.issue.id, summary: l.issue.summary, state: l.issue.state })),
         spent: i.spentMinutes ? formatPeriod(i.spentMinutes) : null,
         comments: comments.map((c) => ({
-          by: c.requester ? `${c.requester.name} (${c.requester.copied ? 'copied on the request' : 'the requester'})` : (c.author?.login ?? null),
+          by: c.requester ? `${c.requester.name} (${OUTSIDE_AS[c.requester.as]})` : (c.author?.login ?? null),
           at: c.createdAt.slice(0, 16),
           public: c.visibility === 'public' || undefined,
           text: excerpt(c.text, 1500),
@@ -255,6 +259,8 @@ const getIssueTool = defineTool({
               due: request.firstResponse.dueAt,
               emailMuted: request.emailMuted || undefined,
               copied: request.ccs.length ? request.ccs.map((c) => c.email) : undefined,
+              customerGroup: request.group?.name ?? undefined,
+              private: request.private || undefined,
             }
           : undefined,
         commits: code.commits.slice(0, 20).map((c) => ({
@@ -628,6 +634,7 @@ export const TOOLS: ToolDef[] = [
   ...projectKeyTools,
   ...boardTools,
   ...requestCcTools,
+  ...customerGroupTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {
