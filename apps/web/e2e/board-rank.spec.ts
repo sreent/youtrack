@@ -9,6 +9,7 @@ import type { Locator, Page } from '@playwright/test';
 import type { Board } from '@a4a/shared';
 import { fieldValue, uniqueKey, type Api } from './support/api';
 import { SECOND_AUTH_FILE } from './support/env';
+import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { expect, test } from './support/fixtures';
 
 // The second of the flows' administrators (support/env.ts says why).
@@ -71,6 +72,8 @@ test('a card dragged within its column lands where it was dropped, and stays the
   await pickUp(page, last!);
   await carryOnto(page, cardOf(page, first!), 'upper', `Drop it to put ${last} above ${first}`);
   await page.screenshot({ path: test.info().outputPath('board-rank-dragging.png') });
+  // A card on its way, its slot and the gap it left, held to WCAG 2.2 AA.
+  await expectAccessible(page);
   await page.mouse.up();
   expect((await saved).postDataJSON()).toEqual({ issue: last, column: 'Open', before: first, expectedVersion: version });
 
@@ -109,6 +112,8 @@ test('from the keyboard, Alt and an arrow moves a card a place or a column, says
   await expect.poll(() => order(page, 'Open')).toEqual([next, top, bottom]);
   await expect(idButton(page, top!)).toBeFocused();
   await page.screenshot({ path: test.info().outputPath('board-rank-keyboard.png') });
+  // The board, the card moved and the words said, held to WCAG 2.2 AA.
+  await expectAccessible(page);
 
   await page.keyboard.press('Alt+ArrowUp');
   await expect(status(page, `Moved ${top} above ${next}.`)).toBeAttached();
@@ -184,6 +189,7 @@ test.describe('on a phone', () => {
     for (let k = 1; k <= 10; k++) await touch('touchMove', start.x, start.y + ((end - start.y) * k) / 10);
     await expect(page.locator('li.board-drop').getByText(`Drop it to put ${lower} above ${upper}`)).toBeVisible();
     await page.screenshot({ path: test.info().outputPath('board-rank-phone.png') });
+    await expectNoSidewaysScroll(page);
     await touch('touchEnd');
     expect((await saved).postDataJSON()).toMatchObject({ issue: lower, column: 'Open', before: upper });
     await expect.poll(() => order(page, 'Open')).toEqual([lower, upper]);
