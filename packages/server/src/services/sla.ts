@@ -202,7 +202,9 @@ async function mirrorStatus(tx: Db, app: AppServices, s: SchemaSnapshot, issue: 
   if (status && !value) return [];
   const [current] = await tx.select({ valueId: issueFieldValues.valueId }).from(issueFieldValues).where(and(eq(issueFieldValues.issueId, issue.id), eq(issueFieldValues.fieldId, field.id)));
   if ((current?.valueId ?? null) === (value?.id ?? null)) return [];
-  const ctx = adminCtx(app, bot, 'helpdesk');
+  // a4a's own bookkeeping, not anyone's doing: no requester through the help desk (whose channel
+  // that is), and no agent's change to undo. Its history and notifications say a4a.
+  const ctx = adminCtx(app, bot, 'system');
   ctx.actor.projectIds = [issue.projectId];
   const res = await applyChanges(tx, ctx, issue, { fields: [{ field, mode: 'set', values: value ? [{ valueId: value.id }] : [] }], data: { sla: true } }, { guards: false, machines: false });
   return res.activities;
@@ -490,7 +492,8 @@ export async function slaTick(app: AppServices, at = new Date()): Promise<number
       const s = await app.schema.get(tx);
       const bot = s.usersByLogin.get(HELPDESK_BOT);
       if (!bot) return [];
-      const ctx = adminCtx(app, bot, 'helpdesk');
+      // What time alone brings, said by a4a: no one's doing (as mirrorStatus says).
+      const ctx = adminCtx(app, bot, 'system');
       ctx.actor.projectIds = [issue.projectId];
       const ref = (await issueRefsById(tx, s, [issue.id])).get(issue.id);
       const clocks = await tx.select().from(slaClocks).where(eq(slaClocks.issueId, issueId));

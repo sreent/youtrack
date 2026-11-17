@@ -199,6 +199,12 @@ describe('SLA policies on a desk', () => {
     expect((await getIssue(w.adminCtx, id)).fields.find((f) => f.name === 'SLA status')?.value).toMatchObject({ name: 'Breached' });
     const [breached] = (await clocks(id)).filter((c) => c.target === 'first_response');
     expect(breached!.breachedAt!.getTime()).toBe(first!.dueAt!.getTime());
+    // a4a's own doing, not the requester's: its warnings and its field's changes say a4a, with nothing to undo.
+    const own = (await w.app.db.select().from(activities).where(eq(activities.issueId, uid))).filter(
+      (a) => a.type.startsWith('sla.') || JSON.stringify((a.payload as { changes?: unknown }).changes ?? []).includes('SLA status'),
+    );
+    expect(own.length).toBeGreaterThanOrEqual(4);
+    expect([...new Set(own.map((a) => a.channel))]).toEqual(['system']);
     // Answering late still counts as late.
     await addComment(w.as(w.anna), id, 'Sorry for the wait.', { visibility: 'public' });
     expect((await requestOf(w.adminCtx, id)).sla.clocks.find((c) => c.target === 'first_response')!.state).toBe('missed');
