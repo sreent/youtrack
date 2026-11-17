@@ -3,6 +3,7 @@
  * out keeps finding its issue, wherever it was written.
  */
 import { createHmac, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Ctx } from '../src/context';
@@ -22,11 +23,13 @@ import { renameProjectKey } from '../src/services/project-keys';
 import { createProject, getProject } from '../src/services/projects';
 import { flowReport } from '../src/services/reports';
 import { createSavedSearch } from '../src/services/saved-searches';
+import { subscribe, subscriptionTo } from '../src/services/subscriptions';
 import { linkIssues } from '../src/services/links';
 import { toolByName } from '../src/tools/registry';
 import { createIntegration } from '../src/vcs/integrations';
 import { issueVcs } from '../src/vcs/links';
 import { createWorld, type TestWorld } from './helpers';
+import { openStream } from './sse-client';
 
 let w: TestWorld;
 let admin: Ctx;
@@ -162,7 +165,7 @@ describe("renaming a project's key", () => {
     expect((await getProject(admin, 'MGA')).key).toBe('MGA');
   });
 
-  it('links a commit that names the old id, and a branch named after it', async () => {
+  it('links a commit that names the old id, and a pull request whose branch does', async () => {
     await createProject(admin, { key: 'VCA', name: 'Version control', template: 'software' });
     const issue = await createIssue(admin, { project: 'VCA', summary: 'Named in a commit' });
     const github = await createIntegration(admin, { provider: 'github', name: 'acme/rekey', projects: ['VCA'] });
@@ -187,6 +190,16 @@ describe("renaming a project's key", () => {
     const vcs = await issueVcs(admin, 'VCB-1');
     expect(vcs.commits.map((c) => c.sha)).toEqual([sha]);
     expect(issue.id).toBe('VCA-1');
+    // A pull request whose branch alone names the old id.
+    const fixture = JSON.parse(readFileSync(new URL('./fixtures/vcs/github-pull-request-opened.json', import.meta.url), 'utf8'));
+    const pr = JSON.stringify({ ...fixture, repository: { ...fixture.repository, full_name: 'acme/rekey' }, pull_request: { ...fixture.pull_request, title: 'Throttle the exports', body: '', head: { ...fixture.pull_request.head, ref: 'feature/vca-1-throttle' } } });
+    const opened = await http.request(`/api/v1/vcs/hooks/${github.id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-github-event': 'pull_request', 'x-github-delivery': randomUUID(), 'x-hub-signature-256': `sha256=${createHmac('sha256', github.secret).update(pr).digest('hex')}`, 'user-agent': 'GitHub-Hookshot/2f8e7a1' },
+      body: pr,
+    });
+    expect(opened.status).toBe(200);
+    expect((await issueVcs(admin, 'VCA-1')).pullRequests.map((p) => p.number)).toEqual([fixture.number]);
   });
 
   it('serialises two renames at once: the second, which named the key it saw, is told it changed', async () => {
@@ -300,6 +313,32 @@ describe("renaming a project's key", () => {
     const out = await tool.run(admin, input);
     expect(out.data).toMatchObject({ key: 'APD', former_keys: ['APA', 'APB'] });
     expect((await failure(() => tool.run(ben, tool.input.parse({ project: 'APD', key: 'APE' }) as never))).status).toBe(403);
+  });
+
+  it('keeps a live stream filtered by the project telling of it across the rename', async () => {
+    await createProject(admin, { key: 'SSA', name: 'Streamed', template: 'software' });
+    const http = createHttpApp(w.app);
+    const { createToken } = await import('../src/services/auth');
+    const made = await createToken(admin, { name: 'stream', scopes: ['read'] });
+    const stream = await openStream(http.request, made.token, { query: '?project=SSA' });
+    try {
+      await createIssue(admin, { project: 'SSA', summary: 'Before' });
+      await renameProjectKey(admin, 'SSA', { key: 'SSB' });
+      await createIssue(admin, { project: 'SSB', summary: 'After' });
+      const events = await stream.waitForEvents(3, 10_000);
+      expect(events.map((e) => `${e.type} ${e.project}`)).toEqual(['issue.created SSA', 'project.key.changed SSB', 'issue.created SSB']);
+      expect(events[2]!.issue?.id).toBe('SSB-2');
+    } finally {
+      await stream.close();
+    }
+  });
+
+  it("finds someone's subscription to the project by a key it had", async () => {
+    await createProject(admin, { key: 'SBA', name: 'Subscribed', template: 'blank' });
+    const sub = await subscribe(ben, { project: 'SBA' });
+    await renameProjectKey(admin, 'SBA', { key: 'SBB' });
+    expect((await subscriptionTo(ben, { project: 'sba' }))?.id).toBe(sub.id);
+    expect((await subscriptionTo(ben, { project: 'SBB' }))?.id).toBe(sub.id);
   });
 
   it('carries the old ids of issues that moved before, under the key their project had', async () => {

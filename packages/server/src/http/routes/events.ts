@@ -30,13 +30,13 @@ const MAX_QUEUE = 5_000;
 async function streamFilter(ctx: Ctx, project: string | undefined, types: string | undefined): Promise<EventFilter> {
   const typeList = types?.split(',').map((t) => t.trim()).filter(Boolean) ?? [];
   let projectIds: string[] | null = null;
-  let key: string | null = null;
+  let only: string | null = null;
   if (project) {
     // A project the caller can't see is unknown, in the same words as one that doesn't exist.
     const p = projectByKey(await visibleSchema(ctx), project);
     if (!p) throw badRequest(`Unknown project ${project}`).said('events.unknownProject', { project });
     projectIds = [p.id];
-    key = p.id;
+    only = p.id;
   }
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   return {
@@ -44,7 +44,7 @@ async function streamFilter(ctx: Ctx, project: string | undefined, types: string
     types: typeList.length ? typeList : null,
     where: eventsVisibleSql(view, s),
     // By the project, not its key: a stream open across a rename (D52) keeps it, since its keys, old and new, all find it.
-    matches: (e) => (!key || (e.project !== null && projectByKey(ctx.app.schema.peek() ?? s, e.project)?.id === key)) && (!typeList.length || typeList.includes(e.type)),
+    matches: (e) => (!only || (e.project !== null && projectByKey(ctx.app.schema.peek() ?? s, e.project)?.id === only)) && (!typeList.length || typeList.includes(e.type)),
   };
 }
 

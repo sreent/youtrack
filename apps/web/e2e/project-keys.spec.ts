@@ -4,6 +4,7 @@
  * finds the project.
  */
 import { unique, uniqueKey } from './support/api';
+import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { THIRD_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
 
@@ -61,3 +62,35 @@ test("a project's key is renamed, and an old link still opens its issue", async 
   await expect(page).toHaveURL(new RegExp(`/projects/${to}$`));
   expect((await api.search(`project: ${from}`)).items.map((i) => i.id)).toEqual([`${to}-1`]);
 });
+
+for (const mode of [
+  { name: 'light', use: { colorScheme: 'light' as const } },
+  { name: 'dark', use: { colorScheme: 'dark' as const } },
+  { name: 'phone', use: { colorScheme: 'light' as const, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+]) {
+  test.describe(mode.name, () => {
+    test.use(mode.use);
+    test('the key, the keys it had and the rename read well', async ({ page, api }, info) => {
+      const from = uniqueKey('RL');
+      await api.createProject({ key: from, name: `Read well ${unique()}`, template: 'blank' });
+      await api.post(`/projects/${from}/key`, { key: uniqueKey('RM') });
+      const p = await api.get<{ key: string }>(`/projects/${from}`);
+      await page.goto(`/projects/${p.key}`);
+      const section = page.getByRole('region', { name: 'Key', exact: true });
+      await expect(section).toContainText(`Before, it went by ${from}.`);
+      await section.getByLabel('New key').fill(uniqueKey('RP'));
+      await expectAccessible(page);
+      await expectNoSidewaysScroll(page);
+      await section.screenshot({ path: info.outputPath('key.png') });
+      // From the keyboard: the button, then the field typed again, then the answer.
+      await section.getByRole('button', { name: 'Rename the key' }).focus();
+      await page.keyboard.press('Enter');
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expectAccessible(page);
+      await page.screenshot({ path: info.outputPath('dialog.png') });
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    });
+  });
+}

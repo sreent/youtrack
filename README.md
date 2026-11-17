@@ -13,6 +13,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Fields can also hold groups, builds (a list CI can add to twice without harm), owned values (each Subsystem has an owner, who takes an issue about it that nobody has) and moments with a time, typed in your own time zone.
   - A field can show, and be required, only while its issue matches a search: *Fixed in build*, while `State: Fixed`. Marking it Fixed asks for the build.
 - **Moving and cloning.** An issue moves to another project and takes its next number; its old id still finds it everywhere (addresses, the API, MCP, Markdown, commit messages). What doesn't carry over by name is asked for before anything moves. A clone copies its words, values and tags, linked back.
+- **Renaming a project's key.** Its managers rename `BACK` to `CORE`, typing the new key again to confirm; its issues keep their numbers. `BACK` stays the project's for good: `BACK-12` still opens `CORE-12` everywhere it was written (links, emails, commits and branches, chat, the API and MCP), `project: BACK` still finds it in saved searches, rules, boards and dashboards, and no other project can take it. Renaming back is allowed.
 - **Votes and reactions.** Vote for what you want (`sort by: votes desc`, `voter: me`), and react to a description or a comment with one of eight emoji.
 - **The query language**, as in YouTrack: `project: BACK #Unresolved for: me Priority: Critical, Major sort by: updated desc`.
   - Autocomplete as you type.

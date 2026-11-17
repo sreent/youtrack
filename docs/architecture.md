@@ -1108,7 +1108,7 @@ An issue can now leave its project, be copied, gather votes and reactions, and h
 
 **What it costs.** An issue's page reads its aliases, its votes and its reactions, and answers all its fields' conditions in one query. A list reads none of these: `votes` is on the issue's row.
 
-**Revisit when:** a project's key can be renamed, which is an alias for each of its issues. (CI now reports builds itself: D46.)
+**Revisit when:** nothing pending. (A project's key can now be renamed, with one alias for the key rather than one per issue: D52. CI reports builds itself: D46.)
 
 ### D42. Chat: Teams and Slack, told only what every reader may see, and people acting as themselves
 
@@ -1215,7 +1215,7 @@ Four more reports, worked out on request as D21's are, each on the Reports page,
 
 **What it costs.** Issues per field and the matrix read the issues in scope and one field's values: two queries, up to 100,000 issues. Average age and time in state read history as the other reports do, up to 400,000 events, with one more expression when a field is followed. Every history report now reads moves too, and joins their ids in memory.
 
-**Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead); or a project's key can be renamed (moves name keys).
+**Revisit when:** a report follows a field over many issues often enough that replaying history is slow (keep each value's spans instead). (A renamed key, D52, reads as the key is now: moves' keys and ids too.)
 
 ### D45. The help desk in depth: SLAs in working hours, a mailbox per desk, a portal, the team by email, kinds of change
 
@@ -1394,6 +1394,24 @@ People who use a4a don't all read English. a4a says its own words in each person
 
 **Revisit when:** a right-to-left language comes; people want a project's own words (its states, its fields) in several languages; or the API should answer in its caller's language.
 
+### D52. A project's key can be renamed, and the key it had stays its own
+
+A project's key (`BACK`, the start of `BACK-12`) can now change, as YouTrack's project ID can. Its issues keep their numbers, so `BACK-12` becomes `CORE-12`, and the key it had stays the project's for good.
+
+- **One alias for the key, not one for each issue.** `project_key_aliases` keeps (key, project): every key a project went by. D41 kept an alias per moved issue because a move changes its number; a rename changes no number, so `BACK-12` is `CORE-12` by the key alone, whether the issue was made before the rename or after.
+- **Every reader finds it the same way.** The schema snapshot's `projectsByKey` holds former keys beside current ones, each mapping to the project, so whatever turns a key into a project finds it unchanged: `findIssue` (addresses, the API, MCP, the assistant, chat and Slack's unfurls), `requireProject` (`/projects/BACK`, the event stream's `?project=`, a help desk's `/help/BACK`), the query language (`project: BACK`, `issue id: BACK-12`, a bare `BACK-12`), and mentions in text. So saved searches, subscriptions, rules' queries, boards' and dashboards' queries and chat subscriptions read as they did, and nothing rewrites what people wrote. An issue that moved away from the project before is found by its old id under either key, since its alias is kept by project, not key. Suggestions ("did you mean") and lists name projects by their keys now.
+- **Readers that compared keys as text compare projects now:** version control's and CI's lists of keys to look for in commits and branches (a commit naming `BACK-12` links to `CORE-12`), the event stream's and webhooks' project filters, the feed's check of a link's other end, a shared dashboard's check of a widget's project, and finding someone's subscription by a project's key.
+- **History stays as it was written.** Activities keep the ids and keys they were recorded with (`issue.created` of `BACK-12`), and so do kept notes, chat posts, webhooks already sent, baselines' tasks, import rows, rule runs and app runs; each id finds its issue through the alias. Readers that join history read it as the issue is now: reports' timelines read `BACK-12` as `CORE-12` (one history, not two, and in its project's scope), a deleted issue's events are looked up under every key its project had, and a baseline's tasks meet the plan's by the issue. An event's `project` reads as the key is now. Only `mentions` is rewritten, in the rename's transaction, as a move rewrites it (D41): it's an index of what names what, read by the id an issue or article has now, not a record.
+- **What isn't a4a's key is untouched.** An import knows its issues by the other tracker's key (D21), with the project by id, so running it again into the renamed project matches as before. The help desk threads by Message-IDs and tokens, and a web-form request's thread root is the issue's internal id, so a rename breaks no requester's thread.
+- **One transaction, the project's row locked.** The key changes and the old one becomes an alias together, so nothing reads a project with no key, or a key with no project. The rename records `project.key.changed`, rewrites mentions, and tells every instance's cache to reload when it commits; this instance's live stream carries the event, and the web app reads everything again, since every id on screen changed. Renaming back to a key it had takes that key off its aliases.
+- **Keys stay unique across both tables, without a lock of their own.** A key moves only from free to taken by being written to `projects.key` (a new project, or a rename to it), and the unique index on `upper(key)` settles two such writes at once: the loser gets the same "taken" as a check would give. A key becomes an alias only by having been a project's key, so it's never free in between. Creating a project and renaming one each check both tables inside their transaction, which a cache a moment stale can't fool. Two renames of one project queue on its row; the second, if it sent the key it saw (`expectedKey`, which the web app always sends), is refused with the key the project has now, otherwise it renames from there. An issue made, or moved in, during a rename waits for the row as its number does, and reads the key back from the row it updated, so its own event names it as it is.
+- **Who.** A project's managers, as for its other settings, and administrators. Not administrators only: the key is the project's, renaming breaks nothing outside it (every id it gave out keeps working), and YouTrack lets a project's administrators change its ID. What it costs: a manager can take a free key, and each key a project leaves stays reserved for it, so renaming through several holds them all. The page asks for the new key typed again (Ocean's Confirm, which now takes a word to type), since everyone who reads its ids meets the change at once. The key is checked as a new project's is; "taken" says the same whoever has the key, so a manager learns of a project they can't see only that a key is used, which unique keys can't avoid.
+- **The web app.** The project page shows the key, the keys it went by, and, to its managers, the rename. An issue's old address goes to its id now and says which it was asked for by; a project's old address goes to its key now. `formerIds` on an issue stay those of its moves; the keys are on the project (`formerKeys`).
+
+**What it costs.** One more small table, in every snapshot. A former key stays reserved while its project exists; deleting the project frees it with its others. A rename rewrites the mentions of the project's ids, one statement over the table. Every history report maps the ids it reads, in memory.
+
+**Revisit when:** keys become contested enough that administrators should release a former key, which would break the links that use it; or a tracker an import reads renames its own keys (match by its internal ids then, not its keys).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1426,6 +1444,7 @@ People who use a4a don't all read English. a4a says its own words in each person
 | A delivery from version control sent twice | Its delivery id is claimed before the work; links are unique per issue and commit (or pull request), so even a second delivery id changes nothing twice |
 | A message to a help desk posted twice, or read twice | Known by its Message-ID within its desk, claimed in the log before the work; a failed claim, or one ten minutes stale, may be handled again (D30) |
 | A help desk mailbox, shared or a desk's own, read by a new lease holder | Its place is a UID within its UIDVALIDITY, in Postgres, and only ever moves on; a message read twice is a duplicate by its Message-ID |
+| Two renames of a project's key, a rename and a new project wanting one key, an issue made during a rename | The rename locks the project's row: renames queue, and the second, given the key it saw, gets 409 with the key now. A key is free, a project's or a former key of one, never two: both are checked inside the transaction, and the unique index on projects' keys settles two claims at once. An issue's number is taken on the same row, under the key it has then (D52) |
 | Two people undo one agent's change, or someone changes the issue as it's undone | The undo locks the change's row, then the issue, and checks the issue is as the agent left it under those locks: the second undo gets 409 `already_undone`, and a change that got in first makes it refuse with what changed (D34) |
 
 ## Security
@@ -1476,7 +1495,7 @@ People who use a4a don't all read English. a4a says its own words in each person
 - **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
 - **A limit on an issue or comment** reaches an open live stream within 10 seconds of being changed: each event's facts are kept that long (D37).
 - **A workflow script** runs for 250 ms (a guard for 60 ms) in 16 MB at most, is 20,000 characters at most, asks for 20 commands and 5 comments a run, and sees an issue's latest 20 comments and 100 links (D40).
-- **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). Project keys can't be renamed: that would be an alias for each of their issues.
+- **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). A project's key can be renamed; the key it had stays its own, so `BACK-12` finds `CORE-12`, and no other project can take `BACK` while it exists (D52).
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 - **Help desk mail** is read once a minute by default: from the shared mailbox, where desks are told apart by the address mail was sent to, or from a desk's own mailbox (D45). A desk's replies need its mail server to deliver plus addresses (D30).
 

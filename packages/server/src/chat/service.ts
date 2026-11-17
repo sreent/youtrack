@@ -35,6 +35,7 @@ import { excerpt } from '../lib/text';
 import { runCommand } from '../commands/executor';
 import { searchIssues } from '../search/service';
 import { projectAccess, projectGrantsOf, requireProject } from '../services/access';
+import { keyNow } from '../services/schema-cache';
 import { addComment } from '../services/comments';
 import { createIssue, getIssue } from '../services/issues';
 import { findFollowableSearch } from '../services/subscriptions';
@@ -635,8 +636,10 @@ async function subscribeHere(ctx: Ctx, on: boolean, rest: string, channelId: str
     const about = aboutChannel(sub.kinds, { project: sub.project?.name, search: sub.search?.name }, channel);
     return { text: channel.t('server.chat.subscribed', { name: ctx.actor.user.name, about }), locale: channel.locale, public: true };
   }
+  // A project named by a key it had before it was renamed (D52) is the same project.
+  const key = quoted ? null : keyNow(await ctx.app.schema.get(), word!).toUpperCase();
   const mine = (await listChatSubscriptions(ctx)).filter(
-    (s) => s.channel.id === channelId && !s.ended && (quoted ? s.search?.name.toLowerCase() === quoted.toLowerCase() : s.project?.key === word!.toUpperCase()),
+    (s) => s.channel.id === channelId && !s.ended && (quoted ? s.search?.name.toLowerCase() === quoted.toLowerCase() : s.project?.key.toUpperCase() === key),
   );
   if (!mine.length) return { text: tr.t('server.chat.hearsNothing'), locale };
   for (const s of mine) await deleteChatSubscription(ctx, s.id);
