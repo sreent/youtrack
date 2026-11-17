@@ -38,13 +38,13 @@ export function vcsRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Add a GitHub, GitLab, Bitbucket, Gitea or Forgejo integration (admin)',
       description:
-        'Returns the webhook URL to give the provider, and a secret, shown only once: the webhook\'s secret (in GitLab, its secret token). Send pushes and pull (merge) requests. A commit message that mentions `BACK-12` links the commit to it; `BACK-12 #Fixed` also applies the command after `#`, as the commit\'s author in a4a (known by a confirmed email, or a login the provider vouches for), if they can change the project\'s issues. Bitbucket Data Center needs `baseUrl`; either Bitbucket takes an `accessToken` to read the commits a delivery leaves out.',
+        'Returns the webhook URL to give the provider, and a secret, shown only once: the webhook\'s secret (in GitLab, its secret token). Send pushes and pull (merge) requests. A commit message that mentions `BACK-12` links the commit to it; `BACK-12 #Fixed` also applies the command after `#`, as the commit\'s author in a4a (known by a confirmed email, or a login the provider vouches for), if they can change the project\'s issues. Bitbucket Data Center needs `baseUrl`; either Bitbucket takes an `accessToken` to read the commits a delivery leaves out. GitHub takes an `accessToken`, or a `githubApp` to read as instead (D54): its id, its private key and, if a4a can\'t find it, its installation. a4a checks the app with GitHub before keeping it, and says what\'s wrong if it can\'t read as it.',
       body: VcsIntegrationBody,
       response: VcsIntegrationCreatedSchema,
     },
     ({ ctx, body }) => createIntegration(ctx, body),
   );
-  route(app, { method: 'patch', path: '/vcs/integrations/{id}', tags, summary: 'Rename, re-scope or pause an integration, or change its Bitbucket address or token (admin)', params: Id, body: UpdateVcsIntegrationBody, response: VcsIntegrationSchema }, ({ ctx, params, body }) =>
+  route(app, { method: 'patch', path: '/vcs/integrations/{id}', tags, summary: 'Rename, re-scope or pause an integration, or change its address, its token or its GitHub App (admin)', params: Id, body: UpdateVcsIntegrationBody, response: VcsIntegrationSchema }, ({ ctx, params, body }) =>
     updateIntegration(ctx, params.id, body),
   );
   route(app, { method: 'delete', path: '/vcs/integrations/{id}', tags, summary: 'Remove an integration (admin); its links stay on their issues', params: Id, status: 204 }, async ({ ctx, params }) => {

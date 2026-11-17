@@ -17,7 +17,7 @@ export function codeHostRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'post',
       path: '/me/code-hosts/{provider}/connect',
       tags,
-      summary: 'Start connecting your account at a code host',
+      summary: 'Start connecting your account at a code host (github, gitlab, bitbucket, or gitea for Forgejo and Gitea)',
       description:
         "Returns the provider's page to sign in at. Back from it, the account you proved yours becomes your login there, so its commits and pull requests are yours. a4a asks who you are with the token once, and doesn't keep it. From the web, signed in.",
       params: Provider,
