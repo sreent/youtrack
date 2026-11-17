@@ -8,7 +8,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { unique, uniqueKey } from './support/api';
-import { BASE_URL, SECOND_AUTH_FILE, TEAMS } from './support/env';
+import { AUTH_FILE, BASE_URL, SECOND_AUTH_FILE, TEAMS } from './support/env';
 import { expect, test } from './support/fixtures';
 import { startTeams } from './support/teams';
 
@@ -25,7 +25,7 @@ test.afterAll(async () => {
   await teams?.close();
 });
 
-test('a channel is told of a project’s issues, and someone is linked by a link only they see', async ({ page, api, playwright }) => {
+test('a channel is told of a project’s issues, and someone is linked by a link only they see', async ({ page, api, playwright, browser }) => {
   const key = uniqueKey('CH');
   const project = await api.createProject({ key, name: `Chat ${key}` });
   const team = `19:team-${unique()}@thread.tacv2`;
@@ -65,6 +65,14 @@ test('a channel is told of a project’s issues, and someone is linked by a link
   await expect(channels.getByText(`General hears of new issues, state changes and comments in ${project.name}.`)).toBeVisible();
   const row = channels.getByRole('region', { name: `Table of the channels told of ${project.name}` }).getByRole('row').filter({ hasText: 'General' });
   await expect(row).toContainText('New issues, state changes and comments');
+  // A German page says what the channel hears of in German, from its kinds and the project's name;
+  // the API's about stays English.
+  const german = await browser.newContext({ locale: 'de-DE', storageState: AUTH_FILE });
+  const deutsch = await german.newPage();
+  await deutsch.goto(`/projects/${key}`);
+  const kanäle = deutsch.getByRole('region', { name: 'Chat-Kanäle' });
+  await expect(kanäle.getByRole('row').filter({ hasText: 'General' })).toContainText(`Neue Vorgänge, Statusänderungen und Kommentare in ${project.name}`);
+  await german.close();
 
   // An issue reported there reaches the channel as a change card.
   const summary = `Exports stall at 99% ${unique()}`;
