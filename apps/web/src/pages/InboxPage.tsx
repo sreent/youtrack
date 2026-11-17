@@ -68,12 +68,12 @@ function NotificationEntry({ n }: { n: Notification }) {
         {changes.length ? <ChangeLines changes={changes} /> : null}
         {links.map((e) => (
           <p key={e.id} className="note">
-            {e.type === 'link.created' ? t('page.inbox.linked') : t('page.inbox.unlinked')}: {String(e.data.phrase ?? '')} {(e.data.target as { id?: string } | undefined)?.id ?? ''}
+            {t('ui.labelled', { label: e.type === 'link.created' ? t('page.inbox.linked') : t('page.inbox.unlinked'), value: [String(e.data.phrase ?? ''), (e.data.target as { id?: string } | undefined)?.id ?? ''].filter(Boolean).join(' ') })}
           </p>
         ))}
         {files.map((e) => (
           <p key={e.id} className="note">
-            {e.type === 'attachment.added' ? t('page.inbox.attached') : t('page.inbox.removed')}: {String((e.data.attachment as { name?: string } | undefined)?.name ?? t('page.inbox.aFile'))}
+            {t('ui.labelled', { label: e.type === 'attachment.added' ? t('page.inbox.attached') : t('page.inbox.removed'), value: String((e.data.attachment as { name?: string } | undefined)?.name ?? t('page.inbox.aFile')) })}
           </p>
         ))}
         {said.map((e) => (

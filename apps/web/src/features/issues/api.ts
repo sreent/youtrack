@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { ApiError, patch } from '../../api/client';
 import { keys, useFields } from '../../api/queries';
-import { t } from '../../i18n';
+import { problemWords, t } from '../../i18n';
 
 /**
  * Change an issue, guarded by the version it was read at: if someone changed it since,
@@ -33,7 +33,8 @@ export function useUpdateIssue(issue: IssueDetail | undefined) {
 export function errorText(e: unknown, fallback = t('issues.api.thatDidnTWork')): string {
   if (e instanceof ApiError) {
     if (e.status === 409) return t('issues.api.someoneChangedThisIssueJust');
-    return e.hint ? `${e.message}. ${e.hint}` : e.message;
+    // A problem with a key says itself in the page's language (D49); one without, in the server's English.
+    return problemWords(e) ?? (e.hint ? `${e.message}. ${e.hint}` : e.message);
   }
   return fallback;
 }

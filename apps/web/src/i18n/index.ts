@@ -71,6 +71,19 @@ export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conju
   return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, typeof p === 'number' ? items[p] : p)));
 }
 
+/** Things a page draws one after another with no "and" (`formatItems`'s elements): "BACK-1, BACK-2", Chinese's "BACK-1、BACK-2". */
+export function itemNodes(items: ReactNode[]): ReactNode {
+  if (items.length <= 1) return items[0] ?? null;
+  const text = (i: number) => {
+    const item = items[Math.min(i, items.length - 1)];
+    return typeof item === 'string' ? item : '';
+  };
+  // A list one longer has every one of these before its "and": keep it up to the last of them.
+  const parts = listParts(translator.locale, items.length + 1, text);
+  const kept = parts.slice(0, parts.indexOf(items.length - 1) + 1);
+  return createElement(Fragment, null, ...kept.map((p, i) => createElement(Fragment, { key: i }, typeof p === 'number' ? items[p] : p)));
+}
+
 /** A message whose tags or values are elements: what a page draws. */
 export function tr(key: string, values?: MessageValues): ReactNode {
   const parts = translator.parts<ReactNode>(key, values);

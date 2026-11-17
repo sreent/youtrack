@@ -8,7 +8,7 @@ import { patch } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from '../issues/api';
-import { t, weekdayNames } from '../../i18n';
+import { sentences, t, weekdayNames } from '../../i18n';
 
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
 const NAMES = weekdayNames('long');
@@ -52,7 +52,7 @@ export function WorkWeek({ week, capacity, canChange }: { week: number[] | null;
         ))}
       </div>
       <p className="field-help">
-        {total === null ? t('away.workWeek.eachDayTakesFrom0') : t('away.workWeek.hoursAWeek', { v: Math.round(total * 10) / 10 })} {week ? '' : t('away.workWeek.untilYouSaveOneYou')}
+        {sentences([total === null ? t('away.workWeek.eachDayTakesFrom0') : t('away.workWeek.hoursAWeek', { v: Math.round(total * 10) / 10 }), week ? '' : t('away.workWeek.untilYouSaveOneYou')])}
       </p>
       {canChange ? (
         <div className="cluster">

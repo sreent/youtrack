@@ -5427,6 +5427,7 @@
   "ui.changes.no": "ไม่",
   "ui.changes.removed": "นำออกแล้ว",
   "ui.changes.yes": "ใช่",
+  "ui.labelled": "{label}: {value}",
   "ui.markdown.aChecklistItem": "ช่องทำเครื่องหมาย",
   "ui.markdown.aPicture": "รูปภาพ",
   "ui.states.somethingWentWrong": "เกิดข้อผิดพลาด",

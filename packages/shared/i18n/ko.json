@@ -5427,6 +5427,7 @@
   "ui.changes.no": "아니요",
   "ui.changes.removed": "제거됨",
   "ui.changes.yes": "예",
+  "ui.labelled": "{label}: {value}",
   "ui.markdown.aChecklistItem": "체크리스트 항목",
   "ui.markdown.aPicture": "이미지",
   "ui.states.somethingWentWrong": "문제가 발생했습니다",

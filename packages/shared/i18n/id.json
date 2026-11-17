@@ -5427,6 +5427,7 @@
   "ui.changes.no": "tidak",
   "ui.changes.removed": "dihapus",
   "ui.changes.yes": "ya",
+  "ui.labelled": "{label}: {value}",
   "ui.markdown.aChecklistItem": "Item daftar periksa",
   "ui.markdown.aPicture": "Gambar",
   "ui.states.somethingWentWrong": "Terjadi kesalahan",

@@ -184,7 +184,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         more:
           str(e.data.description) || str(e.data.date) ? (
             <span className="ledger-note">
-              {[str(e.data.date) ? t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }) : '', str(e.data.description)].filter(Boolean).join(': ')}
+              {str(e.data.date) && str(e.data.description) ? t('ui.labelled', { label: t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }), value: str(e.data.description) }) : str(e.data.date) ? t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }) : str(e.data.description)}
             </span>
           ) : null,
       };

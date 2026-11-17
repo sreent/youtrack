@@ -89,8 +89,8 @@ export function when(iso: string, now = new Date()): string {
   const time = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return time;
   const sameYear = d.getFullYear() === now.getFullYear();
-  const day = d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
-  return `${day}, ${time}`;
+  // A day and its time together, as the page's language joins them ("Mon 16 Nov, 14:05", 「11月16日周一 14:05」).
+  return d.toLocaleString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 interface Entry {

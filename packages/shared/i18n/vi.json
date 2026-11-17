@@ -5427,6 +5427,7 @@
   "ui.changes.no": "không",
   "ui.changes.removed": "đã xóa",
   "ui.changes.yes": "có",
+  "ui.labelled": "{label}: {value}",
   "ui.markdown.aChecklistItem": "Mục trong danh sách kiểm tra",
   "ui.markdown.aPicture": "Hình ảnh",
   "ui.states.somethingWentWrong": "Đã xảy ra lỗi",

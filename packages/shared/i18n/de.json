@@ -5427,6 +5427,7 @@
   "ui.changes.no": "nein",
   "ui.changes.removed": "entfernt",
   "ui.changes.yes": "ja",
+  "ui.labelled": "{label}: {value}",
   "ui.markdown.aChecklistItem": "Ein Checklistenpunkt",
   "ui.markdown.aPicture": "Ein Bild",
   "ui.states.somethingWentWrong": "Etwas ist schiefgelaufen",

@@ -5427,6 +5427,7 @@
   "ui.changes.no": "いいえ",
   "ui.changes.removed": "削除",
   "ui.changes.yes": "はい",
+  "ui.labelled": "{label}：{value}",
   "ui.markdown.aChecklistItem": "チェックリストの項目",
   "ui.markdown.aPicture": "画像",
   "ui.states.somethingWentWrong": "問題が発生しました",
