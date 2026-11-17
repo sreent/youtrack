@@ -1192,7 +1192,7 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
 - Velocity reads each sprint's history as a burndown does: twelve sprints are twelve burndowns' reading.
 - A timesheet is one query for the week's work and one for the person's days away.
 
-**Revisit when:** people want cards ranked by dragging on the board itself (the rank is already the board's); a team is more than a sprint's assignees (capacity for people with nothing in it yet); timesheets are submitted and approved; or a rule should plan sprints (`sprint` in a rule's command), which wants a decision about who plans.
+**Revisit when:** a team is more than a sprint's assignees (capacity for people with nothing in it yet); timesheets are submitted and approved; or a rule should plan sprints (`sprint` in a rule's command), which wants a decision about who plans. (Cards ranked by dragging on the board itself came with D53.)
 
 ### D44. More reports: issues per field, a matrix, average age and time in state
 

@@ -59,7 +59,7 @@ test('a channel is told of a project’s issues, and someone is linked by a link
   await page.goto(`/projects/${key}`);
   const channels = page.getByRole('region', { name: 'Chat channels' });
   await expect(channels.getByText(`No channel hears of ${project.name} yet.`)).toBeVisible();
-  await channels.getByLabel('Channel').selectOption({ label: `General, ${teamName} on Microsoft Teams` });
+  await channels.getByLabel('Channel', { exact: true }).selectOption({ label: `General, ${teamName} on Microsoft Teams` });
   await channels.getByRole('checkbox', { name: /^Assignments/ }).uncheck();
   await channels.getByRole('button', { name: 'Tell the channel' }).click();
   await expect(channels.getByText(`General hears of new issues, state changes and comments in ${project.name}.`)).toBeVisible();
@@ -124,7 +124,7 @@ test('a channel is told of a project’s issues, and someone is linked by a link
 
   // A channel deleted in Teams stops what it hears of, and its row says why: in English here, and in
   // German on a German page, from the reason's words a4a kept.
-  await channels.getByLabel('Channel').selectOption({ label: `Releases, ${teamName} on Microsoft Teams` });
+  await channels.getByLabel('Channel', { exact: true }).selectOption({ label: `Releases, ${teamName} on Microsoft Teams` });
   await channels.getByRole('button', { name: 'Tell the channel' }).click();
   await expect(channels.getByText(/^Releases hears of /)).toBeVisible();
   const deleted = await send({
