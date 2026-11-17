@@ -94,7 +94,7 @@ export async function resolveRole(db: Db, ref: string): Promise<RoleDefn> {
   const all = await loadRoles(db);
   const want = ref.trim().toLowerCase();
   const found = all.get(ref.trim()) ?? [...all.values()].find((r) => r.name.toLowerCase() === want || r.id.toLowerCase() === want);
-  if (!found) throw badRequest(`Unknown role "${ref}"`, `Use one of: ${[...all.values()].map((r) => r.name).join(', ')}.`);
+  if (!found) throw badRequest(`Unknown role "${ref}"`, `Use one of: ${[...all.values()].map((r) => r.name).join(', ')}.`).said('access.unknownRole', { ref, roles: [...all.values()].map((r) => r.name).join(', ') });
   return found;
 }
 
@@ -358,7 +358,7 @@ export async function canReadProject(ctx: Ctx, projectId: string, db?: Db): Prom
 export async function assertCanReadProject(ctx: Ctx, projectId: string, db?: Db): Promise<void> {
   requireScope(ctx, 'read');
   // Hidden projects look like missing ones, so ids can't be probed.
-  if (!(await canReadProject(ctx, projectId, db))) throw notFound('Project');
+  if (!(await canReadProject(ctx, projectId, db))) throw notFound('Project').said('notFound.projectUnnamed');
 }
 
 /** What each permission lets one do, for the words of a refusal. */
@@ -387,10 +387,10 @@ export async function assertCanProject(ctx: Ctx, projectId: string, need: Projec
   const key = view.keyOf(projectId) ?? 'this project';
   if (permission === 'manage') {
     if (view.seesAllIn(projectId)) requireScope(ctx, 'write');
-    throw forbidden(`Only managers of ${key} can change this`, `Ask a manager of ${key}, or an administrator.`);
+    throw forbidden(`Only managers of ${key} can change this`, `Ask a manager of ${key}, or an administrator.`).said('access.onlyManagers', { key });
   }
   if (WRITING_PERMISSIONS.includes(permission)) requireScope(ctx, 'write');
-  throw forbidden(`Your role in ${key} doesn't let you ${DOING[permission]}`, `Ask a manager of ${key} for a role that does.`);
+  throw forbidden(`Your role in ${key} doesn't let you ${DOING[permission]}`, `Ask a manager of ${key} for a role that does.`).said('access.roleDoesNotAllow', { key, permission });
 }
 
 /** Comment, or change or delete one's own comment. */
@@ -416,7 +416,7 @@ export async function requireProject(ctx: Ctx, key: string, need: ProjectNeed = 
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get(db);
   const p = projectByKey(s, key);
-  if (!p || !(await canReadProject(ctx, p.id, db))) throw notFound(`Project ${key.trim().toUpperCase()}`);
+  if (!p || !(await canReadProject(ctx, p.id, db))) throw notFound(`Project ${key.trim().toUpperCase()}`).said('notFound.project', { id: key.trim().toUpperCase() });
   if (need !== 'read') await assertCanProject(ctx, p.id, need, db);
   return p;
 }
