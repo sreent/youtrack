@@ -1,3 +1,4 @@
+import { keyedProblem } from '../lib/errors';
 export type TokenKind = 'word' | 'quoted' | 'braced' | 'hash' | 'colon' | 'comma' | 'lparen' | 'rparen' | 'minus' | 'dotdot';
 
 export interface Token {
@@ -12,6 +13,9 @@ export interface LexProblem {
   message: string;
   start: number;
   end: number;
+  /** Its words for a page in another language (D49). */
+  key?: string;
+  values?: Record<string, string | number>;
 }
 
 const WORD_STOP = new Set([' ', '\t', '\n', '\r', ':', ',', '(', ')', '"', '{', '}', '#']);
@@ -63,7 +67,7 @@ export function lex(input: string): { tokens: Token[]; problems: LexProblem[] } 
       j++;
     }
     if (j >= n) {
-      problems.push({ message: `Missing closing ${close}`, start: open, end: n });
+      problems.push(keyedProblem({ message: `Missing closing ${close}`, start: open, end: n }, 'query.missingClosing', { close }));
       return { value, end: n };
     }
     return { value, end: j + 1 };
@@ -108,7 +112,7 @@ export function lex(input: string): { tokens: Token[]; problems: LexProblem[] } 
       continue;
     }
     if (ch === '}') {
-      problems.push({ message: 'Unexpected }', start: i, end: i + 1 });
+      problems.push(keyedProblem({ message: 'Unexpected }', start: i, end: i + 1 }, 'query.unexpectedBrace'));
       i++;
       continue;
     }

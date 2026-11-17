@@ -1,5 +1,5 @@
-import { isLocale, sayProblem } from '@a4a/shared/i18n';
-import { localeOfRequest, translatorFor } from '../i18n';
+import { isLocale } from '@a4a/shared/i18n';
+import { localeOfRequest } from '../i18n';
 import { createHash } from 'node:crypto';
 import { and, eq, lt, sql } from 'drizzle-orm';
 import type { Context, MiddlewareHandler } from 'hono';
@@ -9,7 +9,7 @@ import { ZodError } from 'zod';
 import type { Runtime } from '../app-services';
 import type { Ctx } from '../context';
 import { idempotencyKeys } from '../db/schema';
-import { AppError, type ProblemWords } from '../lib/errors';
+import { AppError, checkProblemWords, type ProblemWords } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { ACCESS_PREFIX, mcpChallenge } from '../oauth/common';
 import { actorFromOAuthToken } from '../oauth/tokens';
@@ -18,26 +18,6 @@ import { guestCtx, guestMayRequest } from '../services/guests';
 import type { HttpEnv } from './env';
 
 /** A problem as a page says it: its words, then its fix, each a sentence. */
-const sentence = (s: string) => (/[.!?…:]["”’)]*$/.test(s.trim()) ? s.trim() : `${s.trim()}.`);
-export const pageWords = (message: string, hint?: string) => (hint ? `${sentence(message)} ${sentence(hint)}` : sentence(message));
-
-/** Problems a page says in general: the API adds what only a program reads (which field, as zod put it). */
-const GENERAL = new Set(['validationFailed']);
-
-/**
- * Under tests, a keyed problem's English in the catalog must say what the API says (D49): the two
- * are written apart, the API's at the throw and the page's in en.json, so a test that meets the
- * problem fails when one changes without the other.
- */
-function checkProblemWords(message: string, hint: string | undefined, words: ProblemWords): void {
-  if (process.env.NODE_ENV !== 'test' || GENERAL.has(words.key)) return;
-  const en = translatorFor('en');
-  const key = `problem.${words.key}`;
-  if (!en.has(key)) throw new Error(`${key} is in no catalog: add its English to packages/shared/i18n/en.json`);
-  const catalog = sayProblem(en, words);
-  const api = pageWords(message, hint);
-  if (catalog !== api) throw new Error(`${key} says "${catalog}" in en.json, but the API says "${api}": make them the same words`);
-}
 
 export function errorBody(code: string, message: string, hint?: string, details?: unknown, words?: ProblemWords) {
   if (words) checkProblemWords(message, hint, words);

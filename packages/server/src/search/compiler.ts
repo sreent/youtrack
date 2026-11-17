@@ -7,6 +7,7 @@ import { didYouMean } from '../lib/text';
 import { parseReadableId } from '../services/issue-refs';
 import { fieldByName, findUser, type FieldRow, type SchemaSnapshot } from '../services/schema-cache';
 import { isEmptyWord } from '../services/values';
+import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { fixValue } from './lexer';
 import type { ParsedQuery, QueryNode, SortItem, Span, ValueNode } from './parser';
 import { HAS_ATTRIBUTES, SLA_TARGET_VALUES, SLA_VALUES, type TermDef } from './vocabulary';
@@ -95,10 +96,13 @@ class Compiler {
     return new Date(startOfDay(iso, this.zone));
   }
 
-  /** `guess` is a value that would fix it; the problem then carries the text to put in the span's place. */
-  private problem(message: string, span: Span, hint?: string, guess?: string | null) {
+  /**
+   * `words` say it on a page in another language (D49); the API carries the English. `guess` is a value
+   * that would fix it; the problem then carries the text to put in the span's place.
+   */
+  private problem(words: QueryProblemWords, message: string, span: Span, hint?: string, guess?: string | null) {
     const fix = guess && this.input ? fixValue(this.input, span.start, span.end, guess) : undefined;
-    this.problems.push({ message, start: span.start, end: span.end, hint, ...(fix ? { fix } : {}) });
+    this.problems.push(keyedProblem({ message, start: span.start, end: span.end, hint, ...(fix ? { fix } : {}) }, words.key, words.values));
   }
 
   compile(node: QueryNode): SQL {
@@ -183,7 +187,13 @@ class Compiler {
       ...[...s.values.values()].map((v) => v.name),
     ];
     const guess = didYouMean(raw, options);
-    this.problem(`Unknown value "#${raw}"`, span, guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.', guess);
+    this.problem(
+      { key: 'query.unknownHashValue', values: { value: raw, ...guessWords(guess) } },
+      `Unknown value "#${raw}"`,
+      span,
+      guess ? `Did you mean "#${guess}"?` : 'Use #Unresolved, a field value such as #Critical, or a tag.',
+      guess,
+    );
     return FALSE;
   }
 
@@ -206,7 +216,7 @@ class Compiler {
       case 'assigneeAlias': {
         const f = this.assigneeField();
         if (!f) {
-          this.problem('There is no Assignee field', span);
+          this.problem({ key: 'query.noAssigneeField' }, 'There is no Assignee field', span);
           return FALSE;
         }
         return this.customField(f, values, span);
@@ -252,7 +262,14 @@ class Compiler {
       if (found.length) return pick === 'min' ? Math.min(...found) : Math.max(...found);
       const names = [...new Set(all.map((x) => x.name))];
       const guess = didYouMean(raw, names);
-      this.problem(`Unknown build "${raw}" for ${field.name}`, span, guess ? `Did you mean "${guess}"?` : `Latest builds: ${names.slice(-10).reverse().join(', ')}`, guess);
+      const latest = names.slice(-10).reverse().join(', ');
+      this.problem(
+        { key: 'query.unknownBuild', values: { build: raw, field: field.name, ...guessWords(guess), n: names.length, builds: latest } },
+        `Unknown build "${raw}" for ${field.name}`,
+        span,
+        guess ? `Did you mean "${guess}"?` : names.length ? `Latest builds: ${latest}` : 'There are no builds yet.',
+        guess,
+      );
       return null;
     };
     const lo = from === null ? -Infinity : ordinalOf(from, 'min');
@@ -274,7 +291,7 @@ class Compiler {
         case 'owned': {
           if (v.kind === 'range' && field.type === 'build') return this.buildRange(field, v.from, v.to, v.span);
           if (v.kind === 'range') {
-            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
             return null;
           }
           const lower = v.raw.toLowerCase();
@@ -282,20 +299,32 @@ class Compiler {
           if (!ids.length) {
             const names = [...new Set((s.valuesByField.get(field.id) ?? []).map((x) => x.name))];
             const guess = didYouMean(v.raw, names);
-            this.problem(`Unknown value "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : `Values: ${names.join(', ')}`, guess);
+            this.problem(
+              { key: 'query.unknownValue', values: { value: v.raw, field: field.name, ...guessWords(guess), n: names.length, allowed: names.join(', ') } },
+              `Unknown value "${v.raw}" for ${field.name}`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : names.length ? `Values: ${names.join(', ')}` : 'There are no values yet.',
+              guess,
+            );
             return FALSE;
           }
           return this.optionIn(field.id, ids);
         }
         case 'user': {
           if (v.kind === 'range') {
-            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
             return null;
           }
           const u = findUser(s, v.raw, this.cc.meId);
           if (!u) {
             const guess = didYouMean(v.raw, [...s.usersByLogin.keys()]);
-            this.problem(`Unknown user "${v.raw}"`, v.span, guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".', guess);
+            this.problem(
+              { key: 'query.unknownUserInField', values: { user: v.raw, ...guessWords(guess) } },
+              `Unknown user "${v.raw}"`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : 'Use a login, a name, "me" or "Unassigned".',
+              guess,
+            );
             return FALSE;
           }
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.user_id = ${u.id})`;
@@ -318,7 +347,11 @@ class Compiler {
           if (v.kind === 'single') {
             const n = parse(v.raw);
             if (n === undefined || n === null) {
-              this.problem(`"${v.raw}" is not a valid ${field.type === 'period' ? 'duration' : 'number'} for ${field.name}`, v.span);
+              this.problem(
+                { key: field.type === 'period' ? 'query.notADurationFor' : 'query.notANumberFor', values: { value: v.raw, field: field.name } },
+                `"${v.raw}" is not a valid ${field.type === 'period' ? 'duration' : 'number'} for ${field.name}`,
+                v.span,
+              );
               return FALSE;
             }
             return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ${col} = ${n})`;
@@ -326,7 +359,7 @@ class Compiler {
           const from = parse(v.from);
           const to = parse(v.to);
           if (from === undefined || to === undefined) {
-            this.problem(`Invalid range for ${field.name}`, v.span);
+            this.problem({ key: 'query.invalidRange', values: { field: field.name } }, `Invalid range for ${field.name}`, v.span);
             return FALSE;
           }
           const conds = [sql`ifv.issue_id = ${issues.id}`, sql`ifv.field_id = ${field.id}`];
@@ -354,14 +387,20 @@ class Compiler {
         }
         case 'group': {
           if (v.kind === 'range') {
-            this.problem(`Ranges are not supported for ${field.name}`, v.span);
+            this.problem({ key: 'query.noRanges', values: { field: field.name } }, `Ranges are not supported for ${field.name}`, v.span);
             return null;
           }
           const g = s.groupsByName.get(v.raw.toLowerCase());
           if (!g) {
             const names = [...s.groups.values()].map((x) => x.name);
             const guess = didYouMean(v.raw, names);
-            this.problem(`Unknown group "${v.raw}" for ${field.name}`, v.span, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'There are no groups yet.', guess);
+            this.problem(
+              { key: 'query.unknownGroup', values: { group: v.raw, field: field.name, ...guessWords(guess), n: names.length, groups: names.join(', ') } },
+              `Unknown group "${v.raw}" for ${field.name}`,
+              v.span,
+              guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'There are no groups yet.',
+              guess,
+            );
             return FALSE;
           }
           return sql`EXISTS (SELECT 1 FROM issue_field_values ifv WHERE ifv.issue_id = ${issues.id} AND ifv.field_id = ${field.id} AND ifv.group_id = ${g.id})`;
@@ -376,13 +415,15 @@ class Compiler {
     if (words.some((w) => w && !isISODate(w.trim()))) this.readsDates = true;
     if (v.kind === 'single') {
       const r = parseDateExpression(v.raw, this.today);
-      if (!r) this.problem(`"${v.raw}" is not a date for ${what}`, v.span, 'Use YYYY-MM-DD, today, {this week}, -7d or a range "a .. b".');
+      if (!r) {
+        this.problem({ key: 'query.notADate', values: { value: v.raw, field: what } }, `"${v.raw}" is not a date for ${what}`, v.span, 'Use YYYY-MM-DD, today, {this week}, -7d or a range "a .. b".');
+      }
       return r;
     }
     const from = v.from ? parseDateExpression(v.from, this.today) : null;
     const to = v.to ? parseDateExpression(v.to, this.today) : null;
     if ((v.from && !from) || (v.to && !to)) {
-      this.problem(`Invalid date range for ${what}`, v.span, 'Use e.g. 2026-01-01 .. 2026-01-31 or -7d .. today');
+      this.problem({ key: 'query.invalidDateRange', values: { field: what } }, `Invalid date range for ${what}`, v.span, 'Use e.g. 2026-01-01 .. 2026-01-31 or -7d .. today');
       return null;
     }
     return { from: from?.from ?? null, to: to?.to ?? null };
@@ -392,7 +433,7 @@ class Compiler {
     const parsed = parseReadableId(raw);
     const p = parsed ? this.cc.s.projectsByKey.get(parsed.key) : undefined;
     if (!parsed || !p) {
-      if (!silent) this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
+      if (!silent) this.problem({ key: 'query.notAnIssueId', values: { value: raw } }, `"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return silent ? null : FALSE;
     }
     // An id it had before it moved finds it too (D41).
@@ -403,7 +444,7 @@ class Compiler {
     const parsed = parseReadableId(raw);
     const p = parsed ? this.cc.s.projectsByKey.get(parsed.key) : undefined;
     if (!parsed || !p) {
-      this.problem(`"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
+      this.problem({ key: 'query.notAnIssueId', values: { value: raw } }, `"${raw}" is not an issue id`, span, 'Issue ids look like BACK-12.');
       return null;
     }
     return sql`(SELECT coalesce((SELECT x.id FROM issues x WHERE x.project_id = ${p.id} AND x.number = ${parsed.number}), (SELECT a.issue_id FROM issue_aliases a WHERE a.project_id = ${p.id} AND a.number = ${parsed.number})))`;
@@ -424,7 +465,7 @@ class Compiler {
         const p = s.projectsByKey.get(single.toUpperCase()) ?? [...s.projects.values()].find((x) => x.name.toLowerCase() === lower);
         if (!p) {
           const guess = didYouMean(single, [...s.projects.values()].flatMap((x) => [x.key, x.name]));
-          this.problem(`Unknown project "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownProject', values: { project: single, ...guessWords(guess) } }, `Unknown project "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         return sql`${issues.projectId} = ${p.id}`;
@@ -444,7 +485,7 @@ class Compiler {
         const u = findUser(s, single, this.cc.meId);
         if (!u) {
           const guess = didYouMean(single, [...s.usersByLogin.keys()]);
-          this.problem(`Unknown user "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownUser', values: { user: single, ...guessWords(guess) } }, `Unknown user "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         if (t.column === 'reporter') return sql`${issues.reporterId} = ${u.id}`;
@@ -468,7 +509,7 @@ class Compiler {
         if (!single) return this.rangeNotSupported(def, v);
         if (!s.tagsByName.has(single.toLowerCase())) {
           const guess = didYouMean(single, [...s.tags.values()].map((x) => x.name));
-          this.problem(`Unknown tag "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
+          this.problem({ key: 'query.unknownTag', values: { tag: single, ...guessWords(guess) } }, `Unknown tag "${single}"`, v.span, guess ? `Did you mean "${guess}"?` : undefined);
           return FALSE;
         }
         return this.tagCondition([single.toLowerCase()]);
@@ -501,7 +542,7 @@ class Compiler {
         if (v.kind === 'single') {
           const n = parsePeriod(v.raw);
           if (n === null) {
-            this.problem(`"${v.raw}" is not a duration`, v.span);
+            this.problem({ key: 'query.notADuration', values: { value: v.raw } }, `"${v.raw}" is not a duration`, v.span);
             return FALSE;
           }
           return sql`${total} = ${n}`;
@@ -518,7 +559,7 @@ class Compiler {
         if (v.kind === 'single') {
           const n = count(v.raw);
           if (n === undefined || n === null) {
-            this.problem(`"${v.raw}" is not a number of votes`, v.span, 'Use a number, e.g. votes: 3, or a range, e.g. votes: 5 .. *');
+            this.problem({ key: 'query.notVotes', values: { value: v.raw } }, `"${v.raw}" is not a number of votes`, v.span, 'Use a number, e.g. votes: 3, or a range, e.g. votes: 5 .. *');
             return FALSE;
           }
           return sql`${issues.votes} = ${n}`;
@@ -526,7 +567,7 @@ class Compiler {
         const from = v.from ? count(v.from) : null;
         const to = v.to ? count(v.to) : null;
         if (from === undefined || to === undefined) {
-          this.problem('Invalid range for votes', v.span, 'Use e.g. votes: 5 .. * or votes: 1 .. 3');
+          this.problem({ key: 'query.invalidVotesRange' }, 'Invalid range for votes', v.span, 'Use e.g. votes: 5 .. * or votes: 1 .. 3');
           return FALSE;
         }
         const conds: SQL[] = [];
@@ -559,7 +600,7 @@ class Compiler {
   }
 
   private rangeNotSupported(def: TermDef, v: ValueNode): SQL {
-    this.problem(`Ranges are not supported for ${def.name}`, v.span);
+    this.problem({ key: 'query.noRanges', values: { field: def.name } }, `Ranges are not supported for ${def.name}`, v.span);
     return FALSE;
   }
 
@@ -598,7 +639,7 @@ class Compiler {
         return sql`${issues.votes} > 0`;
     }
     const guess = didYouMean(raw, [...[...s.fields.values()].map((f) => f.name), ...HAS_ATTRIBUTES]);
-    this.problem(`Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
+    this.problem({ key: 'query.unknownHas', values: { name: raw, ...guessWords(guess) } }, `Unknown attribute "${raw}" for has:`, span, guess ? `Did you mean "${guess}"?` : undefined);
     return FALSE;
   }
 
@@ -613,7 +654,13 @@ class Compiler {
     if (!allowed.includes(lower)) {
       const guess = didYouMean(raw, allowed);
       const name = target === 'first_response' ? 'first response' : (target ?? 'sla');
-      this.problem(`Unknown value "${raw}" for ${name}`, span, guess ? `Did you mean "${guess}"?` : `Values: ${allowed.join(', ')}`, guess);
+      this.problem(
+        { key: 'query.unknownValue', values: { value: raw, field: name, ...guessWords(guess), n: allowed.length, allowed: allowed.join(', ') } },
+        `Unknown value "${raw}" for ${name}`,
+        span,
+        guess ? `Did you mean "${guess}"?` : `Values: ${allowed.join(', ')}`,
+        guess,
+      );
       return FALSE;
     }
     const now = this.cc.now ?? new Date();

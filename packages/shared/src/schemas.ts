@@ -82,7 +82,10 @@ export const ErrorSchema = z
       hint: z.string().optional(),
       details: z.unknown().optional(),
       key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
-      values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
+      values: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('What the problem’s words take, by name: a word or a number, another problem ({ key, values }), or a list of them.'),
     }),
   })
   .meta({ id: 'Error' });
@@ -849,6 +852,8 @@ export const QueryProblemSchema = z
     end: z.number().int(),
     hint: z.string().optional(),
     fix: z.string().optional().describe('Text that fixes it, to put in place of start..end'),
+    key: z.string().optional().describe('The problem in the catalogs, problem.<key>, for a page that says it in its person’s language (D49). The English in message and hint is the same problem.'),
+    values: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('What the problem’s words take, by name.'),
   })
   .meta({ id: 'QueryProblem' });
 export type QueryProblem = z.infer<typeof QueryProblemSchema>;
