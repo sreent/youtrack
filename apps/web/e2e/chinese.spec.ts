@@ -76,7 +76,7 @@ test('speaks Simplified Chinese where the browser asks for it, dates and all', a
   await page.goto('/me');
   await expect(page.getByRole('heading', { name: '个人资料', exact: true })).toBeVisible();
   await expect(page.getByLabel('语言')).toHaveValue('');
-  await expect(page.getByLabel('语言').locator('option:checked')).toHaveText('浏览器的语言：简体中文');
+  await expect(page.getByLabel('语言').locator('option:checked')).toHaveText('跟随浏览器（简体中文）');
   // The picker names each language as its readers write it, Simplified Chinese among them.
   await expect(page.getByLabel('语言').locator('option[value="zh"]')).toHaveText('简体中文');
   await shoot(page, info, 'profile');
