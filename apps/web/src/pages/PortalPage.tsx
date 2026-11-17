@@ -10,7 +10,7 @@ import { ErrorNote, Loading } from '../components/States';
 import { Avatar } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { whenRead } from '../features/common/format';
-import { t, tr } from '../i18n';
+import { intlLocale, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
@@ -114,6 +114,19 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       setBusy(false);
     }
   };
+  // Theirs, in a group that shares (D56): kept from it, or shared again.
+  const keep = async (value: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      qc.setQueryData(['portal', 'request', id], await patch<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`, { private: value }));
+      void qc.invalidateQueries({ queryKey: ['portal', 'requests'] });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section className="stack" aria-label={r.summary}>
       <button type="button" className="link" onClick={onBack}>{t('page.portal.allYourRequests')}</button>
@@ -125,7 +138,16 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
         {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
       </div>
       <Conversation r={r} me={me} />
-      {r.requester.mine ? (
+      {r.requester.mine && r.group ? (
+        <div className="cluster">
+          <p className="note">{r.private ? t('page.portal.keptFromGroup') : t('page.portal.groupSeesIt', { group: r.group })}</p>
+          <button type="button" className="link" disabled={busy} onClick={() => void keep(!r.private)}>
+            {r.private ? t('page.portal.shareAgain', { group: r.group }) : t('page.portal.keepPrivate', { group: r.group })}
+          </button>
+        </div>
+      ) : null}
+      {!r.requester.mine && r.canReply ? <p className="note">{tr('page.portal.sharedToAnswer', { name: r.requester.name, group: r.group ?? '' })}</p> : null}
+      {r.canReply ? (
         <form className="form" onSubmit={reply}>
           <FormField label={t('page.portal.yourReply')}>{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
           {error ? <ErrorNote error={error} /> : null}
@@ -136,16 +158,18 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
           </div>
         </form>
       ) : (
-        <p className="note">{tr('page.portal.thisIsSRequestShared', { name: r.requester.name })}</p>
+        <p className="note">{tr('page.portal.sharedReadOnly', { name: r.requester.name, group: r.group ?? '' })}</p>
       )}
     </section>
   );
 }
 
-function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: string) => void }) {
+function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; onMade: (id: string) => void }) {
   const [desk, setDesk] = useState(desks[0]?.key ?? '');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
+  const [keepPrivate, setKeepPrivate] = useState(false);
+  const group = me.groups.find((g) => g.desk.key === desk);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   if (!desks.length) return null;
@@ -154,7 +178,7 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
     setBusy(true);
     setError(null);
     try {
-      onMade((await post<PortalRequestDetail>('/portal/requests', { desk, summary, description })).id);
+      onMade((await post<PortalRequestDetail>('/portal/requests', { desk, summary, description, private: Boolean(group) && keepPrivate })).id);
     } catch (err) {
       setError(err);
     } finally {
@@ -179,6 +203,12 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
       ) : null}
       <FormField label={t('page.portal.whatDoYouNeed')}>{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
       <FormField label={t('page.portal.details')}>{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
+      {group ? (
+        <label className="check">
+          <input type="checkbox" checked={keepPrivate} onChange={(e) => setKeepPrivate(e.target.checked)} />
+          {t('page.portal.keepFromMyGroup', { group: group.name })}
+        </label>
+      ) : null}
       {error ? <ErrorNote error={error} /> : null}
       <div className="cluster end">
         <button type="submit" className="primary" disabled={busy || !summary.trim()}>
@@ -189,7 +219,7 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
   );
 }
 
-/** The requesters' portal (D45): their requests, their organization's where a desk shares them, and a way to ask. */
+/** The requesters' portal (D45): their requests, their customer group's where it shares them (D56), and a way to ask. */
 export default function PortalPage() {
   const qc = useQueryClient();
   const [token] = useState(linkToken);
@@ -238,7 +268,15 @@ export default function PortalPage() {
         <h1>{t('page.portal.yourRequests')}</h1>
         <button type="button" onClick={() => void signOut()}>{t('page.portal.signOut')}</button>
       </div>
-      <p className="note">{tr('page.portal.signedInAs', { name: m.name, email: m.email, v: m.organization ? t('page.portal.youAlsoSeeRequestsFrom', { organization: m.organization }) : '.' })}</p>
+      <p className="note">
+        {tr('page.portal.signedInAs', {
+          name: m.name,
+          email: m.email,
+          v: m.groups.length
+            ? t('page.portal.youAlsoSeeGroups', { groups: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(m.groups.map((g) => t('page.portal.groupAtDesk', { group: g.name, desk: g.desk.name }))) })
+            : '.',
+        })}
+      </p>
       {open ? (
         <RequestView id={open} me={m} onBack={() => setOpen(null)} />
       ) : (
@@ -260,7 +298,7 @@ export default function PortalPage() {
           ) : (
             <p className="note">{t('page.portal.noRequestsYet')}</p>
           )}
-          <NewRequest desks={desks.data ?? []} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
+          <NewRequest desks={desks.data ?? []} me={m} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
           <form
             className="form"
             aria-label={t('page.portal.yourName')}

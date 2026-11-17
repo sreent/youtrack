@@ -334,10 +334,6 @@ export const HelpdeskSettingsSchema = z
       .max(100)
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
-    organizations: z
-      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Expected an email domain, such as acme.com'))
-      .max(50)
-      .describe("Email domains whose requesters see each other's requests on the portal, such as acme.com (D45)"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -423,7 +419,15 @@ export const UpdateProjectBody = z.object({
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
       plan: PlanSettingsSchema.partial().optional(),
-      helpdesk: HelpdeskSettingsSchema.partial().optional(),
+      helpdesk: HelpdeskSettingsSchema.partial()
+        .extend({
+          organizations: z
+            .array(z.string().max(255))
+            .max(50)
+            .optional()
+            .describe('Gone: email domains are customer groups now (D56), at /projects/{key}/customer-groups. Given any, the answer is 400 and says so'),
+        })
+        .optional(),
       time: TimeSettingsSchema.partial().optional(),
     })
     .optional(),
@@ -1910,6 +1914,11 @@ export const HelpdeskRequestSchema = z
     sla: RequestSlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
+    group: z
+      .object({ id: z.string(), name: z.string(), sharing: z.enum(['none', 'read', 'comment']) })
+      .nullable()
+      .describe('The customer group it was filed under, or the team gave it (D56); null for none'),
+    private: z.boolean().describe("Kept from its group's other members: on the portal, only its requester sees it"),
   })
   .meta({ id: 'HelpdeskRequest' });
 export type HelpdeskRequest = z.infer<typeof HelpdeskRequestSchema>;
@@ -1981,7 +1990,7 @@ export const TrackedRequestSchema = z
     messages: z.array(
       z.object({
         id: z.string(),
-        from: z.enum(['you', 'team']),
+        from: z.enum(['you', 'team', 'colleague']).describe('colleague: someone of its customer group, answering it (D56)'),
         name: z.string(),
         text: z.string(),
         at: timestamp,
@@ -3604,6 +3613,15 @@ export const SlaReportSchema = z
         ),
       }),
     ),
+    groups: z
+      .array(
+        z.object({
+          group: z.string().nullable().describe("The customer group's name (D56); null for requests in none"),
+          firstResponse: z.object({ met: z.number().int(), breached: z.number().int() }),
+          resolution: z.object({ met: z.number().int(), breached: z.number().int() }),
+        }),
+      )
+      .describe('Met and breached over the whole period, by customer group (D56), each target counted as the weeks count it'),
   })
   .meta({ id: 'SlaReport' });
 export type SlaReport = z.infer<typeof SlaReportSchema>;
@@ -3634,7 +3652,13 @@ export const DeskMailboxBody = z.object({
 
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
-  .object({ name: z.string(), email: z.string(), organization: z.string().nullable().describe("Their email's domain, when a desk shares requests within it") })
+  .object({
+    name: z.string(),
+    email: z.string(),
+    groups: z
+      .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
+      .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+  })
   .meta({ id: 'PortalMe' });
 export type PortalMe = z.infer<typeof PortalMeSchema>;
 
@@ -3646,7 +3670,10 @@ export const PortalRequestSchema = z
     state: z.object({ name: z.string().nullable(), resolved: z.boolean() }),
     createdAt: timestamp,
     updatedAt: timestamp,
-    requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared within their organization") }),
+    requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared with their customer group") }),
+    group: z.string().nullable().describe('The customer group it was filed under, when it shares with its members (D56)'),
+    private: z.boolean().describe('Theirs, and kept from their group: only they and the team see it'),
+    canReply: z.boolean().describe('Theirs, or shared with their group to comment on'),
   })
   .meta({ id: 'PortalRequest' });
 export type PortalRequest = z.infer<typeof PortalRequestSchema>;
@@ -3670,7 +3697,9 @@ export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
   summary: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).default(''),
+  private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),
 });
+export const PortalRequestUpdateBody = z.object({ private: z.boolean().describe("Keep it from their customer group's other members, or share it again (D56)") });
 export const PortalReplyBody = z.object({ text: z.string().trim().min(1).max(50_000) });
 
 const kindChoice = z.object({ inbox: z.boolean(), email: z.boolean() });
@@ -3976,3 +4005,68 @@ export const RenameProjectKeyBody = z.object({
     .describe('The key as you last saw it. If someone renamed the project meanwhile, nothing changes and the answer is 409, with the key it has now'),
 });
 export type RenameProjectKeyInput = z.infer<typeof RenameProjectKeyBody>;
+
+// ---------------------------------------------------------------------------
+// Customer groups in the help desk (wave 4: docs/architecture.md, D56)
+// ---------------------------------------------------------------------------
+
+/** What a customer group's members do with each other's requests on the portal. */
+export const CUSTOMER_SHARING = ['none', 'read', 'comment'] as const;
+export type CustomerSharing = (typeof CUSTOMER_SHARING)[number];
+
+const emailDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, 'Expected an email domain, such as acme.com');
+
+export const CustomerGroupSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    domains: z.array(z.string()).describe('Email domains that put a requester in it by themselves, matched whole'),
+    sharing: z.enum(CUSTOMER_SHARING).describe("none; read: its members see each other's requests on the portal; comment: and answer them"),
+    businessHours: BusinessHoursSchema.nullable().describe("Its own working hours and holidays, which its requests' SLAs count in; null keeps the desk's"),
+    agents: z
+      .array(
+        z.object({
+          user: UserRefSchema,
+          assignable: z.boolean().describe('Whether the help desk can give them a request now: someone of the project who may change its issues'),
+        }),
+      )
+      .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
+    members: z.number().int().describe('Requesters added by hand'),
+    openRequests: z.number().int().describe('Its requests not yet resolved'),
+  })
+  .meta({ id: 'CustomerGroup' });
+export type CustomerGroup = z.infer<typeof CustomerGroupSchema>;
+
+export const CustomerGroupBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  domains: z.array(emailDomain).max(50).default([]),
+  sharing: z.enum(CUSTOMER_SHARING).default('none'),
+  businessHours: BusinessHoursSchema.nullable().default(null),
+  agents: z.array(z.string().trim().min(1).max(100)).max(20).default([]).describe('Logins, in the order to prefer them'),
+});
+export type CustomerGroupInput = z.input<typeof CustomerGroupBody>;
+
+export const CustomerGroupMemberSchema = z
+  .object({
+    requester: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+    addedAt: timestamp,
+    addedBy: z.string().nullable().describe('Who added them, by login'),
+  })
+  .meta({ id: 'CustomerGroupMember' });
+export type CustomerGroupMember = z.infer<typeof CustomerGroupMemberSchema>;
+
+export const CustomerGroupMemberBody = z.object({
+  email: z.string().trim().email().max(320),
+  name: z.string().trim().max(200).optional().describe('Their name, when they have never asked for help: else the part of the address before the @'),
+});
+
+export const RequestUpdateBody = z.object({
+  group: z.string().trim().min(1).max(100).nullable().optional().describe("The desk's customer group, by id or name; null for none. Left out keeps it"),
+  private: z.boolean().optional().describe("Keep it from its group's other members on the portal, or share it again"),
+  expectedVersion: z.number().int().optional().describe("The issue's version as you last saw it: 409 if someone changed it since"),
+});

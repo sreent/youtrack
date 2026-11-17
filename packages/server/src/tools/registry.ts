@@ -42,6 +42,7 @@ import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
 import { projectKeyTools } from './project-keys';
 import { boardTools } from './boards';
+import { customerGroupTools } from './customer-groups';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -252,6 +253,8 @@ const getIssueTool = defineTool({
               firstResponse: request.firstResponse.state,
               due: request.firstResponse.dueAt,
               emailMuted: request.emailMuted || undefined,
+              customer_group: request.group?.name ?? undefined,
+              private: request.private || undefined,
             }
           : undefined,
         commits: code.commits.slice(0, 20).map((c) => ({
@@ -624,6 +627,7 @@ export const TOOLS: ToolDef[] = [
   ...appTools,
   ...projectKeyTools,
   ...boardTools,
+  ...customerGroupTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {

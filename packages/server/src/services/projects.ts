@@ -34,7 +34,7 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, organizations: [] };
+export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null };
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
 export const DEFAULT_TIME: TimeSettings = { workTypeRequired: false };
@@ -210,10 +210,15 @@ export async function updateProject(
     leadId = u.id;
   }
   const current = projectSettings(p);
+  // D45's organizations are customer groups now (D56): a script that still sets them is told where they went.
+  const { organizations, ...helpdesk } = (input.settings?.helpdesk ?? {}) as Partial<HelpdeskSettings> & { organizations?: string[] };
+  if (organizations?.length) {
+    throw badRequest('Organizations are customer groups now', `Add each domain to a customer group of the desk: POST /api/v1/projects/${p.key}/customer-groups.`).said('projects.organizationsAreGroups', { project: p.key });
+  }
   const settings: ProjectSettings = {
     triageMode: input.settings?.triageMode ?? current.triageMode,
     plan: { ...current.plan, ...(input.settings?.plan ?? {}) },
-    helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
+    helpdesk: { ...current.helpdesk, ...helpdesk },
     time: { ...current.time, ...(input.settings?.time ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');

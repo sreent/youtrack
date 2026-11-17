@@ -19,7 +19,7 @@ A query is a list of terms; terms side by side must all match ("and").
 - \`tag: regression\` · \`sprint: Sprint 14\` · \`spent time: 1d .. *\`
 - \`votes: 5 .. *\` (how many voted for it) · \`voter: me\` (issues you voted for; also \`voted by:\`) · \`sort by: votes desc\`
 - \`has: Assignee\` (field set) · \`has: -Assignee\` (empty) · \`has: comments\`, \`links\`, \`tags\`, \`subtasks\`, \`parent\`, \`work\`, \`watchers\`, \`votes\`, \`request\` (came in through a help desk)
-- Help desk: \`requester: jane@example.com\` (or a name) · \`sla: breached\` (a request's status, the worst of its targets: on track, at risk, paused, breached, met), \`sla: overdue\` (a target past due, still open), \`sla: due\`, \`sla: missed\` · \`first response: overdue\`, \`resolution: at risk\` (one target: due, at risk, paused, overdue, met, missed, breached) · \`resolution due: today\`, \`first response due: {this week}\`
+- Help desk: \`requester: jane@example.com\` (or a name) · \`customer: Acme\` (a request's customer group; \`has: customer\`) · \`sla: breached\` (a request's status, the worst of its targets: on track, at risk, paused, breached, met), \`sla: overdue\` (a target past due, still open), \`sla: due\`, \`sla: missed\` · \`first response: overdue\`, \`resolution: at risk\` (one target: due, at risk, paused, overdue, met, missed, breached) · \`resolution due: today\`, \`first response due: {this week}\`
 - Links: \`depends on: BACK-3\`, \`is required for: BACK-3\`, \`subtask of: BACK-1\`, \`parent for: BACK-5\`, \`duplicates: BACK-7\`, \`relates to: WEB-2\`, \`links: BACK-3\` (any link)
 
 ## Shortcuts

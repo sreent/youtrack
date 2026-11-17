@@ -51,7 +51,9 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
       .where(and(eq(comments.id, String(p.commentId ?? '')), eq(comments.visibility, 'public'), isNull(comments.deletedAt)));
     if (!comment) return null; // deleted, or made internal, before it went
     const author = comment.authorId ? s.users.get(comment.authorId) : undefined;
-    const who = author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam');
+    // Someone of its customer group answered it (D56): by their own name.
+    const [colleague] = comment.requesterId ? await app.db.select({ name: requesters.name }).from(requesters).where(eq(requesters.id, comment.requesterId)) : [];
+    const who = colleague ? colleague.name : author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam');
     lead = tr.t('server.helpdesk.replied', { who });
     quote = comment.text;
   } else {

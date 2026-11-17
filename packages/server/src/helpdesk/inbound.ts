@@ -24,6 +24,7 @@ import { AppError } from '../lib/errors';
 import { formatBytes, storeAttachment, type UploadTarget } from '../services/attachments';
 import { helpHit } from '../services/help-throttle';
 import { botCtx, openRequest, postRequesterReply, requestWithRequester } from '../services/helpdesk';
+import { commentingColleague } from '../services/customer-groups';
 import { projectSettings } from '../services/projects';
 import type { ProjectRow } from '../services/schema-cache';
 import { handleTeamReply, teamReplyProject, teamReplyTokensOf } from '../services/team-replies';
@@ -150,7 +151,10 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   const found = issueId ? await requestWithRequester(app.db, issueId) : null;
   if (found && found.issue.projectId === desk.id) {
     const how = tokens.length ? 'by its reply address' : 'answering an email about it';
-    if (found.requester.email.toLowerCase() !== sender) {
+    // Someone of its customer group, where the group lets its members answer each other's (D56), writes as themselves.
+    const colleague =
+      found.requester.email.toLowerCase() !== sender ? await commentingColleague(app.db, found.request, sender, clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text) : null;
+    if (found.requester.email.toLowerCase() !== sender && !colleague) {
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address that isn’t the requester’s`, issueId: found.issue.id };
     }
     if (await helpHit(app.db, [['mailReply', found.issue.id]])) {
@@ -159,9 +163,9 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
     const reply = clip(mail.reply, HELP_LIMITS.reply);
     if (!reply.text && !mail.files.length) return { outcome: 'ignored', reason: 'it held nothing but what it quoted', issueId: found.issue.id };
     const text = reply.text || `Sent ${mail.files.length === 1 ? 'a file' : `${mail.files.length} files`} by email.`;
-    const { commentId } = await postRequesterReply(app, found.issue, { id: found.requester.id, name: found.requester.name }, text, 'email');
+    const { commentId } = await postRequesterReply(app, found.issue, colleague ?? { id: found.requester.id, name: found.requester.name }, text, 'email', { colleague: Boolean(colleague) });
     const left = commentId ? await keepFiles(app, desk.id, { kind: 'comment', issue: found.issue, commentId }, mail, reply.cut) : [];
-    return { outcome: 'reply', reason: withLeftOut(`a reply ${how}`, [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
+    return { outcome: 'reply', reason: withLeftOut(colleague ? `a reply ${how}, from someone of its customer group` : `a reply ${how}`, [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
   }
 
   // A new request.

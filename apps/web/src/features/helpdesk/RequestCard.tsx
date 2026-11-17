@@ -1,7 +1,11 @@
-import type { IssueDetail, Sla } from '@a4a/shared';
+import type { CustomerGroup, HelpdeskRequest, IssueDetail, Sla } from '@a4a/shared';
 import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
-import { useRequestInfo } from '../notifications/api';
+import { inboxKeys, useRequestInfo } from '../notifications/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { get, patch } from '../../api/client';
+import { errorText, FormField, Said } from '../common/bits';
 import { RequestSla } from './Sla';
 import { intlLocale, t, tr } from '../../i18n';
 
@@ -36,8 +40,62 @@ export function SlaBadge({ sla, since, now = Date.now() }: { sla: Sla; since: st
   }
 }
 
+/**
+ * Its customer group (D56): which, what its members see of it, and for whoever may change the
+ * request, another group or none, and keeping it from the group. Each a change in its history.
+ */
+function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRequest; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const groups = useQuery({ queryKey: ['customer-groups', issue.project.key], queryFn: () => get<CustomerGroup[]>(`/projects/${issue.project.key}/customer-groups`), staleTime: 30_000 });
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const change = useMutation({
+    mutationFn: (body: { group?: string | null; private?: boolean }) => patch<HelpdeskRequest>(`/issues/${issue.id}/request`, body),
+    onSuccess: (next) => {
+      qc.setQueryData(inboxKeys.request(issue.id), next);
+      void qc.invalidateQueries({ queryKey: ['issues', 'one', issue.id] });
+      setSaid({ text: t('helpdesk.sla.saved') });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (!r.group && !groups.data?.length) return null;
+  return (
+    <div className="stack tight" aria-label={t('helpdesk.requestCard.customerGroup')}>
+      {canEdit && groups.data?.length ? (
+        <FormField label={t('helpdesk.requestCard.customerGroup')}>
+          {(id) => (
+            <select id={id} value={r.group?.id ?? ''} disabled={change.isPending} onChange={(e) => change.mutate({ group: e.target.value || null })}>
+              <option value="">{t('helpdesk.requestCard.noGroup')}</option>
+              {groups.data.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
+      ) : (
+        <p className="note">{tr('helpdesk.requestCard.inGroup', { group: r.group?.name ?? t('helpdesk.requestCard.noGroup') })}</p>
+      )}
+      {r.group && r.group.sharing !== 'none' ? (
+        <p className="note">
+          {r.private
+            ? t('helpdesk.requestCard.keptFromGroup', { group: r.group.name })
+            : t(r.group.sharing === 'comment' ? 'helpdesk.requestCard.groupAnswers' : 'helpdesk.requestCard.groupReads', { group: r.group.name })}
+        </p>
+      ) : null}
+      {r.group && r.group.sharing !== 'none' && canEdit ? (
+        <label className="check">
+          <input type="checkbox" checked={r.private} disabled={change.isPending} onChange={(e) => change.mutate({ private: e.target.checked })} />
+          {t('helpdesk.requestCard.keepFromGroup', { group: r.group.name })}
+        </label>
+      ) : null}
+      {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
+    </div>
+  );
+}
+
 /** Who asked, through the help desk, and where it stands against its first-response target. */
-export function RequestCard({ issue }: { issue: IssueDetail }) {
+export function RequestCard({ issue, canEdit = false }: { issue: IssueDetail; canEdit?: boolean }) {
   const info = useRequestInfo(issue);
   const r = info.data;
   if (!r) return null;
@@ -45,6 +103,7 @@ export function RequestCard({ issue }: { issue: IssueDetail }) {
     <section className="card side-card stack tight" aria-labelledby="request-title">
       <h2 id="request-title">{t('helpdesk.requestCard.helpDeskRequest')}</h2>
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
+      <RequestGroup issue={issue} r={r} canEdit={canEdit} />
       {r.sla.clocks.length ? <RequestSla issueId={issue.id} r={r} canReply /> : <SlaBadge sla={r.firstResponse} since={r.createdAt} />}
       <p className="note">
         {r.via === 'email' ? t('helpdesk.requestCard.theyWroteInByEmail') : ''}

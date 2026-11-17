@@ -71,6 +71,7 @@ function node(n: QueryNode, tr: Translator): string {
       if (t.kind === 'sla') return t.target ? tr.t('server.query.slaTargetIs', { target: slaTarget(t.target), values: values(n.values, tr) }) : tr.t('server.query.slaIs', { values: values(n.values, tr) });
       if (t.kind === 'slaDue') return tr.t('server.query.slaTargetDue', { target: slaTarget(t.target), values: values(n.values, tr) });
       if (t.kind === 'requester') return tr.t('server.query.askedForBy', { values: values(n.values, tr) });
+      if (t.kind === 'customer') return tr.t('server.query.fromCustomer', { values: values(n.values, tr) });
       if (t.kind === 'project') return tr.t('server.query.inProject', { values: values(n.values, tr) });
       // A date's and a field's name are the query language's: "created", "Priority".
       if (t.kind === 'dateAttr') return `${name} ${values(n.values, tr)}`;

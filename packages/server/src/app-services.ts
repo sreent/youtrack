@@ -4,6 +4,7 @@ import type { Config } from './config';
 import { effectiveScopes, type Actor, type AppServices, type Ctx, type UserRow } from './context';
 import type { Database } from './db/client';
 import { ensureDefaults } from './db/defaults';
+import { migrateOrganizations } from './services/customer-groups';
 import { EventBus } from './events/bus';
 import { LocalSignals, PgSignals, type PgSignalsOptions } from './events/signals';
 import { LiveEvents, type LiveEventsOptions } from './events/sse';
@@ -28,6 +29,8 @@ export interface RuntimeOptions {
 export async function createRuntime(config: Config, database: Database, opts: RuntimeOptions = {}): Promise<Runtime> {
   // Several instances starting together on an empty database must not all create the defaults.
   await database.exclusive(() => ensureDefaults(database.db));
+  // D45's organizations become customer groups (D56), once, before anything serves.
+  await database.exclusive(() => migrateOrganizations(database.db));
   const instanceId = `${hostname()}-${process.pid}-${newId(4)}`;
   const listenUrl = config.databaseListenUrl || database.url;
   const signals =

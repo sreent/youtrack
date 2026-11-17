@@ -2,7 +2,7 @@ import type { FieldType, StateTransition } from '@a4a/shared';
 import { asc } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { warmSandbox } from '../workflow/sandbox';
-import { appProjects, apps, fields, fieldValues, groups, linkTypes, projectFields, projectKeyAliases, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
+import { appProjects, apps, customerGroups, fields, fieldValues, groups, linkTypes, projectFields, projectKeyAliases, projects, rules, stateMachines, tags, users, workflowActions } from '../db/schema';
 
 export type FieldRow = typeof fields.$inferSelect & { type: FieldType };
 export type FieldValueRow = typeof fieldValues.$inferSelect;
@@ -50,6 +50,8 @@ export interface SchemaSnapshot {
   machines: MachineRow[];
   /** Custom actions (D40), by position: the command language reads their names. */
   actions: ActionRow[];
+  /** Help desks' customer groups (D56), by id: the query language reads a request's by name. */
+  customerGroups: Map<string, { id: string; projectId: string; name: string }>;
   /** Installed apps (D48), by id, and where each runs: a rule an app installed acts only there. */
   apps: Map<string, AppRow>;
   loadedAt: number;
@@ -179,6 +181,7 @@ export class SchemaCache {
     const actionRows = await db.select().from(workflowActions).orderBy(asc(workflowActions.position), asc(workflowActions.createdAt), asc(workflowActions.id));
     const appRows = await db.select().from(apps).orderBy(asc(apps.name));
     const appProjectRows = await db.select().from(appProjects);
+    const customerGroupRows = await db.select({ id: customerGroups.id, projectId: customerGroups.projectId, name: customerGroups.name }).from(customerGroups).orderBy(asc(customerGroups.name));
     const keyAliasRows = await db.select().from(projectKeyAliases).orderBy(asc(projectKeyAliases.renamedAt), asc(projectKeyAliases.key));
     // Scripts run in the sandbox's worker threads (D40): start them now, so no run waits for one to load.
     if (ruleRows.some((r) => r.script) || actionRows.some((a) => a.script)) warmSandbox();
@@ -203,6 +206,7 @@ export class SchemaCache {
       machines: machineRows,
       actions: actionRows,
       apps: new Map(),
+      customerGroups: new Map(customerGroupRows.map((g) => [g.id, g])),
       loadedAt: Date.now(),
     };
     for (const a of appRows) {

@@ -22,11 +22,12 @@ export function helpdeskConsumer(app: AppServices): OutboxConsumer {
 
 export async function mailRequester(app: AppServices, event: TrackerEvent): Promise<void> {
   if (!mailConfigured(app)) return;
-  const data = event.data as { visibility?: string; requester?: unknown; commentId?: string };
+  const data = event.data as { visibility?: string; requester?: unknown; colleague?: unknown; commentId?: string };
   let kind: 'request-reply' | 'request-state';
   let payload: Record<string, unknown>;
   if (event.type === 'comment.created') {
-    if (data.visibility !== 'public' || data.requester || !data.commentId) return;
+    // Their own replies never go back to them; a colleague's, from their customer group (D56), does.
+    if (data.visibility !== 'public' || (data.requester && !data.colleague) || !data.commentId) return;
     kind = 'request-reply';
     payload = { commentId: data.commentId };
   } else {

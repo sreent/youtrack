@@ -12,12 +12,13 @@
  * - Everything public answers for one request only, and the same way whether a project, request or
  *   token is missing or just not theirs.
  */
-import type { HelpdeskRequest, HelpForm, HelpRequestReceived, Sla, TrackedRequest } from '@a4a/shared';
-import { and, asc, eq, isNull, min, sql } from 'drizzle-orm';
+import type { CustomerSharing, HelpdeskRequest, HelpForm, HelpRequestReceived, Sla, TrackedRequest } from '@a4a/shared';
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
+import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
+import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupOfRequester } from './customer-groups';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
 import { randomToken, sha256 } from '../lib/crypto';
@@ -180,6 +181,8 @@ export interface NewRequest {
   via: 'form' | 'email';
   /** The requester's own Message-ID, when they wrote in: the conversation threads under it. */
   threadId?: string | null;
+  /** Kept from their customer group's other members from the start (D56). */
+  private?: boolean;
 }
 
 /**
@@ -198,19 +201,26 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const received = requestMessageId('request-received');
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
+  // Filed under its requester's customer group now, and kept (D56).
+  const group = await groupOfRequester(app.db, project.id, { id: requesterId, email });
   let slaActivities: ActivityRow[] = [];
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
     {
-      data: { requester: { name }, ...(input.via === 'email' ? { via: 'email' } : {}) },
+      data: { requester: { name }, ...(input.via === 'email' ? { via: 'email' } : {}), ...(group ? { customerGroup: group.name } : {}) },
       inTransaction: async (tx, row) => {
         const due = settings.firstResponseHours ? new Date(row.createdAt.getTime() + settings.firstResponseHours * 3_600_000) : null;
-        const [request] = await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId }).returning();
-        // Its SLA clocks start with it (D45), counted from when it was filed.
+        const [request] = await tx
+          .insert(helpdeskRequests)
+          .values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId, groupId: group?.id ?? null, private: input.private ?? false })
+          .returning();
+        // Its SLA clocks start with it (D45), counted from when it was filed, in its group's hours where it has some.
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
+        // Its group's dedicated agent takes it (D56), as the help desk's agent, in its history.
+        if (group) slaActivities.push(...(await assignToGroupAgent(tx, ctx, row, group)));
         // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
         await enqueueMail(tx, app, { kind: 'request-received', dedupeKey: `request:${row.id}:received`, payload: { issueId: row.id, replyable: true }, messageId: received });
       },
@@ -258,6 +268,9 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     .where(and(eq(comments.issueId, issue.id), eq(comments.visibility, 'public'), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
   const state = (await stateNames(app.db, s, [issue.id])).get(issue.id) ?? null;
+  // Someone of its customer group who answered it (D56), by their name.
+  const others = [...new Set(rows.map((c) => c.requesterId).filter((id): id is string => Boolean(id) && id !== request.requesterId))];
+  const colleagues = new Map(others.length ? (await app.db.select().from(requesters).where(inArray(requesters.id, others))).map((q) => [q.id, q.name]) : []);
   return {
     project: { name: project?.name ?? '' },
     summary: issue.summary,
@@ -268,7 +281,8 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     // The team by name, the requester as "you"; never anything internal.
     messages: rows.map((c) => {
       const author = c.authorId ? s.users.get(c.authorId) : undefined;
-      const mine = c.requesterId !== null;
+      const mine = c.requesterId === request.requesterId;
+      if (c.requesterId && !mine) return { id: c.id, from: 'colleague' as const, name: colleagues.get(c.requesterId) ?? 'Someone', text: c.text, at: c.createdAt.toISOString() };
       return {
         id: c.id,
         from: mine ? ('you' as const) : ('team' as const),
@@ -291,8 +305,11 @@ export async function postRequesterReply(
   requester: { id: string; name: string },
   text: string,
   via: 'page' | 'email',
+  opts: { colleague?: boolean } = {},
 ): Promise<{ commentId: string | null; activities: ActivityRow[] }> {
   const ctx = await botCtx(app, issue.projectId);
+  // Someone of its customer group answering it (D56): their own words, which reach its requester too.
+  const data = { ...(via === 'email' ? { via: 'email' } : {}), ...(opts.colleague ? { colleague: true } : {}) };
   const reply = (withResume: boolean) =>
     app.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
@@ -307,7 +324,7 @@ export async function postRequesterReply(
           commentVisibility: 'public',
           commentRequester: requester,
           ...(fields.length ? { fields } : {}),
-          ...(via === 'email' ? { data: { via: 'email' } } : {}),
+          ...(Object.keys(data).length ? { data } : {}),
         },
         fields.length ? { machines: false } : {},
       );
@@ -369,6 +386,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
   const responded = await firstResponseAt(ctx.db, issue.id);
   const sla = await requestSla(ctx.db, s, issue.id, issue.projectId, row.request.waitingSince);
   const first = sla.clocks.find((c) => c.target === 'first_response');
+  const [group] = row.request.groupId ? await ctx.db.select().from(customerGroups).where(eq(customerGroups.id, row.request.groupId)) : [];
   return {
     issue: readableId(s, issue),
     requester: { name: row.requester.name, email: row.requester.email },
@@ -384,7 +402,34 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     sla,
     emailMuted: row.request.emailMutedAt !== null,
     via: row.request.via === 'email' ? 'email' : 'form',
+    group: group ? { id: group.id, name: group.name, sharing: group.sharing as CustomerSharing } : null,
+    private: row.request.private,
   };
+}
+
+/**
+ * The team gives a request another customer group, or none, or keeps it from its group (D56):
+ * through the write path, with the edit permission and in its history. A request that comes into a
+ * group with dedicated agents goes to one of them, as a new one does, unless someone chose its assignee.
+ */
+export async function updateRequest(ctx: Ctx, issueId: string, input: { group?: string | null; private?: boolean; expectedVersion?: number }): Promise<HelpdeskRequest> {
+  requireScope(ctx, 'write');
+  const issue = await resolveIssue(ctx, issueId);
+  const group = input.group ? await groupByRef(ctx.db, issue.projectId, input.group) : null;
+  const bot = group ? await botCtx(ctx.app, issue.projectId) : null;
+  const activities = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const res = await applyChanges(tx, ctx, issue, {
+      ...(input.group !== undefined ? { requestGroup: { groupId: group?.id ?? null } } : {}),
+      ...(input.private !== undefined ? { requestPrivate: input.private } : {}),
+      expectedVersion: input.expectedVersion,
+    });
+    const out = [...res.activities];
+    if (group && bot && res.changes.some((c) => c.field === GROUP_CHANGE) && !res.issue.resolvedAt) out.push(...(await assignToGroupAgent(tx, bot, res.issue, group)));
+    return out;
+  });
+  await publishActivities(ctx.app, activities);
+  return requestOf(ctx, issue.id);
 }
 
 /** For the issue's ref in mail: its state now. */

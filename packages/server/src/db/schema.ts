@@ -1345,8 +1345,15 @@ export const helpdeskRequests = pgTable(
     threadId: text('thread_id'),
     /** Since when it has been in one of the desk's waiting states (D45): a requester's answer after it ends the wait. */
     waitingSince: ts('waiting_since'),
+    /**
+     * The customer group it was filed under (D56): its requester's at the desk then, or the one the
+     * team gave it since. Kept, as its project is: joining or leaving a group moves no request.
+     */
+    groupId: text('group_id').references((): AnyPgColumn => customerGroups.id, { onDelete: 'set null' }),
+    /** Kept from its group's other members (D56), by its requester or the team: to them it's missing. */
+    private: boolean('private').notNull().default(false),
   },
-  (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId)],
+  (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId), index('helpdesk_requests_group').on(t.groupId)],
 );
 
 /**
@@ -2730,4 +2737,80 @@ export const projectKeyAliases = pgTable(
     renamedAt: created(),
   },
   (t) => [index('project_key_aliases_project').on(t.projectId)],
+);
+
+// ---------------------------------------------------------------------------
+// Customer groups in the help desk (wave 4: docs/architecture.md, D56)
+// ---------------------------------------------------------------------------
+
+/**
+ * A desk's customer groups: the companies, teams or organizations its requesters belong to. A
+ * group is its desk's own, as its SLA policies are; its name is unique there, in any case.
+ */
+export const customerGroups = pgTable(
+  'customer_groups',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** What its members do with each other's requests on the portal: 'none', 'read' or 'comment'. */
+    sharing: text('sharing').notNull().default('none'),
+    /** Its own working hours and holidays (BusinessHours), which its requests' SLAs count in; null keeps the desk's. */
+    businessHours: jsonb('business_hours'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('customer_groups_project_name').on(t.projectId, sql`lower(${t.name})`)],
+);
+
+/** The email domains that put a requester in a group by themselves. A domain names one group at a desk. */
+export const customerGroupDomains = pgTable(
+  'customer_group_domains',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** In lower case, such as acme.com: an address's part after the @, matched whole. */
+    domain: text('domain').notNull(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.domain] }), index('customer_group_domains_group').on(t.groupId)],
+);
+
+/** Requesters added to a group by hand: one group at a desk each, whatever their address's domain says. */
+export const customerGroupMembers = pgTable(
+  'customer_group_members',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    addedAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.requesterId] }), index('customer_group_members_group').on(t.groupId)],
+);
+
+/** A group's dedicated agents, in order: its members' new requests go to one of them. */
+export const customerGroupAgents = pgTable(
+  'customer_group_agents',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('customer_group_agents_user').on(t.userId)],
 );
