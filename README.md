@@ -40,6 +40,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 - **People connect their own accounts** at GitHub, GitLab, Bitbucket, and a Forgejo or Gitea, from their profile, by signing in there, so their commits are theirs without an administrator.
 - **GitHub as an App** (D54): a GitHub integration reads as a GitHub App rather than with a person's token, with the app's id, its private key and its installation, which a4a finds. Its tokens last an hour and are kept only in memory, and the app's own webhook can be the integration's.
 - **More importers**: GitHub Issues, Redmine, and Zendesk into a help desk (requesters, public replies and internal notes), beside YouTrack and Jira.
+  - **Asana and ClickUp** (D61): a project's or a List's tasks with their subtasks, comments, files and custom fields; a section or a status as the state, and completed tasks resolved; dependencies as links; followers and watchers as watchers; ClickUp's time tracked as work, and its checklists as checklists in the description.
 - **VS Code**: an extension with your issues, an issue beside the code, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
   - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.

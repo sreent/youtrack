@@ -18,6 +18,7 @@
 import type { ApiImportSource, ImportBring, ImportCredentials } from '@a4a/shared';
 import { adfToMarkdown, wikiToMarkdown } from './markup';
 import { GithubReader, RedmineReader, ZendeskReader } from './readers-more';
+import { AsanaReader, ClickUpReader } from './readers-tasks';
 import { checkAddress, Remote, RemoteError, type RemotePolicy } from './remote';
 
 export interface RemotePerson {
@@ -47,9 +48,12 @@ export interface RemoteIssue {
   extra: RowExtra;
   /** Only some people may see it there: left out of the import. */
   restricted: boolean;
+  /** Its subtasks there the token can't read (Asana's, D61): left out, and counted. */
+  hidden?: number;
 }
 
-export type RemoteCursor = { skip: number } | { token: string } | { startAt: number };
+/** Where the next page starts: an item's place, a token the tracker gave, or a page's number (ClickUp's). */
+export type RemoteCursor = { skip: number } | { token: string } | { startAt: number } | { page: number };
 
 export interface RemotePage {
   issues: RemoteIssue[];
@@ -67,6 +71,11 @@ export interface Reader {
   page(cursor: RemoteCursor | null): Promise<RemotePage>;
   /** Where to carry on from after a stop: a page back, since what was read past it may not have been kept. */
   resumeFrom(cursor: RemoteCursor | null): RemoteCursor | null;
+  /**
+   * The keys kept already, as the fetch goes: a reader that reads more for each issue (its comments,
+   * time, files, subtasks) needn't read it for those, which a fetch carrying on reads past again.
+   */
+  skip?(keys: ReadonlySet<string>): void;
 }
 
 export interface OriginRef {
@@ -617,7 +626,29 @@ const ZENDESK_NAMES = {
   authHint: "Give an agent's email with an API token (Admin Center, Apps and integrations, Zendesk API), or an OAuth token alone.",
   badRequestHint: 'Write all, or since 2026-01-01.',
 };
-const NAMES_OF: Record<ApiImportSource, typeof YT_NAMES> = { youtrack: YT_NAMES, jira: JIRA_NAMES, github: GITHUB_NAMES, redmine: REDMINE_NAMES, zendesk: ZENDESK_NAMES };
+const ASANA_NAMES = {
+  name: 'Asana',
+  source: 'asana',
+  example: 'https://app.asana.com',
+  authHint: 'Make a personal access token in Asana (My settings, Apps, Manage developer apps), and give it whole.',
+  badRequestHint: 'Check the project: its address in Asana, or its id.',
+};
+const CLICKUP_NAMES = {
+  name: 'ClickUp',
+  source: 'clickup',
+  example: 'https://app.clickup.com',
+  authHint: 'Make a personal token in ClickUp (Settings, Apps, API Token), and give it whole: it starts pk_.',
+  badRequestHint: 'Check the List: its address in ClickUp, or its id.',
+};
+const NAMES_OF: Record<ApiImportSource, typeof YT_NAMES> = {
+  youtrack: YT_NAMES,
+  jira: JIRA_NAMES,
+  github: GITHUB_NAMES,
+  redmine: REDMINE_NAMES,
+  zendesk: ZENDESK_NAMES,
+  asana: ASANA_NAMES,
+  clickup: CLICKUP_NAMES,
+};
 
 /** The base address a4a keeps: checked, without a query or a fragment, and without a trailing slash. */
 export function baseAddress(policy: RemotePolicy, kind: ApiImportSource, raw: string): URL {
@@ -626,10 +657,14 @@ export function baseAddress(policy: RemotePolicy, kind: ApiImportSource, raw: st
   url.hash = '';
   // GitHub's own site is read through its API's address.
   if (kind === 'github' && /^(www\.)?github\.com$/i.test(url.hostname)) return new URL('https://api.github.com');
+  // ClickUp's app and its API are on different hosts: the app's address reads through the API's.
+  if (kind === 'clickup' && /^(app\.|www\.)?clickup\.com$/i.test(url.hostname)) return new URL('https://api.clickup.com');
   if (kind !== 'youtrack' && kind !== 'jira') {
     url.pathname = url.pathname.replace(/\/+$/, '');
     if (kind === 'zendesk') url.pathname = url.pathname.replace(/\/(agent|api|hc)(\/.*)?$/i, '');
     if (kind === 'redmine') url.pathname = url.pathname.replace(/\/(projects|issues|my)(\/.*)?$/i, '');
+    if (kind === 'asana') url.pathname = url.pathname.replace(/\/(api|0|1)(\/.*)?$/i, '');
+    if (kind === 'clickup') url.pathname = url.pathname.replace(/\/api(\/.*)?$/i, '');
     return url;
   }
   // People paste the address of a page in it: keep what precedes YouTrack's and Jira's own paths.
@@ -657,6 +692,11 @@ export function readerFor(
       const basic = b64(email ? `${email}:${token}` : `${token}:x`);
       return new RedmineReader(new Remote(base, `Basic ${basic}`, [token, basic], policy, REDMINE_NAMES), origin.query, origin.bring);
     }
+    case 'asana':
+      return new AsanaReader(new Remote(base, `Bearer ${token}`, [token], policy, ASANA_NAMES), origin.query, origin.bring, paging.pageSize);
+    case 'clickup':
+      // A personal token is the Authorization header itself; an OAuth token goes as a bearer token.
+      return new ClickUpReader(new Remote(base, /^pk_/.test(token) ? token : `Bearer ${token}`, [token], policy, CLICKUP_NAMES), origin.query, origin.bring);
     case 'zendesk': {
       const basic = email ? b64(`${email}/token:${token}`) : '';
       return new ZendeskReader(new Remote(base, email ? `Basic ${basic}` : `Bearer ${token}`, [token, basic].filter(Boolean), policy, ZENDESK_NAMES), origin.query, origin.bring);

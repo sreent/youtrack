@@ -20,6 +20,7 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
+import { sourceName } from '../imports/names';
 import { commandNote, formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -145,7 +146,8 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
       const imported = data.imported as { source?: string; key?: string; createdAt?: string; reporter?: string } | undefined;
       if (imported) {
-        const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : t('issues.issueHistory.anotherTracker');
+        // The tracker by its name: an export's (Jira's, YouTrack's) or an API's (D29, D46, D61); a plain CSV's is another tracker.
+        const from = sourceName(imported.source) ?? t('issues.issueHistory.anotherTracker');
         const on = imported.createdAt ? t('issues.issueHistory.whereItWasReported', { when: when(imported.createdAt), v: imported.reporter ? t('issues.issueHistory.by', { reporter: imported.reporter }) : '' }) : '';
         return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? t('issues.issueHistory.itsKeyThere'), on: on }) };
       }

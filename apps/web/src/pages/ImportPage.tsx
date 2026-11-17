@@ -27,7 +27,7 @@ import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../f
 import { whenRead } from '../features/common/format';
 import { t, tr } from '../i18n';
 
-const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: t('page.import.aCsvFile'), github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk' };
+const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: t('page.import.aCsvFile'), github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk', asana: 'Asana', clickup: 'ClickUp' };
 const FIRST = {
   start: { name: t('page.import.bringTheIssues'), about: t('page.import.jiraSOrYoutrackS') },
   file: { name: t('page.import.uploadTheExport'), about: t('page.import.jiraSOrYoutrackS2') },

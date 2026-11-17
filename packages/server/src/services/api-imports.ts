@@ -26,7 +26,7 @@ const MAX_ROWS = 50_000;
 /** A fetch whose heartbeat is older than this has stopped; while it waits on the other tracker it keeps beating. */
 const BEAT_EVERY_MS = 10_000;
 const KEYS_SHOWN = 20;
-const NAMES = { youtrack: 'YouTrack', jira: 'Jira', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk' } as const;
+const NAMES = { youtrack: 'YouTrack', jira: 'Jira', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk', asana: 'Asana', clickup: 'ClickUp' } as const;
 
 const fetching = new Map<string, Promise<void>>();
 
@@ -77,6 +77,9 @@ export async function importFromApi(
   if (body.source === 'youtrack' && body.credentials.email) {
     throw badRequest('YouTrack takes a token alone', 'Leave the email empty: a permanent token says whose it is.').said('apiImports.youtrackTokenAlone');
   }
+  if ((body.source === 'asana' || body.source === 'clickup') && body.credentials.email) {
+    throw badRequest(`${NAMES[body.source]} takes a token alone`, 'Leave the email empty: the token says whose it is.').said('apiImports.tokenAlone', { source: NAMES[body.source] });
+  }
   const origin: StoredOrigin = {
     kind: body.source,
     deployment: body.source === 'jira' ? (body.credentials.email ? 'cloud' : 'datacenter') : null,
@@ -86,6 +89,8 @@ export async function importFromApi(
     bring: { comments: true, work: true, files: true, ...body.bring },
     fetch: { complete: false, cursor: null, issues: 0, comments: 0, work: 0, files: 0, fileBytes: 0, total: null, left: { issues: 0, comments: 0, keys: [] } },
   };
+  // Asana's time isn't read (D61): the import says it brings none rather than none found.
+  if (origin.kind === 'asana') origin.bring.work = false;
   const { reader, account } = await signIn(ctx, origin, body.credentials);
   origin.url = reader.remote.base.href.replace(/\/$/, '');
   origin.account = account;
@@ -95,7 +100,15 @@ export async function importFromApi(
     throw sourceError(e);
   }
   if (origin.fetch.total === 0) {
-    const hint = { youtrack: 'Check the query, such as project: BACK.', jira: 'Check the JQL, such as project = BACK.', github: 'Check the repository, and state: or label: after it.', redmine: "Check the project's identifier.", zendesk: 'Check the date: since 2026-01-01.' }[origin.kind];
+    const hint = {
+      youtrack: 'Check the query, such as project: BACK.',
+      jira: 'Check the JQL, such as project = BACK.',
+      github: 'Check the repository, and state: or label: after it.',
+      redmine: "Check the project's identifier.",
+      zendesk: 'Check the date: since 2026-01-01.',
+      asana: 'Check the project: its address in Asana, or its id.',
+      clickup: 'Check the List: its address in ClickUp, or its id.',
+    }[origin.kind];
     throw badRequest(`Nothing in ${NAMES[origin.kind]} matches ${origin.query}`, hint).said('apiImports.nothingMatches', { source: NAMES[origin.kind], query: origin.query, kind: origin.kind });
   }
   if (origin.fetch.total !== null && origin.fetch.total > MAX_ROWS) {
@@ -219,12 +232,16 @@ async function readPages(
 ): Promise<void> {
   let n = rowsBefore;
   let cursor = n ? reader.resumeFrom(origin.fetch.cursor) : null;
+  // What's kept already needn't be read again in full: the reader is told as the keys come.
+  reader.skip?.(seen);
   for (;;) {
     const page = await reader.page(cursor);
     const rows: (typeof importRows.$inferInsert)[] = [];
     for (const issue of page.issues) {
       if (seen.has(issue.key)) continue;
       seen.add(issue.key);
+      // Its subtasks the token can't read: counted with it, once, as it's kept once.
+      origin.fetch.left.issues += issue.hidden ?? 0;
       if (issue.restricted) {
         if (!leftSeen.has(issue.key)) {
           leftSeen.add(issue.key);
@@ -303,9 +320,9 @@ async function finish(ctx: Ctx, id: string, header: string[], origin: StoredOrig
   const c = await contextFor(ctx, project);
   const notes: string[] = [];
   if (left.issues) {
-    notes.push(
-      `${left.issues} ${left.issues === 1 ? 'issue is' : 'issues are'} for only some people to see in ${name}, so ${left.issues === 1 ? 'it is' : 'they are'} left out: ${left.keys.join(', ')}${left.issues > left.keys.length ? ' and more' : ''}.`,
-    );
+    // Subtasks the token can't read are counted without their keys, which only who can read them knows.
+    const which = left.keys.length ? `: ${left.keys.join(', ')}${left.issues > left.keys.length ? ' and more' : ''}` : '';
+    notes.push(`${left.issues} ${left.issues === 1 ? 'issue is' : 'issues are'} for only some people to see in ${name}, so ${left.issues === 1 ? 'it is' : 'they are'} left out${which}.`);
   }
   if (left.comments) notes.push(`${left.comments} ${left.comments === 1 ? 'comment is' : 'comments are'} for only some people to see in ${name}, so ${left.comments === 1 ? 'it is' : 'they are'} left out.`);
   const mapping = firstMapping(c, header, tally.done(), notes);

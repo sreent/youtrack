@@ -1637,6 +1637,34 @@ D30 let the requester alone answer by email, and named this as the next step: pe
 
 **Revisit when:** the requester wants to take off someone they copied (now the team's, and the CC's own); a desk wants its own cap; CCs should hear each other's and the requester's words (a4a would then relay outside words, and needs a sender it can trust, such as DMARC passing by a server it knows); or the Cc of a new request nobody vouches for should wait for the requester to confirm it.
 
+### D61. Importing from Asana and ClickUp: tasks as issues, a section or a status as the state, followers as watchers
+
+Two more importers beside YouTrack's and Jira's (D29) and GitHub's, Redmine's and Zendesk's (D46), through their path, so everything D29 promises holds: a dry run first; people matched by email; the other tracker's ids remembered, so a run again makes nothing twice; files brought as the run goes, under the upload's checks and caps; quiet events (`data.imported`); a fetch that's a job and carries on from its last page; 429 and 5xx waited out; the token used and never kept; the address guard; and what the token can't see left out (`imports/readers-tasks.ts`).
+
+- **Asana** (REST API 1.0, a personal access token): a project, by its address or its id. Its tasks come page by page by `offset`, each task's subtasks below it (five levels), with its comments (stories of type comment, who and when) and its files.
+  - **The state.** A task's section is the column its board shows it in, so it fills the State column by name ("To do", "In progress"). A completed task says "Completed" there instead, which the mapping finds as Done, and it's resolved when it was completed. The section keeps a column of its own, for a project whose sections are areas rather than steps: mapping that to State instead is one choice.
+  - **People** by email where Asana gives it; someone it gives a name alone for is matched by name, or left empty. They are the assignee, the creator as reporter, followers as watchers, and a people field's people.
+  - **Custom fields** by their names: options and multiple options by name, numbers, text, dates, people. One named as a column of the reader's own keeps "(field)" after its name.
+  - **Links:** a subtask is a subtask of its parent, and a dependency is "depends on".
+  - **Rich text** (`html_notes`, `html_text`, a small XML dialect) becomes Markdown (`imports/markup.ts`): headings, emphasis, lists, quotes, code, tables and links. A mention keeps its words, since its link is Asana's alone.
+  - **Files** kept in Asana come; one it links to elsewhere (Google Drive, Dropbox) stays there. A file's download address lasts minutes, so the run asks Asana for it again as each file comes (`Remote.setLocate`), and downloads it without the token: it's on another origin.
+- **ClickUp** (API v2, a personal token, which is the header itself, or an OAuth token): a List, by its address or its id. Its tasks come page by page, oldest first, subtasks and closed ones included, with their comments (Quill's blocks, as Markdown), their time tracked and their files.
+  - **The state** is its status, keeping its name ("in progress", "complete"), found as a4a's by name or synonym; a closed one is resolved when it was done. Priorities urgent, high, normal and low are found as Show-stopper, Critical, Normal and Minor.
+  - **People** by email. The first assignee is the assignee, since a4a's Assignee is one person; the others watch it, with its watchers.
+  - **Time:** the estimate; and each interval tracked as a work item, as Jira's worklogs come, so its total doesn't come too.
+  - **Links:** waiting on a task "depends on" it, blocking one "is required for" it, and a linked task "relates to" it.
+  - **Checklists come as Markdown checklists in the description**, each under its name, items ticked and nested as they were. a4a has no checklist of its own, and a description's checklist is ticked in place on the issue (D39), so they stay what they were: the steps of one task. As subtasks they'd be issues, each with a state, an assignee and a history nobody gave them. Who an item was assigned to doesn't come, and a run again that finds a checklist changed there writes the description again, as any field changed there is.
+  - **A field ClickUp hides from guests** comes as a column marked "(hidden from guests)", which no field takes until someone maps it: here it would reach everyone who sees the project, unless it's mapped to a private field (D50).
+- **Watchers, a target every import has now.** A column named Watchers or Followers maps to the issue's watchers, people matched by email, login or name, and each is made to watch it quietly, as its reporter and assignee are. A run again adds whoever watches it there since, and makes nobody stop: that's theirs to choose.
+- **Keys.** A task is known by its id there (Asana's gid, ClickUp's task id), which its subtasks and links name it by.
+- **Carrying on.** Each page commits with the place after it, as D29's do. Asana's offset may have expired by the time someone gives the token again, so a page it refuses then reads from the first; ClickUp's page number steps one back. Either way the reader is told the keys kept (`Reader.skip`), so it doesn't read their comments, time, files or subtasks again.
+- **What the token can't see** stays out. A project or List it can't open answers in the same words as one that isn't there. A subtask it can't read is left out and counted with the issues only some may see; a dependency or link to a task it can't read is left out and counted as a link to a key not in the import.
+- **Rate limits.** Asana's 429 says Retry-After. ClickUp's says when its minute resets (`X-RateLimit-Reset`), which a 429 without Retry-After is now waited out until.
+
+**Costs.** A task takes one to three requests more: Asana's stories, files and subtasks; ClickUp's comments (25 at a time), its time and, when files come, the task itself, since a List's pages don't carry them. ClickUp allows 100 requests a minute on most plans, so a List of a thousand tasks takes most of half an hour to read, waiting as it's told. Left out: Asana's time tracking, likes and approvals' outcomes (an approval comes as a task of type Approval); ClickUp's comment threads, reactions and docs.
+
+**Revisit when:** someone wants Asana's time tracking (its entries, a request per task), ClickUp's comment threads, or a project kept in step rather than imported (D29's revisit).
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1741,6 +1769,7 @@ Planned, with the seams already in place:
 - passwords or single sign-on for the requesters' portal (D45);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
+- Asana's time tracking and ClickUp's comment threads in an import (D61);
 - a Forgejo run's commits read from Forgejo's compare, once its integrations hold a token (D55);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
 - apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48);

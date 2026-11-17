@@ -7,7 +7,7 @@ import { ProjectRefSchema, UserRefSchema } from './schemas';
 
 const timestamp = z.string().describe('ISO 8601 timestamp');
 
-export const IMPORT_SOURCES = ['jira', 'youtrack', 'csv', 'github', 'redmine', 'zendesk'] as const;
+export const IMPORT_SOURCES = ['jira', 'youtrack', 'csv', 'github', 'redmine', 'zendesk', 'asana', 'clickup'] as const;
 export type ImportSource = (typeof IMPORT_SOURCES)[number];
 
 /** The targets a column can have, besides `field:<name>` (a project field) and `link:<phrase>` (a link, by external key). */
@@ -26,13 +26,14 @@ export const IMPORT_TARGETS = [
   'comment',
   'spent',
   'sprint',
+  'watchers',
 ] as const;
 
 export const ImportTarget = z
   .string()
   .max(120)
-  .regex(/^(ignore|key|external-id|summary|description|parent|created|updated|resolved|reporter|tags|comment|spent|sprint|field:.+|link:.+)$/, 'Not a target a column can have')
-  .describe('ignore, key, external-id, summary, description, parent, created, updated, resolved, reporter, tags, comment, spent, sprint, field:<Field name> or link:<phrase>');
+  .regex(/^(ignore|key|external-id|summary|description|parent|created|updated|resolved|reporter|tags|comment|spent|sprint|watchers|field:.+|link:.+)$/, 'Not a target a column can have')
+  .describe('ignore, key, external-id, summary, description, parent, created, updated, resolved, reporter, tags, comment, spent, sprint, watchers (people who watch it here), field:<Field name> or link:<phrase>');
 
 export const ImportColumnSchema = z
   .object({
@@ -110,8 +111,8 @@ export type ImportCounts = z.infer<typeof ImportCountsSchema>;
 // HTTPS with a token that is used for the fetch and the run, and never kept.
 // ---------------------------------------------------------------------------
 
-/** D29: YouTrack and Jira. D46: GitHub Issues, Redmine, and Zendesk into a help desk. */
-export const API_IMPORT_SOURCES = ['youtrack', 'jira', 'github', 'redmine', 'zendesk'] as const;
+/** D29: YouTrack and Jira. D46: GitHub Issues, Redmine, and Zendesk into a help desk. D61: Asana's projects and ClickUp's Lists. */
+export const API_IMPORT_SOURCES = ['youtrack', 'jira', 'github', 'redmine', 'zendesk', 'asana', 'clickup'] as const;
 export type ApiImportSource = (typeof API_IMPORT_SOURCES)[number];
 
 export const ImportCredentialsSchema = z
@@ -121,7 +122,7 @@ export const ImportCredentialsSchema = z
       .min(1)
       .max(4096)
       .describe(
-        'YouTrack: a permanent token. Jira Cloud: an API token, with the email of its account. Jira Data Center: a personal access token. GitHub: a token that may read the repository\'s issues. Redmine: an API key (or a password, with the login as email). Zendesk: an API token, with the email of its agent (or an OAuth token alone)',
+        'YouTrack: a permanent token. Jira Cloud: an API token, with the email of its account. Jira Data Center: a personal access token. GitHub: a token that may read the repository\'s issues. Redmine: an API key (or a password, with the login as email). Zendesk: an API token, with the email of its agent (or an OAuth token alone). Asana: a personal access token. ClickUp: a personal token (it starts pk_), or an OAuth token',
       ),
     email: z
       .string()
@@ -138,7 +139,10 @@ export type ImportCredentials = z.infer<typeof ImportCredentialsSchema>;
 export const ImportBringSchema = z
   .object({
     comments: z.boolean().default(true),
-    work: z.boolean().default(true).describe('Work items (YouTrack) and worklogs (Jira), each as it was logged; without them, the time spent comes as one total'),
+    work: z
+      .boolean()
+      .default(true)
+      .describe("Work items (YouTrack), worklogs (Jira), time entries (Redmine) and time tracked (ClickUp), each as it was logged; without them, the time spent comes as one total. Asana's time isn't read"),
     files: z.boolean().default(true).describe('Attachments, downloaded as the import runs, within the size limits'),
   })
   .meta({ id: 'ImportBring' });
@@ -152,7 +156,7 @@ export const ImportFromApiBody = z.object({
     .min(1)
     .max(2000)
     .describe(
-      "The tracker's base address, https: e.g. https://example.youtrack.cloud, https://example.atlassian.net, https://api.github.com (or GitHub Enterprise's https://github.acme.example/api/v3), https://redmine.acme.example, https://acme.zendesk.com",
+      "The tracker's base address, https: e.g. https://example.youtrack.cloud, https://example.atlassian.net, https://api.github.com (or GitHub Enterprise's https://github.acme.example/api/v3), https://redmine.acme.example, https://acme.zendesk.com, https://app.asana.com, https://app.clickup.com",
     ),
   query: z
     .string()
@@ -160,7 +164,7 @@ export const ImportFromApiBody = z.object({
     .min(1)
     .max(4000)
     .describe(
-      'Which issues: a YouTrack query (project: BACK), a JQL (project = BACK), a GitHub repository (acme/backend, then state:open or label:bug if you like), a Redmine project identifier (backend), or for Zendesk "all" or "since 2026-01-01"',
+      'Which issues: a YouTrack query (project: BACK), a JQL (project = BACK), a GitHub repository (acme/backend, then state:open or label:bug if you like), a Redmine project identifier (backend), for Zendesk "all" or "since 2026-01-01", an Asana project (its address, or its id), or a ClickUp List (its address, or its id)',
     ),
   credentials: ImportCredentialsSchema,
   bring: ImportBringSchema.optional(),

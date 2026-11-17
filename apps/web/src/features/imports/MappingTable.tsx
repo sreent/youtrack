@@ -6,6 +6,7 @@
 import type { Import, ImportProblem, ImportValueMap, ProjectField } from '@a4a/shared';
 import { Badge, Chip } from '../../components/Badges';
 import { t, tr } from '../../i18n';
+import { SOURCE_NAME } from './names';
 
 const FIXED: [string, string][] = [
   ['ignore', t('imports.mappingTable.leaveItOut')],
@@ -22,6 +23,7 @@ const FIXED: [string, string][] = [
   ['comment', t('imports.mappingTable.aComment')],
   ['spent', t('imports.mappingTable.timeSpent')],
   ['sprint', t('imports.mappingTable.sprint')],
+  ['watchers', t('imports.mappingTable.watchers')],
 ];
 
 export function targetWords(target: string): string {
@@ -33,7 +35,7 @@ export function targetWords(target: string): string {
 }
 
 /** Where an import's issues come from, in words: the file, or the tracker its API is. */
-export const whereFrom = (imp: Import) => (imp.origin ? (imp.origin.kind === 'youtrack' ? 'YouTrack' : t('imports.mappingTable.jira')) : t('imports.mappingTable.theFile'));
+export const whereFrom = (imp: Import) => (imp.origin ? SOURCE_NAME[imp.origin.kind] : t('imports.mappingTable.theFile'));
 
 export function ColumnsTable({ imp, fields, phrases, onTarget, disabled }: { imp: Import; fields: ProjectField[]; phrases: string[]; onTarget: (index: number, target: string) => void; disabled?: boolean }) {
   const from = whereFrom(imp);
