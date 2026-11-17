@@ -8,6 +8,7 @@ import de from '@a4a/shared/i18n/de.json';
 import en from '@a4a/shared/i18n/en.json';
 import es from '@a4a/shared/i18n/es.json';
 import fr from '@a4a/shared/i18n/fr.json';
+import id from '@a4a/shared/i18n/id.json';
 import ja from '@a4a/shared/i18n/ja.json';
 import ko from '@a4a/shared/i18n/ko.json';
 import pt from '@a4a/shared/i18n/pt.json';
@@ -16,7 +17,7 @@ import zh from '@a4a/shared/i18n/zh.json';
 import type { Ctx } from './context';
 
 /** Every catalog, by language. A new language is a catalog, a line in LOCALES, and a line here. */
-const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, ja, ko, pt, vi, zh };
+const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, id, ja, ko, pt, vi, zh };
 
 const translators = new Map<Locale, Translator>();
 

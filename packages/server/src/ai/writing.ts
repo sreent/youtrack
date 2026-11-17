@@ -43,7 +43,7 @@ export const WRITING_LIMITS = {
 } as const;
 
 /** Each language a4a speaks, as a prompt names it. */
-const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German', es: 'Spanish', fr: 'French', ja: 'Japanese', ko: 'Korean', pt: 'Brazilian Portuguese', vi: 'Vietnamese', zh: 'Simplified Chinese' };
+const LANGUAGE: Record<Locale, string> = { en: 'English', de: 'German', es: 'Spanish', fr: 'French', id: 'Indonesian', ja: 'Japanese', ko: 'Korean', pt: 'Brazilian Portuguese', vi: 'Vietnamese', zh: 'Simplified Chinese' };
 
 const HOUR = 3_600_000;
 /** A summary may be posted as a comment for this long after it was made. */
