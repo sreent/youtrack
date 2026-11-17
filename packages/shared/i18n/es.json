@@ -3845,7 +3845,7 @@
   "problem.rateLimited": "Demasiadas solicitudes. Vuelve a intentarlo en {seconds} s.",
   "problem.reports.authorNotFound": "No se encuentra el usuario {author}. Usa un usuario, un nombre completo o “me”.",
   "problem.reports.boardNotFound": "No se encuentra el tablero {name}. Tableros: {n, plural, =0 {todavía ninguno} other {{boards}}}.",
-  "problem.reports.byDayTooLong": "Por día, este informe abarca como máximo 366 días, y este periodo tiene {span}. Elige interval=week o month.",
+  "problem.reports.byDayTooLong": "Por día, este informe abarca como máximo 366 días, y este periodo tiene {span} días. Elige interval=week o month.",
   "problem.reports.byWeekTooLong": "Por semana, este informe abarca como máximo unos tres años, y este periodo tiene {span} días. Elige interval=month.",
   "problem.reports.fromAfterTo": "“from” ({from}) es posterior a “to” ({to}). Inviértelos, o quita “to” para usar hoy.",
   "problem.reports.nameStartState": "Indica al menos un estado en el que se empiece a contar. Por ejemplo, start=In Progress.",
