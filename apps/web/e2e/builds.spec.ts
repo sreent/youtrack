@@ -52,13 +52,13 @@ test('a build from CI marks the resolved issue its commits name, and says so', a
   await expect(row.getByRole('link', { name: fixed.id })).toBeVisible();
   await expect(row).toContainText('fixed in it');
   await expect(row).toContainText('not resolved yet');
+  await expect(row.getByRole('listitem').filter({ hasText: open.id })).toHaveAttribute('title', 'Not resolved yet');
   await expect(page.getByRole('heading', { name: `Builds of ${project.name}` })).toBeVisible();
 
   await page.goto(`/issues/${fixed.id}`);
   const builds = page.getByRole('region', { name: 'Commits and pull requests' }).getByRole('group', { name: 'Builds' });
   await expect(builds.getByRole('link', { name: 'Build 2.0.1' })).toHaveAttribute('href', 'https://ci.acme.example/job/backend/201/');
   await expect(builds).toContainText('fixed in it');
-  await expect(row.getByRole('listitem').filter({ hasText: open.id })).toHaveAttribute('title', 'Not resolved yet');
 
   // A German page says why a build left an issue in German: a4a kept the note's words beside its English.
   const german = await browser.newContext({ locale: 'de-DE', storageState: AUTH_FILE });
