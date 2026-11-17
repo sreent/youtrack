@@ -456,7 +456,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 
 ## Indonesian
 
-Indonesian came later than the others, in one pass, by a model working from English, the code and [translating.md](translating.md): nobody has read it again yet, native speaker or not.
+Indonesian came later than the others, in one pass, by a model working from English, the code and [translating.md](translating.md). A second read edited it for natural phrasing (the last list below); no native speaker has read it yet.
 
 Terms:
 
@@ -479,13 +479,10 @@ Phrasing:
 
 - **Undo** is *Batalkan*, and the history says *membatalkan perubahan* (`issues.issueHistory.undo*`, `activity.ledgerEntry.undidAnAgentSChange`), close to *Batal* for Cancel. Google's Indonesian says *Urungkan*.
 - **The history and the ledger carry no tense word**: "Ada mengubah status", not "telah mengubah". Does that read as done?
-- **A ledger's badges** are active phrases, as English's are (`activity.ledgerEntry.badge*`): "berkomentar", "mencatat kerja", "memanggil keluar". The last is stiff for a webhook's call.
 - **A link's own words are data**: in a rule's sentence, "semua isu yang {v} cocok dengan {query}" takes a link type's English, "semua isu yang depends on cocok dengan …" (`rules.words.allLinkedMatchQuery` and its siblings).
-- `rules.words.tellNobody`, "jangan beri tahu siapa pun “…”", for a rule that tells no one, reads as an order not to tell.
 - `server.chat.subscribed`: "{name} membuat saluran ini berlangganan" for someone subscribing a channel.
-- **The help desk's emails** say *Anda*, with no *Yth.*, *Bapak/Ibu* or greeting, as English has none (`server.helpdesk.*`, `server.portal.*`). Is that courteous enough for a company writing to its customers?
+- **The help desk's emails** say *Anda*, with no *Yth.* or *Bapak/Ibu* (`server.helpdesk.*`, `server.portal.*`); the first one greets, "Halo {name}, permintaan Anda sudah kami terima." (`server.helpdesk.received`), where English ends with the name. Is that courteous enough for a company writing to its customers?
 - **Your address** in the help desk's limits is *alamat IP Anda* (`problem.helpdesk.tooManyFromAddress` and its siblings), since *alamat* alone could be an email.
-- `page.profile.you` is *Tentang Anda*, a heading, and `notifications.emailSettings.youHaveNoEmailAddress` points to it.
 - **The issue list's count** joins a search's parts with a comma, as Intl's narrow list does in Indonesian: "4 isu di proyek SPR, belum selesai". *dan* would read more smoothly between two.
 
 Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
@@ -501,6 +498,28 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **Writing help's buttons** are verbs, *Persingkat*, *Perjelas*, *Buat lebih formal*, *Buat lebih ramah* (`writing.action`), and its suggestions' titles adjectives, *Lebih singkat*, *Lebih jelas* (`writing.suggestion.title`). A selection is *teks terpilih* (`writing.selected` and its siblings).
 - **A chat thread** is *utas*, as Discord's and X's Indonesian say it (`server.chat.issue.thread`, `page.issue.source.replies`); an issue's own thread stays *diskusi* (`page.issue.longThreadSummarised`).
 - **ClickUp's List** stays "List", as ClickUp names it (`imports.fromApi.whichTasksAList`, `problem.imports.source.clickupNoList`), since *daftar* reads as any list; ClickUp's personal token is *token pribadi* (`imports.fromApi.personalToken`), while Asana's stays "personal access token", as the catalog keeps Jira's.
+
+Edited for natural phrasing:
+
+A later read, again by a model and not a native speaker, edited 1,039 messages so they read as Indonesian software rather than as English translated: the sign-in page and a4a's frame, the issues and an issue, boards, the inbox and its emails, the help desk and its portal, the ledger, the query's and commands' problems, projects, dashboards, articles, and then parts of the rest (the plan, rules, days away, files, the editor, the assistant, the other problems, administration and fields). The rest of the catalog (reports, integrations, webhooks, apps, imports, builds, version control, chat, whiteboards, roles and groups) had only the sweeps below. What it chose that a native speaker should check:
+
+- **"Anda" left out** where the page says whose it is: "Profil" (`app.shell.yourProfile`), "Memuat kotak masuk…" (`loadingLine.inbox` and its siblings), "Ponsel hilang?" (`app.auth.lostYourPhoneTypeOne`), "Bahasa browser: {name}" (`page.profile.yourBrowsersLanguage`), "Semua sudah dibaca" (`page.inbox.youReUpToDate`). Do any now read as if nobody's?
+- **Acting for someone is "atas nama"**, not "untuk": "e2e atas nama Ada" (`issues.issueHistory.for`, `ui.who.for`, `activity.ledgerEntry.throughTheApiAs` and its siblings, `server.notify.agentFor`, `assistant.changeCard.for`), and an agent with its own token acts "atas nama sendiri" (`ui.who.overMcpAsItself`, `agents.agentAccounts.actsAsItself`). Is "atas nama sendiri" natural, or would *sebagai dirinya sendiri* be clearer?
+- **"On its own" is "otomatis"** in the history and the ledger (`issues.issueHistory.onItsOwn`, `issues.issueHistory.anAppOnItsOwn`, `activity.ledgerEntry.onItsOwn`, `assistant.toolRun.assistantOnItsOwn`), and *secara mandiri* for an agent's own change (`problem.agents.onlyAgentsOwnChange`). `ui.who.onItsOwn` keeps *dengan sendirinya*, since `ui.who.automation` before it is *otomatisasi*.
+- **Plain words for the assistant are "kalimat biasa"**: "Tanya dengan kalimat biasa" (`issues.queryBar.askInWords`, `issues.languageField.askInWords`), "Tulis perintah dengan kalimat biasa" (`issues.commandBar.sayWhatToDoIn`), "lewat kalimat biasa" (`issues.issueHistory.askedInWords`), and the button "Ubah jadi perintah" (`issues.commandBar.readMyWords`). *Bahasa sehari-hari* or *bahasa alami* are the alternatives.
+- **Due is "tenggat" everywhere**, no longer sometimes *jatuh tempo*, which reads as a bill's: "tenggat 2 jam lagi" (`helpdesk.sla.dueIn`, `helpdesk.sla.atRiskDueIn`, `helpdesk.requestCard.firstResponseDueIn`), "terlambat 3 hari: tenggatnya 16 Nov" (`plan.gantt.daysLateWasDue`, `plan.timeline.wouldBeDaysLate`), "menandai target penyelesaian terlampaui" (`issues.issueHistory.slaBreached` and its siblings).
+- **The profile's own section is "Info pribadi"**, Google Account's heading, for English's "You" (`page.profile.you`); `notifications.emailSettings.youHaveNoEmailAddress` points to it. *Data diri* is the other common heading.
+- **The starting dashboard's button is "Sesuaikan"** for "Make it yours" (`page.dashboard.makeItYours`, `page.dashboard.theDashboardA4aStartsYou`), and what it makes is "Dasbor saya", listed under "Milik saya" (`page.dashboard.yourDashboard2`, `page.dashboard.yours`), with "saya" as Google Drive's "Drive Saya". A copy is "Salinan {name}" (`page.dashboard.yourCopy`).
+- **The portal's summary field is labelled "Ada yang bisa kami bantu?"** (`page.portal.whatDoYouNeed`), a service desk's question, where English asks "What do you need?"; the public form's is "Perihal" (`page.help.whatItSAbout`). Right for the field they label?
+- **A role in a sentence**: "Anda adalah anggota dan dapat membaca serta mengubah isu." (`page.profile.youRe` with `page.profile.roleMember` and its siblings), and the admin's list "pelihat dapat membaca, anggota dapat membaca dan mengubah isu, administrator dapat mengubah semuanya" (`page.admin.aViewerReads` and its siblings).
+- **Optional is "(opsional)"** where English says "if you want one" (`issues.commandBar.aCommentIfYouWant`, `away.daysAway.aNoteIfYouWant`, `plan.baselines.aNoteIfYouWant`, `rules.ruleForm.andACommentIfIt`, `page.timesheet.workTypeIfAny`).
+- **A rule that does nothing or tells nobody**: "tidak ada tindakan" (`rules.words.doNothing`) and "beri tahu “…” (tanpa penerima)" (`rules.words.tellNobody`), no longer orders not to act. A rule's example message asks with "mohon": "Ada bug kritis masuk, mohon segera diperiksa." (`rules.ruleForm.aCriticalBugCameIn`).
+- **Who was told, when nobody was**: the history's and the ledger's lines put the people after a colon so that "nobody" reads: "menerapkan aturan “…”, yang diberi tahu: tidak ada" (`issues.issueHistory.andTold`, `issues.issueHistory.nobody`), "memberi tahu tentang BACK-1: tidak ada" (`activity.ledgerEntry.toldOf`, `activity.ledgerEntry.nobody`).
+- **A board without a project**: "Papan kanban untuk proyek yang belum ditentukan, …" (`page.board.forInColumnsBy`, `page.board.noProject`).
+- **Typography in problems**: “…” quotes now, except around JSON a script sends (`problem.notifications.sayWhich`, `problem.ci.rangeNeedsRepository`, `problem.fields.notOwned`, `problem.fields.valueInUseBy`); a parser's unexpected token is "“)” tidak seharusnya ada di sini." (`problem.query.unexpected` and its siblings); times in prose take a point, "Senin 09.00–17.00" (`problem.helpdesk.hoursNeedDay`, `problem.helpdesk.hoursBackwards`), while a parser's examples keep the colon it reads (`problem.values.notADateTime`).
+- **A comment's label** is "Komentar sebagai Siti Rahayu" (`issues.issueHistory.aComment` with `issues.issueHistory.as`), without English's comma; with a requester it reads "Balasan untuk Ada sebagai Siti Rahayu" (`issues.issueHistory.aReplyTo`). Clear enough without the comma?
+- **The work log's columns** are "Tanggal", "Orang", "Waktu", "Keterangan" (`issues.workLog.day`, `.who`, `.time`, `.what`), and time spent is "Waktu terpakai" (`issues.workLog.timeSpent`, `issues.fieldPanel.spentTime`, `issues.issueHistory.spentTime`), where Microsoft says *Waktu yang dihabiskan*.
+- **Watchers' counts**: "Dipantau 3 orang" (`issues.watching.peopleWatchIt`, `issues.watching.n1PersonWatchesIt`), and "Pemantau mendapat notifikasi perubahan dan komentar" (`issues.watching.theyHearAboutItsChanges`) where English says "hear about". Is *notifikasi* too technical beside *kabar*?
 
 ## Thai
 
