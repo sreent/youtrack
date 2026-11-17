@@ -85,7 +85,7 @@ export function IssueList({ issues, label, chosen, onChosen, onCommand, current 
         </span>
         <span>{t('issues.issueList.updated')}</span>
       </div>
-      <ul className="issues" aria-label={t('issues.issueList.issues', { length: issues.length })}>
+      <ul className="issues" aria-label={t('count.issues', { n: issues.length })}>
         {issues.map((issue, i) => {
           const type = optionOf(issue.fields, 'Type');
           const assignee = userOf(issue.fields, 'Assignee');

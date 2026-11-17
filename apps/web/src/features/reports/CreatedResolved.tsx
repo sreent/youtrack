@@ -36,7 +36,7 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
   const chart = (
     <figure className="chart" ref={ref}>
       <svg viewBox={`0 0 ${f.width} ${f.height}`} role="img" aria-labelledby={titleId}>
-        <title id={titleId}>{t('reports.createdResolved.issuesCreatedAndIssuesResolved', { interval: r.interval })}</title>
+        <title id={titleId}>{t('reports.createdResolved.issuesByInterval', { interval: r.interval })}</title>
         {scale.ticks.map((t) => (
           <g key={t}>
             <line className="chart-grid" x1={f.left} x2={f.width - f.right} y1={y(t)} y2={y(t)} />
@@ -70,9 +70,9 @@ export function CreatedResolvedChart({ r, compact }: { r: CreatedResolved; compa
   );
 
   const table = (
-    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.createdResolved.createdAndResolvedBy', { interval: r.interval })}>
+    <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.createdResolved.createdAndResolvedByInterval', { interval: r.interval })}>
       <table className="figures chart-figures">
-        <caption>{tr('reports.createdResolved.by', { interval: r.interval })}</caption>
+        <caption>{tr('reports.createdResolved.byInterval', { interval: r.interval })}</caption>
         <thead>
           <tr>
             <th scope="col">{r.interval === 'day' ? t('reports.createdResolved.day') : r.interval === 'week' ? t('reports.createdResolved.week') : t('reports.createdResolved.month')}</th>

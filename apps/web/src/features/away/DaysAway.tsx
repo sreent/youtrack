@@ -61,7 +61,7 @@ function AbsenceForm({ person, you, editing, onDone, onCancel }: { person: Perso
       const saved = editing
         ? await change.mutateAsync({ id: editing.id, from, to: to || from, half, ...why, expectedVersion: editing.version })
         : await add.mutateAsync({ user: you ? undefined : person.login, from, to: to || from, half, kind, note: note.trim() || undefined });
-      onDone(t('away.daysAway.savedAway', { v: editing ? t('away.daysAway.changed') : t('away.daysAway.added'), ...w, whenWords: whenWords(saved), span: oneDay ? 'day' : 'days' }));
+      onDone(t(editing ? 'away.daysAway.changedAway' : 'away.daysAway.addedAway', { ...w, whenWords: whenWords(saved), span: oneDay ? 'day' : 'days' }));
     } catch (err) {
       setError(errorText(err));
     }

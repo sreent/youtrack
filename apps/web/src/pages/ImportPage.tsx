@@ -384,7 +384,7 @@ function ImportSteps({ imp }: { imp: Import }) {
             <section key={map.target} className="card stack" aria-labelledby={`values-${map.target}`}>
               <div className="section-head">
                 <h2 id={`values-${map.target}`}>{map.label}</h2>
-                <p className="note">{tr('page.import.whatEachInBecomesHere', { v: map.label === 'Sprint' ? 'sprint' : 'value', whereFrom: whereFrom(imp) })}</p>
+                <p className="note">{tr(map.label === 'Sprint' ? 'page.import.whatEachSprintBecomes' : 'page.import.whatEachValueBecomes', { whereFrom: whereFrom(imp) })}</p>
               </div>
               <ValuesTable map={map} from={whereFrom(imp)} onValue={(value, to) => change({ values: { [map.target]: { [value]: to } } })} />
             </section>

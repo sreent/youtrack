@@ -15,6 +15,7 @@ import { requireScope, scopesForRole, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tags } from '../db/schema';
 import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow } from '../events/activity';
+import { listIn } from '../i18n';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { canUserReadProject, eventSeen, projectAccess, requireProject } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
@@ -45,6 +46,9 @@ function agentOf(s: SchemaSnapshot, idOrLogin: string): UserRow {
 }
 
 /** The agents administrators added, each with its tokens that aren't revoked. */
+/** A role in an English sentence, with its article: the API's words (D49); a page says it from its catalog. */
+const ROLE_WORDS: Record<string, string> = { admin: 'an administrator', member: 'a member', viewer: 'a viewer', guest: 'a guest' };
+
 export async function listAgents(ctx: Ctx): Promise<AgentAccount[]> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
@@ -83,9 +87,9 @@ export async function issueAgentToken(
   const beyond = scopes.filter((sc) => !scopesForRole(agent.role).includes(sc));
   if (beyond.length) {
     throw badRequest(
-      `${agent.login} is a ${agent.role}, so a token for it can't have the ${beyond.join(' or ')} scope`,
-      `Leave out ${beyond.join(' and ')}, or change its role under Administration first.`,
-    ).said('agents.scopeBeyondRole', { login: agent.login, role: agent.role, scopes: beyond.join(' or '), scopesAnd: beyond.join(' and ') });
+      `${agent.login} is ${ROLE_WORDS[agent.role] ?? agent.role}, so a token for it can't have the ${listIn('en', beyond, 'or')} scope`,
+      `Leave out ${listIn('en', beyond)}, or change its role under Administration first.`,
+    ).said('agents.scopeBeyondRoleAs', { login: agent.login, role: agent.role, scopes: listIn(ctx.locale, beyond, 'or'), scopesAnd: listIn(ctx.locale, beyond) });
   }
   let projectIds: string[] | null = null;
   if (input.projects) {

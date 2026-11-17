@@ -150,7 +150,7 @@ function Task({ t, top, s }: { t: GanttTask; top: number; s: Scale }) {
   // Days its assignee is away while it's on: shaded behind the bar, half a day dashed (D43).
   const away = t.away.map((a) => (
     <rect key={a.date} className={a.part === 'day' ? 'gantt-away' : 'gantt-away half'} x={s.x(a.date)} y={top + 3} width={s.dayWidth} height={22}>
-      <title>{a.part === 'day' ? tw_('plan.gantt.away') : tw_('plan.gantt.awayInThe', { part: a.part })}</title>
+      <title>{a.part === 'day' ? tw_('plan.gantt.away') : tw_('plan.gantt.awayPart', { part: a.part /* a stable code the message selects on */ })}</title>
     </rect>
   ));
   return (

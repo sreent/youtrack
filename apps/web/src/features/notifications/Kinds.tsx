@@ -54,7 +54,7 @@ export function NotifyKindsSettingsCard() {
                       disabled={save.isPending}
                       onChange={(e) => toggle(scope, k, way, e.target.checked)}
                     />
-                    {scope === 'watching' ? t('notifications.kinds.watched') : t('notifications.kinds.subscribed')}: {way === 'inbox' ? t('notifications.kinds.byInbox') : t('notifications.kinds.byEmail')}
+                    {t('notifications.kinds.scopeAndWay', { scope: scope === 'watching' ? 'watching' : 'subscribed', way: way === 'inbox' ? 'inbox' : 'email' })}
                   </label>
                 )),
               )}

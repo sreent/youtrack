@@ -374,7 +374,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
           <Confirm
             label={t('page.articles.deleteIt')}
             title={t('page.articles.delete', { id: a.id, title: a.title })}
-            about={t('page.articles.itsAndItsFilesGo', { v: a.version === 1 ? 'version' : t('page.articles.versions', { version: a.version }), v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
+            about={t('page.articles.itsVersionsAndFilesGo', { n: a.version, v2: a.childCount ? t('page.articles.moveOrDeleteTheArticles') : '' })}
             confirm={t('page.articles.deleteIt')}
             onConfirm={() => void remove()}
           />

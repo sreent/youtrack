@@ -179,7 +179,7 @@ export default function AgentsPage() {
                   <div className="tw:grid tw:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] tw:items-start tw:gap-x-4 tw:gap-y-3 tw:max-[640px]:grid-cols-1">
                     <FormField
                       label={tx('page.agents.name')}
-                      help={tx('page.agents.nameItAfterTheAgent', { v: name.trim() || 'claude-code', v2: me.data?.name ?? 'you' })}
+                      help={me.data?.name ? tx('page.agents.nameItAfterTheAgentFor', { agent: name.trim() || 'claude-code', name: me.data.name }) : tx('page.agents.nameItAfterTheAgentForYou', { agent: name.trim() || 'claude-code' })}
                     >
                       {(id, help) => <input id={id} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} aria-describedby={help} />}
                     </FormField>

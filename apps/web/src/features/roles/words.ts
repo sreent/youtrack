@@ -39,10 +39,10 @@ export const PERMISSION_ABOUT: Record<Permission, string> = {
   manage: t('roles.words.changeTheProjectSSettings'),
 };
 
-/** "read its issues, comment on them and see time and costs", to follow "may". */
+/** "read its issues, comment on them and see time and costs", to follow "may": a role with none says so in a sentence of its own. */
 export function permissionWords(perms: readonly Permission[]): string {
   const parts = perms.map((p) => PHRASES[p]);
-  return parts.length ? formatList(parts) : t('roles.words.doNothing');
+  return formatList(parts);
 }
 
 /** The built-in roles' names, in the page's language (D49). A role people made keeps the name they gave it. */
@@ -90,6 +90,7 @@ export function isBuiltinRole(id: string): boolean {
 export function roleHelp(roles: readonly RoleDef[], id: string, who?: string): string {
   const r = roles.find((x) => x.id === id);
   if (!r) return '';
+  if (!r.permissions.length) return who ? t('roles.words.isAtLeastRoleWhoMayNothing', { who: who, role: aRole(r.id, r.name) }) : t('roles.words.roleMayNothing', { role: aRole(r.id, r.name, { start: true }) });
   const what = permissionWords(r.permissions);
   return who ? t('roles.words.isAtLeastRoleWhoMay', { who: who, role: aRole(r.id, r.name), what: what }) : t('roles.words.roleMay', { role: aRole(r.id, r.name, { start: true }), what: what });
 }

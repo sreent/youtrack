@@ -336,7 +336,7 @@ export function Talk(props: TalkProps) {
             </div>
             <div className="pair">
               <dt>{t('assistant.talk.changeARecord')}</dt>
-              <dd>{tr('assistant.talk.canOverwrite', { length: changes.length, length2: changes.filter((t) => t.destructive).length })}</dd>
+              <dd>{tr('assistant.talk.changesThatOverwrite', { total: changes.length, overwrite: changes.filter((t) => t.destructive).length })}</dd>
             </div>
           </dl>
           <div className="thin" />

@@ -99,7 +99,7 @@ function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlo
                   const place = over?.after ? { after: issue.id } : { before: issue.id };
                   setDragged(null);
                   setOver(null);
-                  if (moving && moving !== issue.id) void rank(moving, place, t('page.sprintPlanning.moved', { moving: moving, v: over?.after ? 'below' : 'above', id: issue.id }));
+                  if (moving && moving !== issue.id) void rank(moving, place, t(over?.after ? 'page.sprintPlanning.movedBelow' : 'page.sprintPlanning.movedAbove', { id: moving, id2: issue.id }));
                 }}
               >
                 <button type="button" className="backlog-handle" aria-label={t('page.sprintPlanning.move', { id: issue.id })} aria-describedby="backlog-keys" onKeyDown={(e) => keyMove(e, i)}>
@@ -219,7 +219,7 @@ function VelocityChart({ v }: { v: Velocity }) {
   const titleId = useId();
   if (!v.sprints.length) return <p className="note">{t('page.sprintPlanning.noSprintHasBegunYet')}</p>;
   if (v.sprints.every((s) => s.committed === 0 && s.done === 0)) {
-    return <p className="note">{tr('page.sprintPlanning.nothingWasCommittedToOr', { v: v.sprints.length === 1 ? v.sprints[0]!.name : t('page.sprintPlanning.itsSprints'), unit: v.unit })}</p>;
+    return <p className="note">{tr('page.sprintPlanning.nothingCommittedIn', { v: v.sprints.length === 1 ? v.sprints[0]!.name : t('page.sprintPlanning.itsSprints'), unit: v.unit })}</p>;
   }
   const top = Math.max(1, ...v.sprints.map((s) => Math.max(s.committed, s.done)));
   const H = 140;
@@ -229,7 +229,7 @@ function VelocityChart({ v }: { v: Velocity }) {
   return (
     <figure className="velocity" aria-labelledby={titleId}>
       <figcaption id={titleId} className="note">
-        {v.average === null ? t('page.sprintPlanning.noSprintIsOverYet') : t('page.sprintPlanning.onAverageDoneOverThe', { average: v.average, unit: v.unit, min: Math.min(3, v.sprints.filter((s) => s.finished).length) })}
+        {v.average === null ? t('page.sprintPlanning.noSprintIsOverYet') : t('page.sprintPlanning.onAverageDone', { average: v.average, unit: v.unit, min: Math.min(3, v.sprints.filter((s) => s.finished).length) })}
       </figcaption>
       <div className="velocity-scroll">
         <svg className="chart velocity-chart" viewBox={`0 0 ${width} ${H + 22}`} width={width} height={H + 22} aria-hidden="true">
@@ -256,7 +256,7 @@ function VelocityChart({ v }: { v: Velocity }) {
         ) : null}
       </ul>
       <table className="figures">
-        <caption className="hidden">{tr('page.sprintPlanning.velocityIn', { unit: v.unit })}</caption>
+        <caption className="hidden">{tr('page.sprintPlanning.velocityInUnit', { unit: v.unit /* a stable code the message selects on */ })}</caption>
         <thead>
           <tr>
             <th scope="col">{t('page.sprintPlanning.sprint')}</th>
@@ -414,7 +414,7 @@ export default function SprintPlanningPage() {
           <section className="card stack" aria-labelledby="velocity">
             <div className="section-head">
               <h2 id="velocity">{t('page.sprintPlanning.velocity')}</h2>
-              {velocity.data ? <span className="note">{tr('page.sprintPlanning.in', { unit: velocity.data.unit })}</span> : null}
+              {velocity.data ? <span className="note">{tr('page.sprintPlanning.inUnit', { unit: velocity.data.unit })}</span> : null}
             </div>
             {velocity.error ? <ErrorNote error={velocity.error} /> : null}
             {velocity.data ? <VelocityChart v={velocity.data} /> : null}

@@ -33,7 +33,7 @@ function Stands({ email }: { email: UserEmail }) {
 /** What's known of an email, under it: primary, and who confirmed it. */
 function about(email: UserEmail, meId: string | undefined): string {
   const parts = [email.primary ? t('vcs.people.primaryWhereA4aWrites') : null];
-  if (email.confirmed && email.confirmedBy) parts.push(t('vcs.people.confirmedBy', { v: email.confirmedBy.id === meId ? 'you' : email.confirmedBy.name }));
+  if (email.confirmed && email.confirmedBy) parts.push((email.confirmedBy.id === meId ? t('vcs.people.confirmedByYou') : t('vcs.people.confirmedByName', { name: email.confirmedBy.name })));
   return parts.filter(Boolean).join(' · ');
 }
 

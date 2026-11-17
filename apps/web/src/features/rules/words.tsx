@@ -25,20 +25,20 @@ function targetOf(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): { ta
   return { target: to === 'parent' || to === 'subtasks' || to === 'linked' ? to : 'none', phrase: t?.phrase?.trim() || tx('rules.words.isLinkedTo') };
 }
 
-const TELL = { assignee: tx('rules.words.whoAssignee'), reporter: tx('rules.words.whoReporter'), watchers: tx('rules.words.whoWatchers') } as const;
+/** Whom of an issue a rule tells: a stable code its messages select on (D49). */
+type Who = 'assignee' | 'reporter' | 'watchers';
 
 /** Someone of each issue a rule acts on: "its assignee", "its parent's watchers", "the reporter of each issue it depends on". */
-function ofTarget(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined, who: keyof typeof TELL): string {
-  const word = TELL[who];
+function ofTarget(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined, who: Who): string {
   switch (t?.to ?? 'issue') {
     case 'parent':
-      return tx('rules.words.itsParentS', { word: word });
+      return tx('rules.words.whoOfParent', { who });
     case 'subtasks':
-      return tx('rules.words.eachSubtaskS', { word: word });
+      return tx('rules.words.whoOfEachSubtask', { who });
     case 'linked':
-      return tx('rules.words.theOfEachIssueIt', { word: word, v: t?.phrase?.trim() || tx('rules.words.isLinkedTo') });
+      return tx('rules.words.whoOfEachLinked', { who, v: t?.phrase?.trim() || tx('rules.words.isLinkedTo') });
     default:
-      return tx('rules.words.its', { word: word });
+      return tx('rules.words.whoOfIssue', { who });
   }
 }
 
@@ -49,7 +49,8 @@ export function listWords(words: string[]): string {
 /** Whom a rule tells: "its assignee and @anna". */
 export function recipientWords(n: Pick<RuleNotify, 'to' | 'people'>, t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): string {
   const mine = n.to.map((k) => (k === 'managers' ? tx('rules.words.theProjectSManagers') : ofTarget(t, k)));
-  return listWords([...mine, ...n.people.map((p) => `@${p}`)]) || tx('rules.words.nobody');
+  // Nobody to tell is a sentence of its own (`rules.words.tellNobody`), not a word in this one.
+  return listWords([...mine, ...n.people.map((p) => `@${p}`)]);
 }
 
 /** "all of its subtasks match #Unresolved": who matches, and the query, in the order the language says them. */
@@ -92,7 +93,14 @@ function actions(rule: Parts): React.ReactNode[] {
       </>,
     );
   }
-  if (rule.notify) out.push(<>{tr('rules.words.tell', { recipientWords: recipientWords(rule.notify, rule.target), short: short(rule.notify.message, 120) })}</>);
+  if (rule.notify)
+    out.push(
+      <>
+        {rule.notify.to.length || rule.notify.people.length
+          ? tr('rules.words.tell', { recipientWords: recipientWords(rule.notify, rule.target), short: short(rule.notify.message, 120) })
+          : tr('rules.words.tellNobody', { short: short(rule.notify.message, 120) })}
+      </>,
+    );
   if (rule.call) {
     // About the issues it reaches when nothing else names them.
     const about = !rule.command && !comment ? on : { target: 'none', phrase: '' };

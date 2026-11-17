@@ -69,7 +69,7 @@ export default function ChatLinkPage() {
         <p className="note">{tr('page.chatLink.theLinkWorksOnceUntil', { toLocaleTimeString: new Date(l.expiresAt).toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' }) })}</p>
         <div className="cluster">
           <button type="button" className="primary" disabled={accept.isPending} onClick={() => accept.mutate()}>
-            {accept.isPending ? t('page.chatLink.linking') : t('page.chatLink.linkItTo', { v: me.data?.name ?? 'me' })}
+            {accept.isPending ? t('page.chatLink.linking') : me.data?.name ? t('page.chatLink.linkItToName', { name: me.data.name }) : t('page.chatLink.linkItToMe')}
           </button>
           <Link to="/inbox">{t('page.chatLink.notMine')}</Link>
         </div>

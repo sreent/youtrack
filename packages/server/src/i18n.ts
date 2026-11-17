@@ -51,6 +51,11 @@ export function problemFor(tr: Translator, e: { message: string; hint?: string; 
   return e.hint ? `${e.message}. ${e.hint}` : e.message;
 }
 
+/** Items as a list in a language, "read, write or admin": a problem's values say a list in its reader's language (D49). */
+export function listIn(locale: Locale | undefined, items: readonly string[], type: 'and' | 'or' = 'and'): string {
+  return new Intl.ListFormat(intlTag(locale ?? DEFAULT_LOCALE), { style: 'long', type: type === 'or' ? 'disjunction' : 'conjunction' }).format(items);
+}
+
 /** Intl's tag for a language: a4a's English writes dates the British way, as it always has. */
 export function intlTag(locale: Locale): string {
   return locale === 'en' ? 'en-GB' : locale;
