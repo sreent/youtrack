@@ -194,10 +194,13 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
   - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the polite past, with no subject: 「{issue}を変更しました」, 「報告しました」. A badge is a noun: 「課題の削除」.
   - A webhook's events are joined into 「{join}とき」 with 「、または」, so each is a clause in the plain past: 「課題が作成された」.
   - A rule is one sentence, in Japanese order: its trigger and conditions are clauses, its actions are verbs in the plain form, and the rule's words in `<t0>` are the particles that join them. 「課題が作成された<t0>とき</t0>、Type: Bugに一致する<t0>場合</t0>は、Assignee annaを適用する。」
-  - The loading line is 「{el}{v}読み込み中…」, so each `loading.*` word carries its particle: 「アプリを」.
+  - The loading line is 「{el}{v}読み込み中…」, so each word a page passes as what it loads carries its particle, the `loading.*` words and every other: 「アプリを」, 「レポートを」, 「2段階認証の設定を」. Those words say no owner (「あなたのダッシュボード」 is 「ダッシュボードを」).
 - **Selects and plurals the English doesn't need**: a message keeps every placeholder English has. Where Japanese says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`. A plural that English words differently for one keeps `=1` where Japanese does too: `{n, plural, =1 {課題} other {#件の課題}}`.
 - **Dates and numbers** come from Intl: 「2026年11月16日」, 「1,234.5」, 「3分前」.
 - **Field names, states and values** are data, as in every language: the field panel says STATE and PRIORITY as they were named.
+- **English the page passes in**: some messages are given an English code as a value: an app's `an`, a pull request's `open`, `merged` or `closed`, an undo's `change` or `link`, a velocity's `points`, `hours` or `issues`, a rule part's `requirement`, a person not yet loaded as `you` or `me`. The Japanese selects on it, as Spanish does: `{v, select, merged {マージ} closed {クローズ} other {再オープン}}`. Where the value can also be a name or words already, `other` keeps it: `{v, select, you {あなた} other {{v}}}`.
+- **You and your**: a label that names the reader's own things says 自分の (「自分のトークン」, 「自分のダッシュボード」, 「自分のリクエスト」), or nothing where the owner is plain (「プロフィール」, 「タイマー」). あなた stays where the reader must be told from someone else: 「あなたとして動作します」, 「あなたではなく{login}として」.
+- **The help desk** says 問い合わせ for asking for help: 「問い合わせました」 in an issue's history and notifications, 「お問い合わせ」 on the form and the portal. Its emails to requesters are a company's to a customer: 「{desk}にお問い合わせいただいたため、このメールをお送りしています。」
 
 | English | Japanese |
 |---|---|
@@ -207,8 +210,11 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | project | プロジェクト |
 | board | ボード |
 | sprint | スプリント |
+| committed (a sprint's commitment) | コミットメント |
+| blocker | ブロッカー |
 | backlog | バックログ |
 | help desk | ヘルプデスク |
+| SLA at risk, breached | 要注意, 違反 |
 | request (help desk) | リクエスト |
 | requester | 依頼者 |
 | reporter | 報告者 |
@@ -232,11 +238,13 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | days away | 不在日 |
 | levelling | 平準化 |
 | slack (in a plan) | 余裕 |
+| what-if (in a plan) | シミュレーション (仮定 is "things a4a assumed") |
 | baseline | ベースライン |
 | earned value | アーンドバリュー（EV） |
 | triage | トリアージ |
 | suggestion | 提案 |
 | token, revoke | トークン, 無効化 |
+| fingerprint (of a token) | フィンガープリント |
 | two-factor sign-in | 2段階認証 |
 | sign in, sign out | ログイン, ログアウト |
 | login (a person's handle) | ログインID |
