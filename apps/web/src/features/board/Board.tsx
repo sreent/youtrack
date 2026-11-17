@@ -260,15 +260,18 @@ function dropWords(view: BoardView, lanes: Lane[], kind: LaneKind | null, counts
   const moves = to.column !== card.column;
   const relanes = kind !== null && lanes.length > 0 && to.lane !== card.lane;
   const count = (counts[to.column] ?? 0) + (moves ? 1 : 0);
-  const load = column.wipLimit !== null ? `: ${columnLoad(count, column.wipLimit).text}` : '';
-  const as = moves && column.values.length > 1 ? t('board.board.as', { v: column.values[0] }) : '';
+  // The column's load and the state it takes are values; each language's sentence puts its own
+  // punctuation around them (German closes the "als" with a comma, French spaces its colon).
+  const loadText = column.wipLimit !== null ? columnLoad(count, column.wipLimit).text : '';
+  const asValue = moves && column.values.length > 1 ? (column.values[0] ?? '') : '';
+  const said = { hasAs: asValue ? 'yes' : 'no', asValue, hasLoad: loadText ? 'yes' : 'no', loadText };
   const field = view.board.swimlaneField ?? '';
   const at = sideOf(place);
   if (moves && relanes) {
     const words = laneWords(lanes[to.lane]!, kind!, field, id, true);
-    return at ? t('board.board.dropItToMoveToAtAnd', { id, name: column.name, as, ...at, laneWords: words, load }) : t('board.board.dropItToMoveTo', { id, name: column.name, as, laneWords: words, load });
+    return at ? t('board.board.dropItToMoveToAtAnd', { id, name: column.name, ...said, ...at, laneWords: words }) : t('board.board.dropItToMoveTo', { id, name: column.name, ...said, laneWords: words });
   }
-  if (moves) return at ? t('board.board.dropItToMoveToAt', { id, name: column.name, as, ...at, load }) : t('board.board.dropItToMoveTo2', { id, name: column.name, as, load });
+  if (moves) return at ? t('board.board.dropItToMoveToAt', { id, name: column.name, ...said, ...at }) : t('board.board.dropItToMoveTo2', { id, name: column.name, ...said });
   if (relanes) {
     const words = laneWords(lanes[to.lane]!, kind!, field, id, false);
     return at ? t('board.board.dropItToAt', { laneWords: words, ...at }) : t('board.board.dropItTo', { laneWords: words });
