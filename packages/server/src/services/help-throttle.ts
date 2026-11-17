@@ -87,7 +87,12 @@ export async function countHits(db: Db, limits: Map<string, { limit: number; win
       wait: sql<number>`greatest(1, ceil(extract(epoch from (${helpThrottle.windowEnds} - now()))))::integer`,
     });
   let wait = 0;
-  for (const r of rows) if (r.hits > (limits.get(r.key)?.limit ?? Infinity)) wait = Math.max(wait, Number(r.wait));
+  for (const r of rows) {
+    const l = limits.get(r.key);
+    // Never longer than the window: an ask whose transaction began just before the one that opened it
+    // reads a now() a moment earlier, and so a window a moment longer.
+    if (l && r.hits > l.limit) wait = Math.max(wait, Math.min(Number(r.wait), Math.ceil(l.windowMs / 1000)));
+  }
   return wait;
 }
 
