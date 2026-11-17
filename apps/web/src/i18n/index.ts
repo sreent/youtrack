@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
@@ -136,9 +136,9 @@ export function getLocale(): Locale {
   return translator.locale;
 }
 
-/** Intl's tag for the page's language: a4a's English writes dates the British way ("9 Nov"). */
+/** Intl's tag for the page's language, the server's own (`intlTag`): English writes dates the British way ("9 Nov"), Thai's years are Gregorian. */
 export function intlLocale(): string {
-  return translator.locale === 'en' ? 'en-GB' : translator.locale;
+  return intlTag(translator.locale);
 }
 
 /** Languages whose nouns keep their capital inside a sentence. */
