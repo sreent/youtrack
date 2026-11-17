@@ -1,4 +1,5 @@
 import type { IssueDetail, TrackerEvent } from '@a4a/shared';
+import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { adminCtx, systemCtx } from '../src/app-services';
 import type { Ctx, UserRow } from '../src/context';
@@ -21,6 +22,7 @@ import { linkIssues } from '../src/services/links';
 import { RuleEngine } from '../src/workflow/engine';
 import { createRule } from '../src/workflow/rules';
 import { presentField } from '../src/tools/registry';
+import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -175,7 +177,7 @@ describe('undoing what an agent did on its own', () => {
     const issue = await createIssue(w.as(w.anna), { project: 'BACK', summary: 'Exports time out', fields: { Priority: 'Normal', Type: 'Bug' }, tags: ['perf'] });
     await updateIssue(agent, issue.id, { summary: 'Exports time out on big projects', fields: { Priority: 'Critical', State: 'In Progress' }, addTags: ['urgent'], removeTags: ['perf'] });
     const [change] = await updatesOf(issue.id);
-    expect(change!.undo).toEqual({ state: 'possible', note: '' });
+    expect(change!.undo).toEqual({ state: 'possible', note: '', noteWords: [] });
 
     const done = await undoAgentChange(w.as(w.anna), change!.id);
     expect(done.undoes).toBe(change!.id);
@@ -185,7 +187,10 @@ describe('undoing what an agent did on its own', () => {
     expect(undo!.actor).toMatchObject({ login: 'anna', isBot: false });
     expect(undo!.data.undoes).toBe(change!.id);
     expect(undo!.undo).toBeUndefined();
-    expect((await updatesOf(issue.id))[0]!.undo).toEqual({ state: 'undone', note: 'Anna Schmidt undid it' });
+    const undone = (await updatesOf(issue.id))[0]!.undo;
+    expect(undone).toEqual({ state: 'undone', note: 'Anna Schmidt undid it', noteWords: [{ key: 'agents.undoneBy', values: { who: 'named', name: 'Anna Schmidt' } }] });
+    // A page says the note in its person's language, from its words (D49).
+    expect(sayProblem(translatorFor('de'), undone!.noteWords![0] as ProblemSaid)).toBe('Anna Schmidt hat die Änderung rückgängig gemacht.');
 
     const again = await failure(undoAgentChange(w.as(w.ben), change!.id));
     expect([again.status, again.code, again.message]).toEqual([409, 'already_undone', 'Anna Schmidt undid it already']);
@@ -196,7 +201,12 @@ describe('undoing what an agent did on its own', () => {
     await updateIssue(agent, issue.id, { fields: { State: 'Fixed', Priority: 'Major' } });
     await updateIssue(w.as(w.ben), issue.id, { fields: { State: 'In Progress' } });
     const [change] = await updatesOf(issue.id);
-    expect(change!.undo).toEqual({ state: 'changed_since', note: 'State is In Progress now: Ben Okafor changed it since' });
+    expect(change!.undo).toEqual({
+      state: 'changed_since',
+      note: 'State is In Progress now: Ben Okafor changed it since',
+      noteWords: [{ key: 'agents.stop.fieldChanged', values: { field: 'State', hasValue: 'yes', value: 'In Progress', hasBy: 'yes', by: 'Ben Okafor' } }],
+    });
+    expect(sayProblem(translatorFor('de'), change!.undo!.noteWords![0] as ProblemSaid)).toBe('State ist jetzt In Progress: Ben Okafor hat es inzwischen geändert.');
     const e = await failure(undoAgentChange(w.as(w.anna), change!.id));
     expect([e.status, e.code, e.message]).toEqual([409, 'changed_since', 'Nothing was undone: State is In Progress now: Ben Okafor changed it since']);
     const now = await getIssue(w.adminCtx, issue.id);
@@ -327,7 +337,7 @@ describe('over HTTP', () => {
     await call('PATCH', `/issues/${issue.body.id}`, made.body.token, { fields: { Priority: 'Critical' } });
     const events = (await call('GET', `/issues/${issue.body.id}/activity`, anna)).body as TrackerEvent[];
     const change = events.find((e) => e.type === 'issue.updated')!;
-    expect(change.undo).toEqual({ state: 'possible', note: '' });
+    expect(change.undo).toEqual({ state: 'possible', note: '', noteWords: [] });
     const undone = await call('POST', `/events/${change.id}/undo`, anna);
     expect(undone.status).toBe(200);
     expect(undone.body).toMatchObject({ undoes: change.id, changes: [{ field: 'Priority', from: 'Critical', to: 'Normal' }] });

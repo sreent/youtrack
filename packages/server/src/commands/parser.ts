@@ -1,4 +1,6 @@
 import { isOwnAgent, type QueryProblem, type SuggestItem, isOptionType } from '@a4a/shared';
+import type { Translator } from '@a4a/shared/i18n';
+import { translatorFor } from '../i18n';
 import { fixValue, lex, type Token } from '../search/lexer';
 import { guessWords, keyedProblem, type QueryProblemWords } from '../lib/errors';
 import { didYouMean, editDistance } from '../lib/text';
@@ -538,32 +540,33 @@ export function parseCommand(input: string, s: SchemaSnapshot, projectIds: strin
   return { ops: result.ops, problems: [...problems, ...result.problems] };
 }
 
-export function describeCommand(ops: CommandOp[]): string {
-  if (!ops.length) return 'No changes';
+/**
+ * A command in words: "set State to Fixed; add tag perf". In a page's language for the rule form,
+ * which reads a rule's command as it's typed (D49); in English, as the API's words are, by default.
+ * The command language's own words in it (fields, values, tags, link phrases) stay as written.
+ */
+export function describeCommand(ops: CommandOp[], tr: Translator = translatorFor('en')): string {
+  if (!ops.length) return tr.t('server.command.noChanges');
   return ops
     .map((op) => {
       switch (op.kind) {
         case 'field':
-          return op.mode === 'remove'
-            ? `remove ${op.raw.join(', ')} from ${op.field.name}`
-            : op.mode === 'add'
-              ? `add ${op.raw.join(', ')} to ${op.field.name}`
-              : `set ${op.field.name} to ${op.raw.join(', ')}`;
+          return tr.t('server.command.field', { mode: op.mode === 'remove' ? 'remove' : op.mode === 'add' ? 'add' : 'set', field: op.field.name, values: op.raw.join(', ') });
         case 'tag':
-          return `${op.mode === 'add' ? 'add' : 'remove'} tag ${op.name}`;
+          return tr.t('server.command.tag', { mode: op.mode === 'add' ? 'add' : 'remove', name: op.name });
         case 'link':
-          return `${op.mode === 'add' ? 'link' : 'unlink'}: ${op.phrase.display} ${op.targets.join(', ')}`;
+          return tr.t('server.command.link', { mode: op.mode === 'add' ? 'add' : 'remove', phrase: op.phrase.display, targets: op.targets.join(', ') });
         case 'comment':
-          return 'add a comment';
+          return tr.t('server.command.comment');
         case 'action':
-          return `run the action “${op.name}”`;
+          return tr.t('server.command.action', { name: op.name });
         case 'transition':
-          return `${op.name}: set ${op.field} to ${op.to}`;
+          return tr.t('server.command.transition', { name: op.name, field: op.field, to: op.to });
         case 'sprint':
-          return `${op.mode === 'add' ? 'add to' : 'remove from'} sprint ${op.name}`;
+          return tr.t('server.command.sprint', { mode: op.mode === 'add' ? 'add' : 'remove', name: op.name });
       }
     })
-    .join('; ');
+    .join(tr.t('server.command.then'));
 }
 
 /** Completions for the command dialog. */

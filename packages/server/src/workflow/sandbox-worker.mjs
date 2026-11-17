@@ -53,10 +53,10 @@ function errorOf(vm, handle, limitMs) {
   const message = e.message ?? String(e);
   const line = lineOf(e);
   if (e.name === 'InternalError' && /interrupted/.test(message)) {
-    return { kind: 'time', message: `It ran past ${limitMs} ms and was stopped: a loop that doesn't end, or too much work for one issue`, line: null };
+    return { kind: 'time', message: `It ran past ${limitMs} ms and was stopped: a loop that doesn't end, or too much work for one issue`, line: null, key: 'script.ranTooLong', values: { ms: String(limitMs) } };
   }
   if (e.name === 'InternalError' && /out of memory/.test(message)) {
-    return { kind: 'memory', message: `It used more than ${L.memoryBytes / 1024 / 1024} MB and was stopped`, line };
+    return { kind: 'memory', message: `It used more than ${L.memoryBytes / 1024 / 1024} MB and was stopped`, line, key: 'script.usedTooMuchMemory', values: { mb: String(L.memoryBytes / 1024 / 1024) } };
   }
   if (e.name === 'SyntaxError') return { kind: 'syntax', message: `${message}${line ? ` (line ${line})` : ''}`, line };
   return { kind: 'runtime', message: `${e.name ?? 'Error'}: ${message}${line ? ` (line ${line})` : ''}`, line };

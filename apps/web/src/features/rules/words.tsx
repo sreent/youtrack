@@ -1,19 +1,16 @@
-import type { Rule, RuleNotify, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
+import type { Rule, RuleNotify, RulePreview, RuleRelated, RuleSchedule, RuleTarget, RuleTrigger } from '@a4a/shared';
+import { previewNote, scheduleWordsIn, targetIn, triggerWordsIn } from '@a4a/shared/notes';
 import type React from 'react';
-import { formatList, listNodes, t as tx, tr } from '../../i18n';
+import { formatList, inPage, listNodes, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** As the server says them (workflow/words.ts): a rule's parts in words. */
 export function triggerWords(trigger: RuleTrigger | null, field: string | null): string {
-  if (trigger === 'created') return tx('rules.words.anIssueIsCreated');
-  if (trigger === 'commented') return tx('rules.words.anIssueGetsAComment');
-  return field ? tx('rules.words.anIssueSChanges', { field: field }) : tx('rules.words.anIssueChanges');
+  return inPage((t) => triggerWordsIn(t, trigger, field));
 }
 
 export function scheduleWords(schedule: RuleSchedule | null): string {
-  if (!schedule) return tx('rules.words.onASchedule');
-  if (schedule.every === 'hour') return tx('rules.words.everyHour');
-  return tx('rules.words.everyDayAt', { every: schedule.every === 'weekday' ? 'weekday' : 'day', at: schedule.at ?? '09:00' });
+  return inPage((t) => scheduleWordsIn(t, schedule));
 }
 
 /**
@@ -21,8 +18,12 @@ export function scheduleWords(schedule: RuleSchedule | null): string {
  * it's linked to (by the link's phrase), or none for the issue itself.
  */
 function targetOf(t: Pick<RuleTarget, 'to' | 'phrase'> | null | undefined): { target: string; phrase: string } {
-  const to = t?.to ?? 'issue';
-  return { target: to === 'parent' || to === 'subtasks' || to === 'linked' ? to : 'none', phrase: t?.phrase?.trim() || tx('rules.words.isLinkedTo') };
+  return inPage((page) => targetIn(page, t));
+}
+
+/** What a rule's preview shows, in the page's language, from what the server says it shows (D49). */
+export function previewWords(p: Pick<RulePreview, 'matching' | 'breaking' | 'says'>): string {
+  return inPage((t) => previewNote(t, p));
 }
 
 /** Whom of an issue a rule tells: a stable code its messages select on (D49). */

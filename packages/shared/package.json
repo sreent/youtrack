@@ -13,6 +13,7 @@
     "./mentions": "./src/mentions.ts",
     "./markdown": "./src/markdown.ts",
     "./i18n": "./src/i18n.ts",
+    "./notes": "./src/notes.ts",
     "./i18n/*.json": "./i18n/*.json"
   },
   "scripts": {

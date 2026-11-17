@@ -836,6 +836,10 @@ export const EventSchema = z
       .object({
         state: z.enum(UNDO_STATES),
         note: z.string().describe('What changed since, or who undid it and when; empty when it can be undone'),
+        noteWords: z
+          .array(z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }))
+          .optional()
+          .describe("The note as a page says it, in its person's language (D49): each reason's key under problem.* and its values"),
       })
       .optional()
       .describe("Only in an issue's history, on a change an agent made on its own: whether a person can still undo it (POST /events/{id}/undo)"),
@@ -900,11 +904,30 @@ export const CommandBody = z.object({
     .optional()
     .describe("In the web app: the assistant read this command from the person's words (POST /ai/command), so each issue's history says it came via the assistant"),
 });
+/**
+ * A problem's words, for a page to say it in its person's language (D49): its key under problem.* in
+ * the catalogs and the values it takes. Beside English a program reads, such as a list of errors.
+ */
+export const ProblemWordsSchema = z
+  .object({
+    key: z.string().describe('The problem in the catalogs, problem.<key>'),
+    values: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe('What its words take, by name: a word or a number, another problem ({ key, values }), or a list of them'),
+  })
+  .meta({ id: 'ProblemWords' });
+export type ProblemWords = z.infer<typeof ProblemWordsSchema>;
+
 export const CommandIssueResultSchema = z
   .object({
     issue: z.string(),
     changes: z.array(ChangeSchema),
     errors: z.array(z.string()),
+    errorWords: z
+      .array(ProblemWordsSchema)
+      .optional()
+      .describe("Each of errors as a page says it, in its person's language, in the same order (D49). The English in errors is the same"),
   })
   .meta({ id: 'CommandIssueResult' });
 export const CommandResultSchema = z
@@ -2083,12 +2106,34 @@ export const RulePreviewSchema = z
           issue: IssueRefSchema,
           changes: z.array(ChangeSchema),
           errors: z.array(z.string()),
+          errorWords: z
+            .array(ProblemWordsSchema)
+            .optional()
+            .describe("Each of errors as a page says it, in its person's language, in the same order (D49)"),
           via: IssueRefSchema.nullable().optional().describe('When the rule acts on related issues: the matching issue this one is related to'),
           told: z.array(UserRefSchema).optional().describe('Whom it would tell about this issue'),
         }),
       )
       .describe('A few of the issues it would act on, with what the command would change on each (a dry run)'),
     note: z.string().describe('What the preview shows, in words'),
+    says: z
+      .object({
+        shows: z
+          .enum(['issues', 'fixUnderlined', 'fixScript', 'adminOnly'])
+          .describe('"issues": the issues it would act on; otherwise why it shows none: a part to fix, its script to fix, or a script only an administrator runs unsaved'),
+        kind: z.enum(RULE_KINDS),
+        scripted: z.boolean(),
+        trigger: z.enum(RULE_TRIGGERS).nullable(),
+        field: z.string().nullable().describe('The field whose change sets it off, if one'),
+        schedule: RuleScheduleSchema.nullable(),
+        target: RuleTargetSchema.nullable().describe('The issues it acts on, when not the issue itself'),
+        query: z.string(),
+        outside: z.number().int().describe('Issues it would act on in another project, which a rule of its project leaves alone'),
+        project: z.string().nullable().describe("Its project's key; null for a rule for every project"),
+        shown: z.number().int().describe('How many issues the sample shows'),
+        tells: z.boolean().describe('Whether it tells anyone'),
+      })
+      .describe("What note says, as data, for a page to say it in its person's language (D49)"),
   })
   .meta({ id: 'RulePreview' });
 export type RulePreview = z.infer<typeof RulePreviewSchema>;
@@ -2707,7 +2752,13 @@ export const ScriptRunSchema = z
   .object({
     ok: z.boolean().describe('It ran to its end'),
     error: z
-      .object({ kind: z.enum(SCRIPT_ERROR_KINDS), message: z.string(), line: z.number().int().nullable() })
+      .object({
+        kind: z.enum(SCRIPT_ERROR_KINDS),
+        message: z.string(),
+        line: z.number().int().nullable(),
+        key: z.string().optional().describe('Past its time or memory: the problem in the catalogs, problem.<key> (D49). What the JavaScript engine says has none'),
+        values: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+      })
       .nullable()
       .describe('Where it went wrong: its syntax, an error as it ran, or past its time or memory'),
     logs: z.array(z.string()).describe('What it wrote with log()'),
@@ -2720,11 +2771,27 @@ export const ScriptRunSchema = z
           issue: IssueRefSchema.nullable().describe('The issue the command is for'),
           changes: z.array(ChangeSchema).describe('What it would change there (a dry run)'),
           errors: z.array(z.string()),
+          errorWords: z
+            .array(ProblemWordsSchema)
+            .optional()
+            .describe("Each of errors as a page says it, in its person's language, in the same order (D49)"),
         }),
       )
       .describe('The commands it asked for, and what each would change'),
     ms: z.number().int(),
     note: z.string(),
+    says: z
+      .object({
+        outcome: z
+          .enum(['stopped', 'refuses', 'passes', 'doesNothing', 'asks'])
+          .describe('"stopped": its script stopped; a guard "refuses" or "passes" the change; "doesNothing": it refused; "asks": the commands it asks for'),
+        ignored: z.boolean().describe('A guard that applied or commented: a guard only refuses, so that is ignored'),
+        commands: z.number().int(),
+        changing: z.number().int().describe('Commands that would change something'),
+        failing: z.number().int().describe('Commands that would fail'),
+        comments: z.number().int(),
+      })
+      .describe("What note says, as data, for a page to say it in its person's language (D49)"),
   })
   .meta({ id: 'ScriptRun' });
 export type ScriptRun = z.infer<typeof ScriptRunSchema>;

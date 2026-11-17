@@ -124,6 +124,11 @@ export type ProblemSaid = { key: string; values?: Record<string, string | number
 /** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。. */
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
 
+/** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
+export function joinSentences(tr: Translator, sentences: readonly string[]): string {
+  return sentences.filter(Boolean).join(SENTENCE_GAP[tr.locale]);
+}
+
 /** A problem in a translator's language; the problems among its values are said first, in the same language. */
 /**
  * Whether a catalog can say a problem whole: its key, and each problem among its values. One it

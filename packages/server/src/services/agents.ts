@@ -248,12 +248,15 @@ const sentence = (parts: string[]) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
+/** Where an agent's change stands, in the API's English (`note`) and as a page says it (`noteWords`, D49). */
+type UndoStanding = { state: UndoState; note: string; noteWords: ProblemSaid[] };
+
 /**
  * In an issue's history, where each change an agent made on its own stands: undone (and by whom), or
  * changed since (and what), or undoable. Changes a person made carry nothing.
  */
-export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEvent[]): Promise<Map<number, { state: UndoState; note: string }>> {
-  const out = new Map<number, { state: UndoState; note: string }>();
+export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEvent[]): Promise<Map<number, UndoStanding>> {
+  const out = new Map<number, UndoStanding>();
   const ids = events.map((e) => e.id);
   if (!ids.length) return out;
   const recs = await db
@@ -265,14 +268,17 @@ export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEv
   for (const rec of recs) earliest.set(rec.issueId, Math.min(earliest.get(rec.issueId) ?? rec.activityId, rec.activityId));
   const nows = new Map<string, Now | null>();
   for (const rec of recs) {
-    let standing: { state: UndoState; note: string };
+    let standing: UndoStanding;
     if (rec.undoneActivityId !== null) {
-      standing = { state: 'undone', note: `${nameOf(s, rec.undoneById)} undid it` };
+      const known = rec.undoneById ? s.users.has(rec.undoneById) : false;
+      const name = nameOf(s, rec.undoneById);
+      standing = { state: 'undone', note: `${name} undid it`, noteWords: [{ key: 'agents.undoneBy', values: { who: known ? 'named' : 'someone', name: known ? name : '' } }] };
     } else {
       if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
       const now = nows.get(rec.issueId);
       const stops = now ? await whatStops(db, s, rec, now) : [ISSUE_GONE];
-      standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)) } : { state: 'possible', note: '' };
+      // Each reason as a page says it, a sentence of its own (D49); the note joins them as the API does.
+      standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)), noteWords: stops.map((x) => x.said) } : { state: 'possible', note: '', noteWords: [] };
     }
     out.set(rec.activityId, standing);
     if (rec.pairActivityId !== null) out.set(rec.pairActivityId, standing);

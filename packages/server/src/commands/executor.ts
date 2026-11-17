@@ -4,7 +4,8 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
-import { AppError, asSentence, badRequest, keyedProblem, saidProblems } from '../lib/errors';
+import { translatorFor } from '../i18n';
+import { AppError, asSentence, badRequest, errorWords, keyedProblem, saidProblems } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
 import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
@@ -72,7 +73,8 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
       moves = await sprintMoves(ctx, issue, parsed.ops);
       if (moves.length) await assertCanWriteProject(ctx, issue.projectId);
     } catch (e) {
-      results.push({ issue: rid, changes: [], errors: [e instanceof Error ? e.message : String(e)] });
+      const msg = e instanceof Error ? e.message : String(e);
+      results.push({ issue: rid, changes: [], errors: [msg], errorWords: [errorWords(e, msg)] });
       continue;
     }
     try {
@@ -94,10 +96,10 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
         return { ...applied, changes: [...applied.changes, ...sprintChanges] };
       });
       activities.push(...res.activities);
-      results.push({ issue: rid, changes: res.changes, errors });
+      results.push({ issue: rid, changes: res.changes, errors, errorWords: [] });
     } catch (e) {
       const msg = e instanceof AppError ? (e.hint ? `${e.message} (${e.hint})` : e.message) : String(e);
-      results.push({ issue: rid, changes: [], errors: [msg] });
+      results.push({ issue: rid, changes: [], errors: [msg], errorWords: [errorWords(e, msg)] });
     }
   }
   await publishActivities(ctx.app, activities);
@@ -255,6 +257,7 @@ export async function commandSpec(
 export function parseCommandForApi(ctx: Ctx, command: string, projectIds: string[]) {
   return visibleSchema(ctx).then((s) => {
     const parsed = parseCommand(command, s, projectIds);
-    return { problems: parsed.problems, description: describeCommand(parsed.ops) };
+    // In the page's language when a page asks (D49); English for an agent or a script.
+    return { problems: parsed.problems, description: describeCommand(parsed.ops, translatorFor(ctx.pageLocale ?? 'en')) };
   });
 }
