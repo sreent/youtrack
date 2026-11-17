@@ -4,6 +4,7 @@
  */
 import type { Field, IssueDetail } from '@a4a/shared';
 import { unique, uniqueKey } from './support/api';
+import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { THIRD_AUTH_FILE } from './support/env';
 import { expect, test } from './support/fixtures';
 
@@ -40,6 +41,24 @@ test('a manager makes a field private, and a viewer finds the issue without it',
   // Its label says it's private, and it's the manager's to change.
   await expect(panel.getByRole('textbox', { name: `${name} Private` })).toHaveValue('Thin, 4 percent');
   await expect(panel.getByText('Private', { exact: true })).toBeVisible();
+  // Both pages as everyone's are held to: light, dark and on a phone, axe clean, nothing sideways.
+  for (const path of [`/projects/${key}`, `/issues/${issue.id}`]) {
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expectAccessible(page);
+      await page.screenshot({ path: test.info().outputPath(`${path.split('/')[1]}-${colorScheme}.png`), fullPage: true });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expectNoSidewaysScroll(page);
+    await page.screenshot({ path: test.info().outputPath(`${path.split('/')[1]}-390.png`), fullPage: true });
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   // The viewer, signed in on their own: no such field, and its value nowhere.
   const theirs = await browser.newContext({ storageState: { cookies: [], origins: [] } });
