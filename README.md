@@ -292,7 +292,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `VAPID_SUBJECT` | `PUBLIC_URL` if https, else `mailto:` `MAIL_FROM` | Who push services may contact about a4a's pushes |
 | `PUSH_HOSTS` | the browsers' | The push services a4a sends to, comma-separated, `*.example.com` for any host under it. By default `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com` and `*.notify.windows.com` |
 | `PUSH_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets push go over plain http to this machine |
-| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de`, `es`, `fr` or `ja` |
+| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de`, `es`, `fr`, `ja` or `vi` |
 | `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 | `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
