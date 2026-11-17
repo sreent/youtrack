@@ -398,7 +398,14 @@ export default function IssuePage() {
         </div>
         <div className="stack">
           {projectFields.data && assignable ? (
-            <FieldPanel issue={data} fields={projectFields.data} users={assignable} proposals={proposals} canEdit={canWrite} />
+            <FieldPanel
+              issue={data}
+              fields={projectFields.data}
+              users={assignable}
+              proposals={proposals}
+              canEdit={canWrite}
+              canEditPrivate={canWrite && Boolean(project.data?.access.permissions.includes('editPrivate'))}
+            />
           ) : (
             <Loading what="loadingLine.fields" />
           )}

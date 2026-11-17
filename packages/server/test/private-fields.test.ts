@@ -6,6 +6,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { issueForCard } from '../src/chat/service';
 import { runCommand } from '../src/commands/executor';
 import type { Ctx } from '../src/context';
 import { createWebhook, webhookConsumer } from '../src/events/webhooks';
@@ -16,7 +17,14 @@ import { notifierConsumer } from '../src/notify/notifier';
 import { countIssues, parseQueryForApi, searchIssues } from '../src/search/service';
 import { eventFeed, issueActivity } from '../src/services/activity';
 import { issueTokenFor } from '../src/services/auth';
+import { eventFor, scopeFields } from '../src/services/access';
+import { boardView, createBoard } from '../src/services/boards';
 import { attachField, createField, updateField } from '../src/services/fields';
+import { issuesPerFieldReport } from '../src/services/more-reports';
+import { cloneIssue, moveIssue } from '../src/services/move';
+import { changeOf, scriptInput } from '../src/workflow/script-issue';
+import { findIssue } from '../src/services/issues';
+import { openStream } from './sse-client';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { listNotifications } from '../src/services/notifications';
@@ -267,5 +275,87 @@ describe('its changes', () => {
     expect(JSON.stringify(mine)).not.toMatch(/Risk|Exposure/);
     expect(mine.filter((e) => e.type === 'issue.updated')).toHaveLength(1);
     await updateField(admin, riskId, { name: 'Risk' });
+  });
+});
+
+describe('everywhere else an issue is read', () => {
+  let id: string;
+  beforeAll(async () => {
+    id = (await createIssue(chloe, { project: 'BACK', summary: 'A pilot for a new customer', fields: { Risk: 'High', Customer: 'Initech' } })).id;
+  });
+
+  it('gives a board no lane, card value or field of it', async () => {
+    const board = await createBoard(chloe, { name: 'Risk board', projects: ['BACK'], swimlaneField: 'Risk' });
+    const mine = await boardView(anna, board.id);
+    expect(mine.board.swimlaneField).toBeNull();
+    expect(mine.swimlanes).toEqual([]);
+    expect(JSON.stringify(mine.columns)).not.toMatch(/Initech|"Risk"/);
+    const bens = await boardView(ben, board.id);
+    expect(bens.board.swimlaneField).toBe('Risk');
+    expect(bens.swimlanes).toContain('High');
+    expect((await failure(() => createBoard(anna, { name: 'Mine', projects: ['BACK'], swimlaneField: 'Risk' }))).status).toBe(404);
+  });
+
+  it("counts it in no report of someone it's kept from", async () => {
+    const e = await failure(() => issuesPerFieldReport(anna, { project: 'BACK', field: 'Risk' }));
+    expect(e.words?.key).toBe('moreReports.noSuchField');
+    expect(e.hint).not.toContain('Risk');
+    const report = await issuesPerFieldReport(ben, { project: 'BACK', field: 'Risk' });
+    expect(report.values.find((v) => v.label === 'High')?.count).toBeGreaterThan(0);
+    // Public in WEB, Customer is a field she can count by, and BACK's values count as none.
+    const counted = await issuesPerFieldReport(anna, { field: 'Customer' });
+    expect(counted.values.map((v) => v.label)).not.toContain('Initech');
+  });
+
+  it("never goes to a channel's card, whoever vouches for it, nor to an app's script", async () => {
+    const s = await w.app.schema.get();
+    const card = await issueForCard(chloe, id, { everyone: true });
+    expect(JSON.stringify(card)).not.toContain('Initech');
+    expect(card.facts.map((f) => f.title)).not.toContain('Risk');
+    const created = (await eventFeed(chloe, { issue: id })).find((e) => e.type === 'issue.created')!;
+    expect(created.data.fields).toHaveProperty('Risk');
+    expect(eventFor(null, s, created)!.data.fields).not.toHaveProperty('Risk');
+    const row = (await findIssue(w.app.db, s, id))!;
+    const app = await scriptInput(w.app.db, s, row, changeOf('updated', null, [{ field: 'Risk', from: 'Low', to: 'High' }]), { unlimited: true });
+    expect(Object.keys(app.issue.fields)).not.toContain('Risk');
+    expect(app.change.changes).toEqual([]);
+    const rule = await scriptInput(w.app.db, s, row, changeOf('updated', null, []));
+    expect(rule.issue.fields.Risk).toBe('High');
+    // What everyone reads (a channel, triage) knows no Risk at all.
+    expect([...scopeFields(s, null).fields.values()].map((f) => f.name)).not.toContain('Risk');
+  });
+
+  it("moves an issue without telling or showing the mover what they can't see", async () => {
+    const moving = await createIssue(chloe, { project: 'BACK', summary: 'Moves to WEB', fields: { Risk: 'High', Customer: 'Umbrella' } });
+    const plan = await moveIssue(anna, moving.id, { project: 'WEB', dryRun: true });
+    expect(JSON.stringify(plan)).not.toMatch(/Umbrella|Risk|High/);
+    const done = await moveIssue(anna, moving.id, { project: 'WEB' });
+    // Customer is public in WEB: carried there, it would show anna what BACK kept from her. It stays behind.
+    const moved = await getIssue(chloe, done.to);
+    expect(moved.fields.find((f) => f.name === 'Customer')?.value).toBeNull();
+    expect(JSON.stringify(await getIssue(anna, done.to))).not.toContain('Umbrella');
+    expect(JSON.stringify(await issueActivity(anna, done.to))).not.toMatch(/Umbrella|Risk/);
+    const clone = await cloneIssue(anna, id, {});
+    expect((await getIssue(chloe, clone.id)).fields.find((f) => f.name === 'Customer')?.value).toBeNull();
+  });
+
+  it("doesn't stream its changes to someone it's kept from", async () => {
+    await w.app.live.start();
+    const app = createHttpApp(w.app);
+    const token = (await issueTokenFor(w.app.db, w.anna.id, { name: 'anna-live', scopes: ['read'] })).token;
+    const stream = await openStream((path, init) => app.request(path, init), token, { query: '?project=BACK' });
+    try {
+      await stream.waitFor((f) => f.event === 'ready');
+      await updateIssue(chloe, id, { fields: { Risk: 'Low' } });
+      await updateIssue(chloe, id, { fields: { Customer: 'Hooli', Priority: 'Major' } });
+      const [only] = await stream.waitForEvents(1);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(stream.events()).toHaveLength(1);
+      expect(only!.changes.map((c) => c.field)).toEqual(['Priority']);
+      expect(JSON.stringify(stream.events())).not.toMatch(/Hooli|Risk/);
+    } finally {
+      await stream.close();
+      w.app.live.stop();
+    }
   });
 });

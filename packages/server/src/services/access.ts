@@ -1046,6 +1046,12 @@ export function touchesNoHiddenSql(view: FieldReader, s: SchemaSnapshot, project
   return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
 }
 
+/** Of a project's changes, those everyone who reads it may see: none to a private field. For words kept where all of them read. */
+export function publicChanges<C extends { field: string }>(s: SchemaSnapshot, projectId: string, changes: readonly C[]): C[] {
+  const names = hiddenNames(s, privateFieldIds(s, projectId));
+  return changes.filter((c) => !names.has(c.field.toLowerCase()));
+}
+
 /** Of these people, those who read a project's private fields, as each would signing in. */
 export async function whoReadsPrivate(db: Db, projectId: string, userIds: readonly string[]): Promise<Set<string>> {
   const grants = await projectGrantsOf(db, projectId, [...userIds]);

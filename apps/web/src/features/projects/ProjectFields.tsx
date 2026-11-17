@@ -92,19 +92,21 @@ function DefaultInput({
 function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; field: ProjectField; users: User[]; canEdit: boolean }) {
   const qc = useQueryClient();
   const [required, setRequired] = useState(field.required);
+  const [priv, setPriv] = useState(field.private);
   const [def, setDef] = useState(asText(field.defaultValue));
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   useEffect(() => {
     setRequired(field.required);
+    setPriv(field.private);
     setDef(asText(field.defaultValue));
-  }, [field.required, field.defaultValue]);
-  const dirty = required !== field.required || def !== asText(field.defaultValue);
+  }, [field.required, field.private, field.defaultValue]);
+  const dirty = required !== field.required || priv !== field.private || def !== asText(field.defaultValue);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: keys.projectFields(projectKey) });
     void qc.invalidateQueries({ queryKey: keys.project(projectKey) });
   };
   const save = useMutation({
-    mutationFn: () => put<ProjectField[]>(`/projects/${projectKey}/fields/${field.fieldId}`, { required, defaultValue: def.trim() || null }),
+    mutationFn: () => put<ProjectField[]>(`/projects/${projectKey}/fields/${field.fieldId}`, { required, private: priv, defaultValue: def.trim() || null }),
     onSuccess: (list) => {
       qc.setQueryData(keys.projectFields(projectKey), list);
       setSaid({ text: t('projects.projectFields.saved') });
@@ -149,6 +151,13 @@ function FieldRow({ projectKey, field, users, canEdit }: { projectKey: string; f
         </label>
       </td>
       <td>
+        <label className="choice">
+          <input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} disabled={!canEdit} />
+          <span className="hidden">{tr('projects.projectFields.isPrivate', { name: field.name })}</span>
+          <span aria-hidden="true">{priv ? t('projects.projectFields.private') : t('projects.projectFields.everyone')}</span>
+        </label>
+      </td>
+      <td>
         {canEdit ? (
           <DefaultInput type={field.type} values={field.values} users={users} value={def} onChange={setDef} label={t('projects.projectFields.defaultFor', { name: field.name })} />
         ) : (
@@ -176,17 +185,19 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
   const qc = useQueryClient();
   const [fieldId, setFieldId] = useState('');
   const [required, setRequired] = useState(false);
+  const [priv, setPriv] = useState(false);
   const [def, setDef] = useState('');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const chosen = available.find((f) => f.id === fieldId);
   const attach = useMutation({
-    mutationFn: () => put<ProjectField[]>(`/projects/${projectKey}/fields/${fieldId}`, { required, defaultValue: def.trim() || null }),
+    mutationFn: () => put<ProjectField[]>(`/projects/${projectKey}/fields/${fieldId}`, { required, private: priv, defaultValue: def.trim() || null }),
     onSuccess: (list) => {
       qc.setQueryData(keys.projectFields(projectKey), list);
       void qc.invalidateQueries({ queryKey: keys.project(projectKey) });
       setSaid({ text: t('projects.projectFields.isAttachedNewAndExisting', { v: chosen?.name ?? t('projects.projectFields.theField') }) });
       setFieldId('');
       setRequired(false);
+      setPriv(false);
       setDef('');
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -232,6 +243,10 @@ function AttachField({ projectKey, available, users }: { projectKey: string; ava
             <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
             <span>{tr('projects.projectFields.requiredEveryIssueInThe', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
           </label>
+          <label className="choice">
+            <input type="checkbox" checked={priv} onChange={(e) => setPriv(e.target.checked)} />
+            <span>{tr('projects.projectFields.privateOnlyWhoMaySee', { t0: (c: ReactNode) => <small className="field-help">{c}</small> })}</span>
+          </label>
         </div>
         <div className="cluster">
           <button type="submit" disabled={!fieldId || attach.isPending}>
@@ -269,6 +284,7 @@ export function ProjectFields({
               <th scope="col">{t('projects.projectFields.field')}</th>
               <th scope="col">{t('projects.projectFields.itsValuesHere')}</th>
               <th scope="col">{t('projects.projectFields.required')}</th>
+              <th scope="col">{t('projects.projectFields.whoSeesIt')}</th>
               <th scope="col">{t('projects.projectFields.default')}</th>
               {canEdit ? (
                 <th scope="col">
@@ -289,6 +305,7 @@ export function ProjectFields({
       {canEdit ? (
         <>
           <p className="note">{t('projects.projectFields.detachingHidesAFieldFrom')}</p>
+          <p className="note">{t('projects.projectFields.aPrivateFieldIsSeen')}</p>
           <AttachField projectKey={projectKey} available={available} users={users} />
         </>
       ) : null}

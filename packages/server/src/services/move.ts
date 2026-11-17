@@ -21,7 +21,7 @@ import { issueAliases, issueFieldValues, issueLinks, issues, issueTags, mentions
 import { publishActivities, recordActivity } from '../events/activity';
 import { AppError, badRequest, conflict, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { todayIn } from '../reports/tz';
-import { assertCanWriteProject, canReadProject, projectAccess, seesField } from './access';
+import { assertCanWriteProject, canReadProject, privateFieldIds, projectAccess, seesField } from './access';
 import { issueRef, issueRefsById, readableId, stateNames, type IssueRow } from './issue-refs';
 import { createIssue, fieldValuesOf, resolveIssue } from './issues';
 import { allowedValues, projectByKey, type FieldRow, type ProjectRow, type SchemaSnapshot } from './schema-cache';
@@ -104,8 +104,10 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
 
   const current = await fieldValuesOf(db, issue.id);
   // A private field kept from the mover, here or there, moves as it can, unasked and unsaid: what
-  // doesn't carry is left behind, as a field the other project lacks is (D50).
+  // doesn't carry is left behind, as a field the other project lacks is (D50). One kept from them here
+  // moves only to stay private: public there, it would show them, and everyone, what it holds.
   const sees = (fieldId: string) => seesField(view, s, issue.projectId, fieldId) && seesField(view, s, target.id, fieldId);
+  const leftBehind = new Set<string>();
   const given = new Map(Object.entries(input.fields ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v]));
   const zone = zoneOf(ctx);
   const today = todayIn(zone);
@@ -121,8 +123,10 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
     const problem = (p: Omit<MoveProblem, 'field' | 'choices'>) => problems.push({ field: f.name, ...p, ...(choices ? { choices } : {}) });
     let after: ResolvedValue[] = [];
     if (!sees(f.id)) {
-      const c = before.length ? await carryValues(db, s, f, target, before) : null;
+      const stays = seesField(view, s, issue.projectId, f.id) || privateFieldIds(s, target.id).has(f.id);
+      const c = before.length && stays ? await carryValues(db, s, f, target, before) : null;
       if (c && !c.problem && c.values.length) values.set(f.id, c.values);
+      else if (before.length) leftBehind.add(f.id);
       continue;
     }
     if (given.has(f.name.toLowerCase())) {
@@ -160,7 +164,7 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
     if (!pfs.some((pf) => sees(pf.fieldId) && s.fields.get(pf.fieldId)?.name.toLowerCase() === k)) problems.push(keyedProblem({ field: k, message: `${target.key} has no field "${k}"` }, 'move.noField', { project: target.key, field: k }));
   }
   const droppedValues = [...current.entries()]
-    .filter(([fid, vals]) => vals.length && !pfs.some((pf) => pf.fieldId === fid))
+    .filter(([fid, vals]) => vals.length && (leftBehind.has(fid) || !pfs.some((pf) => pf.fieldId === fid)))
     .flatMap(([fid, vals]) => (s.fields.get(fid) ? [{ field: s.fields.get(fid)!.name, from: presentValues(s, s.fields.get(fid)!, vals) }] : []));
   const res = await db.execute(
     sql`SELECT sp.id, sp.name FROM sprint_issues si JOIN sprints sp ON sp.id = si.sprint_id JOIN boards b ON b.id = sp.board_id
