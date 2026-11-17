@@ -1639,6 +1639,7 @@ export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }
       'work.updated': 'corrected work logged on it',
       'sprint.issue_added': 'put it in a sprint',
       'sprint.issue_removed': 'took it out of a sprint',
+      'board.issue_ranked': 'ranked it on a board',
       'ai.triage.completed': 'triaged it',
     };
     return `${who} ${did[a.type] ?? 'worked on it'} on ${a.at.toISOString().slice(0, 10)}`;
