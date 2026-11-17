@@ -55,11 +55,10 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     lead = tr.t('server.helpdesk.replied', { who });
     quote = comment.text;
   } else {
-    lead = p.resolved
-      ? tr.t('server.helpdesk.resolved', { to: p.to ?? tr.t('server.helpdesk.done') })
-      : p.from
-        ? tr.t('server.helpdesk.nowWas', { to: p.to ?? tr.t('server.helpdesk.changed'), from: p.from })
-        : tr.t('server.helpdesk.now', { to: p.to ?? tr.t('server.helpdesk.changed') });
+    // Without the state it's in now, the line says so in a sentence of its own, not with a word in the state's place.
+    if (p.resolved) lead = p.to ? tr.t('server.helpdesk.resolved', { to: p.to }) : tr.t('server.helpdesk.resolvedPlain');
+    else if (p.to) lead = p.from ? tr.t('server.helpdesk.nowWas', { to: p.to, from: p.from }) : tr.t('server.helpdesk.now', { to: p.to });
+    else lead = p.from ? tr.t('server.helpdesk.changedFrom', { from: p.from }) : tr.t('server.helpdesk.changedPlain');
   }
 
   const token = await mintTrackingToken(app.db, issue.id);

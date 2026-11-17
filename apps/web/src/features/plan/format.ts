@@ -1,4 +1,5 @@
 import { intlLocale, t } from '../../i18n';
+import { hoursWords } from '../common/format';
 /** Figures in words, as Ocean writes them: "1 task", "3 days", "$46,000", "6h". */
 
 /** "2 days later", "1 day earlier"; "as it was" for none. A count is a message's own plural (D49). */
@@ -27,8 +28,7 @@ export function money(n: number, currency: string): string {
 
 /** Hours with at most one decimal: "16h", "5.3h". */
 export function hours(h: number): string {
-  const r = Math.round(h * 10) / 10;
-  return `${Number.isInteger(r) ? r : r.toFixed(1)}h`;
+  return hoursWords(h);
 }
 
 /** Minutes of effort as days and hours of a working day: "3d", "1d 4h", "6h". */

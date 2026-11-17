@@ -489,7 +489,7 @@ export async function applyChanges(
     if (!opts.dryRun) {
       await assertCanWriteProject(ctx, l.target.projectId, tx).catch((e: unknown) => {
         if (e instanceof AppError && e.status === 403) {
-          throw forbidden(`${e.message}, and a link changes ${readableId(s, l.target)} too`, e.hint).said('issues.linkChangesToo', { problem: e.message, id: readableId(s, l.target), fix: e.hint ?? '' });
+          throw forbidden(`A link changes ${readableId(s, l.target)} too: ${e.message}`, e.hint).said('issues.linkChangesTooBecause', { id: readableId(s, l.target), problem: e.words ?? { key: 'forbidden' } });
         }
         throw e;
       });
@@ -801,9 +801,9 @@ async function assertPeopleSeeProject(db: Db, s: SchemaSnapshot, project: Projec
   if (!outside.length) return;
   const names = outside.map((id) => s.users.get(id)?.name ?? id).join(', ');
   throw badRequest(
-    `${names} can't see ${project.key}, so can't be its ${field.name}`,
+    `${names} can't see ${project.key}, so can't be the value of ${field.name}`,
     `Only ${project.key}'s people see it. Add ${outside.length === 1 ? 'them' : 'each of them'} to the project first, or choose someone who is in it.`,
-  ).said('issues.cantSeeProject', { names, project: project.key, field: field.name, n: outside.length });
+  ).said('issues.cantBeValueOf', { names, project: project.key, field: field.name, n: outside.length });
 }
 
 async function computeResolvedAt(

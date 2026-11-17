@@ -3,7 +3,7 @@
  * a push, the inbox or a chat says to them. The API's and MCP's own words stay English, as agents
  * and scripts read them; a problem shown on a page carries its key and values beside its English.
  */
-import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, type Locale, type Translator } from '@a4a/shared/i18n';
+import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json';
 import en from '@a4a/shared/i18n/en.json';
 import es from '@a4a/shared/i18n/es.json';
@@ -45,9 +45,9 @@ export function localeOfRequest(ctx: Ctx, header?: { pageLocale?: string | null;
  * A problem in a person's language, by its key (D49), where a4a speaks to them itself: a chat reply, say.
  * In English, or for a problem without a key, its own English, the fix after it.
  */
-export function problemFor(tr: Translator, e: { message: string; hint?: string; words?: { key: string; values?: Record<string, string | number> } }): string {
+export function problemFor(tr: Translator, e: { message: string; hint?: string; words?: ProblemSaid }): string {
   const key = e.words ? `problem.${e.words.key}` : null;
-  if (key && tr.locale !== DEFAULT_LOCALE && tr.has(key)) return tr.t(key, e.words!.values);
+  if (key && tr.locale !== DEFAULT_LOCALE && tr.has(key)) return sayProblem(tr, e.words!);
   return e.hint ? `${e.message}. ${e.hint}` : e.message;
 }
 

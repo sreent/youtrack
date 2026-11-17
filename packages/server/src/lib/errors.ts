@@ -1,5 +1,7 @@
-/** What a problem says in any language: its key under problem.* in the catalogs, and the values it takes (D49). */
-export type ProblemWords = { key: string; values?: Record<string, string | number> };
+import type { ProblemSaid } from '@a4a/shared/i18n';
+
+/** What a problem says in any language: its key under problem.* in the catalogs, and the values it takes (D49); a value may be another problem. */
+export type ProblemWords = ProblemSaid;
 
 export class AppError extends Error {
   /** Set by said(): a page in another language says the problem in it; the English stays for the API. */
@@ -16,7 +18,7 @@ export class AppError extends Error {
   }
 
   /** The problem's key and values, for a page to say it in its person's language. */
-  said(key: string, values?: Record<string, string | number>): this {
+  said(key: string, values?: ProblemSaid['values']): this {
     this.words = { key, values };
     return this;
   }

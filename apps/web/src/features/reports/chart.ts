@@ -4,6 +4,7 @@
  * attributes (Ocean's components/Burndown and the others): nothing here sets a style.
  */
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { hoursWords } from '../common/format';
 import { t } from '../../i18n';
 
 /**
@@ -77,13 +78,12 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** Hours from minutes, as a figure: "12h", "1.5h", "0h". */
 export function hoursOf(minutes: number): string {
-  const h = round1(minutes / 60);
-  return `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
+  return hoursWords(round1(minutes / 60));
 }
 
 /** Days as a figure: "2.5 days", "1 day", "6h" under a day. */
 export function daysOf(days: number): string {
-  if (days < 1) return `${Math.round(days * 24)}h`;
+  if (days < 1) return hoursWords(Math.round(days * 24));
   const d = round1(days);
   return t('count.days', { n: d });
 }

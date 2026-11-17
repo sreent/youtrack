@@ -454,7 +454,7 @@ export async function decide(ctx: Ctx, conversationId: string, decisions: { tool
   if (conv.status !== 'awaiting_approval' || !pending) throw badRequest('Nothing in this conversation is waiting for approval').said('ai.nothingPending');
   const byId = new Map(decisions.map((d) => [d.toolUseId, d.approve]));
   const missing = pending.awaiting.filter((a) => !byId.has(a.toolUseId));
-  if (missing.length) throw badRequest(`Decide on every pending change (${missing.length} left)`).said('ai.decideAll', { count: missing.length });
+  if (missing.length) throw badRequest(`Decide on every pending change (${missing.length} left)`).said('ai.decideAllLeft', { count: missing.length });
   // Two decisions sent at once must not both run the changes.
   if (!(await claim(ctx, conv.id, 'awaiting_approval', pending))) throw badRequest('Nothing in this conversation is waiting for approval').said('ai.nothingPending');
   const declined: string[] = [];

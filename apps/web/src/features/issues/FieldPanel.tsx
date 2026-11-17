@@ -1,6 +1,6 @@
 import type { FieldValue, IssueDetail, IssueField, ProjectField, User } from '@a4a/shared';
+import { periodWords } from '../common/format';
 import { isOptionType, isOwnAgent } from '@a4a/shared/constants';
-import { formatPeriod } from '@a4a/shared/periods';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Avatar, Who } from '../../components/Who';
@@ -474,7 +474,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
         <div className="fields-row">
           <dt>{t('issues.fieldPanel.spentTime')}</dt>
           <dd>
-            <span className="mono">{issue.spentMinutes ? formatPeriod(issue.spentMinutes) : <span className="empty">{t('issues.fieldPanel.noneYet')}</span>}</span>
+            <span className="mono">{issue.spentMinutes ? periodWords(issue.spentMinutes) : <span className="empty">{t('issues.fieldPanel.noneYet')}</span>}</span>
           </dd>
         </div>
       </dl>

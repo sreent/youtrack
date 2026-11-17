@@ -23,7 +23,7 @@ import http, { type IncomingHttpHeaders, type IncomingMessage } from 'node:http'
 import https from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import type { Readable } from 'node:stream';
-import type { ProblemWords } from '../lib/errors';
+import { asSentence, type ProblemWords } from '../lib/errors';
 
 export interface RemotePolicy {
   /** Host names that may resolve inside the network (lower case). */
@@ -332,14 +332,17 @@ export class Remote {
   /** A refusal, in words, with the other tracker's own words when it gave some. */
   private httpError(status: number, text: string, url: URL): RemoteError {
     const theirs = theirWords(text);
-    const said = theirs ? `: ${this.scrub(theirs)}` : '';
+    const words = theirs ? this.scrub(theirs) : '';
+    const said = words ? `: ${words}` : '';
+    // The tracker's own words, as it said them: each message places them, after its own colon (D49).
+    const told = { hasSaid: words ? 'yes' : 'no', said: words ? asSentence(words) : '' };
     const name = this.names.name;
     if (status === 401) return new RemoteError(`${name} didn't accept the token`, this.names.authHint, 'auth', status).said('imports.source.tokenRefused', { tracker: name, source: this.names.source ?? '', hint: this.names.authHint });
-    if (status === 403) return new RemoteError(`The token may not read that in ${name}${said}`, 'Use a token of an account that can see these issues there.', 'forbidden', status).said('imports.source.tokenForbidden', { tracker: name, said });
-    if (status === 404) return new RemoteError(`${name} has nothing at ${url.pathname}${said}`, `Check the address: ${name}'s base address, such as ${this.names.example}.`, 'missing', status).said('imports.source.nothingThere', { tracker: name, path: url.pathname, said, example: this.names.example });
-    if (status === 400 || status === 422) return new RemoteError(`${name} refused the request${said}`, this.names.badRequestHint, 'refused', status).said('imports.source.requestRefused', { tracker: name, said, source: this.names.source ?? '', hint: this.names.badRequestHint });
+    if (status === 403) return new RemoteError(`The token may not read that in ${name}${said}`, 'Use a token of an account that can see these issues there.', 'forbidden', status).said('imports.source.tokenForbiddenSaying', { tracker: name, ...told });
+    if (status === 404) return new RemoteError(`${name} has nothing at ${url.pathname}${said}`, `Check the address: ${name}'s base address, such as ${this.names.example}.`, 'missing', status).said('imports.source.nothingThereSaying', { tracker: name, path: url.pathname, ...told, example: this.names.example });
+    if (status === 400 || status === 422) return new RemoteError(`${name} refused the request${said}`, this.names.badRequestHint, 'refused', status).said('imports.source.requestRefusedSaying', { tracker: name, ...told, source: this.names.source ?? '', hint: this.names.badRequestHint });
     if (status === 429) return new RemoteError(`${name} asks a4a to slow down, for longer than a4a waits`, 'Carry on later: what has been read so far is kept.', 'slow_down', status).said('imports.source.slowDownTooLong', { tracker: name });
-    return new RemoteError(`${name} answered ${status}${said}`, 'Try again later: what has been read so far is kept.', 'unavailable', status).said('imports.source.answered', { tracker: name, status, said });
+    return new RemoteError(`${name} answered ${status}${said}`, 'Try again later: what has been read so far is kept.', 'unavailable', status).said('imports.source.answeredSaying', { tracker: name, status, ...told });
   }
 
   /**

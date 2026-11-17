@@ -246,7 +246,7 @@ export async function deleteFieldValue(ctx: Ctx, fieldId: string, valueId: strin
     .from(issueFieldValues)
     .where(eq(issueFieldValues.valueId, valueId));
   if (Number(n) > 0) {
-    throw badRequest(`This value is used by ${n} issue(s)`, 'Archive it instead (PATCH with {"archived": true}), or change those issues first.').said('fields.valueInUse', { n });
+    throw badRequest(`This value is used by ${Number(n) === 1 ? '1 issue' : `${n} issues`}`, 'Archive it instead (PATCH with {"archived": true}), or change those issues first.').said('fields.valueInUseBy', { n: Number(n) });
   }
   const res = await ctx.db
     .delete(fieldValues)

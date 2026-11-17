@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, type Locale, type MessageValues, type Translator } from '@a4a/shared/i18n';
+import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { createElement, Fragment, type ReactNode } from 'react';
 
 const catalogs = import.meta.glob<{ default: Record<string, string> }>('../../../../packages/shared/i18n/*.json');
@@ -81,7 +81,7 @@ export function problemWords(e: unknown): string | null {
   if (translator.locale === DEFAULT_LOCALE || !e || typeof e !== 'object') return null;
   const { key, values } = e as { key?: unknown; values?: unknown };
   if (typeof key !== 'string' || !translator.has(`problem.${key}`)) return null;
-  return translator.t(`problem.${key}`, values && typeof values === 'object' ? (values as MessageValues) : undefined);
+  return sayProblem(translator, { key, values: values && typeof values === 'object' ? (values as ProblemSaid['values']) : undefined });
 }
 
 /** The language the page is in. */

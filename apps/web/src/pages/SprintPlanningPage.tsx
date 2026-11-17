@@ -4,6 +4,7 @@
  * load against its people's capacity, and the board's velocity.
  */
 import type { Backlog, Board, Field, Issue, Sprint, SprintPlan, Velocity } from '@a4a/shared';
+import { hoursWords } from '../features/common/format';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -23,7 +24,7 @@ function pointsOf(issue: Issue, field: string | null): number | null {
   return typeof v === 'number' ? v : null;
 }
 
-const hours = (n: number) => `${Math.round(n * 10) / 10}h`;
+const hours = (n: number) => hoursWords(n);
 
 /** The backlog: a list in rank order, each issue draggable onto another place or onto a sprint. */
 function BacklogList({ board, backlog, target, onMoved }: { board: Board; backlog: Backlog; target: Sprint | null; onMoved: (said: string) => void }) {

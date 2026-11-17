@@ -12,7 +12,7 @@ import type { Db } from '../db/client';
 import { articles, attachmentBlobs, attachments, comments, issues } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import type { OutboxConsumer } from '../events/worker';
-import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { Inspector, tooLarge } from '../attachments/receive';
 import { baseType, describeType, formatBytes, isInline, isText, playableAs, safeFileName, sniffContentType } from '../attachments/sniff';
@@ -317,7 +317,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
       source.abort?.();
       throw storeFailed(e, `storing ${name}`);
     }
-    throw badRequest(`The upload of ${name} didn't finish: ${e instanceof Error ? e.message : String(e)}`, 'Try again.').said('attachments.uploadDidNotFinish', { name, reason: e instanceof Error ? e.message : String(e) });
+    throw badRequest(`The upload of ${name} didn't finish: ${e instanceof Error ? e.message : String(e)}`, 'Try again.').said('attachments.uploadDidNotFinishSaying', { name, reason: asSentence(e instanceof Error ? e.message : String(e)) });
   }
 
   const size = inspector.size;

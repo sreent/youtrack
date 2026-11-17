@@ -1,5 +1,5 @@
 import type { IssueDetail, Timer, UserRef, WorkType } from '@a4a/shared';
-import { formatPeriod } from '@a4a/shared/periods';
+import { periodWords } from '../common/format';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { del, get, post } from '../../api/client';
@@ -109,7 +109,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
       <div className="cluster">
         <h2 id={`${id}-title`} className="grow">{t('issues.workLog.timeSpent')}</h2>
         <span className="note">
-          <span className="mono">{formatPeriod(issue.spentMinutes) || '0m'}</span>
+          <span className="mono">{periodWords(issue.spentMinutes)}</span>
           {estimated ? (
             <>{tr('issues.workLog.ofEstimated', { presentation: estimated.presentation, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</>
           ) : null}
@@ -138,7 +138,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
                 <td>
                   <UserWho user={w.author} small />
                 </td>
-                <td className="num mono">{formatPeriod(w.minutes)}</td>
+                <td className="num mono">{periodWords(w.minutes)}</td>
                 <td>{w.description}</td>
                 {items.data.some((x) => x.type) ? <td>{w.type?.name ?? ''}</td> : null}
                 <td>
@@ -146,7 +146,7 @@ export function WorkLog({ issue, me, canEdit = true }: { issue: IssueDetail; me:
                     <button
                       type="button"
                       className="link"
-                      aria-label={t('issues.workLog.removeLoggedOn', { formatPeriod: formatPeriod(w.minutes), date: w.date })}
+                      aria-label={t('issues.workLog.removeLoggedOn', { formatPeriod: periodWords(w.minutes), date: w.date })}
                       onClick={async () => {
                         try {
                           await del(`/work-items/${w.id}`);

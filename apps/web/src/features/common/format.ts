@@ -1,4 +1,5 @@
 /** Times, money and counts, as Ocean writes them, in the page's language (D49). */
+import { formatPeriod } from '@a4a/shared/periods';
 import { intlLocale, t } from '../../i18n';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -76,3 +77,21 @@ export function excerpt(text: string, max = 140): string {
 }
 
 export const ISSUE_ID = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
+
+/** Hours as a figure with its unit in the page's language, at most one decimal: "16h", "5.3h" in English (D49). */
+export function hoursWords(h: number): string {
+  return new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: 'hour', unitDisplay: 'narrow', maximumFractionDigits: 1 }).format(h);
+}
+
+const PERIOD_UNITS = { w: 'week', d: 'day', h: 'hour', m: 'minute' } as const;
+
+/**
+ * Time worked as its reader says it: a4a's period ("1w 2d 3h 30m", "0m"), each part with its unit in the
+ * page's language (D49). It's for reading; what people type, and the period a field holds, stay a4a's notation.
+ */
+export function periodWords(minutes: number, opts?: Parameters<typeof formatPeriod>[1]): string {
+  const parts = formatPeriod(minutes, opts)
+    .split(' ')
+    .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: 'narrow' }).format(Number(p.slice(0, -1))));
+  return new Intl.ListFormat(intlLocale(), { type: 'unit', style: 'narrow' }).format(parts);
+}

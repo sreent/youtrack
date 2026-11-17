@@ -124,7 +124,13 @@ export default function AssistantPage() {
       {status.data && !status.data.enabled ? (
         <section className="card stack tight">
           <h2>{t('page.assistant.theAssistantIsOffOn')}</h2>
-          <p className="note">{tr('page.assistant.whoeverRunsTheServerCan', { v: status.data.reason ? `${status.data.reason}. ` : '' })}</p>
+          {/* The server's reason names its settings (AI_DISABLED, a key's variable): its operator's words, set apart from the page's sentence. */}
+          {status.data.reason ? (
+            <p className="note">
+              <code>{status.data.reason}</code>
+            </p>
+          ) : null}
+          <p className="note">{tr('page.assistant.whoeverRunsTheServer')}</p>
         </section>
       ) : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
