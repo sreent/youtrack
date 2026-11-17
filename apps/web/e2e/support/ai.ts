@@ -32,7 +32,7 @@ export async function mockSummary(page: Page, issueId: string, summary: string) 
   let asked = 0;
   await page.route(`**/api/v1/issues/${issueId}/summarize`, async (route) => {
     asked += 1;
-    await route.fulfill({ json: { summary, language: 'en', partial: false, post: null, model: 'claude-opus-5-5' } satisfies SummarizeResult });
+    await route.fulfill({ json: { summary, language: 'en', partial: false, post: null, model: 'stand-in' } satisfies SummarizeResult });
   });
   return { asked: () => asked };
 }
