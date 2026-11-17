@@ -5050,6 +5050,7 @@
   "server.helpdesk.cc.whyLink": "Vous recevez ce message car vous êtes en copie de la demande de {requester} à {desk}. Pour répondre, utilisez le lien ci-dessus : les réponses à cet e-mail ne parviennent à personne.",
   "server.helpdesk.changedFrom": "Votre demande a changé (auparavant {from}).",
   "server.helpdesk.changedPlain": "Votre demande a changé.",
+  "server.helpdesk.copiedOnIt": "En copie de votre demande, et destinataires des réponses de l’équipe :",
   "server.helpdesk.deskOf": "l’assistance de {project}",
   "server.helpdesk.now": "L’état de votre demande est maintenant {to}.",
   "server.helpdesk.nowWas": "L’état de votre demande est maintenant {to} (auparavant {from}).",

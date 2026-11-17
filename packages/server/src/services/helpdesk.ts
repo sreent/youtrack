@@ -31,7 +31,7 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
-import { ccsOf } from './request-ccs';
+import { ccsOf, copyOnNewRequest, type Person } from './request-ccs';
 import { addWatchers } from './watchers';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
@@ -181,6 +181,8 @@ export interface NewRequest {
   via: 'form' | 'email';
   /** The requester's own Message-ID, when they wrote in: the conversation threads under it. */
   threadId?: string | null;
+  /** Whom their email copied (its Cc), to copy on the request (D57). */
+  cc?: Person[];
 }
 
 /**
@@ -200,6 +202,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
   let slaActivities: ActivityRow[] = [];
+  let copied: { copied: string[]; left: string[] } | null = null;
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
@@ -210,6 +213,12 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         const [request] = await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId }).returning();
         // Its SLA clocks start with it (D45), counted from when it was filed.
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
+        // Whom their email copied, before the email that says it came in is sent (D57).
+        if (input.cc?.length) {
+          const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
+          copied = done.words;
+          slaActivities.push(...done.activities);
+        }
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
@@ -219,7 +228,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   );
   kickMail(app);
   await publishActivities(app, slaActivities);
-  return issue;
+  return { ...issue, copied };
 }
 
 /** File a request from the public form, as an issue in the project. */

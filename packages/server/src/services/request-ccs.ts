@@ -283,6 +283,16 @@ export async function copyFromMail(app: AppServices, issue: IssueRow, requesterN
   return { copied: done.added.map((r) => r.email), left: done.refused.map(refusalWords) };
 }
 
+/**
+ * The Cc of the email that opens a request, in the transaction that opens it, so the email that
+ * says it came in already names who is copied (its address's real owner sees who will hear the
+ * team's answers). Says, in the log's words, who it copied and who it left out.
+ */
+export async function copyOnNewRequest(tx: Db, ctx: Ctx, issue: IssueRow, requesterName: string, people: Person[]): Promise<{ words: { copied: string[]; left: string[] }; activities: ActivityRow[] }> {
+  const done = await copyIn(tx, ctx, issue, people, { via: 'email', requesterName });
+  return { words: { copied: done.added.map((r) => r.email), left: done.refused.map(refusalWords) }, activities: done.activities };
+}
+
 /** Someone stops being copied, from the unsubscribe link in an email they got. Doing it twice is the same as once. */
 export async function stopCopy(app: AppServices, ccId: string): Promise<void> {
   const [row] = await app.db.select({ cc: requestCcs, issue: issues }).from(requestCcs).innerJoin(issues, eq(issues.id, requestCcs.issueId)).where(eq(requestCcs.id, ccId));

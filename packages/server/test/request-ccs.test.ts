@@ -143,10 +143,14 @@ describe('CCs on a help desk request', () => {
       ['helpdesk', { cc: { email: 'alice@example.org', name: 'Alice Ames' }, via: 'email', requester: { name: 'Jane Doe' } }],
       ['helpdesk', { cc: { email: 'bob@example.org', name: '' }, via: 'email', requester: { name: 'Jane Doe' } }],
     ]);
-    // They aren't sent the requester's acknowledgement: only what the team says from now on.
+    // They aren't sent the requester's acknowledgement: only what the team says from now on. The
+    // acknowledgement names them, so the address's real owner sees who will hear the answers.
     await flush();
     expect(mailsTo('alice@example.org')).toHaveLength(0);
-    expect(newestTo('jane@example.com').subject).toBe('Re: The printer on floor 3 jams');
+    const ack = newestTo('jane@example.com');
+    expect(ack.subject).toBe('Re: The printer on floor 3 jams');
+    expect(ack.text).toContain("Copied on your request, and sent the team's replies too:");
+    expect(ack.text).toContain('Alice Ames <alice@example.org>');
   });
 
   it("doesn't copy from mail no person wrote, nor from anyone but the requester", async () => {

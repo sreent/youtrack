@@ -5050,6 +5050,7 @@
   "server.helpdesk.cc.whyLink": "{desk}への{requester}様のリクエストのCCに入っているため、このメールをお送りしています。返信するには上のリンクを使ってください。このメールに返信しても誰にも届きません。",
   "server.helpdesk.changedFrom": "リクエストの状態が変わりました（以前は{from}）。",
   "server.helpdesk.changedPlain": "リクエストの状態が変わりました。",
+  "server.helpdesk.copiedOnIt": "リクエストのCC（チームの返信も届きます）：",
   "server.helpdesk.deskOf": "{project}のヘルプデスク",
   "server.helpdesk.now": "リクエストの状態が{to}になりました。",
   "server.helpdesk.nowWas": "リクエストの状態が{to}になりました（以前は{from}）。",

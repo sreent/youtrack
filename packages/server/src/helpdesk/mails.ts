@@ -15,7 +15,7 @@ import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
 import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
-import { ccById } from '../services/request-ccs';
+import { ccById, ccsToTell } from '../services/request-ccs';
 import { readableId } from '../services/issue-refs';
 import type { SchemaSnapshot } from '../services/schema-cache';
 
@@ -53,12 +53,15 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   let lead: string;
   let quote: string | undefined;
   let head: string | undefined;
+  let copied: string[] = [];
   if (row.kind === 'request-received') {
     subject = issue.summary;
     lead = tr.t('server.helpdesk.received', { name: requester.name });
     head = tr.t('server.helpdesk.youAsked');
     const asked = issue.description.trim();
     quote = [issue.summary, asked.length > 4000 ? `${asked.slice(0, 3999)}…` : asked].filter(Boolean).join('\n\n');
+    // Who their email copied (D57): the address's real owner sees who will hear the team's answers.
+    copied = (await ccsToTell(app.db, issue.id, new Date())).map((c) => (c.name ? `${c.name} <${c.email}>` : c.email));
   } else if (row.kind === 'request-reply') {
     const [comment] = await app.db
       .select()
@@ -85,7 +88,10 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
     lead,
-    sections: quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : [],
+    sections: [
+      ...(quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : []),
+      ...(copied.length ? [{ head: tr.t('server.helpdesk.copiedOnIt'), lines: copied }] : []),
+    ],
     action: { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, token) },
     why: replyToken
       ? tr.t('server.helpdesk.whyAnswer', { desk })

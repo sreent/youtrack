@@ -5050,6 +5050,7 @@
   "server.helpdesk.cc.whyLink": "You get this because you're copied on {requester}'s request to {desk}. To reply, use the link above: replies to this email don't reach anyone.",
   "server.helpdesk.changedFrom": "Your request has changed (it was {from}).",
   "server.helpdesk.changedPlain": "Your request has changed.",
+  "server.helpdesk.copiedOnIt": "Copied on your request, and sent the team's replies too:",
   "server.helpdesk.deskOf": "{project}'s help desk",
   "server.helpdesk.now": "Your request is now {to}.",
   "server.helpdesk.nowWas": "Your request is now {to} (it was {from}).",

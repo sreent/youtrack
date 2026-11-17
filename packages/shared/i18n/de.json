@@ -5050,6 +5050,7 @@
   "server.helpdesk.cc.whyLink": "Sie erhalten dies, weil Sie bei der Anfrage von {requester} an {desk} in Kopie sind. Um zu antworten, verwenden Sie den Link oben: Antworten auf diese E-Mail erreichen niemanden.",
   "server.helpdesk.changedFrom": "Ihre Anfrage hat sich geändert (vorher {from}).",
   "server.helpdesk.changedPlain": "Ihre Anfrage hat sich geändert.",
+  "server.helpdesk.copiedOnIt": "In Kopie bei Ihrer Anfrage, erhalten auch die Antworten des Teams:",
   "server.helpdesk.deskOf": "den Helpdesk von {project}",
   "server.helpdesk.now": "Ihre Anfrage ist jetzt {to}.",
   "server.helpdesk.nowWas": "Ihre Anfrage ist jetzt {to} (vorher {from}).",

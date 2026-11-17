@@ -190,10 +190,11 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   const description = clip(stripSignature(mail.text), HELP_LIMITS.description);
   const summary = clip(mail.subject || firstLine(description.text) || 'A request by email', HELP_LIMITS.summary).text;
   const name = clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text;
-  const issue = await openRequest(app, desk, { name, email: sender, summary, description: description.text, via: 'email', threadId: mail.messageId });
+  // Whom the requester copied is copied on the request as it opens (D57).
+  const cc = mail.cc.map((c) => ({ email: c.address, name: c.name }));
+  const issue = await openRequest(app, desk, { name, email: sender, summary, description: description.text, via: 'email', threadId: mail.messageId, cc });
   const [row] = await app.db.select().from(issues).where(eq(issues.id, issue.uid));
-  // Whom the requester copied, copied on the request (D57).
-  const copied = row ? await copyFromMail(app, row, name, mail.cc.map((c) => ({ email: c.address, name: c.name }))) : null;
+  const copied = issue.copied;
   const left = row ? await keepFiles(app, desk.id, { kind: 'issue', issue: row }, mail, description.cut) : [];
   return { outcome: 'request', reason: withLeftOut(withCopied('a new request', copied), [...mail.skipped, ...left]), issueId: issue.uid };
 }
