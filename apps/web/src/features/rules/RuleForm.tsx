@@ -12,7 +12,7 @@ import { testRule } from '../workflow/api';
 import { ScriptField, ScriptRunView, useScriptProblems } from '../workflow/ScriptField';
 import type { ScriptRun } from '@a4a/shared';
 import { previewRule, ruleChecker, ruleKeys } from './api';
-import { t, tr } from '../../i18n';
+import { problemSaid, t, tr } from '../../i18n';
 
 /** What sets a rule off, as the form's first word says it. Each choice is one kind of rule. */
 type When = 'created' | 'updated' | 'commented' | 'hour' | 'day' | 'weekday' | 'guard';
@@ -632,10 +632,7 @@ export function RuleForm({
       </fieldset>
 
       {others.map((p) => (
-        <ErrorLine key={`${p.part}-${p.message}`}>
-          {p.message}
-          {p.hint ? `. ${p.hint}` : ''}
-        </ErrorLine>
+        <ErrorLine key={`${p.part}-${p.message}`}>{problemSaid(p) ?? `${p.message}${p.hint ? `. ${p.hint}` : ''}`}</ErrorLine>
       ))}
 
       {preview && !live.length ? (

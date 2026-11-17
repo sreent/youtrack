@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { createElement, Fragment, type ReactNode } from 'react';
 
 const catalogs = import.meta.glob<{ default: Record<string, string> }>('../../../../packages/shared/i18n/*.json');
@@ -80,8 +80,20 @@ export function tr(key: string, values?: MessageValues): ReactNode {
 export function problemWords(e: unknown): string | null {
   if (translator.locale === DEFAULT_LOCALE || !e || typeof e !== 'object') return null;
   const { key, values } = e as { key?: unknown; values?: unknown };
-  if (typeof key !== 'string' || !translator.has(`problem.${key}`)) return null;
-  return sayProblem(translator, { key, values: values && typeof values === 'object' ? (values as ProblemSaid['values']) : undefined });
+  if (typeof key !== 'string') return null;
+  const words: ProblemSaid = { key, values: values && typeof values === 'object' ? (values as ProblemSaid['values']) : undefined };
+  return canSayProblem(translator, words) ? sayProblem(translator, words) : null;
+}
+
+/**
+ * A parser's problem (the query's, a command's, a rule's, a move's) in the page's language (D49): its
+ * whole sentence, fix included, from problem.<key>. Null on an English page, and for a problem no
+ * catalog has, where the page shows the server's English. With `guessShown`, it leaves out its own
+ * "Did you mean …?", for a page that offers the guess as a button of its own.
+ */
+export function problemSaid(p: { key?: string; values?: Record<string, string | number> }, guessShown = false): string | null {
+  if (!p.key) return null;
+  return problemWords(guessShown && p.values?.hasGuess === 'yes' ? { key: p.key, values: { ...p.values, hasGuess: 'no' } } : p);
 }
 
 /** The language the page is in. */

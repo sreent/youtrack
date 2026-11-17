@@ -89,6 +89,29 @@ test('says a problem in German, on the sign-in page too', async ({ browser }, in
   await context.close();
 });
 
+test('says a query’s problems in German, as they are typed, and fixes them with one click', async ({ page, api }, info) => {
+  const key = uniqueKey('QP');
+  await api.createProject({ key, name: `Abfragen ${key}` });
+  await page.goto(`/issues?q=${encodeURIComponent(`project: ${key}`)}`);
+  const query = page.getByRole('combobox', { name: 'Vorgänge suchen' });
+
+  // The query's problem carries a key beside its English; the page says it in German. Its guess is a
+  // button of its own, so the sentence doesn't say it twice.
+  await query.fill(`project: ${key} State: Fixd`);
+  await expect(page.getByText('Unbekannter Wert „Fixd“ für State.')).toBeVisible();
+  await expect(page.getByText(/Unknown value/)).toHaveCount(0);
+  await expect(page.getByText(/Meinten Sie „Fixed“/)).toHaveCount(0);
+  await expect(query).toHaveAttribute('aria-invalid', 'true');
+  // One without a guess says what to do instead, in German too.
+  await query.fill(`project: ${key} sort by: zebra`);
+  await expect(page.getByText('Nach „zebra“ kann nicht sortiert werden.')).toBeVisible();
+  await query.fill(`project: ${key} State: Fixd`);
+  await shoot(page, info, 'query-problem');
+  await page.getByRole('button', { name: 'Fixed', exact: true }).click();
+  await expect(query).toHaveValue(`project: ${key} State: Fixed`);
+  await expect(query).not.toHaveAttribute('aria-invalid', 'true');
+});
+
 test('a language chosen on the profile goes over the browser’s, and back', async ({ page }) => {
   await page.goto('/me');
   await page.getByLabel('Sprache').selectOption('en');

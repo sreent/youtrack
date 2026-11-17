@@ -4,7 +4,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { boards, sprints } from '../db/schema';
 import { publishActivities, type ActivityRow } from '../events/activity';
-import { AppError, asSentence, badRequest } from '../lib/errors';
+import { AppError, asSentence, badRequest, keyedProblem, saidProblems } from '../lib/errors';
 import { readableId } from '../services/issue-refs';
 import { assertCanWriteProject, visibleSchema } from '../services/access';
 import { changeSprintInTx, type BoardRow, type SprintRow } from '../services/boards';
@@ -54,7 +54,7 @@ export async function runCommand(ctx: Ctx, req: CommandRequest): Promise<Command
   if (!parsed.ops.length && !req.comment?.trim()) {
     return {
       applied: false,
-      problems: [{ message: 'The command is empty', start: 0, end: 0, hint: 'e.g. "State Fixed" or "for me"' }],
+      problems: [keyedProblem({ message: 'The command is empty', start: 0, end: 0, hint: 'e.g. "State Fixed" or "for me"' }, 'command.empty')],
       results: [],
       description,
     };
@@ -210,13 +210,13 @@ export async function commandSpec(
             // Run as a command, a scripted action changes only its issue: its button reaches the rest.
             if (a.to && a.to !== rid) throw badRequest(`Run as a command, “${action.name}” changes only ${rid}, not ${a.to}`, 'Use its button on the issue.').said('command.actionOtherIssue', { action: action.name, issue: rid, other: a.to });
             const parsed = parseCommand(a.command, s, [project.id]);
-            if (parsed.problems.length) throw badRequest(`The action “${action.name}” asks for “${a.command}”, which doesn't fit ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionCommandMisfit', { action: action.name, command: a.command, project: project.key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
+            if (parsed.problems.length) throw badRequest(`The action “${action.name}” asks for “${a.command}”, which doesn't fit ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionCommandMisfit', { action: action.name, command: a.command, project: project.key, problems: saidProblems(parsed.problems) });
             merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, noScripts: true, inAction: action.name }));
           }
           comments.push(...out.intents.comments);
         } else {
           const parsed = parseCommand(action.command, s, [project.id]);
-          if (parsed.problems.length) throw badRequest(`The action “${action.name}” no longer fits ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionMisfit', { action: action.name, project: project.key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
+          if (parsed.problems.length) throw badRequest(`The action “${action.name}” no longer fits ${project.key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('command.actionMisfit', { action: action.name, project: project.key, problems: saidProblems(parsed.problems) });
           merge(await commandSpec(ctx, issue, parsed.ops, undefined, { ...opts, inAction: action.name }));
         }
         break;

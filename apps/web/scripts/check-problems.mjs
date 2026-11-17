@@ -1,8 +1,9 @@
 /**
  * Every problem a person can meet is keyed (docs/architecture.md, D49). Each AppError the server
  * makes carries `.said(key, values)`, so a page in another language says it in its person's
- * language, from `problem.<key>` in the catalogs. This lists the problems that don't carry a key,
- * and the keys said that en.json hasn't.
+ * language, from `problem.<key>` in the catalogs. So does each problem the query, command and rule
+ * languages find (a QueryProblem, a rule's, a move's: `keyedProblem(problem, key, values)`). This
+ * lists the problems that don't carry a key, and the keys said that en.json hasn't.
  *
  *   node apps/web/scripts/check-problems.mjs                    every file
  *   node apps/web/scripts/check-problems.mjs services/issues    files under these paths only
@@ -44,6 +45,45 @@ const unkeyed = [];
 const unknownKeys = [];
 let keyed = 0;
 
+/*
+ * The query, command and rule languages' problems aren't AppErrors: each is an object, { message,
+ * start, end, hint }, made where the problem is found (a rule's spreads ...whole(text) for its place,
+ * a move's names its field). Each carries its key: made through keyedProblem(problem, key, values),
+ * given one ({ key: … }), or passing on another's words (...wordsOf(p), ...m). A message that isn't
+ * written there (a variable, what the JavaScript engine said) is passed on, and isn't counted.
+ */
+const propName = (p) => (p.name && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : undefined);
+const isWritten = (e) => e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isTemplateExpression(e) || (ts.isConditionalExpression(e) && isWritten(e.whenTrue) && isWritten(e.whenFalse)));
+function isParserProblem(obj) {
+  const message = obj.properties.find((p) => propName(p) === 'message');
+  if (!message || !ts.isPropertyAssignment(message) || !isWritten(message.initializer)) return false;
+  const placed = obj.properties.some(
+    (p) => ['start', 'field', 'part'].includes(propName(p)) || (ts.isSpreadAssignment(p) && ts.isCallExpression(p.expression) && ts.isIdentifier(p.expression.expression) && p.expression.expression.text === 'whole'),
+  );
+  return placed && !ts.isNewExpression(obj.parent) && !isAppErrorBody(obj);
+}
+/** An AppError's details, a log entry, an activity's text: not a parser's problem. */
+const isAppErrorBody = (obj) => !obj.properties.some((p) => ['start', 'part'].includes(propName(p)) || ts.isSpreadAssignment(p)) && !ts.isArrayLiteralExpression(obj.parent);
+function keyedWhereMade(obj) {
+  if (obj.properties.some((p) => propName(p) === 'key')) return true;
+  if (obj.properties.some((p) => ts.isSpreadAssignment(p) && (ts.isIdentifier(p.expression) || (ts.isCallExpression(p.expression) && ts.isIdentifier(p.expression.expression) && p.expression.expression.text === 'wordsOf')))) return true;
+  const call = obj.parent;
+  return ts.isCallExpression(call) && ts.isIdentifier(call.expression) && call.expression.text === 'keyedProblem' && call.arguments[0] === obj;
+}
+/** The keys a parser's problem is said by: keyedProblem(p, 'key'), and { key: 'key' } given to problem(…) or at(…). */
+function keysSaid(node) {
+  if (!ts.isCallExpression(node)) return [];
+  const callee = ts.isIdentifier(node.expression) ? node.expression.text : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : '';
+  const literals = (e) => (!e ? [] : ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) ? [e] : ts.isConditionalExpression(e) ? [...literals(e.whenTrue), ...literals(e.whenFalse)] : []);
+  if (callee === 'keyedProblem') return literals(node.arguments[1]);
+  const words = callee === 'problem' ? node.arguments[0] : callee === 'at' ? node.arguments[1] : undefined;
+  if (words && ts.isObjectLiteralExpression(words)) {
+    const key = words.properties.find((p) => propName(p) === 'key');
+    if (key && ts.isPropertyAssignment(key)) return literals(key.initializer);
+  }
+  return [];
+}
+
 for (const file of walk(server)) {
   const rel = path.relative(server, file).split(path.sep).join('/');
   if (rel === 'lib/errors.ts') continue;
@@ -81,6 +121,17 @@ for (const file of walk(server)) {
       if (key && (ts.isStringLiteral(key) || ts.isNoSubstitutionTemplateLiteral(key)) && !(`problem.${key.text}` in en)) {
         unknownKeys.push(`packages/server/src/${rel}:${lineOf(node) + 1}: says problem.${key.text}, which en.json hasn't`);
       }
+    }
+    // A parser's problem (a QueryProblem, a rule's, a move's): an object whose English is written there.
+    if (ts.isObjectLiteralExpression(node) && isParserProblem(node)) {
+      if (keyedWhereMade(node)) keyed++;
+      else if (!apiOnly(node)) {
+        const message = node.properties.find((p) => propName(p) === 'message');
+        unkeyed.push(`packages/server/src/${rel}:${lineOf(node) + 1}: a problem { ${message.getText(sf).replace(/\s+/g, ' ').slice(0, 90)} } without its key`);
+      }
+    }
+    for (const key of keysSaid(node)) {
+      if (!(`problem.${key.text}` in en)) unknownKeys.push(`packages/server/src/${rel}:${lineOf(key) + 1}: says problem.${key.text}, which en.json hasn't`);
     }
     ts.forEachChild(node, visit);
   };

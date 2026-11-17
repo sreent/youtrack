@@ -115,12 +115,29 @@ export function messageArguments(source: string): string[] {
   return [...names].sort();
 }
 
-/** A problem's words in any language (D49): its key under problem.* and its values. A value may be another problem, said whole in its place. */
-export type ProblemSaid = { key: string; values?: Record<string, string | number | ProblemSaid> };
+/**
+ * A problem's words in any language (D49): its key under problem.* and its values. A value may be
+ * another problem, or a list of them (a query's problems), each said whole in its place.
+ */
+export type ProblemSaid = { key: string; values?: Record<string, string | number | ProblemSaid | ProblemSaid[]> };
 
-/** A problem in a translator's language; a problem among its values is said first, in the same language. */
+/** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。. */
+const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
+
+/** A problem in a translator's language; the problems among its values are said first, in the same language. */
+/**
+ * Whether a catalog can say a problem whole: its key, and each problem among its values. One it
+ * can't is said in the server's English instead, so a page never shows a key for words it lacks.
+ */
+export function canSayProblem(tr: Translator, p: ProblemSaid): boolean {
+  if (!tr.has(`problem.${p.key}`)) return false;
+  return Object.values(p.values ?? {}).every((v) => (Array.isArray(v) ? v.every((q) => canSayProblem(tr, q)) : typeof v === 'object' ? canSayProblem(tr, v) : true));
+}
+
 export function sayProblem(tr: Translator, p: ProblemSaid): string {
   const values: Record<string, string | number> = {};
-  for (const [k, v] of Object.entries(p.values ?? {})) values[k] = typeof v === 'object' ? sayProblem(tr, v) : v;
+  for (const [k, v] of Object.entries(p.values ?? {})) {
+    values[k] = Array.isArray(v) ? v.map((q) => sayProblem(tr, q)).join(SENTENCE_GAP[tr.locale]) : typeof v === 'object' ? sayProblem(tr, v) : v;
+  }
   return tr.t(`problem.${p.key}`, values);
 }

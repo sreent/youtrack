@@ -23,7 +23,7 @@ import type { Db } from '../db/client';
 import { comments, helpdeskRequests, issueFieldValues, issues, projectFields, slaClocks, slaPolicies } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { addBusinessMs, businessMsBetween, calendarOf, type Calendar } from '../helpdesk/business-time';
-import { asSentence, badRequest, notFound } from '../lib/errors';
+import { badRequest, notFound, saidProblem } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { addDays } from '../lib/dates';
 import { localDate, startOfDay, timeZoneOrThrow } from '../reports/tz';
@@ -74,7 +74,7 @@ async function checkPolicy(ctx: Ctx, project: ProjectRow, input: SlaPolicyInput)
   if (query) {
     const s = await ctx.app.schema.get();
     const { problems } = condition(ruleWorld(s, project.id), query, { meId: null, projectId: project.id });
-    if (problems.length) throw badRequest(`The policy's query doesn't read: ${problems[0]!.message}`, problems[0]!.hint ?? 'Write it as you would a search, such as Priority: Critical.').said('sla.queryDoesntReadSaying', { problem: asSentence(problems[0]!.message), hasHint: problems[0]!.hint ? 'yes' : 'no', hint: problems[0]!.hint ? asSentence(problems[0]!.hint) : '' });
+    if (problems.length) throw badRequest(`The policy's query doesn't read: ${problems[0]!.message}`, problems[0]!.hint ?? 'Write it as you would a search, such as Priority: Critical.').said('sla.queryDoesntReadAsSaid', { problem: saidProblem(problems[0]!), hasHint: problems[0]!.hint ? 'yes' : 'no' });
   }
 }
 

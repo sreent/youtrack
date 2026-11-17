@@ -18,6 +18,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { keyedProblem } from '../lib/errors';
 
 export const SCRIPT_LIMITS = {
   /** Longest a script may be, in characters. */
@@ -85,6 +86,9 @@ export interface ScriptProblem {
   end: number;
   hint?: string;
   line: number | null;
+  /** Its words for a page in another language (D49); none for what the JavaScript engine itself says. */
+  key?: string;
+  values?: Record<string, string | number>;
 }
 
 const empty = (): ScriptIntents => ({ applies: [], comments: [], refusal: null, logs: [] });
@@ -262,13 +266,15 @@ function lineRange(source: string, line: number | null): { start: number; end: n
 
 /** What stops a script from compiling, at the line it's on; empty when it compiles. Nothing in it runs. */
 export async function checkScript(source: string): Promise<ScriptProblem[]> {
-  if (!source.trim()) return [{ message: 'Write what it does, in JavaScript', start: 0, end: 0, line: null, hint: "e.g. if (!issue.fields.Assignee) apply('for me')" }];
+  if (!source.trim()) return [keyedProblem({ message: 'Write what it does, in JavaScript', start: 0, end: 0, line: null, hint: "e.g. if (!issue.fields.Assignee) apply('for me')" }, 'rule.writeScript')];
   if (source.length > SCRIPT_LIMITS.source) {
-    return [{ message: `A script can be ${SCRIPT_LIMITS.source.toLocaleString('en')} characters at most`, start: SCRIPT_LIMITS.source, end: source.length, line: null }];
+    return [keyedProblem({ message: `A script can be ${SCRIPT_LIMITS.source.toLocaleString('en')} characters at most`, start: SCRIPT_LIMITS.source, end: source.length, line: null }, 'rule.scriptTooLong', { max: SCRIPT_LIMITS.source })];
   }
   const reply = await pool.submit({ kind: 'check', source, timeMs: CHECK_MS, first: false });
   if (!reply.ok) {
-    return [{ message: reply.timedOut ? `It took more than ${CHECK_MS / 1000} s to read` : reply.error, start: 0, end: source.length, line: null }];
+    // What the JavaScript engine says of a script it can't read is its own, in English.
+    if (!reply.timedOut) return [{ message: reply.error, start: 0, end: source.length, line: null }];
+    return [keyedProblem({ message: `It took more than ${CHECK_MS / 1000} s to read`, start: 0, end: source.length, line: null }, 'rule.scriptCheckTimedOut', { seconds: CHECK_MS / 1000 })];
   }
   const e = reply.result as ScriptError | null;
   return e ? [{ message: e.message, ...lineRange(source, e.line), line: e.line }] : [];

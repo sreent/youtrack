@@ -21,7 +21,7 @@ import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { stateMachines } from '../db/schema';
-import { AppError, asSentence, badRequest, conflict, notFound } from '../lib/errors';
+import { AppError, badRequest, conflict, keyedProblem, notFound, saidProblems, type QueryProblemWords } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { assertCanManageProject, assertCanWriteProject, canReadProject, requireProject } from '../services/access';
 import { readableId, type IssueRow } from '../services/issue-refs';
@@ -37,55 +37,69 @@ const MACHINE_TYPES = new Set(['state', 'enum']);
 const whole = (text: string) => ({ start: 0, end: text.length });
 
 /** A name for a transition or an action that the command language can read as itself and nothing else. */
-export function nameProblems(s: SchemaSnapshot, projectId: string, name: string, own: { actionId?: string; machineId?: string }): string[] {
+export function nameProblems(s: SchemaSnapshot, projectId: string, name: string, own: { actionId?: string; machineId?: string }): NameProblem[] {
   const n = name.trim().toLowerCase();
-  if (!n) return ['Give it a name'];
-  const out: string[] = [];
+  if (!n) return [keyedProblem({ message: 'Give it a name' }, 'rule.giveItAName')];
+  const out: NameProblem[] = [];
   const first = n.split(/\s+/)[0]!;
-  if (RESERVED_WORDS.includes(first)) out.push(`It can't start with “${first}”, which starts a command of its own`);
-  if (/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(name.trim())) out.push("It can't look like an issue id");
+  if (RESERVED_WORDS.includes(first)) out.push(keyedProblem({ message: `It can't start with “${first}”, which starts a command of its own` }, 'rule.nameStartsCommand', { word: first }));
+  if (/^[A-Za-z][A-Za-z0-9]*-\d+$/.test(name.trim())) out.push(keyedProblem({ message: "It can't look like an issue id" }, 'rule.nameLooksLikeId'));
   for (const pf of s.projectFields.get(projectId) ?? []) {
     const f = s.fields.get(pf.fieldId);
-    if (f?.name.toLowerCase() === n) out.push(`${f.name} is a field`);
+    if (f?.name.toLowerCase() === n) out.push(keyedProblem({ message: `${f.name} is a field` }, 'rule.nameIsField', { field: f.name }));
   }
-  if (s.linkPhrases.some((p) => p.phrase === n)) out.push(`“${name.trim()}” is how a link reads`);
-  for (const a of actionsFor(s, projectId)) if (a.id !== own.actionId && a.name.toLowerCase() === n) out.push(`There is an action “${a.name}” already`);
+  if (s.linkPhrases.some((p) => p.phrase === n)) out.push(keyedProblem({ message: `“${name.trim()}” is how a link reads` }, 'rule.nameIsLink', { name: name.trim() }));
+  for (const a of actionsFor(s, projectId)) {
+    if (a.id !== own.actionId && a.name.toLowerCase() === n) out.push(keyedProblem({ message: `There is an action “${a.name}” already` }, 'rule.actionExists', { name: a.name }));
+  }
   for (const m of machinesFor(s, projectId)) {
     if (m.id === own.machineId) continue;
-    if (transitionsOf(m).some((t) => t.name.toLowerCase() === n)) out.push(`Another state machine has a transition “${name.trim()}”`);
+    if (transitionsOf(m).some((t) => t.name.toLowerCase() === n)) {
+      out.push(keyedProblem({ message: `Another state machine has a transition “${name.trim()}”` }, 'rule.transitionElsewhere', { name: name.trim() }));
+    }
   }
   return out;
 }
+
+/** What's wrong with a name, in the API's English and with its words for a page (D49). */
+export type NameProblem = { message: string } & QueryProblemWords;
 
 /** What's wrong with a machine for `field` in the project, transition by transition. */
 export function machineProblems(s: SchemaSnapshot, projectId: string, field: FieldRow | undefined, transitions: StateTransition[], own: { machineId?: string } = {}): WorkflowProblem[] {
   const out: WorkflowProblem[] = [];
   if (!field || !(s.projectFields.get(projectId) ?? []).some((pf) => pf.fieldId === field.id)) {
-    return [{ part: 'field', message: "The project has no such field", ...whole('') }];
+    return [keyedProblem({ part: 'field', message: 'The project has no such field', ...whole('') }, 'rule.noSuchField')];
   }
   if (!MACHINE_TYPES.has(field.type) || field.multi) {
-    return [{ part: 'field', message: `${field.name} isn't a state field`, hint: 'A state machine is for a field with one value from a list, such as State.', ...whole(field.name) }];
+    return [
+      keyedProblem(
+        { part: 'field', message: `${field.name} isn't a state field`, hint: 'A state machine is for a field with one value from a list, such as State.', ...whole(field.name) },
+        'rule.notAStateField',
+        { field: field.name },
+      ),
+    ];
   }
   const states = allowedValues(s, field.id, projectId).map((v) => v.name);
   const state = (name: string) => states.find((x) => x.toLowerCase() === name.trim().toLowerCase());
-  if (!transitions.length) out.push({ part: 'transitions', message: 'Add a transition: a move from one state to another', ...whole('') });
+  if (!transitions.length) out.push(keyedProblem({ part: 'transitions', message: 'Add a transition: a move from one state to another', ...whole('') }, 'rule.addTransition'));
   const names = new Map<string, number>();
   const pairs = new Map<string, string>();
   const standIn = s.usersByLogin.get(WORKFLOW_BOT)?.id ?? '';
   transitions.forEach((t, i) => {
-    const at = (part: WorkflowProblem['part'], message: string, text = '', hint?: string) => out.push({ part, message, transition: i, ...whole(text), ...(hint ? { hint } : {}) });
-    for (const m of nameProblems(s, projectId, t.name, { machineId: own.machineId })) at('name', m, t.name);
+    const at = (part: WorkflowProblem['part'], words: QueryProblemWords, message: string, text = '', hint?: string) =>
+      out.push(keyedProblem({ part, message, transition: i, ...whole(text), ...(hint ? { hint } : {}) }, words.key, words.values));
+    for (const m of nameProblems(s, projectId, t.name, { machineId: own.machineId })) out.push({ part: 'name', transition: i, ...whole(t.name), ...m });
     const key = t.name.trim().toLowerCase();
-    if (names.has(key)) at('name', `Two transitions are called “${t.name.trim()}”`, t.name);
+    if (names.has(key)) at('name', { key: 'rule.transitionNameTwice', values: { name: t.name.trim() } }, `Two transitions are called “${t.name.trim()}”`, t.name);
     names.set(key, i);
     const to = state(t.to);
-    if (!to) at('to', `${field.name} has no state “${t.to}”`, t.to, `Its states: ${states.join(', ')}`);
+    if (!to) at('to', { key: 'rule.noState', values: { field: field.name, state: t.to, states: states.join(', ') } }, `${field.name} has no state “${t.to}”`, t.to, `Its states: ${states.join(', ')}`);
     const from = t.from.map((f) => f.trim()).filter(Boolean);
-    if (!from.length) at('from', 'Say which states it leaves, or * for any', '');
+    if (!from.length) at('from', { key: 'rule.sayFromStates' }, 'Say which states it leaves, or * for any', '');
     for (const f of from) {
       if (f === '*') continue;
-      if (!state(f)) at('from', `${field.name} has no state “${f}”`, f, `Its states: ${states.join(', ')}`);
-      else if (to && state(f) === to) at('from', `It leaves ${to} for ${to}`, f, 'A transition goes from one state to another.');
+      if (!state(f)) at('from', { key: 'rule.noState', values: { field: field.name, state: f, states: states.join(', ') } }, `${field.name} has no state “${f}”`, f, `Its states: ${states.join(', ')}`);
+      else if (to && state(f) === to) at('from', { key: 'rule.leavesForItself', values: { state: to } }, `It leaves ${to} for ${to}`, f, 'A transition goes from one state to another.');
     }
     if (to) {
       // One move between two states has one transition. A transition from any state (*) gives way
@@ -95,7 +109,13 @@ export function machineProblems(s: SchemaSnapshot, projectId: string, field: Fie
         const pair = `${f.toLowerCase()}→${to.toLowerCase()}`;
         const other = pairs.get(pair);
         if (other !== undefined && other !== key) {
-          at('from', f === '*' ? `Two transitions go from any state to ${to}` : `“${t.name.trim()}” and another transition both go from ${f} to ${to}`, f, 'One move between two states has one transition.');
+          at(
+            'from',
+            f === '*' ? { key: 'rule.twoFromAny', values: { state: to } } : { key: 'rule.twoTransitions', values: { name: t.name.trim(), from: f, to } },
+            f === '*' ? `Two transitions go from any state to ${to}` : `“${t.name.trim()}” and another transition both go from ${f} to ${to}`,
+            f,
+            'One move between two states has one transition.',
+          );
         }
         pairs.set(pair, key);
       }
@@ -107,8 +127,8 @@ export function machineProblems(s: SchemaSnapshot, projectId: string, field: Fie
     if (t.command?.trim()) {
       const parsed = parseCommand(t.command, s, [projectId]);
       for (const p of parsed.problems) out.push({ ...p, part: 'command', transition: i });
-      if (parsed.ops.some((op) => op.kind === 'field' && op.field.id === field.id)) at('command', `Its command sets ${field.name}, which the transition itself moves`, t.command);
-      if (parsed.ops.some((op) => op.kind === 'action' || op.kind === 'transition')) at('command', 'Its command runs an action or another transition, and a transition can’t', t.command);
+      if (parsed.ops.some((op) => op.kind === 'field' && op.field.id === field.id)) at('command', { key: 'rule.commandSetsMachineField', values: { field: field.name } }, `Its command sets ${field.name}, which the transition itself moves`, t.command);
+      if (parsed.ops.some((op) => op.kind === 'action' || op.kind === 'transition')) at('command', { key: 'rule.transitionRunsAction' }, 'Its command runs an action or another transition, and a transition can’t', t.command);
     }
   });
   return out;
@@ -142,7 +162,7 @@ function tidyTransitions(list: StateTransition[]): StateTransition[] {
 
 function refuseProblems(problems: WorkflowProblem[]): never {
   const words = problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
-  throw badRequest(`The state machine needs fixing: ${words}`, 'Each problem says where it is.', { problems }).said('workflow.machineNeedsFixing', { problems: asSentence(words) });
+  throw badRequest(`The state machine needs fixing: ${words}`, 'Each problem says where it is.', { problems }).said('workflow.machineNeedsFixing', { problems: saidProblems(problems) });
 }
 
 async function loadMachine(ctx: Ctx, id: string): Promise<MachineRow> {
@@ -335,7 +355,7 @@ export async function transitionSpecs(tx: Db, ctx: Ctx, s: SchemaSnapshot, issue
   for (const m of moves) {
     if (!m.transition.command) continue;
     const parsed = parseCommand(m.transition.command, s, [issue.projectId]);
-    if (parsed.problems.length) throw badRequest(`The transition “${m.transition.name}” no longer fits: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.transitionMisfit', { transition: m.transition.name, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
+    if (parsed.problems.length) throw badRequest(`The transition “${m.transition.name}” no longer fits: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.transitionMisfit', { transition: m.transition.name, problems: saidProblems(parsed.problems) });
     out.push({ ...(await commandSpec(ctx, issue, parsed.ops, undefined, { db: tx })), data: { transition: m.transition.name } });
   }
   return out;

@@ -39,7 +39,7 @@ import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
-import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { AppError, badRequest, conflict, forbidden, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
@@ -224,7 +224,7 @@ const whole = (text: string) => ({ start: 0, end: text.length });
 function meProblems(text: string): QueryProblem[] {
   return lex(text)
     .tokens.filter((t) => (t.kind === 'word' && /^me$/i.test(t.value)) || (t.kind === 'hash' && /^(me|my)$/i.test(t.value)))
-    .map((t) => ({ message: 'A scheduled rule runs on its own, so "me" stands for nobody', start: t.start, end: t.end, hint: 'Name the person instead, e.g. anna.' }));
+    .map((t) => keyedProblem({ message: 'A scheduled rule runs on its own, so "me" stands for nobody', start: t.start, end: t.end, hint: 'Name the person instead, e.g. anna.' }, 'rule.meInSchedule'));
 }
 
 function projectIdsFor(s: SchemaSnapshot, d: Draft): string[] {
@@ -248,27 +248,29 @@ function queryProblems(s: SchemaSnapshot, d: Draft, text: string): QueryProblem[
 export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
   const out: RuleProblem[] = [];
   const add = (part: RuleProblem['part'], problems: QueryProblem[]) => out.push(...problems.map((p) => ({ ...p, part })));
-  if (!d.name.trim()) add('name', [{ message: 'Give it a name that says what it is for', ...whole('') }]);
+  if (!d.name.trim()) add('name', [keyedProblem({ message: 'Give it a name that says what it is for', ...whole('') }, 'rule.nameForPurpose')]);
   if (d.kind === 'change') {
     if (!d.trigger || !RULE_TRIGGERS.includes(d.trigger)) {
-      add('trigger', [{ message: 'Say what sets it off: an issue is created, changes, or gets a comment', ...whole('') }]);
+      add('trigger', [keyedProblem({ message: 'Say what sets it off: an issue is created, changes, or gets a comment', ...whole('') }, 'rule.sayTrigger')]);
     }
     if (d.field) {
       const known = new Set([...BUILT_IN_FIELDS.map((f) => f.toLowerCase())]);
       for (const pid of projectIdsFor(s, d)) for (const pf of s.projectFields.get(pid) ?? []) known.add(s.fields.get(pf.fieldId)?.name.toLowerCase() ?? '');
-      if (!known.has(d.field.toLowerCase())) add('field', [{ message: `There is no field "${d.field}" here`, hint: 'Name a field of the project, such as State or Priority.', ...whole(d.field) }]);
+      if (!known.has(d.field.toLowerCase())) {
+        add('field', [keyedProblem({ message: `There is no field "${d.field}" here`, hint: 'Name a field of the project, such as State or Priority.', ...whole(d.field) }, 'rule.noField', { field: d.field })]);
+      }
     }
   }
-  if (d.kind === 'schedule' && !d.schedule) add('schedule', [{ message: 'Say how often it runs: every hour, every day or every weekday', ...whole('') }]);
+  if (d.kind === 'schedule' && !d.schedule) add('schedule', [keyedProblem({ message: 'Say how often it runs: every hour, every day or every weekday', ...whole('') }, 'rule.saySchedule')]);
   if (d.kind === 'guard' && !d.script) {
-    if (!d.query) add('query', [{ message: 'Say which changes it checks: what they would make an issue match', hint: "e.g. State: {Won't fix}", ...whole('') }]);
-    if (!d.requires) add('requires', [{ message: 'Say what such an issue must also match', hint: 'e.g. has: comments', ...whole('') }]);
+    if (!d.query) add('query', [keyedProblem({ message: 'Say which changes it checks: what they would make an issue match', hint: "e.g. State: {Won't fix}", ...whole('') }, 'rule.sayGuardQuery')]);
+    if (!d.requires) add('requires', [keyedProblem({ message: 'Say what such an issue must also match', hint: 'e.g. has: comments', ...whole('') }, 'rule.sayGuardRequires')]);
   }
   if (d.query) add('query', queryProblems(s, d, d.query));
   if (d.kind === 'guard' && d.requires) add('requires', queryProblems(s, d, d.requires));
   if (d.kind !== 'guard') {
     if (!d.script && !d.command && !d.comment && !d.notify && !d.callWebhookId) {
-      add('command', [{ message: 'Say what it does: a change to make, a comment to post, whom to tell, or a webhook to call', hint: 'e.g. tag urgent', ...whole('') }]);
+      add('command', [keyedProblem({ message: 'Say what it does: a change to make, a comment to post, whom to tell, or a webhook to call', hint: 'e.g. tag urgent', ...whole('') }, 'rule.sayWhatItDoes')]);
     }
     if (d.command) {
       const parsed = parseCommand(d.command, s, projectIdsFor(s, d));
@@ -285,19 +287,27 @@ export function readingProblems(s: SchemaSnapshot, d: Draft): RuleProblem[] {
 function linkProblems(s: SchemaSnapshot, of: RuleRelated['of'] | RuleTarget['to'], phrase: string | null | undefined): QueryProblem[] {
   if (of === 'issue') return [];
   if (of !== 'linked') {
-    return aggregationTypeIds(s).length ? [] : [{ message: 'There is no subtask link here, so no issue has a parent or subtasks', hint: 'Add a link type that makes subtasks, or follow another link.', ...whole('') }];
+    return aggregationTypeIds(s).length
+      ? []
+      : [keyedProblem({ message: 'There is no subtask link here, so no issue has a parent or subtasks', hint: 'Add a link type that makes subtasks, or follow another link.', ...whole('') }, 'rule.noSubtaskLink')];
   }
   const text = phrase?.trim() ?? '';
-  if (!text) return [{ message: 'Say which link: how it reads from the issue', hint: `e.g. ${rulePhrases(s)[0] ?? 'depends on'}`, ...whole('') }];
+  if (!text) {
+    const example = rulePhrases(s)[0] ?? 'depends on';
+    return [keyedProblem({ message: 'Say which link: how it reads from the issue', hint: `e.g. ${example}`, ...whole('') }, 'rule.sayWhichLink', { phrase: example })];
+  }
   if (rulePhrase(s, text)) return [];
   const sub = s.linkPhrases.find((x) => x.phrase === text.toLowerCase() && x.type.aggregation);
-  if (sub) return [{ message: `“${text}” is a subtask link`, hint: sub.direction === 'inward' ? 'Say “its parent” instead.' : 'Say “its subtasks” instead.', ...whole(text) }];
-  return [{ message: `There is no link “${text}” here`, hint: `Say one of: ${rulePhrases(s).join(', ')}.`, ...whole(text) }];
+  if (sub) {
+    const inward = sub.direction === 'inward';
+    return [keyedProblem({ message: `“${text}” is a subtask link`, hint: inward ? 'Say “its parent” instead.' : 'Say “its subtasks” instead.', ...whole(text) }, inward ? 'rule.subtaskLinkParent' : 'rule.subtaskLinkSubtasks', { phrase: text })];
+  }
+  return [keyedProblem({ message: `There is no link “${text}” here`, hint: `Say one of: ${rulePhrases(s).join(', ')}.`, ...whole(text) }, 'rule.noLink', { phrase: text, phrases: rulePhrases(s).join(', ') })];
 }
 
 function relatedProblems(s: SchemaSnapshot, d: Draft, r: RuleRelated): QueryProblem[] {
   const out = linkProblems(s, r.of, r.phrase);
-  if (!r.query.trim()) out.push({ message: 'Say what they must match', hint: 'e.g. #Resolved', ...whole('') });
+  if (!r.query.trim()) out.push(keyedProblem({ message: 'Say what they must match', hint: 'e.g. #Resolved', ...whole('') }, 'rule.sayRelatedQuery'));
   else out.push(...queryProblems(s, d, r.query));
   return out;
 }
@@ -305,13 +315,13 @@ function relatedProblems(s: SchemaSnapshot, d: Draft, r: RuleRelated): QueryProb
 function notifyProblems(s: SchemaSnapshot, n: RuleNotify): QueryProblem[] {
   const out: QueryProblem[] = [];
   if (!n.to.length && !n.people.length) {
-    out.push({ message: "Say whom it tells: its assignee, its reporter, its watchers, the project's managers, or people by name", ...whole('') });
+    out.push(keyedProblem({ message: "Say whom it tells: its assignee, its reporter, its watchers, the project's managers, or people by name", ...whole('') }, 'rule.sayWhom'));
   }
-  if (!n.message.trim()) out.push({ message: "Say what they're told", ...whole('') });
+  if (!n.message.trim()) out.push(keyedProblem({ message: "Say what they're told", ...whole('') }, 'rule.sayMessage'));
   for (const login of n.people) {
     const u = s.usersByLogin.get(login.toLowerCase());
-    if (!u) out.push({ message: `There is no one called “${login}”`, hint: 'Name someone by their login, e.g. anna.', ...whole(login) });
-    else if (u.isBot) out.push({ message: `${u.name} is an agent, and agents aren't told`, hint: 'Name a person.', ...whole(login) });
+    if (!u) out.push(keyedProblem({ message: `There is no one called “${login}”`, hint: 'Name someone by their login, e.g. anna.', ...whole(login) }, 'rule.noOneCalled', { login }));
+    else if (u.isBot) out.push(keyedProblem({ message: `${u.name} is an agent, and agents aren't told`, hint: 'Name a person.', ...whole(login) }, 'rule.agentNotTold', { name: u.name }));
   }
   return out;
 }
@@ -319,12 +329,12 @@ function notifyProblems(s: SchemaSnapshot, n: RuleNotify): QueryProblem[] {
 /** What stops a rule from calling its webhook: only administrators make such rules, and only https webhooks are called. */
 async function callProblems(ctx: Ctx, webhookId: string): Promise<RuleProblem[]> {
   if (!ctx.actor.scopes.includes('admin')) {
-    return [{ part: 'call', message: 'Only administrators can make a rule call a webhook', hint: 'Tell people instead, or ask an administrator.', ...whole('') }];
+    return [keyedProblem({ part: 'call', message: 'Only administrators can make a rule call a webhook', hint: 'Tell people instead, or ask an administrator.', ...whole('') }, 'rule.callAdminOnly')];
   }
   const [hook] = await ctx.db.select({ url: webhooks.url }).from(webhooks).where(eq(webhooks.id, webhookId));
-  if (!hook) return [{ part: 'call', message: 'There is no such webhook', hint: 'Choose one on the Webhooks page.', ...whole('') }];
+  if (!hook) return [keyedProblem({ part: 'call', message: 'There is no such webhook', hint: 'Choose one on the Webhooks page.', ...whole('') }, 'rule.noSuchWebhook')];
   if (!callableUrl(hook.url)) {
-    return [{ part: 'call', message: "Its webhook's address isn't https", hint: 'A rule calls only https webhooks, or one on this machine.', ...whole('') }];
+    return [keyedProblem({ part: 'call', message: "Its webhook's address isn't https", hint: 'A rule calls only https webhooks, or one on this machine.', ...whole('') }, 'rule.webhookNotHttps')];
   }
   return [];
 }
@@ -336,7 +346,7 @@ async function callProblems(ctx: Ctx, webhookId: string): Promise<RuleProblem[]>
  */
 export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promise<RuleProblem[]> {
   const out = readingProblems(s, d);
-  if (d.script) for (const p of await checkScript(d.script)) out.push({ part: 'script', message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) });
+  if (d.script) for (const p of await checkScript(d.script)) out.push({ part: 'script', message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}), ...wordsOf(p) });
   if (d.kind !== 'guard' && d.callWebhookId) out.push(...(await callProblems(ctx, d.callWebhookId)));
   // A project's rule tells only people who can see the project: naming someone who can't is a mistake to say now.
   if (d.kind !== 'guard' && d.notify?.people.length && d.projectId) {
@@ -345,7 +355,13 @@ export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promi
     const key = s.projects.get(d.projectId)?.key ?? 'the project';
     for (const u of named) {
       if (!seeing.has(u.id)) {
-        out.push({ part: 'notify', message: `${u.name} can't see ${key}, so the rule could never tell them`, hint: 'Name someone who can see it, or tell its watchers.', ...whole(u.login) });
+        out.push(
+          keyedProblem(
+            { part: 'notify', message: `${u.name} can't see ${key}, so the rule could never tell them`, hint: 'Name someone who can see it, or tell its watchers.', ...whole(u.login) },
+            'rule.cantSeeProject',
+            { name: u.name, project: key },
+          ),
+        );
       }
     }
   }
@@ -356,7 +372,7 @@ export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promi
       for (const t of op.targets) {
         const target = await findVisibleIssue(ctx, t);
         if (!target) {
-          out.push({ part: 'command', message: `There is no issue ${t}, or you can't see it`, ...whole(d.command) });
+          out.push(keyedProblem({ part: 'command', message: `There is no issue ${t}, or you can't see it`, ...whole(d.command) }, 'rule.noIssue', { id: t }));
           continue;
         }
         // The workflow agent reaches only the project of the issue it acts on (engine.ts), and a
@@ -366,8 +382,16 @@ export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promi
         const mine = d.projectId ? (s.projects.get(d.projectId)?.key ?? 'its project') : null;
         out.push(
           mine
-            ? { part: 'command', message: `${t} is in ${theirs}, and a rule of ${mine} changes only ${mine}'s issues`, hint: `Link to an issue of ${mine}: a link changes both issues.`, ...whole(d.command) }
-            : { part: 'command', message: `A rule for every project can't link to ${t}: it would change ${theirs} from every other project`, hint: `Make it a rule of ${theirs}.`, ...whole(d.command) },
+            ? keyedProblem(
+                { part: 'command', message: `${t} is in ${theirs}, and a rule of ${mine} changes only ${mine}'s issues`, hint: `Link to an issue of ${mine}: a link changes both issues.`, ...whole(d.command) },
+                'rule.linkOtherProject',
+                { id: t, theirs, mine },
+              )
+            : keyedProblem(
+                { part: 'command', message: `A rule for every project can't link to ${t}: it would change ${theirs} from every other project`, hint: `Make it a rule of ${theirs}.`, ...whole(d.command) },
+                'rule.linkFromEveryProject',
+                { id: t, theirs },
+              ),
         );
       }
     }
@@ -378,7 +402,7 @@ export async function ruleProblems(ctx: Ctx, s: SchemaSnapshot, d: Draft): Promi
           resolveFieldInput(s, op.field, d.projectId, raw, ctx.actor.user.id);
         } catch (e) {
           if (!(e instanceof AppError)) throw e;
-          out.push({ part: 'command', message: e.message, ...(e.hint ? { hint: e.hint } : {}), ...whole(d.command) });
+          out.push({ part: 'command', message: e.message, ...(e.hint ? { hint: e.hint } : {}), ...whole(d.command), ...wordsOf(e) });
         }
       }
     }
@@ -573,7 +597,7 @@ function assertCanCall(ctx: Ctx): void {
 }
 
 function refuseProblems(problems: RuleProblem[]): never {
-  throw badRequest(`The rule needs fixing: ${problemText(problems)}`, 'Preview it to see each problem where it is.', { problems }).said('workflow.ruleNeedsFixing', { problems: asSentence(problemText(problems)) });
+  throw badRequest(`The rule needs fixing: ${problemText(problems)}`, 'Preview it to see each problem where it is.', { problems }).said('workflow.ruleNeedsFixing', { problems: saidProblems(problems) });
 }
 
 export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
@@ -668,7 +692,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
     if (problems.length) refuseProblems(problems);
   } else if (!d.name) {
-    refuseProblems([{ part: 'name', message: 'Give it a name that says what it is for', start: 0, end: 0 }]);
+    refuseProblems([keyedProblem({ part: 'name', message: 'Give it a name that says what it is for', start: 0, end: 0 }, 'rule.nameForPurpose')]);
   }
   const scheduleMoved = JSON.stringify(d.schedule) !== JSON.stringify(before.schedule) || (d.enabled && !before.enabled);
   const [updated] = await ctx.db

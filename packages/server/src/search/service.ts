@@ -3,7 +3,7 @@ import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
 import { and, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';
-import { asSentence, badRequest } from '../lib/errors';
+import { badRequest, saidProblems } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
 import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../services/access';
@@ -68,7 +68,7 @@ export async function compileOrThrow(ctx: Ctx, query: string, extra?: { projectI
     throw badRequest(`Invalid query: ${formatProblems(prepared.compiled.problems)}`, 'See GET /api/v1/search/suggest or the query language guide.', {
       problems: prepared.compiled.problems,
       ...(fixed !== null ? { fixed } : {}),
-    }).said('query.invalid', { problems: asSentence(formatProblems(prepared.compiled.problems)) });
+    }).said('query.invalid', { problems: saidProblems(prepared.compiled.problems) });
   }
   return prepared;
 }

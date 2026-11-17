@@ -5,7 +5,7 @@ import { savedSearches } from '../db/schema';
 import { forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
-import { badRequest } from '../lib/errors';
+import { badRequest, saidProblems } from '../lib/errors';
 import { savedSearchChanged } from './subscriptions';
 import { userRefDto } from './values';
 
@@ -22,7 +22,7 @@ async function validate(ctx: Ctx, query: string) {
   if (prepared.compiled.problems.length) {
     throw badRequest(`Invalid query: ${prepared.compiled.problems.map((p) => p.message).join('; ')}`, undefined, {
       problems: prepared.compiled.problems,
-    }).said('savedSearches.invalidQuery', { problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
+    }).said('savedSearches.queryDoesntRead', { problems: saidProblems(prepared.compiled.problems) });
   }
 }
 

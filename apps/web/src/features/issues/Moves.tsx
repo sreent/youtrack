@@ -11,7 +11,7 @@ import { ApiError, del, get, post } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from './api';
-import { t, tr } from '../../i18n';
+import { problemSaid, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 function useRefresh(issue: string) {
@@ -202,7 +202,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
           {plan.problems.map((p) =>
             p.field ? (
               <label key={p.field} className="form-field">
-                <span>{p.message}</span>
+                <span>{problemSaid(p) ?? p.message}</span>
                 <select
                   value={values[p.field] === undefined ? '' : (values[p.field] ?? '-')}
                   onChange={(e) => {
@@ -221,7 +221,7 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
                 </select>
               </label>
             ) : (
-              <ErrorLine key={p.message}>{p.message}</ErrorLine>
+              <ErrorLine key={p.message}>{problemSaid(p) ?? p.message}</ErrorLine>
             ),
           )}
           {plan.carried.length ? (

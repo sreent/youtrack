@@ -17,6 +17,7 @@ import { activities, agentChanges, apiTokens, issueLinks, issueTags, issues, tag
 import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow } from '../events/activity';
 import { listIn } from '../i18n';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
+import type { ProblemSaid } from '@a4a/shared/i18n';
 import { canUserReadProject, eventSeen, projectAccess, requireProject } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
 import { issueTokenFor, keysFor, tokenDto, tokenScopes } from './auth';
@@ -176,19 +177,24 @@ async function linkExists(db: Db, s: SchemaSnapshot, undo: LinkUndo): Promise<bo
  * What stops an agent's change being undone, in words, or nothing: what it changed has changed since
  * (undoing it would overwrite someone), or what it would put back is gone.
  */
-async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): Promise<string[]> {
+/** Why a change can't be undone: in the API's English, and as a page says it (D49). */
+type Stop = { words: string; said: ProblemSaid };
+const stop = (words: string, key: string, values?: Record<string, string | number>): Stop => ({ words, said: values ? { key, values } : { key } });
+const ISSUE_GONE = stop('the issue is gone', 'agents.stop.issueGone');
+
+async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): Promise<Stop[]> {
   const undo = rec.undo as AgentUndo;
   const key = s.projects.get(now.issue.projectId)?.key ?? 'its project';
-  const out: string[] = [];
+  const out: Stop[] = [];
   if (undo.kind === 'link') {
     const exists = await linkExists(db, s, undo);
     const type = s.linkPhrases.find((p) => p.type.id === undo.typeId)?.type;
-    if (!type) out.push('that kind of link is no longer in a4a');
-    else if (undo.created && !exists) out.push('the link was taken away since');
-    else if (!undo.created && exists) out.push('the link is there again');
+    if (!type) out.push(stop('that kind of link is no longer in a4a', 'agents.stop.linkTypeGone'));
+    else if (undo.created && !exists) out.push(stop('the link was taken away since', 'agents.stop.linkTakenAway'));
+    else if (!undo.created && exists) out.push(stop('the link is there again', 'agents.stop.linkBack'));
     else if (!undo.created) {
       const ends = await db.select({ id: issues.id }).from(issues).where(inArray(issues.id, [undo.sourceId, undo.targetId]));
-      if (ends.length < 2) out.push('the issue at its other end is gone');
+      if (ends.length < 2) out.push(stop('the issue at its other end is gone', 'agents.stop.otherEndGone'));
     }
     return out;
   }
@@ -196,34 +202,43 @@ async function whatStops(db: Db, s: SchemaSnapshot, rec: ChangeRow, now: Now): P
   for (const f of undo.fields) {
     const field = s.fields.get(f.fieldId);
     if (!field || !attached.has(f.fieldId)) {
-      out.push(`${f.name} is no longer a field of ${key}`);
+      out.push(stop(`${f.name} is no longer a field of ${key}`, 'agents.stop.fieldGone', { field: f.name, project: key }));
       continue;
     }
     const current = now.values.get(f.fieldId) ?? [];
     if (!sameValues(current, f.after)) {
       const by = changedBy(s, now, field.name, rec.activityId);
-      out.push(`${field.name} is ${presentValues(s, field, current) ?? 'empty'} now${by ? `: ${by} changed it since` : ''}`);
+      const value = presentValues(s, field, current);
+      out.push(
+        stop(`${field.name} is ${value ?? 'empty'} now${by ? `: ${by} changed it since` : ''}`, 'agents.stop.fieldChanged', {
+          field: field.name,
+          hasValue: value ? 'yes' : 'no',
+          value: value ?? '',
+          hasBy: by ? 'yes' : 'no',
+          by: by ?? '',
+        }),
+      );
       continue;
     }
     for (const v of f.before) {
-      if (v.valueId && !s.values.get(v.valueId)) out.push(`the ${field.name} it had is no longer one of its values`);
+      if (v.valueId && !s.values.get(v.valueId)) out.push(stop(`the ${field.name} it had is no longer one of its values`, 'agents.stop.valueGone', { field: field.name }));
       const user = v.userId ? s.users.get(v.userId) : undefined;
-      if (v.userId && (!user || user.banned)) out.push(`the ${field.name} it had can no longer be given`);
+      if (v.userId && (!user || user.banned)) out.push(stop(`the ${field.name} it had can no longer be given`, 'agents.stop.userGone', { field: field.name }));
     }
   }
   if (undo.summary && now.issue.summary !== undo.summary.after) {
     const by = changedBy(s, now, 'Summary', rec.activityId);
-    out.push(`the summary changed since${by ? `, by ${by}` : ''}`);
+    out.push(stop(`the summary changed since${by ? `, by ${by}` : ''}`, 'agents.stop.summaryChanged', { hasBy: by ? 'yes' : 'no', by: by ?? '' }));
   }
   if (undo.description && textHash(now.issue.description) !== undo.description.afterHash) {
     const by = changedBy(s, now, 'Description', rec.activityId);
-    out.push(`the description changed since${by ? `, by ${by}` : ''}`);
+    out.push(stop(`the description changed since${by ? `, by ${by}` : ''}`, 'agents.stop.descriptionChanged', { hasBy: by ? 'yes' : 'no', by: by ?? '' }));
   }
   if (undo.tags) {
     const off = undo.tags.added.filter((t) => !now.tags.has(t.toLowerCase()));
     const on = undo.tags.removed.filter((t) => now.tags.has(t.toLowerCase()));
-    if (off.length) out.push(`${off.length === 1 ? 'the tag' : 'the tags'} ${off.join(', ')} ${off.length === 1 ? 'was' : 'were'} taken off since`);
-    if (on.length) out.push(`${on.length === 1 ? 'the tag' : 'the tags'} ${on.join(', ')} ${on.length === 1 ? 'is' : 'are'} on again`);
+    if (off.length) out.push(stop(`${off.length === 1 ? 'the tag' : 'the tags'} ${off.join(', ')} ${off.length === 1 ? 'was' : 'were'} taken off since`, 'agents.stop.tagsOff', { n: off.length, tags: off.join(', ') }));
+    if (on.length) out.push(stop(`${on.length === 1 ? 'the tag' : 'the tags'} ${on.join(', ')} ${on.length === 1 ? 'is' : 'are'} on again`, 'agents.stop.tagsOn', { n: on.length, tags: on.join(', ') }));
   }
   return out;
 }
@@ -256,8 +271,8 @@ export async function undoStandings(db: Db, s: SchemaSnapshot, events: TrackerEv
     } else {
       if (!nows.has(rec.issueId)) nows.set(rec.issueId, await issueNow(db, rec.issueId, earliest.get(rec.issueId)!));
       const now = nows.get(rec.issueId);
-      const stops = now ? await whatStops(db, s, rec, now) : ['the issue is gone'];
-      standing = stops.length ? { state: 'changed_since', note: sentence(stops) } : { state: 'possible', note: '' };
+      const stops = now ? await whatStops(db, s, rec, now) : [ISSUE_GONE];
+      standing = stops.length ? { state: 'changed_since', note: sentence(stops.map((x) => x.words)) } : { state: 'possible', note: '' };
     }
     out.set(rec.activityId, standing);
     if (rec.pairActivityId !== null) out.set(rec.pairActivityId, standing);
@@ -332,9 +347,12 @@ export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoRe
     const [issue] = await tx.select().from(issues).where(eq(issues.id, rec.issueId)).for('update');
     if (!issue) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
     const now = await issueNow(tx, issue.id, rec.activityId);
-    const stops = now ? await whatStops(tx, s, rec, now) : ['the issue is gone'];
+    const stops = now ? await whatStops(tx, s, rec, now) : [ISSUE_GONE];
     if (stops.length) {
-      throw new AppError(409, 'changed_since', `Nothing was undone: ${stops.join('; ')}`, 'Change it on the issue instead, if it should change.', { changedSince: stops }).said('agents.nothingUndone', { reasons: stops.join('; ') });
+      const words = stops.map((x) => x.words);
+      throw new AppError(409, 'changed_since', `Nothing was undone: ${words.join('; ')}`, 'Change it on the issue instead, if it should change.', { changedSince: words }).said('agents.nothingUndoneBecause', {
+        reasons: stops.map((x) => x.said),
+      });
     }
     const spec = await inverse(tx, s, rec, issue);
     const applied = await applyChanges(tx, ctx, issue, { ...spec, data: { undoes: rec.activityId } });
