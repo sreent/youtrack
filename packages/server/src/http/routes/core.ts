@@ -10,6 +10,7 @@ import {
   LinkTypeSchema,
   ProjectFieldSchema,
   ProjectSchema,
+  RenameProjectKeyBody,
   SettingsBody,
   SettingsSchema,
   TagBody,
@@ -22,6 +23,7 @@ import {
 } from '@a4a/shared';
 import { z } from 'zod';
 import { notFound } from '../../lib/errors';
+import { renameProjectKey } from '../../services/project-keys';
 import {
   addFieldValue,
   attachField,
@@ -69,6 +71,7 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
     await deleteProject(ctx, params.key);
     return null;
   });
+  route(app, { method: 'post', path: '/projects/{key}/key', tags: projects, summary: "Rename a project's key (its managers). Its issues keep their numbers; the old key stays the project's for good, so its ids still find them (D52)", params: Key, body: RenameProjectKeyBody, response: ProjectSchema, status: 200 }, ({ ctx, params, body }) => renameProjectKey(ctx, params.key, body));
   route(app, { method: 'get', path: '/projects/{key}/fields', tags: projects, summary: "A project's fields and their allowed values", params: Key, response: z.array(ProjectFieldSchema) }, async ({ ctx, params }) => {
     const p = await requireProject(ctx, params.key);
     return projectFieldDtos(await ctx.app.schema.get(), p.id);

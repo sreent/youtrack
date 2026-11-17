@@ -225,7 +225,8 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
       const matching = hooks.filter((h) => {
         if (!h.events.includes('*') && !h.events.includes(event.type)) return false;
         if (!h.projectId) return true;
-        return s.projects.get(h.projectId)?.key === event.project;
+        // By the project, not its key: an event worded before a rename names a key it had (D52).
+        return event.project !== null && projectByKey(s, event.project)?.id === h.projectId;
       });
       await Promise.all(matching.map((h) => deliver(app, h, event)));
     },

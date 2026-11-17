@@ -393,6 +393,7 @@ export const ProjectSchema = ProjectRefSchema.extend({
   createdAt: timestamp,
   access: ProjectAccessSchema,
   guestAccess: z.boolean().describe("Anyone may read it without signing in (D37): its issues, comments, files and articles, never its people's emails"),
+  formerKeys: z.array(z.string()).describe('Keys it had before it was renamed, oldest first (D52): each still finds it, and its issues by their numbers'),
 }).meta({ id: 'Project' });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -3890,3 +3891,17 @@ export const AppStorageSchema = z
   .meta({ id: 'AppStorage' });
 export type AppStorage = z.infer<typeof AppStorageSchema>;
 export const AppStorageBody = z.object({ value: z.unknown().describe('Any JSON; null removes the key') });
+
+// ---------------------------------------------------------------------------
+// Renaming a project's key (D52)
+// ---------------------------------------------------------------------------
+
+export const RenameProjectKeyBody = z.object({
+  key: CreateProjectBody.shape.key.describe("The new key, checked as a new project's is. Its issues keep their numbers: BACK-12 becomes CORE-12"),
+  expectedKey: z
+    .string()
+    .max(10)
+    .optional()
+    .describe('The key as you last saw it. If someone renamed the project meanwhile, nothing changes and the answer is 409, with the key it has now'),
+});
+export type RenameProjectKeyInput = z.infer<typeof RenameProjectKeyBody>;

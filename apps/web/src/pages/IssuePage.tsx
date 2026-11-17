@@ -2,7 +2,7 @@ import type { IssueDetail, IssueField, Suggestion, User } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, useEffect } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ApiError, post } from '../api/client';
 import { keys, useAIStatus, useIssue, useMe, useMembers, useProject, useProjectFields, useSuggestions, useUsers } from '../api/queries';
 import { StateBadge } from '../components/Badges';
@@ -32,7 +32,7 @@ import { WorkflowBar } from '../features/workflow/WorkflowBar';
 import { AppWidgets } from '../features/apps/AppWidgets';
 import { attachmentKeys } from '../features/attachments/api';
 import { RichField } from '../features/editor/RichField';
-import { intlLocale, t, tr } from '../i18n';
+import { formatList, intlLocale, t, tr } from '../i18n';
 
 /** A field's value as triage writes it: a login for a person, the words for a period. */
 function presented(f: IssueField | undefined): string | null {
@@ -249,9 +249,11 @@ export default function IssuePage() {
   const [commanding, setCommanding] = useState(false);
   const [moving, setMoving] = useState(false);
   const navigate = useNavigate();
-  // An id it had before it moved finds it; the address then says the id it has now (D41).
+  // An id it had before it moved (D41), or before its project's key was renamed (D52), finds it;
+  // the address then says the id it has now, and the page which it was asked for by.
   const asked = id.toUpperCase();
-  const movedFrom = issue.data && issue.data.id !== asked && issue.data.formerIds.includes(asked) ? asked : null;
+  const movedFrom = issue.data && issue.data.id !== asked && /^[A-Z][A-Z0-9]*-\d+$/.test(asked) ? asked : null;
+  const arrivedAs = (useLocation().state as { movedFrom?: string } | null)?.movedFrom;
   useEffect(() => {
     if (movedFrom && issue.data) navigate(`/issues/${issue.data.id}${window.location.hash}`, { replace: true, state: { movedFrom } });
   }, [movedFrom, issue.data, navigate]);
@@ -295,6 +297,7 @@ export default function IssuePage() {
     );
   }
   const data = issue.data!;
+  const was = arrivedAs && arrivedAs !== data.id && !data.formerIds.includes(arrivedAs) ? [...data.formerIds, arrivedAs] : data.formerIds;
   // What the project lets you do; until it's known, the page offers everything and the server decides.
   const canWrite = project.data?.access.write ?? true;
   const canComment = project.data?.access.comment ?? true;
@@ -322,7 +325,7 @@ export default function IssuePage() {
         badges={
           <>
             <span className="issue-id">{data.id}</span>
-            {data.formerIds.length ? <span className="note">{tr('page.issue.was', { join: data.formerIds.join(', ') })}</span> : null}
+            {was.length ? <span className="note">{tr('page.issue.was', { join: formatList(was) })}</span> : null}
             <StateBadge fields={data.fields} />
             {request.data ? <SlaBadge sla={request.data.firstResponse} since={request.data.createdAt} /> : null}
           </>

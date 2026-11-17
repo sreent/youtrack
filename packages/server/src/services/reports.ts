@@ -29,7 +29,7 @@ import { dayBounds, startOfDay, timeZoneOrThrow, todayIn } from '../reports/tz';
 import { compileOrThrow } from '../search/service';
 import { issueSeenSql, projectAccess, requireProject, seenIssueIds, visibleProjectIds } from './access';
 import { projectSettings } from './projects';
-import { allowedValues, fieldByName, findUser, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
+import { allowedValues, fieldByName, findUser, idWithKeyNow, keyNow, keysOfProject, projectByKey, stateField, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
 
 /** Past this many events a report asks for a narrower scope instead of working for minutes. */
@@ -93,10 +93,11 @@ export async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project
   }
   const projects: ProjectRow[] = project ? [project] : await visibleProjects();
   const ids = projects.map((p) => p.id);
-  // An issue moved away (D41) leaves: its move is filed under the project it went to, so read that too.
+  // An issue moved away (D41) leaves: its move is filed under the project it went to, so read that too,
+  // by any key the project had when it left (D52).
   const movedAway = sql`(${activities.type} = 'issue.moved' AND ${inList(
     sql`${activities.payload}->'data'->>'fromProject'`,
-    projects.map((p) => p.key),
+    projects.flatMap((p) => keysOfProject(s, p.id)),
   )})`;
   // And what came before an issue moved in, so its values, standing and age are its own; while it
   // was elsewhere, it doesn't count.
@@ -119,6 +120,13 @@ export async function resolveScope(ctx: Ctx, s: SchemaSnapshot, input: { project
 }
 
 export const refOf = (p: ProjectRow): ProjectRef => ({ id: p.id, key: p.key, name: p.name });
+
+/** A readable id under every key its project has had (D52): what history may have written for it. */
+function idForms(s: SchemaSnapshot, rid: string): string[] {
+  const dash = rid.indexOf('-');
+  const p = dash > 0 ? s.projectsByKey.get(rid.slice(0, dash).toUpperCase()) : undefined;
+  return p ? keysOfProject(s, p.id).map((k) => `${k}${rid.slice(dash)}`) : [rid];
+}
 
 /** Time logged counts only in projects whose role lets the caller see time and costs (D37). */
 async function costsWhere(ctx: Ctx): Promise<SQL> {
@@ -224,7 +232,8 @@ export async function loadEvents(
   const out: HistoryEvent[] = [];
   for (const r of rows) {
     if (!r.rid) continue;
-    const e: HistoryEvent = { id: Number(r.id), at: new Date(r.at).getTime(), type: r.type, rid: r.rid, summary: r.summary };
+    // History names an issue by the id it had then: under a key its project has had (D52), it reads as it does now, so it's one history.
+    const e: HistoryEvent = { id: Number(r.id), at: new Date(r.at).getTime(), type: r.type, rid: idWithKeyNow(s, r.rid), summary: r.summary };
     if (r.type !== 'sprint.issue_added' && r.type !== 'sprint.issue_removed') {
       e.state = r.state;
       e.resolved = r.resolved === 'true';
@@ -241,7 +250,7 @@ export async function loadEvents(
     if (r.move) {
       const m = (typeof r.move === 'string' ? JSON.parse(r.move) : r.move) as MoveData;
       if (m.from && m.to && m.fromProject && m.toProject) {
-        e.move = { from: m.from, to: m.to, fromProject: m.fromProject, toProject: m.toProject, created: ms(m.created) };
+        e.move = { from: idWithKeyNow(s, m.from), to: idWithKeyNow(s, m.to), fromProject: keyNow(s, m.fromProject), toProject: keyNow(s, m.toProject), created: ms(m.created) };
         if (Array.isArray(m.leftSprints)) e.move.leftSprints = m.leftSprints.filter((x): x is string => typeof x === 'string');
       }
     }
@@ -544,7 +553,7 @@ export async function sprintBurn(
   // not its points, not its changes, not its summary. A deleted issue's records still count.
   const seen = await seenIssueIds(ctx, [...inSprint.map((c) => c.id), ...records.flatMap((r) => (r.issueId ? [r.issueId] : []))]);
   const current = inSprint.filter((c) => seen.has(c.id));
-  const sprintRows = records.filter((r) => !r.issueId || seen.has(r.issueId));
+  const sprintRows = records.filter((r) => !r.issueId || seen.has(r.issueId)).map((r) => ({ ...r, rid: r.rid ? idWithKeyNow(s, r.rid) : r.rid }));
   const ridOf = (r: { projectId: string; number: number }) => `${s.projects.get(r.projectId)?.key ?? '?'}-${r.number}`;
   const liveIds = new Set(current.map((c) => c.id));
   const deletedRids = new Set<string>();
@@ -555,7 +564,8 @@ export async function sprintBurn(
   const conds: SQL[] = [];
   if (liveIds.size) conds.push(inList(sql`${activities.issueId}`, [...liveIds]));
   if (deletedRids.size) {
-    conds.push(and(inList(activities.projectId, readable), inList(sql`${activities.payload}->'issue'->>'id'`, [...deletedRids]))!);
+    // A deleted issue's events name it by the ids it had: under every key its project has had (D52).
+    conds.push(and(inList(activities.projectId, readable), inList(sql`${activities.payload}->'issue'->>'id'`, [...deletedRids].flatMap((rid) => idForms(s, rid))))!);
   }
   const events = conds.length
     ? await loadEvents(ctx, s, conds.length === 1 ? conds[0]! : sql`(${sql.join(conds, sql` OR `)})`, { sprintEvents: true, estimates: true, measure })

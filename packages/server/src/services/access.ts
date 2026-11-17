@@ -43,7 +43,7 @@ import { effectiveScopes, requireScope, type Actor, type AppServices, type Ctx }
 import type { Db } from '../db/client';
 import { activities, comments, groupMembers, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
 import { badRequest, forbidden, notFound } from '../lib/errors';
-import { fieldByName, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
+import { fieldByName, keysOfProject, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 
 export type { ProjectRole };
 /** What a check asks for: a permission, or "write" (changing issues, the same as "edit"). */
@@ -583,6 +583,7 @@ export function scopeSchema(s: SchemaSnapshot, visible: readonly string[] | null
     valuesByField: new Map([...s.valuesByField].map(([fieldId, list]) => [fieldId, list.filter((v) => keep(v.projectId))])),
     projects: new Map([...s.projects].filter(([id]) => ids.has(id))),
     projectsByKey: new Map([...s.projectsByKey].filter(([, p]) => ids.has(p.id))),
+    formerKeys: new Map([...s.formerKeys].filter(([id]) => ids.has(id))),
     projectFields: new Map([...s.projectFields].filter(([id]) => ids.has(id))),
   };
   if (byKey.size > 64) byKey.clear();
@@ -747,7 +748,8 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
   const visible = view.visibleIds();
   if (visible === null) return undefined;
   const ids = visible.filter((id) => view.canRead(id));
-  const keys = ids.map((id) => s.projects.get(id)?.key.toUpperCase() ?? view.keyOf(id)?.toUpperCase()).filter((k): k is string => Boolean(k));
+  // A link written before its other end's project was renamed names it by a key it had (D52).
+  const keys = ids.flatMap((id) => (s.projects.has(id) ? keysOfProject(s, id) : [view.keyOf(id)?.toUpperCase()])).filter((k): k is string => Boolean(k));
   const inIds = ids.length ? sql`${activities.projectId} IN (${list(ids)})` : sql`FALSE`;
   const targetKey = sql`upper(split_part(${activities.payload}->'data'->'target'->>'id', '-', 1))`;
   const targetSeen = keys.length ? sql`coalesce(${targetKey} IN (${list(keys)}), FALSE)` : sql`FALSE`;
