@@ -4,11 +4,11 @@
  * says (checked where each problem is made, under tests), and German says each in its own words.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, sayProblem, type ProblemSaid } from '@a4a/shared/i18n';
 import type { QueryProblem } from '@a4a/shared';
 import { runCommand } from '../src/commands/executor';
 import { createHttpApp } from '../src/http/app';
-import { translatorFor } from '../src/i18n';
+import { problemFor, translatorFor } from '../src/i18n';
 import { pageWords, readAlike } from '../src/lib/errors';
 import { parseQueryForApi } from '../src/search/service';
 import { addFieldValue, attachField, createField } from '../src/services/fields';
@@ -194,6 +194,17 @@ describe('a rule’s problems, in a person’s language (D49)', () => {
     expect(page).toContain('Geben Sie ihr einen Namen, der sagt, wofür sie da ist.');
     expect(page).toContain('Eine zeitgesteuerte Regel läuft von selbst, daher steht „me“ für niemanden.');
     expect(page).not.toContain('Give it a name');
+  });
+});
+
+describe('a problem a catalog can’t say whole (D49)', () => {
+  it('is said in the server’s English, not with a key for the words the catalog lacks', () => {
+    const words: ProblemSaid = { key: 'query.invalid', values: { problems: [{ key: 'query.unknownValue', values: { value: 'Fixd', field: 'State', hasGuess: 'yes', guess: 'Fixed', n: 2, allowed: '' } }] } };
+    expect(canSayProblem(de, words)).toBe(true);
+    // A catalog with the refusal's words but not the query's problem in it (one still to translate).
+    const partial = createTranslator('es', { 'problem.query.invalid': 'Consulta no válida: {problems}' });
+    expect(canSayProblem(partial, words)).toBe(false);
+    expect(problemFor(partial, { message: 'Invalid query: Unknown value "Fixd" for State (Did you mean "Fixed"?)', words })).toBe('Invalid query: Unknown value "Fixd" for State (Did you mean "Fixed"?)');
   });
 });
 
