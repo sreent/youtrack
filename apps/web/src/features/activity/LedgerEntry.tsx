@@ -181,7 +181,14 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       if (e.type === 'article.deleted') return { text: <>{tr('activity.ledgerEntry.deleted2', { named: named })}</>, badge: ['changes', t('activity.ledgerEntry.deletesAnArticle')] };
       return {
         text: e.data.moved && e.changes.every((c) => c.field === 'Parent' || c.field === 'Position') ? <>{tr('activity.ledgerEntry.moved', { named: named })}</> : <>{tr('activity.ledgerEntry.changed2', { named: named })}</>,
-        badge: ['changes', e.changes.some((c) => c.field === 'Content' || c.field === 'Title') ? t('activity.ledgerEntry.savesAVersion') : t('activity.ledgerEntry.movesAnArticle')],
+        badge: [
+          'changes',
+          e.changes.some((c) => c.field === 'Content' || c.field === 'Title')
+            ? t('activity.ledgerEntry.savesAVersion')
+            : e.changes.some((c) => c.field === 'Visible to')
+              ? t('activity.ledgerEntry.changesWhoSeesAnArticle')
+              : t('activity.ledgerEntry.movesAnArticle'),
+        ],
         more: <ChangeLines changes={e.changes} />,
       };
     }

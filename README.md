@@ -73,6 +73,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Text files (logs, code, CSV, JSON, Markdown, and HTML as its source) open in place, from their start or their end. Sound and video play in the browser's own player, served in ranges.
   - `files:to-s3` moves the files on disk to a bucket, checking each copy against its checksum, and carries on where a run stopped.
 - **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
+  - An article can be **limited to some people and groups**, from the start or later; its author, the project's managers and administrators always see it. What's under a limited article is seen only by who sees it, so moving one under it hides it too. To everyone else it's missing everywhere: the tree, search, its versions and files, mentions, the feed, MCP and the assistant (D51).
 - **Reports**, worked out from each issue's history:
   - a sprint's burndown, by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence (linked from the sprint board);
   - cumulative flow, created against resolved, and cycle time with its percentiles;
@@ -111,7 +112,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
   - **roles are sets of permissions** (read, comment, create, edit, delete, time, costs, boards, manage, and seeing and changing private fields): administrators add their own beside the three built-in ones;
   - **groups** get roles as people do, and someone may do what any of their own and their groups' roles allows;
-  - **an issue or a comment can be limited** to some people and groups: everyone else, everywhere, finds it missing;
+  - **an issue, a comment or an article can be limited** to some people and groups: everyone else, everywhere, finds it missing (and what's under a limited article, D51);
   - **a field can be private** in a project: only people whose role may see private fields see it (managers do), and only those whose role may change them set it; to anyone else, everywhere, from search to email and Claude, it isn't there, and a chat channel or a webhook never gets it;
   - **guests** read a project opened to anyone, without signing in, and change nothing;
   - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;

@@ -1430,6 +1430,37 @@ YouTrack lets a project keep a field to some people: a private field, read only 
 
 **Revisit when:** a field should be private to named people or groups rather than by permission; a private field's history should show that something changed without what; or private fields should reach a webhook an administrator marks as trusted.
 
+### D51. Articles limited to some people: checked up the tree, and missing everywhere else
+
+D37 let an issue or a comment be limited to some people and groups, and planned the same for articles. An article now can be, in the same words and with the same picker, so a person learns one idea.
+
+- **Who sees a limited article.** The people and groups named, its author, the project's managers and administrators, as an issue's limit keeps its reporter and assignee. Nobody else: not who edited it since, who mentions it, or who wrote the articles under it; not guests.
+  - The author keeps it because they wrote it, as an issue's reporter does, and managers because they answer for the project. An article has no assignee, so nobody stands in for one.
+  - Editors don't keep it. Whoever edited it was inside the limit then; a limit narrowed has to take it from them, or narrowing would leave it with everyone who ever saved a version.
+  - Who may change the limit: whoever may change the article (the edit permission, and seeing it), as for an issue, and never away from themselves. It's an activity like an issue's ("Visible to", from and to), and the article's content keeps its version.
+- **Checked up the tree, not copied down.** An article is seen by who sees it and every article above it. Its own limit only narrows what those above allow, so a sub-article is never seen by someone who can't see its parent, by construction.
+  - Copying a parent's limit down was the other way. It reads one row instead of a chain, but every change of a limit would rewrite a subtree, a sub-article narrowed further would lose its own limit or need rules to merge two, and the rule would still need checking up the tree: a sub-article's author always sees it, and may not be in its parent's limit.
+  - So moving an article under a limited one hides it, and what's under it, at once, from everyone outside, and nothing is rewritten. Moving it out shows it to whoever its own limit lets, as moving a page in a wiki does: the move's form and `update_article`'s preview say who will see it there, and its history keeps the move. Whoever may move it may lift its limit too, so a move gives nobody a new power. A new sub-article starts with no limit of its own; its parent's covers it.
+- **Missing everywhere else, in the same words.** To anyone else a limited article, and everything under it, answers as one that doesn't exist:
+  - by id, and its versions and diffs, restoring, changing, moving and deleting it; and as a place to put another (the same 400 as an id that isn't there);
+  - the tree, whose places and counts are among what the caller sees, so no gap shows something there, and a place they give counts the same way; search and its total;
+  - mentions: an issue an article mentions doesn't list the article, and its id in an issue's or a comment's text stays as text, leading to a missing article, as D37 keeps a hidden issue's id; agents' words (triage's) have it taken out, "an article you can't see", as `redactUnseenIds` does an issue's;
+  - its files, listed, read as text, downloaded or shown in place;
+  - the event feed (as SQL, so pages and the cursor stay whole) and the live stream, its own events and its files', within D37's ten seconds of a change; webhooks carry none of them;
+  - MCP's tools and resources, and so the assistant, which works through them; and apps' widgets on it, which ask for it by id.
+  - Deleted while limited, or under a limited one, its history stays hidden: its deletion says it was limited, and it and its earlier events go only to who see all of its project.
+- **The seam.** `services/access.ts` has it twice, as for issues: as SQL, `articleSeenSql` (a recursive subquery from the few limited articles down, from a partial index), and over a row, `seesArticleRow` (one recursive query up). For whom to tell, it's `whoSeesArticle`. `eventSeen`, `eventsVisibleSql` and `eventLimited` ask `articleEventSeen`, `articleEventsSeenSql` and `articleEventLimited`, which know an article's events by the `data.article` they carry.
+- **Nothing to tell yet.** Articles have no watchers, and send no notification, email or push; chat unfurls only issues' links, and nothing exports articles. So nothing there could tell of one; when something does, `whoSeesArticle` says to whom.
+
+**What it costs.**
+- Every list of articles and every page of the feed carries one more subquery for anyone who manages nothing: the articles limited away from them, and what's under those. A lookup walks up the tree once.
+- Deleting an article with articles under it the caller can't see is refused (409) in words that say so, and never which or how many: the article can't go while they're there, and nothing else would explain why. That much the caller learns; a manager of the project sees them, and can move them.
+- An article's history keeps its moves' places as they were among all its siblings ("Position: 3 → 1"), so whoever reads it can count siblings they don't see.
+- Moving an article out from under a limited one widens who sees it, on purpose; the form says so before it's moved.
+- A limit changed just now can take ten seconds to reach an open live stream, as an issue's (D37).
+
+**Revisit when:** articles get watchers or notifications (`whoSeesArticle` says who's told); a knowledge base beyond one project comes (D19); or people want an article to keep its parent's limit when it moves out.
+
 ### D52. A project's key can be renamed, and the key it had stays its own
 
 A project's key (`BACK`, the start of `BACK-12`) can now change, as YouTrack's project ID can. Its issues keep their numbers, so `BACK-12` becomes `CORE-12`, and the key it had stays the project's for good.
@@ -1628,7 +1659,7 @@ D46 took GitHub's workflow runs as builds, through the integration's own webhook
 - **Reports' days** are in the time zone asked for (the web app sends the browser's), each day as it stood at its end. A report reads at most 400,000 events. A sprint's working days and holidays are those of the plan of the first of its board's projects the reader can see, so a board whose projects keep different calendars draws on the first's.
 - **An import** takes a CSV of 64 MB and 50,000 rows at most, one run per project at a time. One from an API reads up to 50,000 issues, each page of its answers 64 MB at most, and waits out a `Retry-After` of up to ten minutes at a time.
 - **Days away** count from a year before today to five years after; the engine plans everyone as there beyond that (D36).
-- **A limit on an issue or comment** reaches an open live stream within 10 seconds of being changed: each event's facts are kept that long (D37).
+- **A limit on an issue, a comment or an article** reaches an open live stream within 10 seconds of being changed: each event's facts are kept that long (D37, D51).
 - **A workflow script** runs for 250 ms (a guard for 60 ms) in 16 MB at most, is 20,000 characters at most, asks for 20 commands and 5 comments a run, and sees an issue's latest 20 comments and 100 links (D40).
 - **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). A project's key can be renamed; the key it had stays its own, so `BACK-12` finds `CORE-12`, and no other project can take `BACK` while it exists (D52).
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
@@ -1641,7 +1672,7 @@ Planned, with the seams already in place:
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
 - being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - days away from an HR calendar (D36);
-- articles limited to some people, and guests on boards, reports and plans (D37);
+- guests on boards, reports and plans (D37);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);

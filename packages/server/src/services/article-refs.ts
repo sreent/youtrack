@@ -4,7 +4,7 @@ import type { Ctx } from '../context';
 import type { Db } from '../db/client';
 import { articles } from '../db/schema';
 import { notFound } from '../lib/errors';
-import { assertCanReadProject } from './access';
+import { assertCanReadProject, projectAccess, seesArticleRow } from './access';
 import { parseReadableId } from './issue-refs';
 import { projectByKey, type SchemaSnapshot } from './schema-cache';
 
@@ -35,16 +35,21 @@ export async function findArticle(db: Db, s: SchemaSnapshot, id: string): Promis
   return row;
 }
 
-/** The article, if the actor may read its project; a hidden one looks like a missing one. */
+/**
+ * The article, if the actor may read its project and it isn't limited away from them, nor is any
+ * article above it (D51); a hidden one looks like a missing one.
+ */
 export async function resolveArticle(ctx: Ctx, id: string, db: Db = ctx.db): Promise<ArticleRow> {
   const s = await ctx.app.schema.get(db);
   const row = await findArticle(db, s, id);
   const hint = parseReadableId(id) ? `${id.trim()} is an issue's id; an article's has an A in it, like BACK-A-3.` : 'Use a readable id such as BACK-A-3.';
-  if (!row) throw notFound(`Article ${id}`, hint).said('articles.articleNotFound', { id, idTrim: id.trim(), issueId: parseReadableId(id) ? 'yes' : 'no' });
+  const missing = () => notFound(`Article ${id}`, hint).said('articles.articleNotFound', { id, idTrim: id.trim(), issueId: parseReadableId(id) ? 'yes' : 'no' });
+  if (!row) throw missing();
   // One the caller can't see answers in the very words of one that doesn't exist.
   await assertCanReadProject(ctx, row.projectId, db).catch(() => {
-    throw notFound(`Article ${id}`, hint).said('articles.articleNotFound', { id, idTrim: id.trim(), issueId: parseReadableId(id) ? 'yes' : 'no' });
+    throw missing();
   });
+  if (!(await seesArticleRow(await projectAccess(ctx, db), db, row))) throw missing();
   return row;
 }
 

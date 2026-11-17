@@ -10,7 +10,7 @@ import type { AppServices, Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments, issues, mentions } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
-import { commentSeenSql, projectAccess, seenIssueIds, visibleProjectIds } from './access';
+import { commentSeenSql, projectAccess, seenArticleIds, seenIssueIds, visibleProjectIds } from './access';
 import { currentIds } from './aliases';
 import { articleRefsById } from './article-refs';
 import { findIssue } from './issues';
@@ -79,7 +79,8 @@ export async function mentionsOf(ctx: Ctx, target: string, opts: { exceptArticle
     .limit(500);
   const seen = await seenIssueIds(ctx, rows.map((r) => r.issueId).filter((x): x is string => Boolean(x)));
   const issueIds = [...seen];
-  const articleIds = [...new Set(rows.map((r) => r.articleId).filter((x): x is string => Boolean(x) && x !== opts.exceptArticle))];
+  // An article limited away from the caller, or under one that is (D51), mentions nothing to them.
+  const articleIds = [...(await seenArticleIds(ctx, rows.map((r) => r.articleId).filter((x): x is string => Boolean(x) && x !== opts.exceptArticle)))];
   const [issueRefs, articleRefs] = await Promise.all([issueRefsById(ctx.db, s, issueIds), articleRefsById(ctx.db, s, articleIds)]);
   const byId = (x: { id: string }, y: { id: string }) => x.id.localeCompare(y.id, undefined, { numeric: true });
   return { issues: [...issueRefs.values()].sort(byId).slice(0, 100), articles: [...articleRefs.values()].sort(byId).slice(0, 100) };

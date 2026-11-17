@@ -636,7 +636,7 @@ export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapsho
 export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   const named = [...new Set(text.match(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g) ?? [])];
-  if (!named.length) return text;
+  if (!named.length) return redactUnseenArticleIds(ctx, text);
   const rows: { readable: string; id: string }[] = [];
   for (const id of named) {
     const key = keyOfReadableId(id);
@@ -647,7 +647,7 @@ export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   }
   const seen = await seenIssueIds(ctx, rows.map((r) => r.id));
   const hidden = new Set(rows.filter((r) => !seen.has(r.id)).map((r) => r.readable.toUpperCase()));
-  return redactHiddenIds(text, view, s).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? 'an issue you can’t see' : id));
+  return redactUnseenArticleIds(ctx, redactHiddenIds(text, view, s).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? 'an issue you can’t see' : id)));
 }
 
 const LINK_EVENTS = ['link.created', 'link.deleted'];
@@ -722,6 +722,7 @@ export async function eventSeen(
   opts: { fresh?: boolean } = {},
 ): Promise<boolean> {
   if (!eventVisible(view, s, e)) return false;
+  if (!(await articleEventSeen(view, db, s, e, opts))) return false;
   if (view.admin || !e.issue) return true;
   const { issue, comment, target } = await eventFacts(db, s, e, opts.fresh);
   // A limited issue that's gone (its deletion, or what it was before): only who saw all of its project.
@@ -739,8 +740,9 @@ export async function eventSeen(
  * Whether an event is about something limited (D37): its issue, its comment, or a link's other
  * end, or an issue that was limited when it was deleted. Webhooks don't carry these.
  */
-export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'issue' | 'data'>): Promise<boolean> {
+export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
   if ((e.data as { limited?: unknown } | undefined)?.limited === true) return true;
+  if (await articleEventLimited(db, s, e)) return true;
   if (!e.issue) return false;
   const { issue, comment, target } = await eventFacts(db, s, e);
   return Boolean(issue?.limited || comment?.limited || target?.limited);
@@ -778,6 +780,8 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
       sql`(${activities.payload}->'data'->>'commentId' IS NULL OR NOT EXISTS (SELECT 1 FROM comments seen_c WHERE seen_c.id = ${activities.payload}->'data'->>'commentId' AND NOT ${commentSeen}))`,
     );
   }
+  const articleSeen = articleEventsSeenSql(view);
+  if (articleSeen) parts.push(articleSeen);
   return sql`(${sql.join(parts, sql` AND `)})`;
 }
 
@@ -1076,4 +1080,233 @@ export async function assertCanSetFields(ctx: Ctx, projectId: string, fieldIds: 
   const hidden = touched.find((id) => !seesField(view, s, projectId, id));
   if (hidden) throw unknown(hidden);
   await assertCanProject(ctx, projectId, 'editPrivate', db);
+}
+
+// ---------------------------------------------------------------------------
+// Who sees an article that is limited (D51)
+// ---------------------------------------------------------------------------
+
+/** An article's own limit, and where it sits: what deciding who sees it needs. */
+export type ArticleLimits = Limits & { id: string; projectId: string; parentId: string | null; createdById: string | null };
+
+/**
+ * Whether the viewer sees an article as far as its own limit goes, leaving the articles above it
+ * aside: its author, the people and groups named, the project's managers and administrators.
+ */
+export function seesArticleItself(view: AccessView, row: Limits & { projectId: string; createdById: string | null }): boolean {
+  if (!row.limited || view.seesAllIn(row.projectId)) return true;
+  if (view.guest || !view.userId) return false;
+  return row.createdById === view.userId || listedIn(view, row);
+}
+
+/** `seesArticleItself` as SQL over an `articles` row. */
+function articleItselfSeenSql(view: AccessView, alias: string): SQL {
+  const a = ident(alias);
+  const parts: SQL[] = [sql`NOT ${a}.limited`];
+  const managed = view.managedIds();
+  if (managed.length) parts.push(sql`${a}.project_id IN (${list(managed)})`);
+  if (!view.guest && view.userId) {
+    parts.push(sql`${a}.created_by_id = ${view.userId}`, sql`${view.userId} = ANY(${a}.visible_user_ids)`);
+    if (view.groupIds.length) parts.push(sql`${a}.visible_group_ids && ARRAY[${list(view.groupIds)}]::text[]`);
+  }
+  return sql`(${sql.join(parts, sql` OR `)})`;
+}
+
+/**
+ * A subquery of the ids of the articles limited away from the viewer, and of every article under
+ * one: from the few that are limited, down the tree. It names nothing outside, so it runs once.
+ */
+function unseenArticlesSql(view: AccessView): SQL {
+  return sql`WITH RECURSIVE unseen_a (id, project_id) AS (
+      SELECT ua.id, ua.project_id FROM articles ua WHERE ua.limited AND NOT ${articleItselfSeenSql(view, 'ua')}
+      UNION
+      SELECT uc.id, uc.project_id FROM articles uc JOIN unseen_a ON uc.project_id = unseen_a.project_id AND uc.parent_id = unseen_a.id
+    ) SELECT id FROM unseen_a`;
+}
+
+/**
+ * SQL over an `articles` row (as `alias`): whether the viewer sees it, as far as limits go: neither
+ * it nor any article above it is limited away from them (the project is checked apart). Undefined
+ * when they see every article they can reach.
+ */
+export function articleSeenSql(view: AccessView, alias = 'articles'): SQL | undefined {
+  if (view.admin) return undefined;
+  return sql`${ident(alias)}.id NOT IN (${unseenArticlesSql(view)})`;
+}
+
+/** An article and every article above it, itself first, with their limits: one query. */
+export async function articleChain(db: Db, articleId: string): Promise<ArticleLimits[]> {
+  const res = await db.execute(sql`
+    WITH RECURSIVE up AS (
+      SELECT a.id, a.project_id, a.parent_id, a.created_by_id, a.limited, a.visible_user_ids, a.visible_group_ids, 0 AS depth FROM articles a WHERE a.id = ${articleId}
+      UNION ALL
+      SELECT a.id, a.project_id, a.parent_id, a.created_by_id, a.limited, a.visible_user_ids, a.visible_group_ids, up.depth + 1
+      FROM articles a JOIN up ON a.id = up.parent_id WHERE up.depth < 200
+    )
+    SELECT id, project_id AS "projectId", parent_id AS "parentId", created_by_id AS "createdById", limited,
+      visible_user_ids AS "visibleUserIds", visible_group_ids AS "visibleGroupIds"
+    FROM up ORDER BY depth
+  `);
+  return (res as unknown as { rows: ArticleLimits[] }).rows;
+}
+
+/**
+ * Whether the viewer sees an article in a project they read: neither it nor any article above it
+ * is limited away from them (D51). A sub-article is never seen by someone who can't see its parent.
+ */
+export async function seesArticleRow(view: AccessView, db: Db, row: ArticleLimits): Promise<boolean> {
+  if (view.seesAllIn(row.projectId)) return true;
+  if (!seesArticleItself(view, row)) return false;
+  if (!row.parentId) return true;
+  return (await articleChain(db, row.parentId)).every((a) => seesArticleItself(view, a));
+}
+
+/** Of these article ids, the ones the caller sees: in a project they read, and not limited away from them (D51). */
+export async function seenArticleIds(ctx: Ctx, ids: readonly string[], db: Db = ctx.db): Promise<Set<string>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Set();
+  const view = await projectAccess(ctx, db);
+  const seen = articleSeenSql(view, 'articles');
+  const res = await db.execute(sql`SELECT articles.id, articles.project_id AS "projectId" FROM articles WHERE articles.id IN (${list(unique)})${seen ? sql` AND ${seen}` : sql``}`);
+  const rows = (res as unknown as { rows: { id: string; projectId: string }[] }).rows;
+  return new Set(rows.filter((r) => view.canRead(r.projectId)).map((r) => r.id));
+}
+
+/**
+ * Of these people, those who see an article, as each would signing in: they reach its project, and
+ * neither it nor any article above it is limited away from them (D51). For whom to tell of it.
+ */
+export async function whoSeesArticle(db: Db, articleId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const chain = await articleChain(db, articleId);
+  if (!chain.length) return new Set();
+  const grants = await projectGrantsOf(db, chain[0]!.projectId, [...userIds]);
+  const limited = chain.filter((a) => a.limited);
+  const out = new Set<string>();
+  const rest: string[] = [];
+  for (const [id, g] of grants) {
+    if (!limited.length || g.permissions.has('manage')) out.add(id);
+    else rest.push(id);
+  }
+  if (!rest.length) return out;
+  const groupIds = [...new Set(limited.flatMap((a) => a.visibleGroupIds))];
+  const theirs = new Map<string, string[]>();
+  if (groupIds.length) {
+    const rows = await db
+      .select({ userId: groupMembers.userId, groupId: groupMembers.groupId })
+      .from(groupMembers)
+      .where(and(inArray(groupMembers.userId, rest), inArray(groupMembers.groupId, groupIds)));
+    for (const r of rows) theirs.set(r.userId, [...(theirs.get(r.userId) ?? []), r.groupId]);
+  }
+  for (const id of rest) {
+    const groups = theirs.get(id) ?? [];
+    if (limited.every((a) => a.createdById === id || a.visibleUserIds.includes(id) || a.visibleGroupIds.some((g) => groups.includes(g)))) out.add(id);
+  }
+  return out;
+}
+
+/** 3 for an event about BACK-A-3: its own events, and its files' (`data.article`). Null for any other event. */
+function articleNumberOf(e: Pick<TrackerEvent, 'data'>): number | null {
+  const id = (e.data as { article?: { id?: unknown } } | undefined)?.article?.id;
+  const m = typeof id === 'string' ? /-A-(\d+)$/i.exec(id.trim()) : null;
+  return m ? Number(m[1]) : null;
+}
+
+type ArticleFacts = { chain: ArticleLimits[] | null; goneLimited: boolean };
+/** An article event's article and those above it, kept a moment as an issue event's facts are (D37). */
+const articleFactsCache = new Map<number, { at: number; facts: Promise<ArticleFacts> }>();
+
+function articleFacts(db: Db, projectId: string, number: number, eventId: number, fresh = false): Promise<ArticleFacts> {
+  const hit = articleFactsCache.get(eventId);
+  if (!fresh && hit && Date.now() - hit.at < 10_000) return hit.facts;
+  const facts = (async (): Promise<ArticleFacts> => {
+    const res = await db.execute(sql`SELECT id FROM articles WHERE project_id = ${projectId} AND number = ${number}`);
+    const id = (res as unknown as { rows: { id: string }[] }).rows[0]?.id;
+    if (id) return { chain: await articleChain(db, id), goneLimited: false };
+    // Gone: hidden still if it was limited when it was deleted, or sat under an article that was.
+    const gone = await db.execute(sql`
+      SELECT 1 AS found FROM activities g
+      WHERE g.type = 'article.deleted' AND g.payload->'data'->>'limited' = 'true' AND g.project_id = ${projectId}
+        AND split_part(g.payload->'data'->'article'->>'id', '-', 3) = ${String(number)}
+      LIMIT 1
+    `);
+    return { chain: null, goneLimited: (gone as unknown as { rows: unknown[] }).rows.length > 0 };
+  })();
+  if (articleFactsCache.size > 2000) articleFactsCache.clear();
+  articleFactsCache.set(eventId, { at: Date.now(), facts });
+  return facts;
+}
+
+/**
+ * Whether the viewer sees an event about an article (its own, or its files'): neither it nor an
+ * article above it is limited away from them, and, gone, it wasn't limited when it went (D51).
+ * Any other event passes.
+ */
+export async function articleEventSeen(
+  view: AccessView,
+  db: Db,
+  s: SchemaSnapshot,
+  e: Pick<TrackerEvent, 'id' | 'project' | 'data'>,
+  opts: { fresh?: boolean } = {},
+): Promise<boolean> {
+  const number = articleNumberOf(e);
+  if (number === null || view.admin) return true;
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  // An article's event outlives its project only for administrators.
+  if (!p) return false;
+  if (view.seesAllIn(p.id)) return true;
+  const { chain, goneLimited } = await articleFacts(db, p.id, number, e.id, opts.fresh);
+  if (!chain) return !goneLimited && (e.data as { limited?: unknown } | undefined)?.limited !== true;
+  return chain.every((a) => seesArticleItself(view, a));
+}
+
+/** Whether an event is about an article that is limited, or sits under one, or was when it was deleted (D51). */
+export async function articleEventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'project' | 'data'>): Promise<boolean> {
+  const number = articleNumberOf(e);
+  if (number === null) return false;
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  if (!p) return true;
+  const { chain, goneLimited } = await articleFacts(db, p.id, number, e.id);
+  return chain ? chain.some((a) => a.limited) : goneLimited || (e.data as { limited?: unknown } | undefined)?.limited === true;
+}
+
+/** `articleEventSeen` as SQL over `activities`, so a feed's pages and its cursor stay whole. */
+export function articleEventsSeenSql(view: AccessView): SQL | undefined {
+  if (view.admin) return undefined;
+  const ref = sql`(${activities.payload}->'data'->'article'->>'id')`;
+  const number = sql`split_part(${ref}, '-', 3)`;
+  const managed = view.managedIds();
+  const inManaged = managed.length ? sql`${activities.projectId} IN (${list(managed)})` : sql`FALSE`;
+  return sql`(${ref} IS NULL OR ${inManaged} OR (${activities.projectId} IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM articles seen_ea WHERE seen_ea.project_id = ${activities.projectId} AND seen_ea.number::text = ${number} AND seen_ea.id IN (${unseenArticlesSql(view)}))
+    AND NOT EXISTS (SELECT 1 FROM activities seen_gone WHERE seen_gone.type = 'article.deleted' AND seen_gone.payload->'data'->>'limited' = 'true'
+      AND seen_gone.project_id = ${activities.projectId} AND split_part(seen_gone.payload->'data'->'article'->>'id', '-', 3) = ${number})))`;
+}
+
+const ARTICLE_ID = /\b([A-Za-z][A-Za-z0-9]*)-A-(\d+)\b/gi;
+
+/**
+ * Words an agent wrote, with the ids of articles the caller can't see taken out (D51), as
+ * `redactUnseenIds` takes out issues': in a project they can't read, or limited away from them.
+ */
+export async function redactUnseenArticleIds(ctx: Ctx, text: string): Promise<string> {
+  const named = [...new Set([...text.matchAll(ARTICLE_ID)].map((m) => m[0].toUpperCase()))];
+  if (!named.length) return text;
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const hidden = new Set<string>();
+  const found: { readable: string; id: string }[] = [];
+  for (const readable of named) {
+    const [key, , number] = readable.split('-');
+    const p = s.projectsByKey.get(key!);
+    if (!p) continue;
+    if (!view.canRead(p.id)) {
+      hidden.add(readable);
+      continue;
+    }
+    const res = await ctx.db.execute(sql`SELECT id FROM articles WHERE project_id = ${p.id} AND number = ${Number(number)}`);
+    const id = (res as unknown as { rows: { id: string }[] }).rows[0]?.id;
+    if (id) found.push({ readable, id });
+  }
+  const seen = await seenArticleIds(ctx, found.map((f) => f.id));
+  for (const f of found) if (!seen.has(f.id)) hidden.add(f.readable);
+  return hidden.size ? text.replace(ARTICLE_ID, (id) => (hidden.has(id.toUpperCase()) ? 'an article you can’t see' : id)) : text;
 }

@@ -1,7 +1,9 @@
 /**
  * The knowledge base: articles in a tree per project, with every saved version kept.
  *
- * - An article belongs to a project, and the project's access is the article's.
+ * - An article belongs to a project, and the project's access is the article's. It can also be
+ *   limited to some people and groups (D51), and then so is everything under it: who can't see an
+ *   article sees nothing under it, checked up the tree.
  * - Its id is BACK-A-3: numbered per project, gap-free and never reused, so links stay good.
  * - Changes to a project's tree serialise on its counter row, so concurrent moves can't make
  *   a cycle, and siblings keep a dense order.
@@ -16,6 +18,7 @@ import type {
   Change,
   CreateArticleInput,
   UpdateArticleInput,
+  VisibleToInput,
 } from '@a4a/shared';
 import { and, asc, count, desc, eq, inArray, isNull, ne, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
@@ -27,13 +30,14 @@ import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { prefixTsQuery } from '../search/compiler';
-import { assertCanReadProject, assertCanWriteProject, requireProject, visibleProjectIds } from './access';
+import { articleChain, articleSeenSql, assertCanWriteProject, projectAccess, requireProject, seenArticleIds, seesArticleItself, seesArticleRow, visibleProjectIds } from './access';
 import { articleReadableId, articleRef, findArticle, resolveArticle, type ArticleRow } from './article-refs';
 import { readableId } from './issue-refs';
 import { resolveIssue } from './issues';
 import { indexMentions, mentionsOf } from './mentions';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
+import { describeLimits, resolveVisibleTo, sameLimits, visibleToDtos } from './visibility';
 
 export { findArticle, resolveArticle };
 
@@ -41,17 +45,8 @@ export { findArticle, resolveArticle };
 // DTOs
 // ---------------------------------------------------------------------------
 
-async function childCounts(db: Db, ids: string[]): Promise<Map<string, number>> {
-  if (!ids.length) return new Map();
-  const rows = await db
-    .select({ parentId: articles.parentId, n: count() })
-    .from(articles)
-    .where(inArray(articles.parentId, ids))
-    .groupBy(articles.parentId);
-  return new Map(rows.map((r) => [r.parentId!, Number(r.n)]));
-}
-
-function articleDto(s: SchemaSnapshot, row: ArticleRow, parents: Map<string, ArticleRow | { projectId: string; number: number }>, children: number): Article {
+/** `position` and `children` count only the articles the caller sees (D51), so none they can't see takes a place. */
+function articleDto(s: SchemaSnapshot, row: ArticleRow, parents: Map<string, ArticleRow | { projectId: string; number: number }>, children: number, position = row.position): Article {
   const project = s.projects.get(row.projectId)!;
   const parent = row.parentId ? parents.get(row.parentId) : undefined;
   const by = (id: string | null) => {
@@ -65,9 +60,10 @@ function articleDto(s: SchemaSnapshot, row: ArticleRow, parents: Map<string, Art
     project: { id: project.id, key: project.key, name: project.name },
     title: row.title,
     parent: parent ? articleReadableId(s, parent) : null,
-    position: row.position,
+    position,
     childCount: children,
     version: row.version,
+    limited: row.limited,
     createdBy: by(row.createdById),
     updatedBy: by(row.updatedById),
     createdAt: row.createdAt.toISOString(),
@@ -75,16 +71,14 @@ function articleDto(s: SchemaSnapshot, row: ArticleRow, parents: Map<string, Art
   };
 }
 
-async function articleDtos(ctx: Ctx, rows: ArticleRow[], known: ArticleRow[] = rows): Promise<Article[]> {
-  const s = await ctx.app.schema.get();
-  const byId = new Map<string, ArticleRow | { projectId: string; number: number }>(known.map((r) => [r.id, r]));
-  const missing = [...new Set(rows.map((r) => r.parentId).filter((p): p is string => Boolean(p) && !byId.has(p!)))];
-  if (missing.length) {
-    const parents = await ctx.db.select({ id: articles.id, projectId: articles.projectId, number: articles.number }).from(articles).where(inArray(articles.id, missing));
-    for (const p of parents) byId.set(p.id, p);
-  }
-  const counts = await childCounts(ctx.db, rows.map((r) => r.id));
-  return rows.map((r) => articleDto(s, r, byId, counts.get(r.id) ?? 0));
+/** Its place among the articles beside it that the caller sees (D51). */
+async function seenPosition(ctx: Ctx, row: ArticleRow, seen: SQL | undefined): Promise<number> {
+  if (!seen) return row.position;
+  const [r] = await ctx.db
+    .select({ n: count() })
+    .from(articles)
+    .where(and(eq(articles.projectId, row.projectId), parentIs(row.parentId), sql`${articles.position} < ${row.position}`, seen));
+  return Number(r?.n ?? 0);
 }
 
 /** The articles a row sits under, from the top. */
@@ -107,20 +101,26 @@ async function ancestors(db: Db, row: ArticleRow): Promise<ArticleRow[]> {
 
 export async function articleDetail(ctx: Ctx, row: ArticleRow): Promise<ArticleDetail> {
   const s = await ctx.app.schema.get();
-  const [path, children, files] = await Promise.all([
+  // What's under it, as the caller sees it: an article limited away from them is missing (D51).
+  const seen = articleSeenSql(await projectAccess(ctx), 'articles');
+  const under = eq(articles.parentId, row.id);
+  const [path, children, files, [visibleTo], position] = await Promise.all([
     ancestors(ctx.db, row),
-    ctx.db.select().from(articles).where(eq(articles.parentId, row.id)).orderBy(asc(articles.position), asc(articles.number)),
+    ctx.db.select().from(articles).where(seen ? and(under, seen) : under).orderBy(asc(articles.position), asc(articles.number)),
     ctx.db.select({ n: count() }).from(attachments).where(eq(attachments.articleId, row.id)),
+    visibleToDtos(ctx.db, s, [row]),
+    seenPosition(ctx, row, seen),
   ]);
-  const [base] = await articleDtos(ctx, [row], [row, ...path]);
   const rid = articleReadableId(s, row);
   return {
-    ...base!,
+    ...articleDto(s, row, new Map(path.map((p) => [p.id, p])), children.length, position),
     body: row.body,
     path: path.map((p) => articleRef(s, p)),
     children: children.map((c) => articleRef(s, c)),
     mentionedIn: await mentionsOf(ctx, rid, { exceptArticle: row.id }),
     attachmentCount: Number(files[0]?.n ?? 0),
+    visibleTo: visibleTo ?? null,
+    limitedAbove: path.filter((p) => p.limited).map((p) => articleRef(s, p)),
   };
 }
 
@@ -135,22 +135,28 @@ export async function articleTree(ctx: Ctx, projectKey: string): Promise<Article
   const s = await ctx.app.schema.get();
   // A project the caller can't see is missing, in the same words, and no hint names others.
   const project = await requireProject(ctx, projectKey, 'read');
+  const view = await projectAccess(ctx);
   const rows = await ctx.db.select().from(articles).where(eq(articles.projectId, project.id)).orderBy(asc(articles.position), asc(articles.number));
   const under = new Map<string | null, ArticleRow[]>();
   for (const r of rows) under.set(r.parentId, [...(under.get(r.parentId) ?? []), r]);
-  const ordered: ArticleRow[] = [];
-  const seen = new Set<string>();
-  const walk = (parent: string | null) => {
+  const ordered: { row: ArticleRow; position: number; children: number }[] = [];
+  const done = new Set<string>();
+  // From the top down: an article limited away from the caller is missing, and so is everything
+  // under it (D51); those left are numbered among themselves. Returns how many it placed.
+  const walk = (parent: string | null): number => {
+    let placed = 0;
     for (const r of under.get(parent) ?? []) {
-      if (seen.has(r.id)) continue;
-      seen.add(r.id);
-      ordered.push(r);
-      walk(r.id);
+      if (done.has(r.id) || !seesArticleItself(view, r)) continue;
+      done.add(r.id);
+      const entry = { row: r, position: placed++, children: 0 };
+      ordered.push(entry);
+      entry.children = walk(r.id);
     }
+    return placed;
   };
   walk(null);
   const byId = new Map(rows.map((r) => [r.id, r]));
-  return ordered.map((r) => articleDto(s, r, byId, (under.get(r.id) ?? []).length));
+  return ordered.map((e) => articleDto(s, e.row, byId, e.children, e.position));
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +216,24 @@ async function closeUp(tx: Db, projectId: string, parentId: string | null): Prom
   }
 }
 
+/**
+ * Where a place counted among the articles under `parentId` that the caller sees (D51) falls among
+ * them all: just before the one they see there, or just after the last one they see.
+ */
+async function placeAmongAll(ctx: Ctx, tx: Db, projectId: string, parentId: string | null, articleId: string, index: number): Promise<number> {
+  if ((await projectAccess(ctx, tx)).seesAllIn(projectId)) return index;
+  const siblings = await tx
+    .select({ id: articles.id })
+    .from(articles)
+    .where(and(eq(articles.projectId, projectId), parentIs(parentId), ne(articles.id, articleId)))
+    .orderBy(asc(articles.position), asc(articles.number));
+  const seen = await seenArticleIds(ctx, siblings.map((x) => x.id), tx);
+  const shown = siblings.filter((x) => seen.has(x.id));
+  if (shown.length === siblings.length) return index;
+  if (index < shown.length) return siblings.findIndex((x) => x.id === shown[index]!.id);
+  return shown.length ? siblings.findIndex((x) => x.id === shown[shown.length - 1]!.id) + 1 : siblings.length;
+}
+
 /** Whether `candidate` sits somewhere under `ancestor`. */
 async function isUnder(tx: Db, candidate: string, ancestor: string): Promise<boolean> {
   const res = await tx.execute(sql`
@@ -223,9 +247,10 @@ async function isUnder(tx: Db, candidate: string, ancestor: string): Promise<boo
   return (res as unknown as { rows: unknown[] }).rows.length > 0;
 }
 
-async function parentInProject(tx: Db, s: SchemaSnapshot, project: ProjectRow, parent: string): Promise<ArticleRow> {
+async function parentInProject(ctx: Ctx, tx: Db, s: SchemaSnapshot, project: ProjectRow, parent: string): Promise<ArticleRow> {
   const row = await findArticle(tx, s, parent);
-  if (!row || row.projectId !== project.id) {
+  // One limited away from the caller (D51) is no place of theirs, in the very words of one that isn't there.
+  if (!row || row.projectId !== project.id || !(await seesArticleRow(await projectAccess(ctx, tx), tx, row))) {
     throw badRequest(`${parent} is not an article in ${project.key}`, `An article sits under another article of its own project, such as ${project.key}-A-1.`).said('articles.parentNotInProject', { parent, key: project.key });
   }
   return row;
@@ -252,10 +277,12 @@ export async function createArticle(ctx: Ctx, input: CreateArticleInput): Promis
   if (project.archived) throw badRequest(`Project ${project.key} is archived`).said('articles.projectArchived', { key: project.key });
   const title = cleanTitle(input.title);
   const body = input.body ?? '';
+  // Its author always sees it, so no limit hides it from whoever writes it (D51).
+  const limits = await resolveVisibleTo(ctx.db, s, input.visibleTo);
   const { row, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const number = await nextNumber(tx, project.id);
-    const parent = input.parent ? await parentInProject(tx, s, project, input.parent) : null;
+    const parent = input.parent ? await parentInProject(ctx, tx, s, project, input.parent) : null;
     const id = newId();
     await tx.insert(articles).values({
       id,
@@ -267,8 +294,10 @@ export async function createArticle(ctx: Ctx, input: CreateArticleInput): Promis
       body,
       createdById: ctx.actor.user.id,
       updatedById: ctx.actor.user.id,
+      ...limits,
     });
-    await place(tx, project.id, parent?.id ?? null, id, input.position);
+    const at = input.position === undefined ? undefined : await placeAmongAll(ctx, tx, project.id, parent?.id ?? null, id, input.position);
+    await place(tx, project.id, parent?.id ?? null, id, at);
     const [row] = await tx.select().from(articles).where(eq(articles.id, id));
     await tx.insert(articleVersions).values(versionRow(ctx, id, 1, title, body));
     const rid = articleReadableId(s, row!);
@@ -323,14 +352,15 @@ export async function updateArticle(ctx: Ctx, id: string, input: UpdateArticleIn
     if (moving) {
       if (input.parent === null) parentId = null;
       else if (input.parent !== undefined) {
-        const parent = await parentInProject(tx, s, project, input.parent);
+        const parent = await parentInProject(ctx, tx, s, project, input.parent);
         if (parent.id === row.id) throw badRequest(`${rid} can't sit under itself`).said('articles.underItself', { rid });
         if (await isUnder(tx, parent.id, row.id)) {
           throw badRequest(`${articleReadableId(s, parent)} sits under ${rid}, so ${rid} can't go under it`, `Move ${articleReadableId(s, parent)} out from under ${rid} first, or choose another place.`).said('articles.underItsChild', { parent: articleReadableId(s, parent), rid });
         }
         parentId = parent.id;
       }
-      const at = await place(tx, row.projectId, parentId, row.id, input.position ?? (parentId === row.parentId ? row.position : undefined));
+      const wanted = input.position === undefined ? undefined : await placeAmongAll(ctx, tx, row.projectId, parentId, row.id, input.position);
+      const at = await place(tx, row.projectId, parentId, row.id, wanted ?? (parentId === row.parentId ? row.position : undefined));
       if (parentId !== row.parentId) {
         await tx.update(articles).set({ parentId }).where(eq(articles.id, row.id));
         await closeUp(tx, row.projectId, row.parentId);
@@ -382,18 +412,68 @@ export async function deleteArticle(ctx: Ctx, id: string): Promise<void> {
     const rid = articleReadableId(s, row);
     const [{ n } = { n: 0 }] = await tx.select({ n: count() }).from(articles).where(eq(articles.parentId, row.id));
     if (Number(n) > 0) {
+      const seen = articleSeenSql(await projectAccess(ctx, tx), 'articles');
+      const [{ shown } = { shown: 0 }] = seen ? await tx.select({ shown: count() }).from(articles).where(and(eq(articles.parentId, row.id), seen)) : [{ shown: n }];
+      // Articles the caller can't see hold it up: it says so, and never which or how many (D51).
+      if (Number(shown) < Number(n)) {
+        const key = s.projects.get(row.projectId)?.key ?? '';
+        throw conflict(`${rid} has articles under it that only some people see`, `A manager of ${key} sees them, and can move them.`).said('articles.hasHiddenChildren', { rid, key });
+      }
       throw conflict(`${rid} has ${Number(n) === 1 ? 'an article' : `${n} articles`} under it`, 'Move them elsewhere, or delete them first.').said('articles.hasChildren', { rid, n: Number(n) });
     }
+    // Limited, or under an article that is, its history stays hidden once it's gone (D51).
+    const limited = (await articleChain(tx, row.id)).some((a) => a.limited);
     await tx.delete(articles).where(eq(articles.id, row.id));
     await closeUp(tx, row.projectId, row.parentId);
     return recordActivity(tx, ctx, {
       type: 'article.deleted',
       projectId: row.projectId,
       issueId: null,
-      payload: { data: { article: articleRef(s, row), version: row.version } },
+      payload: { data: { article: articleRef(s, row), version: row.version, ...(limited ? { limited: true } : {}) } },
     });
   });
   await publishActivities(ctx.app, [activity]);
+}
+
+/**
+ * Limit who sees an article to some people and groups, or lift the limit (D51). Whoever may change
+ * it may, never away from themselves. What's under it follows, as it's checked up the tree. A
+ * change like any other: in its history, with the edit permission; its content keeps its version.
+ */
+export async function setArticleVisibility(ctx: Ctx, id: string, input: VisibleToInput | null): Promise<ArticleDetail> {
+  requireScope(ctx, 'write');
+  const s = await ctx.app.schema.get();
+  const found = await resolveArticle(ctx, id);
+  await assertCanWriteProject(ctx, found.projectId);
+  const limits = await resolveVisibleTo(ctx.db, s, input);
+  const result = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const [row] = await tx.select().from(articles).where(eq(articles.id, found.id)).for('update');
+    if (!row) throw notFound(`Article ${id}`, 'It was deleted just now.').said('articles.deletedJustNow', { id });
+    const rid = articleReadableId(s, row);
+    if (sameLimits(limits, row)) return { row, activity: null as ActivityRow | null };
+    // Nobody limits an article away from themselves: they'd lose it the moment they saved.
+    if (!seesArticleItself(await projectAccess(ctx, tx), { ...row, ...limits })) {
+      throw badRequest(`That would hide ${rid} from you`, 'Add yourself, or a group you are in, to who sees it.').said('articles.wouldHide', { rid });
+    }
+    const [after] = await tx
+      .update(articles)
+      .set({ ...limits, updatedAt: new Date(), updatedById: ctx.actor.user.id })
+      .where(eq(articles.id, row.id))
+      .returning();
+    const activity = await recordActivity(tx, ctx, {
+      type: 'article.updated',
+      projectId: row.projectId,
+      issueId: null,
+      payload: {
+        changes: [{ field: 'Visible to', from: await describeLimits(tx, s, row), to: await describeLimits(tx, s, limits) }],
+        data: { article: { ...articleRef(s, after!), url: articleUrl(ctx, rid) }, version: row.version, visibilityChanged: true },
+      },
+    });
+    return { row: after!, activity };
+  });
+  if (result.activity) await publishActivities(ctx.app, [result.activity]);
+  return articleDetail(ctx, result.row);
 }
 
 // ---------------------------------------------------------------------------
@@ -515,6 +595,9 @@ export async function searchArticles(ctx: Ctx, opts: { query?: string; project?:
   }
   const visible = await visibleProjectIds(ctx);
   if (visible !== null) conds.push(visible.length ? sql`a.project_id IN (${sql.join(visible.map((v) => sql`${v}`), sql`, `)})` : sql`FALSE`);
+  // Limited away from the caller, or under one that is, it matches nothing and counts for nothing (D51).
+  const seen = articleSeenSql(await projectAccess(ctx), 'a');
+  if (seen) conds.push(seen);
   const text = (opts.query ?? '').trim().slice(0, 500);
   const tsq = text ? prefixTsQuery(text) : null;
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
