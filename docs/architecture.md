@@ -1394,6 +1394,37 @@ People who use a4a don't all read English. a4a says its own words in each person
 
 **Revisit when:** a right-to-left language comes; people want a project's own words (its states, its fields) in several languages; or the API should answer in its caller's language.
 
+### D54. Git hosts as a4a itself: GitHub Apps, and Forgejo accounts people connect
+
+A GitHub integration read GitHub (the commits a build holds, D46) with a person's access token, and people connected their GitHub, GitLab or Bitbucket accounts but not one at a Forgejo or Gitea. Now a GitHub integration can read as a GitHub App, and people connect a Forgejo or Gitea account as they do the others.
+
+**GitHub as an App.** A person's token reads as that person: it stops when they leave or it expires, and reaches whatever they can. A GitHub App acts as itself, and reads only what each installation gave it.
+
+- **Given, and checked first.** An administrator gives a GitHub integration an app: its id (or client id), one of its private keys, and its installation if a4a can't find it. a4a asks GitHub before keeping anything: the key is taken (`GET /app`); the installation is the one named, else the one on the repository the integration is named after (`GET /repos/{repository}/installation`), else the app's only one; it isn't suspended; and its token reads the repository. Each failure says what's wrong and what to do: a key GitHub refuses (the server's clock among the causes), an app not installed on the repository, several installations and no word which, an installation gone or suspended, an app that may not read contents, a repository its installation wasn't given.
+- **Kept.** The private key is sealed with SECRET_KEY (D38's secret box) and never shown again; the app's name and the installation's account are kept, to show.
+- **A token at a time.** a4a signs a JSON web token (RS256, issued a minute back for clocks that drift, ten minutes long, as GitHub asks) and trades it for the installation's token, asking for `contents: read` and nothing more. GitHub lets that token live an hour; a4a keeps it in memory, per integration, until five minutes before then, and never writes it down. Reads at once share one exchange. GitHub can end a token early (an installation removed, its permissions changed): a read refused with 401 drops it and takes another, once. Each instance takes its own.
+- **One seam.** `readWith(app, integration, request)` in `vcs/tokens.ts` reads a provider's API as an integration, with its app or its token, and says in a ReadError what went wrong. Builds' compare reads through it, and so can whatever reads a provider next.
+- **Its webhook.** A GitHub App has one webhook, for every repository it's installed on. It can be the integration's: the integration's URL and secret go in the app's settings, and its deliveries are signed as a repository's are, so nothing else changes. The integrations page says how: Contents, Pull requests and Actions read-only, and the Push, Pull request and Workflow run events.
+- **Switching.** An integration reads with a token or as an app, never both: giving it an app removes its token, giving it a token removes the app, and both at once is refused. The integrations page says why to switch where a token is kept. A test of the integration takes a new token as the app, so an installation removed since shows at once; where a build reads, the delivery's log says it.
+- GitHub Enterprise Server's API address works as before, for the app's calls too.
+
+**Forgejo and Gitea accounts people connect.** D46's connect, at a Forgejo or a Gitea. Both are self-hosted, so an administrator gives the instance's address beside its OAuth app's id and secret (`FORGEJO_URL`, `FORGEJO_CLIENT_ID`, `FORGEJO_CLIENT_SECRET`, or `GITEA_*`), as GitLab's self-managed address is given; there's no default instance. They're one provider in a4a, `gitea`, as their webhooks are (D33): both answer the same OAuth2 and API, and what differs is only the name a person sees, the one the administrator set up.
+
+- An authorization code with PKCE (S256), the app's secret sent by the server, and `read:user` asked for, which an instance that grants scopes reads as reading who you are.
+- `GET /api/v1/user` says whose the token is: its id and login become the person's provider login, as D33's are, matched without regard to case. The token is dropped, and the refresh token with it.
+- The state is bound to the person who started it, for ten minutes, once, as D46's is.
+
+`VCS_ALLOW_HTTP_LOOPBACK` lets a GitHub API address and a Forgejo be plain http on this machine, for the browser suite, whose server runs as production does.
+
+**What it costs.**
+- An app is more to set up than a token: the app, its permissions and events, a key, an installation. The page walks through it.
+- Each instance takes its own token, about one an hour per integration, against an installation's limit of at least 5,000 requests an hour.
+- An integration reads through one installation. An app installed on several accounts, whose one webhook brings every repository's deliveries to one integration, reads only the repositories of that installation; for the others, a build holds the commits a4a saw pushed, and its log says why.
+- A key sealed with one SECRET_KEY can't be opened with another: the integration then says to give it its app again.
+- An instance that doesn't grant scopes gives the token its default reach; a4a uses it once, to ask who it is.
+
+**Revisit when:** an app installed on several accounts should read each repository through its own installation; builds should report back to GitHub as the app (check runs); or Forgejo's tokens should be narrowed where an instance doesn't take scopes.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1449,6 +1480,7 @@ People who use a4a don't all read English. a4a says its own words in each person
 - **Webhooks:** signed with HMAC-SHA256 over the raw body. Only admins can create them, because the server will POST to the URL given (server-side request forgery to internal addresses is the admin's call). A workflow rule calls only a webhook an administrator chose for it, only over https (or to this machine), and only an administrator makes such a rule (D32).
 - **Email:** unsubscribe links are signed (HMAC-SHA256, a key in settings) and checked in constant time; they only ever stop email. HTML email carries no images, scripts or styles, and quotes what people wrote as written.
 - **The help desk:** its public routes need no sign-in and reveal nothing beyond one request (D24); tracking tokens are hashed; its form has a CSRF token tied to a `SameSite=Strict` cookie and an Origin check; anonymous posts are size-limited and rate-limited, and a hidden field catches bots. docs/mcp-and-api.md (8a) says what's missing.
+- **Reading as a GitHub App:** its private key is sealed with SECRET_KEY and never shown; the installation tokens it's traded for read contents only, last an hour, and live in memory alone (D54).
 - **Deliveries from version control:** checked (signature or token, in constant time) before anything is read; rate-limited; refusals logged at a bounded rate. Commands in commits run only as their author in a4a, known by a confirmed email or a login an administrator recorded (D33), and only where they can change issues (D26). Bitbucket is read only on the address an administrator gave, following no redirects. Links from a payload are shown only if they are http(s).
 - **Confirming an email:** by a link whose token is kept as a hash, works once, for a day, and only for the person who added the email, signed in; at most five go an hour (D33). An API token can't change emails.
 - **Mail into a help desk:** a provider's post needs the desk's secret (HTTP Basic, hashed, constant time), and refusals are limited per address. A reply speaks for the requester only from their address and with what only they had (a reply address's token, or an email's random Message-ID). Nothing set aside or refused is answered, so forged senders get no mail; a receiving server's DMARC failure is refused. Mail's HTML is read as words, never shown (D30).

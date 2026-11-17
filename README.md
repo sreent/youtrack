@@ -36,7 +36,8 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **Custom actions**: named commands or scripts per project, shown as buttons on the issues they're offered for, and run by name as commands too.
 - **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
 - **Builds from CI** (D46): GitHub Actions' workflow runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
-- **People connect their own accounts** at GitHub, GitLab and Bitbucket from their profile, by signing in there, so their commits are theirs without an administrator.
+- **People connect their own accounts** at GitHub, GitLab, Bitbucket, and a Forgejo or Gitea, from their profile, by signing in there, so their commits are theirs without an administrator.
+- **GitHub as an App** (D54): a GitHub integration reads as a GitHub App rather than with a person's token, with the app's id, its private key and its installation, which a4a finds. Its tokens last an hour and are kept only in memory, and the app's own webhook can be the integration's.
 - **More importers**: GitHub Issues, Redmine, and Zendesk into a help desk (requesters, public replies and internal notes), beside YouTrack and Jira.
 - **VS Code**: an extension with your issues, an issue beside the code, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
@@ -294,12 +295,14 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | empty | A GitHub OAuth app people connect their GitHub accounts through, from their profile (D46). Its callback: `PUBLIC_URL/api/v1/auth/code-hosts/github/callback`. `GITHUB_URL` for GitHub Enterprise Server |
 | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` | empty | The same for GitLab (an application with the `read_user` scope; callback `…/code-hosts/gitlab/callback`). `GITLAB_URL` for a self-managed GitLab |
 | `BITBUCKET_CLIENT_ID`, `BITBUCKET_CLIENT_SECRET` | empty | The same for Bitbucket Cloud (an OAuth consumer with Account read; its callback URL `…/code-hosts/bitbucket/callback`) |
+| `FORGEJO_URL`, `FORGEJO_CLIENT_ID`, `FORGEJO_CLIENT_SECRET` | empty | The same for a Forgejo (D54): its address, and an OAuth2 application made there, confidential, with the redirect URI `…/code-hosts/gitea/callback`. `GITEA_URL`, `GITEA_CLIENT_ID` and `GITEA_CLIENT_SECRET` for a Gitea instead; with both, Forgejo's is used |
 | `IMPORT_ALLOW_HOSTS` | empty | Comma-separated host names an import may read from although they are inside the network, such as a YouTrack or Jira of your own. Every other host must be public; https always |
 | `IMPORT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets an import read over plain http from this machine |
 | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID` | empty | A Teams bot (D42): its Entra app's id and client secret, and the one tenant it serves. All three, or none |
 | `TEAMS_SERVICE_HOSTS` | Bot Framework's | More hosts a Teams service URL may name, comma-separated, beside Bot Framework's own (`smba.trafficmanager.net` and the government clouds') |
 | `SLACK_API_URL` | `https://slack.com/api` | Slack's Web API. Slack itself is connected on the Chat page, with its app's token and signing secret |
 | `CHAT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets chat services be reached over plain http on this machine |
+| `VCS_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets a GitHub API address and a Forgejo or Gitea be reached over plain http on this machine |
 | `APP_CATALOGS` | — | App catalogs to install from: https addresses of JSON indexes, comma-separated (D48) |
 | `APP_TRUSTED_KEYS` | — | Ed25519 public keys (PEM, or base64 of the 32 bytes), comma-separated, that apps from a signing catalog must be signed with |
 | `APP_MAX_MB` | `5` | The largest app package |

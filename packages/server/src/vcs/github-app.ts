@@ -201,7 +201,8 @@ export async function findGithubApp(api: string, given: AppGiven, repository: st
   } else {
     const all = read(z.array(Installation), await ask(api, '/app/installations?per_page=100', jwt), api);
     if (!all.length) throw appProblems.notInstalled();
-    if (all.length > 1) throw appProblems.whichInstallation(all.map((i) => `${i.account?.login ?? '?'} (${i.id})`).join(', '));
+    // The first ten, as the account and its id: enough to choose by, short enough to read.
+    if (all.length > 1) throw appProblems.whichInstallation(`${all.slice(0, 10).map((i) => `${i.account?.login ?? '?'} (${i.id})`).join(', ')}${all.length > 10 ? ', …' : ''}`);
     installation = all[0]!;
   }
   const installationId = String(installation.id);
