@@ -7,12 +7,12 @@
 import { IntlMessageFormat, type PrimitiveType } from 'intl-messageformat';
 
 /** The languages there are catalogs for. A new one is a catalog and a line here (docs/translating.md). */
-export const LOCALES = ['en', 'de', 'es', 'fr', 'ja'] as const;
+export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Each language by its own name, as a person looking for theirs reads it. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語', ko: '한국어' };
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
@@ -130,8 +130,8 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
   return target === 'project' ? (events === 'all' ? 'projectAll' : 'projectNew') : events === 'all' ? 'searchAll' : 'searchNew';
 }
 
-/** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。. */
-const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '' };
+/** What goes between two sentences said one after the other: a space, but nothing after Japanese's 。 (Korean's . takes one). */
+const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '', ko: ' ' };
 
 /** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
 /** Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has. */
