@@ -104,7 +104,8 @@ test.describe('in another time zone', () => {
     await you.getByRole('button', { name: 'Use your browser’s, Asia/Tokyo' }).click();
     await expect(zone).toHaveValue('Asia/Tokyo');
     await you.getByRole('button', { name: 'Save the changes' }).click();
-    await expect(you.getByRole('status')).toHaveText('Saved.');
+    // The subscriptions reload in the new zone, and their loading line is a status of its own.
+    await expect(you.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Notifications', exact: true })).toContainText('at 08:00 your time (Asia/Tokyo)');
 
     await page.reload();
