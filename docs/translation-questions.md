@@ -216,6 +216,38 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
 - `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
+## Brazilian Portuguese
+
+`pt.json` was written in one pass, all 5,467 messages, by a model working from English, the code and the section in [translating.md](translating.md), with German's, French's and Japanese's catalogs beside it. Nobody has read it a second time, and no native speaker has read it at all.
+
+Terms:
+
+- **Issue is *item***, as Jira's Brazilian Portuguese says it ("Criar item", "Tipo de item"). *Tarefa* would collide with the Task type, *chamado* and *tíquete* read as a support desk's, and *issue* is what many Brazilian teams say, in English. Is *item* what readers expect in a tracker that isn't Jira?
+- **Zero takes the singular**: CLDR's and gettext's pt_BR rule put 0 in `one`, so a count says "0 item", "0 dia de atraso", as the norm says "zero hora". Everyday writing often says "0 itens". The issue list's count line puts the count last ("Itens no projeto SPR, não resolvidos: 4", as Spanish and French do), so it never chooses; elsewhere, should the catalog add `=0` branches?
+- **The help desk is the *central de atendimento***: plain to the customers who read its emails, but long in a heading. *Help desk*, *atendimento* or *suporte* are the alternatives; Jira Service Management's Brazilian Portuguese says *projeto de serviço* and *central de ajuda*.
+- **Subscribe is *assinar*** (Jira's "Assinaturas"), where GitHub and YouTube say *inscrever-se*; and **watch is *acompanhar***, where Jira says *observar*.
+- **An issue's summary is its *título***, not Jira's *Resumo*, since the assistant writes a *resumo* of an issue and the daily digest is a *resumo diário*.
+- **Reporter**: *relatar*, "Relatado por", "quem relatou". Jira's field is *Relator*; many teams say *reportar*.
+- **Roles**: *administrador*, *gerente*, *membro*, *leitor*, *convidado*, and a sentence says "tem o papel membro", never "é membro". *Leitor* and *convidado* are masculine words for anyone; "Somente leitura" and "Acesso de convidado" would be neutral, as French chose.
+- **Sign in is *entrar*, and a person's handle is their *login***, so "Entre com seu login" and "Login do a4a" sit side by side.
+- **Link is *vínculo* and *vincular*** (Jira's), for issues and for chat accounts alike; **merge is *mesclar*** (GitHub's and Microsoft's Brazilian Portuguese), where developers often say *fazer merge*; **secret is *segredo***; **an app is *app***, masculine, not *aplicativo*.
+- **Earned value uses the abbreviations of the PMBOK Guide in Brazilian Portuguese**: VA, VP, CR, IDC, IDP, VC, VPR, ONT, ENT, EPT, VNT, formulas included ("ONT ÷ IDC"). Many Brazilian project managers say EV, PV, CPI and SPI. Is VPR right for schedule variance?
+- **Timesheet is *planilha de horas***; Brazilian companies also say *apontamento de horas*, or *timesheet*.
+- **An HTTP request is a *requisição***, kept apart from a help desk's *solicitação*.
+- **"Your address"** in the help desk's limits (`problem.helpdesk.tooManyFromAddress` and its siblings) is *seu endereço de rede*, so a customer doesn't read it as their email address.
+
+Phrasing:
+
+- **A rule's sentence** (`rules.words.whenSentence`, `scheduleSentence`) reads "Quando um item é criado, se corresponder a Type: Bug, então aplicar Assignee anna." The trigger pieces are shared with the webhooks' events, so they're in the present ("um item é criado"); a person would write "Quando um item for criado, …, aplicar …". Does *então* earn its place?
+- **The ledger's badges** are lower-case nouns ("exclusão de item", "registro de trabalho"), as English's are lower case.
+- **Days away** (`away.daysAway.addedAway`, `changedAway`, `removedWhoNoLongerAway`, `away.words.away`): a date can be "sex., 4 de dez." or "a manhã de sex., 4 de dez.", so sentences take it after *para* or in brackets: "Ausência adicionada para a manhã de sex., 4 de dez.: …".
+- **Asking an administrator**: the sign-in pages say "Peça a quem administra o a4a", neutral; the rest says "Peça a um administrador". Should one win?
+- **Gender left unguessed costs length**: "a pessoa solicitante", "a pessoa responsável", "quem o relatou". Check the badges and narrow columns at 390px, and say where a shorter word would do.
+- **The navigation's groups** (`app.shell.*`): Trabalho, Planejar → Plano, Decidir, Construir (Projects, Rules, Fields, Import) and Supervisionar (Activity, Agents and tokens, Webhooks, Integrations, Chat, Administration).
+- **Date formats in problems** are written AAAA-MM-DD, as Brazil describes one; what a person types is still 2026-11-20, and the query language's keywords (today, tomorrow) stay English.
+- **The chat bot's help** (`server.chat.help`) keeps its commands and their straight quotes in English (`subscribe "My bugs"`), so they copy as typed.
+- **Imports' statuses** agree with *importação* (concluída, pronta, parada), and a rule is *ela* while a script is *ele*: "Ela roda um script".
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
@@ -226,3 +258,6 @@ These need the code to change, not a catalog:
 - **A rule run's changes** (`rules.run.changed`, `alsoChanged`) are fields and values the server joins with English punctuation: "State: Open → Fixed; Priority: — → High".
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
 - **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese would use 「、」.
+- **A span of days away** is joined in code with an English " to " (`whenWords` in `apps/web/src/features/away/words.ts`), so every language reads "2 to 6 dez.". It needs a message of its own.
+- **Portuguese's contractions with a value**: a product's or a desk's name takes an article in Portuguese ("do GitHub", "na central de atendimento de X"). The catalog writes the article into the message, so it assumes a masculine product (identity providers, trackers, chat platforms) and leaves the desk's name without one (`server.helpdesk.deskOf`, `server.portal.deskOf`).
+- **An email's `lang`**: mail is composed with `<html lang="en">` whatever its language (`packages/server/src/mail/compose.ts`), so a screen reader reads a Portuguese email with an English voice.

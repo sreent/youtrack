@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese and French are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Brazilian Portuguese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -117,7 +117,7 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French or Japanese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese or Brazilian Portuguese yet; [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews couldn't settle.
 
 ## Adding a language
 
@@ -191,6 +191,7 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | single sign-on | inicio de sesión único |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
+| request (HTTP) | requisição |
 | secret | secreto |
 | commit, pull request, branch | commit, pull request (la), rama |
 | build (CI) | compilación |
@@ -387,19 +388,20 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Buttons are infinitives**, without an article, as Brazilian software writes them: "Salvar", "Cancelar", "Salvar alterações", "Excluir campo". A status line is a participle or a gerund: "Salvo.", "Salvando…".
 - **What just happened** is the *pretérito perfeito*: "O campo foi excluído.", "Você saiu.". History and notifications, which carry their time, say it the same way: "comentou", "atribuiu a você".
 - **An issue is *item***, masculine, so what refers to one agrees with it: "o item", "Relatado por", "resolvido", "item criado". Tarefa stays free for the Task type people name, and the assistant's summary of an issue is a *resumo*, so an issue's summary is its *título*.
-- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "a pessoa responsável", "a pessoa solicitante", "quem relatou o item", "as pessoas que acompanham", "quem tiver acesso". Nouns that don't change are welcome: *responsável*, *solicitante*, *agente*, *gerente*, *membro*, *líder*. A participle about the reader turns into a verb or a noun: "Você entrou como {name}" (not "conectado"), "Você assina…" (not "inscrito"), "Boas-vindas" (not "Bem-vindo"), "Agradecemos" (not "Obrigado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gerente*, *membro*, *leitor*, *convidado*; in a sentence a role follows "o papel", bare and lower-cased ("{name} agora tem o papel membro"), never "é membro", and a guest is "com acesso de convidado".
+- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "a pessoa responsável", "a pessoa solicitante", "quem relatou o item", "as pessoas que acompanham", "quem tiver acesso". Nouns that don't change are welcome: *responsável*, *solicitante*, *agente*, *gerente*, *membro*, *líder*. A participle about the reader or a person named turns into a verb or a noun: "Você entrou como {name}" (not "conectado"), "Você não assina mais {name}" (not "inscrito"), "recebeu uma menção" (not "foi mencionado"), "{name} agora tem acesso" (not "foi adicionado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gerente*, *membro*, *leitor*, *convidado*; in a sentence a role follows "o papel", bare and lower-cased ("{name} agora tem o papel membro"), never "é membro", and a guest is "com acesso de convidado".
 - **Typography**: quotation marks are “…”, and ‘…’ inside them; the ellipsis is one character (…). No space before ":", "?", ";" or "%" ("50%", as Intl writes it), a space before a unit ("30 s", "3,5 h"). Sentence case in headings, labels and buttons; weekdays and months are lower case, as Intl writes them. "e-mail", with its hyphen.
 - **Counts**: Brazilian Portuguese's `one` takes in 0 as well as 1 (CLDR's rule, and gettext's long-standing `n > 1` for pt_BR), so "0 item" is singular, as "zero hora" is. A message that says "um" or "uma" for one takes `=1` beside it: `{n, plural, =1 {um item} other {# itens}}`. A number the page passes bare ("{banned} banned") takes a plural of its own. A participle that would agree with a number turns: "bloqueados: {banned}".
 - **Pieces a page joins**:
-  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the *pretérito perfeito*, with no subject: "criou {issue}", "comentou", "relatou e atribuiu a você". A badge is a noun: "Exclusão do item".
-  - A webhook's events are joined by the language's list after "Quando", each a clause in the present passive: "um item é criado", "um comentário é adicionado".
-  - A rule is one sentence: "Quando um item é criado, se corresponder a Type: Bug, aplicar Assignee anna." Its trigger is a clause after "Quando", its conditions follow "se", and its actions are infinitives; the rule's own words in `<t0>` are the words that join them.
-  - **A loading line is a whole message**, one per thing (`loadingLine.*`), "Carregando" and its article: "Carregando o plano…", "Carregando as solicitações…", "Carregando suas assinaturas…", "Carregando {name}…", and "Carregando…" when nothing is named.
+  - The activity ledger, an issue's history and notifications show who in bold, then what was done. So an action is a verb phrase in the *pretérito perfeito*, with no subject: "criou {issue}", "comentou em {issue}", "relatou o item e o atribuiu a você". A badge is a lower-case noun, as English's is lower case: "exclusão de item". A title that counts several people's changes puts the count first, so its verb needn't agree: "2 alterações de Anna e Ben".
+  - A webhook's events follow "Quando", each a clause in the present: "um item é criado", "um comentário é excluído", "alguém comenta".
+  - A rule is one sentence: "Quando um item é criado, se corresponder a Type: Bug, então aplicar Assignee anna." Its trigger is the same clause as a webhook's event, its conditions follow "se", and its actions are infinitives after "então"; the rule's own words in `<t0>` are the words that join them.
+  - **A loading line is a whole message**, one per thing (`loadingLine.*`), "Carregando" and its article: "Carregando o plano…", "Carregando os agentes…", "Carregando suas solicitações…", "Carregando {name}…", and "Carregando…" when nothing is named.
+  - **A date in a sentence** may be a day or a part of one ("sex., 4 de dez.", "a manhã de sex., 4 de dez."), so a sentence takes it after *para* or in brackets, never after a preposition that would need to contract with it: "Ausência adicionada para {whenWords}: …".
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded whole in Portuguese, with its own article and agreement, and every case stays: `{state, select, merged {mesclado} closed {fechado} other {aberto}}`. Where English says nothing for a value, Portuguese keeps it in an empty branch, as Japanese does: `{n, plural, other {}}`.
-- **Problems** say what went wrong, then the fix, in the *você* imperative: "Login ou senha incorretos.", "O item não foi encontrado. Confira o ID ou peça acesso a quem administra o projeto." Free text from elsewhere (`{message}`, `{error}`, a parser's `{problem}`, another tracker's words) brings its own full stop: none follows it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
-- **You and your**: a label that names the reader's own things says *seu* or *sua* ("Seus tokens", "Suas solicitações", "Seus painéis"), or nothing where the owner is plain ("Perfil", "Timer"). *Você* stays where the reader must be told from someone else: "age como você", "como {login}, não como você".
-- **The help desk** is the *central de atendimento*; a request is a *solicitação*, and whoever asks is the *solicitante*. Its emails to requesters are a company's to a customer, in *você*: "Você recebe este e-mail porque fez uma solicitação à central de atendimento de {desk}." The portal is the *portal*.
-- **Data stays as named**, field names included where English gives them as examples ("State e Assignee apenas"); examples of the query and command languages stay as they are, and examples of plain words for the assistant to read are Portuguese.
+- **Problems** say what went wrong, then the fix, in the *você* imperative: "Login ou senha incorretos.", "Este quadro não usa sprints. Ative as sprints no quadro primeiro." Something not found is the thing, then *não encontrado*: "Item {id} não encontrado. Use um ID legível, como BACK-12." A date where a sentence ends gets a colon instead, since Brazil's short dates end in a point ("nov."). Free text from elsewhere (`{message}`, `{error}`, a parser's `{problem}`, another tracker's words) brings its own full stop: none follows it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
+- **You and your**: a label that names the reader's own things says *seu* or *sua*, as Brazilian software does: "Seu perfil", "Seus tokens", "Suas solicitações", "Seu timer". *Você* stays where the reader must be told from someone else: "Cada um age como você", "uma ferramenta age como {login}, não como você".
+- **The help desk** is the *central de atendimento*, and *a central* once it's named; a request is a *solicitação* (an HTTP request is a *requisição*), and whoever asks is the *solicitante*. Its emails to requesters are a company's to a customer, in *você*: "Você recebe isto porque pediu ajuda à {desk}." A desk's name comes without its article (`server.helpdesk.deskOf`), so each sentence contracts it as Portuguese does: *à*, *na*, *da*. The portal is the *portal*.
+- **Data stays as named**, field names included where English gives them as examples ("Só State e Assignee"), and so does a field a page falls back on by name (a report's Priority and State); examples of the query and command languages stay as they are, and examples of plain words for the assistant to read are Portuguese.
 - **Dates and numbers** come from Intl: "16 de nov. de 2026", "1.234,5", "há 3 minutos".
 
 | English | Brazilian Portuguese |
@@ -411,10 +413,10 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | lead (of a project) | líder do projeto |
 | board | quadro |
 | sprint | sprint, feminine: "a sprint", as the Scrum Guide's Portuguese says |
-| committed (a sprint's commitment) | compromisso: "no compromisso", "fora do compromisso" |
+| committed (a sprint's commitment) | comprometido |
 | blocker | impedimento |
 | backlog | backlog |
-| help desk | central de atendimento; "o atendimento" where the desk is plain |
+| help desk | central de atendimento; "a central" once it's named |
 | SLA at risk, breached | em risco, violado |
 | request (help desk) | solicitação |
 | requester | solicitante; "a pessoa solicitante" where an article would choose a gender |
@@ -426,7 +428,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | agent | agente |
 | assistant (its name), the assistant | assistente, o assistente |
 | conversation (with the assistant) | conversa |
-| workflow | fluxo de trabalho |
+| workflow | fluxo de trabalho; a CI's own (GitHub Actions') stays *workflow* |
 | rule | regra |
 | if (a rule's or a transition's condition) | se |
 | state machine | máquina de estados |
@@ -438,7 +440,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | notification | notificação |
 | digest | resumo diário |
 | subscription, subscribe | assinatura, assinar (Jira's) |
-| watch, watcher | acompanhar, "Acompanhado por", "quem acompanha" |
+| watch, watcher | acompanhar, "quem acompanha" |
 | timesheet | planilha de horas |
 | work logged, log time, work item | trabalho registrado, registrar tempo, registro de trabalho |
 | estimate | estimativa |
@@ -451,7 +453,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | baseline | linha de base |
 | earned value, earned | valor agregado, agregado (as Brazil's PMBOK says) |
 | cost and schedule performance (CPI, SPI) | desempenho de custo e de prazo (IDC, IDP) |
-| what-if | simulação; the button is "E se…?" |
+| what-if | simulação; the button is "E se…" |
 | milestone | marco |
 | triage | triagem |
 | suggestion | sugestão |
