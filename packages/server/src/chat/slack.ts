@@ -467,6 +467,8 @@ export async function slackIssueShortcut(app: AppServices, ws: WorkspaceRow, pay
     slackCall(app, token, 'chat.getPermalink', { channel: channelId, message_ts: message.ts }, { timeoutMs: QUICK_MS }).catch(() => null),
     slackNames(app, ws, [...(message.user ? [message.user] : []), ...slackMentions(text)]),
   ]);
+  // Slack not answering isn't a4a missing from the channel: said as what it is.
+  if (info instanceof ChatCallError && info.outcome === 'retry') return open(noticeView(tr, tr.t('server.chat.issue.didntAnswer', { platform: platformName('slack') })));
   const channel = info instanceof Error ? null : (info as { channel?: { name?: string; is_member?: boolean; is_archived?: boolean } }).channel;
   const channelName = `#${channel?.name ?? (payload.channel as { name?: string } | undefined)?.name ?? channelId}`;
   if (!channel?.is_member || channel.is_archived) return open(noticeView(tr, tr.t('server.chat.issue.notInChannel', { platform: 'slack', channel: channelName })));
