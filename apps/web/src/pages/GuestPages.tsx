@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { ApiError, get } from '../api/client';
 import { Lone } from '../app/Auth';
-import { ago, StateBadge } from '../components/Badges';
+import { ago, agoSaid, StateBadge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
 import { t, tr } from '../i18n';
@@ -93,7 +93,7 @@ export function GuestHome() {
                       <strong>{i.id}</strong> {i.summary}
                     </Link>
                     <StateBadge fields={i.fields} />
-                    <span className="note">{tr('page.guestPages.updated', { when: ago(i.updatedAt) })}</span>
+                    <span className="note">{tr('page.guestPages.updated', { when: agoSaid(i.updatedAt) })}</span>
                   </li>
                 );
               })}
@@ -135,7 +135,7 @@ export function GuestIssue() {
       ) : null}
       {d ? (
         <article className="stack">
-          <p className="note">{tr('page.guestPages.reported', { id: d.id, name: d.project.name, when: ago(d.createdAt), v: d.reporter ? t('page.guestPages.by', { name: d.reporter.name }) : '' })}</p>
+          <p className="note">{tr('page.guestPages.reported', { id: d.id, name: d.project.name, when: agoSaid(d.createdAt), v: d.reporter ? t('page.guestPages.by', { name: d.reporter.name }) : '' })}</p>
           <h1>{d.summary}</h1>
           <dl className="fields-list">
             {d.fields

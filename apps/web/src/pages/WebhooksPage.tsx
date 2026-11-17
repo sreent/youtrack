@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, patch, post } from '../api/client';
 import { keys, useProjects, useWebhooks } from '../api/queries';
-import { ago, Badge } from '../components/Badges';
+import { agoSaid, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
@@ -153,7 +153,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
       <div className="hook-head">
         <div className="hook-what">
           <span className="mono hook-url">{hook.url}</span>
-          <span className="item-about">{tr('page.webhooks.added', { v: all ? t('page.webhooks.everyChange') : t('page.webhooks.when2', { join: hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(t('page.webhooks.or')) }), v2: hook.project ? t('page.webhooks.in', { v: projectName ?? hook.project }) : t('page.webhooks.inEveryProject'), when: ago(hook.createdAt) })}</span>
+          <span className="item-about">{tr('page.webhooks.added', { v: all ? t('page.webhooks.everyChange') : t('page.webhooks.when2', { join: hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(t('page.webhooks.or')) }), v2: hook.project ? t('page.webhooks.in', { v: projectName ?? hook.project }) : t('page.webhooks.inEveryProject'), when: agoSaid(hook.createdAt) })}</span>
         </div>
         {hook.active ? <Badge tone="good">{t('page.webhooks.sends')}</Badge> : <Badge tone="idle">{t('page.webhooks.paused')}</Badge>}
       </div>

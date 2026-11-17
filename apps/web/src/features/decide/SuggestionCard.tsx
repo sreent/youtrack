@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { post } from '../../api/client';
 import { useIssue, useMe } from '../../api/queries';
-import { ago, IssueLink } from '../../components/Badges';
+import { ago, agoSaid, IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { ErrorNote } from '../../components/States';
 import { Avatar } from '../../components/Who';
@@ -171,7 +171,7 @@ export function SuggestionCard({
   if (!said && !open) {
     const who = s.resolvedBy ? (s.resolvedBy.id === me.data?.id ? tx('decide.suggestionCard.you') : s.resolvedBy.name) : tx('decide.suggestionCard.someone');
     // The time is a value of the sentence, so a language puts it where it goes.
-    const when = s.resolvedAt ? ago(s.resolvedAt) : null;
+    const when = s.resolvedAt ? agoSaid(s.resolvedAt) : null;
     resolved =
       s.status === 'dismissed'
         ? when ? t('decide.suggestionCard.whoDismissedItWhen', { who: who, when: when }) : t('decide.suggestionCard.whoDismissedIt', { who: who })

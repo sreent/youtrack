@@ -7,7 +7,7 @@ import { CHAT_CHANGE_KINDS, CHAT_PLATFORM_NAMES, DEFAULT_CHAT_KINDS, type ChatCh
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, patch, post, qs } from '../../api/client';
-import { ago, Badge } from '../../components/Badges';
+import { agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
@@ -147,7 +147,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
       <td>
         <span className="tw:block tw:min-w-36">
           <UserWho user={s.createdBy} small />
-          <span className="item-about">{tr('chat.chat.subscribedIt', { when: ago(s.createdAt) })}</span>
+          <span className="item-about">{tr('chat.chat.subscribedIt', { when: agoSaid(s.createdAt) })}</span>
         </span>
       </td>
       <td className="fit">
@@ -315,7 +315,7 @@ export function ChatAccounts() {
               <span>
                 <span className="item-name">{tr('chat.chat.on', { name: a.name, v: CHAT_PLATFORM_NAMES[a.platform] })}</span>
                 <span className="item-about">
-                  {a.via === 'entra' ? t('chat.chat.teamsKnowsYouByYour') : t('chat.chat.linked', { workspace: a.workspace, when: ago(a.linkedAt) })}
+                  {a.via === 'entra' ? t('chat.chat.teamsKnowsYouByYour') : t('chat.chat.linked', { workspace: a.workspace, when: agoSaid(a.linkedAt) })}
                 </span>
               </span>
               {a.via === 'link' ? (

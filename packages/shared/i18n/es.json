@@ -5422,6 +5422,7 @@
   "server.query.you": "ti",
   "server.rule.itCompiles": "El script compila.",
   "ui.badges.justNow": "ahora mismo",
+  "ui.badges.onDate": "el {date}",
   "ui.badges.priority": "Prioridad",
   "ui.changes.added": "agregado",
   "ui.changes.customerGroup": "Grupo de clientes",

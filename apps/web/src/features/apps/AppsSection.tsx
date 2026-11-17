@@ -8,7 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { del, get, patch, post, put } from '../../api/client';
 import { useProjects } from '../../api/queries';
-import { ago } from '../../components/Badges';
+import { ago, agoSaid } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
@@ -286,7 +286,7 @@ function InstalledApp({ app }: { app: App }) {
           <li key={w}>{w}</li>
         ))}
       </ul>
-      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: ago(app.installedAt), v2: app.installedBy ? t('apps.appsSection.by', { name: app.installedBy.name }) : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
+      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: agoSaid(app.installedAt), v2: app.installedBy ? t('apps.appsSection.by', { name: app.installedBy.name }) : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
       <div className="cluster">
         <button type="button" className="small" onClick={() => change.mutate({ enabled: !app.enabled })} disabled={change.isPending}>
           {app.enabled ? t('apps.appsSection.turnItOff') : t('apps.appsSection.turnItOn')}

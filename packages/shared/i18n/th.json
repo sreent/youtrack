@@ -5422,6 +5422,7 @@
   "server.query.you": "คุณ",
   "server.rule.itCompiles": "คอมไพล์ผ่าน",
   "ui.badges.justNow": "เมื่อสักครู่",
+  "ui.badges.onDate": "{date}",
   "ui.badges.priority": "ความสำคัญ",
   "ui.changes.added": "เพิ่ม",
   "ui.changes.customerGroup": "กลุ่มลูกค้า",

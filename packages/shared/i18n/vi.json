@@ -5422,6 +5422,7 @@
   "server.query.you": "bạn",
   "server.rule.itCompiles": "Biên dịch thành công.",
   "ui.badges.justNow": "vừa xong",
+  "ui.badges.onDate": "vào ngày {date}",
   "ui.badges.priority": "Mức ưu tiên",
   "ui.changes.added": "đã thêm",
   "ui.changes.customerGroup": "Nhóm khách hàng",

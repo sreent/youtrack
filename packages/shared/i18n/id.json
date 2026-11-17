@@ -5422,6 +5422,7 @@
   "server.query.you": "Anda",
   "server.rule.itCompiles": "Dapat dikompilasi.",
   "ui.badges.justNow": "baru saja",
+  "ui.badges.onDate": "pada {date}",
   "ui.badges.priority": "Prioritas",
   "ui.changes.added": "ditambahkan",
   "ui.changes.customerGroup": "Grup pelanggan",

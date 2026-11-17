@@ -33,6 +33,7 @@ What the code gives a message is never English words to choose by:
 - **A role is its name alone** outside English, "ist jetzt {role}": English alone adds "a" or "an". A built-in role's name is a message (`roles.builtin.*`); one people made stays as named.
 - **A rule is one sentence** per kind (`rules.words.whenSentence`, `rules.words.scheduleSentence`): put its parts in your order.
 - **Sizes and numbers** come from Intl ("12,3 MB", "12,3 Mo"), never from the catalog.
+- **A time in a sentence** (`{when}`, `changed {when}`) is a relative one ("3 minutes ago", "vor 3 Minuten"), or after a week a day, with the words `ui.badges.onDate` puts before it ("on 16 Nov", "am 16. Nov."; Japanese's, Korean's, Chinese's and Thai's take it bare). Word the sentence so both read: German's "geändert {when}", not "zuletzt geändert: {when}".
 
 ## The voice
 

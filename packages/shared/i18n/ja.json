@@ -5422,6 +5422,7 @@
   "server.query.you": "あなた",
   "server.rule.itCompiles": "コンパイルに成功しました。",
   "ui.badges.justNow": "たった今",
+  "ui.badges.onDate": "{date}",
   "ui.badges.priority": "優先度",
   "ui.changes.added": "追加",
   "ui.changes.customerGroup": "顧客グループ",

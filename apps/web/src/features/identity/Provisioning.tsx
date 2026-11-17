@@ -2,7 +2,7 @@ import type { ScimToken, ScimTokenCreated } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post } from '../../api/client';
-import { ago } from '../../components/Badges';
+import { agoSaid } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { CopyButton } from '../common/CopyButton';
@@ -53,7 +53,7 @@ export function ProvisioningSection() {
             <li key={t.id} className="cluster">
               <span>
                 <strong>{t.name}</strong> <span className="mono">{t.prefix}…</span>{' '}
-                <span className="note">{t.lastUsedAt ? tx('identity.provisioning.used', { when: ago(t.lastUsedAt) }) : tx('identity.provisioning.notUsedYet')}</span>
+                <span className="note">{t.lastUsedAt ? tx('identity.provisioning.used', { when: agoSaid(t.lastUsedAt) }) : tx('identity.provisioning.notUsedYet')}</span>
               </span>
               <button type="button" className="small" onClick={() => revoke.mutate(t)} disabled={revoke.isPending} aria-label={tx('identity.provisioning.revokeSToken', { name: t.name })}>{tx('identity.provisioning.revoke')}</button>
             </li>

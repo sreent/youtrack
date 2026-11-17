@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useProjects } from '../api/queries';
-import { ago, Chip } from '../components/Badges';
+import { agoSaid, Chip } from '../components/Badges';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { FormField } from '../features/common/bits';
@@ -106,7 +106,7 @@ export default function WhiteboardsPage() {
                   <Link to={`/whiteboards/${w.id}`}>{w.name}</Link>
                   <Chip mono>{w.project.key}</Chip>
                 </div>
-                <p className="note">{t('page.whiteboards.row', { n: w.elements, when: ago(w.updatedAt) })}</p>
+                <p className="note">{t('page.whiteboards.row', { n: w.elements, when: agoSaid(w.updatedAt) })}</p>
               </li>
             ))}
           </ul>

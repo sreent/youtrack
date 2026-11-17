@@ -79,16 +79,29 @@ export function IssueLink({ id, children }: { id: string; children?: React.React
 
 /** "just now", "5 minutes ago", then the day: in the page's language (D49). */
 export function ago(iso: string, now = Date.now()): string {
+  return agoParts(iso, now).text;
+}
+
+/**
+ * As `ago`, inside a sentence ("changed {when}"): a day takes the words a sentence puts before one,
+ * `ui.badges.onDate` ("changed on 16 Nov", "geändert am 16. Nov.", Japanese's bare 「11月16日に変更」).
+ */
+export function agoSaid(iso: string, now = Date.now()): string {
+  const { text, isDate } = agoParts(iso, now);
+  return isDate ? t('ui.badges.onDate', { date: text }) : text;
+}
+
+function agoParts(iso: string, now: number): { text: string; isDate: boolean } {
   const at = new Date(iso).getTime();
   const s = Math.round((now - at) / 1000);
-  if (s < 45) return t('ui.badges.justNow');
+  if (s < 45) return { text: t('ui.badges.justNow'), isDate: false };
   const m = Math.round(s / 60);
-  if (m < 60) return formatRelative(-m, 'minute');
+  if (m < 60) return { text: formatRelative(-m, 'minute'), isDate: false };
   const h = Math.round(m / 60);
-  if (h < 24) return formatRelative(-h, 'hour');
+  if (h < 24) return { text: formatRelative(-h, 'hour'), isDate: false };
   const d = Math.round(h / 24);
-  if (d < 7) return formatRelative(-d, 'day');
-  return formatDate(iso, { day: 'numeric', month: 'short', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+  if (d < 7) return { text: formatRelative(-d, 'day'), isDate: false };
+  return { text: formatDate(iso, { day: 'numeric', month: 'short', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }), isDate: true };
 }
 
 export function Time({ iso, exact }: { iso: string; exact?: boolean }) {

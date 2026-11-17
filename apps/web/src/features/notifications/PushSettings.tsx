@@ -6,7 +6,7 @@ import type { EmailLevel, Me, PushKey } from '@a4a/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { get } from '../../api/client';
-import { ago } from '../../components/Badges';
+import { agoSaid } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said } from '../common/bits';
 import { useNotificationSettings, useSaveNotificationSettings } from './api';
@@ -136,7 +136,7 @@ export function PushSettings({ me }: { me: Me }) {
                 <strong>{d.label}</strong>
                 {d.current ? <span className="badge">{t('notifications.pushSettings.thisDevice')}</span> : null}{' '}
                 <span className="note">
-                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: ago(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: ago(d.createdAt) })}
+                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: agoSaid(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: agoSaid(d.createdAt) })}
                 </span>
               </span>
               <button

@@ -5422,6 +5422,7 @@
   "server.query.you": "나",
   "server.rule.itCompiles": "컴파일됩니다.",
   "ui.badges.justNow": "방금",
+  "ui.badges.onDate": "{date}",
   "ui.badges.priority": "우선순위",
   "ui.changes.added": "추가됨",
   "ui.changes.customerGroup": "고객 그룹",

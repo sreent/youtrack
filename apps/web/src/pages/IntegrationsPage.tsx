@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { del, get, patch, post } from '../api/client';
 import { useProjects } from '../api/queries';
-import { ago, Badge } from '../components/Badges';
+import { agoSaid, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
@@ -391,7 +391,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
       <div className="hook-head">
         <div className="hook-what">
           <span className="mono hook-url">{integration.name}</span>
-          <span className="item-about">{tr('page.integrations.looksForItsSecretBegins', { v: PROVIDER[integration.provider], where: where, secretPrefix: integration.secretPrefix, t0: (c: ReactNode) => <span className="mono">{c}</span>, when: ago(integration.createdAt), v2: integration.lastDeliveryAt ? t('page.integrations.lastDelivery', { when: ago(integration.lastDeliveryAt) }) : t('page.integrations.nothingHasComeYet') })}</span>
+          <span className="item-about">{tr('page.integrations.looksForItsSecretBegins', { v: PROVIDER[integration.provider], where: where, secretPrefix: integration.secretPrefix, t0: (c: ReactNode) => <span className="mono">{c}</span>, when: agoSaid(integration.createdAt), v2: integration.lastDeliveryAt ? t('page.integrations.lastDelivery', { when: agoSaid(integration.lastDeliveryAt) }) : t('page.integrations.nothingHasComeYet') })}</span>
         </div>
         {integration.active ? <Badge tone="good">{t('page.integrations.takesDeliveries')}</Badge> : <Badge tone="idle">{t('page.integrations.paused')}</Badge>}
       </div>

@@ -2,7 +2,7 @@ import type { Rule, RuleInput, RulePreview, RuleRun } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, patch } from '../../api/client';
-import { ago, Badge, IssueLink } from '../../components/Badges';
+import { agoSaid, Badge, IssueLink } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
 import { errorText, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
@@ -34,7 +34,7 @@ function nextWords(iso: string, now = new Date()): string {
 function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
   const next = rule.kind === 'schedule' && rule.enabled && rule.nextRunAt ? t('rules.ruleCard.nextRuns', { nextWords: nextWords(rule.nextRunAt) }) : null;
   if (!run) return <p className="rule-said">{next ?? (rule.kind === 'guard' ? t('rules.ruleCard.itHasnTRefusedA') : t('rules.ruleCard.itHasnTActedYet'))}</p>;
-  const when = ago(run.at);
+  const when = agoSaid(run.at);
   const on = run.issue ? (
     <>{tr('rules.ruleCard.on', { el: <IssueLink id={run.issue} /> })}</>
   ) : null;
