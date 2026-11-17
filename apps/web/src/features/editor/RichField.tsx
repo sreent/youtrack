@@ -118,6 +118,9 @@ export function RichField({
           const now = latest.current;
           if (now.slice(start, end) !== text) return false;
           change(now.slice(0, start) + next + now.slice(end));
+          // What was selected is gone: nothing is, until the next selection.
+          area.current = { start: 0, end: 0 };
+          setSelected(false);
           return true;
         },
       };
