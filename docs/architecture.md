@@ -955,7 +955,7 @@ Until now a project was the one unit of access: whoever could read it read all o
 - A plan holds what its reader sees, so someone who sees less sees a plan computed without what they can't see; its managers, who level it, see it all.
 - Permissions are checked in more places than roles were, so a custom role is only as narrow as the checks: costs gate logged time, the time report and the cost report, and not an issue's total time spent.
 
-**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`.
+**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`. (Fields came, by permission: D50.)
 
 ### D38. Identity in depth: a second factor, a directory, provisioning, and apps that name themselves
 
@@ -1409,7 +1409,8 @@ YouTrack lets a project keep a field to some people: a private field, read only 
   - Issue reads leave it out: REST, MCP, lists, boards, the assistant, a chat card to a person. A private field someone does see says so (`private: true`), and the issue page marks it.
   - Its changes leave the history, the feed, the live stream, the inbox, email and push (`eventFor`); a change to nothing else isn't shown at all, left out as SQL (`eventsFieldsSql`) so a feed's pages and its cursor stay whole. A new issue's created event loses its value, and a move's keeps back what either project keeps.
   - History names a change by the name its field had then, so a renamed field keeps the names it had (`fields.former_names`), and its old changes stay kept.
-  - A rule's run that changed it isn't in their run log, since the run's words say the change. A conditional field whose condition reads it shows to them always, as one whose condition no longer reads does (D41), so it says nothing of the value.
+  - A rule's run that changed it isn't in their run log, since the run's words say the change, and a commit's command note says no change to it.
+  - A field everyone sees can't show and hide by a private field's value (D41): its condition can't read one, and a field a public condition reads can't turn private, each refused saying what to do instead. A condition from before either holds always for whoever can't see what it reads, as one that no longer reads does, so it says nothing of the value.
 - **Changing it.** `applyChanges` refuses to set a private field. To someone who can't read it, the refusal is a field the project lacks, in those words; to someone who reads it only, 403, naming the permission. Every field named is checked, changed or not, so trying values tells nothing. That covers every channel: the command bar, the issue page, the API, MCP, chat, commits' commands and imports.
   - A required private field asks nothing of someone who can't see it, on a new issue or a change.
   - Moving an issue carries what the mover can't see without saying it; what doesn't carry is left behind, as a field the other project lacks is. A clone copies none of it.
