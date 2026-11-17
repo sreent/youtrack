@@ -216,6 +216,45 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
 - `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
+## Korean
+
+Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone: no second reader has gone over it, and no native speaker has read it. Its 5,467 messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
+
+Terms:
+
+- **Issue** is 이슈, as Jira's Korean and Korean developers say it. Jira Cloud's newer Korean calls work items 작업 항목; a4a keeps 이슈. Right for a tracker in 2026?
+- **Watch, watchers** are 지켜보기 and 지켜보는 사람, plain and long. Jira's Korean, as far as the translator recalls, says 주시 or 관찰자; Korean websites say 관심 등록. Which does a Korean team expect on an issue's watch button?
+- **Inbox** is 수신함, as Notion's and Asana's Korean say, rather than 받은 편지함, which reads as an email client's.
+- **Roles**: 관리자 is the administrator, so a project's manager is 매니저, and member and viewer are 멤버 and 뷰어, as Google Drive's and Slack's Korean give roles. 구성원 and 보기 전용 are the alternatives.
+- **Triage** is 트리아지, a loanword: 분류 reads as a category.
+- **Knowledge base** is 지식 베이스 (Zendesk's Korean) and an article 문서; Jira Service Management's Korean says 기술 자료.
+- **Committed** (a sprint's commitment) is 확정, to keep 커밋 for version control.
+- **Digest** is 요약 메일, though 요약 alone is an issue's summary, as in Jira's Korean.
+- **CC** is 참조, as Korean mail clients say it: 참조에 추가, 참조에서 제외.
+- **Revoke** is 폐기 for a token, and 승인 취소 for an app you allowed (승인한 앱).
+- **Workflow actions** (an issue's buttons) are 동작, since 작업 is already work and tasks.
+- **Login** (a person's handle) is 로그인 ID. Korean websites say 아이디.
+- **The navigation's groups**: 작업 (Work), 결정 (Decide), 구성 (Build) and 운영 (Oversee). 결정 holds only Suggestions; is 검토 better?
+- **Planning**: what-if is 가상 계획, levelling 평준화, slack 여유 시간, critical path 주 경로 (Microsoft Project's Korean), earned value 획득 가치, booked 배정.
+
+Phrasing:
+
+- **Register**: statements are 합니다체 and what's asked of the reader is "-세요", as Google's and Microsoft's Korean mix them. The help desk's pages and emails, which customers read, use the same, with "{name}님" and "보내 드립니다". Should they be softer ("-해 주세요" throughout) or more formal ("-하십시오")?
+- **Particles after values** are written both ways everywhere, 을(를), 이(가), 은(는), (으)로, as Korean software writes them, even where the value is a4a's own words and its ending is known: the sign-in page says "a4a 로그인 ID을(를) 사용하세요." Is the one way worth that line, or should a4a's own fixed values get their right particle? The subject's is written 이(가), not (이)가.
+- **"You"** is 나 in notification titles ("Ada이(가) 나에게 할당했습니다", "나를 멘션했습니다"), as a list's filter says 나에게 할당됨; Facebook's and Slack's Korean say 회원님. Does 나 read naturally in a title addressed to the reader?
+- **The ledger and an issue's history** draw the actor's name, then a verb phrase in the polite past with no particle: "**Ada** BACK-12을(를) 변경했습니다". Would the terse 개조식 ("변경함") read better in a log?
+- **A rule's sentence** lists its actions as nouns joined by Korean's list ("Assignee anna 적용, “확인하세요” 댓글 작성 및 웹훅 호출."). Do verbs read better?
+- **A webhook's events** are nouns ("이슈 생성"), joined into "{join} 시" with " 또는 "; the same nouns label the form's checkboxes.
+- **The board's drag announcements** (`board.board.dropItTo*`) are long sentences for a screen reader: "여기에 놓으면 BACK-1을(를) Done 열(Fixed)로 옮기고 Anna에게 할당합니다".
+- **"Did you mean"** in a problem is "혹시 “{guess}”인가요?"; on the issue list's query bar it is "이런 뜻인가요? {el}".
+- `server.notify.title.andOthers` is "{people} 외 여러 명", which then takes 이(가): "Anna, Ben 외 여러 명이(가) 댓글을 남겼습니다".
+- A rule run's whom-it-told list ends "및 다른 3명" (`rules.run.toldOthers`), since Korean's list puts 및 before the last item.
+
+Typography and layout:
+
+- **Line breaks**: the browser breaks Korean between any two syllables (CSS `word-break: normal`), so a word can split across lines ("선택하/세요"). Korean typesetting breaks at spaces (`word-break: keep-all`), which would be Ocean's to set for `:lang(ko)`; it isn't set, since a long unspaced word could then push past a phone's width.
+- **Fonts**: the container's shots use WenQuanYi Zen Hei. Judge spacing with Noto Sans KR, Apple SD Gothic Neo or Malgun Gothic.
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
@@ -226,3 +265,4 @@ These need the code to change, not a catalog:
 - **A rule run's changes** (`rules.run.changed`, `alsoChanged`) are fields and values the server joins with English punctuation: "State: Open → Fixed; Priority: — → High".
 - **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
 - **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese would use 「、」.
+- **Korean's particles after a value**: a4a can't tell how a name, a state or an id ends, so Korean writes each particle both ways (을(를), 이(가)). A value passed with whether it ends in a consonant would let Korean choose the one it needs.

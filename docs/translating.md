@@ -126,7 +126,7 @@ A language is a catalog, as Spanish, Japanese and French came:
 1. In `packages/shared/src/i18n.ts`, add the code to `LOCALES` and its own name to `LOCALE_NAMES`, as its readers write it ("Italiano", "Português").
 2. Copy `packages/shared/i18n/en.json` to `<code>.json` and translate every message.
 3. In `packages/server/src/i18n.ts`, import the catalog beside the others (the server's catalogs are imported, not globbed).
-4. If its nouns keep their capital, as German's do, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`.
+4. If its nouns keep their capital, as German's do, add it to `CAPITAL_NOUNS` in `apps/web/src/i18n/index.ts`; so too a language with no case, as Korean, whose labels may start with a Latin word (CI, SLA, a project's name) that must keep its capital.
 5. Write its voice and its terms here, in a section of its own, then run the checks above. A copy of `e2e/spanish.spec.ts` with the language's words checks it in a browser: it signs in a person of its own, not one of the suite's administrators, since German's spec changes Una's language.
 
 The web finds a new catalog by itself, and loads only its person's. A right-to-left language would also need `dir="rtl"` on the page and Ocean's layouts checked (D49 says what holds).
@@ -387,7 +387,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **A particle after a value** depends on how the value ends, which a4a can't know. So it's written both ways, consonant's first, as Korean software writes it: 을(를), 이(가), 은(는), 과(와), (으)로, (이)나, (이)라는. "{name}을(를) 삭제했습니다.", "{field}이(가) 필요합니다." This is the one way: a sentence isn't reworded to dodge one. The subject's is 이(가), not (이)가, since it's 이 or 가, never 이가. A value followed by a noun ("{key} 프로젝트") needs none, nor one that never changes (에, 에서, 의, 도, 만, 까지, 부터, 에게).
 - **No honorific after a name**: a name takes its particle directly ("{name}이(가) 할당했습니다"), since many names are agents' and bots'. The help desk's emails are the one exception: they go to people outside the team, so they address a requester as "{name}님", as Korean customer mail does.
 - **Spacing**, as Korean writes it: words apart, a particle or an ending joined to its word, a counter joined to its digits ("3개", "이슈 3개"). A particle joins a value or a Latin word directly: "BACK-12을(를) 열기".
-- **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes; the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
+- **Typography**: ASCII punctuation, . , : ? !, with no space before it; “” for quotes, and straight ones only where they're code (a JSON key, a form part's name, a chat command's argument); the ellipsis is one character (…), as in English; half-width Latin letters and digits, never full-width forms. Two sentences said one after the other take a space between them.
 - **Plurals**: Korean has none, so each plural keeps `other` alone, with a counter where Korean uses one, after the noun: `{n, plural, other {이슈 #개}}`. 개 counts issues and things (fields, values, files, tokens), 건 cases and events (changes, requests, deliveries, notifications), 명 people, 번 times. A plural that English words differently for one keeps `=1` where Korean does too.
 - **Pieces a page joins**:
   - The activity ledger, an issue's history and notifications show who in bold, with their mark, then what was done. A name a page draws can't take a particle, so an action is a verb phrase in the polite past with no subject: "{issue}을(를) 변경했습니다", "보고했습니다". A badge is a noun: "이슈 삭제".
@@ -397,8 +397,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Selects and plurals the Korean doesn't need**: a message keeps every placeholder English has. Where Korean says nothing for one, it sits in a plural or select whose only branch is an empty `other`: `{n, plural, other {}}`.
 - **Selects on codes**: where English selects on a stable code (a pull request's `merged`, a unit's `points`, a role's `admin`, a report's `week`, a rule part's `trigger`), each case is worded in Korean and every case stays, `other` keeping what else comes.
 - **Dates and numbers** come from Intl: "2026년 11월 16일", "1,234.5", "3분 전". Intl's `ko` writes them as `ko-KR` does.
-- **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
-- **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이 이슈를 볼 수 없습니다."), and a query's or a list's "you" is 나 ("나에게 할당됨"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인이 아닌 {login}(으)로". 당신 is never said.
+- **Problems**: what a page shows when something fails says what went wrong, then the fix, in 합니다체 with the fix in "-세요": "로그인 ID 또는 비밀번호가 올바르지 않습니다." A guess it offers is "혹시 “{guess}”인가요?". Free text from elsewhere (a parser's message, another tracker's own words, a script's refusal) ends the Korean message, after "오류:", "이유:" or "응답:", and brings its own punctuation, so no full stop follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its full stop, and stays where English puts it. In the query, command and rule problems, the languages' keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
+- **You and your**: Korean software rarely says "you". A label that names the reader's own things says 내 ("내 토큰", "내 대시보드", "내 요청"), or nothing where the owner is plain ("프로필", "타이머"); a sentence leaves the reader out ("이 이슈를 볼 수 없습니다."), and a query's, a list's or a notification's "you" is 나 ("나에게 할당됨", "Ada이(가) 나에게 할당했습니다"). 본인 stays where the reader must be told from someone else: "본인으로 동작합니다", "본인이 아닌 {login}(으)로". 당신 is never said.
 - **The help desk** says 문의 for asking for help: "문의했습니다" in an issue's history and notifications, "문의하기" on the form and the portal. Its emails to requesters are a company's to a customer: "{desk}에 문의하셔서 이 메일을 보내 드립니다."
 
 | English | Korean |
@@ -480,7 +480,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | dashboard, widget | 대시보드, 위젯 |
 | report | 보고서 |
 | settings | 설정 |
-| app, allow (an app), apps you allowed | 앱, 승인, 승인한 앱 |
+| app, allow (an app), apps you allowed | 앱, 승인, 승인한 앱; revoking one is 승인 취소 |
+| action (an issue's button) | 동작 |
 | handler (of an app) | 핸들러 |
 | person, people | 사용자; 사람 in a sentence |
 | role, permission | 역할, 권한 |

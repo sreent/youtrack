@@ -6,7 +6,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 ## What it does
 
-- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German, Spanish, French and Japanese, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
+- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German, Spanish, French, Japanese and Korean, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
 - **On a phone**: a4a installs from the browser (Android, iOS, desktop), opens offline and says so, and pushes what your inbox gets to the devices you turn it on for, encrypted to each, one notification per issue, with the unread count on its icon. Share a page into it to start an issue. Every page is made for a thumb: 44px to tap, clear of the notch, the keyboard never covering what you type.
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
