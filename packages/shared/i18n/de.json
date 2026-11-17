@@ -2955,7 +2955,7 @@
   "page.projects.lead": "Leitung",
   "page.projects.membersOnly": "nur Mitglieder",
   "page.projects.membersOnlyOnlyItsLead": "Nur Mitglieder<t0>Nur seine Leitung, die Personen, die Sie auf seiner Seite hinzufügen, und Administratoren sehen es.</t0>",
-  "page.projects.n2To10LettersOr": "2 bis 10 Buchstaben oder Ziffern, beginnend mit einem Buchstaben. Er steht am Anfang jeder Vorgangs-ID, etwa {toUpperCase}-12, und kann sich später nicht ändern.",
+  "page.projects.n2To10LettersOr": "2 bis 10 Buchstaben oder Ziffern, beginnend mit einem Buchstaben. Er steht am Anfang jeder Vorgangs-ID, etwa {toUpperCase}-12.",
   "page.projects.name": "Name",
   "page.projects.nobodyYet": "Noch niemand",
   "page.projects.of": "<t0>{openIssueCount}</t0> von {issueCount}",

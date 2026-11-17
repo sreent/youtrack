@@ -2955,7 +2955,7 @@
   "page.projects.lead": "リーダー",
   "page.projects.membersOnly": "メンバー限定",
   "page.projects.membersOnlyOnlyItsLead": "メンバー限定<t0>閲覧できるのは、リーダー、プロジェクトのページで追加した人、管理者だけです。</t0>",
-  "page.projects.n2To10LettersOr": "英字または数字2〜10文字（先頭は英字）。{toUpperCase}-12のように、すべての課題IDの先頭になり、後から変更できません。",
+  "page.projects.n2To10LettersOr": "英字または数字2〜10文字（先頭は英字）。{toUpperCase}-12のように、すべての課題IDの先頭になります。",
   "page.projects.name": "名前",
   "page.projects.nobodyYet": "まだいません",
   "page.projects.of": "{issueCount}件中<t0>{openIssueCount}</t0>件",

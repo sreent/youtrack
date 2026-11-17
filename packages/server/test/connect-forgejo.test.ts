@@ -146,7 +146,7 @@ describe('connecting your Forgejo account', () => {
     try {
       const e = await startConnect(web(), 'gitea').catch((x: unknown) => x);
       expect(e).toMatchObject({ status: 400, words: { key: 'vcs.connectNotSetUpForge' } });
-      expect(codeHosts(w.app).find((h) => h.provider === 'gitea')).toEqual({ provider: 'gitea', name: 'Gitea or Forgejo', available: false });
+      expect(codeHosts(w.app).find((h) => h.provider === 'gitea')).toEqual({ provider: 'gitea', name: 'Forgejo/Gitea', available: false });
       // Only https outside tests: plain http to this machine needs VCS_ALLOW_HTTP_LOOPBACK.
       expect(loadConfig().vcsAllowHttpLoopback).toBe(false);
       process.env.VCS_ALLOW_HTTP_LOOPBACK = 'true';

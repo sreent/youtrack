@@ -2955,7 +2955,7 @@
   "page.projects.lead": "Responsable",
   "page.projects.membersOnly": "solo miembros",
   "page.projects.membersOnlyOnlyItsLead": "Solo miembros<t0>Solo lo ven su responsable, las personas que agregues en su página y los administradores.</t0>",
-  "page.projects.n2To10LettersOr": "De 2 a 10 letras o cifras, empezando por una letra. Con ella empieza el id de cada incidencia, como {toUpperCase}-12, y no se puede cambiar después.",
+  "page.projects.n2To10LettersOr": "De 2 a 10 letras o cifras, empezando por una letra. Con ella empieza el id de cada incidencia, como {toUpperCase}-12.",
   "page.projects.name": "Nombre",
   "page.projects.nobodyYet": "Todavía nadie",
   "page.projects.of": "<t0>{openIssueCount}</t0> de {issueCount}",

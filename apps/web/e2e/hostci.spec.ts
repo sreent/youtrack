@@ -22,7 +22,7 @@ test("a Forgejo run's build reaches the issue its push names", async ({ page, ap
   await page.goto('/integrations');
   const repository = `acme/${unique()}`;
   const connect = page.getByRole('region', { name: 'Add an integration' });
-  await connect.getByRole('radio', { name: 'Gitea or Forgejo' }).check();
+  await connect.getByRole('radio', { name: 'Forgejo/Gitea' }).check();
   await connect.getByLabel('Name', { exact: true }).fill(repository);
   await connect.getByRole('checkbox', { name: /^Of every project/ }).uncheck();
   await connect.getByRole('checkbox', { name: new RegExp(`^${project.name}`) }).check();

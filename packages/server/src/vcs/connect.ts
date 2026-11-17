@@ -29,7 +29,7 @@ import { listProviderLogins } from './logins';
 
 const TTL_MS = 10 * 60_000;
 const TIMEOUT_MS = 10_000;
-export const CODE_HOST_NAMES: Record<CodeHost, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', gitea: 'Gitea or Forgejo' };
+export const CODE_HOST_NAMES: Record<CodeHost, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', gitea: 'Forgejo/Gitea' };
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 const underTest = () => Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
 

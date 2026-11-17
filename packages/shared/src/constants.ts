@@ -277,7 +277,7 @@ export const VCS_PROVIDER_NAMES: Record<VcsProvider, string> = {
   gitlab: 'GitLab',
   bitbucket: 'Bitbucket Cloud',
   'bitbucket-dc': 'Bitbucket Data Center',
-  gitea: 'Gitea or Forgejo',
+  gitea: 'Forgejo/Gitea',
 };
 export const PULL_REQUEST_STATES = ['open', 'merged', 'closed'] as const;
 export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];

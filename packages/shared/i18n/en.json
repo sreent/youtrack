@@ -2955,7 +2955,7 @@
   "page.projects.lead": "Lead",
   "page.projects.membersOnly": "members only",
   "page.projects.membersOnlyOnlyItsLead": "Members only<t0>Only its lead, the people you add on its page, and administrators see it.</t0>",
-  "page.projects.n2To10LettersOr": "2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {toUpperCase}-12, and can't change later.",
+  "page.projects.n2To10LettersOr": "2 to 10 letters or digits, starting with a letter. It begins every issue's id, such as {toUpperCase}-12.",
   "page.projects.name": "Name",
   "page.projects.nobodyYet": "Nobody yet",
   "page.projects.of": "<t0>{openIssueCount}</t0> of {issueCount}",

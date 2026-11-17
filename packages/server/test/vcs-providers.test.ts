@@ -372,7 +372,7 @@ describe('Gitea and Forgejo', () => {
     }
     // Without a secret, Gitea still sends the header, empty.
     const empty = await post(gitea.id, body, { 'x-gitea-event': 'push', 'x-gitea-delivery': randomUUID(), 'x-gitea-signature': '' });
-    expect([empty.status, empty.body.error.message]).toEqual([401, 'No X-Gitea-Signature: give the webhook in Gitea or Forgejo the secret a4a showed when it was added.']);
+    expect([empty.status, empty.body.error.message]).toEqual([401, 'No X-Gitea-Signature: give the webhook in Forgejo/Gitea the secret a4a showed when it was added.']);
   });
 
   it('runs a command as the person whose login Gitea matched the commit to, though a4a knows not its email', async () => {
@@ -382,7 +382,7 @@ describe('Gitea and Forgejo', () => {
     })();
     expect(unknown.body).toMatchObject({ linked: 1, applied: 0 });
     expect((await vcsOf('BACK-4')).commits.find((c) => c.repository === 'acme/infra')).toMatchObject({ applied: false, note: 'Not applied: a4a doesn’t know who wrote it' });
-    expect((await lastDelivery(gitea.id)).message).toContain('nobody in a4a has the confirmed email ben.okafor@users.noreply.git.acme.example or the login bokafor at Gitea or Forgejo');
+    expect((await lastDelivery(gitea.id)).message).toContain('nobody in a4a has the confirmed email ben.okafor@users.noreply.git.acme.example or the login bokafor at Forgejo/Gitea');
 
     await addProviderLogin(w.adminCtx, 'ben', { provider: 'gitea', login: 'BOkafor' });
     const push = json('gitea-push');

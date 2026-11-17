@@ -2955,7 +2955,7 @@
   "page.projects.lead": "Responsable",
   "page.projects.membersOnly": "membres seulement",
   "page.projects.membersOnlyOnlyItsLead": "Membres seulement<t0>Seuls son responsable, les personnes que vous ajoutez sur sa page, et les admins le voient.</t0>",
-  "page.projects.n2To10LettersOr": "2 à 10 lettres ou chiffres, en commençant par une lettre. Elle sert de préfixe à l’identifiant de chaque ticket, comme {toUpperCase}-12, et ne peut plus changer ensuite.",
+  "page.projects.n2To10LettersOr": "2 à 10 lettres ou chiffres, en commençant par une lettre. Elle sert de préfixe à l’identifiant de chaque ticket, comme {toUpperCase}-12.",
   "page.projects.name": "Nom",
   "page.projects.nobodyYet": "Personne pour l’instant",
   "page.projects.of": "<t0>{openIssueCount}</t0> sur {issueCount}",
