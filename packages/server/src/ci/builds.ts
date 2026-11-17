@@ -295,7 +295,8 @@ export interface Recorded {
 export interface RecordOptions {
   /**
    * A host's run told again in a state the build has already (a delivery sent twice, or Forgejo's
-   * old run event beside its new one) does nothing again: no marking, no event.
+   * old run event beside its new one) only looks again at the issues the build left open, and
+   * records no event unless it marks one.
    */
   quietIfSame?: boolean;
 }
@@ -393,15 +394,20 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
   });
   // The value was made inside the transaction: a schema read before it committed mustn't stay.
   if (madeValue) app.schema.invalidate();
-  if (same && opts.quietIfSame) return { build, again: true, same: true, marked: 0, said: [] };
+  // Told nothing new, it still looks again at what the build left open, as D46 has a later report
+  // do; only those, since a report beside it may be marking the rest now. It says nothing unless
+  // it marks one.
+  const quiet = same && Boolean(opts.quietIfSame);
   const succeeded = build.status === 'success';
   const valueId = build.valueId;
-  if (succeeded && !field) said.push(`${project.key} has no build field, so the build is kept but marks nothing: give it one under Integrations`);
+  if (succeeded && !field && !quiet) said.push(`${project.key} has no build field, so the build is kept but marks nothing: give it one under Integrations`);
 
   let marked = 0;
   const activities: ActivityRow[] = [];
   if (field) {
-    const named = await issuesNamed(app.db, s, source.projectId, { ...facts, commits: [...facts.commits, ...(before?.commits ?? []).map((sha) => ({ sha, message: null }))] });
+    const named = quiet
+      ? new Map<string, { issue: IssueRow; commit: string | null }>()
+      : await issuesNamed(app.db, s, source.projectId, { ...facts, commits: [...facts.commits, ...(before?.commits ?? []).map((sha) => ({ sha, message: null }))] });
     const earlier = await app.db.select().from(buildIssues).where(eq(buildIssues.buildId, build.id));
     const done = new Map(earlier.map((r) => [r.issueId, r.outcome as BuildIssueOutcome]));
     // What it held when reported before (by a message, say) and didn't mark then is looked at again.
@@ -426,6 +432,10 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
   }
   const total = (await app.db.select({ id: buildIssues.issueId }).from(buildIssues).where(and(eq(buildIssues.buildId, build.id), eq(buildIssues.outcome, 'marked')))).length;
   const [finalRow] = await app.db.update(builds).set({ marked: total }).where(eq(builds.id, build.id)).returning();
+  if (quiet && !marked) {
+    await publishActivities(app, activities);
+    return { build: finalRow!, again: true, same: true, marked: 0, said };
+  }
   await app.db.update(buildSources).set({ lastBuildAt: new Date() }).where(eq(buildSources.id, source.id));
   activities.push(
     await recordActivity(app.db, ctx, {
@@ -436,7 +446,7 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
     }),
   );
   await publishActivities(app, activities);
-  return { build: finalRow!, again: Boolean(before), same, marked, said };
+  return { build: finalRow!, again: Boolean(before), same: false, marked, said };
 }
 
 /** Why a build left an issue as it did: in English for the API, and its words in the catalogs for a page (D49). */

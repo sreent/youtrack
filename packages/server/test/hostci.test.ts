@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBuildSource, issueBuilds, listBuilds, rotateBuildToken } from '../src/ci/builds';
 import { activities, buildIssues, builds, fieldValues, vcsDeliveries } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
-import type { AppError } from '../src/lib/errors';
+import { checkProblemWords, type AppError } from '../src/lib/errors';
 import { issueActivity } from '../src/services/activity';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
@@ -135,6 +135,10 @@ describe('a build source of Forgejo or Gitea runs', () => {
     expect(await refusal(rotateBuildToken(w.adminCtx, source))).toMatchObject({ words: { key: 'ci.signedByGiteaIntegration' } });
     // Only an administrator says where builds come from.
     expect(await refusal(createBuildSource(w.as(w.anna), { kind: 'gitea', name: 'x', project: 'BACK', integration: forgejo.id }))).toMatchObject({ status: 403 });
+    // Each says in en.json what the API says, word for word, for a page to say in its language.
+    for (const e of [wrong, await refusal(createBuildSource(w.adminCtx, { kind: 'gitea', name: 'x', project: 'BACK' })), await refusal(rotateBuildToken(w.adminCtx, source))]) {
+      expect(() => checkProblemWords(e!.message, e!.hint, e!.words!)).not.toThrow();
+    }
   });
 });
 
@@ -201,6 +205,16 @@ describe("Forgejo's Actions runs", () => {
     await fromForgejo('workflow_run_failure', runOf({ index: 57, head, status: 'failure', at: minutes(3) }));
     expect(await buildNamed('57')).toMatchObject({ status: 'success', finishedAt: minutes(4), marked: 1 });
     expect(fieldOf(await getIssue(w.adminCtx, fixed.id), 'Fixed in build')).toBe('57');
+  });
+
+  it('mark an issue resolved since, when the same run is told again', async () => {
+    // As D46 has a later report of a build do: the issue it left open is looked at again.
+    await updateIssue(w.as(w.anna), open.id, { fields: { State: 'Fixed' } });
+    const again = await fromForgejo('workflow_run_success', runOf({ index: 57, head, status: 'success', at: minutes(4) }));
+    expect(again.body).toMatchObject({ outcome: 'processed', applied: 1 });
+    expect(fieldOf(await getIssue(w.adminCtx, open.id), 'Fixed in build')).toBe('57');
+    expect(await buildNamed('57')).toMatchObject({ status: 'success', marked: 2 });
+    expect((await recordedFor('57')).length).toBe(2);
   });
 
   it('mark nothing with a failed run; run again, passing, it marks what it held', async () => {

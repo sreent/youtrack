@@ -14,7 +14,8 @@
  *    commit and issue, so what it did the first time isn't done twice.
  * 4. What it says: pushes link their commits, and run the commands they give; pull and merge
  *    requests are linked and kept current. Commits a delivery leaves out are read from Bitbucket
- *    with the integration's token (commits.ts).
+ *    with the integration's token (commits.ts). Actions runs, GitHub's, Gitea's and Forgejo's,
+ *    become builds of the sources that take them (ci/builds.ts, D46 and D55).
  */
 import { VCS_PROVIDER_NAMES, type VcsDeliveryOutcome, type VcsProvider } from '@a4a/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
