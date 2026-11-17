@@ -11,7 +11,7 @@
  *   it since, that element is refused and stays as they made it.
  */
 import type { WhiteboardCard, WhiteboardElement, WhiteboardKind, WhiteboardOp, WhiteboardTone } from '@a4a/shared';
-import { inSection } from '@a4a/shared';
+import { inSection } from '@a4a/shared/whiteboard';
 
 export type Elements = ReadonlyMap<string, WhiteboardElement>;
 

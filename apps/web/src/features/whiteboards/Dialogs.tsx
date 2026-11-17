@@ -3,7 +3,8 @@
  * issue or article, the two ends of an arrow, and which notes and arrows become issues and links. A
  * dialog keeps the focus in it and gives it back on Escape, from the keyboard and on a phone alike.
  */
-import { WHITEBOARD_LIMITS, WHITEBOARD_TONES, type Project, type WhiteboardConvertResult, type WhiteboardElement, type WhiteboardTone } from '@a4a/shared';
+import type { Project, WhiteboardConvertResult, WhiteboardElement, WhiteboardTone } from '@a4a/shared';
+import { WHITEBOARD_LIMITS, WHITEBOARD_TONES } from '@a4a/shared/constants';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useLinkTypes, useProjects } from '../../api/queries';
 import { ErrorLine, ErrorNote } from '../../components/States';

@@ -3379,7 +3379,7 @@
   "page.whiteboard.deleteConfirm": "削除する",
   "page.whiteboard.deleteTitle": "ホワイトボード{name}を削除しますか？",
   "page.whiteboard.edit": "編集",
-  "page.whiteboard.fit": "全体を表示",
+  "page.whiteboard.fit": "{percent}、全体を表示",
   "page.whiteboard.group": "セクションにまとめる",
   "page.whiteboard.keys": "Tabキーで、アウトラインの順に要素を移動します。Spaceキーで要素を選択し、続けて別の要素も追加で選択できます。矢印キーで選択した要素を動かします（Shiftを押しながらだと大きく、Altを押しながらだとサイズを変更）。Enterキーで編集するか、カードの課題を開きます。Deleteキーで削除します。Nで付箋を追加、Cで2つの要素を接続、Ctrl+Zで元に戻し、Ctrl+Shift+Zでやり直します。",
   "page.whiteboard.keysReading": "Tabキーで、アウトラインの順に要素を移動します。Enterキーでカードの課題を開きます。",

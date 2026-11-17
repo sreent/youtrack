@@ -3379,7 +3379,7 @@
   "page.whiteboard.deleteConfirm": "Whiteboard löschen",
   "page.whiteboard.deleteTitle": "Das Whiteboard {name} löschen?",
   "page.whiteboard.edit": "Bearbeiten",
-  "page.whiteboard.fit": "Alles einpassen",
+  "page.whiteboard.fit": "{percent}, alles einpassen",
   "page.whiteboard.group": "In einen Bereich legen",
   "page.whiteboard.keys": "Die Tabulatortaste führt in der Reihenfolge der Gliederung durch die Elemente. Die Leertaste wählt eines aus, und ein weiteres dazu; die Pfeiltasten verschieben die Auswahl (mit Umschalt weiter, mit Alt ändern sie die Größe); die Eingabetaste bearbeitet sie oder öffnet den Vorgang einer Karte; Entf entfernt sie. N fügt eine Notiz hinzu, C verbindet zwei Elemente, Strg+Z macht rückgängig und Strg+Umschalt+Z wiederholt.",
   "page.whiteboard.keysReading": "Die Tabulatortaste führt in der Reihenfolge der Gliederung durch die Elemente, und die Eingabetaste öffnet den Vorgang einer Karte.",

@@ -3379,7 +3379,7 @@
   "page.whiteboard.deleteConfirm": "Le supprimer",
   "page.whiteboard.deleteTitle": "Supprimer le tableau blanc {name} ?",
   "page.whiteboard.edit": "Modifier",
-  "page.whiteboard.fit": "Tout afficher",
+  "page.whiteboard.fit": "{percent}, tout afficher",
   "page.whiteboard.group": "Regrouper dans une section",
   "page.whiteboard.keys": "Tab parcourt les éléments dans l’ordre du sommaire. Espace en choisit un, puis un autre avec lui ; les flèches déplacent ce qui est choisi (avec Maj, plus loin ; avec Alt, elles le redimensionnent) ; Entrée le modifie, ou ouvre le ticket d’une carte ; Suppr le retire. N ajoute une note, C relie deux éléments, Ctrl+Z annule et Ctrl+Maj+Z rétablit.",
   "page.whiteboard.keysReading": "Tab parcourt les éléments dans l’ordre du sommaire, et Entrée ouvre le ticket d’une carte.",

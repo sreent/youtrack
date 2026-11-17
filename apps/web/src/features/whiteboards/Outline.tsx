@@ -4,7 +4,7 @@
  * element and takes the focus to it on the canvas; it's what a screen reader and a phone start from.
  */
 import type { WhiteboardElement } from '@a4a/shared';
-import { whiteboardOutline } from '@a4a/shared';
+import { whiteboardOutline } from '@a4a/shared/whiteboard';
 import { Icon, type IconName } from '../../components/Icon';
 import { t } from '../../i18n';
 import type { Elements } from './model';
@@ -29,13 +29,14 @@ export function Outline({
   id: string;
   elements: Elements;
   chosen: ReadonlySet<string>;
-  onPick: (id: string) => void;
+  /** Choose it alone, or (with Shift or Ctrl) beside what's chosen. */
+  onPick: (id: string, toggle: boolean) => void;
   kindOf: (e: WhiteboardElement) => string;
   wordsOf: (e: WhiteboardElement) => string;
 }) {
   const o = whiteboardOutline([...elements.values()]);
   const row = (e: WhiteboardElement) => (
-    <button type="button" className="whiteboard-row" aria-pressed={chosen.has(e.id)} onClick={() => onPick(e.id)}>
+    <button type="button" className="whiteboard-row" aria-pressed={chosen.has(e.id)} onClick={(ev) => onPick(e.id, ev.shiftKey || ev.ctrlKey || ev.metaKey)}>
       <Icon name={ICON.get(e.kind) ?? 'list'} />
       <span className="whiteboard-row-text">
         <span className="whiteboard-row-kind">{kindOf(e)}</span>

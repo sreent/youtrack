@@ -3379,7 +3379,7 @@
   "page.whiteboard.deleteConfirm": "Eliminarla",
   "page.whiteboard.deleteTitle": "¿Eliminar la pizarra {name}?",
   "page.whiteboard.edit": "Editar",
-  "page.whiteboard.fit": "Encajar todo en la vista",
+  "page.whiteboard.fit": "{percent}, encajar todo en la vista",
   "page.whiteboard.group": "Agrupar en una sección",
   "page.whiteboard.keys": "Tab recorre los elementos en el orden del esquema. Espacio elige uno, y otro más; las flechas mueven lo elegido (con Mayús, más lejos; con Alt, cambian su tamaño); Intro lo edita o abre la incidencia de una tarjeta; Supr lo quita. N agrega una nota, C conecta dos elementos, Ctrl+Z deshace y Ctrl+Mayús+Z rehace.",
   "page.whiteboard.keysReading": "Tab recorre los elementos en el orden del esquema, e Intro abre la incidencia de una tarjeta.",

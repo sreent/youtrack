@@ -12,7 +12,7 @@ import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { FormField } from '../features/common/bits';
 import { createWhiteboard, useWhiteboards, whiteboardKeys } from '../features/whiteboards/api';
-import { WHITEBOARD_LIMITS } from '@a4a/shared';
+import { WHITEBOARD_LIMITS } from '@a4a/shared/constants';
 import { t } from '../i18n';
 
 export default function WhiteboardsPage() {

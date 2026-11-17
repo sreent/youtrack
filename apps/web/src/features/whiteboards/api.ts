@@ -21,8 +21,8 @@ export const useWhiteboards = (project = '') =>
 export const useWhiteboard = (id: string | undefined) =>
   useQuery({ queryKey: whiteboardKeys.detail(id ?? ''), queryFn: () => get<WhiteboardDetail>(`/whiteboards/${id}`), enabled: Boolean(id), staleTime: Infinity, refetchOnWindowFocus: false });
 
-export const useWhiteboardCards = (id: string | undefined, initial: WhiteboardCard[] | undefined) =>
-  useQuery({ queryKey: whiteboardKeys.cards(id ?? ''), queryFn: () => get<WhiteboardCard[]>(`/whiteboards/${id}/cards`), enabled: Boolean(id && initial), initialData: initial });
+export const useWhiteboardCards = (id: string | undefined, initial: WhiteboardCard[] | undefined, live = true) =>
+  useQuery({ queryKey: whiteboardKeys.cards(id ?? ''), queryFn: () => get<WhiteboardCard[]>(`/whiteboards/${id}/cards`), enabled: Boolean(id && initial && live), initialData: initial });
 
 export const createWhiteboard = (body: { project: string; name: string }) => post<Whiteboard>('/whiteboards', body);
 export const renameWhiteboard = (id: string, name: string) => patch<Whiteboard>(`/whiteboards/${id}`, { name });

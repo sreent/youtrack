@@ -6,7 +6,8 @@
  * through the elements in reading order, Space chooses, the arrow keys move what's chosen.
  */
 import type { WhiteboardCard, WhiteboardDetail, WhiteboardElement, WhiteboardOp, WhiteboardTone } from '@a4a/shared';
-import { readingSequence, WHITEBOARD_LIMITS } from '@a4a/shared';
+import { WHITEBOARD_LIMITS } from '@a4a/shared/constants';
+import { readingSequence } from '@a4a/shared/whiteboard';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -67,7 +68,8 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
   const client = useRef(crypto.randomUUID()).current;
   const focusNext = useRef<string | null>(null);
   const fitted = useRef(false);
-  const cardsQuery = useWhiteboardCards(board.id, detail.cards);
+  // Once it's gone, its cards aren't read again: there's nothing left to read.
+  const cardsQuery = useWhiteboardCards(board.id, detail.cards, !gone);
   const cards = useMemo(() => new Map((cardsQuery.data ?? []).map((c) => [c.element, c])), [cardsQuery.data]);
   const cardsRef = useRef<ReadonlyMap<string, WhiteboardCard>>(cards);
   cardsRef.current = cards;
@@ -229,9 +231,22 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
   const describe = (e: WhiteboardElement) => t('whiteboards.element.label', { kind: kindOf(e), words: wordsOf(e) });
 
   // ---- doing things ----
+  /** Where something new goes: the middle of the view, or the nearest place around it where it covers nothing. */
   const center = (w: number, h: number) => {
-    const jitter = (shown.size % 5) * 12;
-    return { x: Math.round(view.x + size.width / view.scale / 2 - w / 2 + jitter), y: Math.round(view.y + size.height / view.scale / 2 - h / 2 + jitter) };
+    const cx = view.x + size.width / view.scale / 2 - w / 2;
+    const cy = view.y + size.height / view.scale / 2 - h / 2;
+    const boxes = [...shown.values()].filter((e) => e.kind !== 'arrow' && e.kind !== 'section');
+    const free = (x: number, y: number) => boxes.every((b) => x + w + 16 <= b.x || b.x + b.w + 16 <= x || y + h + 16 <= b.y || b.y + b.h + 16 <= y);
+    for (let ring = 0; ring < 8; ring++) {
+      for (let i = -ring; i <= ring; i++) {
+        for (const [dx, dy] of [[i, -ring], [ring, i], [i, ring], [-ring, i]] as const) {
+          const x = Math.round(cx + dx * (w + 24));
+          const y = Math.round(cy + dy * (h + 24));
+          if (free(x, y)) return { x, y };
+        }
+      }
+    }
+    return { x: Math.round(cx), y: Math.round(cy) };
   };
   const choose = (id: string | null, mode: 'only' | 'toggle') => {
     if (!id) {
@@ -494,8 +509,13 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
         crumbs={
           <>
             <Link to="/whiteboards">{t('app.shell.whiteboards')}</Link>
-            <span aria-hidden="true">/</span>
+            <span className="sep" aria-hidden="true">
+              /
+            </span>
             <Link to={`/whiteboards?project=${encodeURIComponent(key)}`}>{key}</Link>
+            <span className="sep" aria-hidden="true">
+              /
+            </span>
           </>
         }
         about={canEdit ? t('page.whiteboard.about') : t('page.whiteboard.readOnly', { key })}
@@ -561,7 +581,7 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
             <button type="button" aria-label={t('page.whiteboard.zoomOut')} onClick={() => zoomBy(1 / 1.25)}>
               −
             </button>
-            <button type="button" aria-label={t('page.whiteboard.fit')} onClick={() => fit()}>
+            <button type="button" aria-label={t('page.whiteboard.fit', { percent: formatNumber(view.scale, { style: 'percent', maximumFractionDigits: 0 }) })} onClick={() => fit()}>
               {formatNumber(view.scale, { style: 'percent', maximumFractionDigits: 0 })}
             </button>
             <button type="button" aria-label={t('page.whiteboard.zoomIn')} onClick={() => zoomBy(1.25)}>
@@ -622,8 +642,8 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
               chosen={chosen}
               kindOf={kindOf}
               wordsOf={wordsOf}
-              onPick={(id) => {
-                choose(id, 'only');
+              onPick={(id, toggle) => {
+                choose(id, toggle ? 'toggle' : 'only');
                 focusOn(id);
               }}
             />

@@ -254,7 +254,6 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
     tabIndex: p.current === e.id ? 0 : -1,
     role: 'button',
     'aria-pressed': chosen,
-    'aria-label': p.describe(e),
     'data-element': e.id,
     onKeyDown: (k: React.KeyboardEvent<SVGGElement>) => p.onKey(k, e.id),
     onFocus: () => p.onCurrent(e.id),
@@ -269,6 +268,7 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
     if (e.linked) classes.push('linked');
     return (
       <g className={[...classes, 'whiteboard-arrow'].join(' ')} {...focus}>
+        <title>{p.describe(e)}</title>
         <path className="whiteboard-arrow-hit" d={d} />
         <path className="whiteboard-ring" d={d} />
         <path className="whiteboard-arrow-line" d={d} />
@@ -292,6 +292,7 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
   if (e.kind === 'section') {
     return (
       <g className={[...classes, 'whiteboard-section'].join(' ')} transform={at} {...focus}>
+        <title>{p.describe(e)}</title>
         {ring}
         <rect className="whiteboard-box" width={e.w} height={e.h} rx={10} />
         <text className="whiteboard-section-title" x={14} y={24}>
@@ -306,6 +307,7 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
     const cls = TONE_CLASS[tone];
     return (
       <g className={[...classes, 'whiteboard-note', cls].filter(Boolean).join(' ')} transform={at} {...focus}>
+        <title>{p.describe(e)}</title>
         {ring}
         <rect className="whiteboard-box" width={e.w} height={e.h} rx={6} />
         <rect className="whiteboard-band" width={e.w} height={6} rx={3} />
@@ -322,6 +324,7 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
   if (e.kind === 'text') {
     return (
       <g className={[...classes, 'whiteboard-text'].join(' ')} transform={at} {...focus}>
+        <title>{p.describe(e)}</title>
         {ring}
         <foreignObject width={e.w} height={e.h}>
           <div className="whiteboard-words">{e.text}</div>
@@ -337,6 +340,7 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
   if (shown?.resolved) classes.push('resolved');
   return (
     <g className={classes.join(' ')} transform={at} {...focus}>
+      <title>{p.describe(e)}</title>
       {ring}
       <rect className="whiteboard-box" width={e.w} height={e.h} rx={10} />
       <foreignObject width={e.w} height={e.h}>

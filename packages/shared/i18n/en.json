@@ -3379,7 +3379,7 @@
   "page.whiteboard.deleteConfirm": "Delete it",
   "page.whiteboard.deleteTitle": "Delete the whiteboard {name}?",
   "page.whiteboard.edit": "Edit",
-  "page.whiteboard.fit": "Fit everything in view",
+  "page.whiteboard.fit": "{percent}, fit everything in view",
   "page.whiteboard.group": "Put in a section",
   "page.whiteboard.keys": "Tab moves through the elements in the outline’s order. Space chooses one, and another with it; the arrow keys move what’s chosen (with Shift, further; with Alt, they size it); Enter edits it, or opens a card’s issue; Delete removes it. N adds a note, C connects two elements, Ctrl+Z undoes and Ctrl+Shift+Z redoes.",
   "page.whiteboard.keysReading": "Tab moves through the elements in the outline’s order, and Enter opens a card’s issue.",

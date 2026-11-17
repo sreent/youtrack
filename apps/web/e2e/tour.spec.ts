@@ -42,6 +42,28 @@ const checkedForm = async (api: Api) => {
   return `/help/${key}`;
 };
 
+/** A whiteboard of the tour's own (D58): a section of ideas, a note of each tone, an issue's card, an arrow and a heading. */
+const aWhiteboard = async (api: Api) => {
+  const key = uniqueKey('TW');
+  await api.createProject({ key, name: `Tour ${key}` });
+  const issue = await api.createIssue({ project: key, summary: 'Login is slow on the mobile app' });
+  const board = await api.post<{ id: string }>('/whiteboards', { project: key, name: 'Tour whiteboard' });
+  await api.post(`/whiteboards/${board.id}/elements`, {
+    ops: [
+      { op: 'add', id: 'tour-section', kind: 'section', x: 0, y: 0, w: 600, h: 330, text: 'Ideas' },
+      { op: 'add', id: 'tour-idea', kind: 'note', x: 24, y: 48, text: 'Cache the session, so a second sign-in takes no round trip', tone: 'idea' },
+      { op: 'add', id: 'tour-question', kind: 'note', x: 24, y: 210, h: 100, text: 'Who owns the session store?', tone: 'question' },
+      { op: 'add', id: 'tour-card', kind: 'issue', x: 320, y: 60, issue: issue.id },
+      { op: 'add', id: 'tour-arrow', kind: 'arrow', x: 0, y: 0, from: 'tour-idea', to: 'tour-card', label: 'speeds up' },
+      { op: 'add', id: 'tour-heading', kind: 'text', x: 0, y: 370, text: 'Risks' },
+      { op: 'add', id: 'tour-problem', kind: 'note', x: 0, y: 430, text: 'Tokens expire mid-sync', tone: 'problem' },
+      { op: 'add', id: 'tour-agreed', kind: 'note', x: 230, y: 430, text: 'Ship behind a flag', tone: 'agreed' },
+      { op: 'add', id: 'tour-parked', kind: 'note', x: 460, y: 430, text: 'Offline sign-in', tone: 'parked' },
+    ],
+  });
+  return `/whiteboards/${board.id}`;
+};
+
 interface Stop {
   name: string;
   /** The address, or how to arrive at it: finding a board's id, or standing in for the AI. */
@@ -358,6 +380,8 @@ const STOPS: Stop[] = [
   { name: "an issue with triage's values waiting", path: waitingOnBack3('/issues/BACK-3'), ready: (p) => p.getByText('Dashed values were worked out by an agent') },
   { name: 'a new issue', path: '/issues/new', ready: (p) => p.getByLabel('Summary') },
   { name: 'boards', path: '/boards', ready: (p) => p.getByRole('link', { name: 'Backend sprints' }) },
+  { name: 'whiteboards', path: '/whiteboards', ready: (p) => p.getByRole('heading', { level: 1, name: 'Whiteboards' }) },
+  { name: 'a whiteboard', path: aWhiteboard, ready: (p) => p.getByRole('group', { name: /^Tour whiteboard, \d+ elements$/ }) },
   { name: 'a sprint board', path: board('Backend sprints'), ready: (p) => p.getByRole('group', { name: "Sprint 14's columns" }) },
   { name: 'a kanban board with lanes', path: board('Web kanban'), ready: (p) => p.getByRole('group', { name: "Web kanban's columns" }) },
   { name: 'planning sprints', path: sprintToPlan, ready: (p) => p.getByRole('list', { name: 'Backlog, in rank order' }) },
