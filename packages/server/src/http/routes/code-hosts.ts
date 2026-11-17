@@ -7,7 +7,7 @@ import { route } from '../route';
 
 const Provider = z.object({ provider: z.string() });
 
-/** People connecting their own accounts at GitHub, GitLab and Bitbucket (docs/architecture.md, D46). */
+/** People connecting their own accounts at GitHub, GitLab, Bitbucket (docs/architecture.md, D46), and Forgejo or Gitea (D54). */
 export function codeHostRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Version control'];
   route(app, { method: 'get', path: '/me/code-hosts', tags, summary: 'Where you can connect your own account', response: z.array(CodeHostSchema) }, ({ ctx }) => Promise.resolve(codeHosts(ctx.app)));
@@ -17,7 +17,7 @@ export function codeHostRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'post',
       path: '/me/code-hosts/{provider}/connect',
       tags,
-      summary: 'Start connecting your account at a code host',
+      summary: 'Start connecting your account at a code host (github, gitlab, bitbucket, or gitea for Forgejo and Gitea)',
       description:
         "Returns the provider's page to sign in at. Back from it, the account you proved yours becomes your login there, so its commits and pull requests are yours. a4a asks who you are with the token once, and doesn't keep it. From the web, signed in.",
       params: Provider,

@@ -225,6 +225,13 @@
       "when": 1794904820766,
       "tag": "0031_private_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794905143502,
+      "tag": "0032_git_host_apps",
+      "breakpoints": true
     }
   ]
 }

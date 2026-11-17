@@ -58,7 +58,7 @@ import { getJson, ReadError } from '../vcs/commits';
 import { NOBODY, type IntegrationRow } from '../vcs/links';
 import { mentions } from '../vcs/mentions';
 import { link, when } from '../vcs/payloads';
-import { tokenOf } from '../vcs/tokens';
+import { readsFromProvider, readWith } from '../vcs/tokens';
 
 type SourceRow = typeof buildSources.$inferSelect;
 type BuildRow = typeof builds.$inferSelect;
@@ -570,16 +570,15 @@ function takes(source: SourceRow, run: WorkflowRun): boolean {
 
 const statusOf = (conclusion: string | null): BuildStatus => (conclusion === 'success' ? 'success' : conclusion === 'cancelled' ? 'cancelled' : 'failure');
 
-/** What GitHub says lies between two commits, with the integration's token: newest last. */
+/** What GitHub says lies between two commits, read as the integration (its token, or its GitHub App, D54): newest last. */
 async function compare(app: AppServices, integration: IntegrationRow, repository: string, from: string, to: string): Promise<{ commits: CommitSeen[]; more: number } | { problem: string }> {
-  const token = tokenOf(app, integration.accessToken);
-  if (!token) return { problem: 'no access token' };
   const base = (integration.baseUrl ?? GITHUB_API).replace(/\/+$/, '');
   const repo = repository.split('/').map(encodeURIComponent).join('/');
   try {
+    const url = `${base}/repos/${repo}/compare/${encodeURIComponent(from)}...${encodeURIComponent(to)}`;
     const got = z
       .object({ total_commits: z.number().int().nullish(), commits: z.array(z.object({ sha: z.string(), commit: z.object({ message: z.string().nullish() }) })).default([]) })
-      .parse(await getJson(`${base}/repos/${repo}/compare/${encodeURIComponent(from)}...${encodeURIComponent(to)}`, token));
+      .parse(await readWith(app, integration, (token) => getJson(url, token), repository));
     const commits = got.commits.slice(0, COMPARE_MAX).map((c) => ({ sha: c.sha, message: c.commit.message ?? null }));
     return { commits, more: Math.max(0, (got.total_commits ?? commits.length) - commits.length) };
   } catch (e) {
@@ -621,8 +620,9 @@ async function runCommits(app: AppServices, integration: IntegrationRow, source:
   const pushed: CommitSeen[] = run.pushed.map((c) => ({ sha: c.sha, message: c.message }));
   // Since the last passing build's head commit; one whose head's time isn't known, since it was recorded.
   const since = last ? (last.headAt ?? last.createdAt) : source.createdAt;
-  // Only GitHub's compare is asked, and only of a GitHub integration: no other host's token goes to GitHub.
-  if (last?.headSha && integration.provider === 'github' && integration.accessToken) {
+  // Only GitHub's compare is asked, and only of a GitHub integration, with its token or as its App (D54):
+  // no other host's token goes to GitHub.
+  if (last?.headSha && integration.provider === 'github' && readsFromProvider(integration)) {
     const got = await compare(app, integration, run.repository, last.headSha, run.headSha);
     if ('commits' in got) return { commits: [...got.commits, head], note: got.more ? `GitHub named ${got.commits.length} of its commits; the ${got.more} before them weren't read` : null };
     const seen = await seenBetween(app.db, run.repository, run.branch, since, run.headAt ?? run.at);
@@ -705,7 +705,10 @@ function sameToken(given: string, hash: string | null): boolean {
 /** A range of commits, asked of GitHub with the token of an integration that has seen the repository. */
 async function rangeCommits(app: AppServices, repository: string | undefined, range: { from: string; to: string }): Promise<CommitSeen[]> {
   if (!repository) throw badRequest('A range needs its repository', 'Give "repository": "owner/name", or send the commits themselves.').said('ci.rangeNeedsRepository');
-  const github = await app.db.select().from(vcsIntegrations).where(and(eq(vcsIntegrations.provider, 'github'), isNotNull(vcsIntegrations.accessToken)));
+  const github = await app.db
+    .select()
+    .from(vcsIntegrations)
+    .where(and(eq(vcsIntegrations.provider, 'github'), or(isNotNull(vcsIntegrations.accessToken), isNotNull(vcsIntegrations.githubAppId))));
   const used = new Set(
     (await app.db.selectDistinct({ id: vcsLinks.integrationId }).from(vcsLinks).where(eq(vcsLinks.repository, repository))).map((r) => r.id).filter(Boolean),
   );

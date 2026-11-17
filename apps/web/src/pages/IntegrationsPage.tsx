@@ -36,16 +36,27 @@ const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idl
   failed: { tone: 'bad', word: t('page.integrations.failed') },
 };
 
+const STRONG = (c: ReactNode) => <strong>{c}</strong>;
+
 /** Where to put the URL and secret, in the provider's own words. */
 function Steps({ provider }: { provider: VcsProvider }) {
   switch (provider) {
     case 'github':
       return (
-        <ol>
-          <li>{tr('page.integrations.inTheRepositoryOnGithub', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
-          <li>{tr('page.integrations.payloadUrlTheUrlAbove', { code: <code>application/json</code> })}</li>
-          <li>{tr('page.integrations.underWhichEventsChooseLet', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong> })}</li>
-        </ol>
+        <>
+          <p>{t('page.integrations.withTheRepositorySWebhook')}</p>
+          <ol>
+            <li>{tr('page.integrations.inTheRepositoryOnGithub', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong> })}</li>
+            <li>{tr('page.integrations.payloadUrlTheUrlAbove', { code: <code>application/json</code> })}</li>
+            <li>{tr('page.integrations.underWhichEventsChooseLet', { t0: (c: ReactNode) => <strong>{c}</strong>, t1: (c: ReactNode) => <strong>{c}</strong>, t2: (c: ReactNode) => <strong>{c}</strong>, t3: (c: ReactNode) => <strong>{c}</strong> })}</li>
+          </ol>
+          <p>{t('page.integrations.orWithAGithubAppSWebhook')}</p>
+          <ol>
+            <li>{tr('page.integrations.inTheAppSSettingsUnder', { t0: STRONG, t1: STRONG, t2: STRONG, t3: STRONG })}</li>
+            <li>{tr('page.integrations.underPermissionsAndEvents', { t0: STRONG, t1: STRONG, t2: STRONG, t3: STRONG, t4: STRONG, t5: STRONG, t6: STRONG })}</li>
+            <li>{tr('page.integrations.generateAPrivateKeyInstall', { t0: STRONG })}</li>
+          </ol>
+        </>
       );
     case 'gitlab':
       return (
@@ -221,6 +232,121 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
   );
 }
 
+/** A GitHub App for a GitHub integration to read as (D54): its id, its private key, and which installation. */
+function AppForm({ integration, onSaved, onCancel }: { integration: VcsIntegration; onSaved: (i: VcsIntegration) => void; onCancel: () => void }) {
+  const qc = useQueryClient();
+  const [appId, setAppId] = useState(integration.githubApp?.appId ?? '');
+  const [key, setKey] = useState('');
+  const [installation, setInstallation] = useState('');
+  const [api, setApi] = useState(integration.baseUrl ?? '');
+  const [unread, setUnread] = useState(false);
+  const save = useMutation({
+    mutationFn: () => {
+      const baseUrl = api.trim() || null;
+      return patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, {
+        githubApp: { appId: appId.trim(), privateKey: key.trim(), ...(installation.trim() ? { installationId: installation.trim() } : {}) },
+        ...(baseUrl !== integration.baseUrl ? { baseUrl } : {}),
+      });
+    },
+    onSuccess: (i) => {
+      void qc.invalidateQueries({ queryKey: vcsKeys.all });
+      setKey('');
+      onSaved(i);
+    },
+  });
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      setKey(await file.text());
+      setUnread(false);
+    } catch {
+      setUnread(true);
+    }
+  };
+  return (
+    <form
+      className="form"
+      aria-label={t('page.integrations.readAsAGithubApp')}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (appId.trim() && key.trim()) save.mutate();
+      }}
+    >
+      <FormField label={t('page.integrations.appId')} help={t('page.integrations.appIdHelp')}>
+        {(id, help) => <input id={id} aria-describedby={help} value={appId} onChange={(e) => setAppId(e.target.value)} required maxLength={64} autoComplete="off" spellCheck={false} className="mono" />}
+      </FormField>
+      <FormField label={t('page.integrations.privateKey')} help={t('page.integrations.privateKeyHelp')}>
+        {(id, help) => <textarea id={id} aria-describedby={help} rows={4} value={key} onChange={(e) => setKey(e.target.value)} required maxLength={10_000} autoComplete="off" spellCheck={false} className="mono" />}
+      </FormField>
+      <FormField label={t('page.integrations.orChooseThePemFile')}>
+        {(id) => <input id={id} type="file" accept=".pem,application/x-pem-file" onChange={(e) => void choose(e.target.files?.[0])} />}
+      </FormField>
+      {unread ? <Said text={t('page.integrations.thatFileCouldnTBeRead')} tone="bad" /> : null}
+      <FormField label={t('page.integrations.installation')} help={t('page.integrations.installationHelp', { name: integration.name })}>
+        {(id, help) => <input id={id} aria-describedby={help} value={installation} onChange={(e) => setInstallation(e.target.value)} inputMode="numeric" pattern="[0-9]*" maxLength={20} autoComplete="off" className="mono" />}
+      </FormField>
+      <FormField label={t('page.integrations.enterpriseApi')} help={t('page.integrations.enterpriseApiHelp')}>
+        {(id, help) => <input id={id} aria-describedby={help} type="url" value={api} onChange={(e) => setApi(e.target.value)} placeholder="https://github.acme.example/api/v3" className="mono" />}
+      </FormField>
+      <div className="cluster">
+        <button type="submit" className="small primary" disabled={!appId.trim() || !key.trim() || save.isPending}>
+          {save.isPending ? t('page.integrations.checkingWithGithub') : t('page.integrations.saveTheApp')}
+        </button>
+        <button type="button" className="small" onClick={onCancel}>{t('page.integrations.cancel')}</button>
+      </div>
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </form>
+  );
+}
+
+/** How a GitHub integration reads from GitHub: as its GitHub App, with a person's token, or not at all. */
+function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onSaid: (said: { text: string; bad?: boolean }) => void }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const app = integration.githubApp;
+  const stop = useMutation({
+    mutationFn: () => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, { githubApp: null }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: vcsKeys.all });
+      onSaid({ text: t('page.integrations.a4aNoLongerReadsAsThe') });
+    },
+    onError: (e) => onSaid({ text: errorText(e), bad: true }),
+  });
+  const saved = (i: VcsIntegration) => {
+    setOpen(false);
+    if (i.githubApp) onSaid({ text: t('page.integrations.savedA4aReadsAsThe', { app: i.githubApp.slug ?? i.githubApp.appId, account: i.githubApp.account ?? i.githubApp.installationId }) });
+  };
+  return (
+    <>
+      <div className="cluster">
+        {app ? (
+          <>
+            <Badge tone="good">{t('page.integrations.readsAsTheGithubApp', { app: app.slug ?? app.appId, account: app.account ?? app.installationId })}</Badge>
+            <button type="button" className="small" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{t('page.integrations.changeTheApp')}</button>
+            <Confirm
+              small
+              label={t('page.integrations.stopReadingAsTheApp')}
+              title={t('page.integrations.stopReadingAsTheGithub', { name: integration.name })}
+              about={t('page.integrations.a4aForgetsTheAppS')}
+              confirm={t('page.integrations.forgetTheApp')}
+              disabled={stop.isPending}
+              onConfirm={() => stop.mutate()}
+            />
+          </>
+        ) : (
+          <>
+            {integration.hasAccessToken ? <Badge tone="good">{t('page.integrations.readsBuildsCommitsWithIts')}</Badge> : <Badge tone="idle">{t('page.integrations.noAccessToken')}</Badge>}
+            <button type="button" className="small" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{t('page.integrations.readAsAGithubApp')}</button>
+            <AccessToken integration={integration} onSaid={onSaid} />
+          </>
+        )}
+      </div>
+      {!app && integration.hasAccessToken ? <p className="note">{t('page.integrations.aPersonSTokenStopsWorking')}</p> : null}
+      {open ? <AppForm integration={integration} onSaved={saved} onCancel={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
 function IntegrationCard({ integration, projectNames }: { integration: VcsIntegration; projectNames: Map<string, string> }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -274,13 +400,14 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
         <code className="hook-url">{integration.webhookUrl}</code>
         <CopyButton text={integration.webhookUrl} label={t('page.integrations.copyIt')} what={t('page.integrations.theUrl')} />
       </div>
-      {bitbucket || integration.provider === 'github' ? (
+      {integration.provider === 'github' ? <GithubReads integration={integration} onSaid={setSaid} /> : null}
+      {bitbucket ? (
         <div className="cluster">
           {integration.provider === 'bitbucket-dc' && integration.baseUrl ? (
             <span className="note">{tr('page.integrations.readsCommitsAt', { baseUrl: integration.baseUrl, t0: (c: ReactNode) => <span className="mono">{c}</span> })}</span>
           ) : null}
           {integration.hasAccessToken ? (
-            <Badge tone="good">{bitbucket ? t('page.integrations.readsCommitsWithItsToken') : t('page.integrations.readsBuildsCommitsWithIts')}</Badge>
+            <Badge tone="good">{t('page.integrations.readsCommitsWithItsToken')}</Badge>
           ) : (
             <Badge tone={integration.provider === 'bitbucket-dc' ? 'warn' : 'idle'}>{integration.provider === 'bitbucket-dc' ? t('page.integrations.noAccessTokenLinksNo') : t('page.integrations.noAccessToken')}</Badge>
           )}
@@ -497,6 +624,10 @@ export default function IntegrationsPage() {
             <div className="pair">
               <dt>{t('page.integrations.checkedEveryTime')}</dt>
               <dd>{tr('page.integrations.anHmacSha256OfEach', { code: <code>X-Hub-Signature-256</code>, code2: <code>X-Hub-Signature</code>, code3: <code>X-Gitlab-Token</code> })}</dd>
+            </div>
+            <div className="pair">
+              <dt>{t('page.integrations.asAGithubApp')}</dt>
+              <dd>{t('page.integrations.aGithubIntegrationCanRead')}</dd>
             </div>
             <div className="pair">
               <dt>{t('page.integrations.bitbucketSCommits')}</dt>
