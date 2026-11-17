@@ -386,6 +386,21 @@ Phrasing:
 - **Your address** in the help desk's limits is *alamat IP Anda* (`problem.helpdesk.tooManyFromAddress` and its siblings), since *alamat* alone could be an email.
 - `page.profile.you` is *Tentang Anda*, a heading, and `notifications.emailSettings.youHaveNoEmailAddress` points to it.
 - **The issue list's count** joins a search's parts with a comma, as Intl's narrow list does in Indonesian: "4 isu di proyek SPR, belum selesai". *dan* would read more smoothly between two.
+
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard** is *papan tulis* (`app.shell.whiteboards`, `page.whiteboards.*`), KBBI's word and Zoom's, beside *Papan* for boards in the same menu, as French has *Tableaux* and *Tableaux blancs*. Would teams rather read "whiteboard"?
+- **A note** on one is *catatan*, the dashboard's word (`whiteboards.kind.note`, `page.whiteboard.addNote`). *Catatan tempel* (a sticky note) would set it apart, at a longer toolbar button.
+- **Its other pieces**: a section is *bagian*, OneNote's word (`whiteboards.kind.section`); the outline *kerangka*, Google Docs' (`page.whiteboard.outline`); connecting two elements *hubungkan*; the canvas *kanvas*.
+- **Make issues** is *Jadikan isu* on the toolbar and the dialog's title (`page.whiteboard.convert`, `whiteboards.convertDialog.title`), and *Buat # isu* on the dialog's button (`whiteboards.convertDialog.go`). Is *Jadikan* clear without its object, the notes?
+- **A note's tones**, badges on the canvas (`whiteboards.tone.*`): *Biasa*, *Ide*, *Disepakati*, *Pertanyaan*, *Masalah*, *Ditunda*. Is *Ditunda* right for "parked", and *Disepakati* short enough?
+- `page.whiteboard.delete` is *Hapus papan tulis*, though English says "Delete", since the toolbar's Remove (`page.whiteboard.remove`) is *Hapus* too. Redo is *Ulangi*, beside the catalog's *Batalkan* for undo.
+- **Reading a whiteboard** is *membaca*, as for a project's readers (`page.whiteboard.readOnly`, `page.whiteboards.about`). *Melihat* may suit a canvas better.
+- **Summary**: an issue's title and the assistant's summary are both *ringkasan*, so *Sarankan ringkasan* (`page.issue.suggestASummary`) sits beside *Ringkas* (`page.issue.summarise`). Clear enough?
+- **Writing help's buttons** are verbs, *Persingkat*, *Perjelas*, *Buat lebih formal*, *Buat lebih ramah* (`writing.action`), and its suggestions' titles adjectives, *Lebih singkat*, *Lebih jelas* (`writing.suggestion.title`). A selection is *teks terpilih* (`writing.selected` and its siblings).
+- **A chat thread** is *utas*, as Discord's and X's Indonesian say it (`server.chat.issue.thread`, `page.issue.source.replies`); an issue's own thread stays *diskusi* (`page.issue.longThreadSummarised`).
+- **ClickUp's List** stays "List", as ClickUp names it (`imports.fromApi.whichTasksAList`, `problem.imports.source.clickupNoList`), since *daftar* reads as any list; ClickUp's personal token is *token pribadi* (`imports.fromApi.personalToken`), while Asana's stays "personal access token", as the catalog keeps Jira's.
+
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. docs/translating.md's Thai section gives the reasons for each choice below.
