@@ -105,6 +105,6 @@ export async function setMyKinds(ctx: Ctx, input: { watching?: NotifyKinds; defa
 export async function setSubscriptionKinds(ctx: Ctx, id: string, kinds: NotifyKinds | null): Promise<NotifyKindsSettings> {
   requireScope(ctx, 'write');
   const [row] = await ctx.db.update(subscriptions).set({ kinds, updatedAt: new Date() }).where(and(eq(subscriptions.id, id), eq(subscriptions.userId, ctx.actor.user.id))).returning();
-  if (!row) throw notFound('Subscription', 'It may have ended: reload your subscriptions.');
+  if (!row) throw notFound('Subscription', 'It may have ended: reload your subscriptions.').said('notify.subscriptionNotFound');
   return myKinds(ctx);
 }

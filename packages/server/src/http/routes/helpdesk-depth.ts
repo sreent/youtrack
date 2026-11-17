@@ -169,8 +169,8 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, body }) => {
       sameOrigin(c);
-      await hit(c, [['portalIp', ip(c)]], 'Too many sign-in links from your address');
-      await hit(c, [['portalEmail', body.email]], 'Too many sign-in links for this email address');
+      await hit(c, [['portalIp', ip(c)]], 'Too many sign-in links from your address', 'helpdesk.tooManyLinksFromAddress');
+      await hit(c, [['portalEmail', body.email]], 'Too many sign-in links for this email address', 'helpdesk.tooManyLinksForEmail');
       await requestSignIn(c.get('runtime'), body.email, body.desk);
       return { sent: true as const };
     },
@@ -191,7 +191,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       const runtime = c.get('runtime');
       sameOrigin(c);
-      await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address');
+      await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
       const { session: token, me } = await redeemSignIn(runtime, body.token);
       setCookie(c, PORTAL_COOKIE, token, {
         httpOnly: true,
@@ -247,7 +247,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, params, body }) => {
       sameOrigin(c);
       const r = await who(c);
-      await hit(c, [['portalAct', r.id]], 'Too many replies just now');
+      await hit(c, [['portalAct', r.id]], 'Too many replies just now', 'helpdesk.tooManyRepliesNow');
       return portalReply(c.get('runtime'), r, params.id, body.text);
     },
   );
@@ -257,7 +257,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       sameOrigin(c);
       const r = await who(c);
-      await hit(c, [['portalAct', r.id]], 'Too many requests just now');
+      await hit(c, [['portalAct', r.id]], 'Too many requests just now', 'helpdesk.tooManyRequestsNow');
       return portalNewRequest(c.get('runtime'), r, { desk: body.desk, summary: body.summary, description: body.description ?? '' });
     },
   );

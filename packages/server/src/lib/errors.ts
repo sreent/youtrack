@@ -42,3 +42,9 @@ export const aiDisabled = () =>
     'AI features are not configured on this server',
     'Set ANTHROPIC_API_KEY in the server environment and restart.',
   ).said('aiDisabled');
+
+/**
+ * Words of a problem's own that someone wrote (a script's refusal, a rule's message), ended as a
+ * page's sentence ends them: the value a keyed problem places where the API puts them whole (D49).
+ */
+export const asSentence = (words: string): string => (/[.!?…:]["”’)]*$/.test(words.trim()) ? words.trim() : `${words.trim()}.`);

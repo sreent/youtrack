@@ -16,7 +16,7 @@ import {
 } from '@a4a/shared';
 import type { Context } from 'hono';
 import { z } from 'zod';
-import { badRequest, unauthorized } from '../../lib/errors';
+import { asSentence, badRequest, unauthorized } from '../../lib/errors';
 import { continueFetch, importFromApi } from '../../services/api-imports';
 import { checkImport, deleteImport, getImport, importRowsOf, listImports, runImport, undoImport, updateMapping, uploadImport } from '../../services/imports';
 import type { HttpEnv } from '../env';
@@ -52,12 +52,12 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
   });
   (app as unknown as { openapi: (r: unknown, h: (c: Context<HttpEnv>) => Promise<Response>) => void }).openapi(upload, async (c) => {
     const ctx = c.get('ctx');
-    if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.');
+    if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.').said('access.signInOrToken');
     const query = ImportUploadQuery.safeParse(c.req.query());
-    if (!query.success) throw badRequest(`Invalid request: ${query.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+    if (!query.success) throw badRequest(`Invalid request: ${query.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`).said('imports.invalidQuery', { issues: asSentence(query.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')) });
     const type = c.req.header('content-type') ?? '';
     if (type && !/^(text\/csv|text\/plain|application\/octet-stream|application\/vnd\.ms-excel)\b/i.test(type)) {
-      throw badRequest(`The file was sent as ${type.split(';')[0]}`, 'Send the CSV itself as the body, with Content-Type: text/csv.');
+      throw badRequest(`The file was sent as ${type.split(';')[0]}`, 'Send the CSV itself as the body, with Content-Type: text/csv.').said('imports.wrongType', { type: type.split(';')[0] });
     }
     const result = await uploadImport(ctx, query.data, c.req.raw.body);
     return c.json(result, 201);

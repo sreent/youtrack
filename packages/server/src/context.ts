@@ -109,12 +109,12 @@ export function can(ctx: Ctx, scope: Scope): boolean {
 
 export function requireScope(ctx: Ctx, scope: Scope): void {
   if (can(ctx, scope)) return;
-  if (ctx.actor.guest) throw unauthorized('Sign in to do that', 'Guests can read the projects open to them, and nothing else.');
-  if (scope === 'admin') throw forbidden('This action requires an administrator');
+  if (ctx.actor.guest) throw unauthorized('Sign in to do that', 'Guests can read the projects open to them, and nothing else.').said('access.signInFirst');
+  if (scope === 'admin') throw forbidden('This action requires an administrator').said('access.adminOnly');
   if (ctx.actor.authMethod === 'token') {
-    throw forbidden(`This token lacks the "${scope}" scope`, 'Create a token with the required scope under Agents and tokens.');
+    throw forbidden(`This token lacks the "${scope}" scope`, 'Create a token with the required scope under Agents and tokens.').said('access.tokenScope', { scope });
   }
-  throw forbidden(scope === 'write' ? 'Your role is read-only' : 'You do not have access');
+  throw scope === 'write' ? forbidden('Your role is read-only').said('access.readOnly') : forbidden('You do not have access').said('access.noAccess');
 }
 
 export function isAdmin(ctx: Ctx): boolean {

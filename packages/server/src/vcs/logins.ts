@@ -7,7 +7,7 @@ import { VCS_PROVIDER_NAMES, type ProviderLogin, type VcsProvider } from '@a4a/s
 import { and, asc, eq } from 'drizzle-orm';
 import { requireScope, type Ctx, type UserRow } from '../context';
 import { providerLogins } from '../db/schema';
-import { AppError, badRequest, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { findUser, type SchemaSnapshot } from '../services/schema-cache';
 import { userRefDto } from '../services/values';
@@ -46,7 +46,7 @@ function dto(s: SchemaSnapshot, row: LoginRow): ProviderLogin {
 async function person(ctx: Ctx, idOrLogin: string): Promise<{ s: SchemaSnapshot; u: UserRow }> {
   const s = await ctx.app.schema.get();
   const u = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
-  if (!u) throw notFound(`User ${idOrLogin}`);
+  if (!u) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   return { s, u };
 }
 
@@ -63,10 +63,15 @@ export async function listProviderLogins(ctx: Ctx, idOrLogin: string): Promise<P
 export async function addProviderLogin(ctx: Ctx, idOrLogin: string, input: { provider: VcsProvider; login: string }): Promise<ProviderLogin> {
   requireScope(ctx, 'admin');
   const { s, u } = await person(ctx, idOrLogin);
-  if (u.isBot) throw badRequest('A bot writes no commits', 'Record the login of the person who does.');
+  if (u.isBot) throw badRequest('A bot writes no commits', 'Record the login of the person who does.').said('vcs.botNoCommits');
   const login = input.login.trim().replace(/^@/, '');
   const shape = SHAPES[input.provider];
-  if (!shape.ok(login)) throw badRequest(`That doesn’t look like a login at ${VCS_PROVIDER_NAMES[input.provider]}`, shape.hint);
+  if (!shape.ok(login)) {
+    throw badRequest(`That doesn’t look like a login at ${VCS_PROVIDER_NAMES[input.provider]}`, shape.hint).said('vcs.notALogin', {
+      provider: VCS_PROVIDER_NAMES[input.provider],
+      shape: asSentence(shape.hint),
+    });
+  }
   const matchKey = loginKey(input.provider, login);
   const [taken] = await ctx.db
     .select()
@@ -75,14 +80,17 @@ export async function addProviderLogin(ctx: Ctx, idOrLogin: string, input: { pro
   if (taken) {
     if (taken.userId === u.id) return dto(s, taken);
     const other = s.users.get(taken.userId);
-    throw new AppError(409, 'conflict', `That login at ${VCS_PROVIDER_NAMES[input.provider]} is ${other?.name ?? 'someone else'}’s already`, `Remove it from ${other?.name ?? 'them'} first: a login is one person’s.`);
+    const provider = VCS_PROVIDER_NAMES[input.provider];
+    throw other
+      ? new AppError(409, 'conflict', `That login at ${provider} is ${other.name}’s already`, `Remove it from ${other.name} first: a login is one person’s.`).said('vcs.loginTaken', { provider, name: other.name })
+      : new AppError(409, 'conflict', `That login at ${provider} is someone else’s already`, 'Remove it from them first: a login is one person’s.').said('vcs.loginTakenBySomeone', { provider });
   }
   const [row] = await ctx.db
     .insert(providerLogins)
     .values({ id: newId(), userId: u.id, provider: input.provider, login, matchKey, addedById: ctx.actor.user.id })
     .onConflictDoNothing()
     .returning();
-  if (!row) throw new AppError(409, 'conflict', `That login at ${VCS_PROVIDER_NAMES[input.provider]} was just recorded for someone`, 'Reload, and look again.');
+  if (!row) throw new AppError(409, 'conflict', `That login at ${VCS_PROVIDER_NAMES[input.provider]} was just recorded for someone`, 'Reload, and look again.').said('vcs.loginJustTaken', { provider: VCS_PROVIDER_NAMES[input.provider] });
   return dto(s, row);
 }
 
@@ -96,6 +104,6 @@ export async function removeProviderLogin(ctx: Ctx, idOrLogin: string, id: strin
   const [row] = await ctx.db.select().from(providerLogins).where(and(eq(providerLogins.id, id), eq(providerLogins.userId, u.id)));
   const own = u.id === ctx.actor.user.id && Boolean(row?.providerUserId);
   if (!own) requireScope(ctx, 'admin');
-  if (!row) throw notFound('Login');
+  if (!row) throw notFound('Login').said('vcs.loginNotFound');
   await ctx.db.delete(providerLogins).where(eq(providerLogins.id, row.id));
 }

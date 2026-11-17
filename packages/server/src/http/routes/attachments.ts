@@ -41,7 +41,7 @@ const MultipartFile = z.object({ file: z.string().meta({ format: 'binary', descr
 
 function need(c: Context<HttpEnv>): Ctx {
   const ctx = c.get('ctx');
-  if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.');
+  if (!ctx) throw unauthorized('Sign in, or send "Authorization: Bearer <token>"', 'Create a token under Agents and tokens.').said('access.signInOrToken');
   return ctx;
 }
 
@@ -64,7 +64,11 @@ function uploadRoute(app: OpenAPIHono<HttpEnv>, path: string, summary: string, d
     // Who may put a file there is settled before a byte of it is read.
     const where = await target(ctx, c.req.param('id') ?? '');
     const max = ctx.app.config.attachmentMaxBytes;
-    const file = await receiveFile(c.req.raw, { maxBytes: max, tooLargeMessage: `Files can be at most ${formatBytes(max)}` });
+    const file = await receiveFile(c.req.raw, {
+      maxBytes: max,
+      tooLargeMessage: `Files can be at most ${formatBytes(max)}`,
+      tooLargeWords: { key: 'attachments.fileTooLarge', values: { size: formatBytes(max) } },
+    });
     return c.json(await storeAttachment(ctx, where, file), 201);
   });
 }

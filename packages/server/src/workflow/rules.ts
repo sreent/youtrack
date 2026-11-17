@@ -39,7 +39,7 @@ import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { issues, ruleRuns, rules, webhooks } from '../db/schema';
 import { callableUrl, webhookOrigin } from '../events/webhooks';
-import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
@@ -490,7 +490,7 @@ async function loadRule(ctx: Ctx, id: string): Promise<RuleRow> {
   requireScope(ctx, 'read');
   const [row] = await ctx.db.select().from(rules).where(eq(rules.id, id));
   // A rule of a project the caller can't see answers as one that doesn't exist.
-  if (!row || (row.projectId && !(await canReadProject(ctx, row.projectId)))) throw notFound('Rule');
+  if (!row || (row.projectId && !(await canReadProject(ctx, row.projectId)))) throw notFound('Rule').said('workflow.ruleNotFound');
   return row;
 }
 
@@ -553,11 +553,11 @@ async function assertCanManage(ctx: Ctx, projectId: string | null): Promise<void
   if (projectId) return assertCanManageProject(ctx, projectId);
   requireScope(ctx, 'write');
   if (!ctx.actor.scopes.includes('admin')) {
-    throw forbidden('Only administrators can make or change a rule for every project', 'Make it a rule of one project instead.');
+    throw forbidden('Only administrators can make or change a rule for every project', 'Make it a rule of one project instead.').said('workflow.globalRuleAdminOnly');
   }
   // A rule for every project reaches all of them, so a token limited to some can't make one.
   if ((await visibleProjectIds(ctx)) !== null) {
-    throw forbidden('A rule for every project reaches every project, and this token reaches only some', 'Make it a rule of one project, or use a token for every project.');
+    throw forbidden('A rule for every project reaches every project, and this token reaches only some', 'Make it a rule of one project, or use a token for every project.').said('workflow.globalRuleTokenScope');
   }
 }
 
@@ -568,12 +568,12 @@ async function assertCanManage(ctx: Ctx, projectId: string | null): Promise<void
  */
 function assertCanCall(ctx: Ctx): void {
   if (!ctx.actor.scopes.includes('admin')) {
-    throw forbidden('Only administrators can make, change or delete a rule that calls a webhook', 'Turn it off instead, or ask an administrator.');
+    throw forbidden('Only administrators can make, change or delete a rule that calls a webhook', 'Turn it off instead, or ask an administrator.').said('workflow.webhookRuleAdminOnly');
   }
 }
 
 function refuseProblems(problems: RuleProblem[]): never {
-  throw badRequest(`The rule needs fixing: ${problemText(problems)}`, 'Preview it to see each problem where it is.', { problems });
+  throw badRequest(`The rule needs fixing: ${problemText(problems)}`, 'Preview it to see each problem where it is.', { problems }).said('workflow.ruleNeedsFixing', { problems: asSentence(problemText(problems)) });
 }
 
 export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
@@ -581,7 +581,7 @@ export async function createRule(ctx: Ctx, input: RuleInput): Promise<Rule> {
   const d = draftFrom(await projectIdOf(ctx, input.project, 'manage'), input);
   await assertCanManage(ctx, d.projectId);
   if (d.callWebhookId) assertCanCall(ctx);
-  if (d.script) assertCanScript(ctx, 'a scripted rule');
+  if (d.script) assertCanScript(ctx, 'rule');
   const problems = await ruleProblems(ctx, await worldFor(ctx, d.projectId), d);
   if (problems.length) refuseProblems(problems);
   const [row] = await ctx.db
@@ -620,7 +620,7 @@ export type RuleChange = Partial<Omit<RuleInput, 'project' | 'kind'>> & { expect
 function assertNotAppRule(row: RuleRow, input?: RuleChange): void {
   if (!row.appId) return;
   if (input && Object.keys(input).every((k) => k === 'enabled' || k === 'expectedVersion')) return;
-  throw badRequest(`“${row.name}” came with an app: it changes with the app`, 'Update or remove the app under Administration → Apps; you can turn the rule off here.');
+  throw badRequest(`“${row.name}” came with an app: it changes with the app`, 'Update or remove the app under Administration → Apps; you can turn the rule off here.').said('workflow.ruleFromApp', { rule: row.name });
 }
 
 export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promise<Rule> {
@@ -629,7 +629,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
   assertNotAppRule(row, input);
   await assertCanManage(ctx, row.projectId);
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
-    throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.', { currentVersion: row.version });
+    throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.', { currentVersion: row.version }).said('workflow.ruleChangedMeanwhile', { rule: row.name });
   }
   const before = draftOf(row);
   const d = tidy({
@@ -658,7 +658,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
   const onlyTurningOff = input.enabled === false && Object.keys(input).every((k) => k === 'enabled' || k === 'expectedVersion');
   if ((before.callWebhookId || d.callWebhookId) && !onlyTurningOff) assertCanCall(ctx);
   // So it is with a script: code that runs on every change it is set off by is an administrator's.
-  if ((before.script || d.script) && !onlyTurningOff) assertCanScript(ctx, 'a scripted rule');
+  if ((before.script || d.script) && !onlyTurningOff) assertCanScript(ctx, 'rule');
   // Turning a rule off, or renaming it, never waits on fixing it: a rule that no longer reads
   // must be easy to stop. What it does, and turning it on, is checked.
   const reworked = (['trigger', 'field', 'schedule', 'query', 'command', 'comment', 'requires', 'related', 'target', 'notify', 'call', 'script'] as const).some(
@@ -696,7 +696,7 @@ export async function updateRule(ctx: Ctx, id: string, input: RuleChange): Promi
     })
     .where(and(eq(rules.id, row.id), eq(rules.version, row.version)))
     .returning();
-  if (!updated) throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.');
+  if (!updated) throw conflict(`The rule "${row.name}" was changed by someone else`, 'Reload it and make your change again.').said('workflow.ruleChangedMeanwhile', { rule: row.name });
   ctx.app.schema.invalidate();
   return ruleDto(await ctx.app.schema.get(), await visibleSchema(ctx), updated, (await lastRuns(ctx, [updated.id])).get(updated.id), await webhookOrigins(ctx.db, [updated]));
 }
@@ -707,7 +707,7 @@ export async function deleteRule(ctx: Ctx, id: string): Promise<void> {
   assertNotAppRule(row);
   await assertCanManage(ctx, row.projectId);
   if (row.callWebhookId) assertCanCall(ctx);
-  if (row.script) assertCanScript(ctx, 'a scripted rule');
+  if (row.script) assertCanScript(ctx, 'rule');
   await ctx.db.delete(rules).where(eq(rules.id, row.id));
   ctx.app.schema.invalidate();
 }
@@ -952,15 +952,15 @@ async function previewScript(ctx: Ctx, s: SchemaSnapshot, d: Draft, where: SQL, 
  */
 export async function testRule(ctx: Ctx, input: RuleInput & { issue: string }): Promise<ScriptRun> {
   requireScope(ctx, 'read');
-  assertCanScript(ctx, 'a scripted rule');
+  assertCanScript(ctx, 'rule');
   const d = draftFrom(await projectIdOf(ctx, input.project), input);
-  if (!d.script) throw badRequest('There is no script to run', 'Write one first.');
+  if (!d.script) throw badRequest('There is no script to run', 'Write one first.').said('workflow.noScript');
   const issue = await findVisibleIssue(ctx, input.issue);
-  if (!issue) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.');
+  if (!issue) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.').said('workflow.testIssueNotFound', { id: input.issue });
   const full = await ctx.app.schema.get();
   if (d.projectId && issue.projectId !== d.projectId) {
     const key = full.projects.get(d.projectId)?.key ?? 'its project';
-    throw badRequest(`${input.issue.toUpperCase()} isn't in ${key}`, `A rule of ${key} runs only on ${key}'s issues.`);
+    throw badRequest(`${input.issue.toUpperCase()} isn't in ${key}`, `A rule of ${key} runs only on ${key}'s issues.`).said('workflow.testIssueElsewhere', { id: input.issue.toUpperCase(), project: key });
   }
   const bot = full.usersByLogin.get(WORKFLOW_BOT);
   const guard = d.kind === 'guard';

@@ -34,7 +34,7 @@ async function streamFilter(ctx: Ctx, project: string | undefined, types: string
   if (project) {
     // A project the caller can't see is unknown, in the same words as one that doesn't exist.
     const p = projectByKey(await visibleSchema(ctx), project);
-    if (!p) throw badRequest(`Unknown project ${project}`);
+    if (!p) throw badRequest(`Unknown project ${project}`).said('events.unknownProject', { project });
     projectIds = [p.id];
     key = p.key.toUpperCase();
   }
@@ -106,7 +106,7 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
       requireScope(ctx, 'read');
       const runtime = c.get('runtime');
       await runtime.live.start();
-      if (runtime.live.isStopped) throw new AppError(503, 'unavailable', 'This server is shutting down', 'Reconnect: another instance serves the stream and resumes it.');
+      if (runtime.live.isStopped) throw new AppError(503, 'unavailable', 'This server is shutting down', 'Reconnect: another instance serves the stream and resumes it.').said('events.shuttingDown');
       const filter = await streamFilter(ctx, query.project, query.types);
       const header = c.req.header('last-event-id')?.trim();
       const resume = header && /^\d+$/.test(header) ? Number(header) : (query.after ?? null);

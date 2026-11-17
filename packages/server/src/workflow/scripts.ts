@@ -15,7 +15,7 @@ import { commandSpec } from '../commands/executor';
 import { parseCommand } from '../commands/parser';
 import type { Ctx } from '../context';
 import type { Db } from '../db/client';
-import { AppError, badRequest } from '../lib/errors';
+import { AppError, asSentence, badRequest } from '../lib/errors';
 import { issueRefsById, readableId, type IssueRow } from '../services/issue-refs';
 import { applyChanges, findIssue, type ChangeSpec } from '../services/issues';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
@@ -51,14 +51,14 @@ export async function plannedChanges(
   for (const a of intents.applies) {
     let target = issue;
     if (a.to && a.to !== seen.id) {
-      if (opts.onlySelf) throw badRequest(`Run as a command, it changes only ${seen.id}, not ${a.to}`, 'Use its button on the issue to let it change related issues.');
-      if (!reach.has(a.to)) throw badRequest(`It can't change ${a.to}: a script changes its issue, or one linked to it in ${key}`);
+      if (opts.onlySelf) throw badRequest(`Run as a command, it changes only ${seen.id}, not ${a.to}`, 'Use its button on the issue to let it change related issues.').said('workflow.scriptOtherIssue', { issue: seen.id, other: a.to });
+      if (!reach.has(a.to)) throw badRequest(`It can't change ${a.to}: a script changes its issue, or one linked to it in ${key}`).said('workflow.scriptCantReach', { other: a.to, project: key });
       const found = await findIssue(db, s, a.to);
-      if (!found) throw badRequest(`There is no issue ${a.to}`);
+      if (!found) throw badRequest(`There is no issue ${a.to}`).said('workflow.scriptNoIssue', { id: a.to });
       target = found;
     }
     const parsed = parseCommand(a.command, s, [target.projectId]);
-    if (parsed.problems.length) throw badRequest(`Its command “${a.command}” doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`);
+    if (parsed.problems.length) throw badRequest(`Its command “${a.command}” doesn't fit ${key}: ${parsed.problems.map((p) => p.message).join('; ')}`).said('workflow.scriptCommandMisfit', { command: a.command, project: key, problems: asSentence(parsed.problems.map((p) => p.message).join('; ')) });
     // A script may run a command action, or make a transition, but not run another script.
     out.push({ issue: target, spec: await commandSpec(ctx, target, parsed.ops, undefined, { meId: opts.meId, db, noScripts: true }), command: a.command });
   }

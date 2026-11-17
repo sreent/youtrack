@@ -106,7 +106,7 @@ export function zip(files: { name: string; data: Buffer }[]): Buffer {
 /** The manifest for this a4a's bot (Teams' app manifest, version 1.17). */
 export function teamsManifest(app: AppServices): Record<string, unknown> {
   const cfg = app.config.teams;
-  if (!cfg) throw notFound('Teams bot', 'Set TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID first.');
+  if (!cfg) throw notFound('Teams bot', 'Set TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID first.').said('chat.teamsBotNotSetUp');
   const site = app.config.publicUrl;
   const host = new URL(site).hostname;
   const commands = [

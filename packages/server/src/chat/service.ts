@@ -28,7 +28,7 @@ import type { Db } from '../db/client';
 import { chatAccounts, chatChannels, chatLinkTokens, chatSubscriptions, chatWorkspaces, projects, savedSearches, userIdentities, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
 import { intlTag, problemFor, translatorFor } from '../i18n';
-import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { runCommand } from '../commands/executor';
@@ -147,7 +147,7 @@ async function channelsWithWorkspaces(db: Db, ids?: string[]): Promise<Map<strin
 /** Who isn't a guest, and isn't someone a4a doesn't know, may see what channels a4a can post to. */
 function requireMember(ctx: Ctx): void {
   requireScope(ctx, 'read');
-  if (ctx.actor.guest) throw forbidden('Sign in to see chat channels');
+  if (ctx.actor.guest) throw forbidden('Sign in to see chat channels').said('chat.signInForChannels');
 }
 
 /** The channels a4a can post to, for subscribing one. */
@@ -286,16 +286,16 @@ async function ownSubscription(ctx: Ctx, id: string): Promise<SubscriptionRow> {
   const [row] = await ctx.db.select().from(chatSubscriptions).where(eq(chatSubscriptions.id, id));
   const view = await projectAccess(ctx);
   // What the caller can't see is missing, as anywhere else.
-  if (!row || !(view.admin || row.createdById === ctx.actor.user.id || (row.projectId && view.canRead(row.projectId)))) throw notFound('Chat subscription');
+  if (!row || !(view.admin || row.createdById === ctx.actor.user.id || (row.projectId && view.canRead(row.projectId)))) throw notFound('Chat subscription').said('chat.subscriptionNotFound');
   if (!(view.admin || row.createdById === ctx.actor.user.id || (row.projectId && view.canManage(row.projectId)))) {
-    throw forbidden('Only whoever subscribed the channel, the project’s managers and administrators can change it');
+    throw forbidden('Only whoever subscribed the channel, the project’s managers and administrators can change it').said('chat.subscriptionNotYours');
   }
   return row;
 }
 
 function kindsFrom(input: readonly string[] | undefined): ChatChangeKind[] {
   const kinds = CHAT_CHANGE_KINDS.filter((k) => (input ?? DEFAULT_CHAT_KINDS).includes(k));
-  if (!kinds.length) throw badRequest('Choose what the channel hears of', `One or more of: ${CHAT_CHANGE_KINDS.join(', ')}.`);
+  if (!kinds.length) throw badRequest('Choose what the channel hears of', `One or more of: ${CHAT_CHANGE_KINDS.join(', ')}.`).said('chat.kindsNeeded', { kinds: CHAT_CHANGE_KINDS.join(', ') });
   return kinds;
 }
 
@@ -303,17 +303,23 @@ function kindsFrom(input: readonly string[] | undefined): ChatChangeKind[] {
 export async function createChatSubscription(ctx: Ctx, input: CreateChatSubscriptionInput): Promise<ChatSubscription> {
   requireScope(ctx, 'write');
   requireMember(ctx);
-  if (Boolean(input.project) === Boolean(input.savedSearch)) throw badRequest('Subscribe the channel to a project or to a saved search', 'Send one of project and savedSearch.');
+  if (Boolean(input.project) === Boolean(input.savedSearch)) throw badRequest('Subscribe the channel to a project or to a saved search', 'Send one of project and savedSearch.').said('chat.targetNeeded');
   const [ch] = [...(await channelsWithWorkspaces(ctx.db, [input.channel])).values()];
-  if (!ch) throw notFound('Channel', 'GET /chat/channels lists those a4a can post to.');
-  if (ch.channel.goneAt || ch.workspace.removedAt) throw badRequest(`a4a can no longer post to ${ch.channel.name}`, channelDto(ch.channel, ch.workspace).gone ?? undefined);
+  if (!ch) throw notFound('Channel', 'GET /chat/channels lists those a4a can post to.').said('chat.channelNotFound');
+  if (ch.channel.goneAt || ch.workspace.removedAt) {
+    const why = channelDto(ch.channel, ch.workspace).gone;
+    throw badRequest(`a4a can no longer post to ${ch.channel.name}`, why ?? undefined).said(
+      why ? 'chat.channelGoneWhy' : 'chat.channelGone',
+      why ? { channel: ch.channel.name, why: asSentence(why) } : { channel: ch.channel.name },
+    );
+  }
   const kinds = kindsFrom(input.kinds);
   let projectId: string | null = null;
   let searchId: string | null = null;
   if (input.project) {
     const project = await requireProject(ctx, input.project, 'read');
     const why = await whyNotFor(ctx.db, ctx.actor.user.id, project.id, project.name);
-    if (why) throw forbidden(`${project.name} is open to its members alone: only someone who manages it can have a channel told of it`, 'Ask one of its managers.');
+    if (why) throw forbidden(`${project.name} is open to its members alone: only someone who manages it can have a channel told of it`, 'Ask one of its managers.').said('chat.membersOnly', { project: project.name });
     projectId = project.id;
   } else {
     searchId = (await findFollowableSearch(ctx, input.savedSearch!)).id;
@@ -328,7 +334,7 @@ export async function createChatSubscription(ctx: Ctx, input: CreateChatSubscrip
         projectId ? eq(chatSubscriptions.projectId, projectId) : eq(chatSubscriptions.savedSearchId, searchId!),
       ),
     );
-  if (same) throw conflict(`${ch.channel.name} hears of it already`, 'Change what it hears of instead.');
+  if (same) throw conflict(`${ch.channel.name} hears of it already`, 'Change what it hears of instead.').said('chat.alreadySubscribed', { channel: ch.channel.name });
   const [row] = await ctx.db
     .insert(chatSubscriptions)
     .values({ id: newId(), channelId: ch.channel.id, projectId, savedSearchId: searchId, kinds, createdById: ctx.actor.user.id })
@@ -338,7 +344,7 @@ export async function createChatSubscription(ctx: Ctx, input: CreateChatSubscrip
 
 export async function updateChatSubscription(ctx: Ctx, id: string, input: { kinds: string[] }): Promise<ChatSubscription> {
   const row = await ownSubscription(ctx, id);
-  if (row.endedAt) throw conflict('This subscription has stopped', 'Subscribe the channel again.');
+  if (row.endedAt) throw conflict('This subscription has stopped', 'Subscribe the channel again.').said('chat.subscriptionStopped');
   const [updated] = await ctx.db.update(chatSubscriptions).set({ kinds: kindsFrom(input.kinds) }).where(eq(chatSubscriptions.id, id)).returning();
   return (await subscriptionDtos(ctx, [updated!]))[0]!;
 }
@@ -400,7 +406,7 @@ async function liveLink(ctx: Ctx, token: string) {
     .select()
     .from(chatLinkTokens)
     .where(and(eq(chatLinkTokens.tokenHash, sha256(token)), isNull(chatLinkTokens.usedAt), gt(chatLinkTokens.expiresAt, new Date())));
-  if (!row) throw notFound('Link', 'It works once, for 15 minutes. Ask the bot for another: say "link" to it.');
+  if (!row) throw notFound('Link', 'It works once, for 15 minutes. Ask the bot for another: say "link" to it.').said('chat.linkExpired');
   return row;
 }
 
@@ -427,7 +433,7 @@ export async function chatLinkInfo(ctx: Ctx, token: string): Promise<ChatLink> {
  */
 export async function acceptChatLink(ctx: Ctx, token: string, tell?: (row: typeof chatLinkTokens.$inferSelect, user: UserRow) => Promise<void>): Promise<ChatAccount> {
   if (ctx.actor.authMethod !== 'session' || ctx.actor.channel !== 'web' || ctx.actor.user.isBot) {
-    throw forbidden('Only a person, signed in on the web, can link their chat account', 'Open the link in your browser.');
+    throw forbidden('Only a person, signed in on the web, can link their chat account', 'Open the link in your browser.').said('chat.linkOnWeb');
   }
   requireScope(ctx, 'read');
   await liveLink(ctx, token);
@@ -436,7 +442,7 @@ export async function acceptChatLink(ctx: Ctx, token: string, tell?: (row: typeo
     .set({ usedAt: new Date() })
     .where(and(eq(chatLinkTokens.tokenHash, sha256(token)), isNull(chatLinkTokens.usedAt)))
     .returning();
-  if (!row) throw notFound('Link', 'It was used just now. Ask the bot for another: say "link" to it.');
+  if (!row) throw notFound('Link', 'It was used just now. Ask the bot for another: say "link" to it.').said('chat.linkUsed');
   const [account] = await ctx.db
     .insert(chatAccounts)
     .values({
@@ -483,13 +489,13 @@ export async function myChatAccounts(ctx: Ctx): Promise<ChatAccount[]> {
 export async function unlinkChatAccount(ctx: Ctx, id: string): Promise<void> {
   requireMember(ctx);
   if (id.startsWith('entra:')) {
-    throw badRequest('Teams knows you by your Microsoft Entra ID sign-in, which isn’t a link', 'An administrator can stop the Teams bot, or remove it from a team.');
+    throw badRequest('Teams knows you by your Microsoft Entra ID sign-in, which isn’t a link', 'An administrator can stop the Teams bot, or remove it from a team.').said('chat.entraIsNoLink');
   }
   const res = await ctx.db
     .delete(chatAccounts)
     .where(and(eq(chatAccounts.id, id), eq(chatAccounts.userId, ctx.actor.user.id)))
     .returning({ id: chatAccounts.id });
-  if (!res.length) throw notFound('Chat account');
+  if (!res.length) throw notFound('Chat account').said('chat.accountNotFound');
 }
 
 // ---------------------------------------------------------------------------

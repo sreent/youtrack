@@ -170,6 +170,7 @@ const subscribeTool = defineTool({
     return `Subscribe to ${what}: you'll be told of ${tells}${input.email ? ', by email too' : ', in your inbox'}`;
   },
   async run(ctx, input) {
+    // api only: an MCP tool's, met by agents alone
     if (Boolean(input.project) === Boolean(input.saved_search)) throw badRequest('Say what to subscribe to', 'Give a project key, or a saved search\'s name or id: one of them.');
     const savedSearch = input.saved_search ? (await findFollowableSearch(ctx, input.saved_search)).id : undefined;
     if (input.events === 'none') {

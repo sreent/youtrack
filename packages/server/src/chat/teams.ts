@@ -107,9 +107,10 @@ const sameUrl = (a: string, b: string) => a.replace(/\/+$/, '').toLowerCase() ==
 /** Check Bot Framework's token on an activity, before anything else in it is read. */
 export async function verifyTeamsRequest(app: AppServices, authorization: string | undefined, activity: Pick<TeamsActivity, 'serviceUrl' | 'channelId'>): Promise<void> {
   const cfg = app.config.teams;
-  if (!cfg) throw new AppError(404, 'not_found', 'Teams isn’t set up here', 'Set TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID.');
+  if (!cfg) throw new AppError(404, 'not_found', 'Teams isn’t set up here', 'Set TEAMS_APP_ID, TEAMS_APP_PASSWORD and TEAMS_TENANT_ID.').said('chat.teamsNotSetUp');
   const refuse = (why: string) => {
     console.warn(`chat: a Teams request was refused: ${why}`);
+    // api only: Teams' Bot Framework posts here, signed, never a page
     return unauthorized('This request isn’t from Teams');
   };
   const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];

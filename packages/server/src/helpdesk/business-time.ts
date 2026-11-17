@@ -35,7 +35,7 @@ export function calendarOf(hours: BusinessHours | null | undefined): Calendar | 
   for (const h of hours.hours) {
     const from = minutes(h.from);
     const to = minutes(h.to);
-    if (to <= from) throw badRequest(`Working hours end after they start: ${h.from}–${h.to} doesn't`, 'For hours past midnight, give two spans: one to 24:00 and one from 00:00 the next day.');
+    if (to <= from) throw badRequest(`Working hours end after they start: ${h.from}–${h.to} doesn't`, 'For hours past midnight, give two spans: one to 24:00 and one from 00:00 the next day.').said('helpdesk.hoursBackwards', { from: h.from, to: h.to });
     byDay[h.day]!.push([from, to]);
   }
   for (const [day, spans] of byDay.entries()) {
@@ -43,11 +43,11 @@ export function calendarOf(hours: BusinessHours | null | undefined): Calendar | 
     for (let i = 1; i < spans.length; i++) {
       if (spans[i]![0] < spans[i - 1]![1]) {
         const name = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day];
-        throw badRequest(`${name}'s working hours overlap`, 'Give each part of the day once.');
+        throw badRequest(`${name}'s working hours overlap`, 'Give each part of the day once.').said('helpdesk.hoursOverlap', { day: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day]! });
       }
     }
   }
-  if (!byDay.some((d) => d.length)) throw badRequest('Working hours need at least one day', 'Add the hours the team works, such as Monday 09:00–17:00.');
+  if (!byDay.some((d) => d.length)) throw badRequest('Working hours need at least one day', 'Add the hours the team works, such as Monday 09:00–17:00.').said('helpdesk.hoursNeedDay');
   return { timeZone, byDay, holidays: new Set(hours.holidays) };
 }
 

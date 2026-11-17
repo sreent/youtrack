@@ -24,12 +24,17 @@ export const HELP_COOKIE = 'a4a_help';
 /** Where a tracking token travels: a header, so it stays out of addresses and logs. */
 export const TRACKING_HEADER = 'x-tracking-token';
 
-/** Count a hit on each limit (shared by every instance) and refuse with 429 when one is over. */
-export async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: string): Promise<void> {
+/**
+ * Count a hit on each limit (shared by every instance) and refuse with 429 when one is over: in the
+ * caller's words, keyed for a page in another language (D49), with how long to wait.
+ */
+export async function hit(c: Context<HttpEnv>, hits: [HelpLimit, string][], words: string, key: string): Promise<void> {
   const wait = await helpHit(c.get('runtime').db, hits);
   if (wait) {
     c.header('retry-after', String(wait));
-    throw new AppError(429, 'rate_limited', words, `Try again in ${waitInWords(wait)}.`);
+    // As waitInWords says it: seconds under a minute, else minutes, rounded up.
+    const unit = wait < 60 ? 'second' : 'minute';
+    throw new AppError(429, 'rate_limited', words, `Try again in ${waitInWords(wait)}.`).said(key, { unit, n: wait < 60 ? wait : Math.ceil(wait / 60) });
   }
 }
 
@@ -54,7 +59,7 @@ export function sameOrigin(c: Context<HttpEnv>): void {
       ok = false;
     }
   }
-  if (!ok) throw new AppError(403, 'forbidden', 'Cross-site request refused', 'Send it from the help desk page itself.');
+  if (!ok) throw new AppError(403, 'forbidden', 'Cross-site request refused', 'Send it from the help desk page itself.').said('helpdesk.crossSite');
 }
 
 const Key = z.object({ key: z.string().min(1).max(10) });
@@ -75,7 +80,7 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, params }) => {
       const runtime = c.get('runtime');
-      await hit(c, [['form', ip(c)]], 'Too many requests for this form');
+      await hit(c, [['form', ip(c)]], 'Too many requests for this form', 'helpdesk.tooManyForForm');
       const nonce = getCookie(c, HELP_COOKIE) ?? randomToken('', 18);
       const form = await helpForm(runtime, params.key, nonce);
       setCookie(c, HELP_COOKIE, nonce, {
@@ -109,18 +114,18 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       const project = await deskProject(runtime, params.key);
       if (!(await formTokenValid(runtime, project.key, getCookie(c, HELP_COOKIE), body.csrf))) {
-        throw new AppError(403, 'form_expired', 'This form has expired', 'Reload the page and send it again: what you wrote is still there.');
+        throw new AppError(403, 'form_expired', 'This form has expired', 'Reload the page and send it again: what you wrote is still there.').said('helpdesk.formExpired');
       }
-      await hit(c, [['submitIp', ip(c)]], 'Too many requests from your address');
+      await hit(c, [['submitIp', ip(c)]], 'Too many requests from your address', 'helpdesk.tooManyFromAddress');
       // A bot filled the field people can't see: say it went, and do nothing.
       if (body.website?.trim()) return { received: true as const, email: body.email, tracking: null };
       if (projectSettings(project).helpdesk.captcha) {
         const verdict = await checkCaptcha(runtime, project.key, body.captcha);
-        if (verdict === 'expired') throw new AppError(400, 'captcha_expired', 'The check that you’re not a bot has expired', 'It runs again by itself: send the request once more.');
-        if (verdict !== 'ok') throw new AppError(400, 'captcha_failed', 'The check that you’re not a bot didn’t pass', 'Reload the page and send it again: what you wrote is still there.');
+        if (verdict === 'expired') throw new AppError(400, 'captcha_expired', 'The check that you’re not a bot has expired', 'It runs again by itself: send the request once more.').said('helpdesk.captchaExpired');
+        if (verdict !== 'ok') throw new AppError(400, 'captcha_failed', 'The check that you’re not a bot didn’t pass', 'Reload the page and send it again: what you wrote is still there.').said('helpdesk.captchaFailed');
       }
-      await hit(c, [['submitEmail', body.email]], 'Too many requests from this email address');
-      await hit(c, [['submitDesk', project.id]], 'This help desk is taking too many requests just now');
+      await hit(c, [['submitEmail', body.email]], 'Too many requests from this email address', 'helpdesk.tooManyFromEmail');
+      await hit(c, [['submitDesk', project.id]], 'This help desk is taking too many requests just now', 'helpdesk.deskBusy');
       return fileRequest(runtime, project.key, body);
     },
   );
@@ -138,7 +143,7 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c }) => {
       const runtime = c.get('runtime');
-      await hit(c, [['track', ip(c)]], 'Too many requests');
+      await hit(c, [['track', ip(c)]], 'Too many requests', 'helpdesk.tooManyRequests');
       c.header('cache-control', 'no-store');
       return trackRequest(runtime, c.req.header(TRACKING_HEADER));
     },
@@ -161,10 +166,10 @@ export function helpdeskRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       sameOrigin(c);
       const token = c.req.header(TRACKING_HEADER);
-      await hit(c, [['replyIp', ip(c)]], 'Too many replies from your address');
-      if (!token) throw badRequest('Missing the tracking token', `Send it in the ${TRACKING_HEADER} header.`);
+      await hit(c, [['replyIp', ip(c)]], 'Too many replies from your address', 'helpdesk.tooManyRepliesFromAddress');
+      if (!token) throw badRequest('Missing the tracking token', `Send it in the ${TRACKING_HEADER} header.`).said('helpdesk.trackingTokenMissing', { header: TRACKING_HEADER });
       // Counted by its hash: a token is kept nowhere in plain text.
-      await hit(c, [['replyRequest', token]], 'Too many replies to this request just now');
+      await hit(c, [['replyRequest', token]], 'Too many replies to this request just now', 'helpdesk.tooManyRepliesToRequest');
       return replyToRequest(runtime, token, body.text);
     },
   );

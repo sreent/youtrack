@@ -215,13 +215,13 @@ export async function listSuggestions(ctx: Ctx, issueId: string): Promise<Sugges
 async function loadOpen(ctx: Ctx, id: string): Promise<SuggestionRow> {
   const [row] = await ctx.db.select().from(aiSuggestions).where(eq(aiSuggestions.id, id));
   // A suggestion on an issue the caller can't see is not found, as one that doesn't exist.
-  if (!row) throw notFound('Suggestion');
+  if (!row) throw notFound('Suggestion').said('ai.suggestionNotFound');
   const issue = await resolveIssue(ctx, row.issueId).catch(() => {
-    throw notFound('Suggestion');
+    throw notFound('Suggestion').said('ai.suggestionNotFound');
   });
   // Deciding on a suggestion is work on the issue: its project's members decide.
   await assertCanWriteProject(ctx, issue.projectId);
-  if (row.status !== 'pending' && row.status !== 'partially_applied') throw badRequest(`This suggestion was already ${row.status}`);
+  if (row.status !== 'pending' && row.status !== 'partially_applied') throw badRequest(`This suggestion was already ${row.status}`).said('ai.suggestionDecided', { status: row.status });
   return row;
 }
 

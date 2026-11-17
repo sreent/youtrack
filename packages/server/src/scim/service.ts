@@ -55,7 +55,7 @@ export async function createScimToken(ctx: Ctx, name: string): Promise<ScimToken
 export async function revokeScimToken(ctx: Ctx, id: string): Promise<void> {
   requireScope(ctx, 'admin');
   const [row] = await ctx.db.update(scimTokens).set({ revokedAt: new Date() }).where(and(eq(scimTokens.id, id), isNull(scimTokens.revokedAt))).returning({ id: scimTokens.id });
-  if (!row) throw notFound('SCIM token', 'See the live ones in Administration → Provisioning.');
+  if (!row) throw notFound('SCIM token', 'See the live ones in Administration → Provisioning.').said('scim.tokenNotFound');
 }
 
 /** Who a SCIM token acts as: the administrator who made it, while they are one. Null otherwise. */

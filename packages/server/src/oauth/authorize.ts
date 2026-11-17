@@ -89,7 +89,7 @@ async function check(app: AppServices, req: OAuthRequest): Promise<Checked> {
 /** Only a person, signed in on a4a's own page, allows an app: never a token, nor another app. */
 function requireSession(ctx: Ctx) {
   if (ctx.actor.authMethod !== 'session') {
-    throw forbidden('Only a person signed in to a4a can allow an app', 'Open the link the app gave you in your browser.');
+    throw forbidden('Only a person signed in to a4a can allow an app', 'Open the link the app gave you in your browser.').said('oauth.personOnly');
   }
 }
 
@@ -169,6 +169,7 @@ export async function decideAuthorization(ctx: Ctx, decision: OAuthDecision): Pr
   const c = await check(ctx.app, decision.request);
   if (!c.ok) {
     if (c.redirect) return { redirect: c.redirect };
+    // api only: OAuth's own error, its code and words fixed by RFC 6749
     throw new AppError(400, c.error, c.message, c.hint);
   }
   const issuer = oauthUrls(ctx.app.config).issuer;
@@ -179,7 +180,7 @@ export async function decideAuthorization(ctx: Ctx, decision: OAuthDecision): Pr
   const scopes: OAuthScope[] = write ? ['read', 'write'] : ['read'];
   const keys = decision.projects ?? null;
   const ids = keys === null ? null : await projectIds(ctx, keys);
-  if (ids && !ids.length) throw badRequest('Choose at least one project, or every project', 'The app can’t do anything with no project.');
+  if (ids && !ids.length) throw badRequest('Choose at least one project, or every project', 'The app can’t do anything with no project.').said('oauth.projectNeeded');
   const grant = await saveGrant(ctx, c.client.id, scopes, c.asked, ids);
 
   const code = randomToken(CODE_PREFIX, 32);

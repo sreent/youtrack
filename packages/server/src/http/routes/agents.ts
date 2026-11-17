@@ -36,7 +36,7 @@ export function agentRoutes(app: OpenAPIHono<HttpEnv>) {
       response: ApiTokenCreatedSchema,
     },
     async ({ ctx, params, body }) => {
-      if (!body.scopes.length) throw badRequest('Choose at least one scope');
+      if (!body.scopes.length) throw badRequest('Choose at least one scope').said('tokens.scopeNeeded');
       return issueAgentToken(ctx, params.id, body);
     },
   );

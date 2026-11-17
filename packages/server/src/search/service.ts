@@ -3,7 +3,7 @@ import type { CountResult, IssueList, QueryProblem } from '@a4a/shared';
 import { and, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import { issues } from '../db/schema';
-import { badRequest } from '../lib/errors';
+import { asSentence, badRequest } from '../lib/errors';
 import { issueDtos, type IssueRow } from '../services/issues';
 import { fieldByName } from '../services/schema-cache';
 import { commentSeenSql, issueSeenSql, projectAccess, scopeSchema } from '../services/access';
@@ -68,7 +68,7 @@ export async function compileOrThrow(ctx: Ctx, query: string, extra?: { projectI
     throw badRequest(`Invalid query: ${formatProblems(prepared.compiled.problems)}`, 'See GET /api/v1/search/suggest or the query language guide.', {
       problems: prepared.compiled.problems,
       ...(fixed !== null ? { fixed } : {}),
-    });
+    }).said('query.invalid', { problems: asSentence(formatProblems(prepared.compiled.problems)) });
   }
   return prepared;
 }
@@ -128,7 +128,7 @@ export async function countIssues(ctx: Ctx, query: string, groupBy?: string): Pr
     grouped = sql`SELECT CASE WHEN issues.resolved_at IS NULL THEN 'Unresolved' ELSE 'Resolved' END AS value, count(*)::int AS count FROM issues WHERE ${where} GROUP BY 1 ORDER BY count DESC`;
   } else {
     const field = fieldByName(s, groupBy);
-    if (!field) throw badRequest(`Cannot group by "${groupBy}"`, 'Use a custom field name, project, tag, reporter or resolved.');
+    if (!field) throw badRequest(`Cannot group by "${groupBy}"`, 'Use a custom field name, project, tag, reporter or resolved.').said('query.cannotGroupBy', { field: groupBy });
     if (isOptionType(field.type)) {
       grouped = sql`SELECT fv.name AS value, count(DISTINCT issues.id)::int AS count, min(fv.ordinal) AS ord FROM issues LEFT JOIN issue_field_values ifv ON ifv.issue_id = issues.id AND ifv.field_id = ${field.id} LEFT JOIN field_values fv ON fv.id = ifv.value_id WHERE ${where} GROUP BY fv.name ORDER BY ord NULLS LAST`;
     } else if (field.type === 'user') {

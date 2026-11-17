@@ -26,7 +26,7 @@ import type { Ctx } from '../context';
 import type { Db } from '../db/client';
 import { ruleRuns } from '../db/schema';
 import type { SQL } from 'drizzle-orm';
-import { AppError } from '../lib/errors';
+import { AppError, asSentence } from '../lib/errors';
 import { readableId, type IssueRow } from '../services/issue-refs';
 import { rulesFor, type RuleRow, type SchemaSnapshot } from '../services/schema-cache';
 import { condition, meets, ruleWorld } from './match';
@@ -83,18 +83,23 @@ export async function enforceGuards(tx: Db, ctx: Ctx, s: SchemaSnapshot, checks:
 }
 
 export function refusedBy(rule: RuleRow): AppError {
+  const own = rule.message?.trim();
+  const values = { rule: rule.name, query: rule.query, requires: rule.requires ?? '' };
   return new AppError(
     422,
     'refused_by_rule',
-    rule.message?.trim() || `The rule "${rule.name}" refuses this change`,
+    own || `The rule "${rule.name}" refuses this change`,
     `The rule "${rule.name}": an issue that matches ${rule.query} must also match ${rule.requires ?? ''}.`,
     { rule: { id: rule.id, name: rule.name } },
-  );
+  ).said(own ? 'workflow.ruleRefusesInItsWords' : 'workflow.ruleRefuses', own ? { refusal: asSentence(own), ...values } : values);
 }
 
 /** A scripted guard's refusal, in the words it gave refuse(). */
 export function refusedByScript(rule: RuleRow, message: string): AppError {
-  return new AppError(422, 'refused_by_rule', message, `The rule "${rule.name}" refuses it in its script.`, { rule: { id: rule.id, name: rule.name } });
+  return new AppError(422, 'refused_by_rule', message, `The rule "${rule.name}" refuses it in its script.`, { rule: { id: rule.id, name: rule.name } }).said(
+    'workflow.ruleScriptRefuses',
+    { refusal: asSentence(message), rule: rule.name },
+  );
 }
 
 export function isRefusal(e: unknown): e is AppError {

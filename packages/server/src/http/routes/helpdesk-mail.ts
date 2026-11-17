@@ -79,12 +79,14 @@ export function helpdeskMailRoutes(app: OpenAPIHono<HttpEnv>) {
       const runtime = c.get('runtime');
       const desk = await deskForSecret(runtime, params.key, basicPassword(c.req.header('authorization')));
       if (!desk) {
-        await hit(c, [['mailAuth', ip(c)]], 'Too many posts without the secret from your address');
+        await hit(c, [['mailAuth', ip(c)]], 'Too many posts without the secret from your address', 'helpdesk.tooManyWithoutSecret');
         c.header('www-authenticate', 'Basic realm="a4a help desk mail"');
+        // api only: a mail provider posts here, never a page
         throw new AppError(401, 'unauthorized', 'This help desk takes no mail with that secret', "Give the mail provider the address a4a showed with the desk's secret, whole.");
       }
       const raw = await rawMessage(c);
       if (!raw?.length) {
+        // api only: a mail provider posts here, never a page
         throw badRequest('There is no message in this post', 'Post it raw (message/rfc822), as a form\'s "email" or "body-mime" field, or as "RawEmail" in JSON.');
       }
       const got = await receiveMail(runtime, raw, { via: 'webhook', desk });

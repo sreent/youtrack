@@ -72,7 +72,7 @@ const CommandOut = z.object({
 
 export async function wordsToCommand(ctx: Ctx, text: string, issueIds: string[]): Promise<NLCommandResult> {
   requireScope(ctx, 'read');
-  if (!issueIds.length) throw badRequest('Choose at least one issue');
+  if (!issueIds.length) throw badRequest('Choose at least one issue').said('ai.issueNeeded');
   const rows = await Promise.all(issueIds.map((id) => resolveIssue(ctx, id)));
   const dtos = await issueDtos(ctx, rows);
   const issuesText = dtos

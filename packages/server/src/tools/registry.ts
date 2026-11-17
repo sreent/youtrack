@@ -356,6 +356,7 @@ const getBoardTool = defineTool({
     const boards = await listBoards(ctx);
     if (!input.board) return { data: boards.map((b) => ({ id: b.id, name: b.name, projects: b.projects.map((p) => p.key), sprints: b.sprintsEnabled })), summary: `${boards.length} boards` };
     const b = boards.find((x) => x.id === input.board || x.name.toLowerCase() === input.board!.toLowerCase());
+    // api only: an MCP tool's, met by agents alone
     if (!b) throw new AppError(404, 'not_found', `No board "${input.board}"`, `Boards: ${boards.map((x) => x.name).join(', ')}`);
     const view = await boardView(ctx, b.id, input.sprint);
     return {
@@ -490,6 +491,7 @@ const applyCommandTool = defineTool({
     const res = await runCommand(ctx, { issues: input.issues, command: input.command, comment: input.comment, dryRun: input.dry_run });
     if (res.problems.length) {
       const fixed = withFixes(input.command, res.problems);
+      // api only: an MCP tool's, met by agents alone
       throw new AppError(400, 'invalid_command', res.problems.map((p) => p.message).join('; '), res.problems.map((p) => p.hint).filter(Boolean).join(' ') || undefined, {
         problems: res.problems,
         ...(fixed !== null ? { fixed } : {}),
