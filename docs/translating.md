@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese and French are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French and Vietnamese are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -387,7 +387,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does.
 - **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.".
 - **The passive** is "được" for what is neutral or welcome and "bị" for what befalls a thing: "một vấn đề được tạo", "bình luận bị xóa", "thay đổi bị từ chối".
-- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này".
+- **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này"; "chính nó" (itself) is the exception.
 - **Roles** are words for anyone: "Quản trị viên", "Quản lý", "Thành viên", "Người xem", "Khách". In a sentence a role is bare and a page lower-cases it (`inSentence()`): "{name} giờ là thành viên của BACK".
 - **Typography**:
   - Sentence case: only a sentence's first word and names take a capital ("Lưu thay đổi", "Hộp thư đến", never "Hộp Thư Đến"). "a4a" stays lower case, first in a sentence too.
@@ -407,7 +407,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Data stays as named**: field names, states and values ("State", "Fixed"), and examples of the query and command languages (`project: BACK #Unresolved`), as in every language.
 - **Problems** say what went wrong, then the fix, each a sentence: "Không tìm thấy vấn đề BACK-12." An error is "lỗi", never "vấn đề", which is an issue. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) stays where English puts it and brings its own punctuation, so no full stop follows it: "Dịch vụ AI báo lỗi: {error}". In the query, command and rule problems, keywords and fields' names stay as typed (`for: me`, `#Unresolved`, `State`).
 - **You and your**: "của bạn" after the noun where a label must tell the reader's from someone else's ("Token của bạn", "Yêu cầu của bạn"), and nothing where the owner is plain ("Hồ sơ", "Hộp thư đến"). What the reader says on a button is "tôi": "Giao cho tôi".
-- **The help desk** is "bộ phận hỗ trợ", a request "yêu cầu" and its requester "người yêu cầu". Its emails and portal say "bạn" to the requester, and the team writes as "chúng tôi": "Chúng tôi đã nhận được yêu cầu của bạn, {name}."
+- **The help desk** is "bộ phận hỗ trợ", a request "yêu cầu" and its requester "người yêu cầu". Its emails and portal say "bạn" to the requester, and the team writes as "chúng tôi": "Chào {name}, chúng tôi đã nhận được yêu cầu của bạn."
 
 | English | Vietnamese |
 |---|---|

@@ -1,0 +1,99 @@
+/**
+ * a4a in Vietnamese (D49). A person's browser asks for Vietnamese and their profile chooses nothing,
+ * so the sign-in page and the pages they open are in Vietnamese, dates too; and a problem says itself
+ * in Vietnamese. Each page is shot in light, in dark, and at 390px wide, where nothing may spill sideways.
+ *
+ * The person is one of this file's own, signed in on the Vietnamese sign-in page: German's spec
+ * changes Una's profile, and two language specs sharing a person would cross.
+ */
+import type { Page, TestInfo } from '@playwright/test';
+import { unique, uniqueKey, type Api } from './support/api';
+import { expect, test } from './support/fixtures';
+
+// Signed out, in a browser that asks for Vietnamese: each test signs its own person in.
+test.use({ storageState: { cookies: [], origins: [] }, locale: 'vi-VN' });
+
+const PASSWORD = 'e2e-person-pass-1';
+
+async function person(api: Api) {
+  const login = `lan.${unique()}`;
+  await api.createUser({ login, name: 'Nguyễn Thị Lan', password: PASSWORD, role: 'member' });
+  return login;
+}
+
+/** In through the sign-in page, as a person does: in Vietnamese, since the browser asks for it. */
+async function signIn(page: Page, login: string) {
+  await page.goto('/login');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+  await page.getByLabel('Tên đăng nhập').fill(login);
+  await page.getByLabel('Mật khẩu').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await expect(page).toHaveURL(/\/issues$/);
+}
+
+/** The page in light and in dark, and at a phone's width, where it must not scroll sideways. */
+async function shoot(page: Page, info: TestInfo, name: string) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    const path = info.outputPath(`${name}-${colorScheme}.png`);
+    await page.screenshot({ path, fullPage: true });
+    await info.attach(`${name}-${colorScheme}.png`, { path, contentType: 'image/png' });
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+  const size = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), { message: `${name} spills sideways at 390px` }).toBeLessThanOrEqual(390);
+  const path = info.outputPath(`${name}-390.png`);
+  await page.screenshot({ path, fullPage: true });
+  await info.attach(`${name}-390.png`, { path, contentType: 'image/png' });
+  if (size) await page.setViewportSize(size);
+}
+
+test('speaks Vietnamese where the browser asks for it, dates and all', async ({ page, api }, info) => {
+  const login = await person(api);
+  const key = uniqueKey('VI');
+  await api.createProject({ key, name: `Ngôn ngữ ${key}` });
+  const issue = await api.createIssue({ project: key, summary: `Trang trống sau khi đăng nhập ${unique()}`, description: 'Sau khi nhập mật khẩu, trang không hiển thị gì.' });
+
+  await signIn(page, login);
+  await expect(page.getByRole('heading', { name: 'Vấn đề', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Hộp thư đến' }).first()).toBeVisible();
+  await shoot(page, info, 'issues');
+
+  await page.goto(`/issues/${issue.id}`);
+  await expect(page.getByRole('heading', { name: issue.summary })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Mô tả' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lịch sử và bình luận' })).toBeVisible();
+  // Dates as Vietnam writes them: "16 thg 11, 2026".
+  await expect(page.locator('time').filter({ hasText: /^\d{1,2} thg \d{1,2}, \d{4}$/ }).first()).toBeVisible();
+  await shoot(page, info, 'issue');
+
+  await page.goto('/inbox');
+  await expect(page.getByRole('heading', { name: 'Hộp thư đến', exact: true })).toBeVisible();
+  await shoot(page, info, 'inbox');
+
+  await page.goto('/me');
+  await expect(page.getByRole('heading', { name: 'Hồ sơ', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Ngôn ngữ')).toHaveValue('');
+  await expect(page.getByLabel('Ngôn ngữ').locator('option:checked')).toHaveText('Ngôn ngữ của trình duyệt: Tiếng Việt');
+  // The picker names each language as its readers write it.
+  await expect(page.getByLabel('Ngôn ngữ').locator('option[value="vi"]')).toHaveText('Tiếng Việt');
+  await shoot(page, info, 'profile');
+});
+
+test('says a problem in Vietnamese, on the sign-in page too', async ({ browser }, info) => {
+  // A context of its own, as German's: the wrong password's 401 is what this test asks for.
+  const context = await browser.newContext({ locale: 'vi-VN', storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  await page.goto('/login');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'vi');
+  await expect(page.getByRole('heading', { level: 1, name: 'Đăng nhập' })).toBeVisible();
+  await page.getByLabel('Tên đăng nhập').fill(`khongai.${unique()}`);
+  await page.getByLabel('Mật khẩu').fill('sai-mat-khau');
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  // The server's problem carries a key beside its English; the page says it in Vietnamese.
+  await expect(page.getByText('Sai tên đăng nhập hoặc mật khẩu.')).toBeVisible();
+  await expect(page.getByText('Wrong login or password')).toHaveCount(0);
+  await shoot(page, info, 'sign-in');
+  await context.close();
+});
