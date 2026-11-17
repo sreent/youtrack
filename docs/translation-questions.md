@@ -287,6 +287,19 @@ Typography and layout:
 - **Line breaks**: the browser breaks Korean between any two syllables (CSS `word-break: normal`), so a word can split across lines ("선택하/세요"). Korean typesetting breaks at spaces (`word-break: keep-all`), which would be Ocean's to set for `:lang(ko)`; it isn't set, since a long unspaced word could then push past a phone's width.
 - **Fonts**: the container's shots use WenQuanYi Zen Hei. Judge spacing with Noto Sans KR, Apple SD Gothic Neo or Malgun Gothic.
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard's note** is 메모 (`page.whiteboard.addNote`, `whiteboards.kind.note`), as the catalog says a dashboard's note, and short on the toolbar. Whiteboard apps' Korean says 스티커 메모 or 스티키 노트. Which do Korean teams expect?
+- **Undo and redo** on a whiteboard are 실행 취소 and 다시 실행 (`page.whiteboard.undo`, `redo`, `said.undid`, `said.redid`), as editors say them; undoing an agent's change or an import stays 되돌리기. Does "이동을 실행 취소했습니다" read naturally, or is "이동을 되돌렸습니다" better?
+- **The outline** is 개요 (`page.whiteboard.outline`, `whiteboards.outline.title`), as Google Docs' Korean says a document's; a section is 섹션, and an arrow's label 레이블 (`whiteboards.textDialog.label`). 아웃라인 and 라벨 are the alternatives.
+- **Reading a whiteboard** is 볼 수 있다 (`page.whiteboards.about`, `noneAbout`, `projectHelp`, `page.whiteboard.readOnly`), where the access messages say a project is 읽다. One verb throughout?
+- **Converting** is 이슈로 만들기 (`page.whiteboard.convert`, `whiteboards.convertDialog.title`). A preview's lines are in the present (`whiteboards.convertDialog.wouldMake` "이슈가 됩니다: …", `wouldLink` "링크됩니다: …") beside the result's past (`made` "BACK-12이(가) 되었습니다: …"). Clear as a preview?
+- **Zero**: `activity.ledgerEntry.whiteboardConverted` and `page.whiteboard.said.converted` say "링크 0개" where English says "no links", since their plurals keep `other` alone. Should they keep English's `=0`?
+- **A chat thread's replies** are 답글 (`page.issue.source.replies`, `server.chat.issue.withReplies`), as Slack's Korean says them, kept apart from the help desk's 답장.
+- **The bot names itself** in `server.chat.issue.notInChannel` and `onlyChannels` ("a4a가 #eng에 참여하고 있지 않습니다"), where English says "I'm not in" and the bot's other lines leave the subject out, so the reader doesn't take it for themselves.
+- `issues.watching.commented` and `wroteTheMessage` are 댓글 작성자 and 원본 메시지 작성자, nouns beside 보고자 and 담당자 under a watcher's name.
+- `page.whiteboard.you` is "{name}(나)" in the list of who's looking (`page.whiteboard.lookingNow`, 지금 보는 사람). Natural?
+
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, and has had no second read. Everything below is open.
