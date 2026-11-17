@@ -1,6 +1,6 @@
 import type { DeskMailbox, HelpdeskRequest, Project, SlaClock, SlaPolicy, SlaReport } from '@a4a/shared';
 import { periodWords } from '../common/format';
-import { formatPeriod, parsePeriod } from '@a4a/shared/periods';
+import { parsePeriod } from '@a4a/shared/periods';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, patch, post, put } from '../../api/client';
@@ -19,9 +19,9 @@ export function ClockLine({ c, now = Date.now() }: { c: SlaClock; now?: number }
   const name = TARGET[c.target];
   switch (c.state) {
     case 'running':
-      return <Badge title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.dueIn', { name: name, v: due ? span(due - now) : t('helpdesk.sla.ofWorkingTime', { formatPeriod: formatPeriod(c.leftMinutes) }) })}</Badge>;
+      return <Badge title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.dueIn', { name: name, v: due ? span(due - now) : t('helpdesk.sla.ofWorkingTime', { formatPeriod: periodWords(c.leftMinutes) }) })}</Badge>;
     case 'at_risk':
-      return <Badge tone="warn" title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.atRiskDueIn', { name: name, v: due ? span(due - now) : formatPeriod(c.leftMinutes) })}</Badge>;
+      return <Badge tone="warn" title={c.dueAt ? t('helpdesk.sla.due', { toLocaleString: new Date(c.dueAt).toLocaleString(intlLocale()) }) : undefined}>{tr('helpdesk.sla.atRiskDueIn', { name: name, v: due ? span(due - now) : periodWords(c.leftMinutes) })}</Badge>;
     case 'paused':
       return <Badge tone="idle">{tr('helpdesk.sla.pausedLeft', { name: name, formatPeriod: periodWords(Math.max(c.leftMinutes, 0)) })}</Badge>;
     case 'breached':
@@ -48,7 +48,7 @@ export function RequestSla({ issueId, r, canReply }: { issueId: string; r: Helpd
           <p className="note">
             {r.sla.policy ? `${r.sla.policy.name}` : t('helpdesk.sla.firstResponseTarget')}
             {r.sla.businessHours ? t('helpdesk.sla.inWorkingHours') : t('helpdesk.sla.roundTheClock')}
-            {r.sla.waiting ? t('helpdesk.sla.itWaitsOnItsRequester') : '.'}
+            {t('helpdesk.sla.itWaitsOnItsRequester', { waiting: r.sla.waiting ? 'yes' : 'no' })}
           </p>
           <ul className="chips" aria-label={t('helpdesk.sla.targets')}>
             {r.sla.clocks.map((c) => (
@@ -193,7 +193,7 @@ export function SlaSettings({ project, canEdit }: { project: Project; canEdit: b
             {policies.data.map((x) => (
               <li key={x.id} className="stack tight">
                 <strong>{x.name}</strong>
-                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? t('helpdesk.sla.firstResponseIn', { formatPeriod: formatPeriod(x.firstResponseMinutes) }) : t('helpdesk.sla.noFirstResponseTarget'), v3: x.resolutionMinutes ? t('helpdesk.sla.resolvedIn', { formatPeriod: formatPeriod(x.resolutionMinutes) }) : t('helpdesk.sla.noResolutionTarget'), v4: formatPeriod(x.warnMinutes || 0) || 'never' })}</p>
+                <p className="note">{tr('helpdesk.sla.atRiskBefore', { v: x.query ? t('helpdesk.sla.when', { query: x.query }) : t('helpdesk.sla.everyRequest'), v2: x.firstResponseMinutes ? t('helpdesk.sla.firstResponseIn', { formatPeriod: periodWords(x.firstResponseMinutes) }) : t('helpdesk.sla.noFirstResponseTarget'), v3: x.resolutionMinutes ? t('helpdesk.sla.resolvedIn', { formatPeriod: periodWords(x.resolutionMinutes) }) : t('helpdesk.sla.noResolutionTarget'), v4: x.warnMinutes ? periodWords(x.warnMinutes) : '', warn: x.warnMinutes ? 'yes' : 'no' })}</p>
                 {canEdit ? (
                   <button type="button" className="link" onClick={() => remove.mutate(x.id)} aria-label={t('helpdesk.sla.deleteThePolicy', { name: x.name })}>{t('helpdesk.sla.delete')}</button>
                 ) : null}
