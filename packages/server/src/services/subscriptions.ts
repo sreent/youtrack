@@ -117,7 +117,7 @@ export async function listSubscriptions(ctx: Ctx): Promise<Subscription[]> {
 
 async function own(ctx: Ctx, id: string): Promise<Subscription> {
   const found = await visible(ctx, await rowsOf(ctx.db, and(eq(subscriptions.id, id), eq(subscriptions.userId, ctx.actor.user.id))));
-  if (!found[0]) throw notFound('Subscription', "Subscriptions are only ever their own person's: list yours with GET /subscriptions.");
+  if (!found[0]) throw notFound('Subscription', "Subscriptions are only ever their own person's: list yours with GET /subscriptions.").said('subscriptions.notFoundList');
   return found[0];
 }
 
@@ -153,7 +153,7 @@ export async function subscribe(
 ): Promise<Subscription> {
   requirePersonal(ctx);
   if (Boolean(input.project) === Boolean(input.savedSearch)) {
-    throw badRequest('Say what to subscribe to', 'Send a project\'s key as "project", or a saved search\'s id as "savedSearch": one of them.');
+    throw badRequest('Say what to subscribe to', 'Send a project\'s key as "project", or a saved search\'s id as "savedSearch": one of them.').said('subscriptions.sayWhat');
   }
   const events: SubscriptionEvents = input.events === 'all' ? 'all' : 'new';
   const email = input.email ?? true;
@@ -170,13 +170,13 @@ export async function subscribe(
   }
   const id = input.savedSearch!;
   const [search] = await ctx.db.select().from(savedSearches).where(eq(savedSearches.id, id));
-  const missing = () => notFound('Saved search', 'List the ones you can follow with GET /saved-searches.');
+  const missing = () => notFound('Saved search', 'List the ones you can follow with GET /saved-searches.').said('subscriptions.searchNotFoundList');
   // Someone else's search that isn't shared, or names what you can't see, is not found, as one that doesn't exist.
   if (!search || !followable(search, userId) || !(await seen(ctx, search))) throw missing();
   // Your own search that no longer reads (a value renamed since) can't say what comes into it: fix it first.
   const prepared = await prepareQuery(ctx, search.query);
   if (prepared.compiled.problems.length) {
-    throw badRequest(`“${search.name}” doesn't read`, `${prepared.compiled.problems.map((p) => p.message).join('; ')}. Change it on the Issues page first.`);
+    throw badRequest(`“${search.name}” doesn't read`, `${prepared.compiled.problems.map((p) => p.message).join('; ')}. Change it on the Issues page first.`).said('subscriptions.searchDoesntRead', { search: search.name, problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
   }
   const subId = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
@@ -201,7 +201,7 @@ export async function subscribe(
   });
   if (subId) return own(ctx, subId);
   const [made] = await ctx.db.select().from(subscriptions).where(and(eq(subscriptions.userId, userId), eq(subscriptions.savedSearchId, search.id)));
-  if (!made) throw notFound('Subscription');
+  if (!made) throw notFound('Subscription').said('subscriptions.notFound');
   await ctx.db.update(subscriptions).set({ events, email, updatedAt: new Date() }).where(eq(subscriptions.id, made.id));
   return own(ctx, made.id);
 }
@@ -224,8 +224,8 @@ export async function findFollowableSearch(ctx: Ctx, idOrName: string): Promise<
   const mine = named.filter((r) => r.ownerId === userId);
   const pick = mine.length ? mine : named;
   if (pick.length === 1) return pick[0]!;
-  if (pick.length > 1) throw badRequest(`Several saved searches are called “${idOrName}”`, 'Use the id of the one you mean.');
-  throw notFound(`Saved search “${idOrName}”`, 'Use the name or id of one of yours, or of a shared one.');
+  if (pick.length > 1) throw badRequest(`Several saved searches are called “${idOrName}”`, 'Use the id of the one you mean.').said('subscriptions.searchAmbiguous', { name: idOrName });
+  throw notFound(`Saved search “${idOrName}”`, 'Use the name or id of one of yours, or of a shared one.').said('subscriptions.searchNotFound', { name: idOrName });
 }
 
 /** Your subscription to a project or a saved search, if you have one. */

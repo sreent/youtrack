@@ -46,7 +46,7 @@ export async function listMembers(ctx: Ctx, key: string): Promise<ProjectMember[
 
 function personFor(s: SchemaSnapshot, login: string): UserRow {
   const u = findUser(s, login);
-  if (!u) throw notFound(`User ${login}`, 'Use their login, as in GET /users.');
+  if (!u) throw notFound(`User ${login}`, 'Use their login, as in GET /users.').said('members.userNotFound', { login });
   return u;
 }
 
@@ -72,7 +72,7 @@ export async function addMember(ctx: Ctx, key: string, input: { user: string; ro
       .onConflictDoNothing()
       .returning();
     if (!row) {
-      throw conflict(`${user.name} is already one of ${project.key}'s people`, `Change their role instead: PATCH /projects/${project.key}/members/${user.login}.`);
+      throw conflict(`${user.name} is already one of ${project.key}'s people`, `Change their role instead: PATCH /projects/${project.key}/members/${user.login}.`).said('members.alreadyMember', { name: user.name, project: project.key, login: user.login });
     }
     return { type: 'project.member.added', data: { user: user.login, name: user.name, role } };
   });
@@ -90,7 +90,7 @@ export async function updateMember(ctx: Ctx, key: string, login: string, input: 
       .from(projectMembers)
       .where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, user.id)))
       .for('update');
-    if (!before) throw notFound(`${user.login} among ${project.key}'s people`, `Add them first: POST /projects/${project.key}/members.`);
+    if (!before) throw notFound(`${user.login} among ${project.key}'s people`, `Add them first: POST /projects/${project.key}/members.`).said('members.notAMember', { login: user.login, project: project.key });
     await tx.update(projectMembers).set({ role }).where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, user.id)));
     return { type: 'project.member.changed', data: { user: user.login, name: user.name, from: before.role, to: role } };
   });
@@ -108,9 +108,9 @@ export async function removeMember(ctx: Ctx, key: string, login: string): Promis
       .returning();
     if (!gone) {
       if (project.leadId === user.id) {
-        throw badRequest(`${user.name} leads ${project.key}, which makes them its manager`, 'Choose another lead in the project’s details first.');
+        throw badRequest(`${user.name} leads ${project.key}, which makes them its manager`, 'Choose another lead in the project’s details first.').said('members.leadIsManager', { name: user.name, project: project.key });
       }
-      throw notFound(`${user.login} among ${project.key}'s people`);
+      throw notFound(`${user.login} among ${project.key}'s people`).said('members.notAMemberShort', { login: user.login, project: project.key });
     }
     return { type: 'project.member.removed', data: { user: user.login, name: user.name, role: gone.role } };
   });

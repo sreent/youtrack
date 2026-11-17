@@ -52,7 +52,7 @@ async function fieldNamed(ctx: Ctx, s: SchemaSnapshot, scope: Scope, name: strin
   if (found) return found;
   const names = ['Project', ...fields.map((f) => f.name).sort((a, b) => a.localeCompare(b))];
   const guess = didYouMean(n, names);
-  throw badRequest(`No field here is called "${n}"`, `${guess ? `Did you mean "${guess}"? ` : ''}Fields: ${names.join(', ')}`);
+  throw badRequest(`No field here is called "${n}"`, `${guess ? `Did you mean "${guess}"? ` : ''}Fields: ${names.join(', ')}`).said('moreReports.noSuchField', { name: n, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', names: names.join(', ') });
 }
 
 function fieldDto(d: Dim): ReportField {
@@ -119,7 +119,7 @@ interface Counted {
 
 async function issuesInScope(ctx: Ctx, scope: Scope): Promise<{ id: string; projectId: string }[]> {
   const rows = await ctx.db.select({ id: issues.id, projectId: issues.projectId }).from(issues).where(scope.issueWhere).limit(MAX_ISSUES + 1);
-  if (rows.length > MAX_ISSUES) throw badRequest(`This report would count more than ${MAX_ISSUES.toLocaleString('en')} issues`, 'Narrow it: choose a project, or add a query.');
+  if (rows.length > MAX_ISSUES) throw badRequest(`This report would count more than ${MAX_ISSUES.toLocaleString('en')} issues`, 'Narrow it: choose a project, or add a query.').said('moreReports.tooMany', { max: MAX_ISSUES });
   return rows;
 }
 
@@ -405,7 +405,7 @@ async function boardNamed(ctx: Ctx, name: string): Promise<{ board: BoardRow; re
   const view = await projectAccess(ctx);
   const all = (await ctx.db.select().from(boards)).filter((b) => b.projectIds.some((id) => view.canRead(id)));
   const board = all.find((b) => b.id === name) ?? all.find((b) => b.name.toLowerCase() === name.toLowerCase());
-  if (!board) throw notFound(`Board ${name}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`);
+  if (!board) throw notFound(`Board ${name}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('moreReports.boardNotFound', { name, n: all.length, boards: all.map((b) => b.name).join(', ') });
   return { board, readable: board.projectIds.filter((id) => view.canRead(id)) };
 }
 

@@ -219,7 +219,7 @@ export async function loadEvents(
     .orderBy(asc(activities.id))
     .limit(MAX_EVENTS + 1);
   if (rows.length > MAX_EVENTS) {
-    throw badRequest('This report would read more history than a4a reads at once', 'Narrow it: choose a project, or add a query.');
+    throw badRequest('This report would read more history than a4a reads at once', 'Narrow it: choose a project, or add a query.').said('reports.tooMuchHistory');
   }
   const out: HistoryEvent[] = [];
   for (const r of rows) {
@@ -314,13 +314,13 @@ export function windowOf(input: { from?: string; to?: string; timeZone?: string 
   const tz = timeZoneOrThrow(input.timeZone);
   const today = todayIn(tz, now);
   for (const [name, v] of [['from', input.from], ['to', input.to]] as const) {
-    if (v !== undefined && !isISODate(v)) throw badRequest(`"${name}" must be a date, YYYY-MM-DD`);
+    if (v !== undefined && !isISODate(v)) throw badRequest(`"${name}" must be a date, YYYY-MM-DD`).said('reports.notADate', { name });
   }
   let to = input.to ?? today;
   if (to > today) to = today; // days to come have no figures yet
   const from = input.from ?? addDays(to, -(defaultDays - 1));
-  if (from > to) throw badRequest(`"from" (${from}) is after "to" (${to})`, 'Swap them, or leave "to" out for today.');
-  if (diffDays(from, to) + 1 > maxDays) throw badRequest(`That is ${diffDays(from, to) + 1} days; this report takes ${maxDays} at most`, 'Choose a shorter window.');
+  if (from > to) throw badRequest(`"from" (${from}) is after "to" (${to})`, 'Swap them, or leave "to" out for today.').said('reports.fromAfterTo', { from, to });
+  if (diffDays(from, to) + 1 > maxDays) throw badRequest(`That is ${diffDays(from, to) + 1} days; this report takes ${maxDays} at most`, 'Choose a shorter window.').said('reports.windowTooLong', { days: diffDays(from, to) + 1, maxDays });
   return { tz, today, now, from, to };
 }
 
@@ -375,8 +375,8 @@ export async function createdResolvedReport(ctx: Ctx, input: WindowInput & { int
   const w = windowOf(input, 30, 3700, now);
   const span = diffDays(w.from, w.to) + 1;
   const interval: Interval = input.interval ?? (span <= 31 ? 'day' : span <= 182 ? 'week' : 'month');
-  if (interval === 'day' && span > 366) throw badRequest(`By day, this report takes 366 days at most; that is ${span}`, 'Choose interval=week or month.');
-  if (interval === 'week' && span > 1100) throw badRequest(`By week, this report takes about three years at most; that is ${span} days`, 'Choose interval=month.');
+  if (interval === 'day' && span > 366) throw badRequest(`By day, this report takes 366 days at most; that is ${span}`, 'Choose interval=week or month.').said('reports.byDayTooLong', { span });
+  if (interval === 'week' && span > 1100) throw badRequest(`By week, this report takes about three years at most; that is ${span} days`, 'Choose interval=month.').said('reports.byWeekTooLong', { span });
   const buckets: Bucket[] = [];
   for (let d = w.from; d <= w.to; ) {
     const next = interval === 'day' ? addDays(d, 1) : interval === 'week' ? addDays(startOfWeek(d), 7) : addMonths(startOfMonth(d), 1);
@@ -407,11 +407,11 @@ export async function cycleTimeReport(ctx: Ctx, input: WindowInput & { start?: s
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
-  if (!startStates.length) throw badRequest('Name at least one state that starts the clock', 'For example start=In Progress');
+  if (!startStates.length) throw badRequest('Name at least one state that starts the clock', 'For example start=In Progress').said('reports.nameStartState');
   const known = knownStates(s, scope.projects);
   const unknown = startStates.filter((n) => !known.some((k) => k.name.toLowerCase() === n.toLowerCase()));
   if (unknown.length && known.length) {
-    throw badRequest(`No state is called ${unknown.map((n) => `"${n}"`).join(', ')}`, `States: ${known.map((k) => k.name).join(', ')}`);
+    throw badRequest(`No state is called ${unknown.map((n) => `"${n}"`).join(', ')}`, `States: ${known.map((k) => k.name).join(', ')}`).said('reports.noSuchState', { unknown: unknown.map((n) => `"${n}"`).join(', '), states: known.map((k) => k.name).join(', ') });
   }
   const from = startOfDay(w.from, w.tz);
   const to = Math.min(startOfDay(addDays(w.to, 1), w.tz), now + 1);
@@ -465,16 +465,16 @@ export async function findSprint(ctx: Ctx, input: { sprint?: string; board?: str
   }
   const boardName = input.board?.trim();
   if (!boardName) {
-    throw badRequest(name ? `No sprint has the id "${name}"` : 'Say which sprint', 'Give a sprint id, or a board (its current sprint) and optionally the sprint\'s name.');
+    throw badRequest(name ? `No sprint has the id "${name}"` : 'Say which sprint', 'Give a sprint id, or a board (its current sprint) and optionally the sprint\'s name.').said('reports.whichSprint', { asked: name ? 'yes' : 'no', name: name ?? '' });
   }
   const all = (await ctx.db.select().from(boards)).filter(sees);
   const board = all.find((b) => b.id === boardName) ?? all.find((b) => b.name.toLowerCase() === boardName.toLowerCase());
-  if (!board) throw notFound(`Board ${boardName}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`);
+  if (!board) throw notFound(`Board ${boardName}`, `Boards: ${all.map((b) => b.name).join(', ') || 'none yet'}`).said('reports.boardNotFound', { name: boardName, n: all.length, boards: all.map((b) => b.name).join(', ') });
   const list = await ctx.db.select().from(sprints).where(eq(sprints.boardId, board.id)).orderBy(asc(sprints.startDate), asc(sprints.createdAt));
-  if (!list.length) throw notFound(`A sprint on ${board.name}`, board.sprintsEnabled ? 'Plan a sprint on the board first.' : 'This board does not use sprints.');
+  if (!list.length) throw notFound(`A sprint on ${board.name}`, board.sprintsEnabled ? 'Plan a sprint on the board first.' : 'This board does not use sprints.').said('reports.noSprints', { board: board.name, sprints: board.sprintsEnabled ? 'on' : 'off' });
   if (name) {
     const sprint = list.find((x) => x.name.toLowerCase() === name.toLowerCase());
-    if (!sprint) throw notFound(`Sprint "${name}" on ${board.name}`, `Its sprints: ${list.map((x) => x.name).join(', ')}`);
+    if (!sprint) throw notFound(`Sprint "${name}" on ${board.name}`, `Its sprints: ${list.map((x) => x.name).join(', ')}`).said('reports.sprintNotFound', { name, board: board.name, sprints: list.map((x) => x.name).join(', ') });
     return { sprint, board };
   }
   const sprint =
@@ -605,10 +605,10 @@ export async function burndownReport(ctx: Ctx, input: { sprint?: string; board?:
   const view = await projectAccess(ctx);
   const readable = board.projectIds.filter((id) => view.canRead(id));
   if (!sprint.startDate || !sprint.endDate) {
-    throw badRequest(`${sprint.name} has no ${sprint.startDate ? 'end' : 'start'} date`, `Give it its dates (PATCH /sprints/${sprint.id}) to see its burndown.`);
+    throw badRequest(`${sprint.name} has no ${sprint.startDate ? 'end' : 'start'} date`, `Give it its dates (PATCH /sprints/${sprint.id}) to see its burndown.`).said('reports.sprintMissingDate', { sprint: sprint.name, missing: sprint.startDate ? 'end' : 'start', id: sprint.id });
   }
-  if (sprint.endDate < sprint.startDate) throw badRequest(`${sprint.name} ends before it starts`, 'Correct its dates.');
-  if (diffDays(sprint.startDate, sprint.endDate) > 366) throw badRequest(`${sprint.name} is longer than a year`, 'A burndown is for a sprint of days or weeks.');
+  if (sprint.endDate < sprint.startDate) throw badRequest(`${sprint.name} ends before it starts`, 'Correct its dates.').said('reports.sprintEndsFirst', { sprint: sprint.name });
+  if (diffDays(sprint.startDate, sprint.endDate) > 366) throw badRequest(`${sprint.name} is longer than a year`, 'A burndown is for a sprint of days or weeks.').said('reports.sprintTooLong', { sprint: sprint.name });
   const projects = readable.map((id) => s.projects.get(id)).filter((p): p is ProjectRow => Boolean(p));
 
   const { res, workDates, warnings, current, sprintRows, days, start, end, cal, legacy, timelines } = await sprintBurn(ctx, s, { ...sprint, startDate: sprint.startDate, endDate: sprint.endDate }, projects, by, tz, now);
@@ -733,7 +733,7 @@ export async function timeReport(ctx: Ctx, input: { project?: string; query?: st
   const conds: SQL[] = [scope.issueWhere, await costsWhere(ctx), sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
   if (input.author?.trim()) {
     const u = findUser(s, input.author, ctx.actor.user.id);
-    if (!u) throw notFound(`User ${input.author}`, 'Use a login, a full name, or "me".');
+    if (!u) throw notFound(`User ${input.author}`, 'Use a login, a full name, or "me".').said('reports.authorNotFound', { author: input.author });
     author = userRefDto(u);
     conds.push(eq(workItems.authorId, u.id));
   }
@@ -752,7 +752,7 @@ export async function timeReport(ctx: Ctx, input: { project?: string; query?: st
     .innerJoin(issues, eq(issues.id, workItems.issueId))
     .where(and(...conds))
     .limit(MAX_WORK_ITEMS + 1);
-  if (rows.length > MAX_WORK_ITEMS) throw badRequest('That is more logged work than a4a reports at once', 'Choose a shorter window, a project or a person.');
+  if (rows.length > MAX_WORK_ITEMS) throw badRequest('That is more logged work than a4a reports at once', 'Choose a shorter window, a project or a person.').said('reports.tooMuchWork');
 
   const weeks: string[] = [];
   for (let d = startOfWeek(w.from); d <= w.to; d = addDays(d, 7)) weeks.push(d);
@@ -853,7 +853,7 @@ export async function timeEntries(ctx: Ctx, input: { project?: string; query?: s
   const conds: SQL[] = [scope.issueWhere, await costsWhere(ctx), sql`${workItems.date} >= ${w.from}`, sql`${workItems.date} <= ${w.to}`];
   if (input.author?.trim()) {
     const u = findUser(s, input.author, ctx.actor.user.id);
-    if (!u) throw notFound(`User ${input.author}`);
+    if (!u) throw notFound(`User ${input.author}`).said('notFound.user', { id: input.author });
     conds.push(eq(workItems.authorId, u.id));
   }
   const rows = await ctx.db
@@ -873,7 +873,7 @@ export async function timeEntries(ctx: Ctx, input: { project?: string; query?: s
     .where(and(...conds))
     .orderBy(asc(workItems.date), asc(issues.number))
     .limit(MAX_WORK_ITEMS + 1);
-  if (rows.length > MAX_WORK_ITEMS) throw badRequest('That is more logged work than a4a exports at once', 'Choose a shorter window, a project or a person.');
+  if (rows.length > MAX_WORK_ITEMS) throw badRequest('That is more logged work than a4a exports at once', 'Choose a shorter window, a project or a person.').said('reports.tooMuchWorkToExport');
   return {
     from: w.from,
     to: w.to,

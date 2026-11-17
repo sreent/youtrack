@@ -125,7 +125,7 @@ export async function listNotifications(
   if (opts.issue) {
     // An issue the caller can't see is not found, in the words used for one that doesn't exist.
     const row = await findVisibleIssue(ctx, opts.issue);
-    if (!row) throw notFound(`Issue ${opts.issue}`, 'Use a readable id such as BACK-12.');
+    if (!row) throw notFound(`Issue ${opts.issue}`, 'Use a readable id such as BACK-12.').said('notifications.issueNotFound', { id: opts.issue });
     conds.push(eq(notifications.issueId, row.id));
   }
   const where = and(...conds);
@@ -147,7 +147,7 @@ export async function listNotifications(
 export async function getNotification(ctx: Ctx, id: string): Promise<Notification> {
   requirePersonalRead(ctx);
   const [row] = await ctx.db.select().from(notifications).where(and(await mine(ctx), eq(notifications.id, id)));
-  if (!row) throw notFound('Notification', 'Notifications are only ever their own person\'s: list yours with GET /notifications.');
+  if (!row) throw notFound('Notification', 'Notifications are only ever their own person\'s: list yours with GET /notifications.').said('notifications.notificationNotFound');
   return (await dtos(ctx, [row]))[0]!;
 }
 
@@ -160,19 +160,19 @@ export async function markNotifications(
   input: { ids?: string[]; issue?: string; all?: boolean; until?: string; read?: boolean },
 ): Promise<{ changed: number; unread: number }> {
   requirePersonal(ctx);
-  if (!input.ids?.length && !input.issue && !input.all) throw badRequest('Say which notifications', 'Send "ids", an "issue", or "all": true.');
+  if (!input.ids?.length && !input.issue && !input.all) throw badRequest('Say which notifications', 'Send "ids", an "issue", or "all": true.').said('notifications.sayWhich');
   const read = input.read ?? true;
   // Only what the caller's inbox shows: a token limited to some projects marks nothing elsewhere.
   const conds: SQL[] = [await mine(ctx), read ? isNull(notifications.readAt) : isNotNull(notifications.readAt)];
   if (input.ids?.length) conds.push(inArray(notifications.id, input.ids));
   if (input.issue) {
     const row = await findVisibleIssue(ctx, input.issue);
-    if (!row) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.');
+    if (!row) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.').said('notifications.issueNotFound', { id: input.issue });
     conds.push(eq(notifications.issueId, row.id));
   }
   if (input.until) {
     const until = new Date(input.until);
-    if (Number.isNaN(until.getTime())) throw badRequest(`"until" isn't a time: ${input.until}`);
+    if (Number.isNaN(until.getTime())) throw badRequest(`"until" isn't a time: ${input.until}`).said('notifications.untilNotATime', { until: input.until });
     conds.push(lte(notifications.lastEventAt, until));
   }
   const changed = await ctx.db
@@ -250,7 +250,7 @@ export async function unsubscribeToken(app: AppServices, kind: UnsubscribeKind, 
 
 async function readToken(app: AppServices, token: string): Promise<{ kind: UnsubscribeKind; subject: string }> {
   const [kind, subject, sig, ...rest] = token.split('.');
-  const bad = () => notFound('This unsubscribe link', 'It may have been copied only in part. Choose what a4a emails you under Your profile.');
+  const bad = () => notFound('This unsubscribe link', 'It may have been copied only in part. Choose what a4a emails you under Your profile.').said('notifications.unsubscribeLinkBroken');
   if (rest.length || !kind || !subject || !sig || !KINDS.includes(kind as UnsubscribeKind)) throw bad();
   if (!(await verify(app, 'unsubscribe', `${kind}.${subject}`, sig))) throw bad();
   return { kind: kind as UnsubscribeKind, subject };
@@ -289,7 +289,7 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
       .where(and(eq(helpdeskRequests.issueId, subject), isNull(helpdeskRequests.emailMutedAt)));
   } else {
     const s = await app.schema.get();
-    if (!s.users.get(subject)) throw notFound('This unsubscribe link');
+    if (!s.users.get(subject)) throw notFound('This unsubscribe link').said('notifications.unsubscribeLinkNotFound');
     const prefs = await emailPrefs(app.db, subject);
     if (kind === 'digest') await saveSettings(app.db, subject, { digest: false });
     else if (kind === 'watching' && prefs.email === 'all') await saveSettings(app.db, subject, { email: 'direct' });

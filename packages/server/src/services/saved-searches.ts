@@ -22,7 +22,7 @@ async function validate(ctx: Ctx, query: string) {
   if (prepared.compiled.problems.length) {
     throw badRequest(`Invalid query: ${prepared.compiled.problems.map((p) => p.message).join('; ')}`, undefined, {
       problems: prepared.compiled.problems,
-    });
+    }).said('savedSearches.invalidQuery', { problems: prepared.compiled.problems.map((p) => p.message).join('; ') });
   }
 }
 
@@ -58,8 +58,8 @@ export async function createSavedSearch(ctx: Ctx, input: { name: string; query: 
 
 async function loadOwned(ctx: Ctx, id: string): Promise<Row> {
   const [row] = await ctx.db.select().from(savedSearches).where(and(eq(savedSearches.id, id)));
-  if (!row || (row.ownerId !== ctx.actor.user.id && !row.shared && !isAdmin(ctx))) throw notFound('Saved search');
-  if (row.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can change a saved search');
+  if (!row || (row.ownerId !== ctx.actor.user.id && !row.shared && !isAdmin(ctx))) throw notFound('Saved search').said('savedSearches.notFound');
+  if (row.ownerId !== ctx.actor.user.id && !isAdmin(ctx)) throw forbidden('Only its owner can change a saved search').said('savedSearches.onlyOwner');
   return row;
 }
 

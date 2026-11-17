@@ -96,7 +96,7 @@ export function githubQuery(query: string): { repo: string; state: string; label
   const words = query.trim().split(/\s+/);
   const repo = (words.shift() ?? '').replace(/^https:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
-    throw new RemoteError(`"${repo}" isn't a repository`, 'Give it as owner/name, e.g. acme/backend; then state:open or label:bug if you like.', 'refused');
+    throw new RemoteError(`"${repo}" isn't a repository`, 'Give it as owner/name, e.g. acme/backend; then state:open or label:bug if you like.', 'refused').said('imports.source.notARepository', { repo });
   }
   let state = 'all';
   const labels: string[] = [];
@@ -107,7 +107,7 @@ export function githubQuery(query: string): { repo: string; state: string; label
     if (k === 'state' && ['open', 'closed', 'all'].includes(v)) state = v;
     else if (k === 'label' && v) labels.push(v);
     else if (k === 'since' && /^\d{4}-\d{2}-\d{2}/.test(v)) since = v;
-    else throw new RemoteError(`a4a doesn't read "${w}" for GitHub`, 'After the repository: state:open, state:closed, label:<name> or since:2026-01-01.', 'refused');
+    else throw new RemoteError(`a4a doesn't read "${w}" for GitHub`, 'After the repository: state:open, state:closed, label:<name> or since:2026-01-01.', 'refused').said('imports.source.githubUnknownWord', { word: w });
   }
   return { repo, state, labels: labels.length ? labels.join(',') : null, since };
 }
@@ -167,7 +167,7 @@ export class GithubReader implements Reader {
       cursor && 'token' in cursor
         ? await this.remote.jsonWithHeaders<GhIssue[]>(cursor.token)
         : await this.remote.jsonWithHeaders<GhIssue[]>(first, { state: this.q.state, labels: this.q.labels, since: this.q.since, sort: 'created', direction: 'asc', per_page: this.pageSize });
-    if (!Array.isArray(data)) throw new RemoteError("GitHub's answer wasn't a list of issues", 'Check the address: https://api.github.com, or your GitHub Enterprise API.', 'shape');
+    if (!Array.isArray(data)) throw new RemoteError("GitHub's answer wasn't a list of issues", 'Check the address: https://api.github.com, or your GitHub Enterprise API.', 'shape').said('imports.source.githubNotAList');
     const out: RemoteIssue[] = [];
     for (const i of data) {
       if (i.pull_request) continue;
@@ -279,7 +279,7 @@ export class RedmineReader implements Reader {
   ) {
     this.project = query.trim().split(/\s+/)[0] ?? '';
     if (!/^[a-z0-9_-]{1,100}$/i.test(this.project)) {
-      throw new RemoteError(`"${this.project}" isn't a Redmine project's identifier`, "Give its identifier, as in its address: /projects/backend is backend.", 'refused');
+      throw new RemoteError(`"${this.project}" isn't a Redmine project's identifier`, "Give its identifier, as in its address: /projects/backend is backend.", 'refused').said('imports.source.notARedmineProject', { project: this.project });
     }
     this.key = keyPart(this.project, 'RM');
   }
@@ -305,7 +305,7 @@ export class RedmineReader implements Reader {
     const got = await this.remote.json<{ issues?: RmIssue[]; total_count?: number }>('/issues.json', {
       query: { project_id: this.project, status_id: '*', sort: 'id', offset, limit: this.pageSize },
     });
-    if (!Array.isArray(got.issues)) throw new RemoteError("Redmine's answer wasn't a list of issues", "Check the address: your Redmine's own.", 'shape');
+    if (!Array.isArray(got.issues)) throw new RemoteError("Redmine's answer wasn't a list of issues", "Check the address: your Redmine's own.", 'shape').said('imports.source.redmineNotAList');
     const out: RemoteIssue[] = [];
     for (const brief of got.issues) {
       const full = await this.remote.json<{ issue?: RmIssue }>(`/issues/${brief.id}.json`, { query: { include: 'journals,attachments,relations' } });
@@ -425,7 +425,7 @@ export function zendeskStart(query: string): number {
   const q = query.trim().toLowerCase();
   if (q === 'all' || q === '*') return 0;
   const m = /^since\s+(\d{4}-\d{2}-\d{2})$/.exec(q);
-  if (!m) throw new RemoteError(`a4a doesn't read "${query}" for Zendesk`, 'Write all, or since 2026-01-01 for the tickets changed since then.', 'refused');
+  if (!m) throw new RemoteError(`a4a doesn't read "${query}" for Zendesk`, 'Write all, or since 2026-01-01 for the tickets changed since then.', 'refused').said('imports.source.zendeskUnknownQuery', { query });
   return Math.floor(Date.parse(`${m[1]}T00:00:00Z`) / 1000);
 }
 
@@ -456,7 +456,7 @@ export class ZendeskReader implements Reader {
   async probe(): Promise<string | null> {
     const me = await this.remote.json<{ user?: { name?: string; email?: string; role?: string } }>('/api/v2/users/me.json');
     if (!me.user || me.user.role === 'end-user') {
-      throw new RemoteError("Zendesk didn't take the token as an agent's", "Give an agent's email with an API token (Admin Center, Apps and integrations, Zendesk API), or an OAuth token.", 'auth', 401);
+      throw new RemoteError("Zendesk didn't take the token as an agent's", "Give an agent's email with an API token (Admin Center, Apps and integrations, Zendesk API), or an OAuth token.", 'auth', 401).said('imports.source.zendeskNotAnAgent');
     }
     return me.user.name || me.user.email || null;
   }
@@ -484,7 +484,7 @@ export class ZendeskReader implements Reader {
       '/api/v2/incremental/tickets/cursor.json',
       { query },
     );
-    if (!Array.isArray(got.tickets)) throw new RemoteError("Zendesk's answer wasn't a list of tickets", 'Check the address: https://<your subdomain>.zendesk.com.', 'shape');
+    if (!Array.isArray(got.tickets)) throw new RemoteError("Zendesk's answer wasn't a list of tickets", 'Check the address: https://<your subdomain>.zendesk.com.', 'shape').said('imports.source.zendeskNotAList');
     this.learn(got.users, got.groups);
     const out: RemoteIssue[] = [];
     for (const t of got.tickets) {

@@ -29,7 +29,7 @@ export async function setVote(ctx: Ctx, idOrReadable: string, on: boolean): Prom
   const issue = await resolveIssue(ctx, idOrReadable);
   await assertCanCommentProject(ctx, issue.projectId);
   const me = ctx.actor.user.id;
-  if (on && issue.reporterId === me) throw badRequest("You reported it, so you can't vote for it", 'Votes count the people who want it besides its reporter.');
+  if (on && issue.reporterId === me) throw badRequest("You reported it, so you can't vote for it", 'Votes count the people who want it besides its reporter.').said('votes.ownIssue');
   return ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     if (on) {
@@ -86,7 +86,7 @@ export async function reactionsOf(
 
 /** Add a reaction, or take it back if it's there: to an issue's description, or to one of its comments. */
 async function toggle(ctx: Ctx, issue: { id: string; projectId: string }, target: Target, emoji: Reaction): Promise<ReactionSummary[]> {
-  if (!REACTIONS.includes(emoji)) throw badRequest(`"${emoji}" isn't a reaction`, `Reactions: ${REACTIONS.join(' ')}`);
+  if (!REACTIONS.includes(emoji)) throw badRequest(`"${emoji}" isn't a reaction`, `Reactions: ${REACTIONS.join(' ')}`).said('votes.notAReaction', { emoji, reactions: REACTIONS.join(' ') });
   await assertCanCommentProject(ctx, issue.projectId);
   const me = ctx.actor.user.id;
   const where = and(eq(reactions.targetKind, target.kind), eq(reactions.targetId, target.id), eq(reactions.emoji, emoji), eq(reactions.userId, me));
@@ -108,6 +108,6 @@ export async function reactToComment(ctx: Ctx, commentId: string, emoji: Reactio
   requireScope(ctx, 'write');
   const [row] = await ctx.db.select().from(comments).where(and(eq(comments.id, commentId), isNull(comments.deletedAt)));
   const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue) throw notFound('Comment');
+  if (!row || !issue) throw notFound('Comment').said('votes.commentNotFound');
   return toggle(ctx, issue, { kind: 'comment', id: row.id }, emoji);
 }

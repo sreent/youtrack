@@ -79,11 +79,11 @@ async function planMove(ctx: Ctx, db: Db, issue: IssueRow, input: MoveIssueInput
   const target = projectByKey(s, asked) ?? [...s.projects.values()].find((p) => p.name.toLowerCase() === asked.toLowerCase());
   if (!target || !view.canRead(target.id)) {
     const open = [...s.projects.values()].filter((p) => view.canWrite(p.id) && !p.archived && p.id !== issue.projectId).map((p) => p.key);
-    throw notFound(`Project ${asked}`, open.length ? `Projects it can move to: ${open.join(', ')}` : 'There is no other project you can move it to.');
+    throw notFound(`Project ${asked}`, open.length ? `Projects it can move to: ${open.join(', ')}` : 'There is no other project you can move it to.').said('move.projectNotFound', { project: asked, n: open.length, projects: open.join(', ') });
   }
   const from = readableId(s, issue);
-  if (target.id === issue.projectId) throw badRequest(`${from} is in ${target.key} already`);
-  if (target.archived) throw badRequest(`Project ${target.key} is archived`, 'Nothing moves into an archived project.');
+  if (target.id === issue.projectId) throw badRequest(`${from} is in ${target.key} already`).said('move.alreadyThere', { issue: from, project: target.key });
+  if (target.archived) throw badRequest(`Project ${target.key} is archived`, 'Nothing moves into an archived project.').said('move.targetArchived', { project: target.key });
   // It leaves one project and joins another: it changes both.
   await assertCanWriteProject(ctx, issue.projectId, db);
   await assertCanWriteProject(ctx, target.id, db);
@@ -176,16 +176,16 @@ export async function moveIssue(ctx: Ctx, idOrReadable: string, input: MoveIssue
   const { plan, activity } = await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
     const [issue] = await tx.select().from(issues).where(eq(issues.id, found.id)).for('update');
-    if (!issue) throw notFound(`Issue ${idOrReadable}`);
+    if (!issue) throw notFound(`Issue ${idOrReadable}`).said('notFound.issue', { id: idOrReadable });
     const p = await planMove(ctx, tx, issue, input);
     const { s, target } = p;
     if (input.expectedVersion !== undefined && input.expectedVersion !== issue.version) {
       throw conflict(`${p.plan.from} was changed by someone else (version ${issue.version}, you sent ${input.expectedVersion})`, 'Reload the issue and move it again.', {
         currentVersion: issue.version,
-      });
+      }).said('move.changedMeanwhile', { issue: p.plan.from, version: issue.version, expectedVersion: input.expectedVersion });
     }
     if (p.plan.problems.length) {
-      throw badRequest(`${p.plan.from} can't move to ${target.key} yet: ${problemList(p.plan.problems)}`, 'Give a value for each in fields, or null to leave it empty, and move it again.', p.plan);
+      throw badRequest(`${p.plan.from} can't move to ${target.key} yet: ${problemList(p.plan.problems)}`, 'Give a value for each in fields, or null to leave it empty, and move it again.', p.plan).said('move.fieldsMissing', { issue: p.plan.from, project: target.key, problems: problemList(p.plan.problems) });
     }
     const [{ number } = { number: 0 }] = await tx
       .update(projects)

@@ -39,7 +39,7 @@ function ordered(perms: Iterable<string>): Permission[] {
 
 function checked(perms: readonly Permission[]): Permission[] {
   const list = ordered(perms);
-  if (!list.includes('read')) throw badRequest('A role needs the read permission', 'Every other permission works on what its holder can see: add "read".');
+  if (!list.includes('read')) throw badRequest('A role needs the read permission', 'Every other permission works on what its holder can see: add "read".').said('roles.needsRead');
   return list;
 }
 
@@ -48,7 +48,7 @@ function roleDto(r: RoleRow, uses: Map<string, number>): RoleDef {
 }
 
 function takenName(name: string): never {
-  throw conflict(`There's already a role called "${name}"`, 'Choose another name, or change that role.');
+  throw conflict(`There's already a role called "${name}"`, 'Choose another name, or change that role.').said('roles.nameTaken', { name });
 }
 
 async function assertNameFree(db: Db, name: string, except?: string): Promise<void> {
@@ -82,13 +82,13 @@ export async function listRoles(ctx: Ctx): Promise<RoleDef[]> {
 
 async function requireRole(db: Db, ref: string): Promise<RoleRow> {
   if (isProjectRole(ref) || ref.toLowerCase() === 'guest') {
-    throw badRequest(`${isProjectRole(ref) ? BUILTIN_ROLE_NAMES[ref] : 'Guest'} is a built-in role, and can't be changed`, 'Make a role of your own with the permissions you want, and give that instead.');
+    throw badRequest(`${isProjectRole(ref) ? BUILTIN_ROLE_NAMES[ref] : 'Guest'} is a built-in role, and can't be changed`, 'Make a role of your own with the permissions you want, and give that instead.').said('roles.builtIn', { role: isProjectRole(ref) ? ref : 'guest' });
   }
   const [row] = await db
     .select()
     .from(roles)
     .where(sql`${roles.id} = ${ref} OR lower(${roles.name}) = ${ref.toLowerCase()}`);
-  if (!row) throw notFound(`Role ${ref}`, 'GET /roles lists the roles there are.');
+  if (!row) throw notFound(`Role ${ref}`, 'GET /roles lists the roles there are.').said('roles.notFound', { ref });
   return row;
 }
 
@@ -96,14 +96,14 @@ export async function getRole(ctx: Ctx, ref: string): Promise<RoleDef> {
   const all = await listRoles(ctx);
   const want = ref.toLowerCase();
   const found = all.find((r) => r.id === ref || r.name.toLowerCase() === want);
-  if (!found) throw notFound(`Role ${ref}`, 'GET /roles lists the roles there are.');
+  if (!found) throw notFound(`Role ${ref}`, 'GET /roles lists the roles there are.').said('roles.notFound', { ref });
   return found;
 }
 
 export async function createRole(ctx: Ctx, input: { name: string; description?: string; permissions: Permission[] }): Promise<RoleDef> {
   requireScope(ctx, 'admin');
   const name = input.name.trim();
-  if (!name) throw badRequest('A role needs a name');
+  if (!name) throw badRequest('A role needs a name').said('roles.needsName');
   await assertNameFree(ctx.db, name);
   const id = newId();
   try {
@@ -126,11 +126,11 @@ export async function updateRole(
   if (input.expectedVersion !== undefined && input.expectedVersion !== row.version) {
     throw conflict(`${row.name} was changed by someone else (version ${row.version}, you sent ${input.expectedVersion})`, 'Reload the role and make your change again.', {
       currentVersion: row.version,
-    });
+    }).said('roles.changedMeanwhile', { name: row.name, version: row.version, expectedVersion: input.expectedVersion });
   }
   const name = input.name?.trim();
   if (name !== undefined) {
-    if (!name) throw badRequest('A role needs a name');
+    if (!name) throw badRequest('A role needs a name').said('roles.needsName');
     await assertNameFree(ctx.db, name, row.id);
   }
   try {
@@ -162,7 +162,7 @@ export async function deleteRole(ctx: Ctx, ref: string): Promise<void> {
     throw conflict(
       `${row.name} is given to ${n === 1 ? 'one person or group' : `${n} people and groups`} in projects`,
       "Give them another role first, in each project's People and access, then delete it.",
-    );
+    ).said('roles.stillGiven', { name: row.name, n });
   }
   await ctx.db.delete(roles).where(eq(roles.id, row.id));
   accessChanged(ctx.app);

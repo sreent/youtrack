@@ -23,6 +23,7 @@ import http, { type IncomingHttpHeaders, type IncomingMessage } from 'node:http'
 import https from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import type { Readable } from 'node:stream';
+import type { ProblemWords } from '../lib/errors';
 
 export interface RemotePolicy {
   /** Host names that may resolve inside the network (lower case). */
@@ -35,6 +36,9 @@ export type RemoteFailure = 'address' | 'auth' | 'forbidden' | 'missing' | 'refu
 
 /** Something about reaching the other tracker, in words for the person importing. */
 export class RemoteError extends Error {
+  /** Its key under problem.* in the catalogs, and its values, for the import's page in another language (D49). */
+  words?: ProblemWords;
+
   constructor(
     message: string,
     readonly hint: string | undefined,
@@ -42,6 +46,12 @@ export class RemoteError extends Error {
     readonly status: number | null = null,
   ) {
     super(message);
+  }
+
+  /** The problem's key and values, as AppError's said() takes them. */
+  said(key: string, values?: Record<string, string | number>): this {
+    this.words = { key, values };
+    return this;
   }
 }
 
@@ -123,7 +133,7 @@ function addressAllowed(policy: RemotePolicy, url: URL, address: string): boolea
 }
 
 const insideError = (host: string) =>
-  new RemoteError(`${host} is inside the network, and a4a reads only from public addresses`, 'An administrator can allow it by name: IMPORT_ALLOW_HOSTS on the server.', 'address');
+  new RemoteError(`${host} is inside the network, and a4a reads only from public addresses`, 'An administrator can allow it by name: IMPORT_ALLOW_HOSTS on the server.', 'address').said('imports.source.privateAddress', { host });
 
 /**
  * An address someone gave, checked before anything is sent: a URL, https (or http to this machine
@@ -134,15 +144,15 @@ export function checkAddress(policy: RemotePolicy, raw: string, example: string)
   try {
     url = new URL(raw.trim());
   } catch {
-    throw new RemoteError(`"${raw.trim().slice(0, 100)}" isn't a web address`, `Give its address, such as ${example}.`, 'address');
+    throw new RemoteError(`"${raw.trim().slice(0, 100)}" isn't a web address`, `Give its address, such as ${example}.`, 'address').said('imports.source.notAnAddress', { address: raw.trim().slice(0, 100), example });
   }
-  if (url.username || url.password) throw new RemoteError('The address has a name and password in it', 'Give the address alone, and the token in its own field.', 'address');
+  if (url.username || url.password) throw new RemoteError('The address has a name and password in it', 'Give the address alone, and the token in its own field.', 'address').said('imports.source.credentialsInAddress');
   const host = bare(url.hostname);
   if (url.protocol === 'http:') {
     const local = host === 'localhost' || (isIP(host) !== 0 && isLoopback(host));
-    if (!(policy.allowHttpLoopback && local)) throw new RemoteError('a4a reads other trackers over https only', `Use https://${url.host}${url.pathname === '/' ? '' : url.pathname}.`, 'address');
+    if (!(policy.allowHttpLoopback && local)) throw new RemoteError('a4a reads other trackers over https only', `Use https://${url.host}${url.pathname === '/' ? '' : url.pathname}.`, 'address').said('imports.source.httpsOnly', { host: url.host, path: url.pathname === '/' ? '' : url.pathname });
   } else if (url.protocol !== 'https:') {
-    throw new RemoteError(`a4a can't read from a ${url.protocol.replace(/:$/, '')} address`, `Give its https address, such as ${example}.`, 'address');
+    throw new RemoteError(`a4a can't read from a ${url.protocol.replace(/:$/, '')} address`, `Give its https address, such as ${example}.`, 'address').said('imports.source.badScheme', { scheme: url.protocol.replace(/:$/, ''), example });
   }
   if (isIP(host) && !addressAllowed(policy, url, host)) throw insideError(host);
   return url;
@@ -186,6 +196,8 @@ export interface RemoteHooks {
 export interface RemoteNames {
   /** What the person calls it: YouTrack, Jira. */
   name: string;
+  /** Which tracker it is (youtrack, jira, github, redmine, zendesk): what its own hints are chosen by, in any language (D49). */
+  source?: string;
   /** Its address, as an example: https://example.youtrack.cloud */
   example: string;
   /** How to get a token it accepts. */
@@ -296,7 +308,7 @@ export class Remote {
       const status = res.statusCode ?? 0;
       if (status >= 300 && status < 400 && res.headers.location && method === 'GET') {
         res.resume();
-        if (hops >= MAX_REDIRECTS) throw new RemoteError(`${this.names.name} sent a4a round in circles (too many redirects)`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'shape', status);
+        if (hops >= MAX_REDIRECTS) throw new RemoteError(`${this.names.name} sent a4a round in circles (too many redirects)`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'shape', status).said('imports.source.redirectLoop', { tracker: this.names.name, example: this.names.example });
         at = checkAddress(this.policy, new URL(res.headers.location, at).href, this.names.example);
         continue;
       }
@@ -310,11 +322,11 @@ export class Remote {
     const host = url.host;
     if (e instanceof RemoteError) return e;
     if (code === 'A4A_INSIDE') return insideError(bare(url.hostname));
-    if (code === 'ENOTFOUND') return new RemoteError(`a4a can't find ${host}`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'network');
+    if (code === 'ENOTFOUND') return new RemoteError(`a4a can't find ${host}`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'network').said('imports.source.hostUnknown', { host, tracker: this.names.name, example: this.names.example });
     if (TLS.test(code)) {
-      return new RemoteError(`a4a can't make a secure connection to ${host} (${code})`, "Its certificate isn't one the server trusts. NODE_EXTRA_CA_CERTS on the server adds a certificate authority.", 'network');
+      return new RemoteError(`a4a can't make a secure connection to ${host} (${code})`, "Its certificate isn't one the server trusts. NODE_EXTRA_CA_CERTS on the server adds a certificate authority.", 'network').said('imports.source.untrustedCertificate', { host, code });
     }
-    return new RemoteError(`${this.names.name} at ${host} doesn't answer${code ? ` (${code})` : ''}`, 'Check the address, and that the a4a server can reach it.', 'network');
+    return new RemoteError(`${this.names.name} at ${host} doesn't answer${code ? ` (${code})` : ''}`, 'Check the address, and that the a4a server can reach it.', 'network').said('imports.source.noAnswer', { tracker: this.names.name, host, hasCode: code ? 'yes' : 'no', code: code ?? '' });
   }
 
   /** A refusal, in words, with the other tracker's own words when it gave some. */
@@ -322,12 +334,12 @@ export class Remote {
     const theirs = theirWords(text);
     const said = theirs ? `: ${this.scrub(theirs)}` : '';
     const name = this.names.name;
-    if (status === 401) return new RemoteError(`${name} didn't accept the token`, this.names.authHint, 'auth', status);
-    if (status === 403) return new RemoteError(`The token may not read that in ${name}${said}`, 'Use a token of an account that can see these issues there.', 'forbidden', status);
-    if (status === 404) return new RemoteError(`${name} has nothing at ${url.pathname}${said}`, `Check the address: ${name}'s base address, such as ${this.names.example}.`, 'missing', status);
-    if (status === 400 || status === 422) return new RemoteError(`${name} refused the request${said}`, this.names.badRequestHint, 'refused', status);
-    if (status === 429) return new RemoteError(`${name} asks a4a to slow down, for longer than a4a waits`, 'Carry on later: what has been read so far is kept.', 'slow_down', status);
-    return new RemoteError(`${name} answered ${status}${said}`, 'Try again later: what has been read so far is kept.', 'unavailable', status);
+    if (status === 401) return new RemoteError(`${name} didn't accept the token`, this.names.authHint, 'auth', status).said('imports.source.tokenRefused', { tracker: name, source: this.names.source ?? '', hint: this.names.authHint });
+    if (status === 403) return new RemoteError(`The token may not read that in ${name}${said}`, 'Use a token of an account that can see these issues there.', 'forbidden', status).said('imports.source.tokenForbidden', { tracker: name, said });
+    if (status === 404) return new RemoteError(`${name} has nothing at ${url.pathname}${said}`, `Check the address: ${name}'s base address, such as ${this.names.example}.`, 'missing', status).said('imports.source.nothingThere', { tracker: name, path: url.pathname, said, example: this.names.example });
+    if (status === 400 || status === 422) return new RemoteError(`${name} refused the request${said}`, this.names.badRequestHint, 'refused', status).said('imports.source.requestRefused', { tracker: name, said, source: this.names.source ?? '', hint: this.names.badRequestHint });
+    if (status === 429) return new RemoteError(`${name} asks a4a to slow down, for longer than a4a waits`, 'Carry on later: what has been read so far is kept.', 'slow_down', status).said('imports.source.slowDownTooLong', { tracker: name });
+    return new RemoteError(`${name} answered ${status}${said}`, 'Try again later: what has been read so far is kept.', 'unavailable', status).said('imports.source.answered', { tracker: name, status, said });
   }
 
   /**
@@ -369,7 +381,7 @@ export class Remote {
           'Carry on later: what has been read so far is kept.',
           status === 503 ? 'unavailable' : 'slow_down',
           status,
-        );
+        ).said('imports.source.wait', { wait: status === 503 ? 'unavailable' : 'slow', tracker: this.names.name, minutes });
       }
       if ((status === 502 || status === 504) && dropped < NETWORK_TRIES) {
         got.res.resume();
@@ -391,7 +403,7 @@ export class Remote {
     try {
       return JSON.parse(text) as T;
     } catch {
-      throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status);
+      throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status).said('imports.source.notTheTracker', { host: at.host, tracker: this.names.name, example: this.names.example });
     }
   }
 
@@ -403,7 +415,7 @@ export class Remote {
     let url: URL;
     if (/^https?:\/\//i.test(pathOrHref)) {
       url = new URL(pathOrHref);
-      if (url.origin !== this.base.origin) throw new RemoteError(`${this.names.name} pointed a4a elsewhere (${url.host})`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'shape');
+      if (url.origin !== this.base.origin) throw new RemoteError(`${this.names.name} pointed a4a elsewhere (${url.host})`, `Check the address: ${this.names.name}'s own, such as ${this.names.example}.`, 'shape').said('imports.source.redirectedElsewhere', { tracker: this.names.name, host: url.host, example: this.names.example });
     } else url = this.url(pathOrHref, query);
     const { res, url: at } = await this.attempt(url, 'GET', { accept: 'application/json' });
     const text = await this.text(res, at);
@@ -412,7 +424,7 @@ export class Remote {
     try {
       return { data: JSON.parse(text) as T, headers: res.headers };
     } catch {
-      throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status);
+      throw new RemoteError(`${at.host} didn't answer as ${this.names.name} does`, `Check the address: ${this.names.name}'s base address, such as ${this.names.example}.`, 'shape', status).said('imports.source.notTheTracker', { host: at.host, tracker: this.names.name, example: this.names.example });
     }
   }
 
@@ -424,7 +436,7 @@ export class Remote {
         n += (chunk as Buffer).length;
         if (n > MAX_JSON_BYTES) {
           res.destroy();
-          throw new RemoteError(`${this.names.name}'s answer was larger than ${MAX_JSON_BYTES / 1024 / 1024} MB`, 'Import fewer issues at a time: narrow the query.', 'too_large');
+          throw new RemoteError(`${this.names.name}'s answer was larger than ${MAX_JSON_BYTES / 1024 / 1024} MB`, 'Import fewer issues at a time: narrow the query.', 'too_large').said('imports.source.answerTooLarge', { tracker: this.names.name, mb: MAX_JSON_BYTES / 1024 / 1024 });
         }
         chunks.push(chunk as Buffer);
       }

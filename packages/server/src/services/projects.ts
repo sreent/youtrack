@@ -141,9 +141,9 @@ export async function createProject(
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const key = input.key.toUpperCase();
-  if (projectByKey(s, key)) throw badRequest(`Project key ${key} is already used`);
+  if (projectByKey(s, key)) throw badRequest(`Project key ${key} is already used`).said('projects.keyTaken', { key });
   const lead = input.lead ? findUser(s, input.lead, ctx.actor.user.id) : ctx.actor.user;
-  if (input.lead && !lead) throw notFound(`User ${input.lead}`);
+  if (input.lead && !lead) throw notFound(`User ${input.lead}`).said('notFound.user', { id: input.lead });
   const defaultTriage = ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest';
   const id = newId();
   const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK, time: DEFAULT_TIME };
@@ -196,7 +196,7 @@ export async function updateProject(
   if (input.lead === null) leadId = null;
   else if (input.lead) {
     const u = findUser(s, input.lead, ctx.actor.user.id);
-    if (!u) throw notFound(`User ${input.lead}`);
+    if (!u) throw notFound(`User ${input.lead}`).said('notFound.user', { id: input.lead });
     leadId = u.id;
   }
   const current = projectSettings(p);
@@ -206,7 +206,7 @@ export async function updateProject(
     helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
     time: { ...current.time, ...(input.settings?.time ?? {}) },
   };
-  if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required');
+  if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');
   // A desk's working hours must read before they're kept: a 400 says what's wrong with them (D45).
   calendarOf(settings.helpdesk.businessHours);
   const slaChanged = ['businessHours', 'waitingStates', 'firstResponseHours'].some((k) => input.settings?.helpdesk && k in input.settings.helpdesk);
@@ -216,7 +216,7 @@ export async function updateProject(
   let guestAccess = input.guestAccess !== undefined && input.guestAccess !== p.guestAccess ? input.guestAccess : undefined;
   if (guestAccess !== undefined) requireScope(ctx, 'admin');
   if (guestAccess && (visibility ?? projectVisibility(p)) !== 'open') {
-    throw badRequest(`Only an open project can be open to guests, and ${p.key} is for its members only`, 'Make it open first, then let guests read it.');
+    throw badRequest(`Only an open project can be open to guests, and ${p.key} is for its members only`, 'Make it open first, then let guests read it.').said('projects.guestsNeedOpen', { key: p.key });
   }
   if (visibility === 'members' && p.guestAccess) guestAccess = false;
   const activities: ActivityRow[] = [];
@@ -258,7 +258,7 @@ export async function deleteProject(ctx: Ctx, key: string): Promise<void> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const p = projectByKey(s, key);
-  if (!p) throw notFound(`Project ${key}`);
+  if (!p) throw notFound(`Project ${key}`).said('notFound.project', { id: key });
   await ctx.db.delete(projects).where(eq(projects.id, p.id));
   ctx.app.schema.invalidate();
   accessChanged(ctx.app);

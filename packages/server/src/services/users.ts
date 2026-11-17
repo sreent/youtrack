@@ -49,7 +49,7 @@ export async function getUser(ctx: Ctx, idOrLogin: string): Promise<User> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
   const u = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
-  if (!u) throw notFound(`User ${idOrLogin}`);
+  if (!u) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   return (await userDtos(ctx, [u]))[0]!;
 }
 
@@ -70,7 +70,7 @@ export interface NewUser {
 export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
   const existing = await db.select().from(users).where(sql`lower(${users.login}) = ${input.login.toLowerCase()}`);
   // Its own code, so a caller racing another for the same login can tell and try another.
-  if (existing.length) throw new AppError(400, 'login_taken', `Login "${input.login}" is already taken`);
+  if (existing.length) throw new AppError(400, 'login_taken', `Login "${input.login}" is already taken`).said('users.loginTaken', { login: input.login });
   const [row] = await db
     .insert(users)
     .values({
@@ -95,7 +95,7 @@ export async function createUser(ctx: Ctx, input: NewUser): Promise<User> {
   requireScope(ctx, 'admin');
   // a4a makes its own agents' accounts itself (the help desk's, the first time a request comes in).
   if ((OWN_AGENTS as readonly string[]).includes(input.login.trim().toLowerCase())) {
-    throw new AppError(400, 'login_taken', `Login "${input.login}" belongs to a4a's own agent`, 'Choose another login: a4a makes that account itself.');
+    throw new AppError(400, 'login_taken', `Login "${input.login}" belongs to a4a's own agent`, 'Choose another login: a4a makes that account itself.').said('users.loginIsAgents', { login: input.login });
   }
   // An email an administrator gives is one single sign-on may find the person by.
   const row = await insertUser(ctx.db, { ...input, emailVerified: Boolean(input.email) });
@@ -124,16 +124,16 @@ export async function updateUser(
 ): Promise<User> {
   const s = await ctx.app.schema.get();
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
-  if (!target) throw notFound(`User ${idOrLogin}`);
+  if (!target) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   const self = target.id === ctx.actor.user.id;
   const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined;
   if (!self || adminOnly) requireScope(ctx, 'admin');
   else requireScope(ctx, 'write');
   if (self && input.role && input.role !== 'admin' && target.role === 'admin') {
-    throw badRequest('You cannot remove your own admin role');
+    throw badRequest('You cannot remove your own admin role').said('users.ownAdminRole');
   }
   if (input.password && self && !ctx.app.config.passwordLogin) {
-    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`);
+    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`).said('users.noPasswords', { named: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ? 'yes' : 'no', provider: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? '' });
   }
   // An email counts for single sign-on when an administrator sets it; one people set for
   // themselves doesn't, until an administrator confirms it by saving it.
@@ -170,11 +170,11 @@ export async function updateMe(
   // A zone this server doesn't know is refused before anything changes; one it knows is kept by its canonical name.
   const timeZone = input.timeZone === undefined || input.timeZone === null ? input.timeZone : timeZoneOrRefuse(input.timeZone);
   if (input.password && !ctx.app.config.passwordLogin) {
-    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`);
+    throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`).said('users.noPasswords', { named: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ? 'yes' : 'no', provider: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? '' });
   }
   if (input.password) {
     const ok = await verifyPassword(input.currentPassword ?? '', ctx.actor.user.passwordHash);
-    if (!ok && ctx.actor.user.passwordHash) throw forbidden('Current password is incorrect');
+    if (!ok && ctx.actor.user.passwordHash) throw forbidden('Current password is incorrect').said('users.wrongPassword');
   }
   return updateUser(ctx, ctx.actor.user.id, { name: input.name, email: input.email, password: input.password, timeZone, locale: input.locale, workWeek: input.workWeek });
 }
@@ -183,8 +183,8 @@ export async function deleteUser(ctx: Ctx, idOrLogin: string): Promise<void> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
-  if (!target) throw notFound(`User ${idOrLogin}`);
-  if (target.id === ctx.actor.user.id) throw badRequest('You cannot delete yourself');
+  if (!target) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
+  if (target.id === ctx.actor.user.id) throw badRequest('You cannot delete yourself').said('users.deleteYourself');
   await ctx.db.delete(users).where(eq(users.id, target.id));
   ctx.app.schema.invalidate();
   accessChanged(ctx.app);

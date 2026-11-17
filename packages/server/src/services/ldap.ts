@@ -74,7 +74,7 @@ export function nameFromDn(dn: string): string | null {
 }
 
 const unreachable = (cfg: LdapConfig) =>
-  new AppError(502, 'ldap_unreachable', `a4a can't reach ${cfg.name} right now`, 'Try again in a moment; if it goes on, an administrator can look at LDAP_URL and the service account.');
+  new AppError(502, 'ldap_unreachable', `a4a can't reach ${cfg.name} right now`, 'Try again in a moment; if it goes on, an administrator can look at LDAP_URL and the service account.').said('ldap.unreachable', { server: cfg.name });
 
 export interface DirectoryPerson {
   dn: string;

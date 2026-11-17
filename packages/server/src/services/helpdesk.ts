@@ -40,8 +40,8 @@ const TOKEN = /^hdt_[A-Za-z0-9_-]{43}$/;
 /** How long a form may be open before it's sent. */
 const FORM_TTL_MS = 6 * 3_600_000;
 
-const nothingHere = () => new AppError(404, 'not_found', "There's no help desk here", 'Check the address you were given.');
-const noRequest = () => new AppError(404, 'not_found', "This link doesn't open a request", 'Use the link in your latest email about it, whole.');
+const nothingHere = () => new AppError(404, 'not_found', "There's no help desk here", 'Check the address you were given.').said('helpdesk.noDesk');
+const noRequest = () => new AppError(404, 'not_found', "This link doesn't open a request", 'Use the link in your latest email about it, whole.').said('helpdesk.linkOpensNoRequest');
 
 /** The project whose help desk is open at this key, or nothing, whether it's missing or closed. */
 function openDesk(s: SchemaSnapshot, key: string): ProjectRow | undefined {
@@ -62,7 +62,7 @@ export async function helpdeskBot(app: AppServices): Promise<UserRow> {
     }
   }
   if (!bot?.isBot) {
-    throw new AppError(503, 'helpdesk_unavailable', "The help desk can't take requests right now", 'An administrator should give the person with the login "helpdesk" another login.');
+    throw new AppError(503, 'helpdesk_unavailable', "The help desk can't take requests right now", 'An administrator should give the person with the login "helpdesk" another login.').said('helpdesk.deskClosed');
   }
   return bot;
 }
@@ -365,7 +365,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     .from(helpdeskRequests)
     .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
     .where(eq(helpdeskRequests.issueId, issue.id));
-  if (!row) throw notFound(`A help desk request for ${readableId(s, issue)}`, 'Only issues filed through a help desk have one.');
+  if (!row) throw notFound(`A help desk request for ${readableId(s, issue)}`, 'Only issues filed through a help desk have one.').said('helpdesk.requestNotFound', { id: readableId(s, issue) });
   const responded = await firstResponseAt(ctx.db, issue.id);
   const sla = await requestSla(ctx.db, s, issue.id, issue.projectId, row.request.waitingSince);
   const first = sla.clocks.find((c) => c.target === 'first_response');

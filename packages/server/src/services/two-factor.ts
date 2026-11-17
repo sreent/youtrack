@@ -88,7 +88,7 @@ export interface Enrolment {
 /** Start setting two-factor up: a new secret, kept until a code from it confirms it. */
 export async function beginEnrolment(app: AppServices, user: UserRow, issuer: string): Promise<Enrolment> {
   const row = await totpRow(app.db, user.id);
-  if (row?.confirmedAt) throw conflict('Two-factor sign-in is on already', 'Turn it off first to set it up with another app.');
+  if (row?.confirmedAt) throw conflict('Two-factor sign-in is on already', 'Turn it off first to set it up with another app.').said('twoFactor.onAlreadyOtherApp');
   const secret = newTotpSecret();
   const sealed = seal(keySource(app), secret);
   await app.db
@@ -121,15 +121,15 @@ async function freshRecoveryCodes(db: Db, userId: string): Promise<string[]> {
   return codes;
 }
 
-export const wrongCode = () => new AppError(400, 'wrong_code', 'That code isn’t right', 'Type the six digits your authenticator app shows now; each code works once.');
+export const wrongCode = () => new AppError(400, 'wrong_code', 'That code isn’t right', 'Type the six digits your authenticator app shows now; each code works once.').said('twoFactor.wrongCode');
 
 /** Confirm an enrolment with a code from the app: two-factor is on, and here are the recovery codes, shown once. */
 export async function confirmEnrolment(app: AppServices, userId: string, code: string): Promise<string[]> {
   const row = await totpRow(app.db, userId);
-  if (!row) throw conflict('Two-factor sign-in isn’t being set up', 'Start setting it up first.');
-  if (row.confirmedAt) throw conflict('Two-factor sign-in is on already');
+  if (!row) throw conflict('Two-factor sign-in isn’t being set up', 'Start setting it up first.').said('twoFactor.notBeingSetUp');
+  if (row.confirmedAt) throw conflict('Two-factor sign-in is on already').said('twoFactor.onAlready');
   const secret = open(keySource(app), row.secret);
-  if (!secret) throw new AppError(500, 'secret_unreadable', 'The secret being set up can’t be read', 'Start setting it up again.');
+  if (!secret) throw new AppError(500, 'secret_unreadable', 'The secret being set up can’t be read', 'Start setting it up again.').said('twoFactor.secretUnreadable');
   const step = checkCode(secret, code, Date.now(), null);
   if (step === null) throw wrongCode();
   // Once: of two confirmations at once, one turns it on and gets the recovery codes.
@@ -138,7 +138,7 @@ export async function confirmEnrolment(app: AppServices, userId: string, code: s
     .set({ confirmedAt: new Date(), lastStep: step })
     .where(and(eq(userTotp.userId, userId), isNull(userTotp.confirmedAt), eq(userTotp.secret, row.secret)))
     .returning({ userId: userTotp.userId });
-  if (!on) throw conflict('Two-factor sign-in was just turned on, or set up again elsewhere', 'Look at your profile: it says which.');
+  if (!on) throw conflict('Two-factor sign-in was just turned on, or set up again elsewhere', 'Look at your profile: it says which.').said('twoFactor.changedElsewhere');
   return freshRecoveryCodes(app.db, userId);
 }
 
@@ -173,16 +173,16 @@ export async function takeSecondFactor(app: AppServices, userId: string, code: s
 
 /** New recovery codes, for someone who proves it's them with a code now; the old ones stop working. */
 export async function renewRecoveryCodes(app: AppServices, userId: string, code: string): Promise<string[]> {
-  if (!(await hasTwoFactor(app.db, userId))) throw conflict('Two-factor sign-in isn’t on');
+  if (!(await hasTwoFactor(app.db, userId))) throw conflict('Two-factor sign-in isn’t on').said('twoFactor.notOn');
   if ((await takeSecondFactor(app, userId, code)) === null) throw wrongCode();
   return freshRecoveryCodes(app.db, userId);
 }
 
 /** Turn it off, with a code: the secret and the recovery codes go. */
 export async function disableTwoFactor(app: AppServices, userId: string, code: string): Promise<void> {
-  if (!(await hasTwoFactor(app.db, userId))) throw conflict('Two-factor sign-in isn’t on');
+  if (!(await hasTwoFactor(app.db, userId))) throw conflict('Two-factor sign-in isn’t on').said('twoFactor.notOn');
   if (await twoFactorRequired(app.db)) {
-    throw new AppError(403, 'two_factor_required', 'Two-factor sign-in is required here', 'An administrator asks it of every password account. To move to another app, ask one to reset yours.');
+    throw new AppError(403, 'two_factor_required', 'Two-factor sign-in is required here', 'An administrator asks it of every password account. To move to another app, ask one to reset yours.').said('twoFactor.required');
   }
   if ((await takeSecondFactor(app, userId, code)) === null) throw wrongCode();
   await removeTwoFactor(app.db, userId);

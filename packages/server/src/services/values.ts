@@ -59,7 +59,7 @@ export function resolveFieldInput(
   if (raw === null) return [];
   const items = Array.isArray(raw) ? raw : [raw];
   if (!field.multi && items.length > 1) {
-    throw badRequest(`Field "${field.name}" takes a single value`);
+    throw badRequest(`Field "${field.name}" takes a single value`).said('values.singleValue', { field: field.name });
   }
   const out: ResolvedValue[] = [];
   for (const item of items) {
@@ -92,7 +92,7 @@ function resolveOne(
         // Builds can run to hundreds: the latest few say enough.
         const shown = field.type === 'build' ? [...names].reverse().slice(0, 10) : names;
         const allowed = `${field.type === 'build' ? 'Latest builds' : 'Allowed'}: ${shown.join(', ')}`;
-        throw badRequest(`Unknown value "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"? ${allowed}` : allowed);
+        throw badRequest(`Unknown value "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"? ${allowed}` : allowed).said('values.unknownValue', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', list: field.type === 'build' ? 'builds' : 'values', values: shown.join(', ') });
       }
       return { valueId: v.id };
     }
@@ -100,11 +100,11 @@ function resolveOne(
       const u = findUser(s, text, meId);
       if (!u) {
         const guess = didYouMean(text, [...s.usersByLogin.keys()]);
-        throw badRequest(`Unknown user "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : 'Use a login, a full name, or "me".');
+        throw badRequest(`Unknown user "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : 'Use a login, a full name, or "me".').said('values.unknownUser', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '' });
       }
-      if (u.banned) throw badRequest(`User "${u.login}" is banned`);
+      if (u.banned) throw badRequest(`User "${u.login}" is banned`).said('values.userBanned', { login: u.login });
       // a4a's own agents act for a4a itself and take no work; an agent an administrator added does (D34).
-      if (isOwnAgent(u)) throw badRequest(`${u.login} is a4a's own agent, and takes no work`, `Give ${field.name} a person, or an agent an administrator added.`);
+      if (isOwnAgent(u)) throw badRequest(`${u.login} is a4a's own agent, and takes no work`, `Give ${field.name} a person, or an agent an administrator added.`).said('values.ownAgent', { login: u.login, field: field.name });
       return { userId: u.id };
     }
     case 'group': {
@@ -112,13 +112,13 @@ function resolveOne(
       if (!g) {
         const names = [...s.groups.values()].map((x) => x.name);
         const guess = didYouMean(text, names);
-        throw badRequest(`Unknown group "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'An administrator makes groups under Administration.');
+        throw badRequest(`Unknown group "${text}" for ${field.name}`, guess ? `Did you mean "${guess}"?` : names.length ? `Groups: ${names.join(', ')}` : 'An administrator makes groups under Administration.').said('values.unknownGroup', { text, field: field.name, hasGuess: guess ? 'yes' : 'no', guess: guess ?? '', n: names.length, groups: names.join(', ') });
       }
       return { groupId: g.id };
     }
     case 'datetime': {
       const d = parseDateTimeInput(text, zone);
-      if (!d) throw badRequest(`${field.name} expects a date and time, got "${text}"`, 'Write 2026-11-20 15:00 (read where you are), an ISO instant such as 2026-11-20T14:00Z, now, tomorrow 09:30 or +2h.');
+      if (!d) throw badRequest(`${field.name} expects a date and time, got "${text}"`, 'Write 2026-11-20 15:00 (read where you are), an ISO instant such as 2026-11-20T14:00Z, now, tomorrow 09:30 or +2h.').said('values.notADateTime', { field: field.name, text });
       return { timeValue: d.toISOString() };
     }
     case 'string':
@@ -126,22 +126,22 @@ function resolveOne(
       return { textValue: text };
     case 'integer': {
       const n = Number(text);
-      if (!Number.isInteger(n)) throw badRequest(`${field.name} expects a whole number, got "${text}"`);
+      if (!Number.isInteger(n)) throw badRequest(`${field.name} expects a whole number, got "${text}"`).said('values.notAWholeNumber', { field: field.name, text });
       return { numberValue: n };
     }
     case 'float': {
       const n = Number(text);
-      if (!Number.isFinite(n)) throw badRequest(`${field.name} expects a number, got "${text}"`);
+      if (!Number.isFinite(n)) throw badRequest(`${field.name} expects a number, got "${text}"`).said('values.notANumber', { field: field.name, text });
       return { numberValue: n };
     }
     case 'date': {
       const d = today ? parseDateInput(text, today) : parseDateInput(text);
-      if (!d) throw badRequest(`${field.name} expects a date (YYYY-MM-DD, today, tomorrow, +3d), got "${text}"`);
+      if (!d) throw badRequest(`${field.name} expects a date (YYYY-MM-DD, today, tomorrow, +3d), got "${text}"`).said('values.notADate', { field: field.name, text });
       return { dateValue: d };
     }
     case 'period': {
       const minutes = parsePeriod(typeof item === 'number' ? item : text);
-      if (minutes === null) throw badRequest(`${field.name} expects a duration like "2d 4h" or "90m", got "${text}"`);
+      if (minutes === null) throw badRequest(`${field.name} expects a duration like "2d 4h" or "90m", got "${text}"`).said('values.notADuration', { field: field.name, text });
       return { numberValue: minutes };
     }
   }

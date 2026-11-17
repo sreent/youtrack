@@ -72,7 +72,7 @@ export async function setDeskAddress(ctx: Ctx, key: string, address: string | nu
   }
   const clean = address.trim();
   const problem = deskAddressProblem(clean);
-  if (problem) throw badRequest(problem, 'Give the address people write to, such as support@acme.example.');
+  if (problem) throw badRequest(problem.message, 'Give the address people write to, such as support@acme.example.').said(problem.key, problem.values);
   try {
     await ctx.db
       .insert(helpdeskMailboxes)
@@ -81,7 +81,7 @@ export async function setDeskAddress(ctx: Ctx, key: string, address: string | nu
   } catch (e) {
     const err = e as { code?: string; cause?: { code?: string } };
     if (err.code === '23505' || err.cause?.code === '23505') {
-      throw new AppError(409, 'address_taken', 'Another help desk takes mail at that address', 'Each desk needs an address of its own.');
+      throw new AppError(409, 'address_taken', 'Another help desk takes mail at that address', 'Each desk needs an address of its own.').said('helpdeskMail.addressTaken');
     }
     throw e;
   }
@@ -93,7 +93,7 @@ export async function newMailSecret(ctx: Ctx, key: string): Promise<HelpdeskMail
   requireScope(ctx, 'write');
   const project = await requireProject(ctx, key, 'manage');
   const row = await mailbox(ctx, project.id);
-  if (!row) throw badRequest('Give the desk an address first', 'The address is where people write; the secret lets their mail in.');
+  if (!row) throw badRequest('Give the desk an address first', 'The address is where people write; the secret lets their mail in.').said('helpdeskMail.addressFirst');
   const secret = randomToken(SECRET_PREFIX, 24);
   await ctx.db
     .update(helpdeskMailboxes)

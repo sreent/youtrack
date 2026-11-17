@@ -133,7 +133,7 @@ export async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context
 /** Importing is managing a project: its managers, and administrators. A hidden project answers as a missing one. */
 export async function projectFor(ctx: Ctx, key: string): Promise<ProjectRow> {
   const project = await requireProject(ctx, key, 'manage');
-  if (project.archived) throw badRequest(`Project ${project.key} is archived`);
+  if (project.archived) throw badRequest(`Project ${project.key} is archived`).said('imports.projectArchived', { project: project.key });
   return project;
 }
 
@@ -143,7 +143,7 @@ export async function loadImport(ctx: Ctx, id: string): Promise<{ row: ImportRow
   const s = await ctx.app.schema.get();
   const project = row ? s.projects.get(row.projectId) : undefined;
   // An import into a project the caller can't see answers exactly as one that doesn't exist.
-  if (!row || !project || !(await canReadProject(ctx, project.id))) throw notFound('Import', 'GET /imports lists them.');
+  if (!row || !project || !(await canReadProject(ctx, project.id))) throw notFound('Import', 'GET /imports lists them.').said('imports.importNotFound');
   await assertCanManageProject(ctx, project.id);
   return { row, project };
 }
@@ -233,7 +233,7 @@ export async function uploadImport(
   body: ReadableStream<Uint8Array> | null,
 ): Promise<Import> {
   const project = await projectFor(ctx, input.project);
-  if (!body) throw badRequest('The request has no file', 'Send the CSV as the request body, with Content-Type: text/csv.');
+  if (!body) throw badRequest('The request has no file', 'Send the CSV as the request body, with Content-Type: text/csv.').said('imports.noFile');
   const id = newId();
   await ctx.db.insert(imports).values({
     id,
@@ -280,7 +280,7 @@ export async function uploadImport(
     await ctx.db.update(imports).set({ header: h, rowCount: rows, mapping, source, status: 'ready' }).where(eq(imports.id, id));
   } catch (e) {
     await ctx.db.delete(imports).where(eq(imports.id, id));
-    if (e instanceof CsvError) throw badRequest(`The file can't be read: ${e.message}`, 'Export it again as CSV (UTF-8, comma-separated), and upload that.');
+    if (e instanceof CsvError) throw badRequest(`The file can't be read: ${e.message}`, 'Export it again as CSV (UTF-8, comma-separated), and upload that.').said('imports.fileUnreadable', { message: e.message });
     throw e;
   }
   return getImport(ctx, id);
@@ -456,20 +456,20 @@ export async function updateMapping(
 ): Promise<Import> {
   const { row, project } = await loadImport(ctx, id);
   const status = statusOf(row);
-  if (status === 'running') throw conflict('The import is running', 'Wait for it to finish; change the mapping before running it again.');
-  if (status === 'undone') throw conflict('This import was undone', 'Upload the file again to import it afresh.');
-  if (!fetched(row)) throw conflict('It is still reading the issues', 'Map them once every issue has been read.');
+  if (status === 'running') throw conflict('The import is running', 'Wait for it to finish; change the mapping before running it again.').said('imports.runningChangeMapping');
+  if (status === 'undone') throw conflict('This import was undone', 'Upload the file again to import it afresh.').said('imports.undone');
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Map them once every issue has been read.').said('imports.stillReadingMap');
   const c = await contextFor(ctx, project);
   const m = structuredClone(row.mapping as StoredMapping);
   const header = row.header as string[];
   for (const [index, target] of Object.entries(body.columns ?? {})) {
     const i = Number(index);
-    if (!(i >= 0 && i < header.length)) throw badRequest(`There is no column ${index}`, `Columns run from 0 to ${header.length - 1}.`);
+    if (!(i >= 0 && i < header.length)) throw badRequest(`There is no column ${index}`, `Columns run from 0 to ${header.length - 1}.`).said('imports.noColumn', { index, last: header.length - 1 });
     if (target.startsWith('field:') && !fieldOf(c, target)) {
-      throw badRequest(`${project.key} has no field "${target.slice(6)}"`, `Its fields: ${c.fields.map((f) => f.name).join(', ')}`);
+      throw badRequest(`${project.key} has no field "${target.slice(6)}"`, `Its fields: ${c.fields.map((f) => f.name).join(', ')}`).said('imports.noSuchField', { project: project.key, field: target.slice(6), fields: c.fields.map((f) => f.name).join(', ') });
     }
     if (target.startsWith('link:') && !c.phrases.includes(target.slice(5).toLowerCase())) {
-      throw badRequest(`"${target.slice(5)}" is not a link a4a knows`, `Links: ${c.phrases.join(', ')}`);
+      throw badRequest(`"${target.slice(5)}" is not a link a4a knows`, `Links: ${c.phrases.join(', ')}`).said('imports.unknownLink', { phrase: target.slice(5), phrases: c.phrases.join(', ') });
     }
     m.targets[i] = target.startsWith('link:') ? `link:${target.slice(5).toLowerCase()}` : target;
     m.found[i] = false;
@@ -479,12 +479,12 @@ export async function updateMapping(
   m.targets.forEach((t, i) => {
     const single = SINGLE_TARGETS.has(t) || (fieldOf(c, t) ? !fieldOf(c, t)!.multi : false);
     if (t === 'ignore' || !single) return;
-    if (seen.has(t)) throw badRequest(`Both "${header[seen.get(t)!]}" and "${header[i]}" are mapped to ${t.replace(/^field:/, '')}`, 'Map one of them to something else, or ignore it.');
+    if (seen.has(t)) throw badRequest(`Both "${header[seen.get(t)!]}" and "${header[i]}" are mapped to ${t.replace(/^field:/, '')}`, 'Map one of them to something else, or ignore it.').said('imports.mappedTwice', { first: header[seen.get(t)!], second: header[i], target: t.replace(/^field:/, '') });
     seen.set(t, i);
   });
   for (const [target, values] of Object.entries(body.values ?? {})) {
     const kind = valueKind(c, target);
-    if (!kind) throw badRequest(`Values of "${target}" aren't mapped`, 'Map values of option fields, people (Assignee, Reporter) and sprints.');
+    if (!kind) throw badRequest(`Values of "${target}" aren't mapped`, 'Map values of option fields, people (Assignee, Reporter) and sprints.').said('imports.valuesNotMapped', { target });
     const choices = new Map(choicesFor(c, target).map((x) => [x.value.toLowerCase(), x.value]));
     const out = (m.values[target] ??= {});
     for (const [value, to] of Object.entries(values)) {
@@ -493,7 +493,7 @@ export async function updateMapping(
         continue;
       }
       const canonical = choices.get(to.toLowerCase());
-      if (!canonical) throw badRequest(`"${to}" is not a ${kind.label} here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`);
+      if (!canonical) throw badRequest(`"${to}" is not a ${kind.label} here, for "${value}"`, `Choose one of: ${[...choices.values()].slice(0, 30).join(', ')}`).said('imports.notAChoice', { to, kind: kind.label, value, choices: [...choices.values()].slice(0, 30).join(', ') });
       out[value] = canonical;
     }
   }
@@ -859,8 +859,8 @@ function changedFields(before: Snapshot, after: Snapshot): string[] {
 
 export async function checkImport(ctx: Ctx, id: string): Promise<ImportCheck> {
   const { row, project } = await loadImport(ctx, id);
-  if (statusOf(row) === 'running') throw conflict('The import is running', 'Its progress is on the import; check it again when it has finished.');
-  if (!fetched(row)) throw conflict('It is still reading the issues', 'Check it once every issue has been read.');
+  if (statusOf(row) === 'running') throw conflict('The import is running', 'Its progress is on the import; check it again when it has finished.').said('imports.runningCheckProgress');
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Check it once every issue has been read.').said('imports.stillReadingCheck');
   const c = await contextFor(ctx, project);
   const m = row.mapping as StoredMapping;
   const header = row.header as string[];
@@ -996,15 +996,18 @@ export function remotePolicy(ctx: Ctx) {
 export function sourceError(e: unknown): unknown {
   if (!(e instanceof RemoteError)) return e;
   const theirs = ['network', 'unavailable', 'slow_down', 'too_large'].includes(e.kind);
-  return new AppError(theirs ? 502 : 400, theirs ? 'source_unavailable' : 'source_refused', e.message, e.hint);
+  // Its words are the source error's, keyed where it was made (imports/remote.ts, D49).
+  // api only: a source error made without a key, were there one, would say its English alone.
+  const err = new AppError(theirs ? 502 : 400, theirs ? 'source_unavailable' : 'source_refused', e.message, e.hint);
+  return e.words ? err.said(e.words.key, e.words.values) : err;
 }
 
 export async function runImport(ctx: Ctx, id: string, opts: { credentials?: ImportCredentials } = {}): Promise<Import> {
   const { row, project } = await loadImport(ctx, id);
   const m = row.mapping as StoredMapping;
-  if (!fetched(row)) throw conflict('It is still reading the issues', 'Run it once every issue has been read.');
-  if (!m.targets?.includes('key')) throw badRequest('No column is the key', "Map the column with each issue's key in the other tracker: running the import again finds the issues it made by it.");
-  if (!m.targets.includes('summary')) throw badRequest('No column is the summary', 'Map the column with each issue\'s title.');
+  if (!fetched(row)) throw conflict('It is still reading the issues', 'Run it once every issue has been read.').said('imports.stillReadingRun');
+  if (!m.targets?.includes('key')) throw badRequest('No column is the key', "Map the column with each issue's key in the other tracker: running the import again finds the issues it made by it.").said('imports.noKeyColumn');
+  if (!m.targets.includes('summary')) throw badRequest('No column is the summary', 'Map the column with each issue\'s title.').said('imports.noSummaryColumn');
   // An API's files come down as the import runs, with the token given for the run: a4a doesn't keep it.
   const origin = row.origin as StoredOrigin | null;
   let remote: Remote | null = null;
@@ -1014,7 +1017,7 @@ export async function runImport(ctx: Ctx, id: string, opts: { credentials?: Impo
       throw badRequest(
         `It brings ${origin.fetch.files} ${origin.fetch.files === 1 ? 'file' : 'files'} from ${name}, and a4a needs the token again to download them`,
         "a4a doesn't keep the token: send it with the run, as credentials.",
-      );
+      ).said('imports.filesNeedToken', { files: origin.fetch.files, source: name });
     }
     const reader = readerFor(remotePolicy(ctx), origin, opts.credentials);
     await reader.probe().catch((e) => {
@@ -1028,13 +1031,13 @@ export async function runImport(ctx: Ctx, id: string, opts: { credentials?: Impo
     .select({ id: imports.id })
     .from(imports)
     .where(and(eq(imports.projectId, project.id), eq(imports.status, 'running'), gt(imports.heartbeatAt, stale), sql`${imports.id} <> ${id}`));
-  if (busy) throw conflict(`Another import into ${project.key} is running`, 'Run this one when it has finished.');
+  if (busy) throw conflict(`Another import into ${project.key} is running`, 'Run this one when it has finished.').said('imports.anotherRunning', { project: project.key });
   const [claimed] = await ctx.db
     .update(imports)
     .set({ status: 'running', heartbeatAt: new Date(), startedAt: new Date(), finishedAt: null, error: null, progressPhase: 'issues', progressDone: 0, progressTotal: row.rowCount })
     .where(and(eq(imports.id, id), sql`(${imports.status} IN ('ready', 'done', 'failed', 'undone') OR (${imports.status} = 'running' AND (${imports.heartbeatAt} IS NULL OR ${imports.heartbeatAt} < ${stale})))`))
     .returning();
-  if (!claimed) throw conflict('The import is running already', 'Its progress is on the import.');
+  if (!claimed) throw conflict('The import is running already', 'Its progress is on the import.').said('imports.runningAlready');
   const job = execute(ctx, claimed, project, remote).catch(async (e) => {
     const message = e instanceof Error ? e.message : String(e);
     console.error(`import ${id} failed:`, e);
@@ -1602,7 +1605,7 @@ export async function importRowsOf(ctx: Ctx, id: string, q: { status?: string; o
  */
 export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }): Promise<ImportUndo> {
   const { row, project } = await loadImport(ctx, id);
-  if (statusOf(row) === 'running') throw conflict('The import is running', 'Undo it when it has finished.');
+  if (statusOf(row) === 'running') throw conflict('The import is running', 'Undo it when it has finished.').said('imports.runningUndo');
   const s = await ctx.app.schema.get();
   const made = await ctx.db
     .select({ issueId: externalIssues.issueId, readableId: externalIssues.readableId, key: externalIssues.externalKey })
@@ -1678,7 +1681,7 @@ export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }
 export async function deleteImport(ctx: Ctx, id: string): Promise<void> {
   const { row } = await loadImport(ctx, id);
   const status = statusOf(row);
-  if (status === 'running') throw conflict('The import is running', 'Delete it when it has finished.');
-  if (status === 'fetching') throw conflict('It is reading the issues', 'Delete it when it has finished, or once it has stopped.');
+  if (status === 'running') throw conflict('The import is running', 'Delete it when it has finished.').said('imports.runningDelete');
+  if (status === 'fetching') throw conflict('It is reading the issues', 'Delete it when it has finished, or once it has stopped.').said('imports.readingDelete');
   await ctx.db.delete(imports).where(eq(imports.id, id));
 }

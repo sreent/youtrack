@@ -250,7 +250,7 @@ export class YouTrackReader implements Reader {
   async page(cursor: RemoteCursor | null): Promise<RemotePage> {
     const skip = cursor && 'skip' in cursor ? cursor.skip : 0;
     const got = await this.remote.json<YtIssue[]>('/api/issues', { query: { query: this.sorted, fields: this.fields, $top: this.pageSize, $skip: skip } });
-    if (!Array.isArray(got)) throw new RemoteError("YouTrack's answer wasn't a list of issues", 'Check the address: your YouTrack\'s base address.', 'shape');
+    if (!Array.isArray(got)) throw new RemoteError("YouTrack's answer wasn't a list of issues", 'Check the address: your YouTrack\'s base address.', 'shape').said('imports.source.youtrackNotAList');
     return { issues: got.map((i) => this.issue(i)), next: got.length < this.pageSize ? null : { skip: skip + got.length } };
   }
 
@@ -582,12 +582,14 @@ export class JiraReader implements Reader {
 
 const YT_NAMES = {
   name: 'YouTrack',
+  source: 'youtrack',
   example: 'https://example.youtrack.cloud',
   authHint: 'Make a permanent token in YouTrack (your profile, Account Security, Tokens), with YouTrack in its scope, and give it whole: it starts perm:.',
   badRequestHint: "Check the query: it is the one you would type in YouTrack's search, such as project: BACK.",
 };
 const JIRA_NAMES = {
   name: 'Jira',
+  source: 'jira',
   example: 'https://example.atlassian.net',
   authHint:
     "Jira Cloud takes your Atlassian account's email with an API token (id.atlassian.com, Security, API tokens). Jira Data Center takes a personal access token alone (your profile, Personal Access Tokens).",
@@ -596,18 +598,21 @@ const JIRA_NAMES = {
 
 const GITHUB_NAMES = {
   name: 'GitHub',
+  source: 'github',
   example: 'https://api.github.com',
   authHint: 'Give a token that may read the repository’s issues: a fine-grained token with Issues read, or a classic one with repo.',
   badRequestHint: 'Check the repository: owner/name, then state:open or label:bug if you like.',
 };
 const REDMINE_NAMES = {
   name: 'Redmine',
+  source: 'redmine',
   example: 'https://redmine.acme.example',
   authHint: 'Give your API key (My account, API access key; the REST API must be on, under Administration, Settings, API), or your login as the email with your password as the token.',
   badRequestHint: "Check the project's identifier, as in its address: /projects/backend is backend.",
 };
 const ZENDESK_NAMES = {
   name: 'Zendesk',
+  source: 'zendesk',
   example: 'https://acme.zendesk.com',
   authHint: "Give an agent's email with an API token (Admin Center, Apps and integrations, Zendesk API), or an OAuth token alone.",
   badRequestHint: 'Write all, or since 2026-01-01.',

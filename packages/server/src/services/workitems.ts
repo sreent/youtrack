@@ -51,7 +51,7 @@ export async function listWorkItems(ctx: Ctx, issueId: string): Promise<WorkItem
 /** Minutes from "1h 30m", "2d" or a number of minutes; refused when it isn't more than nothing. */
 export function minutesOrRefuse(duration: string | number): number {
   const minutes = parsePeriod(duration);
-  if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${duration}"`, 'Use "1h 30m", "2d" or minutes.');
+  if (!minutes || minutes <= 0) throw badRequest(`Invalid duration "${duration}"`, 'Use "1h 30m", "2d" or minutes.').said('workItems.invalidDuration', { duration });
   return minutes;
 }
 
@@ -67,13 +67,13 @@ export async function logWork(
   const minutes = minutesOrRefuse(input.duration);
   // Work logged without a date is on the day it is where its person is (D31).
   const date = input.date ?? todayIn(zoneOf(ctx));
-  if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD');
+  if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD').said('workItems.dateFormat');
   let author = ctx.actor.user;
   if (input.author) {
     const u = findUser(s, input.author, ctx.actor.user.id);
-    if (!u) throw notFound(`User ${input.author}`);
+    if (!u) throw notFound(`User ${input.author}`).said('notFound.user', { id: input.author });
     if (u.id !== ctx.actor.user.id && !isAdmin(ctx) && !(await projectAccess(ctx)).canManage(issue.projectId)) {
-      throw forbidden('Only administrators and managers of the project can log work for other people');
+      throw forbidden('Only administrators and managers of the project can log work for other people').said('workItems.othersWork');
     }
     author = u;
   }
@@ -126,11 +126,11 @@ export async function logWork(
 async function loadOwnOrManaged(ctx: Ctx, id: string, verb: string) {
   const [row] = await ctx.db.select().from(workItems).where(eq(workItems.id, id));
   const issue = row ? await findVisibleIssue(ctx, row.issueId) : undefined;
-  if (!row || !issue) throw notFound('Work item');
+  if (!row || !issue) throw notFound('Work item').said('workItems.notFound');
   // Logging and changing work takes the time permission (D37), as logging it does.
   await assertCanProject(ctx, issue.projectId, 'time');
   if (row.authorId !== ctx.actor.user.id && !isAdmin(ctx) && !(await projectAccess(ctx)).canManage(issue.projectId)) {
-    throw forbidden(`You can only ${verb} your own work items`, `Managers of the project can ${verb} anyone’s.`);
+    throw forbidden(`You can only ${verb} your own work items`, `Managers of the project can ${verb} anyone’s.`).said('workItems.onlyOwn', { verb });
   }
   return { row, issue };
 }
@@ -146,7 +146,7 @@ export async function updateWorkItem(
   const { row, issue } = await loadOwnOrManaged(ctx, id, 'change');
   const minutes = input.duration !== undefined ? minutesOrRefuse(input.duration) : row.minutes;
   const date = input.date ?? row.date;
-  if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD');
+  if (!isISODate(date)) throw badRequest('date must be YYYY-MM-DD').said('workItems.dateFormat');
   const project = s.projects.get(issue.projectId)!;
   const type =
     input.type !== undefined
