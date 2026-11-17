@@ -164,14 +164,15 @@ const updateArticleTool = defineTool({
     return parts.length ? `${a.id} ${a.title}: ${parts.join('; ')}` : `${a.id}: no changes`;
   },
   async run(ctx, input) {
-    let a = await updateArticle(ctx, input.article, {
+    // Who sees it changes first, so what it guards is never saved where the old limit shows it.
+    if (input.visibleTo !== undefined) await setArticleVisibility(ctx, input.article, input.visibleTo);
+    const a = await updateArticle(ctx, input.article, {
       title: input.title,
       body: input.body,
       parent: input.parent,
       position: input.position,
       expectedVersion: input.expected_version,
     });
-    if (input.visibleTo !== undefined) a = await setArticleVisibility(ctx, a.id, input.visibleTo);
     return { data: { id: a.id, version: a.version, under: a.parent, url: articleUrl(ctx, a.id) }, summary: `Changed ${a.id} (version ${a.version})` };
   },
 });

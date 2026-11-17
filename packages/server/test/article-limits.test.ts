@@ -4,6 +4,8 @@
  * the tree, search, versions, files, mentions, the feed and the live stream, and MCP.
  */
 import { Readable } from 'node:stream';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Ctx, UserRow } from '../src/context';
 import { createHttpApp } from '../src/http/app';
@@ -304,6 +306,38 @@ describe('over HTTP, and to an open live stream', () => {
     const words = (r: unknown, id: string) => JSON.stringify(r).replaceAll(id, 'X');
     expect(words(await hidden.json(), made.id)).toBe(words(await missing.json(), 'BACK-A-999'));
     expect((await call(benToken, 'PUT', `/articles/${made.id}/visibility`, { visibleTo: null })).status).toBe(404);
+  });
+
+  it('is missing to an agent over MCP, which can limit one it writes', async () => {
+    const app = createHttpApp(w.app);
+    const agentOf = async (user: UserRow, name: string) => {
+      const token = (await issueTokenFor(w.app.db, user.id, { name, scopes: ['read', 'write'] })).token;
+      const transport = new StreamableHTTPClientTransport(new URL('http://localhost:3999/mcp'), {
+        requestInit: { headers: { authorization: `Bearer ${token}` } },
+        fetch: async (input, init) => app.request(String(input), init as RequestInit),
+      });
+      const c = new Client({ name: 'test', version: '1.0.0' });
+      await c.connect(transport);
+      return c;
+    };
+    const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
+    const annas = await agentOf(w.anna, 'anna-mcp');
+    const bens = await agentOf(w.ben, 'ben-mcp');
+    try {
+      const made = JSON.parse(text(await annas.callTool({ name: 'create_article', arguments: { project: 'BACK', title: 'Severance terms wren', visibleTo: { users: ['erin'] } } })));
+      expect(JSON.parse(text(await annas.callTool({ name: 'get_article', arguments: { article: made.id } }))).seenBy).toEqual({ limitedTo: { users: ['erin'], groups: [] } });
+      const hidden = await bens.callTool({ name: 'get_article', arguments: { article: made.id } });
+      const missing = await bens.callTool({ name: 'get_article', arguments: { article: 'BACK-A-999' } });
+      expect(hidden.isError).toBe(true);
+      expect(text(hidden).replace(made.id, 'X')).toBe(text(missing).replace('BACK-A-999', 'X'));
+      expect(JSON.parse(text(await bens.callTool({ name: 'search_articles', arguments: { query: 'wren' } }))).total).toBe(0);
+      expect((await bens.listResources()).resources.map((r) => r.uri)).not.toContain(`a4a://articles/${made.id}`);
+      await annas.callTool({ name: 'update_article', arguments: { article: made.id, visibleTo: null } });
+      expect(JSON.parse(text(await bens.callTool({ name: 'get_article', arguments: { article: made.id } }))).title).toBe('Severance terms wren');
+    } finally {
+      await annas.close();
+      await bens.close();
+    }
   });
 
   it('stops telling someone of an article once its limit is narrowed away from them', async () => {

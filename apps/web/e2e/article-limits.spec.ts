@@ -6,6 +6,7 @@
 import type { Page } from '@playwright/test';
 import type { ArticleDetail } from '@a4a/shared';
 import { unique, uniqueKey, type Api } from './support/api';
+import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { expect, test } from './support/fixtures';
 import { THIRD_AUTH_FILE } from './support/env';
 
@@ -51,6 +52,17 @@ test('an article limited to one person is missing to anyone else, and so is what
   await expect(tree.getByRole('link', { name: /Salary bands for 2027/ }).getByText('Limited')).toBeVisible();
   await page.goto(`/articles/${under.id}`);
   await expect(page.getByRole('region', { name: 'Visible to' }).getByText('It sits under Salary bands for 2027: only who sees that article sees it.')).toBeVisible();
+  // Both, light, dark and on a phone: axe finds nothing, and nothing scrolls sideways.
+  for (const [colorScheme, width] of [['light', 1280], ['dark', 1280], ['light', 390]] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.setViewportSize({ width, height: 900 });
+    for (const id of [top.id, under.id]) {
+      await page.goto(`/articles/${id}`);
+      await expect(page.getByRole('region', { name: 'Visible to' }).getByRole('button').first()).toBeVisible();
+      await expectAccessible(page);
+      await expectNoSidewaysScroll(page);
+    }
+  }
 
   // Ravi reads the project, but not what's limited to Erin.
   const outside = await browser.newContext({ storageState: { cookies: [], origins: [] } });
