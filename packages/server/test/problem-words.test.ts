@@ -13,6 +13,8 @@ import { pageWords, readAlike } from '../src/lib/errors';
 import { parseQueryForApi } from '../src/search/service';
 import { addFieldValue, attachField, createField } from '../src/services/fields';
 import { createIssue } from '../src/services/issues';
+import { AppError } from '../src/lib/errors';
+import { createRule, previewRule } from '../src/workflow/rules';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -169,5 +171,28 @@ describe('the command language’s problems, in a person’s language (D49)', ()
     const met = problems.find((p) => p.key === key);
     expect(met, `"${command}" meets ${problems.map((p) => p.key).join(', ')}`).toBeDefined();
     expect(said(met!).de).toBe(german);
+  });
+});
+
+describe('a rule’s problems, in a person’s language (D49)', () => {
+  it('says each where it is, and all of them where the rule is refused', async () => {
+    const draft = { project: 'BACK', name: 'Mine', kind: 'schedule' as const, schedule: { every: 'hour' as const }, query: 'for: me', command: 'tag mine', notify: { to: [], people: ['qqqqqqqq'], message: '' } };
+    const preview = await previewRule(w.adminCtx, draft);
+    const keys = preview.problems.map((p) => p.key);
+    expect(keys).toEqual(expect.arrayContaining(['rule.meInSchedule', 'rule.sayMessage', 'rule.noOneCalled']));
+    for (const p of preview.problems) {
+      const words = said(p);
+      expect(readAlike(words.en, pageWords(p.message, p.hint)), `${words.en} | ${pageWords(p.message, p.hint)}`).toBe(true);
+      expect(words.de).not.toBe(words.en);
+    }
+    expect(said(preview.problems.find((p) => p.key === 'rule.noOneCalled')!).de).toBe('Niemand heißt „qqqqqqqq“. Nennen Sie jemanden mit dem Login, z. B. anna.');
+    const refused = await createRule(w.adminCtx, { ...draft, name: '' }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(AppError);
+    const e = refused as AppError;
+    expect(e.words?.key).toBe('workflow.ruleNeedsFixing');
+    const page = sayProblem(de, e.words!);
+    expect(page).toContain('Geben Sie ihr einen Namen, der sagt, wofür sie da ist.');
+    expect(page).toContain('Eine zeitgesteuerte Regel läuft von selbst, daher steht „me“ für niemanden.');
+    expect(page).not.toContain('Give it a name');
   });
 });

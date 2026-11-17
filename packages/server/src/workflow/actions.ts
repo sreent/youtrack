@@ -16,7 +16,7 @@ import type { Db } from '../db/client';
 import { WORKFLOW_BOT } from '../db/defaults';
 import { workflowActions } from '../db/schema';
 import { publishActivities } from '../events/activity';
-import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { AppError, asSentence, badRequest, conflict, forbidden, keyedProblem, notFound, saidProblems, wordsOf } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { assertCanManageProject, canReadProject, requireProject } from '../services/access';
 import { applyChanges, fieldValuesOf, findIssue, issueDetail, resolveIssue } from '../services/issues';
@@ -49,25 +49,31 @@ interface ActionDraft {
 
 export async function actionProblems(s: SchemaSnapshot, projectId: string, d: ActionDraft, own: { actionId?: string } = {}): Promise<WorkflowProblem[]> {
   const out: WorkflowProblem[] = [];
-  for (const m of nameProblems(s, projectId, d.name, own)) out.push({ part: 'name', message: m, ...whole(d.name) });
+  for (const m of nameProblems(s, projectId, d.name, own)) out.push({ part: 'name', ...whole(d.name), ...m });
   // A value of a field reads as setting it: an action can't be called that.
   const n = d.name.trim().toLowerCase();
   for (const pf of s.projectFields.get(projectId) ?? []) {
     const f = s.fields.get(pf.fieldId);
     if (!f || !['enum', 'state', 'version'].includes(f.type)) continue;
     if ((s.valuesByField.get(f.id) ?? []).some((v) => !v.archived && (!v.projectId || v.projectId === projectId) && v.name.toLowerCase() === n)) {
-      out.push({ part: 'name', message: `“${d.name.trim()}” is a value of ${f.name}`, hint: 'Name it for what it does, e.g. “Escalate”.', ...whole(d.name) });
+      out.push(
+        keyedProblem(
+          { part: 'name', message: `“${d.name.trim()}” is a value of ${f.name}`, hint: 'Name it for what it does, e.g. “Escalate”.', ...whole(d.name) },
+          'rule.actionNameIsValue',
+          { name: d.name.trim(), field: f.name },
+        ),
+      );
     }
   }
   if (d.script !== null) {
-    if (d.command.trim()) out.push({ part: 'command', message: 'An action is a command or a script, not both', ...whole(d.command) });
-    for (const p of await checkScript(d.script)) out.push({ part: 'script', message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}) });
+    if (d.command.trim()) out.push(keyedProblem({ part: 'command', message: 'An action is a command or a script, not both', ...whole(d.command) }, 'rule.commandOrScript'));
+    for (const p of await checkScript(d.script)) out.push({ part: 'script', message: p.message, start: p.start, end: p.end, ...(p.hint ? { hint: p.hint } : {}), ...wordsOf(p) });
   } else if (!d.command.trim()) {
-    out.push({ part: 'command', message: 'Say what it does, in the command language', hint: 'e.g. Priority Critical tag escalated', ...whole('') });
+    out.push(keyedProblem({ part: 'command', message: 'Say what it does, in the command language', hint: 'e.g. Priority Critical tag escalated', ...whole('') }, 'rule.sayActionCommand'));
   } else {
     const parsed = parseCommand(d.command, s, [projectId]);
     for (const p of parsed.problems) out.push({ ...p, part: 'command' });
-    if (parsed.ops.some((op) => op.kind === 'action')) out.push({ part: 'command', message: 'Its command runs another action, and an action can’t', ...whole(d.command) });
+    if (parsed.ops.some((op) => op.kind === 'action')) out.push(keyedProblem({ part: 'command', message: 'Its command runs another action, and an action can’t', ...whole(d.command) }, 'rule.actionRunsAction'));
   }
   if (d.condition.trim()) {
     const c = condition(ruleWorld(s, projectId), d.condition, { meId: s.usersByLogin.get(WORKFLOW_BOT)?.id ?? '' });
@@ -93,7 +99,7 @@ async function dto(s: SchemaSnapshot, row: ActionRow): Promise<WorkflowAction> {
 
 function refuseProblems(problems: WorkflowProblem[]): never {
   const words = problems.map((p) => (p.hint ? `${p.message} (${p.hint})` : p.message)).join('; ');
-  throw badRequest(`The action needs fixing: ${words}`, 'Each problem says where it is.', { problems }).said('workflow.actionNeedsFixing', { problems: asSentence(words) });
+  throw badRequest(`The action needs fixing: ${words}`, 'Each problem says where it is.', { problems }).said('workflow.actionNeedsFixing', { problems: saidProblems(problems) });
 }
 
 async function loadAction(ctx: Ctx, id: string): Promise<ActionRow> {
@@ -252,7 +258,7 @@ export async function runAction(ctx: Ctx, idOrReadable: string, actionId: string
   }
   if (action.condition.trim()) {
     const when = condition(ruleWorld(s, issue.projectId), action.condition, { meId: ctx.actor.user.id });
-    if (when.problems.length) throw badRequest(`The action “${action.name}” no longer reads: ${when.problems.map((p) => p.message).join('; ')}`).said('command.actionUnreadable', { action: action.name, problems: asSentence(when.problems.map((p) => p.message).join('; ')) });
+    if (when.problems.length) throw badRequest(`The action “${action.name}” no longer reads: ${when.problems.map((p) => p.message).join('; ')}`).said('command.actionUnreadable', { action: action.name, problems: saidProblems(when.problems) });
     if (when.where && !(await meets(ctx.db, issue.id, [when.where]))[0]) throw badRequest(`“${action.name}” isn't offered for this issue now`, `It's for issues that match “${action.condition}”.`).said('workflow.actionNotOffered', { action: action.name, condition: action.condition });
   }
   if (body.expectedVersion !== undefined && body.expectedVersion !== issue.version) {

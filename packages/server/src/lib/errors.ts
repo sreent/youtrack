@@ -104,6 +104,18 @@ export function keyedProblem<P extends { message: string; hint?: string }>(
   return values ? { ...p, key, values } : { ...p, key };
 }
 
+/**
+ * A problem's words, carried where it's passed on as another (D49): a parser's, a script check's, or
+ * an AppError's whose values are words and numbers. Nothing when it has none.
+ */
+export function wordsOf(p: { key?: string; values?: Record<string, string | number> } | AppError): Partial<QueryProblemWords> {
+  const w = p instanceof AppError ? p.words : p.key ? { key: p.key, values: p.values } : undefined;
+  if (!w) return {};
+  if (!w.values) return { key: w.key };
+  if (Object.values(w.values).some((v) => typeof v === 'object')) return {};
+  return { key: w.key, values: w.values as Record<string, string | number> };
+}
+
 /** The nearest known name, as a problem's words take it: "Did you mean …?" when there is one (D49). */
 export const guessWords = (guess: string | null | undefined) => ({ hasGuess: guess ? 'yes' : 'no', guess: guess ?? '' });
 
