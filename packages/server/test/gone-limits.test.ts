@@ -18,6 +18,8 @@ import { listNotifications } from '../src/services/notifications';
 import { createProject } from '../src/services/projects';
 import { createdResolvedReport } from '../src/services/reports';
 import { insertUser } from '../src/services/users';
+import { RuleEngine } from '../src/workflow/engine';
+import { createRule, getRule, listRuleRuns } from '../src/workflow/rules';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -47,7 +49,8 @@ beforeAll(async () => {
   erin = w.as(await person('erin', 'Erin Hall'));
   await createProject(admin, { key: 'GONE', name: 'Gone' });
   await addMember(admin, 'GONE', { user: 'chloe', role: 'manager' });
-  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app)], {}, [], () => {});
+  // One worker holds the outbox: it tells people, and runs rules (none until the last test makes one).
+  outbox = new OutboxWorker(w.app, [notifierConsumer(w.app), new RuleEngine(w.app, () => {}).consumer()], {}, [], () => {});
   await outbox.drain();
 });
 
@@ -124,5 +127,28 @@ describe('a comment limited on an issue that is deleted', () => {
     const s = await w.app.schema.get();
     expect(await eventSeen(await view(ben), w.app.db, s, said)).toBe(false);
     expect(await eventLimited(w.app.db, s, said)).toBe(true);
+  });
+});
+
+describe('a rule’s run log, and its card’s last run', () => {
+  it('name no issue limited away from their reader, standing or deleted', async () => {
+    const rule = await createRule(admin, { project: 'GONE', name: 'Tag what comes in', kind: 'change', trigger: 'created', query: '', command: 'tag arrived' });
+    const plain = await createIssue(anna, { project: 'GONE', summary: 'Wren plain' });
+    const limited = await createIssue(anna, { project: 'GONE', summary: 'Wren limited', visibleTo: { users: ['erin'] } });
+    // A rule acts over a few passes of its consumer.
+    for (let i = 0; i < 6; i++) await outbox.drain();
+    const ran = async (ctx: Ctx) => (await listRuleRuns(ctx, { rule: rule.id })).map((r) => r.issue);
+    expect(await ran(chloe)).toEqual([limited.id, plain.id]);
+    expect(await ran(erin)).toEqual([limited.id, plain.id]);
+    expect(await ran(ben)).toEqual([plain.id]);
+    expect((await listRuleRuns(ben, { project: 'GONE' })).map((r) => r.issue)).not.toContain(limited.id);
+    expect((await getRule(ben, rule.id)).lastRun?.issue).toBe(plain.id);
+    expect((await getRule(erin, rule.id)).lastRun?.issue).toBe(limited.id);
+    // Deleted, its runs go only to who see all of its project, as its history does.
+    await deleteIssue(anna, limited.id);
+    expect(await ran(ben)).toEqual([plain.id]);
+    expect(await ran(erin)).toEqual([plain.id]);
+    expect(await ran(chloe)).toEqual([limited.id, plain.id]);
+    expect((await getRule(ben, rule.id)).lastRun?.issue).toBe(plain.id);
   });
 });
