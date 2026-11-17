@@ -418,6 +418,22 @@ Typography and phrasing:
 - **Free text moved to the end**, after ข้อผิดพลาด:, เหตุผล: or คำตอบ: (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Natural?
 - **The font**: IBM Plex Sans Thai is loopless. For long text some readers find a looped face (Plex Sans Thai Looped) easier; Ocean bundles the loopless one only.
 
+Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
+
+- **A whiteboard is ไวต์บอร์ด** (`app.shell.whiteboards`, `page.whiteboards.title` and every message that names one), in the Royal Institute's spelling, as the catalog spells เว็บไซต์ and สปรินต์. Shops and teams mostly write ไวท์บอร์ด: which should a4a use?
+- **A whiteboard's note is โน้ต**, a sticky note (`page.whiteboard.addNote`, `whiteboards.kind.note`, `whiteboards.noteDialog.*`), while an absence's, an internal or a dashboard's note stays หมายเหตุ, a remark. Japanese has two words too (付箋, メモ). Is โน้ต right for something a team makes issues of?
+- **The other pieces**: การ์ด (as on a board), ข้อความ for a text block, ส่วน for a section (Google Forms' word; `page.whiteboard.group` is รวมเป็นส่วน), ลูกศร, and องค์ประกอบ for an element, counted “องค์ประกอบ 3 รายการ” (`page.whiteboard.said.*`, `whiteboards.canvas.label`). The canvas is แคนวาส and the outline เค้าร่าง, Word's and Google Docs' word (`page.whiteboard.canvas`, `page.whiteboard.outline`). Would เฟรม read better for a section?
+- **The toolbar** keeps to a word or two: connect is เชื่อม, as a chat account is (`page.whiteboard.connect`), make issues is สร้างอิชชู (`page.whiteboard.convert`, `whiteboards.convertDialog.title`), and redo is ทำซ้ำ, Microsoft's, which can also read as "repeat" (`page.whiteboard.redo`).
+- **A note's tones** are badges (`whiteboards.tone.*`): ธรรมดา, ไอเดีย, ตกลงแล้ว, คำถาม, ปัญหา, พักไว้. Is พักไว้ clear for "parked"?
+- `whiteboards.convertDialog.preview` is ตรวจก่อน, where the catalog says ตรวจสอบ, so that three buttons fit a phone's dialog beside “สร้างอิชชู # รายการ”.
+- `plan.resources.cellAway` is ไม่อยู่, the catalog's word for away, but two words, which a narrow cell may break between; `plan.resources.cellOff` is หยุด.
+- **Writing help is ช่วยเขียน** (`writing.help`, `writing.forTheWholeText`), a verb, as Gmail's Thai says ช่วยฉันเขียน. "Friendlier" is เป็นมิตรขึ้น (`writing.action`, `writing.suggestion.title`); เป็นกันเองขึ้น is the alternative.
+- **Summary keeps its two words**: an issue's summary, its title, is หัวเรื่อง (`page.issue.suggestASummary`, `page.issue.aClearerSummary`, `page.issue.summaryWord`), and what the assistant writes of a thread is สรุป (`page.articles.summarise`, `writing.summaryOfTheSelection`). Clear side by side on an issue's page?
+- **ClickUp's List is ลิสต์** (`imports.fromApi.whichTasksAList`, `imports.fromApi.theListSAddressIn`, `problem.imports.source.clickupNoList`, `problem.imports.source.notAClickupList`), a loanword in Thai letters, as Thai teams say Jira's words, while a list of tasks is รายการงาน; Asana's and ClickUp's tasks are งาน. ClickUp shows "List" in English: would Latin letters be clearer?
+- **A Slack thread is เธรด** (`server.chat.issue.thread`, `page.issue.source.replies`), and Slack's message shortcut is ทางลัดบนข้อความ beside its English Callback ID (`page.chat.issuesFromMessagesNeed`).
+- `issues.watching.wroteTheMessage` is “เป็นผู้เขียนข้อความต้นทาง”: ต้นทาง may read as technical.
+- **A count of none stays a count** where English says "no issues": “สร้างอิชชู 0 รายการ และลิงก์ 2 รายการ” (`activity.ledgerEntry.whiteboardConverted`, `page.whiteboard.said.converted`).
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
