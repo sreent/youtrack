@@ -41,6 +41,7 @@ a4a writes as it does in English: short sentences, plain words, the thing named 
 German:
 
 - **Sie**, always: "Speichern Sie zuerst", "Ihr Profil". Never "du".
+- **"Sie" and "Ihr" at a sentence's start are the reader.** A sentence about an app, a rule, a file or a request names it ("Die App verliert sofort den Zugang", "Die Regel ist ausgeschaltet"), and a heading says "Rolle" or "Einstellungen der App", not "Ihre Rolle". A thing that is on or off is "eingeschaltet" or "ausgeschaltet" in a sentence; "Ein" and "Aus" are for options and badges.
 - **Buttons are infinitives or nouns**: "Speichern", "Änderung speichern", "Abbrechen". A button that names what it changes says it: "Feld löschen", not "Löschen" alone, where English says "Delete the field".
 - **Status lines are passive or perfect**: "Gespeichert.", "Wird gespeichert…", "{name} ist hinzugefügt."
 - **The loading line is "Lade{v}…"**, since a page puts what it loads after the verb, and sometimes nothing, an issue's id or a file's name: "Lade den Plan…", "Lade BACK-12…", "Lade…". So each word a page loads is a noun phrase in the accusative ("den Verlauf", "Ihren Posteingang", "die Agenten"), never a clause.
