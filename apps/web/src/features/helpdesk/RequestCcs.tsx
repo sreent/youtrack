@@ -68,12 +68,15 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
       {r.ccs.length ? (
         <ul className="plain stack tight">
           {r.ccs.map((c) => (
-            <li key={c.email} className="split">
-              <Who kind="person" name={c.name || c.email} about={c.name ? `${c.email} · ${how(c, r.requester.name)}` : how(c, r.requester.name)} small />
+            <li key={c.email} className="stack tight">
+              <Who kind="person" name={c.name || c.email} about={c.name ? c.email : undefined} small />
+              <p className="note">{how(c, r.requester.name)}</p>
               {canEdit ? (
-                <button type="button" className="link" aria-label={t('helpdesk.requestCcs.stopCopyingWho', { email: c.email })} disabled={busy !== null} onClick={() => void stop(c)}>
-                  {t('helpdesk.requestCcs.stopCopying')}
-                </button>
+                <div className="cluster">
+                  <button type="button" className="link" aria-label={t('helpdesk.requestCcs.stopCopyingWho', { email: c.email })} disabled={busy !== null} onClick={() => void stop(c)}>
+                    {t('helpdesk.requestCcs.stopCopying')}
+                  </button>
+                </div>
               ) : null}
             </li>
           ))}
