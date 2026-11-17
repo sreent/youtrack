@@ -13,7 +13,7 @@
  *   token is missing or just not theirs.
  */
 import type { HelpdeskRequest, HelpForm, HelpRequestReceived, Sla, TrackedRequest } from '@a4a/shared';
-import { and, asc, eq, isNull, min, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm';
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
@@ -31,6 +31,7 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
+import { ccsOf, copyOnNewRequest, type Person } from './request-ccs';
 import { addWatchers } from './watchers';
 
 /** The agent that files requests and posts requesters' replies. Agents go by their id in lower case. */
@@ -180,6 +181,8 @@ export interface NewRequest {
   via: 'form' | 'email';
   /** The requester's own Message-ID, when they wrote in: the conversation threads under it. */
   threadId?: string | null;
+  /** Whom their email copied (its Cc), to copy on the request (D57). */
+  cc?: Person[];
 }
 
 /**
@@ -199,6 +202,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   // What later emails thread under: the requester's message, else the first one a4a sends them.
   const threadId = input.threadId ?? (mailConfigured(app) ? `<${received}@${mailHost(app)}>` : null);
   let slaActivities: ActivityRow[] = [];
+  let copied: { copied: string[]; left: string[] } | null = null;
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
@@ -209,6 +213,12 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
         const [request] = await tx.insert(helpdeskRequests).values({ issueId: row.id, projectId: project.id, requesterId, firstResponseDueAt: due, via: input.via, threadId }).returning();
         // Its SLA clocks start with it (D45), counted from when it was filed.
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
+        // Whom their email copied, before the email that says it came in is sent (D57).
+        if (input.cc?.length) {
+          const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
+          copied = done.words;
+          slaActivities.push(...done.activities);
+        }
         // The project's lead watches each request, so the requester's replies reach someone.
         if (lead) await addWatchers(tx, s, row, [{ login: lead.login, reason: 'lead' }]);
         // `replyable`: its Message-ID is random, so an answer that cites it is the requester's (D30).
@@ -218,7 +228,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   );
   kickMail(app);
   await publishActivities(app, slaActivities);
-  return issue;
+  return { ...issue, copied };
 }
 
 /** File a request from the public form, as an issue in the project. */
@@ -258,6 +268,9 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     .where(and(eq(comments.issueId, issue.id), eq(comments.visibility, 'public'), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
   const state = (await stateNames(app.db, s, [issue.id])).get(issue.id) ?? null;
+  // Others outside the team who answered: people copied on it (D57), by the names they go by.
+  const otherIds = [...new Set(rows.map((c) => c.requesterId).filter((id): id is string => Boolean(id) && id !== requester.id))];
+  const others = new Map(otherIds.length ? (await app.db.select({ id: requesters.id, name: requesters.name }).from(requesters).where(inArray(requesters.id, otherIds))).map((r) => [r.id, r.name]) : []);
   return {
     project: { name: project?.name ?? '' },
     summary: issue.summary,
@@ -265,14 +278,14 @@ export async function trackRequest(app: AppServices, token: string | undefined):
     createdAt: issue.createdAt.toISOString(),
     state: { name: state, resolved: issue.resolvedAt !== null },
     requester: { name: requester.name, email: requester.email },
-    // The team by name, the requester as "you"; never anything internal.
+    // The team by name, the requester as "you", someone copied on it by name (D57); never anything internal.
     messages: rows.map((c) => {
       const author = c.authorId ? s.users.get(c.authorId) : undefined;
-      const mine = c.requesterId !== null;
+      const mine = c.requesterId === requester.id;
       return {
         id: c.id,
-        from: mine ? ('you' as const) : ('team' as const),
-        name: mine ? requester.name : author ? (author.isBot ? author.login : author.name) : 'The team',
+        from: mine ? ('you' as const) : c.requesterId ? ('cc' as const) : ('team' as const),
+        name: mine ? requester.name : c.requesterId ? (others.get(c.requesterId) ?? '') : author ? (author.isBot ? author.login : author.name) : 'The team',
         text: c.text,
         at: c.createdAt.toISOString(),
       };
@@ -384,6 +397,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     sla,
     emailMuted: row.request.emailMutedAt !== null,
     via: row.request.via === 'email' ? 'email' : 'form',
+    ccs: await ccsOf(ctx.db, s, issue.id),
   };
 }
 

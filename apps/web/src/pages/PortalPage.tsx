@@ -7,7 +7,7 @@ import { Lone } from '../app/Auth';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
-import { Avatar } from '../components/Who';
+import { Avatar, Who } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { whenRead } from '../features/common/format';
 import { t, tr } from '../i18n';
@@ -91,6 +91,62 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
   );
 }
 
+/**
+ * Who is copied on a request, as its requester sees them on the portal (D57), and a way to copy
+ * someone: anyone they choose, who then gets the team's replies by email and may reply.
+ */
+function Copied({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalRequestDetail) => void }) {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  if (!r.ccs) return null;
+  const copy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      const who = email.trim();
+      onChange(await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(r.id)}/ccs`, { email: who }));
+      setEmail('');
+      setSaid(t('page.portal.nowCopied', { email: who }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="stack tight" aria-labelledby="portal-copied">
+      <h3 id="portal-copied">{t('page.portal.copied')}</h3>
+      {r.ccs.length ? (
+        <ul className="plain stack tight">
+          {r.ccs.map((c) => (
+            <li key={c.email}>
+              <Who kind="person" name={c.name || c.email} about={c.name ? `${c.email} · ${c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')}` : c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')} small />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="note">{t('page.portal.nobodyCopied')}</p>
+      )}
+      <form className="form" onSubmit={copy} aria-label={t('page.portal.copySomeone')}>
+        <FormField label={t('page.portal.theirEmail')} help={t('page.portal.copyHelp')}>
+          {(fid, helpId) => <input id={fid} type="email" required autoComplete="off" maxLength={HELP_LIMITS.email} aria-describedby={helpId} value={email} onChange={(e) => setEmail(e.target.value)} />}
+        </FormField>
+        {error ? <ErrorNote error={error} /> : null}
+        <div className="cluster end">
+          <button type="submit" disabled={busy || !email.trim()}>
+            {busy ? t('page.portal.copying') : t('page.portal.copySomeone')}
+          </button>
+        </div>
+      </form>
+      {said ? <p role="status" className="outcome">{said}</p> : null}
+    </section>
+  );
+}
+
 function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['portal', 'request', id], queryFn: () => get<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`), retry: false });
@@ -125,7 +181,8 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
         {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
       </div>
       <Conversation r={r} me={me} />
-      {r.requester.mine ? (
+      {r.copied ? <p className="note">{t('page.portal.youAreCopied', { name: r.requester.name })}</p> : null}
+      {r.requester.mine || r.copied ? (
         <form className="form" onSubmit={reply}>
           <FormField label={t('page.portal.yourReply')}>{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
           {error ? <ErrorNote error={error} /> : null}
@@ -138,6 +195,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       ) : (
         <p className="note">{tr('page.portal.thisIsSRequestShared', { name: r.requester.name })}</p>
       )}
+      <Copied r={r} onChange={(d) => qc.setQueryData(['portal', 'request', id], d)} />
     </section>
   );
 }
@@ -194,7 +252,8 @@ export default function PortalPage() {
   const qc = useQueryClient();
   const [token] = useState(linkToken);
   const [redeemError, setRedeemError] = useState<unknown>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  // An email to someone copied on a request links to it here (D57): opened once they're signed in.
+  const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
   const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token });
   useEffect(() => {
     if (!token) return;
@@ -252,6 +311,7 @@ export default function PortalPage() {
                   </button>
                   <span className="note">{tr(r.requester.mine ? 'page.portal.updatedYours' : 'page.portal.updatedTheirs', { name: r.desk.name, id: r.id, requester: r.requester.name, whenRead: whenRead(r.updatedAt) })}</span>
                   {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
+                  {r.copied ? <Badge grammar="outside">{t('page.portal.copied')}</Badge> : null}
                 </li>
               ))}
             </ul>

@@ -13,10 +13,25 @@ import { deskAddress, mintTrackingToken, trackingUrl } from '../services/helpdes
 import { unsubscribeToken } from '../services/notifications';
 import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
+import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
+import { ccById, ccsToTell } from '../services/request-ccs';
+import { readableId } from '../services/issue-refs';
+import type { SchemaSnapshot } from '../services/schema-cache';
+
+/**
+ * The language a desk's emails are in: the server's, since a requester has no profile (D49) and a
+ * desk no language of its own. Its requester and everyone copied on a request read the same.
+ */
+export function deskTranslator(app: AppServices): Translator {
+  return translatorFor(app.config.defaultLocale);
+}
+
+type Payload = { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean; ccId?: string };
 
 export async function renderRequestMail(app: AppServices, row: MailRow): Promise<RenderedMail | null> {
-  const p = row.payload as { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean };
+  const p = row.payload as Payload;
+  if (p.ccId) return renderCcMail(app, row, p);
   const issueId = String(p.issueId ?? '');
   const [found] = await app.db
     .select({ request: helpdeskRequests, requester: requesters, issue: issues })
@@ -30,20 +45,23 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   if (row.kind !== 'request-received' && request.emailMutedAt) return null;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  // A requester has no profile: the server's language (D49).
-  const tr = translatorFor(app.config.defaultLocale);
+  // A requester has no profile: the desk's language, the server's (D49).
+  const tr = deskTranslator(app);
   const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
 
   let subject = `Re: ${issue.summary}`;
   let lead: string;
   let quote: string | undefined;
   let head: string | undefined;
+  let copied: string[] = [];
   if (row.kind === 'request-received') {
     subject = issue.summary;
     lead = tr.t('server.helpdesk.received', { name: requester.name });
     head = tr.t('server.helpdesk.youAsked');
     const asked = issue.description.trim();
     quote = [issue.summary, asked.length > 4000 ? `${asked.slice(0, 3999)}…` : asked].filter(Boolean).join('\n\n');
+    // Who their email copied (D57): the address's real owner sees who will hear the team's answers.
+    copied = (await ccsToTell(app.db, issue.id, new Date())).map((c) => (c.name ? `${c.name} <${c.email}>` : c.email));
   } else if (row.kind === 'request-reply') {
     const [comment] = await app.db
       .select()
@@ -70,7 +88,10 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   const base = app.config.publicUrl;
   const { text, html } = composeMail(subject, {
     lead,
-    sections: quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : [],
+    sections: [
+      ...(quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : []),
+      ...(copied.length ? [{ head: tr.t('server.helpdesk.copiedOnIt'), lines: copied }] : []),
+    ],
     action: { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, token) },
     why: replyToken
       ? tr.t('server.helpdesk.whyAnswer', { desk })
@@ -96,6 +117,88 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     },
     onFailed: async () => {
       await app.db.delete(helpdeskTokens).where(eq(helpdeskTokens.tokenHash, sha256(token)));
+      if (replyToken) await app.db.delete(helpdeskReplyTokens).where(eq(helpdeskReplyTokens.tokenHash, sha256(replyToken)));
+    },
+  };
+}
+
+/** The team's public reply, as a line and its words; null when it's gone, or no longer public. */
+async function publicReply(app: AppServices, s: SchemaSnapshot, tr: Translator, commentId: string): Promise<{ lead: string; quote: string } | null> {
+  const [comment] = await app.db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.id, commentId), eq(comments.visibility, 'public'), isNull(comments.deletedAt)));
+  if (!comment) return null;
+  const author = comment.authorId ? s.users.get(comment.authorId) : undefined;
+  return { lead: author ? (author.isBot ? author.login : author.name) : tr.t('server.helpdesk.theTeam'), quote: comment.text };
+}
+
+/**
+ * Mail to someone copied on a request (D57): what its requester is told, the team's public replies
+ * and its changes of state, said as someone else's request. Its reply address answers for them
+ * alone, its link opens the request on the portal (never the requester's tracking link, which would
+ * speak in the requester's name), and its unsubscribe link takes them off the request.
+ */
+async function renderCcMail(app: AppServices, row: MailRow, p: Payload): Promise<RenderedMail | null> {
+  const cc = await ccById(app.db, String(p.ccId));
+  // Taken off since it was queued: they hear nothing more.
+  if (!cc || cc.removedAt) return null;
+  const [found] = await app.db
+    .select({ request: helpdeskRequests, requester: requesters, issue: issues })
+    .from(helpdeskRequests)
+    .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
+    .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
+    .where(eq(helpdeskRequests.issueId, cc.issueId));
+  if (!found) return null;
+  const { request, requester, issue } = found;
+  const s = await app.schema.get();
+  const project = s.projects.get(issue.projectId);
+  const tr = deskTranslator(app);
+  const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
+  const asker = requester.name;
+
+  let lead: string;
+  let quote: string | undefined;
+  if (row.kind === 'request-reply') {
+    const reply = await publicReply(app, s, tr, String(p.commentId ?? ''));
+    if (!reply) return null; // deleted, or made internal, before it went
+    lead = tr.t('server.helpdesk.cc.replied', { who: reply.lead, requester: asker });
+    quote = reply.quote;
+  } else if (row.kind === 'request-state') {
+    if (p.resolved) lead = p.to ? tr.t('server.helpdesk.cc.resolved', { to: p.to, requester: asker }) : tr.t('server.helpdesk.cc.resolvedPlain', { requester: asker });
+    else if (p.to) lead = p.from ? tr.t('server.helpdesk.cc.nowWas', { to: p.to, from: p.from, requester: asker }) : tr.t('server.helpdesk.cc.now', { to: p.to, requester: asker });
+    else lead = p.from ? tr.t('server.helpdesk.cc.changedFrom', { from: p.from, requester: asker }) : tr.t('server.helpdesk.cc.changedPlain', { requester: asker });
+  } else {
+    return null; // only what follows: they don't get the requester's acknowledgement
+  }
+
+  const stop = await unsubscribeToken(app, 'cc', cc.id);
+  const deskMail = await deskAddress(app, issue.projectId);
+  const replyToken = deskMail ? await mintReplyToken(app.db, issue.id, cc.email) : null;
+  const base = app.config.publicUrl;
+  const subject = `Re: ${issue.summary}`;
+  const { text, html } = composeMail(subject, {
+    lead,
+    sections: quote ? [{ head: tr.t('server.helpdesk.theyWrote'), quote }] : [],
+    action: { label: tr.t('server.helpdesk.cc.seeRequest'), url: `${base}/portal?request=${encodeURIComponent(readableId(s, issue))}` },
+    why: replyToken ? tr.t('server.helpdesk.cc.whyAnswer', { desk, requester: asker }) : tr.t('server.helpdesk.cc.whyLink', { desk, requester: asker }),
+    stop: { label: tr.t('server.helpdesk.cc.stop'), url: `${base}/unsubscribe?token=${encodeURIComponent(stop)}` },
+  });
+  const from = project ? await deskSender(app, project.id, project.name) : undefined;
+  return {
+    to: cc.email,
+    ...(from ? { from } : {}),
+    subject,
+    text,
+    html,
+    headers: {
+      ...AUTOMATIC,
+      // In the conversation's thread: a CC from the requester's Cc has its first message.
+      ...threadHeaders(request.threadId ?? `<request-${issue.id}@${mailHost(app)}>`),
+      ...(replyToken && deskMail ? { 'Reply-To' /* not words: a header */: replyAddress(deskMail, replyToken) } : {}),
+      ...unsubscribeHeaders(`${base}/api/v1/unsubscribe?token=${encodeURIComponent(stop)}`),
+    },
+    onFailed: async () => {
       if (replyToken) await app.db.delete(helpdeskReplyTokens).where(eq(helpdeskReplyTokens.tokenHash, sha256(replyToken)));
     },
   };

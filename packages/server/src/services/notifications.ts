@@ -25,6 +25,7 @@ import { eventFor, eventSeen, goneIssueSql, issueSeenSql, projectAccess, visible
 import { findVisibleIssue } from './issues';
 import type { SchemaSnapshot } from './schema-cache';
 import { aboutInline, aboutSubscriptions } from './subscriptions';
+import { ccById, stopCopy } from './request-ccs';
 import { zoneOf } from './time-zones';
 import { requirePersonal } from './watchers';
 import { translatorFor } from '../i18n';
@@ -234,16 +235,18 @@ async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel;
  * What a link stops. Email levels nest (all, direct, none), so stopping the emails about issues you
  * watch leaves mentions and assignments, and stopping those stops email about issues altogether.
  * A subscription's link stops that subscription's emails, and leaves it telling your inbox (D31).
- * A requester's link stops email about their one request.
+ * A requester's link stops email about their one request. Someone copied on a request (D57) stops
+ * being copied: they're told nothing more of it, and their replies by email are refused.
  */
-export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription';
-const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription'];
+export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription' | 'cc';
+const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription', 'cc'];
 
 const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
   watching: 'Emails about changes and comments on issues you watch. Mentions and assignments still come by email.',
   direct: 'Emails about issues, mentions and assignments too. Your inbox in a4a keeps everything.',
   digest: 'The daily digest.',
   request: 'Emails about this request. Its page still shows every reply.',
+  cc: 'Emails about this request: you stop being copied on it.',
 };
 
 /** What a link stops, in words: a subscription's, by what it tells of. */
@@ -254,7 +257,7 @@ async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string
   return { what: `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.`, subscription: { target: about.target, events: about.events, name: about.name } };
 }
 
-/** For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the request's issue id. */
+/** For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the request's issue id; for a CC's, its row's id. */
 export async function unsubscribeToken(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<string> {
   return `${kind}.${subject}.${await sign(app, 'unsubscribe', `${kind}.${subject}`)}`;
 }
@@ -281,6 +284,11 @@ async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promis
     const [r] = await db.select({ muted: helpdeskRequests.emailMutedAt }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, subject));
     return Boolean(r?.muted);
   }
+  // Taken off the request, by the team or themselves, or the request is gone: nothing comes.
+  if (kind === 'cc') {
+    const cc = await ccById(db, subject);
+    return !cc || cc.removedAt !== null;
+  }
   const prefs = await emailPrefs(db, subject);
   if (kind === 'digest') return !prefs.digest;
   if (kind === 'watching') return prefs.email !== 'all';
@@ -298,6 +306,9 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
       .update(helpdeskRequests)
       .set({ emailMutedAt: new Date() })
       .where(and(eq(helpdeskRequests.issueId, subject), isNull(helpdeskRequests.emailMutedAt)));
+  } else if (kind === 'cc') {
+    // They stop being copied (D57), and the request's history says they did.
+    await stopCopy(app, subject);
   } else {
     const s = await app.schema.get();
     if (!s.users.get(subject)) throw notFound('This unsubscribe link').said('notifications.unsubscribeLinkNotFound');

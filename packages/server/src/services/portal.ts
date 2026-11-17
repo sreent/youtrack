@@ -11,7 +11,7 @@ import type { PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
+import { comments, helpdeskRequests, issues, requestCcs, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
@@ -20,6 +20,7 @@ import { newId } from '../lib/ids';
 import { mailConfigured } from '../notify/state';
 import { emailDomain, requesterSees } from './access';
 import { deskProject, openRequest, postRequesterReply } from './helpdesk';
+import { copyFromPortal, portalCcsOf } from './request-ccs';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
 import type { SchemaSnapshot } from './schema-cache';
@@ -158,17 +159,18 @@ function sharingDeskIds(s: SchemaSnapshot, email: string): string[] {
   return [...s.projects.values()].filter((p) => projectSettings(p).helpdesk.organizations.includes(domain)).map((p) => p.id);
 }
 
-type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow };
+type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow; copied: boolean };
 
 async function visibleRows(app: AppServices, r: RequesterRow, only?: string): Promise<Row[]> {
   const s = await app.schema.get();
   const desks = sharingDeskIds(s, r.email);
   const domain = emailDomain(r.email);
-  const theirs = eq(helpdeskRequests.requesterId, r.id);
+  // Theirs, and those they're copied on (D57).
+  const theirs = sql`(${helpdeskRequests.requesterId} = ${r.id} OR ${copiedSql(r.email)})`;
   // Colleagues': in a desk that shares within this domain, from a requester of the same domain.
   const colleagues = desks.length ? and(inArray(helpdeskRequests.projectId, desks), sql`lower(split_part(${requesters.email}, '@', 2)) = ${domain}`) : undefined;
   const rows = await app.db
-    .select({ request: helpdeskRequests, issue: issues, requester: requesters })
+    .select({ request: helpdeskRequests, issue: issues, requester: requesters, copied: sql<boolean>`${copiedSql(r.email)}` })
     .from(helpdeskRequests)
     .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
     .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
@@ -176,18 +178,26 @@ async function visibleRows(app: AppServices, r: RequesterRow, only?: string): Pr
     .orderBy(desc(issues.updatedAt))
     .limit(only ? 1 : 200);
   // The seam decides, row by row, whatever the query found.
-  return rows.filter((row) => {
-    const project = s.projects.get(row.issue.projectId);
-    return project ? requesterSees(project, r, row.requester) : false;
-  });
+  return rows
+    .map((row) => ({ ...row, copied: row.copied === true || String(row.copied) === 'true' }))
+    .filter((row) => {
+      const project = s.projects.get(row.issue.projectId);
+      return project ? requesterSees(project, r, row.requester, row.copied) : false;
+    });
+}
+
+/** Whether this address is copied on the request now (D57), as SQL over the request's row. */
+function copiedSql(email: string) {
+  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND lower(c.email) = ${email.trim().toLowerCase()})`;
 }
 
 async function summaries(app: AppServices, r: RequesterRow, rows: Row[]): Promise<PortalRequest[]> {
   const s = await app.schema.get();
   const states = await stateNames(app.db, s, rows.map((x) => x.issue.id));
-  return rows.map(({ issue, requester }) => {
+  return rows.map(({ issue, requester, copied }) => {
     const project = s.projects.get(issue.projectId)!;
     return {
+      copied: copied && requester.id !== r.id,
       id: readableId(s, issue),
       desk: { key: project.key, name: project.name },
       summary: issue.summary,
@@ -226,14 +236,25 @@ export async function portalRequest(app: AppServices, r: RequesterRow, id: strin
     .orderBy(asc(comments.createdAt));
   const byId = new Map<string, string>();
   const ids = [...new Set(rows.map((c) => c.requesterId).filter((x): x is string => Boolean(x)))];
-  if (ids.length) for (const q of await app.db.select().from(requesters).where(inArray(requesters.id, ids))) byId.set(q.id, q.name);
+  // Who wrote as someone copied on it: an address on its list, now or before, that isn't its requester's.
+  const copiedIds = new Set<string>();
+  if (ids.length) {
+    const listed = new Set((await app.db.select({ email: requestCcs.email }).from(requestCcs).where(eq(requestCcs.issueId, row.issue.id))).map((c) => c.email.toLowerCase()));
+    for (const q of await app.db.select().from(requesters).where(inArray(requesters.id, ids))) {
+      byId.set(q.id, q.name);
+      if (q.id !== row.requester.id && listed.has(q.email.toLowerCase())) copiedIds.add(q.id);
+    }
+  }
   return {
     ...summary!,
+    // Its requester sees who is copied, and copies more; anyone else isn't shown the list.
+    ccs: row.requester.id === r.id ? await portalCcsOf(app.db, row.issue.id) : null,
     description: row.issue.description,
-    // The team by name, them as "you", a colleague by name; never anything internal.
+    // The team by name, them as "you", its requester or a colleague by name, someone copied on it
+    // (D57) by name; never anything internal.
     messages: rows.map((c) => {
       const author = c.authorId ? s.users.get(c.authorId) : undefined;
-      const from = c.requesterId === r.id ? ('you' as const) : c.requesterId ? ('colleague' as const) : ('team' as const);
+      const from = c.requesterId === r.id ? ('you' as const) : c.requesterId && copiedIds.has(c.requesterId) ? ('cc' as const) : c.requesterId ? ('colleague' as const) : ('team' as const);
       return {
         id: c.id,
         from,
@@ -245,10 +266,10 @@ export async function portalRequest(app: AppServices, r: RequesterRow, id: strin
   };
 }
 
-/** Their reply, on a request of their own: a public comment in their name, as on the tracking page. */
+/** Their reply, on a request of their own or one they're copied on (D57): a public comment in their name, as on the tracking page. */
 export async function portalReply(app: AppServices, r: RequesterRow, id: string, text: string): Promise<PortalRequestDetail> {
   const row = await oneRow(app, r, id);
-  if (row.requester.id !== r.id) {
+  if (row.requester.id !== r.id && !row.copied) {
     throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.').said('portal.colleaguesRequest');
   }
   await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page');
@@ -277,4 +298,17 @@ export async function portalNewRequest(app: AppServices, r: RequesterRow, input:
 export async function prunePortal(db: Db): Promise<void> {
   await db.delete(requesterSessions).where(sql`${requesterSessions.expiresAt} < now()`);
   await db.delete(requesterSignIns).where(sql`${requesterSignIns.expiresAt} < now() - interval '1 day'`);
+}
+
+/**
+ * The requester copies someone on a request of theirs, on the portal (D57): anyone they choose, as
+ * forwarding its emails would. Someone copied on it, or a colleague, can't copy others.
+ */
+export async function portalCopy(app: AppServices, r: RequesterRow, id: string, person: { email: string; name?: string }): Promise<PortalRequestDetail> {
+  const row = await oneRow(app, r, id);
+  if (row.requester.id !== r.id) {
+    throw new AppError(403, 'forbidden', 'Only the person who asked can copy others on a request', 'Ask them, or the team.').said('portal.onlyTheRequesterCopies');
+  }
+  await copyFromPortal(app, row.issue, r.name, person);
+  return portalRequest(app, r, id);
 }

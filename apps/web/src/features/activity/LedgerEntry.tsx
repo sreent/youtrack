@@ -91,6 +91,16 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return { text: <>{tr('activity.ledgerEntry.tookOutOf', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
     case 'board.issue_ranked':
       return { text: <>{tr('activity.ledgerEntry.rankedOn', { issue: issue, str: str(e.data.board) })}</>, badge: ['changes', t('activity.ledgerEntry.changesABoardSOrder')] };
+    case 'request.cc_added':
+    case 'request.cc_removed': {
+      // Someone copied on a help desk request, or no longer (D57): by their address.
+      const email = str((e.data.cc as { email?: string } | undefined)?.email);
+      const text =
+        e.type === 'request.cc_added'
+          ? tr('activity.ledgerEntry.copiedOn', { email, issue })
+          : tr('activity.ledgerEntry.stoppedCopyingOn', { via: e.data.via === 'unsubscribe' ? 'unsubscribe' : 'team', email, issue });
+      return { text: <>{text}</>, badge: ['outside', t('activity.ledgerEntry.changesWhoIsCopied')] };
+    }
     case 'issue.updated':
       if (e.data.undoes !== undefined)
         return {

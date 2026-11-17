@@ -149,6 +149,9 @@ export const EVENT_TYPES = [
   'project.key.changed',
   // An issue's place in a board's order changed (D53): its backlog's and its columns' one order.
   'board.issue_ranked',
+  // Someone was copied on a help desk request, or stopped being (D57).
+  'request.cc_added',
+  'request.cc_removed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -230,6 +233,16 @@ export type NotifyKind = (typeof NOTIFY_KINDS)[number];
 
 /** What a help desk's public form and tracking page take, at most (the server's limits, and the form's maxlength). */
 export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
+/**
+ * The most people copied on one help desk request at once (D57). Each public reply goes to each of
+ * them, an email apiece with a reply address of its own, so it bounds what one reply sends and what
+ * one forged email's Cc can reach; a conversation rarely needs more than a few, and a team's list
+ * address counts as one.
+ */
+export const REQUEST_CCS_MAX = 20;
+/** How someone came to be copied on a request (D57): by the team, the Cc of the requester's email, or the requester on the portal. */
+export const REQUEST_CC_VIA = ['team', 'email', 'portal'] as const;
+export type RequestCcVia = (typeof REQUEST_CC_VIA)[number];
 
 export const MAX_BULK_ISSUES = 50;
 

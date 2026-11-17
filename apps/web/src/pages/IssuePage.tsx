@@ -412,7 +412,7 @@ export default function IssuePage() {
           ) : (
             <Loading what="loadingLine.fields" />
           )}
-          <RequestCard issue={data} />
+          <RequestCard issue={data} canEdit={canWrite} />
           <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />
           <AppWidgets at="issue-panel" issue={data.id} />

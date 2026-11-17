@@ -14,6 +14,7 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  REQUEST_CC_VIA,
   LEVELING_MODES,
   NOTIFICATION_KINDS,
   PLAY_KINDS,
@@ -753,9 +754,12 @@ export const CommentSchema = z
       .enum(COMMENT_VISIBILITIES)
       .describe('internal: the team alone. public: also the requester of a help desk request, who is emailed it'),
     requester: z
-      .object({ name: z.string() })
+      .object({
+        name: z.string(),
+        copied: z.boolean().describe('Someone copied on the request wrote it (D57), not its requester'),
+      })
       .nullable()
-      .describe('Set when the requester of a help desk request wrote it, on their tracking page'),
+      .describe('Set when someone outside the team wrote it: the requester of a help desk request, or someone copied on it, on a page or by email'),
     visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees the issue sees it. Otherwise only these, besides its author, the project's managers and administrators"),
     reactions: z.array(ReactionSummarySchema),
   })
@@ -1849,8 +1853,8 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc'])
+      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57)"),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
@@ -1901,6 +1905,29 @@ export const RequestSlaSchema = z
   .meta({ id: 'RequestSla' });
 export type RequestSla = z.infer<typeof RequestSlaSchema>;
 
+/** Someone copied on a help desk request (D57), as the team sees them. */
+export const RequestCcSchema = z
+  .object({
+    email: z.string(),
+    name: z.string().describe('As whoever copied them named them; empty for none'),
+    via: z.enum(REQUEST_CC_VIA).describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal'),
+    addedBy: UserRefSchema.nullable().describe('Who on the team copied them; null when the requester did'),
+    addedAt: timestamp,
+  })
+  .meta({ id: 'RequestCc' });
+export type RequestCc = z.infer<typeof RequestCcSchema>;
+
+/** Someone copied on a request, as its requester sees them on the portal. */
+export const PortalCcSchema = z
+  .object({
+    email: z.string(),
+    name: z.string(),
+    byYou: z.boolean().describe('The requester copied them, by email or on the portal; otherwise the team did'),
+    addedAt: timestamp,
+  })
+  .meta({ id: 'PortalCc' });
+export type PortalCc = z.infer<typeof PortalCcSchema>;
+
 export const HelpdeskRequestSchema = z
   .object({
     issue: z.string(),
@@ -1910,6 +1937,7 @@ export const HelpdeskRequestSchema = z
     sla: RequestSlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
+    ccs: z.array(RequestCcSchema).describe('Who is copied on it now (D57), first copied first'),
   })
   .meta({ id: 'HelpdeskRequest' });
 export type HelpdeskRequest = z.infer<typeof HelpdeskRequestSchema>;
@@ -1981,7 +2009,7 @@ export const TrackedRequestSchema = z
     messages: z.array(
       z.object({
         id: z.string(),
-        from: z.enum(['you', 'team']),
+        from: z.enum(['you', 'team', 'cc']).describe('cc: someone copied on the request (D57)'),
         name: z.string(),
         text: z.string(),
         at: timestamp,
@@ -3647,13 +3675,26 @@ export const PortalRequestSchema = z
     createdAt: timestamp,
     updatedAt: timestamp,
     requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared within their organization") }),
+    copied: z.boolean().describe('They are copied on it (D57): told of it by email, and they may reply'),
   })
   .meta({ id: 'PortalRequest' });
 export type PortalRequest = z.infer<typeof PortalRequestSchema>;
 
 export const PortalRequestDetailSchema = PortalRequestSchema.extend({
   description: z.string(),
-  messages: z.array(z.object({ id: z.string(), from: z.enum(['you', 'team', 'colleague']), name: z.string(), text: z.string(), at: timestamp })),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      from: z.enum(['you', 'team', 'colleague', 'cc']).describe('colleague: its requester, or someone of their organization; cc: someone copied on it (D57)'),
+      name: z.string(),
+      text: z.string(),
+      at: timestamp,
+    }),
+  ),
+  ccs: z
+    .array(PortalCcSchema)
+    .nullable()
+    .describe('Who is copied on it (D57): shown to its requester, who may copy more people; null to anyone else'),
 }).meta({ id: 'PortalRequestDetail' });
 export type PortalRequestDetail = z.infer<typeof PortalRequestDetailSchema>;
 
@@ -3976,3 +4017,13 @@ export const RenameProjectKeyBody = z.object({
     .describe('The key as you last saw it. If someone renamed the project meanwhile, nothing changes and the answer is 409, with the key it has now'),
 });
 export type RenameProjectKeyInput = z.infer<typeof RenameProjectKeyBody>;
+
+// ---------------------------------------------------------------------------
+// CCs on help desk requests (D57)
+// ---------------------------------------------------------------------------
+
+export const RequestCcBody = z.object({
+  email: z.string().trim().max(HELP_LIMITS.email).email().describe('Their email address'),
+  name: z.string().trim().max(HELP_LIMITS.name).optional().describe('Their name, if known'),
+});
+export const RequestCcQuery = z.object({ email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('The address to stop copying') });

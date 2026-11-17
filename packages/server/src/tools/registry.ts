@@ -42,6 +42,7 @@ import { workflowTools } from './workflow';
 import { issueMoveTools } from './issue-moves';
 import { projectKeyTools } from './project-keys';
 import { boardTools } from './boards';
+import { requestCcTools } from './request-ccs';
 import { issueVcs } from '../vcs/links';
 
 export type { ToolDef, ToolKind, ToolResult } from './types';
@@ -227,7 +228,7 @@ const getIssueTool = defineTool({
         links: i.links.map((l) => ({ relation: l.phrase, id: l.issue.id, summary: l.issue.summary, state: l.issue.state })),
         spent: i.spentMinutes ? formatPeriod(i.spentMinutes) : null,
         comments: comments.map((c) => ({
-          by: c.requester ? `${c.requester.name} (the requester)` : (c.author?.login ?? null),
+          by: c.requester ? `${c.requester.name} (${c.requester.copied ? 'copied on the request' : 'the requester'})` : (c.author?.login ?? null),
           at: c.createdAt.slice(0, 16),
           public: c.visibility === 'public' || undefined,
           text: excerpt(c.text, 1500),
@@ -244,7 +245,8 @@ const getIssueTool = defineTool({
           at: f.createdAt.slice(0, 16),
         })),
         mentionedInArticles: articles.length ? articles.map((a) => ({ id: a.id, title: a.title })) : undefined,
-        // A help desk request: who asked, how, and its first-response target. Public comments reach them.
+        // A help desk request: who asked, how, and its first-response target. Public comments reach them,
+        // and those copied on it (D57).
         request: request
           ? {
               requester: request.requester,
@@ -252,6 +254,7 @@ const getIssueTool = defineTool({
               firstResponse: request.firstResponse.state,
               due: request.firstResponse.dueAt,
               emailMuted: request.emailMuted || undefined,
+              copied: request.ccs.length ? request.ccs.map((c) => c.email) : undefined,
             }
           : undefined,
         commits: code.commits.slice(0, 20).map((c) => ({
@@ -517,11 +520,11 @@ const addCommentTool = defineTool({
   name: 'add_comment',
   title: 'Comment',
   description:
-    'Add a Markdown comment to an issue: progress notes, findings, questions for the team. "@login" mentions a person, who is told. On a help desk request (get_issue shows "request"), public: true also emails it to the requester and shows it on their page; leave it out for a note the team alone sees.',
+    'Add a Markdown comment to an issue: progress notes, findings, questions for the team. "@login" mentions a person, who is told. On a help desk request (get_issue shows "request"), public: true also emails it to the requester and everyone copied on it, and shows it on their pages; leave it out for a note the team alone sees.',
   input: z.object({
     issue: z.string(),
     text: z.string().min(1).max(50_000),
-    public: z.boolean().optional().describe('Help desk requests only: send it to the requester too. Internal unless true.'),
+    public: z.boolean().optional().describe('Help desk requests only: send it to the requester, and those copied on it, too. Internal unless true.'),
     visibleTo: z
       .object({ users: z.array(z.string()).default([]).describe('Logins'), groups: z.array(z.string()).default([]).describe('Group names') })
       .optional()
@@ -530,7 +533,7 @@ const addCommentTool = defineTool({
   kind: 'changes',
   async preview(_ctx, input) {
     return input.public
-      ? `Reply to the requester of ${input.issue.toUpperCase()}, by email and on their page: "${excerpt(input.text, 160)}"`
+      ? `Reply to the requester of ${input.issue.toUpperCase()}, and anyone copied on it, by email and on their pages: "${excerpt(input.text, 160)}"`
       : `Comment on ${input.issue.toUpperCase()}: "${excerpt(input.text, 160)}"`;
   },
   async run(ctx, input) {
@@ -624,6 +627,7 @@ export const TOOLS: ToolDef[] = [
   ...appTools,
   ...projectKeyTools,
   ...boardTools,
+  ...requestCcTools,
 ] as unknown as ToolDef[];
 
 export function toolByName(name: string): ToolDef | undefined {
