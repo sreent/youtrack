@@ -59,8 +59,10 @@ export function mergeServer(current: Elements, elements: readonly WhiteboardElem
   return next;
 }
 
+/** As the server compares: no words is no words, kept as empty or as nothing. */
+const norm = (v: unknown) => (v === '' || v === undefined ? null : v);
 const holds = (e: WhiteboardElement, expect: Partial<Record<string, unknown>> | undefined) =>
-  !expect || Object.entries(expect).every(([k, v]) => ((e as unknown as Record<string, unknown>)[k] ?? null) === (v ?? null));
+  !expect || Object.entries(expect).every(([k, v]) => norm((e as unknown as Record<string, unknown>)[k]) === norm(v));
 
 /** What a batch does to the elements shown, before the server says so. */
 export function applyOps(current: Elements, ops: readonly WhiteboardOp[]): Map<string, WhiteboardElement> {

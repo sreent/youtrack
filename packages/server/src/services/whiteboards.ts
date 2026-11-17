@@ -274,7 +274,9 @@ export async function deleteWhiteboard(ctx: Ctx, id: string): Promise<void> {
 // Changes to elements: batches, merged property by property
 // ---------------------------------------------------------------------------
 
-const equal = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
+/** Values alike: no words is no words, whether it was kept as empty or as nothing. */
+const norm = (v: unknown) => (v === '' || v === undefined ? null : v);
+const equal = (a: unknown, b: unknown) => norm(a) === norm(b);
 
 function holds(row: ElementRow, expect: Partial<Record<Settable, unknown>> | undefined): boolean {
   if (!expect) return true;
@@ -454,7 +456,7 @@ export async function applyWhiteboardBatch(ctx: Ctx, id: string, input: Whiteboa
     await logChange(tx, ctx, s, board, seq, rows, [...removed], body.client ?? null);
     return { seq, rows, removed: [...removed], refused };
   });
-  if (out.rows.length || out.removed.length) whiteboardLive(ctx.app).changed([id.trim()]);
+  if (out.rows.length || out.removed.length) whiteboardLive(ctx.app).changed([id.trim()], { look: false });
   return {
     seq: out.seq,
     applied: [...out.rows.map((r) => r.id), ...out.removed],
@@ -578,7 +580,7 @@ async function convertNote(ctx: Ctx, boardId: string, noteId: string, projectKey
   if (out.activities.length) await publishActivities(ctx.app, out.activities);
   // New work, as any new issue: triage reads it as it reads one made on the issues page.
   if (out.created) ctx.app.hooks.onIssueCreated?.(out.created, ctx.actor);
-  if (out.seq) whiteboardLive(ctx.app).changed([boardId]);
+  if (out.seq) whiteboardLive(ctx.app).changed([boardId], { look: false });
   return out;
 }
 
@@ -630,7 +632,7 @@ async function linkArrow(ctx: Ctx, boardId: string, arrowId: string, relation: s
     return { link, made, seq, activities: res.activities };
   });
   if (out.activities.length) await publishActivities(ctx.app, out.activities);
-  if (out.seq) whiteboardLive(ctx.app).changed([boardId]);
+  if (out.seq) whiteboardLive(ctx.app).changed([boardId], { look: false });
   return out;
 }
 

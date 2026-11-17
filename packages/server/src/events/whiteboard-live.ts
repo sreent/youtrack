@@ -80,9 +80,18 @@ export class WhiteboardLive {
     };
   }
 
-  /** After commit: this instance's streams read the whiteboard, and the others are told to. */
-  changed(ids: string[]): void {
-    for (const id of ids) this.look(id);
+  /**
+   * After commit: this instance's streams read the whiteboard's log, and the others are told to. `look`
+   * also has them read again who's looking and whether they may still see it: for a change to those,
+   * or to the whiteboard itself, not for a change to its elements, which each stream checks as it sends.
+   */
+  changed(ids: string[], opts: { look?: boolean } = {}): void {
+    for (const id of ids) {
+      const b = this.boards.get(id);
+      if (!b) continue;
+      if (opts.look !== false) this.emit(b, { kind: 'look' });
+      this.poke(id, b);
+    }
     this.app.signals.announceWhiteboards(ids).catch((e) => console.warn(`whiteboards: NOTIFY failed (${e instanceof Error ? e.message : e}); other instances read within 10 seconds`));
   }
 

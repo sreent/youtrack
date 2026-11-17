@@ -233,6 +233,10 @@ describe('two people at once', () => {
     // Undoing the removal adds it back as it was, under its own id.
     const back = await applyWhiteboardBatch(ben, board.id, { ops: [{ op: 'add', id: b, kind: 'note', x: 300, y: 0, text: 'B' }] });
     expect(back.applied).toEqual([b]);
+    // An arrow with no label is undone expecting none, however the page says it.
+    await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'arrow-bare', kind: 'arrow', x: 0, y: 0, from: a, to: b }] });
+    const undone = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'remove', id: 'arrow-bare', expect: { label: '' } }] });
+    expect(undone.removed).toEqual(['arrow-bare']);
   });
 });
 
