@@ -420,8 +420,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | column, swimlane | cột, làn |
 | sprint | sprint |
 | committed (a sprint's commitment) | cam kết |
+| blocker | trở ngại |
 | backlog | backlog |
-| help desk | bộ phận hỗ trợ |
+| help desk, its portal | bộ phận hỗ trợ, cổng hỗ trợ |
 | SLA at risk, breached | sắp vi phạm, đã vi phạm |
 | request (help desk) | yêu cầu |
 | requester | người yêu cầu |
@@ -434,8 +435,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | agent | tác nhân |
 | assistant (its name), the assistant | assistant, trợ lý |
 | conversation (with the assistant) | cuộc trò chuyện |
-| workflow | workflow |
-| rule | quy tắc |
+| workflow, script | workflow, script |
+| rule, guard (a rule that refuses) | quy tắc, quy tắc chặn |
 | if (a rule's or a transition's condition) | nếu, after the trigger's "Khi" |
 | state machine | máy trạng thái |
 | transition | bước chuyển |
@@ -468,6 +469,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | triage | phân loại |
 | suggestion | gợi ý |
 | token, revoke | token, thu hồi |
+| fingerprint (of a token) | dấu vân tay |
 | scope (of a token) | phạm vi |
 | two-factor sign-in | xác thực hai yếu tố |
 | sign in, sign out | đăng nhập, đăng xuất |
@@ -475,6 +477,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | identity provider | nhà cung cấp danh tính |
 | single sign-on | đăng nhập một lần (SSO) |
 | webhook, delivery | webhook, lượt gửi |
+| post (a4a or a provider sending to an address) | gửi; "đăng" is for chat messages and comments |
 | secret | khóa bí mật |
 | commit, pull request, branch | commit, pull request, nhánh |
 | merge, merged | hợp nhất, đã hợp nhất |
