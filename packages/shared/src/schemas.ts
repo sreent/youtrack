@@ -2190,6 +2190,17 @@ export const RuleCheckResultSchema = z
 // Version control
 // ---------------------------------------------------------------------------
 
+/** A GitHub App a GitHub integration reads as (D54): its private key is never shown. */
+export const VcsGithubAppSchema = z
+  .object({
+    appId: z.string().describe("The app's id (or its client id), as GitHub shows it on the app's settings page"),
+    slug: z.string().nullable().describe("The app's name in GitHub's addresses, e.g. a4a-acme"),
+    installationId: z.string().describe('The installation a4a reads through'),
+    account: z.string().nullable().describe('The user or organization the app is installed on'),
+  })
+  .meta({ id: 'VcsGithubApp' });
+export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
+
 export const VcsIntegrationSchema = z
   .object({
     id: z.string(),
@@ -2199,8 +2210,9 @@ export const VcsIntegrationSchema = z
     active: z.boolean(),
     webhookUrl: z.string().describe('Where the provider sends its deliveries'),
     secretPrefix: z.string().describe("The secret's first characters, to recognise it by"),
-    baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; null for the others"),
+    baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
+    githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2223,6 +2235,29 @@ const VcsAccessToken = z
   .describe(
     "Bitbucket: an access token that may read the repository. Data Center sends no commits with a push, and Bitbucket Cloud the latest five a branch got: with it, a4a reads them. GitHub: a token that may read the repository's contents, with which a4a asks GitHub which commits a build holds when it hasn't seen them (D46). Kept encrypted, never shown again",
   );
+/** A GitHub App to read as, given to a GitHub integration (D54). */
+export const VcsGithubAppBody = z
+  .object({
+    appId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .describe("The app's id, or its client id (Iv…), from the app's settings page"),
+    privateKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(10_000)
+      .describe('One of the app\'s private keys, the .pem file GitHub gave, whole: "-----BEGIN RSA PRIVATE KEY-----" and on. Kept encrypted, never shown again'),
+    installationId: z
+      .string()
+      .trim()
+      .regex(/^\d{1,20}$/, 'An installation id is a number')
+      .nullish()
+      .describe("Which of the app's installations to read through, as in its address (…/settings/installations/12345678). Leave it out and a4a finds it: the one on the repository the integration is named after, or the app's only one"),
+  })
+  .describe('Read as a GitHub App, not with a person\'s token. Giving one removes the access token; null stops reading as the app');
 export const VcsIntegrationBody = z.object({
   provider: z.enum(VCS_PROVIDERS),
   name: z.string().min(1).max(120).describe('What it is, e.g. the repository "acme/backend"'),
@@ -2230,13 +2265,15 @@ export const VcsIntegrationBody = z.object({
   active: z.boolean().default(true),
   baseUrl: VcsBaseUrl.nullable().optional(),
   accessToken: VcsAccessToken.nullable().optional(),
+  githubApp: VcsGithubAppBody.nullable().optional(),
 });
 export const UpdateVcsIntegrationBody = z.object({
   name: z.string().min(1).max(120).optional(),
   projects: z.array(z.string()).max(50).optional(),
   active: z.boolean().optional(),
   baseUrl: VcsBaseUrl.nullable().optional(),
-  accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it'),
+  accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it. Giving one stops reading as a GitHub App'),
+  githubApp: VcsGithubAppBody.nullable().optional(),
 });
 
 export const VcsDeliverySchema = z
@@ -3415,7 +3452,8 @@ export const IssueBuildSchema = z
   .meta({ id: 'IssueBuild' });
 export type IssueBuild = z.infer<typeof IssueBuildSchema>;
 
-export const CODE_HOSTS = ['github', 'gitlab', 'bitbucket'] as const;
+/** Where people connect their own accounts (D46); `gitea` is Gitea or Forgejo, at the address an administrator gives (D54). */
+export const CODE_HOSTS = ['github', 'gitlab', 'bitbucket', 'gitea'] as const;
 export type CodeHost = (typeof CODE_HOSTS)[number];
 
 export const CodeHostSchema = z

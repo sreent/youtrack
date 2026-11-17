@@ -75,6 +75,7 @@ describe('connecting your own account', () => {
       { provider: 'github', name: 'GitHub', available: true },
       { provider: 'gitlab', name: 'GitLab', available: true },
       { provider: 'bitbucket', name: 'Bitbucket', available: false },
+      { provider: 'gitea', name: 'Gitea or Forgejo', available: false },
     ]);
   });
 

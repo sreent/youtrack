@@ -761,6 +761,18 @@ export const vcsIntegrations = pgTable('vcs_integrations', {
    * it as it is, as it keeps a signing key. It is never shown again (D33).
    */
   accessToken: text('access_token'),
+  /**
+   * GitHub: the GitHub App a4a reads as instead of a person's token (D54). Its id (or client id)
+   * names it in the JSON web tokens a4a signs with its private key, kept sealed (lib/secret-box.ts)
+   * and never shown again. The installation's tokens last an hour and are kept only in memory.
+   */
+  githubAppId: text('github_app_id'),
+  githubAppKey: text('github_app_key'),
+  /** The installation a4a reads through: chosen by the administrator, or found from the app's installations. */
+  githubInstallationId: text('github_installation_id'),
+  /** What GitHub calls the app (its slug) and the account it's installed on, to show. */
+  githubAppSlug: text('github_app_slug'),
+  githubAccount: text('github_account'),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
