@@ -147,7 +147,7 @@ export function intlLocale(): string {
  * (Chinese, Japanese, Korean), where a capital can only begin a Latin word or a name ("CI", "Backend 中的新问题").
  * A new language joins this list only if it lowers a common noun as these do.
  */
-const LOWERS_LABELS: ReadonlySet<Locale> = new Set<Locale>(['en', 'es', 'fr', 'pt']);
+const LOWERS_LABELS: ReadonlySet<Locale> = new Set<Locale>(['en', 'es', 'fr', 'pt', 'vi']);
 
 /** A label set inside a sentence ("Time logged, by person"): lower-cased at its start where the page's language does that. */
 export function inSentence(label: string): string {

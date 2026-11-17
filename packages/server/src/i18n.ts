@@ -11,11 +11,12 @@ import fr from '@a4a/shared/i18n/fr.json';
 import ja from '@a4a/shared/i18n/ja.json';
 import ko from '@a4a/shared/i18n/ko.json';
 import pt from '@a4a/shared/i18n/pt.json';
+import vi from '@a4a/shared/i18n/vi.json';
 import zh from '@a4a/shared/i18n/zh.json';
 import type { Ctx } from './context';
 
 /** Every catalog, by language. A new language is a catalog, a line in LOCALES, and a line here. */
-const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, ja, ko, pt, zh };
+const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, ja, ko, pt, vi, zh };
 
 const translators = new Map<Locale, Translator>();
 

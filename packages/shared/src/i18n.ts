@@ -7,12 +7,12 @@
 import { IntlMessageFormat, type PrimitiveType } from 'intl-messageformat';
 
 /** The languages there are catalogs for. A new one is a catalog and a line here (docs/translating.md). */
-export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'pt', 'zh'] as const;
+export const LOCALES = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'pt', 'vi', 'zh'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Each language by its own name, as a person looking for theirs reads it. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語', ko: '한국어', pt: 'Português (Brasil)', zh: '简体中文' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', ja: '日本語', ko: '한국어', pt: 'Português (Brasil)', vi: 'Tiếng Việt', zh: '简体中文' };
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
@@ -131,7 +131,7 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
 }
 
 /** What goes between two sentences said one after the other: a space, but nothing after Japanese's or Chinese's 。 (Korean's . takes one). */
-const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '', ko: ' ', pt: ' ', zh: '' };
+const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', ja: '', ko: ' ', pt: ' ', vi: ' ', zh: '' };
 
 /**
  * A language's tag where its country matters: a4a's Portuguese is Brazil's. A page's `lang` says it,

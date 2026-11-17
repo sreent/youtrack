@@ -318,6 +318,41 @@ Phrasing:
 - **The issue list's count line** says 「4 个问题：项目 SPR、未解决」, joining the query's parts with 、.
 - **Traditional Chinese readers**: a browser asking for zh-TW or zh-HK gets this catalog, since a4a matches a language by its first part, and most such browsers list zh as well. Is Simplified better than English for them, or should a4a match only zh, zh-CN and zh-Hans until it has a Traditional catalog?
 
+## Vietnamese
+
+Translated whole by one model, from English, the code and [translating.md](translating.md), with no second read yet and no native speaker.
+
+Terms:
+
+- **An issue is "vấn đề"**, Redmine's word, and the brief's. It is also everyday Vietnamese for "a problem", so what went wrong is always "lỗi". Would teams rather read "issue" as it is, or "công việc"?
+- **There is no tracker's Vietnamese to lean on.** As far as the catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface; bảng, thẻ and nhãn are Trello's, and the plan's terms (đường găng, đường cơ sở, thời gian dự trữ, giá trị thu được) Vietnamese project management's. Check the whole table in translating.md against what your team says.
+- **An assignee is "người được giao"** (16 characters, in a column and on badges). "Người phụ trách" and "người thực hiện" are the alternatives.
+- **An agent is "tác nhân"**, as the Vietnamese press writes AI agents. Many developers say "agent"; "tác tử" is the academic word.
+- **The help desk is "bộ phận hỗ trợ"**, and its portal "cổng hỗ trợ". IT teams often say "helpdesk".
+- **Kept in English**: sprint, backlog, story point, workflow, script, commit, pull request, webhook, token, build ("bản build"), CI, instance and worker (`rules.run.scheduled`), and the code hosts' and chat platforms' own setting names (Signing secret, Messaging endpoint, Personal Access Tokens). Too many?
+- **Merge** is "hợp nhất" ("pull request đã hợp nhất"), where developers often say "merge".
+- **Subscribe** is "đăng ký" or "đăng ký nhận tin", and "đăng ký" also means signing up.
+- **Two-factor sign-in** is "xác thực hai yếu tố"; Google's Vietnamese says "xác minh 2 bước".
+- **The navigation's groups** (`app.shell.work`, `build`, `oversee`) are "Làm việc", "Thiết lập" and "Giám sát". "Giám sát" holds Administration too.
+- **Smaller terms**: a token's fingerprint is "dấu vân tay", its scope "phạm vi", a secret "khóa bí mật", levelling "cân bằng nguồn lực", a digest "bản tổng hợp", a reaction "biểu cảm" and reacting "bày tỏ cảm xúc", a knowledge base "cơ sở kiến thức" (or "cơ sở tri thức"?), People and access "Người dùng và quyền truy cập", a guard rule "quy tắc chặn".
+
+Phrasing:
+
+- **Tone marks** sit the traditional way (xóa, hủy, hòa, thủy), as Microsoft's and Google's Vietnamese write them. The newer placement (xoá, huỷ) is just as common: one throughout either way.
+- **Dates** come from Intl's CLDR: "16 thg 11, 2026" for a short date. Some readers prefer "16/11/2026".
+- `problem.ai.error` adds a lead-in English doesn't have, "Dịch vụ AI báo lỗi: {error}", since what follows is another service's English.
+- `server.helpdesk.received` greets first ("Chào {name}, chúng tôi đã nhận được yêu cầu của bạn."), where English ends the sentence with the name.
+- **The ledger's bylines** say "với tư cách {name}" for "as {name}", "thay cho {name}" for "for {name}", and "với danh nghĩa riêng" for "as itself". `activity.ledgerEntry.made` is "đã để {v} {v2}" ("đã để BACK chỉ hiển thị với thành viên").
+- **Badges kept short for a phone**: `activity.ledgerEntry.changesWhoIsCopied` "đổi người được CC", `helpdesk.groups.cantBeGiven` "{name}: tạm không nhận yêu cầu", `helpdesk.requestCard.firstResponseDueIn` "phản hồi đầu tiên: còn {span}". Clear enough?
+- **The issue list's count line** puts the count first, as English does ("4 vấn đề trong dự án SPR, chưa giải quyết"), and its sort follows a comma (`server.query.sortedBy`, ", sắp xếp theo {sorts}").
+- **The parser's lines**: "Unexpected …" is "Không mong đợi “x” ở đây.", "Expected …" is "Cần … sau …", and "Unknown X" is "X không tồn tại".
+- `rules.preview.actsScheduled`: does "chạy cho từng vấn đề" against "tác động lên từng vấn đề" carry English's "for each of them" against "on each of them"?
+- **"Your address"** in the help desk's limits is "địa chỉ IP của bạn", since an email address sits beside it.
+- **Examples**: plain words for the assistant and the chat bot are Vietnamese ("comment BACK-12 Ổn rồi", "chuyển các vấn đề này sang review và giao cho anna"), and so are example rule names ("Báo tin lỗi nghiêm trọng"); states, fields and the query and command languages stay as typed ("Won't fix", "State Fixed").
+- `rules.ruleForm.everyWeekday`, "mỗi ngày làm việc", may read as the plan's working days rather than Monday to Friday.
+- **"This instance"** is "Máy chủ này" as a heading (`page.admin.thisInstance`) and "a4a này" in a sentence.
+- **Pronouns**: a person is "người đó" or "họ", and a thing is named again rather than "nó". Some sentences read heavy for it ("lịch sử ghi rằng cân bằng nguồn lực đã dời công việc đó").
+
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:
