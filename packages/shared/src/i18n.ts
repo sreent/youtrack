@@ -143,6 +143,39 @@ export function intlTag(locale: Locale): string {
   return locale === 'en' ? 'en-GB' : locale;
 }
 
+const THAI = /[\u0E00-\u0E7F]/;
+
+/**
+ * Intl's list of n items in a language (D49): each item as its index, each joining word as a string.
+ * Thai's list is made for Thai words: a bare space between two, และ and หรือ glued to the next ("Anna
+ * Ben และCarl", "SPRและที่ยังไม่ปิด"). Thai sets a name, an id or a number off with a space, so beside an
+ * item that isn't Thai a joining word gets one, and a bare space a comma, as Thai's own "or" list has.
+ */
+export function listParts(locale: Locale, n: number, textOf: (i: number) => string, options: Intl.ListFormatOptions = {}): (string | number)[] {
+  const marks = Array.from({ length: n }, (_, i) => `\u0001${i}\u0001`);
+  const parts = new Intl.ListFormat(intlTag(locale), { style: 'long', type: 'conjunction', ...options }).formatToParts(marks);
+  const out: (string | number)[] = parts.map((p) => (p.type === 'element' ? Number(p.value.slice(1, -1)) : p.value));
+  if (locale !== 'th') return out;
+  const latin = (i: unknown, end: boolean) => typeof i === 'number' && !THAI.test(end ? textOf(i).slice(-1) : textOf(i).slice(0, 1));
+  return out.map((p, i) => {
+    if (typeof p === 'number') return p;
+    const before = latin(out[i - 1], true);
+    const after = latin(out[i + 1], false);
+    const word = p.trim();
+    if (!before && !after) return p;
+    if (!word) return ', ';
+    if (!THAI.test(word)) return p;
+    return `${before || /^\s/.test(p) ? ' ' : ''}${word}${after || /\s$/.test(p) ? ' ' : ''}`;
+  });
+}
+
+/** Items as a list in a language: Intl's, Thai's spaced off from what isn't Thai (listParts). */
+export function joinList(locale: Locale, items: readonly string[], options?: Intl.ListFormatOptions): string {
+  return listParts(locale, items.length, (i) => items[i] ?? '', options)
+    .map((p) => (typeof p === 'number' ? (items[p] ?? '') : p))
+    .join('');
+}
+
 /** Sentences said one after the other, as the translator's language puts them; empty ones left out. */
 export function joinSentences(tr: Translator, sentences: readonly string[]): string {
   return sentences.filter(Boolean).join(SENTENCE_GAP[tr.locale]);

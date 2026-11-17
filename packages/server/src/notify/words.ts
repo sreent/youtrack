@@ -1,6 +1,6 @@
 /** What a notification says, in plain words: the same in the inbox, over MCP and by email. */
 import type { NotificationKind, TrackerEvent } from '@a4a/shared';
-import type { Locale, Translator } from '@a4a/shared/i18n';
+import { joinList, type Locale, type Translator } from '@a4a/shared/i18n';
 import { intlTag } from '../i18n';
 
 /** Who did it, as a person reads it: a requester by their name, an agent by its id, an agent for a person says so. */
@@ -27,7 +27,7 @@ export function actorName(tr: Translator, e: TrackerEvent): string {
 }
 
 function list(tr: Translator, words: string[]): string {
-  return new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words);
+  return joinList(tr.locale, words);
 }
 
 /** What one event did, as a verb phrase: "commented", "changed State and Priority". */

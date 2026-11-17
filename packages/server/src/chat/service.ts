@@ -21,14 +21,14 @@ import {
   type ChatSubscription,
   type CreateChatSubscriptionInput,
 } from '@a4a/shared';
-import { joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { joinList, joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { problemIn } from '@a4a/shared/notes';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { chatAccounts, chatChannels, chatLinkTokens, chatSubscriptions, chatWorkspaces, projects, savedSearches, userIdentities, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
-import { intlTag, problemFor, translatorFor } from '../i18n';
+import { problemFor, translatorFor } from '../i18n';
 import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
@@ -223,7 +223,7 @@ const KIND_WORDS: Record<ChatChangeKind, string> = {
  */
 export function aboutChannel(kinds: readonly string[], target: { project?: string | null; search?: string | null }, tr: Translator): string {
   const words = CHAT_CHANGE_KINDS.filter((k) => kinds.includes(k)).map((k) => tr.t(KIND_WORDS[k]));
-  const listed = words.length ? new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words) : tr.t('server.chat.kind.nothing');
+  const listed = words.length ? joinList(tr.locale, words) : tr.t('server.chat.kind.nothing');
   const what = `${listed.charAt(0).toUpperCase()}${listed.slice(1)}`;
   return target.project
     ? tr.t('server.chat.about.project', { what, project: target.project })

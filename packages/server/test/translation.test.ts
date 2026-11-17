@@ -81,6 +81,7 @@ describe('a4a in each person’s language (D49)', () => {
       es: 'Incidencias del proyecto SPR y sin resolver: 4',
       fr: 'Tickets dans le projet SPR, non résolus : 4',
       ja: '4件の課題：プロジェクト：SPR、未解決',
+      th: 'อิชชู 4 รายการ ในโปรเจกต์ SPR และที่ยังไม่ปิด',
     });
     expect(await said('sort by: Priority', 1)).toEqual({
       en: '1 issue sorted by Priority',
@@ -88,6 +89,7 @@ describe('a4a in each person’s language (D49)', () => {
       es: 'Todas las incidencias ordenadas por Priority: 1',
       fr: 'Tous les tickets, triés par Priority : 1',
       ja: '1件の課題、並び順：Priority',
+      th: 'อิชชู 1 รายการ เรียงตาม Priority',
     });
     expect(await said('', 0)).toEqual({
       en: '0 issues (most recently updated first)',
@@ -95,6 +97,7 @@ describe('a4a in each person’s language (D49)', () => {
       es: 'Todas las incidencias (primero las actualizadas más recientemente): 0',
       fr: 'Tous les tickets (les plus récemment mis à jour d’abord) : 0',
       ja: '0件の課題（最近更新された順）',
+      th: 'อิชชู 0 รายการ (อัปเดตล่าสุดก่อน)',
     });
     // Lena reads dates in Berlin. "created today" is the query language's, as written.
     expect((await said('created: today', 2)).de).toBe('2 Vorgänge: created today (Datumsangaben in Europe/Berlin)');

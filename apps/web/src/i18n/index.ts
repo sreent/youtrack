@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinList, joinSentences, listParts, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
@@ -67,9 +67,8 @@ export function canSay(key: string): boolean {
 /** A list of things a page draws, joined as the page's language joins a list: "A, B and C", "A、B、C". */
 export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conjunction'): ReactNode {
   if (items.length <= 1) return items[0] ?? null;
-  const marks = items.map((_, i) => `\u0001${i}\u0001`);
-  const parts = new Intl.ListFormat(intlLocale(), { style: 'long', type }).formatToParts(marks);
-  return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, p.type === 'element' ? items[Number(p.value.slice(1, -1))] : p.value)));
+  const parts = listParts(translator.locale, items.length, (i) => (typeof items[i] === 'string' ? (items[i] as string) : ''), { type });
+  return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, typeof p === 'number' ? items[p] : p)));
 }
 
 /** A message whose tags or values are elements: what a page draws. */
@@ -176,7 +175,7 @@ export const formatNumber = (n: number, options?: Intl.NumberFormatOptions) => n
 export const formatDate = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleDateString(intlLocale(), options);
 export const formatDateTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleString(intlLocale(), options);
 export const formatTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleTimeString(intlLocale(), options);
-export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => new Intl.ListFormat(intlLocale(), { style: 'long', type }).format(items);
+export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => joinList(translator.locale, items, { type });
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 /** The months' short names, January first, in the page's language (English keeps its three letters). */

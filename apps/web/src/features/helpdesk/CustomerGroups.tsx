@@ -7,7 +7,7 @@ import { isOwnAgent } from '@a4a/shared/constants';
 import { Badge } from '../../components/Badges';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { intlLocale, t, tr, weekdayNames } from '../../i18n';
+import { formatList, t, tr, weekdayNames } from '../../i18n';
 
 const DAYS = weekdayNames();
 const SHARING: Record<CustomerSharing, string> = {
@@ -17,7 +17,7 @@ const SHARING: Record<CustomerSharing, string> = {
 };
 const groupsKey = (key: string) => ['customer-groups', key];
 const list = (s: string) => s.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
-const joined = (items: string[]) => new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(items);
+const joined = (items: string[]) => formatList(items);
 
 /** A group's settings, to make one or change one: its name, domains, sharing, agents and own hours. */
 function GroupForm({ project, group, onDone }: { project: Project; group?: CustomerGroup; onDone: (g: CustomerGroup) => void }) {
