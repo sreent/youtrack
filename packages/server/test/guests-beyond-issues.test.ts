@@ -18,8 +18,9 @@ import { guestMayRequest } from '../src/services/guests';
 import { createIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { createBaseline, getSchedule } from '../src/services/planning';
-import { createProject, updateProject } from '../src/services/projects';
+import { createProject, getProject, updateProject } from '../src/services/projects';
 import { createRole } from '../src/services/roles';
+import { insertUser } from '../src/services/users';
 import { applyWhiteboardBatch, createWhiteboard } from '../src/services/whiteboards';
 import { GUEST_STREAM_LIMITS } from '../src/http/routes/whiteboards';
 import { createWorld, type TestWorld } from './helpers';
@@ -298,6 +299,13 @@ describe('plans', () => {
     expect(bens.calendar.budget).toBeNull();
     // Signed in, he reads when someone is away, as D36 has it.
     expect(bens.away.map((a) => a.assignee)).toEqual(['anna']);
+    // Whoever keeps the project's settings sees the budget they keep, costs or not, so saving them keeps it.
+    await createRole(admin, { name: 'Steward', permissions: ['read', 'manage'] });
+    const stew = await insertUser(w.app.db, { login: 'stew', name: 'Stew Ward', role: 'member' });
+    w.app.schema.invalidate();
+    await addMember(admin, 'GPL', { user: 'stew', role: 'Steward' });
+    expect((await getProject(w.as(stew), 'GPL')).settings.plan.budget).toBe(50_000);
+    expect((await getSchedule(w.as(stew), 'GPL')).tasks.every((t) => t.plannedCost === null)).toBe(true);
   });
 
   it('answer a closed project’s plan as a missing project', async () => {

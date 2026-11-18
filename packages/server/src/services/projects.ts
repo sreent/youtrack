@@ -99,11 +99,12 @@ const NO_ACCESS: ProjectAccess = { role: 'viewer', roleName: 'Viewer', via: 'ope
 
 /**
  * A project's settings as the caller may read them: its plan's budget is money, and money takes the
- * costs permission (D37), which a guest never has (D64).
+ * costs permission (D37), which a guest never has (D64). Whoever manages the project sees it too: they
+ * keep its settings, and a budget read as none would be saved as none with the rest of the plan's.
  */
 export function settingsFor(row: ProjectRow, view: AccessView): ProjectSettings {
   const settings = projectSettings(row);
-  return view.allows(row.id, 'costs') ? settings : { ...settings, plan: { ...settings.plan, budget: null } };
+  return view.allows(row.id, 'costs') || view.canManage(row.id) ? settings : { ...settings, plan: { ...settings.plan, budget: null } };
 }
 
 /** A project as the caller sees it, with what they may do in it. */
