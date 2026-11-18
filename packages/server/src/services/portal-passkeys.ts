@@ -83,7 +83,7 @@ export interface PortalSessionRef {
 // ---------------------------------------------------------------------------
 
 /** Desks that take requests and passkeys. */
-function passkeyDesks(app: AppServices, projects: Iterable<Parameters<typeof deskSignIn>[0]>) {
+function passkeyDesks(projects: Iterable<Parameters<typeof deskSignIn>[0]>) {
   return [...projects].filter((p) => !p.archived && projectSettings(p).helpdesk.enabled && Boolean(deskSignIn(p).passkey));
 }
 
@@ -92,7 +92,7 @@ export async function portalPasskeysOff(app: AppServices): Promise<PortalPasskey
   if (!relyingParty(app.config.publicUrl)) return 'address';
   if ((await getSetting(app.db, 'passkeys')) === false) return 'instance';
   const s = await app.schema.get();
-  return passkeyDesks(app, s.projects.values()).length ? null : 'desks';
+  return passkeyDesks(s.projects.values()).length ? null : 'desks';
 }
 
 /** Whether the sign-in page offers a passkey: the desk named takes them, or with none named, some desk does; and they're on. */
@@ -100,7 +100,7 @@ export async function passkeyOffered(app: AppServices, deskKey: string | undefin
   if (!relyingParty(app.config.publicUrl) || (await getSetting(app.db, 'passkeys')) === false) return false;
   if (desk) return Boolean(desk.passkey);
   if (deskKey) return false;
-  return passkeyDesks(app, (await app.schema.get()).projects.values()).length > 0;
+  return passkeyDesks((await app.schema.get()).projects.values()).length > 0;
 }
 
 const offProblem = (why: PortalPasskeysOff): AppError =>
