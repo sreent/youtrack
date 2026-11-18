@@ -25,6 +25,7 @@ import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { startSession } from './auth';
+import { passkeyCounts } from './passkeys';
 import { providerGroupNames, syncProviderGroups } from './groups';
 import type { UserRow } from './schema-cache';
 import { insertUser } from './users';
@@ -167,7 +168,7 @@ export async function finishSignIn(app: AppServices, query: URLSearchParams, bro
   }
   if (!claims?.sub) throw new SsoError('failed', `${cfg.name} didn't say who you are`);
   const user = await personFor(app, cfg, claims);
-  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent);
+  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent, { with: 'oidc' });
   return { user, ...session, returnTo: pending.returnTo };
 }
 
@@ -260,6 +261,19 @@ export async function personFromProvider(app: AppServices, p: ProviderPolicy, wh
 
   if (!verified && !p.createWithUnverifiedEmail) throw new SsoError('unverified', `${p.name} hasn't verified your email, so a4a can't find your account by it`);
   const matches = email ? await app.db.select().from(users).where(sql`lower(${users.email}) = ${email}`) : [];
+  if (matches.length) {
+    // One person's first two sign-ins at once: the other may have made and linked the account since
+    // the look above. An account made here commits with its link, so whoever sees one sees both.
+    const [now] = await app.db
+      .select({ user: users })
+      .from(userIdentities)
+      .innerJoin(users, eq(users.id, userIdentities.userId))
+      .where(and(eq(userIdentities.provider, p.key), eq(userIdentities.subject, who.subject)));
+    if (now) {
+      if (now.user.banned || now.user.isBot) throw new SsoError('refused', 'This account can’t sign in');
+      return now.user;
+    }
+  }
   try {
     if (verified && matches.length > 1) throw new SsoError('ambiguous', 'More than one account has your email');
     if (verified && matches.length === 1) {
@@ -345,6 +359,10 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     }
   };
   const ids = people.map((u) => u.id);
+  const passkeys = await passkeyCounts(db, ids);
+  const lastSignIn = new Map(
+    ids.length ? (await db.select({ id: users.id, at: users.lastSignInAt }).from(users).where(inArray(users.id, ids))).map((r) => [r.id, r.at?.toISOString() ?? null]) : [],
+  );
   const twoFactor = new Set(
     ids.length ? (await db.select({ userId: userTotp.userId }).from(userTotp).where(and(inArray(userTotp.userId, ids), isNotNull(userTotp.confirmedAt)))).map((r) => r.userId) : [],
   );
@@ -353,6 +371,8 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     out.set(u.id, {
       password: Boolean(u.passwordHash),
       twoFactor: twoFactor.has(u.id),
+      passkeys: passkeys.get(u.id) ?? 0,
+      lastSignInAt: lastSignIn.get(u.id) ?? null,
       provisioned: provisioned.has(u.id),
       emailConfirmed: Boolean(u.email) && u.emailVerified,
       identities: links

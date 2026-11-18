@@ -103,11 +103,12 @@ export function twoFactorRoutes(app: OpenAPIHono<HttpEnv>) {
       const user = ticket && (await ticketUser(runtime, ticket.userId));
       if (!token || !ticket || !user) throw signInAgain();
       const attempt = await codeAttempt(c, runtime, user.id);
-      if (!(await takeSecondFactor(runtime, user.id, body.code))) throw wrongCode();
+      const took = await takeSecondFactor(runtime, user.id, body.code);
+      if (!took) throw wrongCode();
       await attempt.succeeded();
       await endTicket(runtime.db, token);
       deleteCookie(c, TICKET_COOKIE, { path: TICKET_COOKIE_PATH });
-      return startSessionFor(c, runtime, user);
+      return startSessionFor(c, runtime, user, { with: `${user.passwordHash ? 'password' : 'ldap'}+${took}` });
     },
   );
 
@@ -156,7 +157,7 @@ export function twoFactorRoutes(app: OpenAPIHono<HttpEnv>) {
       await attempt.succeeded();
       await endTicket(runtime.db, token);
       deleteCookie(c, TICKET_COOKIE, { path: TICKET_COOKIE_PATH });
-      await startSessionFor(c, runtime, user);
+      await startSessionFor(c, runtime, user, { with: `${user.passwordHash ? 'password' : 'ldap'}+totp` });
       return { recoveryCodes };
     },
   );

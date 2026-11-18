@@ -97,6 +97,7 @@ German:
 | suggestion | Vorschlag |
 | token | Token |
 | two-factor sign-in | Zwei-Faktor-Anmeldung |
+| passkey | Passkey (der Passkey, die Passkeys) |
 | sign in, sign out | anmelden, abmelden |
 | login (a person's handle) | der Login |
 | identity provider | Identitätsanbieter |
@@ -191,6 +192,7 @@ One Spanish for Spain and Latin America: no *vosotros*, and no word only one sid
 | token | token |
 | allow (an app), apps you allowed | autorizar, "Aplicaciones que autorizaste" (one doesn't *permitir* an app) |
 | two-factor sign-in | verificación en dos pasos |
+| passkey | llave de acceso |
 | sign in, sign out | iniciar sesión, cerrar sesión |
 | identity provider | proveedor de identidad |
 | single sign-on | inicio de sesión único |
@@ -280,6 +282,7 @@ To check Spanish: the checks above; `e2e/spanish.spec.ts`, which signs a person 
 | token, revoke | トークン, 無効化 |
 | fingerprint (of a token) | フィンガープリント |
 | two-factor sign-in | 2段階認証 |
+| passkey | パスキー |
 | sign in, sign out | ログイン, ログアウト |
 | login (a person's handle) | ログインID |
 | identity provider | IDプロバイダー |
@@ -373,6 +376,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | scope (of a token) | portée: "la portée admin" |
 | not found | introuvable, after the thing: "Ticket {id} introuvable."; a person's account is "Compte … introuvable" |
 | two-factor sign-in | authentification à deux facteurs |
+| passkey | clé d’accès |
 | sign in, sign out | se connecter, se déconnecter |
 | login (the name) | identifiant |
 | identity provider | fournisseur d'identité |

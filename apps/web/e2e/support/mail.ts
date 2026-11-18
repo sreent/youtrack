@@ -153,11 +153,15 @@ export interface MailingServer {
   close(): Promise<void>;
 }
 
-/** An a4a server of the spec's own, from the same build, that sends its mail to `smtpPort`. */
-export async function startMailingServer(smtpPort: number): Promise<MailingServer> {
+/**
+ * An a4a server of the spec's own, from the same build, that sends its mail to `smtpPort`. With
+ * `localhost`, its address is http://localhost:port, a domain a browser makes passkeys for (an IP
+ * address can't be a relying party's id, D62).
+ */
+export async function startMailingServer(smtpPort: number, opts: { localhost?: boolean } = {}): Promise<MailingServer> {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
   const port = await freePort();
-  const url = `http://127.0.0.1:${port}`;
+  const url = `http://${opts.localhost ? 'localhost' : '127.0.0.1'}:${port}`;
   const dir = mkdtempSync(path.join(tmpdir(), 'a4a-e2e-mail-'));
   const admin = { login: 'admin', password: 'e2e-mail-pass-1' };
   const child: ChildProcess = spawn(process.execPath, ['packages/server/dist/index.js'], {
@@ -220,7 +224,7 @@ export async function startMailingServer(smtpPort: number): Promise<MailingServe
       await stop();
       throw new Error(`the mailing server stopped as it started: ${stderr}`);
     }
-    const up = await fetch(`${url}/api/v1/health`).then((r) => r.ok).catch(() => false);
+    const up = await fetch(`http://127.0.0.1:${port}/api/v1/health`).then((r) => r.ok).catch(() => false);
     if (up) break;
     if (Date.now() > until) {
       await stop();

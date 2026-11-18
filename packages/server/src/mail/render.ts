@@ -3,6 +3,7 @@ import type { AppServices } from '../context';
 import { renderRequestMail } from '../helpdesk/mails';
 import { renderDigestMail, renderNotificationMail } from '../notify/mails';
 import { renderEmailConfirmMail } from '../services/emails';
+import { renderPasskeyMail } from '../services/passkeys';
 import { renderPortalSignIn } from '../services/portal';
 import { renderPortalAccount, renderPortalPassword } from '../services/portal-sign-in';
 import type { RenderedMail } from './compose';
@@ -26,6 +27,8 @@ export async function renderMail(app: AppServices, row: MailRow): Promise<Render
       return renderPortalPassword(app, row);
     case 'portal-account':
       return renderPortalAccount(app, row);
+    case 'passkey':
+      return renderPasskeyMail(app, row);
     default:
       return null;
   }
