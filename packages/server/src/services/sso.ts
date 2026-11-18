@@ -261,6 +261,19 @@ export async function personFromProvider(app: AppServices, p: ProviderPolicy, wh
 
   if (!verified && !p.createWithUnverifiedEmail) throw new SsoError('unverified', `${p.name} hasn't verified your email, so a4a can't find your account by it`);
   const matches = email ? await app.db.select().from(users).where(sql`lower(${users.email}) = ${email}`) : [];
+  if (matches.length) {
+    // One person's first two sign-ins at once: the other may have made and linked the account since
+    // the look above. An account made here commits with its link, so whoever sees one sees both.
+    const [now] = await app.db
+      .select({ user: users })
+      .from(userIdentities)
+      .innerJoin(users, eq(users.id, userIdentities.userId))
+      .where(and(eq(userIdentities.provider, p.key), eq(userIdentities.subject, who.subject)));
+    if (now) {
+      if (now.user.banned || now.user.isBot) throw new SsoError('refused', 'This account can’t sign in');
+      return now.user;
+    }
+  }
   try {
     if (verified && matches.length > 1) throw new SsoError('ambiguous', 'More than one account has your email');
     if (verified && matches.length === 1) {
