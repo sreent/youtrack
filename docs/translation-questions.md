@@ -159,6 +159,19 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `problem.whiteboards.guestStreams`: a whiteboard open live is "abierta en tiempo real", since "en directo" leans to Spain and "en vivo" to Latin America.
 - **OpenID's words** for requesters' providers: "Emisor" (issuer), "documento de descubrimiento" (Microsoft's Spanish says "documento de detección") and "el URI de redirección" (some write "la URI").
 
+Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
+
+- **A check run** stays "check run", masculine ("los check runs", "un check"), as French and German keep it (`page.integrations.checksOn` and its family, `problem.vcs.checks.needsApp`). GitHub's Spanish documentation says "ejecución de comprobación", which developers rarely say.
+- **A pull request names issues** with "nombrar", as commits do (`builds.builds.aBuildThatPassesGoes`), but an id that "names no issue" is one that "no corresponde a ninguna incidencia" (`server.checks.summary.rule`, `unseen`, `unseenMore`, `server.checks.title.unseen`, `page.integrations.checksResolved`). "Mencionar" may be the more usual verb for a pull request.
+- **Hearing each other** is "leerse entre sí": "Que todas las personas de una solicitud se lean entre sí" (`helpdesk.ccSettings.relay`, `page.project.copiedOnRequestsNote`, `activity.ledgerEntry.requestCcsChanged`). "Que cada persona reciba lo que escriben las demás" is plainer, and longer.
+- `activity.ledgerEntry.changesHowRequestsCopy`, a ledger badge, is "cambia las reglas de copia", short as a badge must be. "Regla" is also a workflow's rule, though the webhook's label (`page.webhooks.label.projectRequestCcsChanged`) says "las reglas de un servicio" too.
+- **Holding a new request's Cc** is "retener" (`helpdesk.ccSettings.confirm`), and the headings over those held are "Pendientes de la confirmación de {requester}" (`helpdesk.requestCcs.held`) and "Pendientes de tu confirmación" (`page.portal.heldTitle`). Natural over a list of people?
+- **Letting someone off passkeys** is "eximir": the people table's link is "Eximir" (`page.admin.letOff`), and its note is a noun, "con exención de llave de acceso" (`page.admin.letOffPasskeys`), since "exento" would guess a gender. Too formal for a link? "Hacer una excepción" is the alternative.
+- `identity.passkeys.passkeysAloneAbout` keeps "phishing" ("ni robarlas mediante phishing"), as banks' warnings do on both sides of the Atlantic. "Suplantación" is the alternative.
+- `page.integrations.readThrough`, beside an installation's account, is "repositorios leídos a través de ella: {list}", longer than English's "read here:" to say what was read. `page.integrations.accountUser`, a badge, is "usuario"; GitHub's Spanish documentation says "cuenta personal".
+- `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
+- `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
+
 ## French
 
 Terms:
