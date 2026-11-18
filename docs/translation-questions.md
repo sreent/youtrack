@@ -1080,6 +1080,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal's notes after "added …, last used …" are whole sentences**, with their subject: “พาสคีย์นี้อาจถูกคัดลอก จึงไม่มีใครใช้เข้าสู่ระบบได้”, “พาสคีย์นี้สร้างไว้สำหรับ {host} จึงใช้เข้าสู่ระบบที่นี่ไม่ได้” (`helpdesk.portalPasskeys.mayBeCopied`, `helpdesk.portalPasskeys.elsewhere`), where the team's, after a badge, stay fragments.
 - **A GitHub App's installations** carry the badges “องค์กร”, “ผู้ใช้”, “ไม่มีแล้ว” for gone and “ถูกระงับ” for suspended (`page.integrations.accountOrganization`, `page.integrations.accountUser`, `page.integrations.installationGone`, `page.integrations.installationSuspended`). Is ไม่มีแล้ว clear, or should it say ถอนการติดตั้งแล้ว? Forgejo's and Gitea's “Applications” stays in Latin letters, as their settings show it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **สถานะคอมมิต** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): คำนี้ใช้ทั้ง GitHub และ GitLab ภาษาไทย อ่านสอดคล้องกับ "check run" ที่คงภาษาอังกฤษไหม
+- `page.group.requirePasskeys` คือ "กำหนดให้คนในกลุ่มนี้ต้องใช้พาสคีย์" และ `page.project.requirePasskeys` คือ "กำหนดให้ทุกคนที่เห็นโปรเจกต์นี้ได้ต้องใช้พาสคีย์" ยาวพอสำหรับป้ายกำกับหรือไม่ ตัดเป็น "ต้องใช้พาสคีย์" อย่างเดียวได้ไหม
+- `page.group.requirePasskeysHelp` ว่า "บัญชี single sign-on และไดเรกทอรียังเป็นของผู้ให้บริการ" คำ "ไดเรกทอรี" (directory account) ชัดเจนไหม
+- `builds.builds.reportCheck` คือ "รายงานผลของแต่ละการรันไปยัง GitHub" ใช้ "การรัน" ตามที่หน้า Builds ใช้อยู่ สอดคล้องไหม
+- `page.integrations.statusesAudience` ว่า "สถานะจึงระบุอิชชูด้วยรหัสเท่านั้น" ตรงข้ามกับ check run ที่มีลิงก์ อ่านเข้าใจไหม
 
 ## What a catalog can't say yet
 
