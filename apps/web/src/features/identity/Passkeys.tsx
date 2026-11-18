@@ -140,6 +140,25 @@ function Row({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRen
   );
 }
 
+/**
+ * The profile's section, where it's of use: where passkeys are on for this person, or they have some
+ * to see and remove. Off for the instance, the address or the account, someone with none isn't shown
+ * a section they can do nothing with.
+ */
+export function PasskeysSection() {
+  const mine = useQuery({ queryKey: passkeyKeys.mine, queryFn: () => get<MyPasskeys>('/me/passkeys') });
+  if (!mine.error && (!mine.data || (!mine.data.on && !mine.data.passkeys.length))) return null;
+  return (
+    <section className="card" aria-labelledby="passkeys">
+      <div className="section-head">
+        <h2 id="passkeys">{t('page.profile.passkeys')}</h2>
+        <span className="note">{t('page.profile.signInWithoutAPassword')}</span>
+      </div>
+      <PasskeysCard />
+    </section>
+  );
+}
+
 /** The profile's passkeys: each, when it was added and last used; renaming, removing, adding one. */
 export function PasskeysCard() {
   const qc = useQueryClient();
