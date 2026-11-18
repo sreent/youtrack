@@ -236,10 +236,11 @@ The server reads these from its environment, and from a `.env` file: the one in 
 | --- | --- | --- |
 | `PORT` | `3000` | API, MCP and (in production) the web UI |
 | `HOST` | `0.0.0.0` | The address the server listens on; `127.0.0.1` keeps it to this machine, behind a proxy on it |
+| `KEEP_ALIVE_SECONDS` | `65` | How long an idle connection stays open: longer than whatever is in front keeps its own, or it can send a request down a connection a4a has just closed (a 502). Behind Google's external Application Load Balancer (GKE's own Ingress), `620` |
 | `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check. Its host is passkeys' relying party: they need https (or localhost), and are bound to the host, so moving to another one means adding them again (D62) |
 | `DATABASE_URL` | empty | A Postgres URL. When empty, the embedded PGlite database in `DATA_DIR` is used, which is for one process only |
 | `DATABASE_POOL_SIZE` | `10` | The most connections each instance opens to Postgres; it holds one more for `LISTEN` |
-| `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
+| `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection, and the lock taken while starting, go, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which keeps neither |
 | `TRUST_PROXY` | `0` | How many proxies in front append to `X-Forwarded-For`; `1` behind one load balancer. With `0` the header is ignored, since clients can send it |
 | `API_RATE_LIMIT`, `MCP_RATE_LIMIT` | `1200`, `600` | Requests a minute per token, user or address, on each instance |
 | `GUEST_RATE_LIMIT` | `300` | Requests a minute per address from guests, who read projects open to anyone without signing in (D37) |
@@ -293,7 +294,7 @@ The server reads these from its environment, and from a `.env` file: the one in 
 | `LDAP_ALLOWED_DOMAINS` | empty | Comma-separated email domains allowed in (needs `LDAP_TRUST_EMAIL`) |
 | `MCP_OAUTH_CLIENT_DOCUMENTS` | `true` | Take MCP clients whose client_id is the https address of their metadata document, read with the same guard as imports |
 | `OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets a client's metadata document be read over plain http from this machine |
-| `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects |
+| `SEED_DEMO` | `true` | With `ADMIN_*`, also create the demo projects; `false`, `0`, `no` or `off` doesn't |
 | `ATTACHMENT_MAX_MB` | `20` | The largest file one upload may carry (1 MB = 1024 × 1024 bytes) |
 | `ATTACHMENTS_PER_ISSUE_MB` | `100` | All the files on one issue, its comments' included, or on one article |
 | `ATTACHMENT_STORAGE` | `local` | Where files go: `local` keeps them under `DATA_DIR/attachments`; `s3`, in the bucket below. Back it up with the database |
@@ -378,6 +379,8 @@ docker compose up --build
 
 This runs a4a with Postgres 16 on port 3000. See [`docker-compose.yml`](docker-compose.yml) and [`Dockerfile`](Dockerfile).
 
+To run it on Kubernetes or on Google Cloud Run, and for what a4a keeps where (the database, files, the key that seals secrets) and how to back it up, see [Deploying a4a](docs/deploying.md).
+
 Without Docker, with `DATABASE_URL` pointing at Postgres:
 
 ```bash
@@ -411,7 +414,7 @@ What each instance needs:
 
 ### Files in a bucket
 
-Set `ATTACHMENT_STORAGE=s3` and the `S3_*` settings above. A bucket that can't be reached, or refuses a4a, stops the server as it starts, saying what to check. Downloads still come through a4a, which checks who may see a file, so the bucket needs no public access.
+Set `ATTACHMENT_STORAGE=s3` and the `S3_*` settings above. A bucket that can't be reached, or refuses a4a, stops the server as it starts, saying what to check. Downloads still come through a4a, which checks who may see a file, so the bucket needs no public access. A store that speaks S3's API takes `S3_ENDPOINT`: MinIO, R2, or Google Cloud Storage with an HMAC key ([Deploying a4a](docs/deploying.md#files) has its settings).
 
 To move the files a server already keeps on disk, run the copy with the server's own settings. First run it while the server still runs on disk:
 
@@ -419,7 +422,7 @@ To move the files a server already keeps on disk, run the copy with the server's
 pnpm --filter @a4a/server files:to-s3
 ```
 
-Then stop the server and run it again: it copies only what came since. It checks each copy against the checksum taken at upload, says what it couldn't copy and why, and carries on where a run stopped. Start the server with `ATTACHMENT_STORAGE=s3` once it has copied everything. From a build, it's `node packages/server/dist/files-to-s3.js`; `--dry-run` counts what it would copy. Nothing on disk is deleted. With the embedded database, stop the server before either run: one process at a time may open it.
+Then stop the server and run it again: it copies only what came since. It checks each copy against the checksum taken at upload, says what it couldn't copy and why, and carries on where a run stopped. Start the server with `ATTACHMENT_STORAGE=s3` once it has copied everything. From a build, it's `node packages/server/dist/files-to-s3.js`, and in the image `node dist/files-to-s3.js`; `--dry-run` counts what it would copy. Nothing on disk is deleted. With the embedded database, stop the server before either run: one process at a time may open it.
 
 ### Single sign-on with Microsoft Entra ID
 

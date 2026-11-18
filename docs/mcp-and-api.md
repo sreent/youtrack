@@ -171,7 +171,7 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 | Emails and logins (admin) | `GET/POST /users/{id}/emails`, `DELETE /users/{id}/emails/{emailId}`, `GET/POST /users/{id}/provider-logins`, `DELETE /users/{id}/provider-logins/{loginId}` | An administrator adds someone's email, confirmed, and records their login at a provider (for Bitbucket Cloud, the account id or UUID). A person reads their own. A commit is its author's when its confirmed email or the login the provider names is theirs, and nobody's when those name two people |
 | AI | see [section 7](#7-ai-endpoints) | Triage, duplicates, natural language → query or command, writing help and summaries (D59), chat |
 | Settings | `GET/PATCH /settings` | Instance name, default AI triage mode, whether two-factor sign-in is asked of everyone (`requireTwoFactor`, D38) and whether passkeys are on (`passkeys`, D62); `publicUrl` is read only |
-| System | `GET /health`, `GET /openapi.json` | Probes, spec |
+| System | `GET /health`, `GET /openapi.json` | Readiness (503 while the database doesn't answer), spec |
 
 **Example: what scripts can do with it**
 

@@ -41,7 +41,7 @@ The API, the MCP server, the UI and the agents all describe the same objects. Th
 
 There is one SQL dialect, with Postgres full-text search and `pg_trgm` for similarity. Without `DATABASE_URL`, the server runs embedded PGlite (Postgres compiled to WASM) in `DATA_DIR`, so `pnpm dev` needs nothing installed. Production sets `DATABASE_URL` to real Postgres. The same Drizzle schema and migrations run on both, and the test suite runs against both.
 
-- **Costs:** PGlite has one connection and runs in-process, so it is for development, demos and a single team, not for load. It is also one process: a lock file stops a second one from opening its directory. Several instances need Postgres (D17).
+- **Costs:** PGlite has one connection and runs in-process, so it is for development, demos and a single team, not for load. It is also one process: a lock file stops a second one on the same machine from opening its directory. The lock goes by process id, so containers sharing a volume, each its own process 1, don't see each other's. Several instances need Postgres (D17).
 - **Revisit when:** never for production. Use Postgres.
 
 ### D3. Custom fields as typed rows, not JSON
@@ -1990,7 +1990,7 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 
 - **Teams, not internet scale.** Users, tags, fields and values are held in memory per instance (thousands of each is fine), and every instance reloads them after any change to them.
 - **Several instances need Postgres**, a `LISTEN` connection each beside the pool (not through a pooler in transaction mode: set `DATABASE_LISTEN_URL`), and a proxy that passes `text/event-stream` through unbuffered. `docker-compose.cluster.yml` runs two behind Caddy.
-- **Idle connections stay open 65 s**, past the 60 s a load balancer commonly keeps its own (AWS's default), so the balancer closes first and never sends a request down a connection a4a has just closed. One that keeps them longer needs `KEEP_ALIVE_MS` (`server.ts`) raised past its timeout.
+- **Idle connections stay open 65 s**, past the 60 s a load balancer commonly keeps its own (AWS's default), so the balancer closes first and never sends a request down a connection a4a has just closed. One that keeps them longer, as Google's external Application Load Balancer does (ten minutes), needs `KEEP_ALIVE_SECONDS` set past its timeout: 620.
 - **A live stream replays up to 1000 missed events** on reconnect; past that it sends `resync` and the client re-reads.
 - **An event whose transaction stays open for more than a minute** is passed over by live streams and consumers, with a warning; it stays in `GET /events`.
 - **Pagination.** Search results use offset pagination (sortable by any field); the event feed uses a cursor (`after`).

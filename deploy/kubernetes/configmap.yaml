@@ -13,3 +13,5 @@ data:
   # A store other than AWS's: MinIO's, R2's, or Cloud Storage's (https://storage.googleapis.com, with S3_REGION "auto").
   # S3_ENDPOINT: "https://s3.example.com"
   SEED_DEMO: "false"
+  # Behind GKE's own Ingress (Google's load balancer keeps idle connections ten minutes), not ingress-nginx:
+  # KEEP_ALIVE_SECONDS: "620"
