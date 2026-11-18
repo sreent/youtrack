@@ -88,6 +88,15 @@ export function aRole(id: string, name: string, opts: { start?: boolean } = {}):
   return `${opts.start ? `A${article.slice(1)}` : article} ${word}`;
 }
 
+/**
+ * Whether a role in a sentence is one people named, for its message to select on (D49): a built-in
+ * role is said in the page's language and joins as a word does ("คุณเป็นสมาชิก", 「是成员」); one people
+ * named keeps its own letters, which Thai and Chinese set off with spaces ("คุณเป็น Auditor").
+ */
+export function roleNamed(id: string): 'yes' | 'no' {
+  return id in BUILTIN_NAMES ? 'no' : 'yes';
+}
+
 export function isBuiltinRole(id: string): boolean {
   return (PROJECT_ROLES as readonly string[]).includes(id);
 }
@@ -96,7 +105,8 @@ export function isBuiltinRole(id: string): boolean {
 export function roleHelp(roles: readonly RoleDef[], id: string, who?: string): string {
   const r = roles.find((x) => x.id === id);
   if (!r) return '';
-  if (!r.permissions.length) return who ? t('roles.words.isAtLeastRoleWhoMayNothing', { who: who, role: aRole(r.id, r.name) }) : t('roles.words.roleMayNothing', { role: aRole(r.id, r.name, { start: true }) });
+  const named = roleNamed(r.id);
+  if (!r.permissions.length) return who ? t('roles.words.isAtLeastRoleWhoMayNothing', { who: who, role: aRole(r.id, r.name), named }) : t('roles.words.roleMayNothing', { role: aRole(r.id, r.name, { start: true }), named });
   const what = permissionWords(r.permissions);
-  return who ? t('roles.words.isAtLeastRoleWhoMay', { who: who, role: aRole(r.id, r.name), what: what }) : t('roles.words.roleMay', { role: aRole(r.id, r.name, { start: true }), what: what });
+  return who ? t('roles.words.isAtLeastRoleWhoMay', { who: who, role: aRole(r.id, r.name), named, what: what }) : t('roles.words.roleMay', { role: aRole(r.id, r.name, { start: true }), named, what: what });
 }
