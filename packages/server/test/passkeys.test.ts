@@ -332,6 +332,16 @@ describe('passkeys over HTTP', () => {
     const listed = (await call('GET', '/me/passkeys', { cookie: session })).body.passkeys;
     expect(listed.find((p: { id: string }) => p.id === added.body.id)).toMatchObject({ copied: true });
     expect((await mails(quinn.id)).map((m) => (m.payload as { change: string }).change)).toEqual(['added', 'copied']);
+    // Its mail's link removes that passkey alone, not one added after it, and signs them out everywhere.
+    await addPasskey(session, new Authenticator(), 'Laptop');
+    const row = (await mails(quinn.id)).find((m) => (m.payload as { change: string }).change === 'copied')!;
+    const link = /https:\/\/a4a\.test\/not-me\?token=([A-Za-z0-9_-]+)/.exec((await renderMail(w.app, row))!.text)!;
+    expect((await call('GET', `/not-me?token=${link[1]}`)).body).toMatchObject({ change: 'copied', name: 'Security key', done: false });
+    expect((await call('POST', `/not-me?token=${link[1]}`)).body).toMatchObject({ done: true });
+    expect((await call('GET', '/me', { cookie: session })).status).toBe(401);
+    const left = (await w.app.db.select().from(passkeys).where(eq(passkeys.userId, quinn.id))).map((p) => p.name);
+    expect(left).toContain('Laptop');
+    expect(left).not.toContain('Security key');
   });
 
   it('refuses a removed passkey, and another person’s in place of a code', async () => {
