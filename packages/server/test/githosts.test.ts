@@ -14,7 +14,7 @@ import { activities, vcsChecks, vcsInstallations, vcsIntegrations } from '../src
 import { toEventDto } from '../src/events/activity';
 import { createHttpApp } from '../src/http/app';
 import { createToken } from '../src/services/auth';
-import { createIssue, updateIssue } from '../src/services/issues';
+import { createIssue, deleteIssue, updateIssue } from '../src/services/issues';
 import { createProject, updateProject } from '../src/services/projects';
 import { checksConsumer, ChecksSender, sendCheck } from '../src/vcs/checks';
 import { getJson, ReadError } from '../src/vcs/commits';
@@ -307,6 +307,22 @@ describe('check runs on pull requests', () => {
     expect(after!.dueAt).not.toBeNull();
     await sender().drain();
     expect(gh.runs.filter((r) => r.headSha === sha('8'))).toHaveLength(1);
+  });
+
+  it('stops naming an issue once it is deleted, in the words it uses for one limited since', async () => {
+    const doomed = await createIssue(w.adminCtx, { project: 'WEB', summary: 'Old banner', fields: { Type: 'Task' } });
+    await deliver('pull_request', pull({ repository: 'acme/web', number: 40, title: `${doomed.id} and ${ids.guest}`, head: sha('9') }));
+    await sender().drain();
+    const run = () => gh.runs.find((r) => r.headSha === sha('9'))!;
+    expect(run().summary).toContain(`[${doomed.id}]`);
+    await deleteIssue(w.adminCtx, doomed.id);
+    const s = await w.app.schema.get();
+    const [last] = await w.app.db.select().from(activities).orderBy(desc(activities.id)).limit(1);
+    expect(last!.type).toBe('issue.deleted');
+    await checksConsumer(w.app).handle(toEventDto(s, last!));
+    await sender().drain();
+    expect(run().summary).not.toContain(doomed.id);
+    expect(run().summary).toContain('One more id it names is no issue a4a can show here: there’s none by it, or it isn’t for everyone to see.');
   });
 
   it('says on the integration why a check didn’t go: an installation that may not write checks', async () => {

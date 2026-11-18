@@ -1939,6 +1939,7 @@ D54 made a GitHub integration read as a GitHub App, through one installation, an
 - An integration's checks start with each pull request's next change: a4a lists no pull requests when they're turned on. A pull request whose head moved while a4a wasn't told (its delivery lost) keeps its old run until the next.
 - Twenty writes a minute per installation, and fewer when GitHub says so: an issue a hundred open pull requests name takes five minutes to reach them all.
 - Gitea's introspection says the grant's scope even where the instance doesn't enforce it, so on such an instance a token reads as narrowed when it isn't; a4a can check only what the instance says. Where nothing can be revoked, the token lives its hour there, which the profile says.
+- The profile's list of code hosts asks a Forgejo or Gitea for its discovery document once an hour, and once in five minutes when it didn’t answer, waiting up to ten seconds for one that doesn’t.
 
 **Revisit when:** a build should report its own result to GitHub as a check run (the seam is here: `vcs/checks.ts` writes as the app); GitLab's or Forgejo's pull requests want the same (commit statuses); a team wants a check's words in its project's language; or Forgejo documents revocation or scopes, which a4a already reads from its discovery document.
 

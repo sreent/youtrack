@@ -134,12 +134,16 @@ export async function markForEvent(app: AppServices, event: TrackerEvent): Promi
   if ((event.data as { imported?: unknown }).imported) return 0;
   const reporting = await app.db.select({ id: vcsIntegrations.id, projectIds: vcsIntegrations.projectIds }).from(vcsIntegrations).where(eq(vcsIntegrations.checks, true));
   if (!reporting.length) return 0;
-  const [row] = await app.db.select({ issueId: activities.issueId, projectId: activities.projectId }).from(activities).where(eq(activities.id, event.id));
+  const [row] = await app.db.select({ issueId: activities.issueId, projectId: activities.projectId, payload: activities.payload }).from(activities).where(eq(activities.id, event.id));
   if ((PROJECT_EVENTS as readonly string[]).includes(event.type)) {
     const over = reporting.filter((i) => !i.projectIds.length || (row?.projectId && i.projectIds.includes(row.projectId))).map((i) => i.id);
     return over.length ? markDue(app, inArray(vcsChecks.integrationId, over)) : 0;
   }
-  const typed = [event.issue?.id, typeof event.data.from === 'string' ? event.data.from : null].filter((x): x is string => Boolean(x)).map((x) => x.toUpperCase());
+  // A deleted issue's event keeps every id it had (D37), never shown to a reader: a check typed with any of them is reached.
+  const gone = (row?.payload as { gone?: { ids?: unknown } } | undefined)?.gone?.ids;
+  const typed = [event.issue?.id, typeof event.data.from === 'string' ? event.data.from : null, ...(Array.isArray(gone) ? gone : [])]
+    .filter((x): x is string => typeof x === 'string' && x.length > 0)
+    .map((x) => x.toUpperCase());
   const matches = [...(row?.issueId ? [arrayContains(vcsChecks.issueIds, [row.issueId])] : []), ...typed.map((id) => arrayContains(vcsChecks.mentioned, [id]))];
   if (!matches.length) return 0;
   return markDue(app, and(inArray(vcsChecks.integrationId, reporting.map((i) => i.id)), or(...matches)));
