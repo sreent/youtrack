@@ -198,6 +198,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
 - `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): el catálogo escribe "commit" sin traducir en el resto de mensajes; GitLab en español dice "estado de confirmación". ¿Se prefiere "commit"?
+- `page.group.requirePasskeys` es "Exigir una llave de acceso a las personas del grupo" y `page.project.requirePasskeys` "…a todo el que pueda ver este proyecto". ¿"a todo el que" o "a todos los que puedan"? ¿"exigir a alguien" o "exigir de"?
+- `page.group.requirePasskeysHelp` dice "a partir del siguiente inicio" (sin "de sesión" la segunda vez). ¿Bastaría "desde el siguiente inicio de sesión"?
+- `builds.builds.reportCheck` es "Informar a GitHub del resultado de cada ejecución". El catálogo usa "ejecución" para los check runs; para una ejecución de CI, ¿"ejecución" o "corrida" (Latinoamérica)?
+- `page.integrations.statusesLastProblem` sigue el patrón de los check runs: "El último estado de commit, {when}, no se pudo escribir: {problem}". ¿Natural?
 
 ## French
 
