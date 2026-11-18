@@ -142,6 +142,27 @@ function Triage({ project, canEdit, aiOn }: { project: Project; canEdit: boolean
   );
 }
 
+function ProjectPasskeys({ project, canEdit }: { project: Project; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const save = useMutation({
+    mutationFn: (requirePasskeys: boolean) => patch<Project>(`/projects/${project.key}`, { settings: { requirePasskeys } }),
+    onSuccess: (p) => {
+      qc.setQueryData(keys.project(p.key), p);
+      void qc.invalidateQueries({ queryKey: keys.projects });
+    },
+  });
+  return (
+    <div className="stack tight">
+      <label className="choice">
+        <input type="checkbox" checked={project.settings.requirePasskeys} disabled={!canEdit || save.isPending} onChange={(e) => save.mutate(e.target.checked)} />
+        <span>{t('page.project.requirePasskeys')}</span>
+      </label>
+      <p className="note">{t('page.project.requirePasskeysHelp')}</p>
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </div>
+  );
+}
+
 function Baselines({ project }: { project: Project }) {
   const baselines = useBaselines(project.key);
   const currency = project.settings.plan.currency;
@@ -265,6 +286,10 @@ export default function ProjectPage() {
         <section className="card" aria-labelledby="triage">
           <h2 id="triage">{t('page.project.aiTriage')}</h2>
           <Triage project={p} canEdit={canEdit} aiOn={Boolean(ai.data?.enabled)} />
+        </section>
+        <section className="card" aria-labelledby="project-passkeys">
+          <h2 id="project-passkeys">{t('page.project.passkeys')}</h2>
+          <ProjectPasskeys project={p} canEdit={canEdit} />
         </section>
         <section className="card" aria-labelledby="subscription">
           <h2 id="subscription">{t('page.project.yourSubscription')}</h2>

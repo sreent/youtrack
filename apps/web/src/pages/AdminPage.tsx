@@ -630,7 +630,7 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {people.map((u) => (
-                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} ways={ways} required={(settings.data?.requirePasskeys ?? 'off') !== 'off'} />
+                  <PersonRow key={u.id} user={u} isMe={u.id === me.data?.id} ways={ways} required={Boolean(settings.data?.passkeys)} />
                 ))}
               </tbody>
             </table>

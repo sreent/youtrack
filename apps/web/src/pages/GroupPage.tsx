@@ -189,7 +189,7 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
   const qc = useQueryClient();
   const navigate = useNavigate();
   const refresh = useRefresh(group.id);
-  const initial = { name: group.name, description: group.description, providerName: group.providerName ?? '' };
+  const initial = { name: group.name, description: group.description, providerName: group.providerName ?? '', requirePasskeys: group.requirePasskeys };
   const [form, setForm] = useState(initial);
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const savedKey = JSON.stringify(initial);
@@ -198,7 +198,7 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
   // Saving empties it when it starts coming from the provider, or from another of its groups.
   const startsFromProvider = form.providerName.trim() !== '' && form.providerName.trim().toLowerCase() !== (group.providerName ?? '').toLowerCase();
   const save = useMutation({
-    mutationFn: () => patch<GroupDetail>(`/groups/${group.id}`, { name: form.name.trim(), description: form.description.trim(), providerName: form.providerName.trim() || null }),
+    mutationFn: () => patch<GroupDetail>(`/groups/${group.id}`, { name: form.name.trim(), description: form.description.trim(), providerName: form.providerName.trim() || null, requirePasskeys: form.requirePasskeys }),
     onSuccess: (g) => {
       setSaid({ text: startsFromProvider ? t('page.group.savedIsEmptyNowPeople', { name: g.name }) : t('page.group.saved') });
       void refresh();
@@ -239,6 +239,11 @@ function Settings({ group, provider }: { group: GroupDetail; provider: string | 
         >
           {(id, help) => <input id={id} aria-describedby={help} value={form.providerName} onChange={set('providerName')} maxLength={200} className="mono" placeholder={t('page.group.none')} />}
         </FormField>
+        <label className="choice tw:col-span-full">
+          <input type="checkbox" checked={form.requirePasskeys} onChange={(e) => setForm((f) => ({ ...f, requirePasskeys: e.target.checked }))} />
+          <span>{t('page.group.requirePasskeys')}</span>
+          <small className="field-help">{t('page.group.requirePasskeysHelp')}</small>
+        </label>
         <div className="cluster tw:col-span-full">
           <button type="submit" disabled={!dirty || !form.name.trim() || save.isPending}>
             {save.isPending ? t('page.group.saving') : t('page.group.saveTheGroup')}
