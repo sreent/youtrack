@@ -78,6 +78,22 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `page.guestPages.alsoOpenIn`, the heading over a project's plan, reports, boards and whiteboards on the guest page, is "Außerdem in {name} für alle offen". Natural as a heading?
 - `identity.passkeys.notAvailable` says "Telefon", as two-factor's messages do; "Smartphone" is the more common word now.
 
+Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
+
+- **An authenticator** (FIDO's) is "der Authenticator, die Authenticators" (`identity.passkeys.onlyThese`, `page.admin.onlySomeAuthenticators`, `problem.passkeys.notListed`), beside the catalog's "Authenticator-App". German security writing says "Authentifikator", plural "Authentifikatoren"; is the English plural's -s acceptable?
+- **The authenticators a list allows are "zugelassen"** (`identity.passkeys.onlyThese` "Hier sind nur diese Authenticators zugelassen", `problem.passkeys.notListed`, `noMetadata`, `unattested`), while new passkeys are "angenommen" from them (`page.admin.takeOnlySome`, `authenticatorsSaved`), as a desk "nimmt Passkeys an". One verb throughout?
+- **Attestation** is a maker's "Bestätigung" (`page.admin.attestationPrivacy`, `problem.passkeys.unattested`), where the developers wrote "bürgen". "Attestierung" is the technical word.
+- **Letting someone off passkeys**: the people table's link is "Befreien" (`page.admin.letOff`), its accessible name "{name} von der Passkey-Pflicht befreien" (`letOffFor`), and the person's line says "von der Passkey-Pflicht befreit" (`letOffPasskeys`, also `problem.passkeys.lastAdmin`, `wouldLockOut`). "Passkey-Pflicht" is coined here; "Ausnahme erlauben" is the alternative.
+- **Check runs** are "Check-Runs" (`page.integrations.checksLegend`, `checksOn` "Für jeden Pull Request einen Check-Run namens „a4a“ schreiben"), as GitHub's English interface names them; GitHub's German documentation says "Überprüfungsausführungen". A check's title for ids a4a can't show is "Zu # IDs zeigt a4a keinen Vorgang" (`server.checks.title.unseen`): natural on GitHub?
+- **A new request's Cc** is "die Personen in Cc" (`helpdesk.ccSettings.confirm`, `trusts`, `activity.ledgerEntry.requestCcsChanged`, `page.project.copiedOnRequestsNote`), written "Cc" as English and mail programs write it. German usually writes "CC"; "CC-Empfänger" is common but masculine.
+- **Dropping someone a new request's Cc held**: the portal's button is "Verwerfen" (`page.portal.dropHeld`, `dropHeldWho`), and what follows says "wird nicht in Kopie gesetzt und erfährt nichts" (`page.portal.heldDropped`, `page.portal.confirm.dropped`). "Ablehnen" is the alternative for the button.
+- **Relaying**: the desk's switch is "Allen Beteiligten einer Anfrage weitergeben, was die anderen schreiben" (`helpdesk.ccSettings.relay`), and its email's link "Keine Beiträge anderer zu dieser Anfrage mehr erhalten" (`server.helpdesk.relay.stop`). Natural?
+- **A phone** is "Telefon" in this wave too (`app.auth.passkeysAreRequiredOfYou`, `app.auth.thisBrowserCantMakePasskeys`, `page.passkeySetup.notSupported`), which had said "Smartphone": settle it with wave 5's question.
+- `server.portalPasskeys.subject`, when a passkey is added, is "Sie melden sich jetzt mit einem Passkey beim Helpdesk an", as the password's mail says it (`server.portalAccount.subject`). "Sie können sich jetzt mit einem Passkey beim Helpdesk anmelden" is clearer; `packages/server/test/portal-passkeys.test.ts` asserts the subject, and its fake SMTP reads it undecoded, so a subject with an umlaut needs the test to decode it.
+- `issues.issueHistory.ccAdded`, a held Cc the requester confirmed, is "hat {email} per E-Mail in Kopie gesetzt und dies bestätigt" (it was "…, nach Bestätigung").
+- `page.admin.removePasskeysOf`, the accessible name of "Passkeys entfernen", is "Passkeys entfernen für {name}", so it holds the link's words whole (WCAG 2.5.3); "Passkeys von {name} entfernen" is the natural order.
+- `page.integrations.accountUser`, a GitHub account's type beside "Organisation", is "Benutzer"; "Persönliches Konto" doesn't assume a gender.
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
