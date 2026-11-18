@@ -1,6 +1,7 @@
 {
   "name": "a4a-mcp",
   "version": "0.1.0",
+  "license": "MIT",
   "description": "stdio bridge to an a4a MCP server (for MCP clients that only support stdio)",
   "keywords": [
     "mcp",

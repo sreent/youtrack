@@ -2,6 +2,7 @@
   "name": "a4a",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "description": "A YouTrack-style issue tracker with a REST API, an MCP server and Claude-powered AI features",
   "type": "module",
   "packageManager": "pnpm@10.28.0",

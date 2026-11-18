@@ -589,3 +589,7 @@ pnpm --filter @a4a/web exec playwright show-trace test-results/<the test>/trace.
 With `CI` set, a failed test is retried twice, its first retry is traced, and the HTML report is written to `apps/web/playwright-report`. a4a's own CI runs the suite with `--trace off`, and keeps the report and the failures' screenshots for a week when a run fails.
 
 A new page joins the tour with one line in `tour.spec.ts`. A new flow is a spec that takes `test` from `e2e/support/fixtures.ts`, so its page's clock is fixed and its console is watched; makes a project of its own (`uniqueKey`), so it runs beside the others; and finds things by their roles and labels.
+
+## License
+
+MIT: see [LICENSE](LICENSE). The MCP bridge (`a4a-mcp`) and the VS Code extension carry the same.
