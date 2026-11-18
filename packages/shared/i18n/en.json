@@ -2972,7 +2972,6 @@
   "page.portal.messageHead": "<t0>{name}</t0>{from, select, team { replied} cc { (copied)} other {}} · <t1>{whenRead}</t1>",
   "page.portal.newPassword": "New password",
   "page.portal.noRequestsYet": "No requests yet.",
-  "page.portal.noWayWithoutEmail": "This server sends no email, so there’s no signing in here. Use the link in an email about your request.",
   "page.portal.nobodyCopied": "Nobody is copied.",
   "page.portal.nowCopied": "{email} is copied.",
   "page.portal.password": "Password",

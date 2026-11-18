@@ -128,7 +128,8 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
       setBusy(false);
     }
   };
-  const byEmail = m.mail && (m.link || m.password);
+  // A password signs in without email; a link needs it, and the server says so when it has none.
+  const byEmail = m.link || m.password;
   const intro = m.password && m.link ? t('page.portal.linkOrPasswordIntro') : m.password ? t('page.portal.passwordIntro') : t('page.portal.weLlEmailYouA');
   return (
     <Lone>
@@ -178,8 +179,6 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
                 ) : null}
               </div>
             </form>
-          ) : !m.providers.length ? (
-            <p className="note">{t('page.portal.noWayWithoutEmail')}</p>
           ) : null}
         </>
       )}

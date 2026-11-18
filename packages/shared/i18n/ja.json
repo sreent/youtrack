@@ -2972,7 +2972,6 @@
   "page.portal.messageHead": "<t0>{name}</t0>{from, select, team {が返信} cc {（CC）} other {}} · <t1>{whenRead}</t1>",
   "page.portal.newPassword": "新しいパスワード",
   "page.portal.noRequestsYet": "リクエストはまだありません。",
-  "page.portal.noWayWithoutEmail": "このサーバーはメールを送らないため、ここではログインできません。リクエストについてのメールにあるリンクを使ってください。",
   "page.portal.nobodyCopied": "CCはいません。",
   "page.portal.nowCopied": "{email}をCCに追加しました。",
   "page.portal.password": "パスワード",

@@ -2972,7 +2972,6 @@
   "page.portal.messageHead": "<t0>{name}</t0>{from, select, team { hat geantwortet} cc { (in Kopie)} other {}} · <t1>{whenRead}</t1>",
   "page.portal.newPassword": "Neues Passwort",
   "page.portal.noRequestsYet": "Noch keine Anfragen.",
-  "page.portal.noWayWithoutEmail": "Dieser Server sendet keine E-Mails, daher ist hier keine Anmeldung möglich. Verwenden Sie den Link in einer E-Mail zu Ihrer Anfrage.",
   "page.portal.nobodyCopied": "Niemand ist in Kopie.",
   "page.portal.nowCopied": "{email} ist in Kopie.",
   "page.portal.password": "Passwort",
