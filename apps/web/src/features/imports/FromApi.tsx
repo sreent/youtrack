@@ -1,6 +1,6 @@
 /**
- * Reading issues from another tracker's API (YouTrack, Jira, GitHub Issues, Redmine, Zendesk): the
- * form that starts it, the token asked for again
+ * Reading issues from another tracker's API (YouTrack, Jira, GitHub Issues, Redmine, Zendesk, Asana,
+ * ClickUp): the form that starts it, the token asked for again
  * (to carry on, or to bring files as it runs), and what an import from an API reads. The token
  * lives in this page's memory and goes only to a4a's server, which uses it and doesn't keep it.
  */
@@ -11,12 +11,16 @@ import { useNavigate } from 'react-router';
 import { useProjects } from '../../api/queries';
 import { errorText, FormField, Said } from '../common/bits';
 import { holdCredentials, importFromApi, importKeys } from './api';
+import { SOURCE_NAME } from './names';
 import { formatBytes } from '../attachments/api';
 import { formatList, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Source = ApiImportSource;
-export const SOURCE_NAME: Record<Source, string> = { youtrack: t('imports.fromApi.youtrack'), jira: t('imports.fromApi.jira'), github: t('imports.fromApi.githubIssues'), redmine: t('imports.fromApi.redmine'), zendesk: t('imports.fromApi.zendesk') };
+export { SOURCE_NAME };
+
+/** The order the form offers them in. */
+const SOURCES: Source[] = ['youtrack', 'jira', 'github', 'redmine', 'zendesk', 'asana', 'clickup'];
 
 const ADDRESS: Record<Source, string> = {
   youtrack: 'https://example.youtrack.cloud',
@@ -24,15 +28,32 @@ const ADDRESS: Record<Source, string> = {
   github: 'https://api.github.com',
   redmine: 'https://redmine.example.com',
   zendesk: 'https://example.zendesk.com',
+  asana: 'https://app.asana.com',
+  clickup: 'https://app.clickup.com',
+};
+
+/** Trackers everyone reads at the same address: the form fills it in. */
+const ONE_ADDRESS: Partial<Record<Source, string>> = { asana: ADDRESS.asana, clickup: ADDRESS.clickup };
+
+/** What "its work" is called in each tracker that has some; Asana's time isn't read. */
+const WORK: Partial<Record<Source, string>> = {
+  youtrack: t('imports.fromApi.itsWorkItems'),
+  jira: t('imports.fromApi.itsWorklogs'),
+  github: t('imports.fromApi.itsWorklogs'),
+  redmine: t('imports.fromApi.itsTimeEntries'),
+  zendesk: t('imports.fromApi.itsWorklogs'),
+  clickup: t('imports.fromApi.itsTimeEntries'),
 };
 
 /** Which issues, in each tracker's words: the field's label, its help and an example. */
 const WHICH: Record<Source, { label: string; help: string; example: string }> = {
   youtrack: { label: t('imports.fromApi.whichIssuesAQuery'), help: t('imports.fromApi.asYouWouldSearchIn'), example: 'project: BACK' },
-  jira: { label: t('imports.fromApi.whichIssuesAJql'), help: "As you would search in Jira's advanced search, such as project = BACK.", example: 'project = BACK' },
+  jira: { label: t('imports.fromApi.whichIssuesAJql'), help: t('imports.fromApi.asYouWouldSearchInJira'), example: 'project = BACK' },
   github: { label: t('imports.fromApi.whichIssuesARepository'), help: t('imports.fromApi.ownerNameThenStateOpen'), example: 'acme/backend' },
   redmine: { label: t('imports.fromApi.whichIssuesAProjectS'), help: t('imports.fromApi.asInItsAddressProjects'), example: 'backend' },
   zendesk: { label: t('imports.fromApi.whichTickets'), help: t('imports.fromApi.allOrSince202601'), example: 'all' },
+  asana: { label: t('imports.fromApi.whichTasksAProject'), help: t('imports.fromApi.theProjectSAddressIn'), example: 'https://app.asana.com/0/1204567890123456/list' },
+  clickup: { label: t('imports.fromApi.whichTasksAList'), help: t('imports.fromApi.theListSAddressIn'), example: 'https://app.clickup.com/9012345678/v/li/901234567890' },
 };
 
 /** The token's words for each tracker. */
@@ -41,6 +62,8 @@ const TOKEN: Record<Exclude<Source, 'jira'>, { label: string; help: string }> = 
   github: { label: t('imports.fromApi.token'), help: t('imports.fromApi.aFineGrainedTokenWith') },
   redmine: { label: t('imports.fromApi.apiKey'), help: t('imports.fromApi.inRedmineMyAccountApi') },
   zendesk: { label: t('imports.fromApi.apiToken'), help: t('imports.fromApi.inZendeskAdminCenterApps') },
+  asana: { label: t('imports.fromApi.personalAccessToken'), help: t('imports.fromApi.inAsanaMySettingsApps') },
+  clickup: { label: t('imports.fromApi.personalToken'), help: t('imports.fromApi.inClickupSettingsApps') },
 };
 
 /** The token's fields: a token, and for Jira Cloud the email of its account. */
@@ -126,7 +149,7 @@ export function FromApiForm() {
           setProblem(null);
           try {
             const sent = { ...credentials, token: credentials.token.trim(), ...((source === 'jira' || source === 'zendesk') && credentials.email ? { email: credentials.email.trim() } : { email: undefined }) };
-            const imp = await importFromApi({ project, source, url: url.trim(), query: query.trim(), credentials: sent, bring });
+            const imp = await importFromApi({ project, source, url: url.trim(), query: query.trim(), credentials: sent, bring: WORK[source] ? bring : { ...bring, work: false } });
             holdCredentials(imp.id, sent);
             await qc.invalidateQueries({ queryKey: importKeys.list });
             navigate(`/import/${imp.id}`);
@@ -152,9 +175,19 @@ export function FromApiForm() {
           </FormField>
           <fieldset className="choice-group">
             <legend>{t('imports.fromApi.from')}</legend>
-            {(['youtrack', 'jira', 'github', 'redmine', 'zendesk'] as const).map((s) => (
+            {SOURCES.map((s) => (
               <label key={s} className="choice">
-                <input type="radio" name="api-source" value={s} checked={source === s} onChange={() => setSource(s)} />
+                <input
+                  type="radio"
+                  name="api-source"
+                  value={s}
+                  checked={source === s}
+                  onChange={() => {
+                    setSource(s);
+                    // Asana and ClickUp have one address for everyone: it's filled in, unless someone wrote their own.
+                    if (!url.trim() || Object.values(ONE_ADDRESS).includes(url.trim())) setUrl(ONE_ADDRESS[s] ?? '');
+                  }}
+                />
                 <span>{SOURCE_NAME[s]}</span>
               </label>
             ))}
@@ -172,7 +205,7 @@ export function FromApiForm() {
           {(
             [
               ['comments', t('imports.fromApi.itsComments')],
-              ['work', source === 'youtrack' ? t('imports.fromApi.itsWorkItems') : source === 'redmine' ? t('imports.fromApi.itsTimeEntries') : t('imports.fromApi.itsWorklogs')],
+              ...(WORK[source] ? ([['work', WORK[source]]] as const) : []),
               ['files', t('imports.fromApi.itsFiles')],
             ] as const
           ).map(([key, label]) => (
@@ -201,7 +234,7 @@ export function OriginSummary({ imp }: { imp: Import }) {
   const name = SOURCE_NAME[o.kind];
   const brought = [
     o.bring.comments ? t('count.comments', { n: f.comments }) : null,
-    o.bring.work ? t(o.kind === 'youtrack' ? 'count.workItems' : o.kind === 'redmine' ? 'count.timeEntries' : 'count.worklogs', { n: f.work }) : null,
+    o.bring.work && o.kind !== 'asana' ? t(o.kind === 'youtrack' ? 'count.workItems' : o.kind === 'redmine' || o.kind === 'clickup' ? 'count.timeEntries' : 'count.worklogs', { n: f.work }) : null,
     o.bring.files ? `${t('count.files', { n: f.files })}${f.files ? ` (${formatBytes(f.fileBytes)})` : ''}` : null,
   ].filter((x): x is string => Boolean(x));
   return (

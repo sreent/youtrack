@@ -18,7 +18,7 @@ import { publishActivities, toEventDto, type ActivityPayload, type ActivityRow }
 import { listIn } from '../i18n';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import type { ProblemSaid } from '@a4a/shared/i18n';
-import { canUserReadProject, eventSeen, projectAccess, requireProject } from './access';
+import { canUserReadProject, eventFor, eventSeen, projectAccess, requireProject } from './access';
 import { actsAsAgent, textHash, type AgentUndo, type LinkUndo } from './agent-changes';
 import { issueTokenFor, keysFor, tokenDto, tokenScopes } from './auth';
 import { issueRef, stateNames, type IssueRow } from './issue-refs';
@@ -327,8 +327,10 @@ export async function undoAgentChange(ctx: Ctx, eventId: number): Promise<UndoRe
   }
   const s = await ctx.app.schema.get();
   const [row] = await ctx.db.select().from(activities).where(eq(activities.id, eventId));
-  // An event the caller can't see is answered exactly as one that doesn't exist.
-  if (!row || !(await eventSeen(await projectAccess(ctx), ctx.db, s, toEventDto(s, row)))) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
+  // An event the caller can't see is answered exactly as one that doesn't exist: a change only to
+  // private fields kept from them too (D50).
+  const view = await projectAccess(ctx);
+  if (!row || !(await eventSeen(view, ctx.db, s, toEventDto(s, row))) || !eventFor(view, s, toEventDto(s, row))) throw notFound(`Event ${eventId}`).said('notFound.event', { id: eventId });
   const [found] = await ctx.db
     .select()
     .from(agentChanges)

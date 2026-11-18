@@ -4,7 +4,8 @@
  * fields changes nothing.
  *
  * The shapes assumed are those the providers document for their webhooks (D33 says which).
- * Gitea and Forgejo send GitHub's shapes, so they are read as GitHub's.
+ * Gitea and Forgejo send GitHub's shapes, so they are read as GitHub's; all but Forgejo's Actions
+ * runs, which have shapes of their own (D55).
  */
 import type { PullRequestState, VcsProvider } from '@a4a/shared';
 import { z } from 'zod';
@@ -61,15 +62,16 @@ export type Delivery =
       at: Date | null;
     }
   | {
-      /** A GitHub Actions run, which a build source may take as a build (D46). */
+      /** A GitHub, Gitea or Forgejo Actions run, which a build source may take as a build (D46, D55). */
       kind: 'workflow_run';
       event: string;
+      /** GitHub's word: `completed` once the run has finished; Forgejo's runs say so in the same word. */
       action: string;
       repository: string;
       /** The run's id and its attempt: a re-run is the same run again. */
       runId: string;
       workflow: string | null;
-      /** The workflow's file, e.g. .github/workflows/ci.yml. */
+      /** The workflow's file: .github/workflows/ci.yml from GitHub, ci.yml from Forgejo, ci.yml@refs/heads/main from Gitea. */
       path: string | null;
       number: number | null;
       branch: string | null;
@@ -79,8 +81,10 @@ export type Delivery =
       conclusion: string | null;
       url: string | null;
       at: Date | null;
+      /** The commits of the push that started it, when the run carries that push (Forgejo's do). */
+      pushed: { sha: string; message: string; at: Date | null }[];
     }
-  | { kind: 'other'; event: string };
+  | { kind: 'other'; event: string; note?: string };
 
 const text = z.string().nullish();
 /** A link a4a will show: http(s) only, so a payload can't hand the page a javascript: URL. */
@@ -225,11 +229,108 @@ function github(event: string, body: unknown): Delivery {
         conclusion: run.conclusion ?? null,
         url: link(run.html_url),
         at: when(run.updated_at),
+        pushed: [],
       };
     }
     default:
       return { kind: 'other', event };
   }
+}
+
+// Forgejo's Actions runs -----------------------------------------------------
+
+/**
+ * What Forgejo sends for an Actions run (D55), from its source (modules/webhook/type.go,
+ * modules/structs/hook.go and action.go, services/webhook/notifier.go):
+ * - from Forgejo 17, `workflow_run_<status>` as a run moves (waiting, blocked, running, then
+ *   success, failure, cancelled or skipped), its body `{ action, run }`;
+ * - from Forgejo 12, `action_run_success` and `action_run_failure` once a run is done (any end
+ *   that isn't success is a failure there; `run.status` says which), its body `{ action, run,
+ *   prior_status }`, which 17 still sends beside the new ones; and `action_run_recover` beside a success that
+ *   follows a failure, which says nothing the success doesn't.
+ * Gitea sends `workflow_run` in GitHub's shape instead, read as GitHub's are.
+ */
+const FORGEJO_RUN_EVENT = /^(?:workflow_run_(?:success|failure|cancelled|skipped|running|waiting|blocked)|action_run_(?:success|failure|recover))$/;
+/** A run's statuses that are final (Forgejo's DoneStatuses). */
+const FORGEJO_DONE = new Set(['success', 'failure', 'cancelled', 'skipped']);
+
+const ForgejoRun = z.object({
+  action: text,
+  run: z.object({
+    id: z.number().int(),
+    title: text,
+    repository: z.object({ full_name: z.string() }),
+    /** The workflow's file, by its name alone: ci.yml. */
+    workflow_id: text,
+    /** The run's number, counted across the repository's workflows, as its page shows it. */
+    index_in_repo: z.number().int(),
+    /** A branch's or a tag's short name, or #12 for a pull request. */
+    prettyref: text,
+    commit_sha: z.string().min(4).max(64),
+    event: text,
+    /** The payload of the event that started the run, as a string of JSON. */
+    event_payload: z.string().max(4 * 1024 * 1024).nullish(),
+    status: z.string(),
+    started: text,
+    stopped: text,
+    updated: text,
+    html_url: text,
+  }),
+});
+
+/** What a4a reads of the event that started a run: a push's ref and commits, or a pull request's branch. */
+const ForgejoTrigger = z.object({
+  ref: text,
+  head_commit: z.object({ id: text, message: text, timestamp: text }).nullish(),
+  commits: z.array(z.object({ id: z.string().min(4).max(64), message: z.string(), timestamp: text })).max(2048).nullish(),
+  pull_request: z.object({ head: z.object({ ref: text }).nullish() }).nullish(),
+});
+
+/** Forgejo 12 to 16 write a time not yet set as Go's zero time, 0001-01-01; 17 writes null. */
+const set = (v: string | null | undefined): Date | null => {
+  const d = when(v);
+  return d && d.getUTCFullYear() > 1970 ? d : null;
+};
+
+function triggerOf(raw: string | null | undefined): z.infer<typeof ForgejoTrigger> | null {
+  if (!raw) return null;
+  try {
+    const got = ForgejoTrigger.safeParse(JSON.parse(raw));
+    return got.success ? got.data : null;
+  } catch {
+    // Not JSON: the run is read without it.
+    return null;
+  }
+}
+
+function forgejo(event: string, body: unknown): Delivery {
+  if (event === 'action_run_recover') return { kind: 'other', event, note: 'Forgejo sends the same run as action_run_success, which a4a reads.' };
+  const { run } = ForgejoRun.parse(body);
+  const status = run.status.toLowerCase();
+  const done = FORGEJO_DONE.has(status);
+  const trigger = triggerOf(run.event_payload);
+  const ref = trigger?.ref ?? null;
+  // A push names its ref; a pull request's run is on its head branch, as GitHub's head_branch is.
+  const branch = ref ? branchOf(ref) : (trigger?.pull_request?.head?.ref ?? (run.prettyref && !run.prettyref.startsWith('#') ? run.prettyref : null));
+  const head = trigger?.head_commit?.id === run.commit_sha ? trigger.head_commit : null;
+  return {
+    kind: 'workflow_run',
+    event,
+    action: done ? 'completed' : status,
+    repository: run.repository.full_name,
+    runId: String(run.id),
+    workflow: null,
+    path: run.workflow_id ?? null,
+    number: run.index_in_repo,
+    branch,
+    headSha: run.commit_sha,
+    headAt: when(head?.timestamp),
+    headMessage: head?.message ?? '',
+    conclusion: done ? status : null,
+    url: link(run.html_url),
+    at: set(run.stopped) ?? set(run.updated),
+    pushed: (trigger?.commits ?? []).map((c) => ({ sha: c.id, message: c.message, at: when(c.timestamp) })),
+  };
 }
 
 // GitLab ------------------------------------------------------------------
@@ -528,8 +629,10 @@ function bitbucketDc(event: string, body: unknown): Delivery {
 export function readDelivery(provider: VcsProvider, event: string, body: unknown): Delivery {
   switch (provider) {
     case 'github':
-    case 'gitea':
       return github(event, body);
+    case 'gitea':
+      // Forgejo names its run events its own way; everything else it and Gitea send in GitHub's shapes.
+      return FORGEJO_RUN_EVENT.test(event) ? forgejo(event, body) : github(event, body);
     case 'gitlab':
       return gitlab(event, body);
     case 'bitbucket':

@@ -49,13 +49,14 @@ import { AppError, asSentence, badRequest, conflict, notFound } from '../lib/err
 import { newId } from '../lib/ids';
 import { excerpt, normalizeName } from '../lib/text';
 import { localDate, timeZoneOrThrow } from '../reports/tz';
-import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject } from './access';
+import { assertCanManageProject, canReadProject, projectAccess, projectRolesOf, requireProject, visibleSchema } from './access';
 import { formatBytes, storeAttachment, type UploadTarget } from './attachments';
 import { changeSprintInTx } from './boards';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { applyChanges, createIssueInTx, resolveFieldsInput, resolveLinkPhrase, type LinkSpec } from './issues';
 import { allowedValues, fieldByName, projectByKey, type FieldRow, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto, resolveFieldInput } from './values';
+import { addWatchers } from './watchers';
 
 const MAX_ROWS = 50_000;
 const MAX_BYTES = 64 * 1024 * 1024;
@@ -67,7 +68,7 @@ const PROBLEMS_SHOWN = 200;
 const STALE_MS = 60_000;
 
 const SINGLE_TARGETS = new Set(['key', 'external-id', 'summary', 'description', 'parent', 'created', 'updated', 'resolved', 'reporter', 'spent']);
-const SOURCE_NAMES: Record<ImportSource, string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'the other tracker', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk' };
+const SOURCE_NAMES: Record<ImportSource, string> = { jira: 'Jira', youtrack: 'YouTrack', csv: 'the other tracker', github: 'GitHub', redmine: 'Redmine', zendesk: 'Zendesk', asana: 'Asana', clickup: 'ClickUp' };
 
 export type ImportRowRecord = typeof imports.$inferSelect;
 
@@ -105,7 +106,9 @@ export interface Context {
 
 export async function contextFor(ctx: Ctx, project: ProjectRow): Promise<Context> {
   const s = await ctx.app.schema.get();
-  const fields = (s.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
+  // The fields as whoever imports sees them: a private one kept from them maps to nothing (D50).
+  const own = await visibleSchema(ctx);
+  const fields = (own.projectFields.get(project.id) ?? []).map((pf) => s.fields.get(pf.fieldId)).filter((f): f is FieldRow => Boolean(f));
   // In a project only its people see, only they can be its reporters, assignees and comment
   // authors: someone else would own, or be told about, an issue they can't open.
   let users = [...s.users.values()].filter((u) => !u.banned);
@@ -158,6 +161,7 @@ function fieldOf(c: Context, target: string): FieldRow | undefined {
 function valueKind(c: Context, target: string): { kind: 'option' | 'user' | 'sprint'; multi: boolean; label: string } | null {
   if (target === 'reporter') return { kind: 'user', multi: false, label: 'Reporter' };
   if (target === 'sprint') return { kind: 'sprint', multi: true, label: 'Sprint' };
+  if (target === 'watchers') return { kind: 'user', multi: true, label: 'Watchers' };
   const f = fieldOf(c, target);
   if (!f) return null;
   if (f.type === 'user') return { kind: 'user', multi: f.multi, label: f.name };
@@ -346,6 +350,7 @@ function mapValue(c: Context, m: StoredMapping, target: string, value: string): 
 function emptyMeaning(c: Context, target: string): { choice: string; sentence: string } {
   if (target === 'reporter') return { choice: 'Nobody: the reporter is left empty', sentence: 'the reporter is left empty' };
   if (target === 'sprint') return { choice: 'In no sprint', sentence: 'it goes in no sprint' };
+  if (target === 'watchers') return { choice: "Nobody: they don't watch it here", sentence: "they don't watch it here" };
   const f = fieldOf(c, target)!;
   if (f.type === 'user') return { choice: 'Unassigned', sentence: `${f.name} is left empty` };
   const pf = (c.s.projectFields.get(c.project.id) ?? []).find((x) => x.fieldId === f.id);
@@ -566,6 +571,8 @@ interface Intent {
   links: { phrase: string; keys: string[] }[];
   parent: string | null;
   sprintIds: string[];
+  /** People here who watch it, by login: its followers or watchers there (D61). */
+  watchers: string[];
   /** From an API: its work items, one by one. */
   work: WorkIntent[];
   /** From an API: its files. */
@@ -590,6 +597,8 @@ interface Snapshot {
   files?: string[];
   /** From an API: each comment's id here, by its id there, for the files that were on it. */
   commentIds?: Record<string, string>;
+  /** Who watches it as the export last said, by login: only someone new since is made to watch it. */
+  watchers?: string[];
 }
 
 function hash(text: string): string {
@@ -607,8 +616,12 @@ function snapshotOf(i: Intent, before?: Snapshot): Snapshot {
   // Files are settled one by one as they're brought, after the row's transaction: the snapshot keeps what was settled before.
   if (i.files.length || before?.files) snap.files = [...(before?.files ?? [])];
   if (before?.commentIds) snap.commentIds = { ...before.commentIds };
+  if (i.watchers.length || before?.watchers) snap.watchers = [...i.watchers].sort();
   return snap;
 }
+
+/** Who watches it in the export now and didn't when it was last imported. */
+const newWatchers = (snap: Snapshot, before?: Snapshot) => (snap.watchers ?? []).filter((w) => !(before?.watchers ?? []).includes(w));
 
 /** Files of a row not settled yet: neither brought nor left out as too large. */
 const filesToBring = (i: Intent, before?: Snapshot) => i.files.filter((f) => !(before?.files ?? []).includes(f.extId));
@@ -770,6 +783,7 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
     if (keys.length) links.push({ phrase: t.slice(5), keys });
   }
   const sprintIds = [...new Set(cellsOf('sprint').flatMap((x) => splitMulti(x.value)).map((v) => mapValue(c, m, 'sprint', v).to).filter((x): x is string => Boolean(x)))];
+  const watchers = [...new Set(cellsOf('watchers').flatMap((x) => splitMulti(x.value)).map((v) => mapValue(c, m, 'watchers', v).to).filter((x): x is string => Boolean(x)))];
 
   const summary = first('summary')?.value ?? null;
   let failed = false;
@@ -801,6 +815,7 @@ function readRow(c: Context, m: StoredMapping, header: string[], source: ImportS
     links,
     parent: first('parent')?.value ?? null,
     sprintIds,
+    watchers,
     work,
     files,
     requester: extra?.requester?.email ? { name: extra.requester.name || extra.requester.email, email: extra.requester.email } : null,
@@ -854,6 +869,7 @@ function changedFields(before: Snapshot, after: Snapshot): string[] {
   if (after.comments.some((h) => !(before.comments ?? []).includes(h))) out.push('Comments');
   if ((before.spent ?? 0) !== after.spent) out.push('Spent time');
   if ((after.work ?? []).some((id) => !(before.work ?? []).includes(id))) out.push('Work items');
+  if (newWatchers(after, before).length) out.push('Watchers');
   return out;
 }
 
@@ -1286,6 +1302,8 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         acts.push(...(await addWork(tx, ctx, c, res.issue, freshWork, source, data)));
         tally.work += freshWork.length;
         if (snap.spent > (before.spent ?? 0)) acts.push(...(await addSpent(tx, ctx, c, res.issue, it, snap.spent - (before.spent ?? 0), source, data, m.options.timeZone)));
+        // Someone who watches it there since: they watch it here too. Nobody is made to stop: that's theirs to choose.
+        await addWatchers(tx, c.s, issue, newWatchers(snap, before).map((login) => ({ login, reason: 'explicit' as const })));
         await tx
           .update(externalIssues)
           .set({ values: snap, lastImportId: imp.id, updatedAt: new Date(), ...(it.externalId ? { externalId: it.externalId } : {}) })
@@ -1317,6 +1335,8 @@ async function importOne(ctx: Ctx, c: Context, imp: ImportRowRecord, it: Intent,
         },
       );
       acts.push(...created.activities);
+      // Its followers or watchers there watch it here, quietly, as its reporter and assignee do (D61).
+      await addWatchers(tx, c.s, created.issue, it.watchers.map((login) => ({ login, reason: 'explicit' as const })));
       if (it.requester && projectSettings(c.project).helpdesk.enabled) {
         // A help desk's request, as it was there: who asked, by their email (D46). No target: it's history.
         const requesterId = await requesterFor(tx, it.requester.email, it.requester.name);
@@ -1639,6 +1659,7 @@ export async function undoImport(ctx: Ctx, id: string, opts: { dryRun: boolean }
       'work.updated': 'corrected work logged on it',
       'sprint.issue_added': 'put it in a sprint',
       'sprint.issue_removed': 'took it out of a sprint',
+      'board.issue_ranked': 'ranked it on a board',
       'ai.triage.completed': 'triaged it',
     };
     return `${who} ${did[a.type] ?? 'worked on it'} on ${a.at.toISOString().slice(0, 10)}`;

@@ -11,6 +11,7 @@
     "./constants": "./src/constants.ts",
     "./refs": "./src/refs.ts",
     "./mentions": "./src/mentions.ts",
+    "./whiteboard": "./src/whiteboard.ts",
     "./markdown": "./src/markdown.ts",
     "./i18n": "./src/i18n.ts",
     "./notes": "./src/notes.ts",

@@ -211,6 +211,69 @@
       "when": 1794892283130,
       "tag": "0029_kept_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794899873554,
+      "tag": "0030_project_key_aliases",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794904820766,
+      "tag": "0031_private_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794905143502,
+      "tag": "0032_git_host_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794905403420,
+      "tag": "0033_article_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794906160571,
+      "tag": "0034_gone_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794914019254,
+      "tag": "0035_request_ccs",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794917183908,
+      "tag": "0036_customer_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794921004113,
+      "tag": "0037_chat_issue_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794928239375,
+      "tag": "0038_whiteboards",
+      "breakpoints": true
     }
   ]
 }

@@ -21,10 +21,14 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
  * project's settings, people, rules, plan and baselines, imports and help desk, and seeing every
  * issue in it, whoever it's limited to.
  */
-export const PERMISSIONS = ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs', 'boards', 'manage'] as const;
+/**
+ * What a role lets someone do in a project (D37). The last two are a project's private fields (D50):
+ * seeing them, and changing them. A manager has both; the built-in viewer and member have neither.
+ */
+export const PERMISSIONS = ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs', 'boards', 'manage', 'readPrivate', 'editPrivate'] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 /** Permissions that change something, which a read-only account or token never has whatever its role. */
-export const WRITING_PERMISSIONS: readonly Permission[] = ['comment', 'create', 'edit', 'delete', 'time', 'boards', 'manage'];
+export const WRITING_PERMISSIONS: readonly Permission[] = ['comment', 'create', 'edit', 'delete', 'time', 'boards', 'manage', 'editPrivate'];
 export const BUILTIN_ROLE_PERMISSIONS: Record<ProjectRole, readonly Permission[]> = {
   viewer: ['read', 'comment', 'costs'],
   member: ['read', 'comment', 'create', 'edit', 'delete', 'time', 'costs'],
@@ -142,6 +146,17 @@ export const EVENT_TYPES = [
   'build.recorded',
   'sla.warning',
   'sla.breached',
+  'project.key.changed',
+  // An issue's place in a board's order changed (D53): its backlog's and its columns' one order.
+  'board.issue_ranked',
+  // Someone was copied on a help desk request, or stopped being (D57).
+  'request.cc_added',
+  'request.cc_removed',
+  // A whiteboard's life, and what came of it (D58). Its elements' edits aren't events: they go to its own live stream.
+  'whiteboard.created',
+  'whiteboard.renamed',
+  'whiteboard.deleted',
+  'whiteboard.converted',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -194,7 +209,7 @@ export const SUBSCRIPTION_EVENTS = ['new', 'all'] as const;
 export type SubscriptionEvents = (typeof SUBSCRIPTION_EVENTS)[number];
 
 /** Why someone watches an issue: they chose to, or what they did or were given. */
-export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'] as const;
+export const WATCH_REASONS = ['explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead', 'message'] as const;
 export type WatchReason = (typeof WATCH_REASONS)[number];
 
 /** Who a comment is for: the team only, or also the requester of a help desk request, who is emailed it. */
@@ -223,6 +238,16 @@ export type NotifyKind = (typeof NOTIFY_KINDS)[number];
 
 /** What a help desk's public form and tracking page take, at most (the server's limits, and the form's maxlength). */
 export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 10_000, reply: 10_000 } as const;
+/**
+ * The most people copied on one help desk request at once (D57). Each public reply goes to each of
+ * them, an email apiece with a reply address of its own, so it bounds what one reply sends and what
+ * one forged email's Cc can reach; a conversation rarely needs more than a few, and a team's list
+ * address counts as one.
+ */
+export const REQUEST_CCS_MAX = 20;
+/** How someone came to be copied on a request (D57): by the team, the Cc of the requester's email, or the requester on the portal. */
+export const REQUEST_CC_VIA = ['team', 'email', 'portal'] as const;
+export type RequestCcVia = (typeof REQUEST_CC_VIA)[number];
 
 export const MAX_BULK_ISSUES = 50;
 
@@ -270,7 +295,7 @@ export const VCS_PROVIDER_NAMES: Record<VcsProvider, string> = {
   gitlab: 'GitLab',
   bitbucket: 'Bitbucket Cloud',
   'bitbucket-dc': 'Bitbucket Data Center',
-  gitea: 'Gitea or Forgejo',
+  gitea: 'Forgejo/Gitea',
 };
 export const PULL_REQUEST_STATES = ['open', 'merged', 'closed'] as const;
 export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
@@ -293,3 +318,32 @@ export const PLAYABLE_AUDIO_TYPES = ['audio/mpeg', 'audio/aac', 'audio/mp4', 'au
 export const PLAYABLE_VIDEO_TYPES = ['video/mp4', 'video/webm'] as const;
 export const PLAY_KINDS = ['audio', 'video'] as const;
 export type PlayKind = (typeof PLAY_KINDS)[number];
+
+/**
+ * Whiteboards (D58): what one holds at most, and what a note can say of itself. A whiteboard is drawn
+ * whole as SVG and read whole by a screen reader's outline, so it stays a team's canvas, not a wall.
+ */
+export const WHITEBOARD_LIMITS = {
+  /** Elements on one whiteboard: notes, text, cards, arrows and sections together. */
+  elements: 500,
+  /** Characters in a note's or a text block's words. */
+  text: 2000,
+  /** Characters in an arrow's label or a section's title. */
+  label: 200,
+  name: 120,
+  /** Changes in one batch: enough to move every element at once. */
+  ops: 500,
+  /** Notes converted, or arrows linked, in one request: a command's cap (D8). */
+  convert: 50,
+  /** How far from the origin anything may be, and how small and large a box. */
+  coordinate: 100_000,
+  minSize: 8,
+  maxSize: 4_000,
+} as const;
+
+/** What a note's tone says, from a short fixed set; Ocean draws each as a meaning, never a colour of its own. */
+export const WHITEBOARD_TONES = ['plain', 'idea', 'agreed', 'question', 'problem', 'parked'] as const;
+export type WhiteboardTone = (typeof WHITEBOARD_TONES)[number];
+
+export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section'] as const;
+export type WhiteboardKind = (typeof WHITEBOARD_KINDS)[number];

@@ -1,7 +1,7 @@
 import type { Project, TriageMode } from '@a4a/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, Navigate, useParams } from 'react-router';
 import { patch } from '../api/client';
 import { keys, useAIStatus, useFields, useProject, useProjectFields, useUsers } from '../api/queries';
 import { ago, Badge } from '../components/Badges';
@@ -14,9 +14,11 @@ import { useBaselines } from '../features/common/queries';
 import { PeopleAndAccess, yourRole } from '../features/projects/PeopleAndAccess';
 import { PlanSettings } from '../features/projects/PlanSettings';
 import { ProjectFields } from '../features/projects/ProjectFields';
+import { ProjectKey } from '../features/projects/ProjectKey';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { CustomerGroups } from '../features/helpdesk/CustomerGroups';
 import { WorkTypes } from '../features/projects/WorkTypes';
 import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
 import { ProjectSubscription } from '../features/notifications/Subscriptions';
@@ -201,6 +203,8 @@ export default function ProjectPage() {
       </>
     );
   const p = project.data;
+  // Reached by a key it had before it was renamed (D52): the address says the key it has now.
+  if (p.key !== key.toUpperCase()) return <Navigate to={`/projects/${p.key}${window.location.hash}`} replace />;
   const plan = p.settings.plan;
   // Its managers (and administrators) change a project; everyone who sees it sees how it's set up.
   const canEdit = p.access.manage;
@@ -239,6 +243,7 @@ export default function ProjectPage() {
             <Link className="button" to={`/issues?q=${encodeURIComponent(`project: ${p.key} #Unresolved`)}`}>{t('page.project.openItsIssues')}</Link>
             <Link className="button" to={`/plan/${p.key}`}>{t('page.project.openItsPlan')}</Link>
             <Link className="button" to={`/rules/${p.key}`}>{t('page.project.openItsRules')}</Link>
+            <Link className="button" to={`/whiteboards?project=${encodeURIComponent(p.key)}`}>{t('page.project.openItsWhiteboards')}</Link>
           </>
         }
       />
@@ -250,6 +255,10 @@ export default function ProjectPage() {
         <section className="card" aria-labelledby="details">
           <h2 id="details">{t('page.project.details')}</h2>
           <Details project={p} canEdit={canEdit} />
+        </section>
+        <section className="card" aria-labelledby="project-key">
+          <h2 id="project-key">{t('page.project.key')}</h2>
+          <ProjectKey project={p} canEdit={canEdit} />
         </section>
         <section className="card" aria-labelledby="triage">
           <h2 id="triage">{t('page.project.aiTriage')}</h2>
@@ -280,6 +289,13 @@ export default function ProjectPage() {
           <span className="note">{t('page.project.targetsForTheTeamS')}</span>
         </div>
         <SlaSettings project={p} canEdit={canEdit} />
+      </section>
+      <section className="card" aria-labelledby="customer-groups">
+        <div className="section-head">
+          <h2 id="customer-groups">{t('page.project.customerGroups')}</h2>
+          <span className="note">{t('page.project.customerGroupsNote')}</span>
+        </div>
+        <CustomerGroups project={p} canEdit={canEdit} />
       </section>
       {canEdit ? (
         <section className="card" aria-labelledby="helpdesk-mail">

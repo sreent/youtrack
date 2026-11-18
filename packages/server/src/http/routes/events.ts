@@ -2,7 +2,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi';
 import { EventSchema, WebhookBody, WebhookCreatedSchema, WebhookDeliverySchema, WebhookSchema, type TrackerEvent,
   patchBody,
 } from '@a4a/shared';
-import { sql } from 'drizzle-orm';
+import { and, sql } from 'drizzle-orm';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { requireScope, type Ctx } from '../../context';
@@ -10,7 +10,7 @@ import { activities } from '../../db/schema';
 import type { EventFilter } from '../../events/sse';
 import { createWebhook, deleteWebhook, listDeliveries, listWebhooks, testWebhook, updateWebhook } from '../../events/webhooks';
 import { AppError, badRequest } from '../../lib/errors';
-import { eventSeen, eventsVisibleSql, projectAccess, visibleSchema } from '../../services/access';
+import { eventFor, eventSeen, eventsFieldsSql, eventsVisibleSql, projectAccess, visibleSchema } from '../../services/access';
 import { eventFeed } from '../../services/activity';
 import { projectByKey } from '../../services/schema-cache';
 import type { HttpEnv } from '../env';
@@ -30,27 +30,31 @@ const MAX_QUEUE = 5_000;
 async function streamFilter(ctx: Ctx, project: string | undefined, types: string | undefined): Promise<EventFilter> {
   const typeList = types?.split(',').map((t) => t.trim()).filter(Boolean) ?? [];
   let projectIds: string[] | null = null;
-  let key: string | null = null;
+  let only: string | null = null;
   if (project) {
     // A project the caller can't see is unknown, in the same words as one that doesn't exist.
     const p = projectByKey(await visibleSchema(ctx), project);
     if (!p) throw badRequest(`Unknown project ${project}`).said('events.unknownProject', { project });
     projectIds = [p.id];
-    key = p.key.toUpperCase();
+    only = p.id;
   }
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
   return {
     projectIds,
     types: typeList.length ? typeList : null,
-    where: eventsVisibleSql(view, s),
-    matches: (e) => (!key || e.project?.toUpperCase() === key) && (!typeList.length || typeList.includes(e.type)),
+    where: and(eventsVisibleSql(view, s), eventsFieldsSql(view, s)),
+    // By the project, not its key: a stream open across a rename (D52) keeps it, since its keys, old and new, all find it.
+    matches: (e) => (!only || (e.project !== null && projectByKey(ctx.app.schema.peek() ?? s, e.project)?.id === only)) && (!typeList.length || typeList.includes(e.type)),
   };
 }
 
-/** Whether the caller may see an event now: access is worked out again as events go (at most two seconds old). */
-async function visibleNow(ctx: Ctx, event: TrackerEvent): Promise<boolean> {
+/**
+ * The event as the caller may see it now, or null: access is worked out again as events go (at most two
+ * seconds old), and changes to private fields kept from them are taken out (D50).
+ */
+async function shownNow(ctx: Ctx, event: TrackerEvent): Promise<TrackerEvent | null> {
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
-  return eventSeen(view, ctx.db, s, event);
+  return (await eventSeen(view, ctx.db, s, event)) ? eventFor(view, s, event) : null;
 }
 
 export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
@@ -152,8 +156,9 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
           } else {
             for (const event of missed) {
               if (stream.aborted) break;
-              if (!(await visibleNow(ctx, event))) continue;
-              await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
+              const shown = await shownNow(ctx, event);
+              if (!shown) continue;
+              await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(shown) });
             }
           }
         } else if (resume !== null && resume > position) {
@@ -168,8 +173,9 @@ export function eventRoutes(app: OpenAPIHono<HttpEnv>) {
             if (event.id <= sent) continue;
             sent = event.id;
             // Someone taken off a project stops hearing about it on a stream that is already open.
-            if (!(await visibleNow(ctx, event))) continue;
-            await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(event) });
+            const shown = await shownNow(ctx, event);
+            if (!shown) continue;
+            await stream.writeSSE({ id: String(event.id), event: event.type, data: JSON.stringify(shown) });
           }
           if (stream.aborted) break;
           await new Promise<void>((resolve) => {

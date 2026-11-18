@@ -46,7 +46,19 @@ import { compileQuery } from '../search/compiler';
 import { explainParsed } from '../search/explain';
 import { lex } from '../search/lexer';
 import { suggest } from '../search/suggest';
-import { assertCanManageProject, canReadProject, projectAccess, requireProject, visibleProjectIds, visibleSchema, type ProjectNeed } from '../services/access';
+import {
+  assertCanManageProject,
+  canReadProject,
+  goneIssueSql,
+  issueSeenSql,
+  projectAccess,
+  requireProject,
+  scopeFields,
+  touchesNoHiddenSql,
+  visibleProjectIds,
+  visibleSchema,
+  type ProjectNeed,
+} from '../services/access';
 import { issueRefsById } from '../services/issue-refs';
 import { findVisibleIssue } from '../services/issues';
 import type { RuleRow, SchemaSnapshot } from '../services/schema-cache';
@@ -193,7 +205,8 @@ async function projectIdOf(ctx: Ctx, key: string | null | undefined, need: Proje
  * own project (which they can see); a rule for every project, the projects they can see.
  */
 async function worldFor(ctx: Ctx, projectId: string | null): Promise<SchemaSnapshot> {
-  return projectId ? ruleWorld(await ctx.app.schema.get(), projectId) : visibleSchema(ctx);
+  // Without the private fields kept from them (D50): a rule's words are theirs to read.
+  return projectId ? scopeFields(ruleWorld(await ctx.app.schema.get(), projectId), await projectAccess(ctx)) : visibleSchema(ctx);
 }
 
 function draftFrom(projectId: string | null, input: RuleInput): Draft {
@@ -482,12 +495,25 @@ export function ruleDto(s: SchemaSnapshot, seen: SchemaSnapshot, row: RuleRow, l
  * The runs a reader may see: those in projects they can read, through the access seam. A rule for
  * every project runs in all of them, and its runs name their issues. What such a rule writes for no
  * one project (how a scheduled run went everywhere, that it no longer reads) counts and names
- * things in every project, so only those who see every project see it.
+ * things in every project, so only those who see every project see it. A run names its issue and
+ * what it changed there, so one on an issue limited away from the reader isn't theirs (D37).
  */
 async function visibleRuns(ctx: Ctx): Promise<SQL | null> {
   const visible = await visibleProjectIds(ctx);
-  if (visible === null) return null;
-  return visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`;
+  const view = await projectAccess(ctx);
+  const s = await ctx.app.schema.get();
+  // A run that changed a private field kept from the reader isn't in their log: its words say the change (D50).
+  const kept = touchesNoHiddenSql(view, s, sql`${ruleRuns.projectId}`, sql`${ruleRuns.changes}`);
+  // Nor one on an issue limited away from them: standing, by its row; deleted, by what its deletion kept.
+  const seen = issueSeenSql(view, s, 'seen_run');
+  const gone = goneIssueSql(view, sql`${ruleRuns.issueKey}`, sql`${ruleRuns.projectId}`);
+  const parts: SQL[] = [
+    ...(kept ? [kept] : []),
+    ...(seen ? [sql`NOT EXISTS (SELECT 1 FROM issues seen_run WHERE seen_run.id = ${ruleRuns.issueId} AND NOT ${seen})`] : []),
+    ...(gone ? [sql`NOT (${ruleRuns.issueId} IS NULL AND ${gone})`] : []),
+  ];
+  if (visible !== null) parts.unshift(visible.length ? inArray(ruleRuns.projectId, visible) : sql`FALSE`);
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : null;
 }
 
 async function lastRuns(ctx: Ctx, ids: string[]): Promise<Map<string, RunRow>> {

@@ -14,7 +14,7 @@ import { newId } from '../lib/ids';
 import { todayISO } from '../lib/dates';
 import { prepareQuery } from '../search/service';
 import { canReadProject, projectAccess, requireProject } from './access';
-import type { SchemaSnapshot } from './schema-cache';
+import { keysOfProject, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
 
 type Row = typeof dashboards.$inferSelect;
@@ -54,7 +54,7 @@ async function seenBy(ctx: Ctx): Promise<Seen> {
   const view = await projectAccess(ctx);
   const s = await ctx.app.schema.get();
   const keys = new Set<string>();
-  for (const p of s.projects.values()) if (view.canRead(p.id)) keys.add(p.key.toUpperCase());
+  for (const p of s.projects.values()) if (view.canRead(p.id)) for (const k of keysOfProject(s, p.id)) keys.add(k);
   // A board is seen when any of its projects is, as on the board itself; by id and by name.
   const seenBoards = new Map<string, boolean>();
   for (const b of await ctx.db.select({ id: boards.id, name: boards.name, projectIds: boards.projectIds }).from(boards)) {

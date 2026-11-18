@@ -8,6 +8,7 @@ import {
   ArticleVersionDetailSchema,
   ArticleVersionSchema,
   CreateArticleBody,
+  SetVisibilityBody,
   UpdateArticleBody,
 } from '@a4a/shared';
 import { z } from 'zod';
@@ -21,6 +22,7 @@ import {
   listArticleVersions,
   restoreArticleVersion,
   searchArticles,
+  setArticleVisibility,
   updateArticle,
 } from '../../services/articles';
 import type { HttpEnv } from '../env';
@@ -87,6 +89,21 @@ export function articleRoutes(app: OpenAPIHono<HttpEnv>) {
       response: ArticleDetailSchema,
     },
     ({ ctx, params, body }) => updateArticle(ctx, params.id, body),
+  );
+  route(
+    app,
+    {
+      method: 'put',
+      path: '/articles/{id}/visibility',
+      tags,
+      summary: 'Limit who sees an article',
+      description:
+        "Limit it to some people and groups (D51), or send `visibleTo: null` to lift the limit. Its author, the project's managers and administrators always see it. What's under it is seen only by who sees it: a limit is checked up the tree, so moving an article under a limited one hides it too, and moving it out shows it to whoever its own limit lets. To anyone else it's missing, in the same words as an article that doesn't exist: in the tree, search, its versions, files and history, mentions and the event feed. Takes the edit permission, and you can't limit it away from yourself. `expectedVersion` isn't used: the limit is replaced whole, and its content keeps its version.",
+      params: Id,
+      body: SetVisibilityBody,
+      response: ArticleDetailSchema,
+    },
+    ({ ctx, params, body }) => setArticleVisibility(ctx, params.id, body.visibleTo),
   );
   route(app, { method: 'delete', path: '/articles/{id}', tags, summary: 'Delete an article that has none under it', params: Id, status: 204 }, async ({ ctx, params }) => {
     await deleteArticle(ctx, params.id);

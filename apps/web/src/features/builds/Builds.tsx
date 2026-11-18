@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { del, get, patch, post } from '../../api/client';
 import { keys, useMe, useProjects } from '../../api/queries';
-import { ago, Badge } from '../../components/Badges';
+import { agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
@@ -84,16 +84,20 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
   });
   const rotate = useMutation({ mutationFn: () => post<BuildSourceCreated>(`/build-sources/${source.id}/token`, {}), onSuccess: (m) => (setMade(m), refresh()), onError: (e) => onSaid({ text: errorText(e), bad: true }) });
   const remove = useMutation({ mutationFn: () => del(`/build-sources/${source.id}`), onSuccess: refresh, onError: (e) => onSaid({ text: errorText(e), bad: true }) });
+  const runsOf = (unnamed: string) =>
+    t('builds.builds.sRunsOfOn', { v: source.integration?.name ?? unnamed, v2: source.workflow ?? t('builds.builds.anyWorkflow'), v3: source.branch ?? t('builds.builds.anyBranch') });
   const from =
     source.kind === 'github'
-      ? t('builds.builds.sRunsOfOn', { v: source.integration?.name ?? t('builds.builds.aGithubIntegration'), v2: source.workflow ?? t('builds.builds.anyWorkflow'), v3: source.branch ?? t('builds.builds.anyBranch') })
-      : t('builds.builds.anyCiWithItsToken', { v: source.tokenPrefix ?? '…' });
+      ? runsOf(t('builds.builds.aGithubIntegration'))
+      : source.kind === 'gitea'
+        ? runsOf(t('builds.builds.aGiteaIntegration'))
+        : t('builds.builds.anyCiWithItsToken', { v: source.tokenPrefix ?? '…' });
   return (
     <li className="card hook">
       <div className="hook-head">
         <div className="hook-what">
           <span className="hook-url">{source.name}</span>
-          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? t('builds.builds.noBuildFieldYet'), v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: ago(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
+          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? t('builds.builds.noBuildFieldYet'), v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: agoSaid(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
         </div>
         {source.active ? <Badge tone="good">{t('builds.builds.takesBuilds')}</Badge> : <Badge tone="idle">{t('builds.builds.paused')}</Badge>}
       </div>
@@ -122,7 +126,10 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
   const qc = useQueryClient();
   const projects = (useProjects().data ?? []).filter((p) => !p.archived);
   const github = integrations.filter((i) => i.provider === 'github');
-  const [kind, setKind] = useState<'generic' | 'github'>('generic');
+  // Gitea's and Forgejo's: a4a's one provider for both (D33), whose Actions runs come as GitHub's do (D55).
+  const gitea = integrations.filter((i) => i.provider === 'gitea');
+  const [kind, setKind] = useState<'generic' | 'github' | 'gitea'>('generic');
+  const runs = kind === 'github' ? github : kind === 'gitea' ? gitea : [];
   const [name, setName] = useState('');
   const [project, setProject] = useState('');
   const [integration, setIntegration] = useState('');
@@ -135,7 +142,7 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
         kind,
         name: name.trim(),
         project,
-        ...(kind === 'github' ? { integration, branch: branch.trim() || null, workflow: workflow.trim() || null } : {}),
+        ...(kind !== 'generic' ? { integration, branch: branch.trim() || null, workflow: workflow.trim() || null } : {}),
       }),
     onSuccess: (m) => {
       void qc.invalidateQueries({ queryKey: buildKeys.sources });
@@ -156,12 +163,16 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
         <fieldset className="choice-group">
           <legend>{t('builds.builds.from')}</legend>
           <label className="choice">
-            <input type="radio" name="build-kind" checked={kind === 'generic'} onChange={() => setKind('generic')} />
+            <input type="radio" name="build-kind" checked={kind === 'generic'} onChange={() => (setKind('generic'), setIntegration(''))} />
             <span>{t('builds.builds.anyCiPostingEachBuild')}</span>
           </label>
           <label className="choice">
-            <input type="radio" name="build-kind" checked={kind === 'github'} onChange={() => setKind('github')} disabled={!github.length} />
+            <input type="radio" name="build-kind" checked={kind === 'github'} onChange={() => (setKind('github'), setIntegration(''))} disabled={!github.length} />
             <span>{tr('builds.builds.githubActions', { v: github.length ? '' : t('builds.builds.addAGithubIntegrationFirst') })}</span>
+          </label>
+          <label className="choice">
+            <input type="radio" name="build-kind" checked={kind === 'gitea'} onChange={() => (setKind('gitea'), setIntegration(''))} disabled={!gitea.length} />
+            <span>{tr('builds.builds.forgejoActions', { v: gitea.length ? '' : t('builds.builds.addAGiteaIntegrationFirst') })}</span>
           </label>
         </fieldset>
         <div className="form-fields">
@@ -180,13 +191,13 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
               </select>
             )}
           </FormField>
-          {kind === 'github' ? (
+          {kind !== 'generic' ? (
             <>
-              <FormField label={t('builds.builds.theGithubIntegration')}>
+              <FormField label={kind === 'github' ? t('builds.builds.theGithubIntegration') : t('builds.builds.theGiteaIntegration')}>
                 {(id) => (
                   <select id={id} required value={integration} onChange={(e) => setIntegration(e.target.value)}>
                     <option value="">{t('builds.builds.chooseOne')}</option>
-                    {github.map((i) => (
+                    {runs.map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.name}
                       </option>
@@ -197,14 +208,14 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
               <FormField label={t('builds.builds.itsBranch')} help={t('builds.builds.onlyRunsOnItAre')}>
                 {(id, help) => <input id={id} className="mono" aria-describedby={help} value={branch} onChange={(e) => setBranch(e.target.value)} />}
               </FormField>
-              <FormField label={t('builds.builds.itsWorkflow')} help={t('builds.builds.byNameOrItsFile')}>
+              <FormField label={t('builds.builds.itsWorkflow')} help={kind === 'github' ? t('builds.builds.byNameOrItsFile') : t('builds.builds.byItsFileSuchAs')}>
                 {(id, help) => <input id={id} className="mono" aria-describedby={help} value={workflow} onChange={(e) => setWorkflow(e.target.value)} />}
               </FormField>
             </>
           ) : null}
         </div>
         <div className="cluster">
-          <button type="submit" className="primary" disabled={add.isPending || !name.trim() || !project || (kind === 'github' && !integration)}>
+          <button type="submit" className="primary" disabled={add.isPending || !name.trim() || !project || (kind !== 'generic' && !integration)}>
             {add.isPending ? t('builds.builds.adding') : t('builds.builds.takeItsBuilds')}
           </button>
         </div>
@@ -364,16 +375,18 @@ export function CodeHostAccounts() {
   const [params, setParams] = useSearchParams();
   const hosts = useQuery({ queryKey: ['me', 'code-hosts'], queryFn: () => get<CodeHostInfo[]>('/me/code-hosts') });
   const logins = useQuery({ queryKey: ['users', meId, 'provider-logins'], queryFn: () => get<ProviderLogin[]>(`/users/${meId}/provider-logins`), enabled: Boolean(meId) });
-  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | { connected: string } | null>(null);
   useEffect(() => {
     const connected = params.get('connected');
     const failure = params.get('connect');
     if (!connected && !failure) return;
-    setSaid(connected ? { text: t('builds.builds.yourAccountIsConnectedIts', { v: hosts.data?.find((h) => h.provider === connected)?.name ?? connected }) } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
+    // The host is named once its name has loaded: the page is back from it before the list is.
+    setSaid(connected ? { connected } : { text: CONNECT_SAID[failure!] ?? CONNECT_SAID.failed!, bad: true });
     params.delete('connected');
     params.delete('connect');
     setParams(params, { replace: true });
-  }, [params, setParams, hosts.data]);
+  }, [params, setParams]);
+  const shown = said && 'connected' in said ? { text: t('builds.builds.yourAccountIsConnectedIts', { v: hosts.data?.find((h) => h.provider === said.connected)?.name ?? said.connected }) } : said;
   const connect = useMutation({
     mutationFn: (provider: string) => post<{ url: string }>(`/me/code-hosts/${provider}/connect`, {}),
     onSuccess: ({ url }) => window.location.assign(url),
@@ -411,7 +424,7 @@ export function CodeHostAccounts() {
           <button key={h.provider} type="button" onClick={() => connect.mutate(h.provider)} disabled={connect.isPending}>{tr('builds.builds.connect', { name: h.name })}</button>
         ))}
       </div>
-      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      <Said text={shown?.text} tone={shown && 'bad' in shown && shown.bad ? 'bad' : undefined} />
     </section>
   );
 }

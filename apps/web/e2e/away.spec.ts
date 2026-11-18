@@ -123,7 +123,7 @@ test.describe('signed in as people of its own', () => {
     await expect(form.getByRole('group', { name: 'How much of the day' })).toBeHidden();
     await form.getByLabel('A note, if you want one').fill('Lisbon');
     await form.getByRole('button', { name: 'Add the days away' }).click();
-    await expect(away.getByRole('status')).toHaveText(/^Added: you’re away [^,]+ to [^,]+, so plans skip those days for your work\.$/);
+    await expect(away.getByRole('status')).toHaveText(/^Added: you’re away [^,]+–[^,]+, so plans skip those days for your work\.$/);
     const row = away.getByRole('row').filter({ hasText: 'Lisbon' });
     await expect(row).toContainText('Holiday');
 
@@ -131,7 +131,7 @@ test.describe('signed in as people of its own', () => {
     const change = away.getByRole('form', { name: /^Change / });
     await change.getByLabel('To', { exact: true }).fill(week.thu);
     await change.getByRole('button', { name: 'Save the change' }).click();
-    await expect(away.getByRole('status')).toHaveText(/^Changed: you’re away [^,]+ to [^,]+, so plans skip/);
+    await expect(away.getByRole('status')).toHaveText(/^Changed: you’re away [^,]+–[^,]+, so plans skip/);
     expect((await api.get<Absence[]>(`/absences?user=${kit.login}`)).map((a) => [a.from, a.to])).toEqual([[week.mon, week.thu]]);
 
     await away.getByRole('row').filter({ hasText: 'Lisbon' }).getByRole('button', { name: /^Remove / }).click();

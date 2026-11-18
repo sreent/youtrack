@@ -277,7 +277,7 @@ class CommandParser {
       if (fieldsHit.length > 1) {
         const names = fieldsHit.map((f) => f.field.name);
         this.problem(
-          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, first: names[0]!, last: names[names.length - 1]!, fields: names.join(' and ') } },
+          { key: 'command.valueOfFields', values: { value: values[0]!.item.value, n: names.length, first: names[0]!, last: names[names.length - 1]! } },
           `"${values[0]!.item.value}" is a value of ${names.join(' and ')}`,
           tok,
           `Say which one, e.g. "${names[0]} ${values[0]!.item.value}"`,

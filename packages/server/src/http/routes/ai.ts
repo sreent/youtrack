@@ -15,6 +15,14 @@ import {
   SimilarResultSchema,
   SuggestionSchema,
   SummarizeResultSchema,
+  CommentSchema,
+  SuggestedSummarySchema,
+  SummarizeTextBody,
+  SummaryCommentBody,
+  SummaryLanguageQuery,
+  TextSummarySchema,
+  WriteBody,
+  WriteResultSchema,
   type ChatStreamEvent,
 } from '@a4a/shared';
 import { streamSSE } from 'hono/streaming';
@@ -22,7 +30,8 @@ import { z } from 'zod';
 import { createConversation, decide, deleteConversation, getConversation, listConversations, sendMessage, type Emit } from '../../ai/chat/agent';
 import { aiService, requireAI } from '../../ai/client';
 import { AI_PROVIDERS } from '../../ai/providers';
-import { similarWithJudgement, summarizeIssue, wordsToCommand, wordsToQuery } from '../../ai/nl';
+import { similarWithJudgement, wordsToCommand, wordsToQuery } from '../../ai/nl';
+import { postSummary, suggestSummary, summarizeArticle, summarizeIssue, summarizeText, writeWithAI } from '../../ai/writing';
 import { applySuggestion, dismissSuggestion, listPendingSuggestions, listSuggestions, triageIssue } from '../../ai/triage';
 import { requireScope, type Ctx } from '../../context';
 import { TOOLS } from '../../tools/registry';
@@ -85,7 +94,8 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ ctx }) => {
       requireScope(ctx, 'read');
-      return TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, kind: t.kind, destructive: Boolean(t.destructive) }));
+      const ai = Boolean(aiService(ctx.app));
+      return TOOLS.filter((t) => ai || !t.needsAI).map((t) => ({ name: t.name, title: t.title, description: t.description, kind: t.kind, destructive: Boolean(t.destructive) }));
     },
   );
   route(app, { method: 'post', path: '/ai/query', tags, summary: 'Turn plain words into a search query (checked by the real parser)', body: NLQueryBody, response: NLQueryResultSchema, status: 200 }, ({ ctx, body }) => wordsToQuery(ctx, body.text, body.project));
@@ -123,7 +133,67 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(app, { method: 'post', path: '/suggestions/{id}/apply', tags, summary: 'Apply a suggestion, or some of it', params: Id, body: ApplySuggestionBody, response: SuggestionSchema, status: 200 }, ({ ctx, params, body }) => applySuggestion(ctx, params.id, body));
   route(app, { method: 'post', path: '/suggestions/{id}/dismiss', tags, summary: 'Dismiss a suggestion', params: Id, response: SuggestionSchema, status: 200 }, ({ ctx, params }) => dismissSuggestion(ctx, params.id));
-  route(app, { method: 'post', path: '/issues/{id}/summarize', tags, summary: 'Summarise an issue and its discussion', params: Id, response: SummarizeResultSchema, status: 200 }, ({ ctx, params }) => summarizeIssue(ctx, params.id));
+
+  // Writing and reading help (D59): suggestions and summaries, none of them saved.
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/ai/write',
+      tags,
+      summary: 'Fix, rewrite, carry on or draft a text: a suggestion, never saved',
+      description:
+        "fix, shorter, clearer, formal and friendlier change a text's words and keep its language; code, links' addresses, mentions and ids come back as they went in. continue writes what follows it; draft writes from a line, and for a reply to a help desk request, from what its requester can read. Each ask counts against the person's hourly allowance (AI_WRITING_MAX_PER_HOUR).",
+      body: WriteBody,
+      response: WriteResultSchema,
+      status: 200,
+    },
+    ({ ctx, body }) => writeWithAI(ctx, body),
+  );
+  route(
+    app,
+    { method: 'post', path: '/ai/summarize', tags, summary: 'Summarise a text, such as a selection, in the reader’s language', body: SummarizeTextBody, response: TextSummarySchema, status: 200 },
+    ({ ctx, body }) => summarizeText(ctx, body.text, body.language),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/summarize',
+      tags,
+      summary: 'Summarise an issue and its discussion, as the reader sees it, in their language',
+      params: Id,
+      query: SummaryLanguageQuery,
+      response: SummarizeResultSchema,
+      status: 200,
+    },
+    ({ ctx, params, query }) => summarizeIssue(ctx, params.id, query.language),
+  );
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/issues/{id}/summary/comment',
+      tags,
+      summary: "Post an issue's summary as a comment, as the assistant's",
+      description: 'Takes the summary exactly as it came, with its `post` token, within an hour. The history says the assistant wrote it, for whoever posted it.',
+      params: Id,
+      body: SummaryCommentBody,
+      response: CommentSchema,
+      status: 201,
+    },
+    ({ ctx, params, body }) => postSummary(ctx, params.id, body),
+  );
+  route(
+    app,
+    { method: 'post', path: '/issues/{id}/suggest-summary', tags, summary: 'Suggest a clearer summary (title) for an issue: nothing changes until it is saved', params: Id, response: SuggestedSummarySchema, status: 200 },
+    ({ ctx, params }) => suggestSummary(ctx, params.id),
+  );
+  route(
+    app,
+    { method: 'post', path: '/articles/{id}/summarize', tags, summary: 'Summarise an article, in the reader’s language', params: Id, query: SummaryLanguageQuery, response: TextSummarySchema, status: 200 },
+    ({ ctx, params, query }) => summarizeArticle(ctx, params.id, query.language),
+  );
 
   const chat = ['Assistant'];
   route(app, { method: 'get', path: '/ai/conversations', tags: chat, summary: 'Your conversations with the assistant', response: z.array(ConversationSchema) }, ({ ctx }) => listConversations(ctx));

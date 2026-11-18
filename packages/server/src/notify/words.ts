@@ -1,6 +1,6 @@
 /** What a notification says, in plain words: the same in the inbox, over MCP and by email. */
 import type { NotificationKind, TrackerEvent } from '@a4a/shared';
-import type { Locale, Translator } from '@a4a/shared/i18n';
+import { joinList, type Locale, type Translator } from '@a4a/shared/i18n';
 import { intlTag } from '../i18n';
 
 /** Who did it, as a person reads it: a requester by their name, an agent by its id, an agent for a person says so. */
@@ -12,7 +12,8 @@ export function actorName(tr: Translator, e: TrackerEvent): string {
     case 'automation':
       return e.actor.login ?? tr.t('server.notify.anAgent');
     case 'mcp':
-      return tr.t('server.notify.agentFor', { agent: e.actor.token ?? tr.t('server.notify.anAgentLower'), person });
+      // A name begins the line it's in (an email's head, a push's title), so an agent with no token's name is "An agent".
+      return tr.t('server.notify.agentFor', { agent: e.actor.token ?? tr.t('server.notify.anAgent'), person });
     case 'assistant':
       return tr.t('server.notify.assistantFor', { person });
     case 'api':
@@ -27,7 +28,7 @@ export function actorName(tr: Translator, e: TrackerEvent): string {
 }
 
 function list(tr: Translator, words: string[]): string {
-  return new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words);
+  return joinList(tr.locale, words);
 }
 
 /** What one event did, as a verb phrase: "commented", "changed State and Priority". */

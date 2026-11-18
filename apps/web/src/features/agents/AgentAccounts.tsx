@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post } from '../../api/client';
 import { keys, useProjects } from '../../api/queries';
-import { ago, Badge } from '../../components/Badges';
+import { ago, agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { Who } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
@@ -150,7 +150,7 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
       <div className="hook-head">
         <div className="hook-what">
           <Who kind="agent" name={agent.login} about={agent.name !== agent.login ? agent.name : undefined} />
-          <span className="item-about">{tr('agents.agentAccounts.roleAdded', { role: agent.role /* a stable code the message selects on */, when: ago(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : tx('agents.agentAccounts.tokens', { length: tokens.length }) })}</span>
+          <span className="item-about">{tr('agents.agentAccounts.roleAdded', { role: agent.role /* a stable code the message selects on */, when: agoSaid(agent.createdAt), v: tokens.length === 1 ? tx('agents.agentAccounts.n1Token') : tx('agents.agentAccounts.tokens', { length: tokens.length }) })}</span>
         </div>
         {agent.banned ? <Badge tone="bad">{tx('agents.agentAccounts.banned')}</Badge> : <Badge tone="good">{tx('agents.agentAccounts.actsAsItself')}</Badge>}
       </div>

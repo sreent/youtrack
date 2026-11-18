@@ -82,6 +82,8 @@ export interface Config {
   aiEnabled: boolean;
   /** Why the AI is off, in words for the person running the server; null when it's on. */
   aiOffReason: string | null;
+  /** How many times a person may ask for writing and reading help in an hour (AI_WRITING_MAX_PER_HOUR, D59). */
+  aiWritingMaxPerHour: number;
   webDist: string | undefined;
   sessionTtlDays: number;
   isDev: boolean;
@@ -172,9 +174,12 @@ export interface Config {
   /**
    * The OAuth apps people connect their own code-host accounts through (D46): GITHUB_CLIENT_ID and
    * _SECRET (GITHUB_URL for GitHub Enterprise Server), GITLAB_* (GITLAB_URL for a self-managed one),
-   * BITBUCKET_* (an OAuth consumer of Bitbucket Cloud). A provider without one isn't offered.
+   * BITBUCKET_* (an OAuth consumer of Bitbucket Cloud), and FORGEJO_* or GITEA_* with the instance's
+   * own address, FORGEJO_URL or GITEA_URL (D54). A provider without one isn't offered.
    */
   codeHosts: CodeHostApps;
+  /** For tests: version control and code hosts may be reached over plain http on this machine (VCS_ALLOW_HTTP_LOOPBACK). Never in production. */
+  vcsAllowHttpLoopback: boolean;
   /**
    * Whether an MCP client may be known by a client ID metadata document: an https client_id whose
    * metadata a4a reads (MCP_OAUTH_CLIENT_DOCUMENTS, on unless "false"; D38).
@@ -188,6 +193,8 @@ export interface Config {
   slackApiUrl: string;
   /** For tests: chat services may be reached over plain http on this machine (CHAT_ALLOW_HTTP_LOOPBACK). Never in production. */
   chatAllowHttpLoopback: boolean;
+  /** How many issues one person may make from chat messages in ten minutes (CHAT_ISSUE_LIMIT, D60). */
+  chatIssueLimit: number;
   /** Push notifications to people's devices (D47). */
   push: PushConfig;
 }
@@ -589,6 +596,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     aiModel: ai.model,
     aiEnabled: ai.offReason === null,
     aiOffReason: ai.offReason,
+    aiWritingMaxPerHour: intEnv(env.AI_WRITING_MAX_PER_HOUR, 100, 1),
     webDist: webDistCandidates.find((p) => existsSync(path.join(p, 'index.html'))),
     sessionTtlDays: Number(env.SESSION_TTL_DAYS ?? 30),
     isDev: env.NODE_ENV !== 'production',
@@ -632,11 +640,13 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     secretKey: env.SECRET_KEY?.trim() || undefined,
     ldap,
     codeHosts: codeHostsFromEnv(env),
+    vcsAllowHttpLoopback: truthy(env.VCS_ALLOW_HTTP_LOOPBACK, false),
     oauthClientDocuments: truthy(env.MCP_OAUTH_CLIENT_DOCUMENTS, true),
     oauthClientDocumentsAllowHttpLoopback: truthy(env.OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK, false),
     teams: teamsFromEnv(env),
     slackApiUrl: safeProviderUrl(env.SLACK_API_URL?.trim() || 'https://slack.com/api', 'SLACK_API_URL').replace(/\/+$/, ''),
     chatAllowHttpLoopback: truthy(env.CHAT_ALLOW_HTTP_LOOPBACK, false),
+    chatIssueLimit: intEnv(env.CHAT_ISSUE_LIMIT, 10, 1),
     push: pushFromEnv(env, overrides.publicUrl ?? publicUrl, env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`),
     ...overrides,
   };
@@ -645,14 +655,16 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
 export interface CodeHostApp {
   clientId: string;
   clientSecret: string;
-  /** Where people sign in: https://github.com, https://gitlab.com, https://bitbucket.org. */
+  /** Where people sign in: https://github.com, https://gitlab.com, https://bitbucket.org, a Forgejo's own. */
   webUrl: string;
-  /** Its API: https://api.github.com, https://gitlab.com/api/v4, https://api.bitbucket.org. */
+  /** Its API: https://api.github.com, https://gitlab.com/api/v4, https://api.bitbucket.org, a Forgejo's /api/v1. */
   apiUrl: string;
+  /** What people call it, where that isn't the provider's own name: "Forgejo" or "Gitea", by which was set up. */
+  name?: string;
 }
-export type CodeHostApps = Partial<Record<'github' | 'gitlab' | 'bitbucket', CodeHostApp>>;
+export type CodeHostApps = Partial<Record<'github' | 'gitlab' | 'bitbucket' | 'gitea', CodeHostApp>>;
 
-function codeHostsFromEnv(env: NodeJS.ProcessEnv): CodeHostApps {
+export function codeHostsFromEnv(env: NodeJS.ProcessEnv): CodeHostApps {
   const out: CodeHostApps = {};
   const app = (prefix: string) => {
     const clientId = env[`${prefix}_CLIENT_ID`]?.trim();
@@ -672,6 +684,15 @@ function codeHostsFromEnv(env: NodeJS.ProcessEnv): CodeHostApps {
   }
   const bb = app('BITBUCKET');
   if (bb) out.bitbucket = { ...bb, webUrl: 'https://bitbucket.org', apiUrl: 'https://api.bitbucket.org' };
+  // Gitea and Forgejo are one provider in a4a (gitea), each at its own address: there's no default one.
+  // FORGEJO_* is read first, so a server that names both connects to Forgejo.
+  for (const [prefix, name] of [['FORGEJO', 'Forgejo'], ['GITEA', 'Gitea']] as const) {
+    const forge = app(prefix);
+    const url = env[`${prefix}_URL`]?.trim();
+    if (!forge || !url || out.gitea) continue;
+    const webUrl = trim(url);
+    out.gitea = { ...forge, webUrl, apiUrl: `${webUrl}/api/v1`, name };
+  }
   return out;
 }
 

@@ -203,6 +203,11 @@ export const fields = pgTable(
     description: text('description').notNull().default(''),
     ordinal: integer('ordinal').notNull().default(0),
     createdAt: created(),
+    /**
+     * The names it had before it was renamed. History keeps a change under the name the field had
+     * then, so a private field's changes are known by these too (D50).
+     */
+    formerNames: text('former_names').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [uniqueIndex('fields_name_lower').on(sql`lower(${t.name})`)],
 );
@@ -241,6 +246,11 @@ export const projectFields = pgTable(
     defaultValue: jsonb('default_value'),
     /** A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always. */
     condition: text('condition'),
+    /**
+     * Private in this project (D50): its values, and changes to them, reach only people whose role
+     * here may read private fields, and only those who may change them set it.
+     */
+    private: boolean('private').notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.projectId, t.fieldId] })],
 );
@@ -444,6 +454,13 @@ export const activities = pgTable(
     index('activities_sprint')
       .on(sql`(${t.payload}->'data'->>'sprintId')`, t.id)
       .where(sql`${t.type} in ('sprint.issue_added', 'sprint.issue_removed')`),
+    // Articles that were limited when they were deleted (D51): their history stays hidden, so every
+    // feed asks of these few rows.
+    index('activities_article_gone')
+      .on(t.projectId)
+      .where(sql`${t.type} = 'article.deleted' and ${t.payload}->'data'->>'limited' = 'true'`),
+    // Issues' deletions (D37): what was limited on one stays hidden, so every feed and inbox asks of these rows.
+    index('activities_issue_gone').on(t.projectId).where(sql`${t.type} = 'issue.deleted'`),
   ],
 );
 
@@ -761,6 +778,18 @@ export const vcsIntegrations = pgTable('vcs_integrations', {
    * it as it is, as it keeps a signing key. It is never shown again (D33).
    */
   accessToken: text('access_token'),
+  /**
+   * GitHub: the GitHub App a4a reads as instead of a person's token (D54). Its id (or client id)
+   * names it in the JSON web tokens a4a signs with its private key, kept sealed (lib/secret-box.ts)
+   * and never shown again. The installation's tokens last an hour and are kept only in memory.
+   */
+  githubAppId: text('github_app_id'),
+  githubAppKey: text('github_app_key'),
+  /** The installation a4a reads through: chosen by the administrator, or found from the app's installations. */
+  githubInstallationId: text('github_installation_id'),
+  /** What GitHub calls the app (its slug) and the account it's installed on, to show. */
+  githubAppSlug: text('github_app_slug'),
+  githubAccount: text('github_account'),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -927,10 +956,19 @@ export const articles = pgTable(
     searchVector: tsvector('search_vector').generatedAlwaysAs(
       sql`setweight(to_tsvector('english', coalesce(title, '')), 'A') || setweight(to_tsvector('english', coalesce(body, '')), 'B')`,
     ),
+    /**
+     * Limited to some people and groups (D51): then only they see it, and what is under it, besides
+     * its author, the project's managers and administrators. A limit above it narrows it too.
+     */
+    limited: boolean('limited').notNull().default(false),
+    visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
+    visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
   },
   (t) => [
     uniqueIndex('articles_project_number').on(t.projectId, t.number),
     index('articles_tree').on(t.projectId, t.parentId, t.position),
+    // Who doesn't see what starts from the few that are limited (D51).
+    index('articles_limited').on(t.projectId).where(sql`${t.limited}`),
     index('articles_updated').on(t.updatedAt),
     index('articles_search').using('gin', t.searchVector),
     index('articles_title_trgm').using('gin', sql`${t.title} gin_trgm_ops`),
@@ -1159,7 +1197,7 @@ export const issueWatchers = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** WATCH_REASONS: 'explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead'. */
+    /** WATCH_REASONS: 'explicit', 'reporter', 'assignee', 'commenter', 'mentioned', 'lead', 'message' (wrote the chat message it was made from, D60). */
     reason: text('reason').notNull(),
     createdAt: created(),
   },
@@ -1307,8 +1345,15 @@ export const helpdeskRequests = pgTable(
     threadId: text('thread_id'),
     /** Since when it has been in one of the desk's waiting states (D45): a requester's answer after it ends the wait. */
     waitingSince: ts('waiting_since'),
+    /**
+     * The customer group it was filed under (D56): its requester's at the desk then, or the one the
+     * team gave it since. Kept, as its project is: joining or leaving a group moves no request.
+     */
+    groupId: text('group_id').references((): AnyPgColumn => customerGroups.id, { onDelete: 'set null' }),
+    /** Kept from its group's other members (D56), by its requester or the team: to them it's missing. */
+    private: boolean('private').notNull().default(false),
   },
-  (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId)],
+  (t) => [index('helpdesk_requests_requester').on(t.requesterId), index('helpdesk_requests_project').on(t.projectId), index('helpdesk_requests_group').on(t.groupId)],
 );
 
 /**
@@ -1608,6 +1653,11 @@ export const helpdeskReplyTokens = pgTable(
     issueId: text('issue_id')
       .notNull()
       .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    /**
+     * Whom the email was to, when it wasn't the requester: someone copied on the request (D57). A
+     * reply address answers for that address alone, and only while it is copied. Null: the requester.
+     */
+    email: text('email'),
     createdAt: created(),
   },
   (t) => [index('helpdesk_reply_tokens_issue').on(t.issueId)],
@@ -2266,12 +2316,13 @@ export const chatOutbox = pgTable(
 // ---------------------------------------------------------------------------
 
 /**
- * Where a project's builds come from: a GitHub integration's workflow runs (`github`), or any CI
- * that posts them with a token of its own (`generic`), kept as a hash and shown once.
+ * Where a project's builds come from: a GitHub integration's workflow runs (`github`), a Gitea or
+ * Forgejo integration's Actions runs (`gitea`, D55), or any CI that posts them with a token of its
+ * own (`generic`), kept as a hash and shown once.
  */
 export const buildSources = pgTable('build_sources', {
   id: text('id').primaryKey(),
-  /** 'github' or 'generic'. */
+  /** 'github', 'gitea' or 'generic'. */
   kind: text('kind').notNull(),
   name: text('name').notNull(),
   projectId: text('project_id')
@@ -2279,11 +2330,11 @@ export const buildSources = pgTable('build_sources', {
     .references(() => projects.id, { onDelete: 'cascade' }),
   /** The build field its builds go in; null: the project's "Fixed in build", or its one build field. */
   fieldId: text('field_id').references(() => fields.id, { onDelete: 'set null' }),
-  /** github: the integration whose workflow_run deliveries it takes. */
+  /** github, gitea: the integration whose run deliveries it takes. */
   vcsIntegrationId: text('vcs_integration_id').references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
-  /** github: the branch whose runs are builds; null: any. */
+  /** github, gitea: the branch whose runs are builds; null: any. */
   branch: text('branch'),
-  /** github: the workflow, by its name or its file (.github/workflows/ci.yml); null: any. */
+  /** github, gitea: the workflow, by its name or its file (.github/workflows/ci.yml; Forgejo's, ci.yml); null: any. */
   workflow: text('workflow'),
   /** generic: the token's SHA-256. */
   tokenHash: text('token_hash'),
@@ -2668,4 +2719,310 @@ export const appRuns = pgTable(
     createdAt: created(),
   },
   (t) => [index('app_runs_app').on(t.appId, t.id), index('app_runs_created').on(t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Renaming a project's key (wave 4: docs/architecture.md, D52)
+// ---------------------------------------------------------------------------
+
+/**
+ * The keys a project had before it was renamed. Each stays the project's for good: OLD-12 finds
+ * NEW-12, `project: OLD` finds the project, and no other project can take OLD. Kept in upper case,
+ * as projects keep theirs. Renaming a project back to one of them takes it off this list.
+ */
+export const projectKeyAliases = pgTable(
+  'project_key_aliases',
+  {
+    key: text('key').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    renamedById: text('renamed_by_id').references(() => users.id, { onDelete: 'set null' }),
+    /** When the project stopped going by it. */
+    renamedAt: created(),
+  },
+  (t) => [index('project_key_aliases_project').on(t.projectId)],
+);
+
+// ---------------------------------------------------------------------------
+// Customer groups in the help desk (wave 4: docs/architecture.md, D56)
+// ---------------------------------------------------------------------------
+
+/**
+ * A desk's customer groups: the companies, teams or organizations its requesters belong to. A
+ * group is its desk's own, as its SLA policies are; its name is unique there, in any case.
+ */
+export const customerGroups = pgTable(
+  'customer_groups',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** What its members do with each other's requests on the portal: 'none', 'read' or 'comment'. */
+    sharing: text('sharing').notNull().default('none'),
+    /** Its own working hours and holidays (BusinessHours), which its requests' SLAs count in; null keeps the desk's. */
+    businessHours: jsonb('business_hours'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('customer_groups_project_name').on(t.projectId, sql`lower(${t.name})`)],
+);
+
+/** The email domains that put a requester in a group by themselves. A domain names one group at a desk. */
+export const customerGroupDomains = pgTable(
+  'customer_group_domains',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    /** In lower case, such as acme.com: an address's part after the @, matched whole. */
+    domain: text('domain').notNull(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.domain] }), index('customer_group_domains_group').on(t.groupId)],
+);
+
+/** Requesters added to a group by hand: one group at a desk each, whatever their address's domain says. */
+export const customerGroupMembers = pgTable(
+  'customer_group_members',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    addedAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.projectId, t.requesterId] }), index('customer_group_members_group').on(t.groupId)],
+);
+
+/** A group's dedicated agents, in order: its members' new requests go to one of them. */
+export const customerGroupAgents = pgTable(
+  'customer_group_agents',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => customerGroups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('customer_group_agents_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// CCs on help desk requests (wave 4: docs/architecture.md, D57)
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is copied on a help desk request: people outside the team told of what its requester is told
+ * of, who may answer by email. One row per address and request, kept when they're removed, so an
+ * address taken off a request isn't put back by the next email that names it in its Cc.
+ */
+export const requestCcs = pgTable(
+  'request_ccs',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    /** As whoever copied them named them (an email's Cc, the team, the requester); empty for none. */
+    name: text('name').notNull().default(''),
+    /** 'team', 'email' (the Cc of the requester's email) or 'portal' (the requester, signed in). */
+    via: text('via').notNull(),
+    /** Whoever on the team copied them; null when the requester did. */
+    addedById: text('added_by_id').references(() => users.id, { onDelete: 'set null' }),
+    addedAt: ts('added_at').notNull().defaultNow(),
+    /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
+    removedAt: ts('removed_at'),
+    /** 'team', or 'unsubscribe': they stopped it themselves, from an email. */
+    removedVia: text('removed_via'),
+    removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (t) => [uniqueIndex('request_ccs_address').on(t.issueId, sql`lower(${t.email})`), index('request_ccs_email').on(sql`lower(${t.email})`)],
+);
+
+// ---------------------------------------------------------------------------
+// Issues from chat messages (wave 4: docs/architecture.md, D60)
+// ---------------------------------------------------------------------------
+
+/** A file in a message an issue was made from: linked where the chat keeps it, never copied (D60). */
+export interface ChatSourceFile {
+  name: string;
+  /** Where the chat shows it (Slack's permalink, SharePoint's address), https on the chat's own hosts; null for none. */
+  url: string | null;
+}
+
+/**
+ * Where an issue made from a Teams or Slack message came from: written when the person opens the form
+ * (a draft, with no issue), and given its issue in the transaction that makes it, once. Kept as data,
+ * so each reader's page says it in their language (D49).
+ */
+export const chatIssueSources = pgTable(
+  'chat_issue_sources',
+  {
+    id: text('id').primaryKey(),
+    /** Null while it's a form someone has open; set once, as the issue is made. */
+    issueId: text('issue_id')
+      .unique()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    platform: text('platform').notNull(),
+    workspaceId: text('workspace_id').references(() => chatWorkspaces.id, { onDelete: 'set null' }),
+    /** The Slack workspace's or the Teams team's name, then. */
+    workspaceName: text('workspace_name').notNull(),
+    channelId: text('channel_id').references(() => chatChannels.id, { onDelete: 'set null' }),
+    /** The channel as it was named then: "#eng", "General". */
+    channelName: text('channel_name').notNull(),
+    /** Slack: the message's ts. Teams: the message's id. */
+    messageRef: text('message_ref').notNull(),
+    /** The thread it's in: Slack's thread_ts, Teams' parent message; its own ref when it starts one. */
+    threadRef: text('thread_ref').notNull(),
+    /** A link to the message in the chat (Slack's permalink, Teams' message link): https on the chat's hosts, else null. */
+    url: text('url'),
+    /** Who sent the message, as the chat names them; their id there; and the a4a account it's linked to, if any. */
+    authorName: text('author_name').notNull(),
+    authorExternalId: text('author_external_id'),
+    authorUserId: text('author_user_id').references(() => users.id, { onDelete: 'set null' }),
+    sentAt: ts('sent_at'),
+    /** The first ten files in the message, linked; and how many more there were. */
+    files: jsonb('files').$type<ChatSourceFile[]>().notNull().default([]),
+    moreFiles: integer('more_files').notNull().default(0),
+    /** Replies from the thread brought into the description. */
+    replies: integer('replies').notNull().default(0),
+    /** Whether the message, or its replies, were cut to fit. */
+    cut: boolean('cut').notNull().default(false),
+    /** Who opened the form, as a4a and as the chat knows them: only they may send it. The issue keeps its source if they go. */
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdByExternalId: text('created_by_external_id').notNull(),
+    createdAt: created(),
+    /** A form not sent by then is gone. */
+    expiresAt: ts('expires_at').notNull(),
+    /** When its issue was made: how fast someone makes issues from chat is counted by it. */
+    madeAt: ts('made_at'),
+  },
+  (t) => [index('chat_issue_sources_made').on(t.createdById, t.madeAt), index('chat_issue_sources_expires').on(t.expiresAt)],
+);
+
+/** Requests from Teams and Slack a4a has taken, by a key of each (Slack's signature, Teams' activity id), so none is taken twice. */
+export const chatRequestsSeen = pgTable(
+  'chat_requests_seen',
+  {
+    key: text('key').primaryKey(),
+    expiresAt: ts('expires_at').notNull(),
+  },
+  (t) => [index('chat_requests_seen_expires').on(t.expiresAt)],
+);
+
+// ---------------------------------------------------------------------------
+// Whiteboards (wave 4: docs/architecture.md, D58)
+// ---------------------------------------------------------------------------
+
+/** A project's canvas: read by whoever reads the project, changed by whoever may change its issues. */
+export const whiteboards = pgTable(
+  'whiteboards',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Its latest change. Each change takes the next under the whiteboard's row lock, so they never cross. */
+    seq: bigint('seq', { mode: 'number' }).notNull().default(0),
+    createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('whiteboards_project').on(t.projectId)],
+);
+
+/**
+ * What's on a whiteboard. Its id is chosen by whoever adds it, unique within the whiteboard, so an
+ * arrow can name what the same batch adds and an undone removal comes back as it was. A card points
+ * at its issue or article, which go on without it; deleting either leaves the card holding nothing.
+ */
+export const whiteboardElements = pgTable(
+  'whiteboard_elements',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    /** note, text, issue, article, arrow or section. */
+    kind: text('kind').notNull(),
+    x: doublePrecision('x').notNull(),
+    y: doublePrecision('y').notNull(),
+    w: doublePrecision('w').notNull(),
+    h: doublePrecision('h').notNull(),
+    z: doublePrecision('z').notNull().default(0),
+    text: text('text'),
+    tone: text('tone'),
+    label: text('label'),
+    fromId: text('from_id'),
+    toId: text('to_id'),
+    issueId: text('issue_id').references(() => issues.id, { onDelete: 'set null' }),
+    articleId: text('article_id').references(() => articles.id, { onDelete: 'set null' }),
+    /** An arrow made into a link between its issues: the link as it reads from the arrow's start. */
+    linked: text('linked'),
+    /** The whiteboard's change that last changed it. */
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    version: integer('version').notNull().default(1),
+    updatedById: text('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.whiteboardId, t.id] }),
+    index('whiteboard_elements_issue').on(t.issueId),
+    index('whiteboard_elements_article').on(t.articleId),
+  ],
+);
+
+/**
+ * A whiteboard's latest changes, what its live streams send and resume from: the elements each left,
+ * and what it removed. The last 500 are kept; a stream further behind reads the whiteboard again.
+ */
+export const whiteboardChanges = pgTable(
+  'whiteboard_changes',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    /** Which of a person's tabs sent it, as it said. */
+    client: text('client'),
+    /** The rows of the elements it added or changed, as it left them. */
+    elements: jsonb('elements').notNull(),
+    removed: text('removed').array().notNull().default(sql`'{}'::text[]`),
+    at: ts('at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.whiteboardId, t.seq] })],
+);
+
+/** Who is looking at a whiteboard: a row per open stream, kept fresh while it's open, and gone soon after. */
+export const whiteboardViewers = pgTable(
+  'whiteboard_viewers',
+  {
+    whiteboardId: text('whiteboard_id')
+      .notNull()
+      .references(() => whiteboards.id, { onDelete: 'cascade' }),
+    /** One per stream or client, so one of a person's two tabs closing leaves the other. */
+    session: text('session').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    since: ts('since').notNull().defaultNow(),
+    seenAt: ts('seen_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.whiteboardId, t.session] }), index('whiteboard_viewers_seen').on(t.seenAt)],
 );

@@ -167,7 +167,7 @@ export function CycleTimeReport({ c, compact }: { c: CycleTime; compact?: boolea
       {!compact && slowest.length ? (
         <div className="figures-scroll" tabIndex={0} role="group" aria-label={t('reports.distribution.theSlowest')}>
           <table className="figures chart-figures">
-            <caption>{tr('reports.distribution.theSlowestFromFirstTo', { join: c.startStates.join(' or ') })}</caption>
+            <caption>{tr('reports.distribution.theSlowestFromFirstTo', { join: formatList(c.startStates, 'disjunction') })}</caption>
             <thead>
               <tr>
                 <th scope="col">{t('reports.distribution.issue')}</th>

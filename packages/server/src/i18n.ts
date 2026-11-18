@@ -3,16 +3,22 @@
  * a push, the inbox or a chat says to them. The API's and MCP's own words stay English, as agents
  * and scripts read them; a problem shown on a page carries its key and values beside its English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, matchLocale, sayProblem, type Locale, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinList, matchLocale, sayProblem, type Locale, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json';
 import en from '@a4a/shared/i18n/en.json';
 import es from '@a4a/shared/i18n/es.json';
 import fr from '@a4a/shared/i18n/fr.json';
+import id from '@a4a/shared/i18n/id.json';
 import ja from '@a4a/shared/i18n/ja.json';
+import ko from '@a4a/shared/i18n/ko.json';
+import pt from '@a4a/shared/i18n/pt.json';
+import th from '@a4a/shared/i18n/th.json';
+import vi from '@a4a/shared/i18n/vi.json';
+import zh from '@a4a/shared/i18n/zh.json';
 import type { Ctx } from './context';
 
 /** Every catalog, by language. A new language is a catalog, a line in LOCALES, and a line here. */
-const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, ja };
+const catalogs: Record<Locale, Record<string, string>> = { en, de, es, fr, id, ja, ko, pt, th, vi, zh };
 
 const translators = new Map<Locale, Translator>();
 
@@ -53,7 +59,7 @@ export function problemFor(tr: Translator, e: { message: string; hint?: string; 
 
 /** Items as a list in a language, "read, write or admin": a problem's values say a list in its reader's language (D49). */
 export function listIn(locale: Locale | undefined, items: readonly string[], type: 'and' | 'or' = 'and'): string {
-  return new Intl.ListFormat(intlTag(locale ?? DEFAULT_LOCALE), { style: 'long', type: type === 'or' ? 'disjunction' : 'conjunction' }).format(items);
+  return joinList(locale ?? DEFAULT_LOCALE, items, { type: type === 'or' ? 'disjunction' : 'conjunction' });
 }
 
 export { intlTag };

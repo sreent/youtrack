@@ -10,6 +10,8 @@ export interface ActivityPayload {
   issue?: IssueRef;
   changes?: Change[];
   data?: Record<string, unknown>;
+  /** An issue's deletion: what was limited, so it stays hidden once gone (D37). Never in an event a reader gets. */
+  gone?: { ids?: string[]; comments?: string[] };
 }
 
 export interface ActivityInput {

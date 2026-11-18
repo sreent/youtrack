@@ -1,8 +1,8 @@
 import type { Comment, CommentVisibility, ReactionSummary, VisibleToInput } from '@a4a/shared';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskRequests, requesters } from '../db/schema';
+import { comments, helpdeskRequests } from '../db/schema';
 import { publishActivities, recordActivity } from '../events/activity';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { excerpt } from '../lib/text';
@@ -13,27 +13,21 @@ import { userRefDto } from './values';
 import { reactionsOf } from './votes';
 import { addWatchers, mentionsAdded, whoSees } from './watchers';
 import { resolveVisibleTo, sameLimits, visibleToDtos } from './visibility';
+import { outsideAuthors, outsideKey, type OutsideAuthor } from './request-authors';
 
 type CommentRow = typeof comments.$inferSelect;
-
-async function requesterNames(db: Db, rows: CommentRow[]): Promise<Map<string, string>> {
-  const ids = [...new Set(rows.map((r) => r.requesterId).filter((id): id is string => Boolean(id)))];
-  if (!ids.length) return new Map();
-  const found = await db.select({ id: requesters.id, name: requesters.name }).from(requesters).where(inArray(requesters.id, ids));
-  return new Map(found.map((r) => [r.id, r.name]));
-}
 
 export async function commentDto(
   ctx: Ctx,
   row: CommentRow,
   issueReadable?: string,
-  names?: Map<string, string>,
+  names?: Map<string, OutsideAuthor>,
   reactions?: Map<string, ReactionSummary[]>,
 ): Promise<Comment> {
   const s = await ctx.app.schema.get();
   const reacted = reactions ?? (await reactionsOf(ctx.db, s, row.issueId, ctx.actor.user.id, { anonymous: Boolean(ctx.actor.guest) }));
   const author = row.authorId ? s.users.get(row.authorId) : undefined;
-  const requesterName = row.requesterId ? ((names ?? (await requesterNames(ctx.db, [row]))).get(row.requesterId) ?? 'The requester') : null;
+  const outside = row.requesterId ? ((names ?? (await outsideAuthors(ctx.db, [row]))).get(outsideKey(row.issueId, row.requesterId)) ?? { name: 'The requester', as: 'requester' as const }) : null;
   const [visibleTo] = await visibleToDtos(ctx.db, s, [row]);
   return {
     id: row.id,
@@ -45,8 +39,8 @@ export async function commentDto(
     updatedAt: row.updatedAt.toISOString(),
     version: row.version,
     visibility: row.visibility as CommentVisibility,
-    // A help desk's requester is someone outside: a guest (D37) isn't told who.
-    requester: requesterName !== null ? { name: ctx.actor.guest ? 'The requester' : requesterName } : null,
+    // Someone outside the team: its requester, someone copied on it (D57) or of its customer group (D56). A guest (D37) isn't told who.
+    requester: outside !== null ? (ctx.actor.guest ? { name: 'The requester', as: 'requester' } : { name: outside.name, as: outside.as }) : null,
     reactions: reacted.get(`comment:${row.id}`) ?? [],
     visibleTo: visibleTo ?? null,
   };
@@ -65,7 +59,7 @@ export async function listComments(ctx: Ctx, issueId: string): Promise<Comment[]
   // A comment limited away from the caller (D37) isn't there for them.
   const view = await projectAccess(ctx);
   const seen = rows.filter((r) => seesCommentRow(view, issue.projectId, r));
-  const names = await requesterNames(ctx.db, seen);
+  const names = await outsideAuthors(ctx.db, seen);
   const reacted = await reactionsOf(ctx.db, s, issue.id, ctx.actor.user.id, { anonymous: Boolean(ctx.actor.guest) });
   return Promise.all(seen.map((r) => commentDto(ctx, r, rid, names, reacted)));
 }

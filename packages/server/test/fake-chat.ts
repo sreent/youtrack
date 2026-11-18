@@ -129,6 +129,12 @@ export class FakeSlack {
   calls: SlackCall[] = [];
   /** A method's next answers. */
   failures = new Map<string, { status?: number; body?: Record<string, unknown>; retryAfter?: string }[]>();
+  /** Channels the bot is in, as conversations.info says (D60); all of them unless set. */
+  members: Set<string> | null = null;
+  /** People's display names, as users.info says them. */
+  people: Record<string, string> = {};
+  /** Threads, by channel and their first message's ts: the messages conversations.replies gives. */
+  threads = new Map<string, { ts: string; user?: string; text?: string; subtype?: string; thread_ts?: string }[]>();
   private server: Server | null = null;
 
   async start(): Promise<this> {
@@ -171,7 +177,22 @@ export class FakeSlack {
       case 'conversations.list':
         return json(res, 200, { ok: true, channels: [{ id: 'C0ENG', name: 'eng', is_member: true }, { id: 'C0RANDOM', name: 'random', is_member: false }] });
       case 'conversations.info':
-        return json(res, 200, { ok: true, channel: { id: body.channel, name: 'support' } });
+        return json(res, 200, { ok: true, channel: { id: body.channel, name: body.channel === 'C0ENG' ? 'eng' : 'support', is_member: this.members ? this.members.has(String(body.channel)) : true } });
+      case 'chat.getPermalink':
+        return json(res, 200, { ok: true, permalink: `https://acme.slack.com/archives/${String(body.channel)}/p${String(body.message_ts).replace('.', '')}` });
+      case 'users.info': {
+        const name = this.people[String(body.user)];
+        return json(res, 200, name ? { ok: true, user: { id: body.user, name: name.toLowerCase(), profile: { display_name: name } } } : { ok: false, error: 'user_not_found' });
+      }
+      case 'conversations.replies': {
+        if (this.members && !this.members.has(String(body.channel))) return json(res, 200, { ok: false, error: 'not_in_channel' });
+        const thread = this.threads.get(`${String(body.channel)}:${String(body.ts)}`);
+        if (!thread) return json(res, 200, { ok: false, error: 'thread_not_found' });
+        // The thread's first message, then those from oldest on, as many as asked.
+        const oldest = String(body.oldest ?? '');
+        const rest = thread.slice(1).filter((m) => !oldest || m.ts >= oldest);
+        return json(res, 200, { ok: true, messages: [thread[0], ...rest].slice(0, Number(body.limit ?? 1000)), has_more: false });
+      }
       case 'chat.postMessage':
         return json(res, 200, { ok: true, ts: `${Date.now() / 1000}`, channel: body.channel });
       default:

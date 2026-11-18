@@ -103,6 +103,8 @@ export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow, op
   for (const pf of s.projectFields.get(issue.projectId) ?? []) {
     const field = s.fields.get(pf.fieldId);
     if (!field) continue;
+    // An app is granted issues, not what a project keeps to some people (D48, D50).
+    if (opts.unlimited && pf.private) continue;
     const values = valueRows
       .filter((r) => r.fieldId === field.id)
       .map((r) => valueOf(s, field, rowToResolved(r)))
@@ -170,10 +172,20 @@ export async function scriptIssue(db: Db, s: SchemaSnapshot, issue: IssueRow, op
   };
 }
 
-/** `unlimited`: leave out comments limited to some people (D37), for an app's script (D48). */
+/**
+ * `unlimited`: leave out comments limited to some people (D37), and the project's private fields and
+ * their changes (D50), for an app's script (D48).
+ */
 export async function scriptInput(db: Db, s: SchemaSnapshot, issue: IssueRow, change: ScriptChange, opts: { unlimited?: boolean } = {}): Promise<ScriptInput> {
   const project = s.projects.get(issue.projectId);
-  return { issue: await scriptIssue(db, s, issue, opts), change, project: { key: project?.key ?? '?', name: project?.name ?? '?' } };
+  const kept = opts.unlimited
+    ? new Set((s.projectFields.get(issue.projectId) ?? []).filter((pf) => pf.private).flatMap((pf) => {
+        const f = s.fields.get(pf.fieldId);
+        return f ? [f.name, ...(f.formerNames ?? [])].map((n) => n.toLowerCase()) : [];
+      }))
+    : null;
+  const told = kept?.size ? { ...change, changes: change.changes.filter((c) => !kept.has(c.field.toLowerCase())) } : change;
+  return { issue: await scriptIssue(db, s, issue, opts), change: told, project: { key: project?.key ?? '?', name: project?.name ?? '?' } };
 }
 
 /**

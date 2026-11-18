@@ -21,21 +21,29 @@ const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 const underTest = () => Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
 
 /** An address an administrator gave, as a4a will use it: https, without a path's trailing slash. */
-export function checkBaseUrl(raw: string, at: { name: string; example: string } = { name: 'Bitbucket', example: 'https://bitbucket.acme.example' }): string {
+export function checkBaseUrl(raw: string, at: { name: string; example: string } = { name: 'Bitbucket', example: 'https://bitbucket.acme.example' }, allowLoopback = false): string {
   let url: URL;
   try {
     url = new URL(raw.trim());
   } catch {
     throw badRequest('That isn’t an address', `Give ${at.name}’s address, e.g. ${at.example}`).said('vcs.notAnAddress', { host: at.name, example: at.example });
   }
-  const loopbackHttp = url.protocol === 'http:' && LOOPBACK.has(url.hostname) && underTest();
+  const loopbackHttp = url.protocol === 'http:' && LOOPBACK.has(url.hostname) && (underTest() || allowLoopback);
   if (url.protocol !== 'https:' && !loopbackHttp) throw badRequest(`${at.name}’s address must be https`, `e.g. https://${url.host || new URL(at.example).host}`).said('vcs.httpsOnly', { host: at.name, example: url.host || new URL(at.example).host });
   if (url.username || url.password) throw badRequest('Give the address without a name or password in it', 'The access token is how a4a signs in.').said('vcs.noCredentialsInAddress');
   if (url.search || url.hash) throw badRequest('Give the address alone, without ? or #', `e.g. ${url.origin}${url.pathname.replace(/\/+$/, '')}`).said('vcs.addressAlone', { origin: url.origin, path: url.pathname.replace(/\/+$/, '') });
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
-export class ReadError extends Error {}
+/** Why a provider couldn't be read, in words for a delivery's log; with the status it answered, when it did. */
+export class ReadError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 /** JSON from a provider's API, with a token, no redirects followed (D33; D46 reads GitHub's compare with it). */
 export async function getJson(url: string, token: string): Promise<unknown> {
@@ -50,9 +58,9 @@ export async function getJson(url: string, token: string): Promise<unknown> {
     const why = e instanceof Error && e.name === 'TimeoutError' ? `no answer in ${TIMEOUT_MS / 1000}s` : 'it couldn’t be reached';
     throw new ReadError(why);
   }
-  if (res.status === 401 || res.status === 403) throw new ReadError(`the access token was refused (${res.status}): is it still valid, and may it read the repository?`);
-  if (res.status === 404) throw new ReadError('the repository or a commit wasn’t found (404): may the token read it?');
-  if (!res.ok) throw new ReadError(`it answered ${res.status}`);
+  if (res.status === 401 || res.status === 403) throw new ReadError(`the access token was refused (${res.status}): is it still valid, and may it read the repository?`, res.status);
+  if (res.status === 404) throw new ReadError('the repository or a commit wasn’t found (404): may the token read it?', 404);
+  if (!res.ok) throw new ReadError(`it answered ${res.status}`, res.status);
   try {
     return await res.json();
   } catch {

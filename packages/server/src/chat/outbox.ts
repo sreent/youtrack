@@ -16,10 +16,11 @@ import { activities, chatChannels, chatOutbox, chatSubscriptions, chatWorkspaces
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
-import { assigneeFieldIdOf, eventLimited } from '../services/access';
+import { assigneeFieldIdOf, eventFor, eventLimited } from '../services/access';
 import { personCtx } from '../services/subscriptions';
 import { meets } from '../workflow/match';
 import { ChatCallError, stopError, stopReason } from './common';
+import { pruneChatIssues } from './issues';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
 import { slackPost } from './slack';
 import { teamsChannelPost, teamsSend } from './teams';
@@ -90,7 +91,10 @@ export async function queueChatPosts(app: AppServices, event: TrackerEvent): Pro
     .where(and(isNull(chatSubscriptions.endedAt), isNull(chatChannels.goneAt), isNull(chatWorkspaces.removedAt)));
   if (!subs.length) return 0;
   const s = await app.schema.get();
-  const kinds = kindsOf(app, s, event);
+  // What every reader may see of it: a change only to private fields is nothing to a channel (D50).
+  const shown = eventFor(null, s, event);
+  if (!shown) return 0;
+  const kinds = kindsOf(app, s, shown);
   if (!kinds.length) return 0;
   const [row] = await app.db.select({ issueId: activities.issueId, projectId: activities.projectId }).from(activities).where(eq(activities.id, event.id));
   if (!row?.issueId || !row.projectId) return 0;
@@ -113,7 +117,7 @@ export async function queueChatPosts(app: AppServices, event: TrackerEvent): Pro
     }
     const inserted = await app.db
       .insert(chatOutbox)
-      .values({ id: newId(), dedupeKey: `chat:${sub.channelId}:${event.id}`, channelId: sub.channelId, subscriptionId: sub.id, eventId: event.id, payload: { event, issueId: row.issueId } })
+      .values({ id: newId(), dedupeKey: `chat:${sub.channelId}:${event.id}`, channelId: sub.channelId, subscriptionId: sub.id, eventId: event.id, payload: { event: shown, issueId: row.issueId } })
       .onConflictDoNothing()
       .returning({ id: chatOutbox.id });
     queued += inserted.length;
@@ -129,7 +133,8 @@ async function inSearch(app: AppServices, sub: typeof chatSubscriptions.$inferSe
   if (!user || user.banned) return false;
   const [search] = await app.db.select().from(savedSearches).where(eq(savedSearches.id, sub.savedSearchId!));
   if (!search || !(search.shared || search.ownerId === user.id)) return false;
-  const prepared = await prepareQuery(personCtx(app, user), search.query);
+  // As every reader of the channel would read it: a search by a private field finds nothing for it (D50).
+  const prepared = await prepareQuery(personCtx(app, user), search.query, { everyone: true });
   if (prepared.compiled.problems.length) return false;
   return (await meets(app.db, issueId, [prepared.compiled.where ?? sql`TRUE`]))[0] === true;
 }
@@ -173,12 +178,15 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
   // Checked again: limited, or a comment deleted, since it was written.
   if (await offLimits(app, job.event, job.issueId)) return skip('Not for a channel any more');
   const s = await app.schema.get();
+  // Read again as every reader may see it: a field made private since isn't posted (D50).
+  const event = eventFor(null, s, job.event);
+  if (!event) return skip('Not for a channel any more');
   const subscriber = s.users.get(sub.createdById);
   if (!subscriber || subscriber.banned) return skip('Its subscriber can’t vouch for it any more');
   let issue;
   try {
-    // The issue as its subscriber reads it: the channel hears what they vouch for, no more.
-    issue = await issueForCard(personCtx(app, subscriber), job.issueId);
+    // The issue as its subscriber reads it, and only what everyone may: the channel hears what they vouch for, no more.
+    issue = await issueForCard(personCtx(app, subscriber), job.issueId, { everyone: true });
   } catch {
     return skip('The issue is gone');
   }
@@ -186,9 +194,9 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
     let ref: string | null;
     if (where.workspace.platform === 'teams') {
       if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The team has no service URL', 'chat.stop.noServiceUrl'));
-      ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, job.event));
+      ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, event));
     } else {
-      ref = await slackPost(app, where.workspace, where.channel.externalId, issue, job.event);
+      ref = await slackPost(app, where.workspace, where.channel.externalId, issue, event);
     }
     await settle(app.db, row.id, { status: 'sent', sentAt: new Date(), messageRef: ref, lastError: null });
     return 'sent';
@@ -207,6 +215,8 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
 /** What's kept: posts sent or settled for 30 days. A chore of the lease holder's. */
 export async function pruneChat(app: AppServices, now = new Date()): Promise<void> {
   await app.db.delete(chatOutbox).where(and(notInArray(chatOutbox.status, ['pending']), lt(chatOutbox.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
+  // Forms never sent, and requests past their window (D60).
+  await pruneChatIssues(app.db, now);
 }
 
 /** Posts what's due, every few seconds and when woken; one per instance, kept apart by claims. */

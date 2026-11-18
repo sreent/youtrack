@@ -6,13 +6,14 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
 
 ## What it does
 
-- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German, Spanish, French and Japanese, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
+- **In your language**: every page, email, push notification and problem in the language on your profile, else your browser's, else the server's; English, German, Spanish, French, Japanese, Korean, Portuguese, Vietnamese, Indonesian, Thai and Simplified Chinese, with dates and numbers as your language writes them. What people named (projects, fields, states) stays as they wrote it, and so do the query and command languages. See [docs/translating.md](docs/translating.md).
 - **On a phone**: a4a installs from the browser (Android, iOS, desktop), opens offline and says so, and pushes what your inbox gets to the devices you turn it on for, encrypted to each, one notification per issue, with the unread count on its icon. Share a page into it to start an issue. Every page is made for a thumb: 44px to tap, clear of the notch, the keyboard never covering what you type.
 - **Issues with typed custom fields** per project: State, Priority, Type, Assignee, Subsystem, Fix versions, Estimation, Start date, Due date, Fixed cost.
   - Values carry Ocean's tones, so resolved reads as a tick and blocked as a clock. Priority is a meter, not a colour.
   - Fields can also hold groups, builds (a list CI can add to twice without harm), owned values (each Subsystem has an owner, who takes an issue about it that nobody has) and moments with a time, typed in your own time zone.
   - A field can show, and be required, only while its issue matches a search: *Fixed in build*, while `State: Fixed`. Marking it Fixed asks for the build.
 - **Moving and cloning.** An issue moves to another project and takes its next number; its old id still finds it everywhere (addresses, the API, MCP, Markdown, commit messages). What doesn't carry over by name is asked for before anything moves. A clone copies its words, values and tags, linked back.
+- **Renaming a project's key.** Its managers rename `BACK` to `CORE`, typing the new key again to confirm; its issues keep their numbers. `BACK` stays the project's for good: `BACK-12` still opens `CORE-12` everywhere it was written (links, emails, commits and branches, chat, the API and MCP), `project: BACK` still finds it in saved searches, rules, boards and dashboards, and no other project can take it. Renaming back is allowed.
 - **Votes and reactions.** Vote for what you want (`sort by: votes desc`, `voter: me`), and react to a description or a comment with one of eight emoji.
 - **The query language**, as in YouTrack: `project: BACK #Unresolved for: me Priority: Critical, Major sort by: updated desc`.
   - Autocomplete as you type.
@@ -35,9 +36,11 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **State machines**: a project's state field moves only by its named transitions, each with an optional condition and command. A change that skips one is refused, however it's made, and the issue page offers the moves as buttons.
   - **Custom actions**: named commands or scripts per project, shown as buttons on the issues they're offered for, and run by name as commands too.
 - **Version control**: GitHub, GitLab, Bitbucket (Cloud and Data Center), Gitea and Forgejo send pushes and pull requests.
-- **Builds from CI** (D46): GitHub Actions' workflow runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
-- **People connect their own accounts** at GitHub, GitLab and Bitbucket from their profile, by signing in there, so their commits are theirs without an administrator.
+- **Builds from CI** (D46, D55): GitHub Actions' workflow runs, Forgejo's and Gitea's Actions runs, or any CI posting with a token, put each passing build in the project's build field, and mark the resolved issues its commits name as fixed in it. A project's builds page says what each build did; searches take ranges of builds.
+- **People connect their own accounts** at GitHub, GitLab, Bitbucket, and a Forgejo or Gitea, from their profile, by signing in there, so their commits are theirs without an administrator.
+- **GitHub as an App** (D54): a GitHub integration reads as a GitHub App rather than with a person's token, with the app's id, its private key and its installation, which a4a finds. Its tokens last an hour and are kept only in memory, and the app's own webhook can be the integration's.
 - **More importers**: GitHub Issues, Redmine, and Zendesk into a help desk (requesters, public replies and internal notes), beside YouTrack and Jira.
+  - **Asana and ClickUp** (D61): a project's or a List's tasks with their subtasks, comments, files and custom fields; a section or a status as the state, and completed tasks resolved; dependencies as links; followers and watchers as watchers; ClickUp's time tracked as work, and its checklists as checklists in the description.
 - **VS Code**: an extension with your issues, an issue beside the code, a new issue from selected code, an issue named in the commit message, and a4a's MCP tools for VS Code's agent.
   - A commit or pull request that mentions `BACK-12` is linked to it, and shows on the issue with its state (open, merged, closed).
   - `BACK-12 #Fixed` in a commit message applies the command as its author, when a4a knows them and they can change the project's issues; otherwise the commit is linked and the issue says why.
@@ -54,10 +57,17 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - A channel is told only what everyone who reads the project may see: never an issue or a comment limited to some people, a help desk's internal note or a requester's address. Whoever subscribes a channel vouches for its people; a project open to its members alone takes someone who manages it.
   - People ask the bot as themselves, with their own access: `BACK-12`, `BACK-12 State Fixed`, `comment BACK-12 …`, `new BACK …`, `search …`, `subscribe BACK`. A card's buttons (Assign to me, Move to…, Comment) do the same, and answer the person alone.
   - Teams knows people who sign in with Microsoft Entra ID; anyone else links their chat account once, with a link only they see. Slack unfurls links to issues a channel may be told of.
+  - A message becomes an issue (D60): Slack's message shortcut and Teams' message action ("Create an a4a issue") open a form with the projects you may create in, a summary from the message's first line, and the message as Markdown, nothing in it that runs; in Slack, the replies after it too, up to 20. It's made as you, "via Slack" or "via Teams"; you're told where only you see it, and its thread gets a link where the channel may be told of the project. The issue keeps where it came from (the channel, a link to the message, who sent it and when, its files as links), shown on its page in each reader's language, over the API and to agents. The message's author, linked, watches it. At most `CHAT_ISSUE_LIMIT` issues from chat per person in ten minutes.
 - **Agile boards** with sprints, WIP limits and swimlanes; a long board with lanes keeps its column heads in view.
   - A backlog to plan sprints from (a board's saved query, `#Unresolved` by default), ranked by dragging or from the keyboard (Alt and an arrow); issues go into a sprint by dragging, or with the command `sprint Sprint 4`.
+  - Cards ranked on the board itself, in the backlog's one order (D53): dragged within a column, or into another at a place, which changes its state and its place in one change (a state machine or guard that refuses it refuses both); from the keyboard, Alt and an arrow moves a card a place or a column, said where a screen reader hears it; on a phone, a card held still is picked up, and a finger that moves first swipes through the columns. Others see the new order live.
   - Story points in a number field the board chooses, summed on each column, the sprint and the backlog; a velocity chart of points committed and done per sprint, with the average of the last three.
   - Planning a sprint shows each person's remaining estimate against the hours they can work in it, by their working week and days away.
+- **Whiteboards** (D58): a project's canvas where its team plans and brainstorms beside its issues, in notes (each an idea, agreed, a question, a problem or parked, said in words as well as colour), text, sections, issue and article cards and arrows between them.
+  - Several people edit one at once and see each other's changes as they're made, and who's looking. Edits to different things all land; words someone changed while you typed are kept in your box, not lost. Each person undoes and redoes their own, never someone else's.
+  - A note becomes an issue in a click, its first line the summary, and its card the issue's where it was; several at once, each on its own, so one that can't still lets the others through. An arrow between two issues becomes a link, never twice. The new issue's history names the whiteboard.
+  - Cards follow their issues live, and a card someone may not see (limited, another project, deleted) shows only that it's hidden. Removing a card never deletes its issue.
+  - All of it from the keyboard, with an outline a screen reader reads, and by touch on a phone. Whoever reads the project reads its whiteboards; whoever may change its issues changes them.
 - **Time tracking:** a timer on an issue (start, pause, stop; one running per person) that becomes a work item; work types per project, required where the project says so; and a weekly timesheet where people enter and correct their time across issues, each day against their working hours.
 - **Planning** for waterfall and hybrid projects:
   - a Gantt schedule with the critical path and *what-if* ("what slips if MIG-12 slips 3 days?");
@@ -70,6 +80,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Text files (logs, code, CSV, JSON, Markdown, and HTML as its source) open in place, from their start or their end. Sound and video play in the browser's own player, served in ranges.
   - `files:to-s3` moves the files on disk to a bucket, checking each copy against its checksum, and carries on where a run stopped.
 - **A knowledge base** per project: articles in a tree (`BACK-A-3`), written in Markdown with a preview beside it, every saved version kept with its diff, full-text search, and mentions both ways: an article lists the issues that name it, and an issue the articles.
+  - An article can be **limited to some people and groups**, from the start or later; its author, the project's managers and administrators always see it. What's under a limited article is seen only by who sees it, so moving one under it hides it too. To everyone else it's missing everywhere: the tree, search, its versions and files, mentions, the feed, MCP and the assistant (D51).
 - **Reports**, worked out from each issue's history:
   - a sprint's burndown, by estimate or by count, with the ideal, every change to its scope, and how it stands in a sentence (linked from the sprint board);
   - cumulative flow, created against resolved, and cycle time with its percentiles;
@@ -93,22 +104,26 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Your time zone, on your profile: what "today" means in your searches and commands, when your digest comes, and the times in your email.
 - **A help desk** per project: a public form at `/help/<KEY>` for people who aren't users, a page of their own for each request, where they follow the public replies and answer them. Comments stay internal unless the team makes one public.
 - **SLAs** in working hours: policies by query with first-response and resolution targets, a time zone, days and holidays; clocks that pause while a request waits on its requester and restart what's left when it's reopened; at risk and breached said as they happen, kept in an "SLA status" field boards and reports read; `sla: breached`, `first response: overdue`, `resolution due: today`; met and breached per week.
-- **A portal for requesters** at `/portal`: signed in by a link sent to their email, they see their requests (and their organization's, where a desk shares them), reply, and ask without the proof of work. A desk can read **a mailbox of its own** and send from its address and name.
+- **Customer groups**: a desk groups its requesters by company or team, by their email's domain or by hand. `customer: Acme` chooses a group's requests in SLA policies, rules, searches, boards and reports; a group can count its SLA in its own hours and holidays, give its new requests to its own agents (whoever has the fewest open), and share its members' requests with each other on the portal, to read or to answer, unless one is kept private. Met and breached by group.
+- **A portal for requesters** at `/portal`: signed in by a link sent to their email, they see their requests (and their customer group's, where it shares them), reply, answer their colleagues' where the group lets them, and ask without the proof of work. A desk can read **a mailbox of its own** and send from its address and name.
 - **Replying by email**: the team answers a notification email and it's a comment by them (`MAIL_REPLY_ADDRESS`), internal on a request unless what they answered was public. **Kinds of change**: each person chooses which tell them, by the inbox and by email, for what they watch and per subscription.
   - **By email:** a desk with an address takes requests by mail, and the requester can answer the team's emails. Mail arrives from your provider's webhook (SendGrid, Mailgun, Postmark, a Cloudflare Email Worker) or a shared IMAP mailbox. Quoted history and signatures are cut, files kept, and auto-replies, bounces and lists set aside.
+  - **CCs:** up to 20 people copied on a request, from the Cc of the requester's email, by the team on the request's page, or by the requester on the portal. Each gets the team's public replies and changes of state by email, in an email of their own, answers by email as themselves, sees the request on the portal, and stops with one click; the request's history says who copied whom.
   - **A proof of work** the form can ask for: the sender's browser works a moment on a signed challenge, with no puzzle and nothing from another site.
 - **AI**, built for Claude, that also runs on DeepSeek or Qwen:
   - Triage of new issues: it only suggests, or applies confident values to fields left at their defaults. Its values wait, dashed, on the issue, and a person accepts each one they agree with.
   - Duplicate detection.
   - Search and commands in plain words.
-  - Issue summaries.
+  - Writing help in every text field, in the visual editor and in Markdown: fix spelling and grammar; rewrite shorter, clearer, more formal or friendlier; carry a text on, or draft it from a line (an article from a prompt, a reply to a requester from the request's conversation). Each answer is a suggestion beside what it would replace, to accept, edit or discard; code, links, mentions and ids come back as they went in, and the text keeps its language.
+  - Summaries of an issue, an article or a selection, in the reader's language, read only from what they may see; an issue's summary posted as the assistant's comment; a clearer summary suggested for an issue. Each person asks up to `AI_WRITING_MAX_PER_HOUR` times an hour.
   - An assistant that works through the same tools as MCP and asks before it changes anything.
 - **Projects with their own people**:
   - a project is open to everyone, or seen only by its members and administrators;
   - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
-  - **roles are sets of permissions** (read, comment, create, edit, delete, time, costs, boards, manage): administrators add their own beside the three built-in ones;
+  - **roles are sets of permissions** (read, comment, create, edit, delete, time, costs, boards, manage, and seeing and changing private fields): administrators add their own beside the three built-in ones;
   - **groups** get roles as people do, and someone may do what any of their own and their groups' roles allows;
-  - **an issue or a comment can be limited** to some people and groups: everyone else, everywhere, finds it missing;
+  - **an issue, a comment or an article can be limited** to some people and groups: everyone else, everywhere, finds it missing (and what's under a limited article, D51);
+  - **a field can be private** in a project: only people whose role may see private fields see it (managers do), and only those whose role may change them set it; to anyone else, everywhere, from search to email and Claude, it isn't there, and a chat channel or a webhook never gets it;
   - **guests** read a project opened to anyone, without signing in, and change nothing;
   - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;
   - tokens can be limited to some projects.
@@ -126,7 +141,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - a REST API (OpenAPI 3.1, docs at `/api/docs`);
   - signed webhooks with at-least-once delivery, and a durable event feed with live SSE that resumes from the last event id;
   - `Idempotency-Key` on POSTs, and `expectedVersion` against lost updates.
-- **For agents**: an MCP server at `/mcp` with 48 tools, 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
+- **For agents**: an MCP server at `/mcp` with 60 tools (`summarize_issue` among them where the AI is set up), 5 resources and 6 prompts, plus `a4a-mcp`, a stdio bridge for stdio-only clients. Agents can read a log attached to an issue, attach small files, and write documentation in the knowledge base, previewed first. `list_notifications` shows an agent what's waiting for its person. Agents can list and preview workflow rules; people make them. Clients that sign in by themselves, such as Claude and Claude Code, need only the address: a4a asks the person what each may do, and where (OAuth 2.1, as MCP's authorization specification asks).
 - **Agents of their own**: an administrator adds an agent (a bot account) and issues it tokens on the Agents page.
   - With one, an agent over MCP or the API acts as itself: its changes show under its name, for no one, and `me` is the agent.
   - Issues can be assigned to it, as to a person; `for: me #Unresolved` over its token is its work. a4a's own agents (triage, workflow, the help desk) take no work.
@@ -229,6 +244,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `AI_BASE_URL` | the provider's | Where requests go. Needed for `compatible`; for Qwen in mainland China, `https://dashscope.aliyuncs.com/apps/anthropic` |
 | `AI_MODEL` | `claude-opus-5-5`, `deepseek-v4-pro` or `qwen3.8-max` | The model used |
 | `AI_TRIAGE_MAX_PER_HOUR` | `120` | Cap on automatic triage runs |
+| `AI_WRITING_MAX_PER_HOUR` | `100` | How many times each person may ask for writing and reading help in an hour: every action and summary, on the web, the API and MCP |
 | `ADMIN_LOGIN`, `ADMIN_PASSWORD` | empty | Create the first administrator without the setup page (containers, CI) |
 | `ADMIN_EMAIL` | empty | Their email, so single sign-on can find them by it |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID` | empty | Turn on single sign-on with an OpenID Connect provider: its issuer (https) and a4a's client id there. Register `PUBLIC_URL/api/v1/auth/oidc/callback` as the redirect URI, exactly |
@@ -285,7 +301,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `VAPID_SUBJECT` | `PUBLIC_URL` if https, else `mailto:` `MAIL_FROM` | Who push services may contact about a4a's pushes |
 | `PUSH_HOSTS` | the browsers' | The push services a4a sends to, comma-separated, `*.example.com` for any host under it. By default `fcm.googleapis.com`, `updates.push.services.mozilla.com`, `web.push.apple.com` and `*.notify.windows.com` |
 | `PUSH_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets push go over plain http to this machine |
-| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de`, `es`, `fr` or `ja` |
+| `DEFAULT_LOCALE` | `en` | The language a4a writes in to whoever chose none on their profile, and shows a browser that asks for none it speaks: `en`, `de`, `es`, `fr`, `id` (Indonesian), `ja`, `ko`, `pt` (Portuguese), `vi` or `zh` (Simplified Chinese) |
 | `DIGEST_HOUR` | `8` | The hour the daily digest goes out, in each person's time zone (the server's for those who set none) |
 | `HELPDESK_IMAP_URL` | empty | A mailbox the help desks read, e.g. `imaps://support%40acme.example:pass@imap.acme.example/INBOX` (`imap://` upgrades with STARTTLS). Each message goes to the desk whose address it was sent to. Without it, desks take mail by their provider's webhook alone |
 | `HELPDESK_IMAP_POLL_SECONDS` | `60` | How often that mailbox is read, by the instance holding the worker's lease |
@@ -294,12 +310,15 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | empty | A GitHub OAuth app people connect their GitHub accounts through, from their profile (D46). Its callback: `PUBLIC_URL/api/v1/auth/code-hosts/github/callback`. `GITHUB_URL` for GitHub Enterprise Server |
 | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` | empty | The same for GitLab (an application with the `read_user` scope; callback `…/code-hosts/gitlab/callback`). `GITLAB_URL` for a self-managed GitLab |
 | `BITBUCKET_CLIENT_ID`, `BITBUCKET_CLIENT_SECRET` | empty | The same for Bitbucket Cloud (an OAuth consumer with Account read; its callback URL `…/code-hosts/bitbucket/callback`) |
+| `FORGEJO_URL`, `FORGEJO_CLIENT_ID`, `FORGEJO_CLIENT_SECRET` | empty | The same for a Forgejo (D54): its address, and an OAuth2 application made there, confidential, with the redirect URI `…/code-hosts/gitea/callback`. `GITEA_URL`, `GITEA_CLIENT_ID` and `GITEA_CLIENT_SECRET` for a Gitea instead; with both, Forgejo's is used |
 | `IMPORT_ALLOW_HOSTS` | empty | Comma-separated host names an import may read from although they are inside the network, such as a YouTrack or Jira of your own. Every other host must be public; https always |
 | `IMPORT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets an import read over plain http from this machine |
 | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD`, `TEAMS_TENANT_ID` | empty | A Teams bot (D42): its Entra app's id and client secret, and the one tenant it serves. All three, or none |
 | `TEAMS_SERVICE_HOSTS` | Bot Framework's | More hosts a Teams service URL may name, comma-separated, beside Bot Framework's own (`smba.trafficmanager.net` and the government clouds') |
 | `SLACK_API_URL` | `https://slack.com/api` | Slack's Web API. Slack itself is connected on the Chat page, with its app's token and signing secret |
 | `CHAT_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets chat services be reached over plain http on this machine |
+| `CHAT_ISSUE_LIMIT` | `10` | Issues one person may make from Teams and Slack messages in ten minutes, across both and every instance (D60) |
+| `VCS_ALLOW_HTTP_LOOPBACK` | `false` | For tests only: lets a GitHub API address and a Forgejo or Gitea be reached over plain http on this machine |
 | `APP_CATALOGS` | — | App catalogs to install from: https addresses of JSON indexes, comma-separated (D48) |
 | `APP_TRUSTED_KEYS` | — | Ed25519 public keys (PEM, or base64 of the 32 bytes), comma-separated, that apps from a signing catalog must be signed with |
 | `APP_MAX_MB` | `5` | The largest app package |
@@ -310,6 +329,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 An administrator adds a build source under **Integrations**, for a project. A build that passes goes in the project's build field ("Fixed in build", made for it if it has none), and the resolved issues its commits name are marked as fixed in it (D46).
 
 - **GitHub Actions**: choose a GitHub integration, its branch and its workflow, and tick **Workflow runs** among the webhook's events on GitHub. With an access token on the integration (one that may read the repository's contents), a4a asks GitHub which commits each run holds; without one, those it saw pushed.
+- **Forgejo or Gitea Actions** (D55): choose a Gitea or Forgejo integration, its branch and its workflow's file (`ci.yml`), and tick the run events on its webhook: **Workflow run events**' Success, Failure and Cancelled on Forgejo 17 and later, **Action Run events**' Success and Failure on Forgejo 12 to 16, or **Workflow run** on Gitea. A build is named by its run's number. It holds the commits a4a saw pushed to the branch since the last passing build, and those of the push that started the run, which Forgejo's run carries; these integrations take no token, so a4a asks Forgejo nothing.
 - **Any other CI**: the source shows a URL and a token once. Post each build, with the commits since the previous one, from a step at the end of the build. Keep the token in the CI's secrets as `A4A_BUILD_TOKEN`, and the URL as `A4A_BUILD_URL`.
 
 Jenkins (a `sh` step; `GIT_PREVIOUS_SUCCESSFUL_COMMIT` is the Git plugin's):
@@ -424,9 +444,9 @@ TEAMS_APP_PASSWORD=<its client secret>
 TEAMS_TENANT_ID=<your tenant id>
 ```
 
-Then download the app package from the Chat page (Download the Teams app), upload it in the Teams admin center under Manage apps, and add it to a team: a4a lists the team's channels. People who sign in to a4a with Entra ID are known to the bot from their next sign-in (a4a keeps their `oid`); anyone else says "link" to it once.
+Then download the app package from the Chat page (Download the Teams app), upload it in the Teams admin center under Manage apps, and add it to a team: a4a lists the team's channels. People who sign in to a4a with Entra ID are known to the bot from their next sign-in (a4a keeps their `oid`); anyone else says "link" to it once. The package's message action, "Create an a4a issue" in a message's More actions, makes an issue of a message in a channel of a team a4a is in (D60); a package uploaded before it came is uploaded again to add it.
 
-**Slack.** Create an app at api.slack.com from scratch. Give its bot the scopes `chat:write`, `commands`, `channels:read`, `groups:read`, `links:read` and `links:write`; add the slash command `/a4a`, interactivity, and event subscriptions (`link_shared`, `member_joined_channel`, `channel_deleted`, `channel_archive`, `channel_rename`, `app_uninstalled`), each at the URL the Chat page shows; and add your a4a's domain under App unfurl domains. Install it, then paste its bot token and signing secret on the Chat page. Invite it to a channel with `/invite @a4a`, and subscribe the channel there with `/a4a subscribe BACK`, or on the project's page.
+**Slack.** Create an app at api.slack.com from scratch. Give its bot the scopes `chat:write`, `commands`, `channels:read`, `groups:read`, `links:read`, `links:write`, and, to make issues of messages (D60), `channels:history`, `groups:history` and `users:read`; add the slash command `/a4a`, interactivity, and event subscriptions (`link_shared`, `member_joined_channel`, `channel_deleted`, `channel_archive`, `channel_rename`, `app_uninstalled`), each at the URL the Chat page shows; under Interactivity & Shortcuts, add a shortcut on messages, named "Create an a4a issue", with the callback ID `a4a_create_issue`; and add your a4a's domain under App unfurl domains. Install it, then paste its bot token and signing secret on the Chat page. Invite it to a channel with `/invite @a4a`, and subscribe the channel there with `/a4a subscribe BACK`, or on the project's page.
 
 ## Development
 
@@ -518,7 +538,9 @@ What it covers, in `apps/web/e2e`:
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **Groups**: an administrator makes a group and puts someone in it, and a project gives the group a role; someone in it sees a members-only project as far as that role goes, and not once they're taken out; a group from the identity provider can't be filled by hand.
 - **Access in depth**: an administrator makes a role and a project gives it; an issue and a comment limited to one person are missing to another; a project opened to guests is read signed out.
+- **Private fields**: a manager attaches a field as private, and a viewer finds the issue without it, its value nowhere on the page.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
+- **Writing help**: a line selected in a description fixed, shown as a change, accepted and saved; the whole text rewritten, and the suggestion discarded; an issue summarised and posted as the assistant's comment; a reply drafted on a help desk request and sent; and nothing offered without a provider. The AI is stood in for.
 
 To see what a test did, record a trace and open it:
 

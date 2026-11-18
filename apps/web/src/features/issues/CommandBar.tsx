@@ -7,7 +7,7 @@ import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
-import { errorSaid, t, tr, problemWords } from '../../i18n';
+import { errorSaid, itemNodes, listNodes, t, tr, problemWords } from '../../i18n';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -25,14 +25,15 @@ type Preview = CommandResult & { description?: string };
 function IdList({ ids }: { ids: string[] }) {
   const shown = ids.length > 6 ? ids.slice(0, 5) : ids;
   const rest = ids.length - shown.length;
+  // Joined as the page's language joins a list; with more beyond them, its "and N more" ends it.
+  const spans = shown.map((id) => (
+    <span key={id} className="issue-id">
+      {id}
+    </span>
+  ));
   return (
     <>
-      {shown.map((id, i) => (
-        <span key={id}>
-          {i > 0 ? (i === shown.length - 1 && !rest ? ' and ' : ', ') : null}
-          <span className="issue-id">{id}</span>
-        </span>
-      ))}
+      {rest ? itemNodes(spans) : listNodes(spans)}
       {rest ? t('issues.commandBar.andMore', { rest: rest }) : null}
     </>
   );

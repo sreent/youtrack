@@ -99,11 +99,17 @@ export default function TrackPage() {
             <Avatar kind="person" name={m.from === 'you' ? r.requester.name : m.name} small />
             <div className="history-body">
               <p className="history-head">
-                <strong className="who-name">{m.from === 'you' ? t('page.track.you') : m.name}</strong>
-                {m.from === 'team' ? ' replied' : ''} ·{' '}
-                <time dateTime={m.at} title={new Date(m.at).toLocaleString(intlLocale())}>
-                  {whenRead(m.at)}
-                </time>
+                {tr('page.track.messageHead', {
+                  name: m.from === 'you' ? t('page.track.you') : m.name,
+                  from: m.from /* a stable code */,
+                  whenRead: whenRead(m.at),
+                  t0: (c: ReactNode) => <strong className="who-name">{c}</strong>,
+                  t1: (c: ReactNode) => (
+                    <time dateTime={m.at} title={new Date(m.at).toLocaleString(intlLocale())}>
+                      {c}
+                    </time>
+                  ),
+                })}
               </p>
               <div className="history-comment">
                 <Markdown text={m.text} outside />

@@ -14,6 +14,10 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  REQUEST_CC_VIA,
+  WHITEBOARD_KINDS,
+  WHITEBOARD_LIMITS,
+  WHITEBOARD_TONES,
   LEVELING_MODES,
   NOTIFICATION_KINDS,
   PLAY_KINDS,
@@ -334,10 +338,6 @@ export const HelpdeskSettingsSchema = z
       .max(100)
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
-    organizations: z
-      .array(z.string().trim().toLowerCase().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/, 'Expected an email domain, such as acme.com'))
-      .max(50)
-      .describe("Email domains whose requesters see each other's requests on the portal, such as acme.com (D45)"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -393,6 +393,7 @@ export const ProjectSchema = ProjectRefSchema.extend({
   createdAt: timestamp,
   access: ProjectAccessSchema,
   guestAccess: z.boolean().describe("Anyone may read it without signing in (D37): its issues, comments, files and articles, never its people's emails"),
+  formerKeys: z.array(z.string()).describe('Keys it had before it was renamed, oldest first (D52): each still finds it, and its issues by their numbers'),
 }).meta({ id: 'Project' });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -422,7 +423,15 @@ export const UpdateProjectBody = z.object({
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
       plan: PlanSettingsSchema.partial().optional(),
-      helpdesk: HelpdeskSettingsSchema.partial().optional(),
+      helpdesk: HelpdeskSettingsSchema.partial()
+        .extend({
+          organizations: z
+            .array(z.string().max(255))
+            .max(50)
+            .optional()
+            .describe('Gone: email domains are customer groups now (D56), at /projects/{key}/customer-groups. Given any, the answer is 400 and says so'),
+        })
+        .optional(),
       time: TimeSettingsSchema.partial().optional(),
     })
     .optional(),
@@ -487,6 +496,9 @@ export const ProjectFieldSchema = z
       .string()
       .nullable()
       .describe('A query: the field shows, and is required if it is, only while the issue matches it (D41). Null: always'),
+    private: z
+      .boolean()
+      .describe("Seen only by people who may read the project's private fields, and changed only by those who may change them (D50)"),
   })
   .meta({ id: 'ProjectField' });
 export type ProjectField = z.infer<typeof ProjectFieldSchema>;
@@ -536,6 +548,10 @@ export const AttachFieldBody = z.object({
     .nullable()
     .optional()
     .describe('A query: the field shows, and is required if it is, only while the issue matches it, e.g. "State: Fixed". Null: always'),
+  private: z
+    .boolean()
+    .optional()
+    .describe("Seen only by people who may read the project's private fields (D50). Left as it is unless given"),
 });
 
 // ---------------------------------------------------------------------------
@@ -588,6 +604,10 @@ export const IssueFieldSchema = z
       .boolean()
       .optional()
       .describe("Whether a conditional field's condition holds for the issue now (D41); absent for a field with none"),
+    private: z
+      .boolean()
+      .optional()
+      .describe('Private in its project (D50): only people who may read its private fields get it at all. Absent for a field everyone sees'),
   })
   .meta({ id: 'IssueField' });
 export type IssueField = z.infer<typeof IssueFieldSchema>;
@@ -667,8 +687,26 @@ export const ReactionSummarySchema = z
   .meta({ id: 'ReactionSummary' });
 export type ReactionSummary = z.infer<typeof ReactionSummarySchema>;
 
+/** Where an issue made from a Teams or Slack message came from (D60): kept as data, so each reader's page words it. */
+export const ChatIssueSourceSchema = z
+  .object({
+    platform: z.enum(CHAT_PLATFORMS),
+    workspace: z.string().describe('The Slack workspace, or the Teams team, as it was named then'),
+    channel: z.string().describe('The channel, as it was named then: "#eng", "General"'),
+    url: z.string().nullable().describe("A link to the message in the chat (Slack's permalink, Teams' message link), for those who may read it there"),
+    author: z.string().describe('Who sent the message, as the chat named them'),
+    sentAt: timestamp.nullable().describe('When they sent it'),
+    replies: z.number().int().describe('Replies from its thread brought into the description'),
+    files: z.array(z.object({ name: z.string(), url: z.string().nullable() })).describe('Files in the message, linked where the chat keeps them (the first ten); never copied'),
+    moreFiles: z.number().int().describe('Files beyond those ten'),
+    cut: z.boolean().describe('The message, or its replies, were cut to fit'),
+  })
+  .meta({ id: 'ChatIssueSource' });
+export type ChatIssueSource = z.infer<typeof ChatIssueSourceSchema>;
+
 export const IssueDetailSchema = IssueSchema.extend({
   description: z.string(),
+  source: ChatIssueSourceSchema.nullable().describe('Where it came from, when it was made from a chat message (D60); shown to whoever sees the issue'),
   visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees its project sees it. Otherwise only these, besides its reporter, its assignee, the project's managers and administrators"),
   updatedBy: UserRefSchema.nullable(),
   links: z.array(IssueLinkSchema),
@@ -741,9 +779,14 @@ export const CommentSchema = z
       .enum(COMMENT_VISIBILITIES)
       .describe('internal: the team alone. public: also the requester of a help desk request, who is emailed it'),
     requester: z
-      .object({ name: z.string() })
+      .object({
+        name: z.string(),
+        as: z
+          .enum(['requester', 'copied', 'colleague'])
+          .describe('As whom they wrote: its requester, someone copied on the request (D57), or someone of its customer group (D56)'),
+      })
       .nullable()
-      .describe('Set when the requester of a help desk request wrote it, on their tracking page'),
+      .describe('Set when someone outside the team wrote it: the requester of a help desk request, someone copied on it, or someone of its customer group, on a page or by email'),
     visibleTo: VisibleToSchema.nullable().describe("Null: everyone who sees the issue sees it. Otherwise only these, besides its author, the project's managers and administrators"),
     reactions: z.array(ReactionSummarySchema),
   })
@@ -1047,6 +1090,7 @@ export const BoardViewSchema = z
     ),
     points: z.number().nullable().describe('Story points of every issue shown; null without a points field'),
     swimlanes: z.array(z.string()).describe('Swimlane values in display order (empty when no swimlane field)'),
+    order: z.array(z.string()).describe("Every card's id in the board's order (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it"),
   })
   .meta({ id: 'BoardView' });
 export type BoardView = z.infer<typeof BoardViewSchema>;
@@ -1477,8 +1521,20 @@ export const ApplySuggestionBody = z.object({
 });
 
 export const SummarizeResultSchema = z
-  .object({ summary: z.string(), model: z.string() })
+  .object({
+    summary: z.string().describe('Markdown. Shown, never saved, unless someone posts it as a comment'),
+    language: z.enum(LOCALES).describe("The language it's written in: the reader's (D49)"),
+    partial: z.boolean().describe('The thread was too long to read whole: it is of the description and the latest comments'),
+    post: z
+      .string()
+      .nullable()
+      .describe(
+        "Posts it as a comment, as the assistant's, within an hour (POST /issues/{id}/summary/comment). Null when it read a comment only some people see, which a comment for everyone mustn't carry",
+      ),
+    model: z.string(),
+  })
   .meta({ id: 'SummarizeResult' });
+export type SummarizeResult = z.infer<typeof SummarizeResultSchema>;
 
 export const ConversationSchema = z
   .object({
@@ -1637,8 +1693,9 @@ export const ArticleSchema = z
     title: z.string(),
     parent: z.string().nullable().describe('Readable id of the article it sits under; null at the top of the tree'),
     position: z.number().int().describe('Its place among the articles under the same parent, from 0'),
-    childCount: z.number().int(),
+    childCount: z.number().int().describe('The articles under it that you see'),
     version: z.number().int().describe('Its content version; send as expectedVersion to avoid overwriting a newer one'),
+    limited: z.boolean().describe('Limited to some people and groups (D51); what is under it is seen only by who sees it'),
     createdBy: UserRefSchema.nullable(),
     updatedBy: UserRefSchema.nullable(),
     createdAt: timestamp,
@@ -1656,6 +1713,10 @@ export const ArticleDetailSchema = ArticleSchema.extend({
     articles: z.array(ArticleRefSchema).describe('Other articles that mention it'),
   }),
   attachmentCount: z.number().int(),
+  visibleTo: VisibleToSchema.nullable().describe(
+    "Null: it isn't limited itself. Otherwise only these see it, besides its author, the project's managers and administrators (D51)",
+  ),
+  limitedAbove: z.array(ArticleRefSchema).describe('The limited articles it sits under, from the top: only who sees them sees it'),
 }).meta({ id: 'ArticleDetail' });
 export type ArticleDetail = z.infer<typeof ArticleDetailSchema>;
 
@@ -1665,6 +1726,9 @@ export const CreateArticleBody = z.object({
   body: z.string().max(200_000).default('').describe('Markdown. Mention issues (BACK-12) and articles (BACK-A-3) by id'),
   parent: z.string().nullable().optional().describe('Readable id of the article to put it under; omit for the top of the tree'),
   position: z.number().int().min(0).optional().describe('Its place among its siblings, from 0; omit to put it last'),
+  visibleTo: VisibleToInput.nullable()
+    .optional()
+    .describe("Limit it to these people and groups from the start (D51): its author, the project's managers and administrators still see it"),
 });
 export type CreateArticleInput = z.input<typeof CreateArticleBody>;
 
@@ -1728,7 +1792,7 @@ export type ArticleVersionDetail = z.infer<typeof ArticleVersionDetailSchema>;
 export const WatcherSchema = z
   .object({
     user: UserRefSchema,
-    reason: z.enum(WATCH_REASONS).describe('Why they watch: they chose to, or they reported it, were assigned, commented, were mentioned, or lead the project of a help desk request'),
+    reason: z.enum(WATCH_REASONS).describe('Why they watch: they chose to, or they reported it, were assigned, commented, were mentioned, lead the project of a help desk request, or wrote the chat message it was made from (D60)'),
     since: timestamp,
   })
   .meta({ id: 'Watcher' });
@@ -1828,8 +1892,8 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, or a help desk request's emails to its requester"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc'])
+      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57)"),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
@@ -1880,6 +1944,29 @@ export const RequestSlaSchema = z
   .meta({ id: 'RequestSla' });
 export type RequestSla = z.infer<typeof RequestSlaSchema>;
 
+/** Someone copied on a help desk request (D57), as the team sees them. */
+export const RequestCcSchema = z
+  .object({
+    email: z.string(),
+    name: z.string().describe('As whoever copied them named them; empty for none'),
+    via: z.enum(REQUEST_CC_VIA).describe('team: someone on the team copied them; email: the Cc of the requester’s email; portal: the requester, on the portal'),
+    addedBy: UserRefSchema.nullable().describe('Who on the team copied them; null when the requester did'),
+    addedAt: timestamp,
+  })
+  .meta({ id: 'RequestCc' });
+export type RequestCc = z.infer<typeof RequestCcSchema>;
+
+/** Someone copied on a request, as its requester sees them on the portal. */
+export const PortalCcSchema = z
+  .object({
+    email: z.string(),
+    name: z.string(),
+    byYou: z.boolean().describe('The requester copied them, by email or on the portal; otherwise the team did'),
+    addedAt: timestamp,
+  })
+  .meta({ id: 'PortalCc' });
+export type PortalCc = z.infer<typeof PortalCcSchema>;
+
 export const HelpdeskRequestSchema = z
   .object({
     issue: z.string(),
@@ -1889,6 +1976,12 @@ export const HelpdeskRequestSchema = z
     sla: RequestSlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
+    ccs: z.array(RequestCcSchema).describe('Who is copied on it now (D57), first copied first'),
+    group: z
+      .object({ id: z.string(), name: z.string(), sharing: z.enum(['none', 'read', 'comment']) })
+      .nullable()
+      .describe('The customer group it was filed under, or the team gave it (D56); null for none'),
+    private: z.boolean().describe("Kept from its group's other members: on the portal, only its requester sees it"),
   })
   .meta({ id: 'HelpdeskRequest' });
 export type HelpdeskRequest = z.infer<typeof HelpdeskRequestSchema>;
@@ -1960,7 +2053,7 @@ export const TrackedRequestSchema = z
     messages: z.array(
       z.object({
         id: z.string(),
-        from: z.enum(['you', 'team']),
+        from: z.enum(['you', 'team', 'cc', 'colleague']).describe('cc: someone copied on the request (D57); colleague: someone of its customer group, answering it (D56)'),
         name: z.string(),
         text: z.string(),
         at: timestamp,
@@ -2190,6 +2283,17 @@ export const RuleCheckResultSchema = z
 // Version control
 // ---------------------------------------------------------------------------
 
+/** A GitHub App a GitHub integration reads as (D54): its private key is never shown. */
+export const VcsGithubAppSchema = z
+  .object({
+    appId: z.string().describe("The app's id (or its client id), as GitHub shows it on the app's settings page"),
+    slug: z.string().nullable().describe("The app's name in GitHub's addresses, e.g. a4a-acme"),
+    installationId: z.string().describe('The installation a4a reads through'),
+    account: z.string().nullable().describe('The user or organization the app is installed on'),
+  })
+  .meta({ id: 'VcsGithubApp' });
+export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
+
 export const VcsIntegrationSchema = z
   .object({
     id: z.string(),
@@ -2199,8 +2303,9 @@ export const VcsIntegrationSchema = z
     active: z.boolean(),
     webhookUrl: z.string().describe('Where the provider sends its deliveries'),
     secretPrefix: z.string().describe("The secret's first characters, to recognise it by"),
-    baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; null for the others"),
+    baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
+    githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2223,6 +2328,29 @@ const VcsAccessToken = z
   .describe(
     "Bitbucket: an access token that may read the repository. Data Center sends no commits with a push, and Bitbucket Cloud the latest five a branch got: with it, a4a reads them. GitHub: a token that may read the repository's contents, with which a4a asks GitHub which commits a build holds when it hasn't seen them (D46). Kept encrypted, never shown again",
   );
+/** A GitHub App to read as, given to a GitHub integration (D54). */
+export const VcsGithubAppBody = z
+  .object({
+    appId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .describe("The app's id, or its client id (Iv…), from the app's settings page"),
+    privateKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(10_000)
+      .describe('One of the app\'s private keys, the .pem file GitHub gave, whole: "-----BEGIN RSA PRIVATE KEY-----" and on. Kept encrypted, never shown again'),
+    installationId: z
+      .string()
+      .trim()
+      .regex(/^\d{1,20}$/, 'An installation id is a number')
+      .nullish()
+      .describe("Which of the app's installations to read through, as in its address (…/settings/installations/12345678). Leave it out and a4a finds it: the one on the repository the integration is named after, or the app's only one"),
+  })
+  .describe('Read as a GitHub App, not with a person\'s token. Giving one removes the access token; null stops reading as the app');
 export const VcsIntegrationBody = z.object({
   provider: z.enum(VCS_PROVIDERS),
   name: z.string().min(1).max(120).describe('What it is, e.g. the repository "acme/backend"'),
@@ -2230,13 +2358,15 @@ export const VcsIntegrationBody = z.object({
   active: z.boolean().default(true),
   baseUrl: VcsBaseUrl.nullable().optional(),
   accessToken: VcsAccessToken.nullable().optional(),
+  githubApp: VcsGithubAppBody.nullable().optional(),
 });
 export const UpdateVcsIntegrationBody = z.object({
   name: z.string().min(1).max(120).optional(),
   projects: z.array(z.string()).max(50).optional(),
   active: z.boolean().optional(),
   baseUrl: VcsBaseUrl.nullable().optional(),
-  accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it'),
+  accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it. Giving one stops reading as a GitHub App'),
+  githubApp: VcsGithubAppBody.nullable().optional(),
 });
 
 export const VcsDeliverySchema = z
@@ -3067,9 +3197,22 @@ export const BacklogSchema = z
 export type Backlog = z.infer<typeof BacklogSchema>;
 
 export const RankBody = z.object({
-  issue: z.string().describe('The issue to move (readable id)'),
-  after: z.string().nullable().optional().describe('Put it just after this issue'),
-  before: z.string().nullable().optional().describe('Put it just before this issue; with neither, at the top'),
+  issue: z.string().max(100).describe('The issue to move (readable id)'),
+  after: z.string().max(100).nullable().optional().describe('Put it just after this issue'),
+  before: z.string().max(100).nullable().optional().describe('Put it just before this issue; with neither, at the top (on the board, see column)'),
+  // Ranking a card on the board itself (D53): its place and its column, and its lane, in one change.
+  column: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      "On the board: the column its card is in, or goes into, by name. Into another column, the board's column field becomes that column's first value its project has, in the same change as its place. With neither after nor before, it keeps its place in the board's order",
+    ),
+  lane: z.string().max(200).nullable().optional().describe("On the board: the swimlane its card goes into, by the lane's value (a login, or a value's name); null for the lane of no value"),
+  sprint: z.string().max(100).optional().describe("On the board: the sprint whose cards were shown; the one the board shows first when not said"),
+  expectedVersion: z.number().int().optional().describe("The issue's version as read: a column or lane change is refused (409) if it has changed since. Its place alone needs none"),
 });
 export type RankInput = z.infer<typeof RankBody>;
 
@@ -3286,7 +3429,8 @@ export const ConnectSlackBody = z.object({
 // Integrations (docs/architecture.md, D46): CI builds, and code-host accounts people connect
 // ---------------------------------------------------------------------------
 
-export const BUILD_SOURCE_KINDS = ['github', 'generic'] as const;
+/** `gitea`: a Gitea or Forgejo integration's Actions runs (D55), as `github` takes a GitHub integration's. */
+export const BUILD_SOURCE_KINDS = ['github', 'generic', 'gitea'] as const;
 export type BuildSourceKind = (typeof BUILD_SOURCE_KINDS)[number];
 export const BUILD_STATUSES = ['success', 'failure', 'cancelled'] as const;
 export type BuildStatus = (typeof BUILD_STATUSES)[number];
@@ -3296,13 +3440,15 @@ export type BuildIssueOutcome = (typeof BUILD_ISSUE_OUTCOMES)[number];
 export const BuildSourceSchema = z
   .object({
     id: z.string(),
-    kind: z.enum(BUILD_SOURCE_KINDS).describe("github: a GitHub integration's workflow runs. generic: any CI, posting each build with a token"),
+    kind: z
+      .enum(BUILD_SOURCE_KINDS)
+      .describe("github: a GitHub integration's workflow runs. gitea: a Gitea or Forgejo integration's Actions runs. generic: any CI, posting each build with a token"),
     name: z.string(),
     project: z.string().describe('The project whose builds they are, by key'),
     field: z.string().nullable().describe('The build field its builds go in, by name; null when the project has none yet'),
-    integration: z.object({ id: z.string(), name: z.string() }).nullable().describe('github: the integration whose workflow runs it takes'),
-    branch: z.string().nullable().describe('github: the branch whose runs are builds; null: any'),
-    workflow: z.string().nullable().describe('github: the workflow, by name or file; null: any'),
+    integration: z.object({ id: z.string(), name: z.string() }).nullable().describe('github, gitea: the integration whose workflow runs it takes'),
+    branch: z.string().nullable().describe('github, gitea: the branch whose runs are builds; null: any'),
+    workflow: z.string().nullable().describe('github, gitea: the workflow, by name or file (gitea: its file, such as ci.yml); null: any'),
     hookUrl: z.string().nullable().describe('generic: where a CI posts its builds'),
     tokenPrefix: z.string().nullable().describe("generic: the token's first characters, to recognise it by"),
     active: z.boolean(),
@@ -3324,9 +3470,18 @@ export const BuildSourceBody = z.object({
     .nullable()
     .optional()
     .describe('The build field to fill, by name or id. Left out: the project\'s "Fixed in build", or its one build field; with none, a4a makes "Fixed in build" and gives it the project'),
-  integration: z.string().optional().describe('github: the GitHub integration (its id) whose workflow_run deliveries it takes'),
-  branch: z.string().trim().max(200).nullable().optional().describe('github: only runs on this branch are builds; null: any'),
-  workflow: z.string().trim().max(200).nullable().optional().describe('github: only this workflow, by name or file; null: any'),
+  integration: z
+    .string()
+    .optional()
+    .describe("github: the GitHub integration (its id) whose workflow_run deliveries it takes. gitea: the Gitea or Forgejo integration whose Actions runs it takes"),
+  branch: z.string().trim().max(200).nullable().optional().describe('github, gitea: only runs on this branch are builds; null: any'),
+  workflow: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .describe('github: only this workflow, by name or file. gitea: by its file, such as ci.yml (Forgejo names no workflow by name). null: any'),
   active: z.boolean().default(true),
 });
 export const UpdateBuildSourceBody = z.object({
@@ -3415,7 +3570,8 @@ export const IssueBuildSchema = z
   .meta({ id: 'IssueBuild' });
 export type IssueBuild = z.infer<typeof IssueBuildSchema>;
 
-export const CODE_HOSTS = ['github', 'gitlab', 'bitbucket'] as const;
+/** Where people connect their own accounts (D46); `gitea` is Gitea or Forgejo, at the address an administrator gives (D54). */
+export const CODE_HOSTS = ['github', 'gitlab', 'bitbucket', 'gitea'] as const;
 export type CodeHost = (typeof CODE_HOSTS)[number];
 
 export const CodeHostSchema = z
@@ -3520,6 +3676,15 @@ export const SlaReportSchema = z
         ),
       }),
     ),
+    groups: z
+      .array(
+        z.object({
+          group: z.string().nullable().describe("The customer group's name (D56); null for requests in none"),
+          firstResponse: z.object({ met: z.number().int(), breached: z.number().int() }),
+          resolution: z.object({ met: z.number().int(), breached: z.number().int() }),
+        }),
+      )
+      .describe('Met and breached over the whole period, by customer group (D56), each target counted as the weeks count it'),
   })
   .meta({ id: 'SlaReport' });
 export type SlaReport = z.infer<typeof SlaReportSchema>;
@@ -3550,7 +3715,13 @@ export const DeskMailboxBody = z.object({
 
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
-  .object({ name: z.string(), email: z.string(), organization: z.string().nullable().describe("Their email's domain, when a desk shares requests within it") })
+  .object({
+    name: z.string(),
+    email: z.string(),
+    groups: z
+      .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
+      .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+  })
   .meta({ id: 'PortalMe' });
 export type PortalMe = z.infer<typeof PortalMeSchema>;
 
@@ -3562,14 +3733,30 @@ export const PortalRequestSchema = z
     state: z.object({ name: z.string().nullable(), resolved: z.boolean() }),
     createdAt: timestamp,
     updatedAt: timestamp,
-    requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared within their organization") }),
+    requester: z.object({ name: z.string(), mine: z.boolean().describe("Theirs; otherwise a colleague's, shared with their customer group, or one they're copied on") }),
+    copied: z.boolean().describe('They are copied on it (D57): told of it by email, and they may reply'),
+    group: z.string().nullable().describe('The customer group it was filed under, when it shares with its members (D56)'),
+    private: z.boolean().describe('Theirs, and kept from their group: only they and the team see it'),
+    canReply: z.boolean().describe('Theirs, one they are copied on, or shared with their group to comment on'),
   })
   .meta({ id: 'PortalRequest' });
 export type PortalRequest = z.infer<typeof PortalRequestSchema>;
 
 export const PortalRequestDetailSchema = PortalRequestSchema.extend({
   description: z.string(),
-  messages: z.array(z.object({ id: z.string(), from: z.enum(['you', 'team', 'colleague']), name: z.string(), text: z.string(), at: timestamp })),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      from: z.enum(['you', 'team', 'colleague', 'cc']).describe('colleague: its requester, or someone of their organization; cc: someone copied on it (D57)'),
+      name: z.string(),
+      text: z.string(),
+      at: timestamp,
+    }),
+  ),
+  ccs: z
+    .array(PortalCcSchema)
+    .nullable()
+    .describe('Who is copied on it (D57): shown to its requester, who may copy more people; null to anyone else'),
 }).meta({ id: 'PortalRequestDetail' });
 export type PortalRequestDetail = z.infer<typeof PortalRequestDetailSchema>;
 
@@ -3586,7 +3773,9 @@ export const PortalNewRequestBody = z.object({
   desk: z.string().trim().min(1).max(20),
   summary: z.string().trim().min(1).max(500),
   description: z.string().max(50_000).default(''),
+  private: z.boolean().default(false).describe("Keep it from their customer group's other members (D56)"),
 });
+export const PortalRequestUpdateBody = z.object({ private: z.boolean().describe("Keep it from their customer group's other members, or share it again (D56)") });
 export const PortalReplyBody = z.object({ text: z.string().trim().min(1).max(50_000) });
 
 const kindChoice = z.object({ inbox: z.boolean(), email: z.boolean() });
@@ -3878,3 +4067,386 @@ export const AppStorageSchema = z
   .meta({ id: 'AppStorage' });
 export type AppStorage = z.infer<typeof AppStorageSchema>;
 export const AppStorageBody = z.object({ value: z.unknown().describe('Any JSON; null removes the key') });
+
+// ---------------------------------------------------------------------------
+// Renaming a project's key (D52)
+// ---------------------------------------------------------------------------
+
+export const RenameProjectKeyBody = z.object({
+  key: CreateProjectBody.shape.key.describe("The new key, checked as a new project's is. Its issues keep their numbers: BACK-12 becomes CORE-12"),
+  expectedKey: z
+    .string()
+    .max(10)
+    .optional()
+    .describe('The key as you last saw it. If someone renamed the project meanwhile, nothing changes and the answer is 409, with the key it has now'),
+});
+export type RenameProjectKeyInput = z.infer<typeof RenameProjectKeyBody>;
+
+// ---------------------------------------------------------------------------
+// Customer groups in the help desk (wave 4: docs/architecture.md, D56)
+// ---------------------------------------------------------------------------
+
+/** What a customer group's members do with each other's requests on the portal. */
+export const CUSTOMER_SHARING = ['none', 'read', 'comment'] as const;
+export type CustomerSharing = (typeof CUSTOMER_SHARING)[number];
+
+const emailDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, 'Expected an email domain, such as acme.com');
+
+export const CustomerGroupSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    domains: z.array(z.string()).describe('Email domains that put a requester in it by themselves, matched whole'),
+    sharing: z.enum(CUSTOMER_SHARING).describe("none; read: its members see each other's requests on the portal; comment: and answer them"),
+    businessHours: BusinessHoursSchema.nullable().describe("Its own working hours and holidays, which its requests' SLAs count in; null keeps the desk's"),
+    agents: z
+      .array(
+        z.object({
+          user: UserRefSchema,
+          assignable: z.boolean().describe('Whether the help desk can give them a request now: someone of the project who may change its issues'),
+        }),
+      )
+      .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
+    members: z.number().int().describe('Requesters added by hand'),
+    openRequests: z.number().int().describe('Its requests not yet resolved'),
+  })
+  .meta({ id: 'CustomerGroup' });
+export type CustomerGroup = z.infer<typeof CustomerGroupSchema>;
+
+export const CustomerGroupBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  domains: z.array(emailDomain).max(50).default([]),
+  sharing: z.enum(CUSTOMER_SHARING).default('none'),
+  businessHours: BusinessHoursSchema.nullable().default(null),
+  agents: z.array(z.string().trim().min(1).max(100)).max(20).default([]).describe('Logins, in the order to prefer them'),
+});
+export type CustomerGroupInput = z.input<typeof CustomerGroupBody>;
+
+export const CustomerGroupMemberSchema = z
+  .object({
+    requester: z.object({ id: z.string(), name: z.string(), email: z.string() }),
+    addedAt: timestamp,
+    addedBy: z.string().nullable().describe('Who added them, by login'),
+  })
+  .meta({ id: 'CustomerGroupMember' });
+export type CustomerGroupMember = z.infer<typeof CustomerGroupMemberSchema>;
+
+export const CustomerGroupMemberBody = z.object({
+  email: z.string().trim().email().max(320),
+  name: z.string().trim().max(200).optional().describe('Their name, when they have never asked for help: else the part of the address before the @'),
+});
+
+export const RequestUpdateBody = z.object({
+  group: z.string().trim().min(1).max(100).nullable().optional().describe("The desk's customer group, by id or name; null for none. Left out keeps it"),
+  private: z.boolean().optional().describe("Keep it from its group's other members on the portal, or share it again"),
+  expectedVersion: z.number().int().optional().describe("The issue's version as you last saw it: 409 if someone changed it since"),
+});
+
+// ---------------------------------------------------------------------------
+// CCs on help desk requests (D57)
+// ---------------------------------------------------------------------------
+
+export const RequestCcBody = z.object({
+  email: z.string().trim().max(HELP_LIMITS.email).email().describe('Their email address'),
+  name: z.string().trim().max(HELP_LIMITS.name).optional().describe('Their name, if known'),
+});
+export const RequestCcQuery = z.object({ email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('The address to stop copying') });
+
+// ---------------------------------------------------------------------------
+// AI help with writing and reading (D59)
+// ---------------------------------------------------------------------------
+
+/** What the assistant does to a text: fixes it, rewrites it one way, carries it on, or drafts it from a line. */
+export const WRITING_ACTIONS = ['fix', 'shorter', 'clearer', 'formal', 'friendlier', 'continue', 'draft'] as const;
+export type WritingAction = (typeof WRITING_ACTIONS)[number];
+/** The fields a4a gives for writing: an issue's description, a comment, an article, a reply to a help desk request's requester. */
+export const WRITING_FIELDS = ['description', 'comment', 'article', 'reply'] as const;
+export type WritingField = (typeof WRITING_FIELDS)[number];
+/** The most a text sent for writing help may be, in characters: each action takes less (D59). */
+export const WRITING_TEXT_MAX = 100_000;
+
+export const WritingForSchema = z
+  .object({
+    kind: z.enum(WRITING_FIELDS).describe("The field it's written in. A reply goes to a help desk request's requester, and is drafted from what they can read"),
+    issue: z.string().max(60).optional().describe('The issue it belongs to, by readable id; a reply needs it'),
+    article: z.string().max(60).optional().describe('The article it belongs to, by readable id'),
+    project: z.string().max(40).optional().describe('The project key, for an issue or an article not made yet'),
+    title: z.string().max(500).optional().describe("A new issue's summary or a new article's title, as typed so far"),
+  })
+  .meta({ id: 'WritingFor' });
+export type WritingFor = z.infer<typeof WritingForSchema>;
+
+export const WriteBody = z.object({
+  action: z
+    .enum(WRITING_ACTIONS)
+    .describe(
+      "fix: its spelling and grammar. shorter, clearer, formal, friendlier: it rewritten so. continue: what comes next. draft: a text written from the line sent; for a reply, from the request's public conversation, the line saying what to answer, if anything",
+    ),
+  text: z.string().max(WRITING_TEXT_MAX).describe('Markdown: the selection, or the whole field; for draft, the line to write from'),
+  for: WritingForSchema.optional().describe('Where the text goes. continue and draft read it for what they write'),
+});
+export type WriteInput = z.infer<typeof WriteBody>;
+
+export const WriteResultSchema = z
+  .object({
+    action: z.enum(WRITING_ACTIONS),
+    text: z.string().describe('The suggestion, in Markdown. It replaces the text sent; for continue, it follows it. Nothing is saved'),
+    model: z.string(),
+  })
+  .meta({ id: 'WriteResult' });
+export type WriteResult = z.infer<typeof WriteResultSchema>;
+
+export const SummaryLanguageQuery = z.object({
+  language: z.enum(LOCALES).optional().describe("The summary's language; left out, the reader's (D49)"),
+});
+
+export const SummarizeTextBody = z.object({
+  text: z.string().min(1).max(WRITING_TEXT_MAX).describe('Markdown to summarise, such as what someone selected'),
+  language: z.enum(LOCALES).optional().describe("The summary's language; left out, the reader's (D49)"),
+});
+
+export const TextSummarySchema = z
+  .object({
+    summary: z.string().describe('Markdown. Shown, never saved'),
+    language: z.enum(LOCALES),
+    partial: z.boolean().describe('The text was too long to read whole: it is of its start'),
+    model: z.string(),
+  })
+  .meta({ id: 'TextSummary' });
+export type TextSummary = z.infer<typeof TextSummarySchema>;
+
+export const SummaryCommentBody = z.object({
+  text: z.string().min(1).max(50_000).describe('The summary, exactly as it came'),
+  token: z.string().min(1).max(400).describe("The summary's `post` token"),
+});
+
+export const SuggestedSummarySchema = z
+  .object({
+    current: z.string().describe("The issue's summary now"),
+    summary: z.string().describe('A clearer one, in the same language. Nothing changes until someone saves it'),
+    version: z.number().int().describe("The issue's version it was read at: send it as expectedVersion with the change"),
+    model: z.string(),
+  })
+  .meta({ id: 'SuggestedSummary' });
+export type SuggestedSummary = z.infer<typeof SuggestedSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// Whiteboards (D58)
+// ---------------------------------------------------------------------------
+
+const wbCoord = z.number().finite().min(-WHITEBOARD_LIMITS.coordinate).max(WHITEBOARD_LIMITS.coordinate);
+const wbSize = z.number().finite().min(WHITEBOARD_LIMITS.minSize).max(WHITEBOARD_LIMITS.maxSize);
+const wbZ = z.number().finite().min(-1e9).max(1e9);
+const wbText = z.string().max(WHITEBOARD_LIMITS.text);
+const wbLabel = z.string().max(WHITEBOARD_LIMITS.label);
+
+export const WhiteboardElementId = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{6,64}$/, 'An element’s id is 6 to 64 letters, digits, hyphens or underscores')
+  .describe('Chosen by whoever adds it (a random UUID will do), so an arrow can name an element added in the same batch, and undoing a removal adds it back as it was');
+
+export const WhiteboardElementSchema = z
+  .object({
+    id: z.string(),
+    kind: z.enum(WHITEBOARD_KINDS).describe('note, text (a label or heading), issue or article (a card), arrow, or section (a frame that groups what lies inside it)'),
+    x: z.number(),
+    y: z.number(),
+    w: z.number(),
+    h: z.number(),
+    z: z.number().describe('Stacking order: higher is drawn over lower'),
+    text: z.string().nullable().describe("A note's or a text block's words; a section's title"),
+    tone: z.enum(WHITEBOARD_TONES).nullable().describe("A note's tone: what it is, as a meaning (an idea, agreed, a question, a problem, parked)"),
+    label: z.string().nullable().describe("An arrow's label"),
+    from: z.string().nullable().describe("An arrow's start: an element's id"),
+    to: z.string().nullable().describe("An arrow's end: an element's id"),
+    linked: z.string().nullable().describe('An arrow made into a link between its two issues: the link, as said from its start, e.g. "depends on"'),
+    seq: z.number().int().describe('The whiteboard’s change that last changed it'),
+    version: z.number().int().describe('Raised by each change to it'),
+    updatedAt: timestamp,
+    updatedBy: UserRefSchema.nullable(),
+  })
+  .meta({ id: 'WhiteboardElement' });
+export type WhiteboardElement = z.infer<typeof WhiteboardElementSchema>;
+
+/**
+ * What an issue or article card holds, as the caller may see it now. One they may not see (limited,
+ * a project they're not in, deleted) is `shown: false` and nothing else, the same for every reason.
+ */
+export const WhiteboardCardSchema = z
+  .object({
+    element: z.string(),
+    shown: z.boolean(),
+    id: z.string().optional().describe('BACK-12, or BACK-A-3 for an article'),
+    summary: z.string().optional().describe("The issue's summary, or the article's title"),
+    state: OptionValueSchema.nullable().optional(),
+    assignee: UserRefSchema.nullable().optional(),
+    resolved: z.boolean().optional(),
+  })
+  .meta({ id: 'WhiteboardCard' });
+export type WhiteboardCard = z.infer<typeof WhiteboardCardSchema>;
+
+export const WhiteboardViewerSchema = z
+  .object({ user: UserRefSchema, since: timestamp.describe('Looking since') })
+  .meta({ id: 'WhiteboardViewer' });
+export type WhiteboardViewer = z.infer<typeof WhiteboardViewerSchema>;
+
+export const WhiteboardSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    project: ProjectRefSchema,
+    createdBy: UserRefSchema.nullable(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    seq: z.number().int().describe('Its latest change; its live stream resumes after it'),
+    elements: z.number().int(),
+    access: z.object({
+      edit: z.boolean().describe('May change it: whoever may change its project’s issues'),
+      delete: z.boolean().describe('May delete it: whoever made it, and its project’s managers'),
+    }),
+  })
+  .meta({ id: 'Whiteboard' });
+export type Whiteboard = z.infer<typeof WhiteboardSchema>;
+
+export const WhiteboardDetailSchema = z
+  .object({
+    whiteboard: WhiteboardSchema,
+    elements: z.array(WhiteboardElementSchema),
+    cards: z.array(WhiteboardCardSchema),
+    viewers: z.array(WhiteboardViewerSchema).describe('Who is looking at it now'),
+  })
+  .meta({ id: 'WhiteboardDetail' });
+export type WhiteboardDetail = z.infer<typeof WhiteboardDetailSchema>;
+
+export const WhiteboardCreateBody = z.object({
+  project: z.string().trim().min(1).max(40).describe('Its project, by key: who reads the project reads it, and who may change its issues changes it'),
+  name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name),
+});
+export const WhiteboardRenameBody = z.object({ name: z.string().trim().min(1).max(WHITEBOARD_LIMITS.name) });
+
+const wbSet = z.object({ x: wbCoord, y: wbCoord, w: wbSize, h: wbSize, z: wbZ, text: wbText, tone: z.enum(WHITEBOARD_TONES), label: wbLabel }).partial();
+
+export const WhiteboardOpSchema = z.discriminatedUnion('op', [
+  z.object({
+    op: z.literal('add'),
+    id: WhiteboardElementId,
+    kind: z.enum(WHITEBOARD_KINDS),
+    x: wbCoord,
+    y: wbCoord,
+    w: wbSize.optional(),
+    h: wbSize.optional(),
+    z: wbZ.optional(),
+    text: wbText.optional(),
+    tone: z.enum(WHITEBOARD_TONES).optional(),
+    label: wbLabel.optional(),
+    issue: z.string().trim().min(1).max(40).optional().describe('An issue card: the issue, e.g. BACK-12'),
+    article: z.string().trim().min(1).max(40).optional().describe('An article card: the article, e.g. BACK-A-3'),
+    from: WhiteboardElementId.optional().describe("An arrow's start"),
+    to: WhiteboardElementId.optional().describe("An arrow's end"),
+  }),
+  z.object({
+    op: z.literal('update'),
+    id: WhiteboardElementId,
+    set: wbSet.refine((v) => Object.keys(v).length > 0, 'Say what changes'),
+    expect: wbSet.optional().describe('Values it must still have, or this change is refused for it alone; the rest of the batch goes on'),
+  }),
+  z.object({ op: z.literal('remove'), id: WhiteboardElementId, expect: wbSet.optional() }),
+]);
+export type WhiteboardOp = z.infer<typeof WhiteboardOpSchema>;
+
+export const WhiteboardBatchBody = z.object({
+  ops: z.array(WhiteboardOpSchema).min(1).max(WHITEBOARD_LIMITS.ops),
+  client: z.string().trim().max(64).optional().describe('Which of a person’s tabs sent it: the live stream says it back, so a page knows its own changes'),
+});
+export type WhiteboardBatchInput = z.input<typeof WhiteboardBatchBody>;
+
+export const WhiteboardBatchResultSchema = z
+  .object({
+    seq: z.number().int(),
+    applied: z.array(z.string()).describe('The elements this batch added, changed or removed'),
+    elements: z.array(WhiteboardElementSchema).describe('Each element it added or changed, as it is now'),
+    removed: z.array(z.string()).describe('What it removed, arrows to removed elements included'),
+    refused: z
+      .array(
+        z.object({
+          id: z.string(),
+          op: z.enum(['add', 'update', 'remove']),
+          reason: z.enum(['gone', 'changed', 'exists']).describe('gone: no such element (removed meanwhile); changed: it no longer has what `expect` said; exists: an element has that id'),
+          element: WhiteboardElementSchema.nullable().describe('The element as it is now, if there is one'),
+        }),
+      )
+      .describe('Changes not made, each for its element alone'),
+  })
+  .meta({ id: 'WhiteboardBatchResult' });
+export type WhiteboardBatchResult = z.infer<typeof WhiteboardBatchResultSchema>;
+
+/** What a page shows of a problem with one item among several, beside the API's English (D49). */
+export const ItemProblemSchema = z
+  .object({
+    message: z.string(),
+    hint: z.string().optional(),
+    said: z.object({ key: z.string(), values: z.record(z.string(), z.unknown()).optional() }).describe('The same problem, for a page to say in its language'),
+  })
+  .meta({ id: 'ItemProblem' });
+export type ItemProblem = z.infer<typeof ItemProblemSchema>;
+
+export const WhiteboardConvertBody = z
+  .object({
+    project: z.string().trim().min(1).max(40).optional().describe('Where the notes’ issues go, by key: a project you may report issues in. Needed with notes'),
+    notes: z.array(WhiteboardElementId).max(WHITEBOARD_LIMITS.convert).default([]).describe('Notes to make issues of: each note’s first line is the summary, the rest the description'),
+    links: z
+      .array(
+        z.object({
+          arrow: WhiteboardElementId,
+          relation: z.string().trim().min(1).max(100).describe('How the issue at its start relates to the one at its end, e.g. "depends on", "relates to"'),
+        }),
+      )
+      .max(WHITEBOARD_LIMITS.convert)
+      .default([])
+      .describe('Arrows between cards that are issues, or become issues here, to make links of'),
+    dryRun: z.boolean().default(false).describe('Say what would happen, and change nothing'),
+  })
+  .refine((v) => v.notes.length + v.links.length > 0, 'Name a note or an arrow');
+export type WhiteboardConvertInput = z.input<typeof WhiteboardConvertBody>;
+
+export const WhiteboardConvertResultSchema = z
+  .object({
+    dryRun: z.boolean(),
+    seq: z.number().int(),
+    notes: z.array(
+      z.object({
+        element: z.string(),
+        ok: z.boolean(),
+        issue: z.string().optional().describe('The issue it became; absent in a dry run'),
+        summary: z.string().optional(),
+        already: z.boolean().optional().describe('It was an issue already: nothing was made'),
+        problem: ItemProblemSchema.optional(),
+      }),
+    ),
+    links: z.array(
+      z.object({
+        element: z.string(),
+        ok: z.boolean(),
+        link: z.string().optional().describe('e.g. "BACK-12 depends on BACK-13"; absent in a dry run whose ends are notes, as the issues they would become have no ids yet'),
+        relation: z.string().optional().describe('How the issue at its start relates to the one at its end, as the link type says it: "depends on"'),
+        made: z.boolean().optional().describe('False when the link was there already: it is never made twice'),
+        problem: ItemProblemSchema.optional(),
+      }),
+    ),
+  })
+  .meta({ id: 'WhiteboardConvertResult' });
+export type WhiteboardConvertResult = z.infer<typeof WhiteboardConvertResultSchema>;
+
+/** A change on a whiteboard's live stream: what one batch or conversion left, for everyone looking. */
+export interface WhiteboardChangeFrame {
+  seq: number;
+  by: UserRef | null;
+  client: string | null;
+  elements: WhiteboardElement[];
+  removed: string[];
+}

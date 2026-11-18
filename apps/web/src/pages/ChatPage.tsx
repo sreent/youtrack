@@ -2,7 +2,7 @@ import type { ChatStatus } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post } from '../api/client';
-import { ago, Badge } from '../components/Badges';
+import { agoSaid, Badge } from '../components/Badges';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { UserWho } from '../components/Who';
 import { chatKeys, ChatSubscriptionTable, useChatSubscriptions } from '../features/chat/Chat';
@@ -58,7 +58,7 @@ function Teams({ status }: { status: ChatStatus }) {
             <li key={team.id} className="cluster spread">
               <span>
                 <span className="item-name">{team.name}</span>
-                <span className="item-about">{tr('page.chat.addedChannels', { when: ago(team.installedAt), length: channels.filter((c) => c.workspace === team.name && !c.gone).length })}</span>
+                <span className="item-about">{tr('page.chat.addedChannels', { when: agoSaid(team.installedAt), length: channels.filter((c) => c.workspace === team.name && !c.gone).length })}</span>
                 {team.removed ? <span className="item-about">{problemWords(team.removedSaid) ?? team.removed}</span> : null}
               </span>
               {team.removed ? <Badge tone="idle">{tx('chat.chat.stopped')}</Badge> : <Badge tone="good">{tx('page.chat.inTheTeam')}</Badge>}
@@ -109,7 +109,7 @@ function Slack({ status }: { status: ChatStatus }) {
         <div className="cluster spread">
           <span>
             <span className="item-name">{s.workspace}</span>
-            <span className="item-about">{tr('page.chat.connectedBy', { v: s.connectedAt ? ago(s.connectedAt) : '', el: <UserWho user={s.connectedBy} small /> })}</span>
+            <span className="item-about">{tr('page.chat.connectedBy', { v: s.connectedAt ? agoSaid(s.connectedAt) : '', el: <UserWho user={s.connectedBy} small /> })}</span>
           </span>
           <Confirm
             small
@@ -160,6 +160,7 @@ function Slack({ status }: { status: ChatStatus }) {
         ))}
       </dl>
       <p className="note">{tr('page.chat.theAppNeedsTheScopes', { code: <code>chat:write</code>, code2: <code>commands</code>, code3: <code>channels:read</code>, code4: <code>groups:read</code>, code5: <code>links:read</code>, code6: <code>links:write</code>, code7: <code>link_shared</code>, code8: <code>member_joined_channel</code>, code9: <code>channel_deleted</code>, code10: <code>channel_archive</code>, code11: <code>channel_rename</code>, code12: <code>app_uninstalled</code> })}</p>
+      <p className="note">{tr('page.chat.issuesFromMessagesNeed', { code: <code>channels:history</code>, code2: <code>groups:history</code>, code3: <code>users:read</code>, code4: <code>a4a_create_issue</code> })}</p>
     </div>
   );
 }

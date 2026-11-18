@@ -26,7 +26,8 @@ export async function formerIdsOf(db: Db, s: SchemaSnapshot, issueId: string): P
 
 /**
  * For ids written somewhere (a description, a commit message), the id each now goes by: an old id
- * maps to the issue's current one, and any other id maps to itself.
+ * maps to the issue's current one, an id under a key its project had before it was renamed to the
+ * same number under its key now (D52), and any other id maps to itself.
  */
 export async function currentIds(db: Db, s: SchemaSnapshot, ids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
@@ -35,7 +36,9 @@ export async function currentIds(db: Db, s: SchemaSnapshot, ids: string[]): Prom
     out.set(id, id);
     const parsed = parseReadableId(id);
     const p = parsed ? s.projectsByKey.get(parsed.key) : undefined;
-    if (parsed && p) asked.push({ id, projectId: p.id, number: parsed.number });
+    if (!parsed || !p) continue;
+    if (p.key.toUpperCase() !== parsed.key) out.set(id, `${p.key}-${parsed.number}`);
+    asked.push({ id, projectId: p.id, number: parsed.number });
   }
   if (!asked.length) return out;
   const rows = await db.execute(

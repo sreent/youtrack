@@ -1,6 +1,6 @@
 /** Times, money and counts, as Ocean writes them, in the page's language (D49). */
 import { formatPeriod } from '@a4a/shared/periods';
-import { intlLocale, t } from '../../i18n';
+import { getLocale, intlLocale, t } from '../../i18n';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -23,15 +23,18 @@ function sameDay(a: Date, b: Date): boolean {
 /** As people read times: today's alone ("10:02"), older ones with their day ("Mon 9 Nov, 10:02"). */
 export function whenRead(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  if (sameDay(d, now)) return time;
-  const day = d.toLocaleDateString(intlLocale(), {
+  // Today's time alone, as the page's language writes one ("14:05", Indonesian's "14.05").
+  if (sameDay(d, now)) return d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  // The day and the time together, as the page's language joins them (Japanese has no comma), on a 24-hour clock.
+  return d.toLocaleString(intlLocale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
   });
-  return `${day.replace(',', '')}, ${time}`;
 }
 
 /** A day heading in a conversation: "Today", "Yesterday", or the day. */
@@ -78,9 +81,15 @@ export function excerpt(text: string, max = 140): string {
 
 export const ISSUE_ID = /\b([A-Z][A-Z0-9]{1,9}-\d+)\b/g;
 
+/**
+ * Intl's narrowest unit width for the page's language. Thai's narrow glues the unit to its number
+ * ("1.5ชม.") while Thai sets a number off with a space, so Thai takes the short width ("1.5 ชม.").
+ */
+const unitDisplay = (): 'narrow' | 'short' => (getLocale() === 'th' ? 'short' : 'narrow');
+
 /** Hours as a figure with its unit in the page's language, at most one decimal: "16h", "5.3h" in English (D49). */
 export function hoursWords(h: number): string {
-  return new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: 'hour', unitDisplay: 'narrow', maximumFractionDigits: 1 }).format(h);
+  return new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: 'hour', unitDisplay: unitDisplay(), maximumFractionDigits: 1 }).format(h);
 }
 
 const PERIOD_UNITS = { w: 'week', d: 'day', h: 'hour', m: 'minute' } as const;
@@ -92,6 +101,6 @@ const PERIOD_UNITS = { w: 'week', d: 'day', h: 'hour', m: 'minute' } as const;
 export function periodWords(minutes: number, opts?: Parameters<typeof formatPeriod>[1]): string {
   const parts = formatPeriod(minutes, opts)
     .split(' ')
-    .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: 'narrow' }).format(Number(p.slice(0, -1))));
+    .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: unitDisplay() }).format(Number(p.slice(0, -1))));
   return new Intl.ListFormat(intlLocale(), { type: 'unit', style: 'narrow' }).format(parts);
 }

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post } from '../../api/client';
 import { keys, useMe, useUsers } from '../../api/queries';
-import { ago, Badge } from '../../components/Badges';
+import { ago, agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
@@ -25,7 +25,7 @@ function Stands({ email }: { email: UserEmail }) {
   ) : (
     <>
       <Badge tone="warn">{t('vcs.people.waitingToBeConfirmed')}</Badge>
-      {email.linkSentAt ? <span className="item-about">{tr('vcs.people.aLinkWent', { when: ago(email.linkSentAt) })}</span> : null}
+      {email.linkSentAt ? <span className="item-about">{tr('vcs.people.aLinkWent', { when: agoSaid(email.linkSentAt) })}</span> : null}
     </>
   );
 }

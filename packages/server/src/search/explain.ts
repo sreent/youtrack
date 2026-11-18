@@ -3,15 +3,15 @@
  * its own language; an agent or a script, in English, as the API's words are. The query language's own
  * words in it (fields, values, #Unresolved as a tag) stay as written.
  */
-import type { Translator } from '@a4a/shared/i18n';
-import { intlTag, translatorFor } from '../i18n';
+import { joinList, type Translator } from '@a4a/shared/i18n';
+import { translatorFor } from '../i18n';
 import type { ParsedQuery, QueryNode, ValueNode } from './parser';
 
 const ENGLISH = translatorFor('en');
 
 /** A list as the reader's language joins one: "a or b", "a, b und c", "a、b、c". */
 function list(tr: Translator, items: string[], type: 'conjunction' | 'disjunction', style: 'long' | 'narrow' = 'long'): string {
-  return new Intl.ListFormat(intlTag(tr.locale), { type, style }).format(items);
+  return joinList(tr.locale, items, { type, style });
 }
 
 /** "me" is whoever reads it: "you", in their language, where a value names people. */
@@ -71,6 +71,7 @@ function node(n: QueryNode, tr: Translator): string {
       if (t.kind === 'sla') return t.target ? tr.t('server.query.slaTargetIs', { target: slaTarget(t.target), values: values(n.values, tr) }) : tr.t('server.query.slaIs', { values: values(n.values, tr) });
       if (t.kind === 'slaDue') return tr.t('server.query.slaTargetDue', { target: slaTarget(t.target), values: values(n.values, tr) });
       if (t.kind === 'requester') return tr.t('server.query.askedForBy', { values: values(n.values, tr) });
+      if (t.kind === 'customer') return tr.t('server.query.fromCustomer', { values: values(n.values, tr) });
       if (t.kind === 'project') return tr.t('server.query.inProject', { values: values(n.values, tr) });
       // A date's and a field's name are the query language's: "created", "Priority".
       if (t.kind === 'dateAttr') return `${name} ${values(n.values, tr)}`;

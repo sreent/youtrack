@@ -1,5 +1,5 @@
 /**
- * A board: a card dragged to another column is saved with the version the board showed; from
+ * A board: a card dragged to another column is saved, through the board's rank, with the version the board showed; from
  * the keyboard, a card's id opens the command dialog that moves it; and a card someone else
  * changed meanwhile isn't moved over their change. The board and its issues are this file's own.
  */
@@ -51,9 +51,10 @@ test('a card dragged to another column is saved with the version the board showe
   await page.goto(`/boards/${board.id}`);
   await expect(column(page, 'Open').getByRole('button', { name: `Move ${issue.id} with a command` })).toBeVisible();
 
-  const saved = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().endsWith(`/api/v1/issues/${issue.id}`));
+  const saved = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith(`/api/v1/boards/${board.id}/rank`));
   await drag(page, issue, 'In Progress');
-  expect((await saved).postDataJSON()).toEqual({ fields: { State: 'In Progress' }, expectedVersion: issue.version });
+  // Into a column with nobody to place it against: its column, and its place in the board's order kept.
+  expect((await saved).postDataJSON()).toEqual({ issue: issue.id, column: 'In Progress', expectedVersion: issue.version });
 
   await expect(column(page, 'In Progress').getByRole('button', { name: `Move ${issue.id} with a command` })).toBeVisible();
   await expect(column(page, 'Open').getByRole('button', { name: `Move ${issue.id} with a command` })).toBeHidden();
@@ -92,7 +93,7 @@ test('a card someone changed meanwhile stays where it was, and the board says wh
   await expect(column(page, 'Open').getByRole('button', { name: `Move ${issue.id} with a command` })).toBeVisible();
 
   await api.updateIssue(issue.id, { fields: { Priority: 'Critical' } });
-  const refused = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith(`/api/v1/issues/${issue.id}`));
+  const refused = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().endsWith(`/api/v1/boards/${board.id}/rank`));
   await drag(page, issue, 'In Progress');
   expect((await refused).status()).toBe(409);
 

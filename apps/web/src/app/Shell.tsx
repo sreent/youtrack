@@ -31,6 +31,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { to: '/inbox', label: t('app.shell.inbox'), icon: 'bell', count: 'unread' },
       { to: '/issues', label: t('app.shell.issues'), icon: 'tasks' },
       { to: '/boards', label: t('app.shell.boards'), icon: 'board' },
+      { to: '/whiteboards', label: t('app.shell.whiteboards'), icon: 'whiteboard' },
       { to: '/plan', label: t('app.shell.plan'), icon: 'timeline' },
       { to: '/timesheet', label: t('app.shell.timesheet'), icon: 'clock' },
       { to: '/articles', label: t('app.shell.knowledgeBase'), icon: 'book' },
@@ -85,8 +86,19 @@ function useLiveInvalidation() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const touched = new Set<string>();
     let articles = false;
+    let cards = false;
+    let whiteboards = false;
+    let rekeyed = false;
     const flush = () => {
       timer = null;
+      // A project's key renamed (D52): every id on every page reads under its new key, so read them all again.
+      if (rekeyed) {
+        rekeyed = false;
+        touched.clear();
+        articles = false;
+        void qc.invalidateQueries();
+        return;
+      }
       qc.invalidateQueries({ queryKey: ['issues', 'list'] });
       qc.invalidateQueries({ queryKey: ['boards'] });
       qc.invalidateQueries({ queryKey: ['events'] });
@@ -95,12 +107,20 @@ function useLiveInvalidation() {
       for (const id of touched) qc.invalidateQueries({ queryKey: keys.issue(id) });
       touched.clear();
       if (articles) qc.invalidateQueries({ queryKey: ['articles'] });
+      // A whiteboard's cards follow their issues and articles (D58); its list, its life.
+      if (cards) qc.invalidateQueries({ queryKey: ['whiteboard-cards'] });
+      if (whiteboards) qc.invalidateQueries({ queryKey: ['whiteboards', 'list'] });
+      cards = false;
+      whiteboards = false;
       articles = false;
     };
     return subscribeEvents((e) => {
+      if (e.type === 'project.key.changed') rekeyed = true;
       if (e.issue?.id) touched.add(e.issue.id);
       // An article's change, or a file on one; and mentions of articles come from issues' text.
       if (e.type.startsWith('article.') || (e.type.startsWith('attachment.') && !e.issue) || e.type.startsWith('comment.') || e.type === 'issue.updated') articles = true;
+      if (e.type.startsWith('issue.') || e.type.startsWith('article.')) cards = true;
+      if (e.type.startsWith('whiteboard.')) whiteboards = true;
       timer ??= setTimeout(flush, 400);
     });
   }, [qc]);
@@ -121,8 +141,8 @@ function UnreadCount() {
   if (!n) return null;
   return (
     <span className="nav-count">
-      {n > 99 ? '99+' : n}
-      <span className="hidden">{t('app.shell.unread')}</span>
+      <span aria-hidden="true">{n > 99 ? '99+' : n}</span>
+      <span className="hidden">{t('app.shell.unreadCount', { n })}</span>
     </span>
   );
 }

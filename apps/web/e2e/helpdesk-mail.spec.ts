@@ -33,7 +33,7 @@ test('a desk takes mail: set up on its project page, a message becomes a request
   const url = (await shown.getByRole('code').textContent())!;
   expect(url).toMatch(new RegExp(`^http://a4a:hdm_[A-Za-z0-9_-]{32}@127\\.0\\.0\\.1:\\d+/api/v1/mail/inbound/${key}$`));
   await shown.getByRole('button', { name: "I've kept it" }).click();
-  await expect(section.getByText(/^takes posts with the secret hdm_\w{4}…$/)).toBeVisible();
+  await expect(section.getByText(/^takes posts with the secret hdm_[\w-]{4}…$/)).toBeVisible();
 
   const posted = await postMail(url, message({ from: 'Jane Doe <jane@example.com>', to: address, subject: 'Invoices show the wrong VAT', body: 'Since Monday, every invoice says 19%.\n\n-- \nJane Doe\nExample Ltd' }));
   expect(posted).toEqual({ status: 200, body: { outcome: 'request', reason: 'a new request' } });

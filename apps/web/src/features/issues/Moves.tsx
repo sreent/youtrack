@@ -11,7 +11,7 @@ import { ApiError, del, get, post } from '../../api/client';
 import { keys } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
 import { errorText } from './api';
-import { problemSaid, t, tr } from '../../i18n';
+import { formatList, problemSaid, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 function useRefresh(issue: string) {
@@ -92,7 +92,7 @@ export function ReactionBar({ reactions, path, issue, canReact }: { reactions: R
           className="reaction"
           aria-pressed={r.mine}
           disabled={!canReact}
-          title={r.people.map((p) => p.name).join(', ')}
+          title={formatList(r.people.map((p) => p.name))}
           onClick={() => void toggle(r.emoji)}
         >
           {r.emoji} {r.count}
@@ -228,13 +228,13 @@ export function MoveIssue({ issue, onClose }: { issue: IssueDetail; onClose: () 
             <ul className="plain">
               {plan.carried.map((c) => (
                 <li key={c.field}>
-                  {c.field}: {c.from === c.to ? (c.to ?? 'empty') : `${c.from ?? 'empty'} → ${c.to ?? 'empty'}`}
+                  {t('issues.moves.carried', { field: c.field, same: c.from === c.to ? 'yes' : 'no', from: c.from ?? t('common.changeLines.none'), to: c.to ?? t('common.changeLines.none') })}
                 </li>
               ))}
             </ul>
           ) : null}
-          {plan.dropped.length ? <p className="note">{tr('issues.moves.leftBehindAsDoesnT', { key: plan.project.key, join: plan.dropped.join(', ') })}</p> : null}
-          {plan.leftSprints.length ? <p className="note">{tr('issues.moves.itLeaves', { join: plan.leftSprints.join(', ') })}</p> : null}
+          {plan.dropped.length ? <p className="note">{tr('issues.moves.leftBehindAsDoesnT', { key: plan.project.key, join: formatList(plan.dropped) })}</p> : null}
+          {plan.leftSprints.length ? <p className="note">{tr('issues.moves.itLeaves', { join: formatList(plan.leftSprints) })}</p> : null}
         </>
       ) : null}
       {error && !plan?.problems.length ? <ErrorLine>{error}</ErrorLine> : null}

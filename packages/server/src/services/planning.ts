@@ -43,11 +43,11 @@ import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
 import type { AwayPart } from '../planning/types';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { canReadProject, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
+import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
-import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
+import { fieldByName, findUser, idWithKeyNow, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { userRefDto } from './values';
 
 const MAX_PLAN_ISSUES = 2000;
@@ -98,7 +98,9 @@ export async function loadPlan(
   const fPriority = field(WELL_KNOWN_FIELDS.priority);
   const fType = field(WELL_KNOWN_FIELDS.type);
 
-  const values = ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : [];
+  // A private field kept from the caller is no value to the plan they read (D50), as a limited issue is no task (D37).
+  const kept = hiddenFields(await projectAccess(ctx), s).get(project.id);
+  const values = (ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : []).filter((v) => !kept?.has(v.fieldId));
   const byIssue = new Map<string, typeof values>();
   for (const v of values) byIssue.set(v.issueId, [...(byIssue.get(v.issueId) ?? []), v]);
   const val = (issueId: string, fieldId: string | undefined) => (fieldId ? byIssue.get(issueId)?.find((v) => v.fieldId === fieldId) : undefined);
@@ -184,7 +186,8 @@ export async function loadPlan(
     const [b] = await ctx.db.select().from(baselines).where(and(eq(baselines.id, opts.baselineId), eq(baselines.projectId, project.id)));
     if (!b) throw notFound('Baseline', `Baselines of ${project.key}: GET /projects/${project.key}/baselines`).said('planning.baselineNotFoundList', { project: project.key });
     const bt = await ctx.db.select().from(baselineTasks).where(eq(baselineTasks.baselineId, b.id));
-    baseline = { id: b.id, name: b.name, tasks: bt.map((t) => ({ id: t.readableId, start: t.start, finish: t.finish, effortMinutes: t.effortMinutes, cost: t.cost })) };
+    // Its tasks keep the ids they had; the plan's read as the issues read now (a key renamed since, D52).
+    baseline = { id: b.id, name: b.name, tasks: bt.map((t) => ({ id: rid.get(t.issueId) ?? idWithKeyNow(s, t.readableId), start: t.start, finish: t.finish, effortMinutes: t.effortMinutes, cost: t.cost })) };
   }
 
   const plan = projectSettings(project).plan;

@@ -1,4 +1,4 @@
-import type { Article, ArticleDetail } from '@a4a/shared';
+import type { Article, ArticleDetail, TextSummary } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { Fragment, useEffect, useId, useMemo, useState } from 'react';
@@ -12,6 +12,7 @@ import { Empty, ErrorLine, ErrorNote, Loading, PageHead } from '../components/St
 import { actorWho, Who } from '../components/Who';
 import { articleKeys, subtreeOf, useArticle, useArticleSearch, useArticleTree, useArticleVersion, useArticleVersions } from '../features/articles/api';
 import { ArticleTree } from '../features/articles/ArticleTree';
+import { ArticleVisibleTo } from '../features/articles/ArticleVisibleTo';
 import { Diff, diffWords } from '../features/articles/Diff';
 import { attachmentKeys, useArticleAttachments, useAttachmentLimits } from '../features/attachments/api';
 import { AttachmentList } from '../features/attachments/AttachmentList';
@@ -19,7 +20,10 @@ import { FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { whenRead } from '../features/common/format';
 import { errorText, useStateTones } from '../features/issues/api';
+import { LimitPicker, type Limit } from '../features/issues/VisibleTo';
 import { AppWidgets } from '../features/apps/AppWidgets';
+import { SummaryCard, useWritingOn } from '../features/writing/WritingHelp';
+import { errorText as problemText } from '../features/common/bits';
 import { intlLocale, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
@@ -297,6 +301,20 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
   };
   const siblings = flat.filter((x) => (x.parent ?? '') === parent && x.id !== a.id);
   const same = parent === (a.parent ?? '');
+  // Who sees it there (D51): only who sees the nearest limited article above the new place, or,
+  // out from under every limited one, everyone in the project unless it's limited itself.
+  const limitedThere = (() => {
+    const byId = new Map(flat.map((f) => [f.id, f]));
+    for (let x = parent ? byId.get(parent) : undefined, n = 0; x && n < 200; x = x.parent ? byId.get(x.parent) : undefined, n++) if (x.limited) return x;
+    return undefined;
+  })();
+  const whoThere = same
+    ? null
+    : limitedThere
+      ? t('page.articles.movingUnderLimited', { title: limitedThere.title })
+      : a.limitedAbove.length && !a.limited
+        ? t('page.articles.movingOutOfLimited', { key: a.project.key })
+        : null;
   const position =
     place === 'stay' ? undefined : place === 'first' ? 0 : place === 'last' ? siblings.length : siblings.findIndex((s) => s.id === place.slice(6)) + 1;
   const changes = !same || position !== undefined;
@@ -370,6 +388,7 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
             </select>
           </div>
         </div>
+        {whoThere ? <p className="note">{whoThere}</p> : null}
         <div className="cluster spread">
           <Confirm
             label={t('page.articles.deleteIt')}
@@ -385,6 +404,39 @@ function MoveOrDelete({ a }: { a: ArticleDetail }) {
       </form>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </section>
+  );
+}
+
+/** The article summarised by the assistant, in the reader's language (D59): shown, never saved. */
+function ArticleSummary({ a }: { a: ArticleDetail }) {
+  const on = useWritingOn();
+  const [state, setState] = useState<{ result: TextSummary } | { error: string } | 'asking' | null>(null);
+  if (!on || !a.body.trim()) return null;
+  const ask = async () => {
+    setState('asking');
+    try {
+      setState({ result: await post<TextSummary>(`/articles/${a.id}/summarize`) });
+    } catch (e) {
+      setState({ error: problemText(e) });
+    }
+  };
+  if (state === null || state === 'asking' || 'error' in state)
+    return (
+      <div className="cluster">
+        <button type="button" onClick={() => void ask()} disabled={state === 'asking'}>
+          {state === 'asking' ? t('page.articles.summarising') : t('page.articles.summarise')}
+        </button>
+        {state !== null && state !== 'asking' ? <ErrorLine>{state.error}</ErrorLine> : null}
+      </div>
+    );
+  return (
+    <SummaryCard
+      label={t('page.articles.summaryByTheAssistant')}
+      did={t('page.articles.summarisedTheArticle')}
+      summary={state.result.summary}
+      note={state.result.partial ? t('page.articles.longArticleSummarised') : null}
+      onClose={() => setState(null)}
+    />
   );
 }
 
@@ -422,7 +474,12 @@ function ArticleView() {
       <PageHead
         crumbs={<Crumbs project={a.project.key} name={a.project.name} path={a.path} />}
         title={a.title}
-        badges={<span className="issue-id">{a.id}</span>}
+        badges={
+          <>
+            <span className="issue-id">{a.id}</span>
+            {a.limited || a.limitedAbove.length ? <Badge tone="idle" title={t('articles.articleTree.onlySomeSeeIt')}>{t('articles.articleTree.limited')}</Badge> : null}
+          </>
+        }
         meta={
           <>
             <span>{tr('page.articles.by', { v: a.version === 1 ? t('page.articles.written') : t('page.articles.changed'), by: by, whenRead: whenRead(a.updatedAt), t0: (c: ReactNode) => <time dateTime={a.updatedAt} title={new Date(a.updatedAt).toLocaleString(intlLocale())}>{c}</time> })}</span>
@@ -452,6 +509,7 @@ function ArticleView() {
             )}
             {tickSaid ? <ErrorLine>{tickSaid}</ErrorLine> : null}
           </article>
+          <ArticleSummary key={`summary-${a.id}`} a={a} />
           {a.children.length ? (
             <section className="card stack" aria-labelledby="under-title">
               <h2 id="under-title">{t('page.articles.underIt')}</h2>
@@ -467,6 +525,7 @@ function ArticleView() {
               </ul>
             </section>
           ) : null}
+          <ArticleVisibleTo key={`visible-${a.id}`} a={a} canWrite={canWrite} />
           <MentionedIn a={a} />
           <ArticleFiles key={`files-${a.id}`} a={a} canWrite={canWrite} />
           <AppWidgets at="article-panel" article={a.id} />
@@ -493,6 +552,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [parent, setParent] = useState(params.get('parent')?.toUpperCase() ?? '');
+  const [limit, setLimit] = useState<Limit | null>(null);
   const [show, setShow] = useState<'write' | 'read'>('write');
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -529,7 +589,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
     setError(null);
     try {
       if (mode === 'new') {
-        const made = await post<ArticleDetail>('/articles', { project, title, body, ...(parent ? { parent } : {}) });
+        const made = await post<ArticleDetail>('/articles', { project, title, body, ...(parent ? { parent } : {}), ...(limit ? { visibleTo: limit } : {}) });
         await qc.invalidateQueries({ queryKey: articleKeys.all });
         navigate(`/articles/${made.id}`, { state: { said: t('page.articles.isWritten', { id: made.id }) } });
       } else {
@@ -594,6 +654,15 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
             </div>
           ) : null}
         </div>
+        {mode === 'new' ? (
+          <div className="stack tight">
+            <label className="choice">
+              <input type="checkbox" checked={limit !== null} onChange={(e) => setLimit(e.target.checked ? { users: [], groups: [] } : null)} />
+              <span>{t('page.articles.limitWhoSeesIt')}</span>
+            </label>
+            {limit ? <LimitPicker value={limit} onChange={setLimit} legend={t('articles.visibleTo.whoElseSeesIt')} always={t('articles.visibleTo.always', { key: project })} /> : null}
+          </div>
+        ) : null}
         <div className="modes" role="group" aria-label={t('page.articles.show')}>
           <button type="button" aria-pressed={show === 'write'} onClick={() => setShow('write')}>{t('page.articles.write')}</button>
           <button type="button" aria-pressed={show === 'read'} onClick={() => setShow('read')}>{t('page.articles.preview')}</button>
@@ -609,6 +678,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
               tall
               uploadTo={mode === 'edit' && id ? `/articles/${id}/attachments` : undefined}
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.article(id ?? '') })}
+              writing={{ kind: 'article', article: mode === 'edit' && id ? id : undefined, project: project || undefined, title: title || undefined }}
             />
           </div>
           <div className="article-preview" role="region" aria-label={t('page.articles.howItWillRead')}>

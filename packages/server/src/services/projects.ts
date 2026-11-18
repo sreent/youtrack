@@ -18,6 +18,7 @@ import { badRequest, notFound } from '../lib/errors';
 import { calendarOf } from '../helpdesk/business-time';
 import { newId } from '../lib/ids';
 import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
+import { isUniqueViolation, keyHolders } from './project-keys';
 import { getSetting } from './settings';
 import { resyncOpen } from './sla';
 import { fieldByName, findUser, projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
@@ -33,7 +34,7 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, organizations: [] };
+export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null };
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
 export const DEFAULT_TIME: TimeSettings = { workTypeRequired: false };
@@ -113,6 +114,7 @@ export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView,
     createdAt: row.createdAt.toISOString(),
     access: view.describe(row.id) ?? NO_ACCESS,
     guestAccess: row.guestAccess,
+    formerKeys: s.formerKeys.get(row.id) ?? [],
   };
 }
 
@@ -147,8 +149,14 @@ export async function createProject(
   const defaultTriage = ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest';
   const id = newId();
   const settings: ProjectSettings = { triageMode: defaultTriage, plan: { ...DEFAULT_PLAN, ...(input.plan ?? {}) }, helpdesk: DEFAULT_HELPDESK, time: DEFAULT_TIME };
+  const keyTaken = () => badRequest(`Project key ${key} is already used`).said('projects.keyTaken', { key });
   await ctx.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
+    // A key a project had before it was renamed stays its own (D52), as its key now does; read here,
+    // not from the cache, so a rename that just committed elsewhere counts. A project taking the key
+    // at the same moment meets this one's row on the key's unique index.
+    const holders = await keyHolders(tx, key);
+    if (holders.now || holders.before) throw keyTaken();
     await tx.insert(projects).values({
       id,
       key,
@@ -170,6 +178,8 @@ export async function createProject(
         defaultValue: (tf.defaultValue ?? null) as never,
       });
     }
+  }).catch((e: unknown) => {
+    throw isUniqueViolation(e) ? keyTaken() : e;
   });
   ctx.app.schema.invalidate();
   accessChanged(ctx.app);
@@ -200,10 +210,15 @@ export async function updateProject(
     leadId = u.id;
   }
   const current = projectSettings(p);
+  // D45's organizations are customer groups now (D56): a script that still sets them is told where they went.
+  const { organizations, ...helpdesk } = (input.settings?.helpdesk ?? {}) as Partial<HelpdeskSettings> & { organizations?: string[] };
+  if (organizations?.length) {
+    throw badRequest('Organizations are customer groups now', `Add each domain to a customer group of the desk: POST /api/v1/projects/${p.key}/customer-groups.`).said('projects.organizationsAreGroups', { project: p.key });
+  }
   const settings: ProjectSettings = {
     triageMode: input.settings?.triageMode ?? current.triageMode,
     plan: { ...current.plan, ...(input.settings?.plan ?? {}) },
-    helpdesk: { ...current.helpdesk, ...(input.settings?.helpdesk ?? {}) },
+    helpdesk: { ...current.helpdesk, ...helpdesk },
     time: { ...current.time, ...(input.settings?.time ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');

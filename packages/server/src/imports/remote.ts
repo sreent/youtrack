@@ -15,8 +15,9 @@
  * The credentials never appear in an error, a log or the database: what the other tracker says
  * back is shown with them taken out.
  *
- * 429 and 503 are waited out as Retry-After asks (up to ten minutes a time), a dropped connection
- * is tried again, and the waits go through a hook, so a job can keep saying it's alive.
+ * 429 and 503 are waited out as Retry-After asks (up to ten minutes a time), or, without it, until
+ * the X-RateLimit-Reset a 429 names (ClickUp's); a dropped connection is tried again, and the waits
+ * go through a hook, so a job can keep saying it's alive.
  */
 import { lookup as dnsLookup, type LookupAddress, type LookupOptions } from 'node:dns';
 import http, { type IncomingHttpHeaders, type IncomingMessage } from 'node:http';
@@ -196,7 +197,7 @@ export interface RemoteHooks {
 export interface RemoteNames {
   /** What the person calls it: YouTrack, Jira. */
   name: string;
-  /** Which tracker it is (youtrack, jira, github, redmine, zendesk): what its own hints are chosen by, in any language (D49). */
+  /** Which tracker it is (youtrack, jira, github, redmine, zendesk, asana, clickup): what its own hints are chosen by, in any language (D49). */
   source?: string;
   /** Its address, as an example: https://example.youtrack.cloud */
   example: string;
@@ -219,12 +220,17 @@ function retryAfterMs(value: string | string[] | undefined): number | null {
 const TLS = /^(CERT_|ERR_TLS|ERR_SSL|UNABLE_TO_|DEPTH_ZERO|SELF_SIGNED)/;
 const DROPPED = new Set(['ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'ECONNABORTED', 'EAI_AGAIN', 'UND_ERR_SOCKET']);
 
-/** The other tracker's words for a refusal, from its JSON: YouTrack's error_description, Jira's errorMessages. */
+/** The other tracker's words for a refusal, from its JSON: YouTrack's error_description, Jira's errorMessages, Asana's errors, ClickUp's err. */
 function theirWords(text: string): string | null {
   try {
     const j = JSON.parse(text) as Record<string, unknown>;
     if (typeof j.error_description === 'string' && j.error_description) return j.error_description;
     if (Array.isArray(j.errorMessages) && j.errorMessages.length) return j.errorMessages.filter((x) => typeof x === 'string').join(' ');
+    if (Array.isArray(j.errors)) {
+      const said = j.errors.map((x) => (typeof x === 'string' ? x : typeof (x as { message?: unknown })?.message === 'string' ? (x as { message: string }).message : '')).filter(Boolean);
+      if (said.length) return said.join(' ');
+    }
+    if (typeof j.err === 'string' && j.err) return j.err;
     if (j.errors && typeof j.errors === 'object') {
       const v = Object.values(j.errors as Record<string, unknown>).filter((x): x is string => typeof x === 'string');
       if (v.length) return v.join(' ');
@@ -246,6 +252,8 @@ export interface Download {
 
 export class Remote {
   private hooks: RemoteHooks = {};
+  /** Makes a file's address current before it's downloaded, for a tracker whose links expire (Asana's, D61). */
+  private locate: ((href: string) => Promise<string>) | null = null;
 
   constructor(
     readonly base: URL,
@@ -258,6 +266,11 @@ export class Remote {
 
   setHooks(hooks: RemoteHooks): void {
     this.hooks = hooks;
+  }
+
+  /** Where a file kept as `href` is now: a reader whose tracker hands out links that expire asks it again. */
+  setLocate(locate: (href: string) => Promise<string>): void {
+    this.locate = locate;
   }
 
   wait(ms: number): Promise<void> {
@@ -369,8 +382,10 @@ export class Remote {
       // since 1970); its secondary limit, with a 403 and Retry-After.
       const spent = status === 403 && (got.res.headers['x-ratelimit-remaining'] === '0' || got.res.headers['retry-after'] !== undefined);
       if (status === 429 || status === 503 || spent) {
+        // Without Retry-After, a 429 (ClickUp's) or GitHub's 403 says when the limit resets: seconds since 1970, or from now.
         const reset = Number(got.res.headers['x-ratelimit-reset']);
-        const asked = retryAfterMs(got.res.headers['retry-after']) ?? (spent && Number.isFinite(reset) && reset > 0 ? Math.max(0, reset * 1000 - Date.now()) + 1000 : null);
+        const resetMs = Number.isFinite(reset) && reset > 0 ? (reset > 1e9 ? Math.max(0, reset * 1000 - Date.now()) : reset * 1000) + 1000 : null;
+        const asked = retryAfterMs(got.res.headers['retry-after']) ?? (spent || status === 429 ? resetMs : null);
         got.res.resume();
         const ms = asked ?? 1000 * 2 ** Math.min(slow, 6);
         if (slow < SLOW_DOWN_TRIES && ms <= MAX_WAIT_MS) {
@@ -454,7 +469,8 @@ export class Remote {
    * credentials go along only while it stays on that origin.
    */
   async download(href: string): Promise<Download> {
-    const url = checkAddress(this.policy, new URL(href, this.base.origin).href, this.names.example);
+    const where = this.locate ? await this.locate(href) : href;
+    const url = checkAddress(this.policy, new URL(where, this.base.origin).href, this.names.example);
     const { res, url: at } = await this.attempt(url, 'GET', { accept: '*/*' });
     const status = res.statusCode ?? 0;
     if (status >= 400) {

@@ -14,7 +14,8 @@
  *    commit and issue, so what it did the first time isn't done twice.
  * 4. What it says: pushes link their commits, and run the commands they give; pull and merge
  *    requests are linked and kept current. Commits a delivery leaves out are read from Bitbucket
- *    with the integration's token (commits.ts).
+ *    with the integration's token (commits.ts). Actions runs, GitHub's, Gitea's and Forgejo's,
+ *    become builds of the sources that take them (ci/builds.ts, D46 and D55).
  */
 import { VCS_PROVIDER_NAMES, type VcsDeliveryOutcome, type VcsProvider } from '@a4a/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -26,7 +27,7 @@ import { RateLimiter } from '../http/middleware';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { findIssue } from '../services/issues';
-import type { SchemaSnapshot } from '../services/schema-cache';
+import { keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 import { buildsFromRun } from '../ci/builds';
 import { authorOf } from './authors';
 import { moreCommits } from './commits';
@@ -206,7 +207,8 @@ function replyWords(linked: number, applied: number): string {
 /** The projects whose issue ids this integration looks for, by key. */
 function keysFor(s: SchemaSnapshot, integration: IntegrationRow): Map<string, string> {
   const out = new Map<string, string>();
-  for (const p of s.projects.values()) if (!integration.projectIds.length || integration.projectIds.includes(p.id)) out.set(p.key.toUpperCase(), p.id);
+  // And the keys each had before it was renamed (D52): a commit that names OLD-12 finds NEW-12.
+  for (const p of s.projects.values()) if (!integration.projectIds.length || integration.projectIds.includes(p.id)) for (const k of keysOfProject(s, p.id)) out.set(k, p.id);
   return out;
 }
 
@@ -220,7 +222,7 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
     case 'ping':
       return { outcome: 'processed', message: `${provider} can reach a4a, and the signature is right.`, linked: 0, applied: 0 };
     case 'other':
-      return { outcome: 'ignored', message: `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
+      return { outcome: 'ignored', message: delivery.note ?? `a4a reads pushes, pull requests and workflow runs; this was "${delivery.event}".`, linked: 0, applied: 0 };
     case 'workflow_run': {
       // A finished run a build source takes is a build (D46): which issues it marks is the log's.
       const r = await buildsFromRun(app, integration, delivery);

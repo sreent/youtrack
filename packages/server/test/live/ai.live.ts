@@ -6,14 +6,16 @@
  *   ANTHROPIC_API_KEY=… pnpm --filter @a4a/server test:live
  *
  * It checks what must hold whatever the model's wording: queries and commands the parser
- * accepts, a triage within the project's own values, a verdict for every candidate, and an
- * assistant that reads, pauses before a change, and makes it once approved. Without a key
+ * accepts, a triage within the project's own values, a verdict for every candidate, an
+ * assistant that reads, pauses before a change, and makes it once approved, and writing help
+ * that fixes and shortens a text in its own language, keeping its Markdown (D59). Without a key
  * it skips, and says why.
  */
 import type { ChatStreamEvent } from '@a4a/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createConversation, decide, getConversation, sendMessage } from '../../src/ai/chat/agent';
-import { similarWithJudgement, summarizeIssue, wordsToCommand, wordsToQuery } from '../../src/ai/nl';
+import { similarWithJudgement, wordsToCommand, wordsToQuery } from '../../src/ai/nl';
+import { summarizeIssue, writeWithAI } from '../../src/ai/writing';
 import { AI_PROVIDERS } from '../../src/ai/providers';
 import { triageIssue } from '../../src/ai/triage';
 import { adminCtx, createRuntime, type Runtime } from '../../src/app-services';
@@ -85,10 +87,32 @@ describe.runIf(on)('the AI, live', () => {
     expect(deleting.explanation).toMatch(/delet|close|resolv|obsolete/i);
   });
 
-  it('summarises an issue and its discussion', async () => {
+  it('summarises an issue and its discussion, in the reader\'s language', async () => {
     const { summary } = await summarizeIssue(ctx, 'BACK-2');
     expect(summary.length).toBeGreaterThan(80);
     expect(summary).toMatch(/safari/i);
+    const german = await summarizeIssue(ctx, 'BACK-2', 'de');
+    expect(german.language).toBe('de');
+    expect(german.summary).toMatch(/safari/i);
+    expect(german.summary).toMatch(/\b(der|die|das|und|ist|nicht|mit)\b/i);
+  });
+
+  it('fixes a sentence\'s grammar, and its code, link, mention and id come back as they went in', async () => {
+    const text = 'Ask @admin if BACK-2 are fixed: the `login` page dont load on Safari, see [the log](https://example.com/log?id=7).';
+    const { text: fixed } = await writeWithAI(ctx, { action: 'fix', text });
+    for (const kept of ['@admin', 'BACK-2', '`login`', '](https://example.com/log?id=7)']) expect(fixed, fixed).toContain(kept);
+    expect(fixed).toMatch(/\b(doesn['’]t|does not)\b/);
+    expect(fixed).not.toMatch(/\bdont\b/);
+  });
+
+  it('rewrites shorter, in the text\'s own language', async () => {
+    const text =
+      'Hallo zusammen, ich wollte euch nur ganz kurz Bescheid geben, dass ich mir das Problem mit dem Login unter Safari heute Nachmittag noch einmal ganz genau ansehen werde, sobald ich mit dem Release fertig bin, also wahrscheinlich so gegen 16 Uhr.';
+    const { text: shorter } = await writeWithAI(ctx, { action: 'shorter', text });
+    expect(shorter.length, shorter).toBeLessThan(text.length);
+    expect(shorter).toMatch(/Login/);
+    expect(shorter).toMatch(/16/);
+    expect(shorter).toMatch(/\b(ich|das|dem|und|mit)\b/i);
   });
 
   it('triages within the project\'s own values', async () => {

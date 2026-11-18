@@ -1,10 +1,12 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { formatPeriod } from '@a4a/shared';
 import { z } from 'zod';
+import { aiService } from '../ai/client';
 import type { Ctx } from '../context';
 import { excerpt } from '../lib/text';
 import { COMMAND_GUIDE, QUERY_LANGUAGE_GUIDE } from '../search/reference';
 import { searchIssues } from '../search/service';
+import { visibleSchema } from '../services/access';
 import { listComments } from '../services/comments';
 import { projectFieldDtos } from '../services/fields';
 import { getIssue } from '../services/issues';
@@ -86,7 +88,8 @@ async function issueMarkdown(ctx: Ctx, id: string): Promise<string> {
 export function createMcpServer(ctx: Ctx): McpServer {
   const server = new McpServer({ name: 'a4a', version: '0.1.0', title: 'a4a' }, { instructions: MCP_INSTRUCTIONS, capabilities: { logging: {} } });
 
-  for (const tool of TOOLS) registerTool(server, ctx, tool);
+  // A tool that asks a4a's own AI is there only while the server has an AI provider (D59).
+  for (const tool of TOOLS) if (!tool.needsAI || aiService(ctx.app)) registerTool(server, ctx, tool);
 
   server.registerResource(
     'query-language',
@@ -110,7 +113,8 @@ export function createMcpServer(ctx: Ctx): McpServer {
     { title: 'Project schema', description: "A project's fields and values", mimeType: 'text/markdown' },
     async (uri, vars) => {
       const p = await getProject(ctx, String(vars.key));
-      const s = await ctx.app.schema.get();
+      // The fields as the caller sees them: a private one kept from them isn't there (D50).
+      const s = await visibleSchema(ctx);
       const fields = projectFieldDtos(s, p.id)
         .map((f) => `- **${f.name}** (${f.type}${f.multi ? ', several' : ''}${f.required ? ', required' : ''})${f.values.length ? `: ${f.values.map((v) => v.name + (v.isResolved ? ' (resolved)' : '')).join(', ')}` : ''}`)
         .join('\n');

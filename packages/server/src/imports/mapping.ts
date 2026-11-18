@@ -8,7 +8,7 @@ import { parsePeriod } from '@a4a/shared';
 import { normalizeName } from '../lib/text';
 import { zonedTime } from '../reports/tz';
 
-export type Source = 'jira' | 'youtrack' | 'csv' | 'github' | 'redmine' | 'zendesk';
+export type Source = 'jira' | 'youtrack' | 'csv' | 'github' | 'redmine' | 'zendesk' | 'asana' | 'clickup';
 
 /** A header, as matched: lower case, single spaces, without Jira's "Custom field (…)". */
 export function headerKey(name: string): string {
@@ -44,6 +44,7 @@ const HEADERS: [string[], string][] = [
   [['sprint', 'sprints'], 'sprint'],
   [['comment', 'comments'], 'comment'],
   [['time spent', 'spent time', 'spent', 'time logged'], 'spent'],
+  [['watchers', 'watcher', 'followers', 'follower'], 'watchers'],
 ];
 
 /** Headers that name a project field by another name: [header words, well-known field]. */

@@ -95,7 +95,7 @@ export default function BoardPage() {
   const projects = v.board.projects.map((p) => p.name).join(', ');
   const kind = v.board.sprintsEnabled ? t('page.board.aSprintBoard') : t('page.board.aKanbanBoard');
   const total = v.columns.reduce((n, c) => n + c.count, 0);
-  const points = v.points !== null ? t('page.board.holdsStoryPoints', { v: v.sprint ? v.sprint.name : t('page.board.it'), points: v.points }) : '';
+  const points = v.points !== null ? t('page.board.holdsStoryPoints', { v: v.sprint?.name ?? '', named: v.sprint ? 'yes' : 'no', points: v.points }) : '';
   return (
     <>
       <PageHead

@@ -38,12 +38,14 @@ import {
   type Scope,
   type TrackerEvent,
 } from '@a4a/shared';
+import type { Translator } from '@a4a/shared/i18n';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { effectiveScopes, requireScope, type Actor, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, comments, groupMembers, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
+import { activities, comments, groupMembers, issueAliases, issueFieldValues, issues, projectGroupRoles, projectMembers, projects, roles, users } from '../db/schema';
+import { translatorFor } from '../i18n';
 import { badRequest, forbidden, notFound } from '../lib/errors';
-import { fieldByName, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
+import { fieldByName, keysOfProject, projectByKey, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 
 export type { ProjectRole };
 /** What a check asks for: a permission, or "write" (changing issues, the same as "edit"). */
@@ -284,7 +286,7 @@ async function load(db: Db, actor: Pick<Actor, 'user' | 'scopes' | 'projectIds' 
   for (const r of rows) {
     if (limit && !limit.has(r.id)) continue;
     const g = actor.user.banned ? null : grantFor(admin, actor.user.id, r, all);
-    if (g) grants.set(r.id, g);
+    if (g) grants.set(r.id, actor.app ? withoutPrivateFields(g) : g);
   }
   return new AccessView(admin, actor.scopes, grants, admin && !limit && !actor.user.banned, actor.user.id, groupIds);
 }
@@ -372,6 +374,8 @@ const DOING: Record<Permission, string> = {
   costs: 'see its time and costs',
   boards: 'change its boards',
   manage: 'change its settings',
+  readPrivate: 'see its private fields',
+  editPrivate: 'change its private fields',
 };
 
 /**
@@ -583,7 +587,10 @@ export function scopeSchema(s: SchemaSnapshot, visible: readonly string[] | null
     valuesByField: new Map([...s.valuesByField].map(([fieldId, list]) => [fieldId, list.filter((v) => keep(v.projectId))])),
     projects: new Map([...s.projects].filter(([id]) => ids.has(id))),
     projectsByKey: new Map([...s.projectsByKey].filter(([, p]) => ids.has(p.id))),
+    formerKeys: new Map([...s.formerKeys].filter(([id]) => ids.has(id))),
     projectFields: new Map([...s.projectFields].filter(([id]) => ids.has(id))),
+    // A desk's customer groups name its customers: only its readers learn them (D56).
+    customerGroups: new Map([...s.customerGroups].filter(([, g]) => ids.has(g.projectId))),
   };
   if (byKey.size > 64) byKey.clear();
   byKey.set(cacheKey, out);
@@ -596,7 +603,8 @@ export function scopeSchema(s: SchemaSnapshot, visible: readonly string[] | null
  */
 export async function visibleSchema(ctx: Ctx, db?: Db): Promise<SchemaSnapshot> {
   const [s, view] = [await ctx.app.schema.get(db), await projectAccess(ctx, db)];
-  return scopeSchema(s, view.visibleIds());
+  // Without the private fields they may not see, too (D50).
+  return scopeFields(scopeSchema(s, view.visibleIds()), view);
 }
 
 // ---------------------------------------------------------------------------
@@ -619,11 +627,12 @@ export function canReadIssueId(view: AccessView, s: SchemaSnapshot, readable: un
 
 /**
  * Words an agent wrote that name issues by id (a triage's summary, its reasons), with the ids of
- * issues the caller can't see taken out. People's own words (comments) are left as they wrote them.
+ * issues the caller can't see taken out, in their reader's language (`tr`, D49). People's own words
+ * (comments) are left as they wrote them.
  */
-export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapshot): string {
+export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapshot, tr: Translator): string {
   if (view.visibleIds() === null) return text;
-  return text.replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (canReadIssueId(view, s, id) || !s.projectsByKey.has(keyOfReadableId(id)!) ? id : 'an issue you can’t see'));
+  return text.replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (canReadIssueId(view, s, id) || !s.projectsByKey.has(keyOfReadableId(id)!) ? id : tr.t('server.access.issueYouCantSee')));
 }
 
 /**
@@ -631,8 +640,9 @@ export function redactHiddenIds(text: string, view: AccessView, s: SchemaSnapsho
  */
 export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const tr = translatorFor(ctx.locale);
   const named = [...new Set(text.match(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g) ?? [])];
-  if (!named.length) return text;
+  if (!named.length) return redactUnseenArticleIds(ctx, text);
   const rows: { readable: string; id: string }[] = [];
   for (const id of named) {
     const key = keyOfReadableId(id);
@@ -643,7 +653,7 @@ export async function redactUnseenIds(ctx: Ctx, text: string): Promise<string> {
   }
   const seen = await seenIssueIds(ctx, rows.map((r) => r.id));
   const hidden = new Set(rows.filter((r) => !seen.has(r.id)).map((r) => r.readable.toUpperCase()));
-  return redactHiddenIds(text, view, s).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? 'an issue you can’t see' : id));
+  return redactUnseenArticleIds(ctx, redactHiddenIds(text, view, s, tr).replace(/\b[A-Za-z][A-Za-z0-9]*-\d+\b/g, (id) => (hidden.has(id.toUpperCase()) ? tr.t('server.access.issueYouCantSee') : id)));
 }
 
 const LINK_EVENTS = ['link.created', 'link.deleted'];
@@ -718,6 +728,8 @@ export async function eventSeen(
   opts: { fresh?: boolean } = {},
 ): Promise<boolean> {
   if (!eventVisible(view, s, e)) return false;
+  if (!(await articleEventSeen(view, db, s, e, opts))) return false;
+  if (!(await goneEventSeen(view, db, s, e, opts))) return false;
   if (view.admin || !e.issue) return true;
   const { issue, comment, target } = await eventFacts(db, s, e, opts.fresh);
   // A limited issue that's gone (its deletion, or what it was before): only who saw all of its project.
@@ -735,8 +747,10 @@ export async function eventSeen(
  * Whether an event is about something limited (D37): its issue, its comment, or a link's other
  * end, or an issue that was limited when it was deleted. Webhooks don't carry these.
  */
-export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'issue' | 'data'>): Promise<boolean> {
+export async function eventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
   if ((e.data as { limited?: unknown } | undefined)?.limited === true) return true;
+  if (await articleEventLimited(db, s, e)) return true;
+  if (await goneEventLimited(db, s, e)) return true;
   if (!e.issue) return false;
   const { issue, comment, target } = await eventFacts(db, s, e);
   return Boolean(issue?.limited || comment?.limited || target?.limited);
@@ -747,7 +761,8 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
   const visible = view.visibleIds();
   if (visible === null) return undefined;
   const ids = visible.filter((id) => view.canRead(id));
-  const keys = ids.map((id) => s.projects.get(id)?.key.toUpperCase() ?? view.keyOf(id)?.toUpperCase()).filter((k): k is string => Boolean(k));
+  // A link written before its other end's project was renamed names it by a key it had (D52).
+  const keys = ids.flatMap((id) => (s.projects.has(id) ? keysOfProject(s, id) : [view.keyOf(id)?.toUpperCase()])).filter((k): k is string => Boolean(k));
   const inIds = ids.length ? sql`${activities.projectId} IN (${list(ids)})` : sql`FALSE`;
   const targetKey = sql`upper(split_part(${activities.payload}->'data'->'target'->>'id', '-', 1))`;
   const targetSeen = keys.length ? sql`coalesce(${targetKey} IN (${list(keys)}), FALSE)` : sql`FALSE`;
@@ -773,6 +788,11 @@ export function eventsVisibleSql(view: AccessView, s: SchemaSnapshot): SQL | und
       sql`(${activities.payload}->'data'->>'commentId' IS NULL OR NOT EXISTS (SELECT 1 FROM comments seen_c WHERE seen_c.id = ${activities.payload}->'data'->>'commentId' AND NOT ${commentSeen}))`,
     );
   }
+  const articleSeen = articleEventsSeenSql(view);
+  if (articleSeen) parts.push(articleSeen);
+  // A limited issue deleted since, a link naming it, a comment limited on one: as hidden as it was.
+  const goneSeen = goneEventsSql(view);
+  if (goneSeen) parts.push(goneSeen);
   return sql`(${sql.join(parts, sql` AND `)})`;
 }
 
@@ -856,14 +876,612 @@ export function emailDomain(email: string): string {
   return email.trim().toLowerCase().split('@').pop() ?? '';
 }
 
+/** A help desk request as the portal's seam reads it: who asked, the customer group it was filed under, and whether it's kept from the group. */
+export type RequestSharing = { requesterId: string; groupId: string | null; private: boolean };
+
 /**
- * Whether a requester signed in to the portal sees a request: one they made, or a colleague's at a
- * desk that shares requests within their organization (an email domain the desk names). Nothing
- * else of a project, ever: a requester is never a member.
+ * Whether a requester signed in to the portal sees a request: one they made; one they're copied on
+ * (`copied`, D57: they're told of it by email already); or one filed under a customer group they're
+ * in whose members share their requests (D56; `groups`: what each of their groups shares with them,
+ * services/customer-groups.ts), unless its requester or the team kept it private. Being copied and
+ * being in its group are grants of their own: neither changes the other. Nothing else of a project,
+ * ever: a requester is never a member.
  */
-export function requesterSees(project: ProjectRow, viewer: { id: string; email: string }, owner: { id: string; email: string }): boolean {
-  if (viewer.id === owner.id) return true;
-  const domain = emailDomain(viewer.email);
-  const settings = (project.settings ?? {}) as { helpdesk?: { organizations?: string[] } };
-  return Boolean(domain) && domain === emailDomain(owner.email) && (settings.helpdesk?.organizations ?? []).includes(domain);
+export function requesterSees(request: RequestSharing, viewer: { id: string }, groups: ReadonlyMap<string, 'none' | 'read' | 'comment'>, copied = false): boolean {
+  if (request.requesterId === viewer.id || copied) return true;
+  if (request.private || !request.groupId) return false;
+  const sharing = groups.get(request.groupId);
+  return sharing === 'read' || sharing === 'comment';
+}
+
+/** Whether they may answer it: their own, one they're copied on (D57), or one their group shares to comment on (D56). */
+export function requesterMayComment(request: RequestSharing, viewer: { id: string }, groups: ReadonlyMap<string, 'none' | 'read' | 'comment'>, copied = false): boolean {
+  if (request.requesterId === viewer.id || copied) return true;
+  return requesterSees(request, viewer, groups) && groups.get(request.groupId!) === 'comment';
+}
+
+// ---------------------------------------------------------------------------
+// Private fields (D50)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whom a private field is kept from: a person's view, or null for everyone at once (a chat channel's
+ * people, a webhook's receiver, what triage tells Claude), who read no private field.
+ */
+export type FieldReader = AccessView | null;
+
+/**
+ * A person's grant as an app acting for them holds it (D48): without the private fields. An app is
+ * granted issues, not what a project's managers keep to some people; its own agent never had them.
+ */
+function withoutPrivateFields(g: Grant): Grant {
+  return { ...g, permissions: new Set([...g.permissions].filter((p) => p !== 'readPrivate' && p !== 'editPrivate')) };
+}
+
+/** Whether they read a project's private fields: their values, and the changes to them. */
+export function readsPrivateIn(view: FieldReader, projectId: string): boolean {
+  return Boolean(view?.allows(projectId, 'readPrivate'));
+}
+
+/** A project's private fields, by id. */
+export function privateFieldIds(s: SchemaSnapshot, projectId: string): Set<string> {
+  return new Set((s.projectFields.get(projectId) ?? []).filter((pf) => pf.private).map((pf) => pf.fieldId));
+}
+
+const hiddenMemo = new WeakMap<SchemaSnapshot, { everyone?: Map<string, Set<string>>; views: WeakMap<AccessView, Map<string, Set<string>>> }>();
+
+/**
+ * The fields kept from them, by project: each project's private fields, where they may not read
+ * them. Empty for whoever reads every private field they can reach, and wherever none is private.
+ */
+export function hiddenFields(view: FieldReader, s: SchemaSnapshot): Map<string, Set<string>> {
+  let memo = hiddenMemo.get(s);
+  if (!memo) hiddenMemo.set(s, (memo = { views: new WeakMap() }));
+  const hit = view ? memo.views.get(view) : memo.everyone;
+  if (hit) return hit;
+  const out = new Map<string, Set<string>>();
+  for (const [projectId, pfs] of s.projectFields) {
+    if (!pfs.some((pf) => pf.private) || readsPrivateIn(view, projectId)) continue;
+    out.set(projectId, privateFieldIds(s, projectId));
+  }
+  if (view) memo.views.set(view, out);
+  else memo.everyone = out;
+  return out;
+}
+
+/** Whether they see a field's values on the issues of a project. */
+export function seesField(view: FieldReader, s: SchemaSnapshot, projectId: string, fieldId: string): boolean {
+  return !hiddenFields(view, s).get(projectId)?.has(fieldId);
+}
+
+/** The projects whose issues keep a field's values from them; none, mostly. */
+export function projectsHiding(view: FieldReader, s: SchemaSnapshot, fieldId: string): string[] {
+  return [...hiddenFields(view, s)].filter(([, ids]) => ids.has(fieldId)).map(([projectId]) => projectId);
+}
+
+/**
+ * SQL over an `issues` row (as `alias`): whether they see this field's values on it. Undefined where
+ * it's kept from them nowhere, which costs nothing. Searches, sorts, counts and reports add it to every
+ * read of the field's values, so an issue whose value is kept from them reads as having none.
+ */
+export function fieldSeenSql(view: FieldReader, s: SchemaSnapshot, fieldId: string, alias = 'issues'): SQL | undefined {
+  const hiding = projectsHiding(view, s, fieldId);
+  return hiding.length ? sql`${ident(alias)}.project_id NOT IN (${list(hiding)})` : undefined;
+}
+
+const fieldScoped = new WeakMap<SchemaSnapshot, WeakMap<AccessView, SchemaSnapshot>>();
+
+/**
+ * The reference data without the fields they may not see (D50). A field private in a project leaves
+ * that project's fields; one kept from them in every project of theirs that has it leaves everything,
+ * values and all, so the query and command languages, completion and prompts answer it as they answer
+ * a field that doesn't exist. `visibleSchema` gives this; pass a view, or null for everyone.
+ */
+export function scopeFields(s: SchemaSnapshot, view: FieldReader): SchemaSnapshot {
+  const hidden = hiddenFields(view, s);
+  if (!hidden.size) return s;
+  const cached = view ? fieldScoped.get(s)?.get(view) : undefined;
+  if (cached) return cached;
+  const seen = new Set<string>();
+  for (const [projectId, pfs] of s.projectFields) for (const pf of pfs) if (!hidden.get(projectId)?.has(pf.fieldId)) seen.add(pf.fieldId);
+  const gone = new Set<string>();
+  for (const ids of hidden.values()) for (const id of ids) if (!seen.has(id)) gone.add(id);
+  // A value a project keeps for itself goes with the field there, too: its name is one of its values.
+  const keptValue = (v: { fieldId: string; projectId: string | null }) => gone.has(v.fieldId) || Boolean(v.projectId && hidden.get(v.projectId)?.has(v.fieldId));
+  const out: SchemaSnapshot = {
+    ...s,
+    fields: new Map([...s.fields].filter(([id]) => !gone.has(id))),
+    fieldsByName: new Map([...s.fieldsByName].filter(([, f]) => !gone.has(f.id))),
+    values: new Map([...s.values].filter(([, v]) => !keptValue(v))),
+    valuesByField: new Map([...s.valuesByField].filter(([id]) => !gone.has(id)).map(([id, list]) => [id, list.filter((v) => !keptValue(v))])),
+    projectFields: new Map([...s.projectFields].map(([projectId, pfs]) => [projectId, hidden.has(projectId) ? pfs.filter((pf) => !hidden.get(projectId)!.has(pf.fieldId)) : pfs])),
+  };
+  if (view) {
+    let byView = fieldScoped.get(s);
+    if (!byView) fieldScoped.set(s, (byView = new WeakMap()));
+    byView.set(view, out);
+  }
+  return out;
+}
+
+/** The names a project's hidden fields go by in history, lower-cased: their names, and the ones they had. */
+function hiddenNames(s: SchemaSnapshot, ids: ReadonlySet<string> | undefined): Set<string> {
+  const out = new Set<string>();
+  for (const id of ids ?? []) {
+    const f = s.fields.get(id);
+    if (!f) continue;
+    out.add(f.name.toLowerCase());
+    for (const n of f.formerNames ?? []) out.add(n.toLowerCase());
+  }
+  return out;
+}
+
+/**
+ * An event as they may read it (D50): changes to fields kept from them taken out, and the values a new
+ * issue started with. Null for a change to nothing else, which isn't shown at all. A move also keeps
+ * back what the project it left kept from them.
+ */
+export function eventFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent): TrackerEvent | null {
+  // Who is copied on a request is people outside the team, by their addresses (D57): a guest isn't
+  // told, as they aren't told who asked.
+  if (view?.guest && (e.type === 'request.cc_added' || e.type === 'request.cc_removed')) return null;
+  e = whiteboardOriginFor(view, s, e);
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  if (!p) return e;
+  const hidden = hiddenFields(view, s);
+  const names = hiddenNames(s, hidden.get(p.id));
+  if (e.type === 'issue.moved') {
+    const from = s.projectsByKey.get(String((e.data as { fromProject?: unknown }).fromProject ?? '').toUpperCase());
+    if (from) for (const n of hiddenNames(s, hidden.get(from.id))) names.add(n);
+  }
+  if (!names.size) return e;
+  const kept = (name: unknown) => typeof name !== 'string' || !names.has(name.toLowerCase());
+  const changes = e.changes.filter((c) => kept(c.field));
+  if (e.type === 'issue.updated' && e.changes.length && !changes.length) return null;
+  let data = e.data;
+  if (e.type === 'issue.created') {
+    const d = e.data as { fields?: Record<string, unknown>; explicitFields?: unknown };
+    data = {
+      ...e.data,
+      ...(d.fields && typeof d.fields === 'object' ? { fields: Object.fromEntries(Object.entries(d.fields).filter(([name]) => kept(name))) } : {}),
+      ...(Array.isArray(d.explicitFields) ? { explicitFields: d.explicitFields.filter(kept) } : {}),
+    };
+  }
+  return changes.length === e.changes.length && data === e.data ? e : { ...e, changes, data };
+}
+
+/**
+ * Where an issue or a link came from, and what a whiteboard made (D58), as the reader may know it: a
+ * note may become an issue in another project than its whiteboard's, so a reader of the issue who
+ * can't read the whiteboard's project isn't told its name; and of what a whiteboard made, its readers
+ * are told only the issues in projects they read. Webhooks (no reader) hear it all, as they hear every
+ * project.
+ */
+function whiteboardOriginFor(view: FieldReader, s: SchemaSnapshot, e: TrackerEvent): TrackerEvent {
+  if (!view) return e;
+  const d = e.data as { whiteboard?: { id?: unknown; project?: unknown }; issues?: unknown; links?: unknown };
+  if (e.type === 'whiteboard.converted') {
+    const seen = (id: unknown) => canReadIssueId(view, s, id);
+    const issues = Array.isArray(d.issues) ? d.issues.filter(seen) : d.issues;
+    const links = Array.isArray(d.links) ? d.links.filter((l: { from?: unknown; to?: unknown } | null) => seen(l?.from) && seen(l?.to)) : d.links;
+    return { ...e, data: { ...e.data, issues, links } };
+  }
+  const wb = d.whiteboard;
+  if (!wb || typeof wb !== 'object' || typeof wb.project !== 'string') return e;
+  const p = s.projectsByKey.get(wb.project.toUpperCase());
+  if (p && view.canRead(p.id)) return e;
+  return { ...e, data: { ...e.data, whiteboard: { id: wb.id } } };
+}
+
+/**
+ * The same as SQL over `activities`, for what a feed leaves out whole: a change to an issue that was
+ * all to fields kept from them. What's left of a change that did more is `eventFor`'s to trim.
+ */
+export function eventsFieldsSql(view: FieldReader, s: SchemaSnapshot): SQL | undefined {
+  const parts: SQL[] = [];
+  for (const [projectId, ids] of hiddenFields(view, s)) {
+    const names = [...hiddenNames(s, ids)];
+    if (!names.length) continue;
+    parts.push(
+      sql`NOT (${activities.projectId} = ${projectId} AND ${activities.type} = 'issue.updated' AND jsonb_typeof(${activities.payload}->'changes') = 'array' AND jsonb_array_length(${activities.payload}->'changes') > 0 AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(${activities.payload}->'changes') seen_fc WHERE lower(seen_fc->>'field') NOT IN (${list(names)})))`,
+    );
+  }
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
+}
+
+/**
+ * SQL over rows that keep changes as a JSON array beside a project (a rule's runs): leaves out a row
+ * with any change to a field kept from them, since what else it says words that change too.
+ */
+export function touchesNoHiddenSql(view: FieldReader, s: SchemaSnapshot, projectId: SQL, changes: SQL): SQL | undefined {
+  const parts: SQL[] = [];
+  for (const [id, ids] of hiddenFields(view, s)) {
+    const names = [...hiddenNames(s, ids)];
+    if (names.length) {
+      parts.push(sql`NOT (${projectId} = ${id} AND jsonb_typeof(${changes}) = 'array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(${changes}) seen_rc WHERE lower(seen_rc->>'field') IN (${list(names)})))`);
+    }
+  }
+  return parts.length ? sql`(${sql.join(parts, sql` AND `)})` : undefined;
+}
+
+/** Of a project's changes, those everyone who reads it may see: none to a private field. For words kept where all of them read. */
+export function publicChanges<C extends { field: string }>(s: SchemaSnapshot, projectId: string, changes: readonly C[]): C[] {
+  const names = hiddenNames(s, privateFieldIds(s, projectId));
+  return changes.filter((c) => !names.has(c.field.toLowerCase()));
+}
+
+/** Of these people, those who read a project's private fields, as each would signing in. */
+export async function whoReadsPrivate(db: Db, projectId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const grants = await projectGrantsOf(db, projectId, [...userIds]);
+  return new Set([...grants].filter(([, g]) => g.permissions.has('readPrivate')).map(([id]) => id));
+}
+
+/**
+ * The caller may set these fields on an issue of the project. One private there that they may not read
+ * answers as a field the project doesn't have (`unknown`'s words); one they read but may not change is
+ * 403, saying which permission it takes.
+ */
+export async function assertCanSetFields(ctx: Ctx, projectId: string, fieldIds: readonly string[], unknown: (fieldId: string) => Error, db?: Db): Promise<void> {
+  const s = await ctx.app.schema.get(db);
+  const own = privateFieldIds(s, projectId);
+  const touched = fieldIds.filter((id) => own.has(id));
+  if (!touched.length) return;
+  const view = await projectAccess(ctx, db);
+  const hidden = touched.find((id) => !seesField(view, s, projectId, id));
+  if (hidden) throw unknown(hidden);
+  await assertCanProject(ctx, projectId, 'editPrivate', db);
+}
+
+// ---------------------------------------------------------------------------
+// Who sees an article that is limited (D51)
+// ---------------------------------------------------------------------------
+
+/** An article's own limit, and where it sits: what deciding who sees it needs. */
+export type ArticleLimits = Limits & { id: string; projectId: string; parentId: string | null; createdById: string | null };
+
+/**
+ * Whether the viewer sees an article as far as its own limit goes, leaving the articles above it
+ * aside: its author, the people and groups named, the project's managers and administrators.
+ */
+export function seesArticleItself(view: AccessView, row: Limits & { projectId: string; createdById: string | null }): boolean {
+  if (!row.limited || view.seesAllIn(row.projectId)) return true;
+  if (view.guest || !view.userId) return false;
+  return row.createdById === view.userId || listedIn(view, row);
+}
+
+/** `seesArticleItself` as SQL over an `articles` row. */
+function articleItselfSeenSql(view: AccessView, alias: string): SQL {
+  const a = ident(alias);
+  const parts: SQL[] = [sql`NOT ${a}.limited`];
+  const managed = view.managedIds();
+  if (managed.length) parts.push(sql`${a}.project_id IN (${list(managed)})`);
+  if (!view.guest && view.userId) {
+    parts.push(sql`${a}.created_by_id = ${view.userId}`, sql`${view.userId} = ANY(${a}.visible_user_ids)`);
+    if (view.groupIds.length) parts.push(sql`${a}.visible_group_ids && ARRAY[${list(view.groupIds)}]::text[]`);
+  }
+  return sql`(${sql.join(parts, sql` OR `)})`;
+}
+
+/**
+ * A subquery of the ids of the articles limited away from the viewer, and of every article under
+ * one: from the few that are limited, down the tree. It names nothing outside, so it runs once.
+ */
+function unseenArticlesSql(view: AccessView): SQL {
+  return sql`WITH RECURSIVE unseen_a (id, project_id) AS (
+      SELECT ua.id, ua.project_id FROM articles ua WHERE ua.limited AND NOT ${articleItselfSeenSql(view, 'ua')}
+      UNION
+      SELECT uc.id, uc.project_id FROM articles uc JOIN unseen_a ON uc.project_id = unseen_a.project_id AND uc.parent_id = unseen_a.id
+    ) SELECT id FROM unseen_a`;
+}
+
+/**
+ * SQL over an `articles` row (as `alias`): whether the viewer sees it, as far as limits go: neither
+ * it nor any article above it is limited away from them (the project is checked apart). Undefined
+ * when they see every article they can reach.
+ */
+export function articleSeenSql(view: AccessView, alias = 'articles'): SQL | undefined {
+  if (view.admin) return undefined;
+  return sql`${ident(alias)}.id NOT IN (${unseenArticlesSql(view)})`;
+}
+
+/** An article and every article above it, itself first, with their limits: one query. */
+export async function articleChain(db: Db, articleId: string): Promise<ArticleLimits[]> {
+  const res = await db.execute(sql`
+    WITH RECURSIVE up AS (
+      SELECT a.id, a.project_id, a.parent_id, a.created_by_id, a.limited, a.visible_user_ids, a.visible_group_ids, 0 AS depth FROM articles a WHERE a.id = ${articleId}
+      UNION ALL
+      SELECT a.id, a.project_id, a.parent_id, a.created_by_id, a.limited, a.visible_user_ids, a.visible_group_ids, up.depth + 1
+      FROM articles a JOIN up ON a.id = up.parent_id WHERE up.depth < 200
+    )
+    SELECT id, project_id AS "projectId", parent_id AS "parentId", created_by_id AS "createdById", limited,
+      visible_user_ids AS "visibleUserIds", visible_group_ids AS "visibleGroupIds"
+    FROM up ORDER BY depth
+  `);
+  return (res as unknown as { rows: ArticleLimits[] }).rows;
+}
+
+/**
+ * Whether the viewer sees an article in a project they read: neither it nor any article above it
+ * is limited away from them (D51). A sub-article is never seen by someone who can't see its parent.
+ */
+export async function seesArticleRow(view: AccessView, db: Db, row: ArticleLimits): Promise<boolean> {
+  if (view.seesAllIn(row.projectId)) return true;
+  if (!seesArticleItself(view, row)) return false;
+  if (!row.parentId) return true;
+  return (await articleChain(db, row.parentId)).every((a) => seesArticleItself(view, a));
+}
+
+/** Of these article ids, the ones the caller sees: in a project they read, and not limited away from them (D51). */
+export async function seenArticleIds(ctx: Ctx, ids: readonly string[], db: Db = ctx.db): Promise<Set<string>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Set();
+  const view = await projectAccess(ctx, db);
+  const seen = articleSeenSql(view, 'articles');
+  const res = await db.execute(sql`SELECT articles.id, articles.project_id AS "projectId" FROM articles WHERE articles.id IN (${list(unique)})${seen ? sql` AND ${seen}` : sql``}`);
+  const rows = (res as unknown as { rows: { id: string; projectId: string }[] }).rows;
+  return new Set(rows.filter((r) => view.canRead(r.projectId)).map((r) => r.id));
+}
+
+/**
+ * Of these people, those who see an article, as each would signing in: they reach its project, and
+ * neither it nor any article above it is limited away from them (D51). For whom to tell of it.
+ */
+export async function whoSeesArticle(db: Db, articleId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const chain = await articleChain(db, articleId);
+  if (!chain.length) return new Set();
+  const grants = await projectGrantsOf(db, chain[0]!.projectId, [...userIds]);
+  const limited = chain.filter((a) => a.limited);
+  const out = new Set<string>();
+  const rest: string[] = [];
+  for (const [id, g] of grants) {
+    if (!limited.length || g.permissions.has('manage')) out.add(id);
+    else rest.push(id);
+  }
+  if (!rest.length) return out;
+  const groupIds = [...new Set(limited.flatMap((a) => a.visibleGroupIds))];
+  const theirs = new Map<string, string[]>();
+  if (groupIds.length) {
+    const rows = await db
+      .select({ userId: groupMembers.userId, groupId: groupMembers.groupId })
+      .from(groupMembers)
+      .where(and(inArray(groupMembers.userId, rest), inArray(groupMembers.groupId, groupIds)));
+    for (const r of rows) theirs.set(r.userId, [...(theirs.get(r.userId) ?? []), r.groupId]);
+  }
+  for (const id of rest) {
+    const groups = theirs.get(id) ?? [];
+    if (limited.every((a) => a.createdById === id || a.visibleUserIds.includes(id) || a.visibleGroupIds.some((g) => groups.includes(g)))) out.add(id);
+  }
+  return out;
+}
+
+/** 3 for an event about BACK-A-3: its own events, and its files' (`data.article`). Null for any other event. */
+function articleNumberOf(e: Pick<TrackerEvent, 'data'>): number | null {
+  const id = (e.data as { article?: { id?: unknown } } | undefined)?.article?.id;
+  const m = typeof id === 'string' ? /-A-(\d+)$/i.exec(id.trim()) : null;
+  return m ? Number(m[1]) : null;
+}
+
+type ArticleFacts = { chain: ArticleLimits[] | null; goneLimited: boolean };
+/** An article event's article and those above it, kept a moment as an issue event's facts are (D37). */
+const articleFactsCache = new Map<number, { at: number; facts: Promise<ArticleFacts> }>();
+
+function articleFacts(db: Db, projectId: string, number: number, eventId: number, fresh = false): Promise<ArticleFacts> {
+  const hit = articleFactsCache.get(eventId);
+  if (!fresh && hit && Date.now() - hit.at < 10_000) return hit.facts;
+  const facts = (async (): Promise<ArticleFacts> => {
+    const res = await db.execute(sql`SELECT id FROM articles WHERE project_id = ${projectId} AND number = ${number}`);
+    const id = (res as unknown as { rows: { id: string }[] }).rows[0]?.id;
+    if (id) return { chain: await articleChain(db, id), goneLimited: false };
+    // Gone: hidden still if it was limited when it was deleted, or sat under an article that was.
+    const gone = await db.execute(sql`
+      SELECT 1 AS found FROM activities g
+      WHERE g.type = 'article.deleted' AND g.payload->'data'->>'limited' = 'true' AND g.project_id = ${projectId}
+        AND split_part(g.payload->'data'->'article'->>'id', '-', 3) = ${String(number)}
+      LIMIT 1
+    `);
+    return { chain: null, goneLimited: (gone as unknown as { rows: unknown[] }).rows.length > 0 };
+  })();
+  if (articleFactsCache.size > 2000) articleFactsCache.clear();
+  articleFactsCache.set(eventId, { at: Date.now(), facts });
+  return facts;
+}
+
+/**
+ * Whether the viewer sees an event about an article (its own, or its files'): neither it nor an
+ * article above it is limited away from them, and, gone, it wasn't limited when it went (D51).
+ * Any other event passes.
+ */
+export async function articleEventSeen(
+  view: AccessView,
+  db: Db,
+  s: SchemaSnapshot,
+  e: Pick<TrackerEvent, 'id' | 'project' | 'data'>,
+  opts: { fresh?: boolean } = {},
+): Promise<boolean> {
+  const number = articleNumberOf(e);
+  if (number === null || view.admin) return true;
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  // An article's event outlives its project only for administrators.
+  if (!p) return false;
+  if (view.seesAllIn(p.id)) return true;
+  const { chain, goneLimited } = await articleFacts(db, p.id, number, e.id, opts.fresh);
+  if (!chain) return !goneLimited && (e.data as { limited?: unknown } | undefined)?.limited !== true;
+  return chain.every((a) => seesArticleItself(view, a));
+}
+
+/** Whether an event is about an article that is limited, or sits under one, or was when it was deleted (D51). */
+export async function articleEventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'project' | 'data'>): Promise<boolean> {
+  const number = articleNumberOf(e);
+  if (number === null) return false;
+  const p = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+  if (!p) return true;
+  const { chain, goneLimited } = await articleFacts(db, p.id, number, e.id);
+  return chain ? chain.some((a) => a.limited) : goneLimited || (e.data as { limited?: unknown } | undefined)?.limited === true;
+}
+
+/** `articleEventSeen` as SQL over `activities`, so a feed's pages and its cursor stay whole. */
+export function articleEventsSeenSql(view: AccessView): SQL | undefined {
+  if (view.admin) return undefined;
+  const ref = sql`(${activities.payload}->'data'->'article'->>'id')`;
+  const number = sql`split_part(${ref}, '-', 3)`;
+  const managed = view.managedIds();
+  const inManaged = managed.length ? sql`${activities.projectId} IN (${list(managed)})` : sql`FALSE`;
+  return sql`(${ref} IS NULL OR ${inManaged} OR (${activities.projectId} IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM articles seen_ea WHERE seen_ea.project_id = ${activities.projectId} AND seen_ea.number::text = ${number} AND seen_ea.id IN (${unseenArticlesSql(view)}))
+    AND NOT EXISTS (SELECT 1 FROM activities seen_gone WHERE seen_gone.type = 'article.deleted' AND seen_gone.payload->'data'->>'limited' = 'true'
+      AND seen_gone.project_id = ${activities.projectId} AND split_part(seen_gone.payload->'data'->'article'->>'id', '-', 3) = ${number})))`;
+}
+
+const ARTICLE_ID = /\b([A-Za-z][A-Za-z0-9]*)-A-(\d+)\b/gi;
+
+/**
+ * Words an agent wrote, with the ids of articles the caller can't see taken out (D51), as
+ * `redactUnseenIds` takes out issues': in a project they can't read, or limited away from them;
+ * said in the caller's language (D49).
+ */
+export async function redactUnseenArticleIds(ctx: Ctx, text: string): Promise<string> {
+  const named = [...new Set([...text.matchAll(ARTICLE_ID)].map((m) => m[0].toUpperCase()))];
+  if (!named.length) return text;
+  const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
+  const hidden = new Set<string>();
+  const found: { readable: string; id: string }[] = [];
+  for (const readable of named) {
+    const [key, , number] = readable.split('-');
+    const p = s.projectsByKey.get(key!);
+    if (!p) continue;
+    if (!view.canRead(p.id)) {
+      hidden.add(readable);
+      continue;
+    }
+    const res = await ctx.db.execute(sql`SELECT id FROM articles WHERE project_id = ${p.id} AND number = ${Number(number)}`);
+    const id = (res as unknown as { rows: { id: string }[] }).rows[0]?.id;
+    if (id) found.push({ readable, id });
+  }
+  const seen = await seenArticleIds(ctx, found.map((f) => f.id));
+  for (const f of found) if (!seen.has(f.id)) hidden.add(f.readable);
+  if (!hidden.size) return text;
+  const said = translatorFor(ctx.locale).t('server.access.articleYouCantSee');
+  return text.replace(ARTICLE_ID, (id) => (hidden.has(id.toUpperCase()) ? said : id));
+}
+
+// ---------------------------------------------------------------------------
+// What stays hidden once a limited issue is deleted (D37)
+// ---------------------------------------------------------------------------
+
+/**
+ * What an issue's deletion keeps beside its event, so that what was limited stays hidden once the
+ * rows that said so are gone: if the issue was limited, every id it had (its own, and those from
+ * before it moved, D41, each under every key its project has had, D52); and its comments that were
+ * limited, deleted ones too. It goes in the deletion's payload, and never into an event a reader
+ * gets. Read in the deleting transaction, before the issue goes.
+ */
+export interface GoneLimits {
+  ids?: string[];
+  comments?: string[];
+}
+
+export async function goneLimitsOf(db: Db, s: SchemaSnapshot, issue: { id: string; projectId: string; number: number; limited: boolean }): Promise<GoneLimits | undefined> {
+  const limitedComments = await db.select({ id: comments.id }).from(comments).where(and(eq(comments.issueId, issue.id), eq(comments.limited, true)));
+  let ids: string[] = [];
+  if (issue.limited) {
+    const before = await db.select({ projectId: issueAliases.projectId, number: issueAliases.number }).from(issueAliases).where(eq(issueAliases.issueId, issue.id));
+    ids = [...new Set([issue, ...before].flatMap((at) => keysOfProject(s, at.projectId).map((k) => `${k.toUpperCase()}-${at.number}`)))];
+  }
+  if (!ids.length && !limitedComments.length) return undefined;
+  return { ...(ids.length ? { ids } : {}), ...(limitedComments.length ? { comments: limitedComments.map((c) => c.id) } : {}) };
+}
+
+/** The deletions that hide something from the viewer: all of them, but those in a project they see all of. */
+function goneDeletionsSql(view: AccessView): SQL {
+  const managed = view.managedIds();
+  return managed.length ? sql`gone.type = 'issue.deleted' AND (gone.project_id IS NULL OR gone.project_id NOT IN (${list(managed)}))` : sql`gone.type = 'issue.deleted'`;
+}
+const GONE_LIMITED = sql`gone.payload->'data'->>'limited' = 'true'`;
+
+/** Every id, in upper case, of an issue deleted while limited: those its deletion kept, or, deleted before they were kept, the one it had. */
+function goneIdsSql(view: AccessView): SQL {
+  return sql`SELECT upper(gone_id) FROM activities gone, jsonb_array_elements_text(coalesce(gone.payload->'gone'->'ids', '[]'::jsonb)) gone_id WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED}
+    UNION SELECT upper(gone.payload->'issue'->>'id') FROM activities gone WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED} AND gone.payload->'issue'->>'id' IS NOT NULL`;
+}
+
+/** Where each such issue was when it was deleted, as its project and number, so an event that names it by an older key still finds it (D52). */
+function gonePlacesSql(view: AccessView): SQL {
+  return sql`SELECT gone.project_id || ':' || split_part(gone.payload->'issue'->>'id', '-', 2) FROM activities gone
+    WHERE ${goneDeletionsSql(view)} AND ${GONE_LIMITED} AND gone.project_id IS NOT NULL AND gone.payload->'issue'->>'id' IS NOT NULL`;
+}
+
+/** The comments that were limited on issues deleted since. */
+function goneCommentsSql(view: AccessView): SQL {
+  return sql`SELECT gone_c FROM activities gone, jsonb_array_elements_text(coalesce(gone.payload->'gone'->'comments', '[]'::jsonb)) gone_c WHERE ${goneDeletionsSql(view)}`;
+}
+
+/**
+ * SQL over an issue as a row names it, by a readable id and the project it was in (an event's, a
+ * notification's): whether it was deleted while it was limited, and the viewer doesn't see all of
+ * its project. Undefined for an administrator.
+ */
+export function goneIssueSql(view: AccessView, readable: SQL, projectId: SQL): SQL | undefined {
+  if (view.admin) return undefined;
+  return sql`(coalesce(upper(${readable}) IN (${goneIdsSql(view)}), FALSE) OR coalesce((${projectId} || ':' || split_part(${readable}, '-', 2)) IN (${gonePlacesSql(view)}), FALSE))`;
+}
+
+/**
+ * SQL over `activities`: an event of an issue deleted while it was limited, a link that names one,
+ * and an event of a comment limited on an issue deleted since, are left out for anyone who doesn't
+ * see all of its project, as the deletion itself is. Undefined for an administrator.
+ */
+export function goneEventsSql(view: AccessView): SQL | undefined {
+  const p = activities.payload;
+  const own = goneIssueSql(view, sql`${p}->'issue'->>'id'`, sql`${activities.projectId}`);
+  if (!own) return undefined;
+  return sql`NOT (
+    (${activities.issueId} IS NULL AND ${p}->'issue'->>'id' IS NOT NULL AND ${own})
+    OR (${activities.type} IN ('link.created', 'link.deleted') AND coalesce(upper(${p}->'data'->'target'->>'id') IN (${goneIdsSql(view)}), FALSE))
+    OR (${p}->'data'->>'commentId' IS NOT NULL AND coalesce(${p}->'data'->>'commentId' IN (${goneCommentsSql(view)}), FALSE)))`;
+}
+
+/** The deletions that hide an event, by the project each was in: kept a moment, as an event's facts are. */
+const goneCache = new Map<number, { at: number; hits: Promise<(string | null)[]> }>();
+
+function goneHitsOf(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>, fresh = false): Promise<(string | null)[]> {
+  const cached = goneCache.get(e.id);
+  if (!fresh && cached && Date.now() - cached.at < 10_000) return cached.hits;
+  const hits = (async () => {
+    const data = (e.data ?? {}) as { commentId?: unknown; target?: { id?: unknown } };
+    const targetId = LINK_EVENTS.includes(e.type) && typeof data.target?.id === 'string' ? data.target.id : null;
+    const commentId = typeof data.commentId === 'string' ? data.commentId : null;
+    if (!e.issue && !targetId && !commentId) return [];
+    // Only what's gone can have been deleted while limited: a row that stands answers for itself.
+    const facts = await eventFacts(db, s, e, fresh);
+    const rid = e.issue && !facts.issue ? e.issue.id.toUpperCase() : null;
+    const target = targetId && !facts.target ? targetId.toUpperCase() : null;
+    const comment = commentId && !facts.comment ? commentId : null;
+    if (!rid && !target && !comment) return [];
+    const named = (id: string) => sql`(gone.payload->'gone'->'ids' @> jsonb_build_array(${id}::text) OR upper(gone.payload->'issue'->>'id') = ${id})`;
+    const project = e.project ? s.projectsByKey.get(e.project.toUpperCase()) : undefined;
+    const arms: SQL[] = [];
+    if (rid) arms.push(named(rid));
+    if (rid && project) arms.push(sql`(gone.project_id = ${project.id} AND split_part(gone.payload->'issue'->>'id', '-', 2) = ${rid.slice(rid.lastIndexOf('-') + 1)})`);
+    if (target) arms.push(named(target));
+    const limited = arms.length ? sql`(${GONE_LIMITED} AND (${sql.join(arms, sql` OR `)}))` : sql`FALSE`;
+    const res = await db.execute(sql`
+      SELECT gone.project_id AS "projectId" FROM activities gone
+      WHERE gone.type = 'issue.deleted' AND (${limited}${comment ? sql` OR gone.payload->'gone'->'comments' @> jsonb_build_array(${comment}::text)` : sql``})
+    `);
+    return (res as unknown as { rows: { projectId: string | null }[] }).rows.map((r) => r.projectId);
+  })();
+  if (goneCache.size > 2000) goneCache.clear();
+  goneCache.set(e.id, { at: Date.now(), hits });
+  return hits;
+}
+
+/** Whether the viewer sees an event as far as deleted issues go: none deleted while limited hides it, but in a project they see all of. */
+export async function goneEventSeen(view: AccessView, db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>, opts: { fresh?: boolean } = {}): Promise<boolean> {
+  if (view.admin) return true;
+  return (await goneHitsOf(db, s, e, opts.fresh)).every((projectId) => projectId !== null && view.seesAllIn(projectId));
+}
+
+/** Whether an event is of an issue deleted while limited, names one, or is of a comment limited on one deleted since: webhooks carry none. */
+export async function goneEventLimited(db: Db, s: SchemaSnapshot, e: Pick<TrackerEvent, 'id' | 'type' | 'project' | 'issue' | 'data'>): Promise<boolean> {
+  return (await goneHitsOf(db, s, e)).length > 0;
 }

@@ -9,7 +9,7 @@
  */
 import type { User } from '@a4a/shared';
 import { imageAttachment } from '@a4a/shared/markdown';
-import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, remarkStringifyOptionsCtx, rootCtx, serializerCtx } from '@milkdown/kit/core';
+import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, parserCtx, remarkStringifyOptionsCtx, rootCtx, serializerCtx } from '@milkdown/kit/core';
 import { clipboard } from '@milkdown/kit/plugin/clipboard';
 import { history } from '@milkdown/kit/plugin/history';
 import { upload, uploadConfig } from '@milkdown/kit/plugin/upload';
@@ -28,7 +28,7 @@ import {
   wrapInOrderedListCommand,
 } from '@milkdown/kit/preset/commonmark';
 import { gfm, insertTableCommand, tableCellSchema, tableHeaderSchema, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm';
-import type { Node as PMNode, Schema } from '@milkdown/kit/prose/model';
+import { Slice, type Node as PMNode, type Schema } from '@milkdown/kit/prose/model';
 import { Plugin, PluginKey, type EditorState } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view';
 import { $prose, $view, callCommand, replaceAll } from '@milkdown/kit/utils';
@@ -64,6 +64,21 @@ export interface VisualEditorProps {
   onStatus: (text: string, bad?: boolean) => void;
   /** Drawn at the end of the toolbar: the switch to Markdown. */
   end?: React.ReactNode;
+  /** Where the editor puts what writing help needs of it: the selection, as Markdown, and a way to replace it (D59). */
+  handle?: { current: EditorHandle | null };
+  /** Whether some text is selected, said each time that changes. */
+  onSelection?: (selected: boolean) => void;
+}
+
+/** What's selected, as Markdown, and how to put other Markdown in its place, while the text is as it was. */
+export interface Picked {
+  text: string;
+  apply: (markdown: string) => boolean;
+}
+
+export interface EditorHandle {
+  pick: () => Picked | null;
+  focus: () => void;
 }
 
 /** "@" and what's typed after it, ending at the caret: the person being named, if any (as MentionField reads it). */
@@ -270,6 +285,31 @@ class ListItemView implements NodeView {
   }
 }
 
+/**
+ * The selection as Markdown (the editor's own writing of it), and its replacement: Markdown read by the
+ * editor's parser and put in its place as a paste is, opening into the blocks around it, so words
+ * within a paragraph stay in it. Only while the document is the one it was read from.
+ */
+function pick(ed: Editor): Picked | null {
+  const view = ed.ctx.get(editorViewCtx);
+  const { from, to, empty } = view.state.selection;
+  if (empty) return null;
+  const doc = view.state.doc;
+  const text = withoutEmptyLines(ed.ctx.get(serializerCtx)(doc.cut(from, to))).replace(/\n+$/, '');
+  return {
+    text,
+    apply: (markdown) => {
+      const now = ed.ctx.get(editorViewCtx);
+      if (!now.state.doc.eq(doc)) return false;
+      const parsed = ed.ctx.get(parserCtx)(markdown);
+      if (!parsed) return false;
+      now.dispatch(now.state.tr.replaceRange(from, to, Slice.maxOpen(parsed.content)).scrollIntoView());
+      now.focus();
+      return true;
+    },
+  };
+}
+
 /** A tool on the toolbar, said by its name; a mark's or a block's says whether it's on. */
 function Tool({ label, icon, glyph, pressed, onClick }: { label: string; icon?: IconName; glyph?: string; pressed?: boolean; onClick: () => void }) {
   return (
@@ -293,7 +333,7 @@ function Tool({ label, icon, glyph, pressed, onClick }: { label: string; icon?: 
   );
 }
 
-export default function VisualEditor({ id, value, onChange, label, describedBy, placeholder, autoFocus, tall, people, place, onOtherFiles, onStatus, end }: VisualEditorProps) {
+export default function VisualEditor({ id, value, onChange, label, describedBy, placeholder, autoFocus, tall, people, place, onOtherFiles, onStatus, end, handle, onSelection }: VisualEditorProps) {
   const root = useRef<HTMLDivElement>(null);
   const editor = useRef<Editor | null>(null);
   /** The text last handed over or put in, and the document it reads as: that document, unchanged, is that text. */
@@ -315,6 +355,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
     place,
     onOtherFiles,
     placeholder,
+    onSelection,
     key: ((_e: KeyboardEvent) => false) as (e: KeyboardEvent) => boolean,
     files: (async (_files: File[]) => {}) as (files: File[]) => Promise<void>,
   });
@@ -323,6 +364,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
   live.current.place = place;
   live.current.onOtherFiles = onOtherFiles;
   live.current.placeholder = placeholder;
+  live.current.onSelection = onSelection;
 
   const offered = useMemo(() => {
     if (!typing) return [];
@@ -379,6 +421,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
     let gone = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lastSent = kept.current.text;
+    let selected = false;
 
     /**
      * Hand the text over: the one that came in, when the document reads as it did; else the document,
@@ -406,6 +449,10 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           view: () => ({
             update: (view, prev) => {
               setActive(activeIn(view.state));
+              if (selected !== !view.state.selection.empty) {
+                selected = !view.state.selection.empty;
+                live.current.onSelection?.(selected);
+              }
               if (!view.state.doc.eq(prev.doc) && !applying.current) {
                 clearTimeout(timer);
                 if (view.state.doc.content.size <= AS_TYPED) flush();
@@ -524,12 +571,14 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
         kept.current.doc = view.state.doc;
         name.current(view.dom);
         if (autoFocus) view.focus();
+        if (handle) handle.current = { pick: () => pick(e), focus: () => e.ctx.get(editorViewCtx).focus() };
       });
     return () => {
       gone = true;
       clearTimeout(timer);
       made?.destroy();
       editor.current = null;
+      if (handle) handle.current = null;
     };
     // The editor is made once; what changes later reaches it through `live`.
     // eslint-disable-next-line react-hooks/exhaustive-deps

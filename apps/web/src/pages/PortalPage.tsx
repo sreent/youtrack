@@ -7,10 +7,10 @@ import { Lone } from '../app/Auth';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { ErrorNote, Loading } from '../components/States';
-import { Avatar } from '../components/Who';
+import { Avatar, Who } from '../components/Who';
 import { FormField } from '../features/common/bits';
 import { whenRead } from '../features/common/format';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
@@ -78,8 +78,13 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
           <Avatar kind="person" name={m.from === 'you' ? me.name : m.name} small />
           <div className="history-body">
             <p className="history-head">
-              <strong className="who-name">{m.from === 'you' ? t('page.portal.you') : m.name}</strong>
-              {m.from === 'team' ? ' replied' : ''} · <time dateTime={m.at}>{whenRead(m.at)}</time>
+              {tr('page.portal.messageHead', {
+                name: m.from === 'you' ? t('page.portal.you') : m.name,
+                from: m.from /* a stable code */,
+                whenRead: whenRead(m.at),
+                t0: (c: ReactNode) => <strong className="who-name">{c}</strong>,
+                t1: (c: ReactNode) => <time dateTime={m.at}>{c}</time>,
+              })}
             </p>
             <div className="history-comment">
               <Markdown text={m.text} outside />
@@ -88,6 +93,62 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * Who is copied on a request, as its requester sees them on the portal (D57), and a way to copy
+ * someone: anyone they choose, who then gets the team's replies by email and may reply.
+ */
+function Copied({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalRequestDetail) => void }) {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  if (!r.ccs) return null;
+  const copy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      const who = email.trim();
+      onChange(await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(r.id)}/ccs`, { email: who }));
+      setEmail('');
+      setSaid(t('page.portal.nowCopied', { email: who }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="stack tight" aria-labelledby="portal-copied">
+      <h3 id="portal-copied">{t('page.portal.copied')}</h3>
+      {r.ccs.length ? (
+        <ul className="plain stack tight">
+          {r.ccs.map((c) => (
+            <li key={c.email}>
+              <Who kind="person" name={c.name || c.email} about={c.name ? `${c.email} · ${c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')}` : c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')} small />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="note">{t('page.portal.nobodyCopied')}</p>
+      )}
+      <form className="form" onSubmit={copy} aria-label={t('page.portal.copySomeone')}>
+        <FormField label={t('page.portal.theirEmail')} help={t('page.portal.copyHelp')}>
+          {(fid, helpId) => <input id={fid} type="email" required autoComplete="off" maxLength={HELP_LIMITS.email} aria-describedby={helpId} value={email} onChange={(e) => setEmail(e.target.value)} />}
+        </FormField>
+        {error ? <ErrorNote error={error} /> : null}
+        <div className="cluster end">
+          <button type="submit" disabled={busy || !email.trim()}>
+            {busy ? t('page.portal.copying') : t('page.portal.copySomeone')}
+          </button>
+        </div>
+      </form>
+      {said ? <p role="status" className="outcome">{said}</p> : null}
+    </section>
   );
 }
 
@@ -114,6 +175,19 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       setBusy(false);
     }
   };
+  // Theirs, in a group that shares (D56): kept from it, or shared again.
+  const keep = async (value: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      qc.setQueryData(['portal', 'request', id], await patch<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`, { private: value }));
+      void qc.invalidateQueries({ queryKey: ['portal', 'requests'] });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section className="stack" aria-label={r.summary}>
       <button type="button" className="link" onClick={onBack}>{t('page.portal.allYourRequests')}</button>
@@ -125,7 +199,17 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
         {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
       </div>
       <Conversation r={r} me={me} />
-      {r.requester.mine ? (
+      {r.copied ? <p className="note">{t('page.portal.youAreCopied', { name: r.requester.name })}</p> : null}
+      {r.requester.mine && r.group ? (
+        <div className="cluster">
+          <p className="note">{r.private ? t('page.portal.keptFromGroup') : t('page.portal.groupSeesIt', { group: r.group })}</p>
+          <button type="button" className="link" disabled={busy} onClick={() => void keep(!r.private)}>
+            {r.private ? t('page.portal.shareAgain', { group: r.group }) : t('page.portal.keepPrivate', { group: r.group })}
+          </button>
+        </div>
+      ) : null}
+      {!r.requester.mine && !r.copied && r.canReply ? <p className="note">{tr('page.portal.sharedToAnswer', { name: r.requester.name, group: r.group ?? '' })}</p> : null}
+      {r.canReply ? (
         <form className="form" onSubmit={reply}>
           <FormField label={t('page.portal.yourReply')}>{(fid) => <textarea id={fid} rows={4} value={text} maxLength={HELP_LIMITS.reply} onChange={(e) => setText(e.target.value)} />}</FormField>
           {error ? <ErrorNote error={error} /> : null}
@@ -136,16 +220,19 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
           </div>
         </form>
       ) : (
-        <p className="note">{tr('page.portal.thisIsSRequestShared', { name: r.requester.name })}</p>
+        <p className="note">{tr('page.portal.sharedReadOnly', { name: r.requester.name, group: r.group ?? '' })}</p>
       )}
+      <Copied r={r} onChange={(d) => qc.setQueryData(['portal', 'request', id], d)} />
     </section>
   );
 }
 
-function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: string) => void }) {
+function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; onMade: (id: string) => void }) {
   const [desk, setDesk] = useState(desks[0]?.key ?? '');
   const [summary, setSummary] = useState('');
   const [description, setDescription] = useState('');
+  const [keepPrivate, setKeepPrivate] = useState(false);
+  const group = me.groups.find((g) => g.desk.key === desk);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   if (!desks.length) return null;
@@ -154,7 +241,7 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
     setBusy(true);
     setError(null);
     try {
-      onMade((await post<PortalRequestDetail>('/portal/requests', { desk, summary, description })).id);
+      onMade((await post<PortalRequestDetail>('/portal/requests', { desk, summary, description, private: Boolean(group) && keepPrivate })).id);
     } catch (err) {
       setError(err);
     } finally {
@@ -179,6 +266,12 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
       ) : null}
       <FormField label={t('page.portal.whatDoYouNeed')}>{(id) => <input id={id} required maxLength={HELP_LIMITS.summary} value={summary} onChange={(e) => setSummary(e.target.value)} />}</FormField>
       <FormField label={t('page.portal.details')}>{(id) => <textarea id={id} rows={4} maxLength={HELP_LIMITS.description} value={description} onChange={(e) => setDescription(e.target.value)} />}</FormField>
+      {group ? (
+        <label className="check">
+          <input type="checkbox" checked={keepPrivate} onChange={(e) => setKeepPrivate(e.target.checked)} />
+          {t('page.portal.keepFromMyGroup', { group: group.name })}
+        </label>
+      ) : null}
       {error ? <ErrorNote error={error} /> : null}
       <div className="cluster end">
         <button type="submit" className="primary" disabled={busy || !summary.trim()}>
@@ -189,12 +282,22 @@ function NewRequest({ desks, onMade }: { desks: PortalDesk[]; onMade: (id: strin
   );
 }
 
-/** The requesters' portal (D45): their requests, their organization's where a desk shares them, and a way to ask. */
+/** The requesters' portal (D45): their requests, their customer group's where it shares them (D56), and a way to ask. */
 export default function PortalPage() {
   const qc = useQueryClient();
-  const [token] = useState(linkToken);
+  const [token, setToken] = useState(linkToken);
+  // A sign-in link opened where the portal already is changes only the address's hash: take it then too.
+  useEffect(() => {
+    const taken = () => {
+      const next = linkToken();
+      if (next) setToken(next);
+    };
+    window.addEventListener('hashchange', taken);
+    return () => window.removeEventListener('hashchange', taken);
+  }, []);
   const [redeemError, setRedeemError] = useState<unknown>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  // An email to someone copied on a request links to it here (D57): opened once they're signed in.
+  const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
   const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token });
   useEffect(() => {
     if (!token) return;
@@ -238,7 +341,15 @@ export default function PortalPage() {
         <h1>{t('page.portal.yourRequests')}</h1>
         <button type="button" onClick={() => void signOut()}>{t('page.portal.signOut')}</button>
       </div>
-      <p className="note">{tr('page.portal.signedInAs', { name: m.name, email: m.email, v: m.organization ? t('page.portal.youAlsoSeeRequestsFrom', { organization: m.organization }) : '.' })}</p>
+      <p className="note">
+        {tr('page.portal.signedInAs', {
+          name: m.name,
+          email: m.email,
+          // Whether they also see a customer group's requests (D56): each language ends the sentence its own way.
+          hasGroups: m.groups.length ? 'yes' : 'no',
+          groups: formatList(m.groups.map((g) => t('page.portal.groupAtDesk', { group: g.name, desk: g.desk.name }))),
+        })}
+      </p>
       {open ? (
         <RequestView id={open} me={m} onBack={() => setOpen(null)} />
       ) : (
@@ -252,6 +363,7 @@ export default function PortalPage() {
                   </button>
                   <span className="note">{tr(r.requester.mine ? 'page.portal.updatedYours' : 'page.portal.updatedTheirs', { name: r.desk.name, id: r.id, requester: r.requester.name, whenRead: whenRead(r.updatedAt) })}</span>
                   {r.state.name ? <Badge tone={r.state.resolved ? 'good' : null}>{r.state.name}</Badge> : null}
+                  {r.copied ? <Badge grammar="outside">{t('page.portal.copied')}</Badge> : null}
                 </li>
               ))}
             </ul>
@@ -260,7 +372,7 @@ export default function PortalPage() {
           ) : (
             <p className="note">{t('page.portal.noRequestsYet')}</p>
           )}
-          <NewRequest desks={desks.data ?? []} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
+          <NewRequest desks={desks.data ?? []} me={m} onMade={(id) => { void qc.invalidateQueries({ queryKey: ['portal', 'requests'] }); setOpen(id); }} />
           <form
             className="form"
             aria-label={t('page.portal.yourName')}

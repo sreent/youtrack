@@ -20,6 +20,8 @@ import { Said } from '../common/bits';
 import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
+import { sourceName } from '../imports/names';
+import { periodWords } from '../common/format';
 import { commandNote, formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -88,8 +90,8 @@ export function when(iso: string, now = new Date()): string {
   const time = d.toLocaleTimeString(intlLocale(), { hour: '2-digit', minute: '2-digit' });
   if (d.toDateString() === now.toDateString()) return time;
   const sameYear = d.getFullYear() === now.getFullYear();
-  const day = d.toLocaleDateString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
-  return `${day}, ${time}`;
+  // A day and its time together, as the page's language joins them ("Mon 16 Nov, 14:05", 「11月16日周一 14:05」).
+  return d.toLocaleString(intlLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 interface Entry {
@@ -99,10 +101,10 @@ interface Entry {
   did?: React.ReactNode;
   body?: React.ReactNode;
   comment?: string;
-  /** A comment the requester of a help desk request sees: theirs, or the team's reply to them. */
-  public?: 'reply' | 'theirs';
+  /** A comment the requester of a help desk request sees: theirs, the team's reply to them, or one by someone copied on it (D57) or of their customer group (D56). */
+  public?: 'reply' | 'theirs' | 'copied' | 'colleague';
   /** Who a limited comment is for, besides those who always see it (D37). */
-  limited?: string;
+  limited?: { audience: string; none: 'yes' | 'no' };
   /** A comment's own files, under its words; and its id, for links to it. */
   files?: Attachment[];
   /** The comment itself, for ticking its checklist against the version read (D39). */
@@ -145,10 +147,14 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       // Imported: the activity's actor ran the import; the other tracker's own dates are in it.
       const imported = data.imported as { source?: string; key?: string; createdAt?: string; reporter?: string } | undefined;
       if (imported) {
-        const from = imported.source === 'jira' ? 'Jira' : imported.source === 'youtrack' ? 'YouTrack' : t('issues.issueHistory.anotherTracker');
+        // The tracker by its name: an export's (Jira's, YouTrack's) or an API's (D29, D46, D61); a plain CSV's is another tracker.
+        const from = sourceName(imported.source) ?? t('issues.issueHistory.anotherTracker');
         const on = imported.createdAt ? t('issues.issueHistory.whereItWasReported', { when: when(imported.createdAt), v: imported.reporter ? t('issues.issueHistory.by', { reporter: imported.reporter }) : '' }) : '';
         return { ...base, did: t('issues.issueHistory.importedItFrom', { from: from, v: imported.key ?? t('issues.issueHistory.itsKeyThere'), on: on }) };
       }
+      // Made from a note on a whiteboard (D58): by its name, unless its reader can't see where it is.
+      const whiteboard = data.whiteboard as { id?: string; name?: string } | undefined;
+      if (whiteboard) return { ...base, did: whiteboard.name ? t('issues.issueHistory.madeFromWhiteboard', { name: whiteboard.name }) : t('issues.issueHistory.madeFromAWhiteboard') };
       return { ...base, did: data.requester ? (data.via === 'email' ? t('issues.issueHistory.askedForHelpByEmail') : t('issues.issueHistory.askedForHelp')) : t('issues.issueHistory.reportedIt') };
     }
     case 'sprint.issue_added':
@@ -167,12 +173,12 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       return {
         ...base,
         did: (
-          <>{tr('issues.issueHistory.committed', { v: typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
+          <>{tr('issues.issueHistory.committed', { sha: sha.slice(0, 7), t0: (c: ReactNode) => typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
               <a className="mono" href={data.url} rel="noreferrer noopener" target="_blank">
-                {sha.slice(0, 7)}
+                {c}
               </a>
             ) : (
-              <span className="mono">{sha.slice(0, 7)}</span>
+              <span className="mono">{c}</span>
             ), v2: data.branch ? <>{tr('issues.issueHistory.on', { String: String(data.branch), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</> : null })}</>
         ),
         body: (
@@ -211,7 +217,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
           <ul className="change-lines">
             {e.changes.map((c) => (
               <li key={c.field}>
-                <span className="change-field">{c.field}:</span> {c.from !== null ? <del>{c.from}</del> : null} {c.to !== null ? <ins>{c.to}</ins> : null}
+                <span className="change-field">{t('ui.changes.fieldLabel', { field: c.field })}</span> {c.from !== null ? <del>{c.from}</del> : null} {c.to !== null ? <ins>{c.to}</ins> : null}
               </li>
             ))}
           </ul>
@@ -245,7 +251,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         body: (
           <ul className="change-lines">
             <li>
-              <span className="change-field">{t('issues.issueHistory.spentTime')}</span> <ins className="mono">{String(data.duration ?? '')}</ins> <span className="same">{t('issues.issueHistory.logged')}</span>
+              <span className="change-field">{t('issues.issueHistory.spentTime')}</span> <ins className="mono">{typeof data.minutes === 'number' ? periodWords(data.minutes) : String(data.duration ?? '')}</ins>
               {data.description ? <span className="same"> · {String(data.description)}</span> : null}
             </li>
           </ul>
@@ -280,10 +286,10 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.notified': {
       const people = Array.isArray(data.people) ? (data.people as unknown[]).map((p) => `@${String(p)}`) : [];
-      const told = people.length ? formatList(people) : t('issues.issueHistory.nobody');
+      const told = formatList(people);
       return {
         ...base,
-        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told }),
+        did: t('issues.issueHistory.andTold', { v: byRule(data) ?? t('issues.issueHistory.appliedARule'), told: told, anyone: people.length ? 'yes' : 'no' }),
         body: (
           <ul className="change-lines">
             <li>“{String(data.message ?? '')}”</li>
@@ -293,6 +299,13 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     }
     case 'rule.called':
       return { ...base, did: t('issues.issueHistory.andCalledItsWebhook', { v: byRule(data) ?? t('issues.issueHistory.appliedARule') }) };
+    case 'request.cc_added':
+    case 'request.cc_removed': {
+      // Someone copied on a help desk request, or no longer (D57); stopped from an email's link, it's them.
+      const email = String((data.cc as { email?: unknown } | undefined)?.email ?? '');
+      const via = String(data.via ?? 'team') /* a stable code */;
+      return { ...base, did: e.type === 'request.cc_added' ? t('issues.issueHistory.ccAdded', { via, email }) : t('issues.issueHistory.ccRemoved', { via, email }) };
+    }
     case 'sla.warning':
     case 'sla.breached': {
       // What time alone brought to a request's targets (D45), said by the help desk's agent.
@@ -324,7 +337,7 @@ function commentEntry(c: Comment, byEvent: Map<string, Actor>, files: Attachment
     at: c.createdAt,
     who: whoOf(actor, c.requester?.name),
     comment: c.text,
-    public: c.visibility === 'public' ? (c.requester ? 'theirs' : 'reply') : undefined,
+    public: c.visibility === 'public' ? (c.requester ? (c.requester.as === 'requester' ? 'theirs' : c.requester.as) : 'reply') : undefined,
     limited: c.visibleTo ? audience(c.visibleTo) : undefined,
     files,
     anchor: `comment-${c.id}`,
@@ -349,8 +362,8 @@ function Head({ who, at, did, badge, action }: { who: Who; at: string; did?: Rea
   );
 }
 
-/** Who sees a comment on a help desk request: the team alone, or the requester too, by email. */
-function Visibility({ value, onChange, requester }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string }) {
+/** Who sees a comment on a help desk request: the team alone, or the requester too, by email, and everyone copied on it (D57). */
+function Visibility({ value, onChange, requester, copied }: { value: CommentVisibility; onChange: (v: CommentVisibility) => void; requester: string; copied: number }) {
   return (
     <div className="stack tight">
       <div className="modes" role="group" aria-label={t('issues.issueHistory.whoSeesThisComment')}>
@@ -358,7 +371,11 @@ function Visibility({ value, onChange, requester }: { value: CommentVisibility; 
         <button type="button" aria-pressed={value === 'public'} onClick={() => onChange('public')}>{tr('issues.issueHistory.replyTo', { requester: requester })}</button>
       </div>
       <p className="field-help" id="visibility-help">
-        {value === 'public' ? t('issues.issueHistory.getsItByEmailAnd', { requester: requester }) : t('issues.issueHistory.onlyTheTeamSeesIt', { requester: requester })}
+        {value === 'public'
+          ? copied
+            ? t('issues.issueHistory.getsItByEmailAndCopied', { requester, count: copied })
+            : t('issues.issueHistory.getsItByEmailAnd', { requester: requester })
+          : t('issues.issueHistory.onlyTheTeamSeesIt', { requester: requester })}
       </p>
     </div>
   );
@@ -435,7 +452,7 @@ export function IssueHistory({
     try {
       const done = await post<UndoResult>(`/events/${event}/undo`);
       const what = done.changes.map((c) => (c.field === 'Links' ? t('issues.issueHistory.theLink') : c.field));
-      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: what.length ? what.join(', ') : t('issues.issueHistory.itsChange') }) });
+      setUndoSaid({ event, text: t('issues.issueHistory.undoneAsBefore', { v: formatList(what), n: what.length }) });
       await Promise.all([qc.invalidateQueries({ queryKey: keys.issue(issue.id) }), qc.invalidateQueries({ queryKey: ['issues', 'list'] })]);
     } catch (e) {
       // What changed since, or who undid it already, in the server's words; anything else as usual.
@@ -538,8 +555,12 @@ export function IssueHistory({
                     <Badge grammar="outside">{tr('issues.issueHistory.publicSentTo', { v: requester ?? t('issues.issueHistory.theRequester2') })}</Badge>
                   ) : e.public === 'theirs' ? (
                     <Badge grammar="outside">{t('issues.issueHistory.publicTheRequesterWroteIt')}</Badge>
+                  ) : e.public === 'copied' ? (
+                    <Badge grammar="outside">{t('issues.issueHistory.publicSomeoneCopiedWroteIt')}</Badge>
+                  ) : e.public === 'colleague' ? (
+                    <Badge grammar="outside">{t('issues.issueHistory.publicAColleagueWroteIt')}</Badge>
                   ) : e.limited ? (
-                    <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited })}</Badge>
+                    <Badge tone="idle" title={t('issues.issueHistory.itsAuthorTheProjectS')}>{tr('issues.issueHistory.visibleTo', { limited: e.limited.audience, none: e.limited.none })}</Badge>
                   ) : e.undo?.state === 'undone' ? (
                     <Badge tone="idle" title={undoNote(e.undo)}>{t('issues.issueHistory.undone')}</Badge>
                   ) : null
@@ -591,7 +612,7 @@ export function IssueHistory({
             pick([...e.dataTransfer.files]);
           }}
         >
-          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} /> : null}
+          {requester && canReply ? <Visibility value={visibility} onChange={setVisibility} requester={requester} copied={request.data?.ccs.length ?? 0} /> : null}
           {limit && !(requester && canReply && visibility === 'public') ? (
             <LimitPicker value={limit} onChange={setLimit} always={t('issues.issueHistory.youSManagersAndAdministrators', { key: issue.project.key })} />
           ) : null}
@@ -611,6 +632,7 @@ export function IssueHistory({
                 uploadTo={`/issues/${issue.id}/attachments`}
                 onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
                 onOtherFiles={pick}
+                writing={{ kind: requester && canReply && visibility === 'public' ? 'reply' : 'comment', issue: issue.id }}
               />
             )}
           </FormField>

@@ -7,7 +7,7 @@ import { chatConsumer, ChatWorker, pruneChat } from './outbox';
 
 consumerFactories.push(chatConsumer);
 
-choreFactories.push((runtime) => [{ name: 'chat-prune', everyMs: 24 * 3_600_000, run: () => pruneChat(runtime) }]);
+choreFactories.push((runtime) => [{ name: 'chat-prune', everyMs: 3_600_000, run: () => pruneChat(runtime) }]);
 
 backgroundFactories.push((runtime) => {
   const sender = new ChatWorker(runtime);

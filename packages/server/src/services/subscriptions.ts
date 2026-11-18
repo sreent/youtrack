@@ -17,7 +17,7 @@ import { asSentence, badRequest, notFound, saidProblems } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
 import { projectAccess, requireProject } from './access';
-import type { SchemaSnapshot } from './schema-cache';
+import { keyNow, type SchemaSnapshot } from './schema-cache';
 import { requirePersonal } from './watchers';
 
 type Row = typeof subscriptions.$inferSelect;
@@ -232,7 +232,11 @@ export async function findFollowableSearch(ctx: Ctx, idOrName: string): Promise<
 /** Your subscription to a project or a saved search, if you have one. */
 export async function subscriptionTo(ctx: Ctx, target: { project?: string; savedSearch?: string }): Promise<Subscription | null> {
   const mine = await listSubscriptions(ctx);
-  if (target.project) return mine.find((s) => s.project?.key === target.project!.toUpperCase()) ?? null;
+  // Named by a key it had before it was renamed (D52), it's the same project.
+  if (target.project) {
+    const key = keyNow(await ctx.app.schema.get(), target.project.trim()).toUpperCase();
+    return mine.find((s) => s.project?.key.toUpperCase() === key) ?? null;
+  }
   return mine.find((s) => s.search?.id === target.savedSearch) ?? null;
 }
 

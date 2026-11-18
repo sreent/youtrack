@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
-import { dayMonth, spanWords } from '../plan/dates';
+import { dayMonth, span } from '../plan/dates';
 import { hoursOf } from './chart';
 import { t as tx, tr, inSentence } from '../../i18n';
 
@@ -72,7 +72,7 @@ export function TimeReportView({ t, compact }: { t: TimeReport; compact?: boolea
         <div>
           <dt>{tx('reports.timeReport.logged')}</dt>
           <dd>
-            {hoursOf(t.totalMinutes)} <small>{spanWords(t.from, t.to)}</small>
+            {hoursOf(t.totalMinutes)} <small>{span(t.from, t.to)}</small>
           </dd>
         </div>
         <div>

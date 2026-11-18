@@ -21,20 +21,21 @@ import {
   type ChatSubscription,
   type CreateChatSubscriptionInput,
 } from '@a4a/shared';
-import { joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { joinList, joinSentences, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { problemIn } from '@a4a/shared/notes';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
 import type { Db } from '../db/client';
 import { chatAccounts, chatChannels, chatLinkTokens, chatSubscriptions, chatWorkspaces, projects, savedSearches, userIdentities, users } from '../db/schema';
 import { randomToken, sha256 } from '../lib/crypto';
-import { intlTag, problemFor, translatorFor } from '../i18n';
+import { problemFor, translatorFor } from '../i18n';
 import { AppError, asSentence, badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { runCommand } from '../commands/executor';
 import { searchIssues } from '../search/service';
 import { projectAccess, projectGrantsOf, requireProject } from '../services/access';
+import { keyNow } from '../services/schema-cache';
 import { addComment } from '../services/comments';
 import { createIssue, getIssue } from '../services/issues';
 import { findFollowableSearch } from '../services/subscriptions';
@@ -222,7 +223,7 @@ const KIND_WORDS: Record<ChatChangeKind, string> = {
  */
 export function aboutChannel(kinds: readonly string[], target: { project?: string | null; search?: string | null }, tr: Translator): string {
   const words = CHAT_CHANGE_KINDS.filter((k) => kinds.includes(k)).map((k) => tr.t(KIND_WORDS[k]));
-  const listed = words.length ? new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(words) : tr.t('server.chat.kind.nothing');
+  const listed = words.length ? joinList(tr.locale, words) : tr.t('server.chat.kind.nothing');
   const what = `${listed.charAt(0).toUpperCase()}${listed.slice(1)}`;
   return target.project
     ? tr.t('server.chat.about.project', { what, project: target.project })
@@ -541,10 +542,14 @@ const KIND_ALIASES: Record<string, ChatChangeKind> = {
   other: 'fields',
 };
 
-/** An issue as the person sees it, for a card. */
-export async function issueForCard(ctx: Ctx, id: string): Promise<CardIssue> {
+/**
+ * An issue as the person sees it, for a card. For a channel (`everyone`), without its private fields,
+ * whoever vouches for it: a channel hears only what every reader of the project may see (D42, D50).
+ */
+export async function issueForCard(ctx: Ctx, id: string, opts: { everyone?: boolean } = {}): Promise<CardIssue> {
   const detail = await getIssue(ctx, id);
-  return cardIssue(ctx.app, await ctx.app.schema.get(), detail);
+  const shown = opts.everyone ? { ...detail, fields: detail.fields.filter((f) => !f.private) } : detail;
+  return cardIssue(ctx.app, await ctx.app.schema.get(), shown);
 }
 
 /**
@@ -635,8 +640,10 @@ async function subscribeHere(ctx: Ctx, on: boolean, rest: string, channelId: str
     const about = aboutChannel(sub.kinds, { project: sub.project?.name, search: sub.search?.name }, channel);
     return { text: channel.t('server.chat.subscribed', { name: ctx.actor.user.name, about }), locale: channel.locale, public: true };
   }
+  // A project named by a key it had before it was renamed (D52) is the same project.
+  const key = quoted ? null : keyNow(await ctx.app.schema.get(), word!).toUpperCase();
   const mine = (await listChatSubscriptions(ctx)).filter(
-    (s) => s.channel.id === channelId && !s.ended && (quoted ? s.search?.name.toLowerCase() === quoted.toLowerCase() : s.project?.key === word!.toUpperCase()),
+    (s) => s.channel.id === channelId && !s.ended && (quoted ? s.search?.name.toLowerCase() === quoted.toLowerCase() : s.project?.key.toUpperCase() === key),
   );
   if (!mine.length) return { text: tr.t('server.chat.hearsNothing'), locale };
   for (const s of mine) await deleteChatSubscription(ctx, s.id);

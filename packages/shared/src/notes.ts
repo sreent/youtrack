@@ -3,7 +3,7 @@
  * sends what its note says as data (`says`), and a page words it here, from the catalogs; the API's
  * `note` says the same in English. The server's tests hold the catalog's English to the API's.
  */
-import { canSayProblem, DEFAULT_LOCALE, intlTag, joinSentences, sayProblem, type ProblemSaid, type Translator } from './i18n';
+import { canSayProblem, DEFAULT_LOCALE, joinList, joinSentences, sayProblem, type ProblemSaid, type Translator } from './i18n';
 import type { RuleTrigger } from './constants';
 import type { NoteSaid, RulePreview, RuleSchedule, RuleTarget, ScriptRun } from './schemas';
 
@@ -89,7 +89,7 @@ function keptIn(tr: Translator, n: Kept): string | null {
     }
     const items = v.map((x) => (typeof x === 'string' ? x : x && typeof x === 'object' && typeof (x as Kept).key === 'string' ? keptIn(tr, x as Kept) : String(x)));
     if (items.some((x) => x === null)) return null;
-    values[name] = new Intl.ListFormat(intlTag(tr.locale), { style: 'long', type: 'conjunction' }).format(items as string[]);
+    values[name] = joinList(tr.locale, items as string[]);
   }
   return tr.t(n.key, values);
 }

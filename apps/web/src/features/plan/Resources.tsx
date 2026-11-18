@@ -19,7 +19,7 @@ import { usePreferences, useSetLoadWindow } from '../away/api';
 import { DaysAway } from '../away/DaysAway';
 import { FormField } from '../common/bits';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
-import { dayMonth, mondayOf, span, spanWords, weekdayName, workCalendar, type WorkCalendar } from './dates';
+import { dayMonth, mondayOf, span, weekdayName, workCalendar, type WorkCalendar } from './dates';
 import { andList, hours, shift } from './format';
 import { WindowChoice, windowRange } from './LoadWindow';
 import { t, tr } from '../../i18n';
@@ -42,7 +42,7 @@ const AWAY_WORDS = { morning: t('plan.resources.awayInTheMorning'), afternoon: t
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   const ws = weekStart ? ' week-start' : '';
   // A day someone is away says so; a day of no hours that isn't one is "off". Neither says why.
-  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>{day.away === 'day' ? 'away' : 'off'}</td>;
+  if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>{day.away === 'day' ? t('plan.resources.cellAway') : t('plan.resources.cellOff')}</td>;
   const half = day.away === 'morning' || day.away === 'afternoon' ? day.away : null;
   const part = half ? ' part' : '';
   const said = half ? `, ${AWAY_WORDS[half]}` : '';
@@ -78,7 +78,7 @@ function LoadGrid({ load, choice, children }: { load: ResourceLoad; choice?: Rea
   const dates = load.resources[0]?.days.map((d) => d.date) ?? [];
   const first = dates[0];
   const last = dates[dates.length - 1];
-  const when = first && last ? spanWords(first, last) : '';
+  const when = first && last ? span(first, last) : '';
   const starts = dates.map((d, i) => i > 0 && mondayOf(d) !== mondayOf(dates[i - 1]!));
   const away = load.resources.some((r) => r.days.some((d) => d.away));
   return (

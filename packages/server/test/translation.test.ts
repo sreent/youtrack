@@ -4,7 +4,7 @@
  */
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LOCALES } from '@a4a/shared/i18n';
+import { createTranslator, koreanParticles, LOCALES } from '@a4a/shared/i18n';
 import de from '@a4a/shared/i18n/de.json' with { type: 'json' };
 import en from '@a4a/shared/i18n/en.json' with { type: 'json' };
 import type { UserRow } from '../src/context';
@@ -80,21 +80,39 @@ describe('a4a in each person’s language (D49)', () => {
       de: '4 Vorgänge: im Projekt SPR und unerledigt',
       es: 'Incidencias del proyecto SPR y sin resolver: 4',
       fr: 'Tickets dans le projet SPR, non résolus : 4',
+      id: '4 isu di proyek SPR, belum selesai',
       ja: '4件の課題：プロジェクト：SPR、未解決',
+      zh: '4 个问题：项目 SPR、未解决',
+      ko: '이슈 4개: 프로젝트 SPR 및 미해결',
+      pt: 'Itens no projeto SPR, não resolvidos: 4',
+      vi: '4 vấn đề trong dự án SPR, chưa giải quyết',
+      th: 'อิชชู 4 รายการ ในโปรเจกต์ SPR และที่ยังไม่ปิด',
     });
     expect(await said('sort by: Priority', 1)).toEqual({
       en: '1 issue sorted by Priority',
       de: '1 Vorgang, sortiert nach Priority',
       es: 'Todas las incidencias ordenadas por Priority: 1',
       fr: 'Tous les tickets, triés par Priority : 1',
+      id: '1 isu, diurutkan menurut Priority',
       ja: '1件の課題、並び順：Priority',
+      zh: '1 个问题，按 Priority 排序',
+      ko: '이슈 1개, 정렬: Priority',
+      pt: 'Todos os itens ordenados por Priority: 1',
+      vi: '1 vấn đề, sắp xếp theo Priority',
+      th: 'อิชชู 1 รายการ เรียงตาม Priority',
     });
     expect(await said('', 0)).toEqual({
       en: '0 issues (most recently updated first)',
       de: '0 Vorgänge (zuletzt aktualisierte zuerst)',
       es: 'Todas las incidencias (primero las actualizadas más recientemente): 0',
       fr: 'Tous les tickets (les plus récemment mis à jour d’abord) : 0',
+      id: '0 isu (yang terakhir diperbarui lebih dulu)',
       ja: '0件の課題（最近更新された順）',
+      zh: '0 个问题（按最近更新排序）',
+      ko: '이슈 0개 (최근 업데이트순)',
+      pt: 'Todos os itens (os atualizados mais recentemente primeiro): 0',
+      vi: '0 vấn đề (mới cập nhật xếp trước)',
+      th: 'อิชชู 0 รายการ (อัปเดตล่าสุดก่อน)',
     });
     // Lena reads dates in Berlin. "created today" is the query language's, as written.
     expect((await said('created: today', 2)).de).toBe('2 Vorgänge: created today (Datumsangaben in Europe/Berlin)');
@@ -164,5 +182,25 @@ describe('a4a in each person’s language (D49)', () => {
     expect(tr.t('server.mail.openInbox')).toBe('Posteingang öffnen');
     expect(translatorFor('xx').locale).toBe('en');
     expect(tr.t('no.such.key')).toBe('no.such.key');
+  });
+
+  it('chooses a Korean particle by the word before it, where a4a can read its end', () => {
+    // A Hangul word by its last syllable's final consonant, ㄹ apart before (으)로; a number as Korean reads it.
+    expect(koreanParticles('BACK-12을(를) 옮겼습니다')).toBe('BACK-12를 옮겼습니다');
+    expect(koreanParticles('BACK-10을(를) 옮겼습니다')).toBe('BACK-10을 옮겼습니다');
+    expect(koreanParticles('김민준이(가) 댓글을 남겼습니다')).toBe('김민준이 댓글을 남겼습니다');
+    expect(koreanParticles('안나은(는) 담당자입니다')).toBe('안나는 담당자입니다');
+    expect(koreanParticles('서울(으)로, 부산(으)로, 7(으)로')).toBe('서울로, 부산으로, 7로');
+    expect(koreanParticles('사과(이)라는 값, 책(이)라는 값')).toBe('사과라는 값, 책이라는 값');
+    expect(koreanParticles('“완료”과(와) “진행”과(와)')).toBe('“완료”와 “진행”과');
+    // A Latin word's end a4a can't hear: both ways stay.
+    expect(koreanParticles('Anna을(를) 보았습니다')).toBe('Anna을(를) 보았습니다');
+    // Through a translator: plain words, a count, and a name inside a tag.
+    const ko = createTranslator('ko', { saw: '{name}을(를) 보았습니다', moved: '{n, plural, other {이슈 #개}}을(를) 옮겼습니다', bold: '<b>{name}</b>을(를) 보았습니다' });
+    expect(ko.t('saw', { name: '민수' })).toBe('민수를 보았습니다');
+    expect(ko.t('moved', { n: 3 })).toBe('이슈 3개를 옮겼습니다');
+    expect(ko.parts('bold', { name: '민준', b: (c: unknown[]) => ({ b: c }) })).toEqual([{ b: ['민준'] }, '을 보았습니다']);
+    // Only Korean: another language's brackets are its own.
+    expect(createTranslator('en', { x: '{name}을(를)' }).t('x', { name: '민수' })).toBe('민수을(를)');
   });
 });

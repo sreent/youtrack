@@ -16,7 +16,7 @@ export function ChangeLines({ changes }: { changes: Change[] }) {
         const to = c.to ? excerpt(c.to, 160) : null;
         return (
           <li key={`${c.field}-${i}`}>
-            <span className="change-field">{c.field}:</span>{' '}
+            <span className="change-field">{t('ui.changes.fieldLabel', { field: c.field })}</span>{' '}
             {from && to ? (
               <>
                 <del>{from}</del> → <ins>{to}</ins>

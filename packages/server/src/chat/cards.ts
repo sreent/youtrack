@@ -281,7 +281,12 @@ export function slackBlocks(issue: CardIssue, tr: Translator, opts: { change?: C
   return blocks;
 }
 
+
+/** A change as a notification's preview says it, "Ben Okafor commented: BACK-12", its colon the reader's language's. */
+export function previewOf(tr: Translator, change: Pick<CardChange, 'who' | 'did'>, issue: string): string {
+  return tr.t('server.chat.preview', { who: change.who, did: change.did, issue });
+}
 /** The line a notification and a screen reader read when the blocks can't be shown. */
-export function fallbackText(issue: CardIssue, change?: CardChange): string {
-  return change ? `${change.who} ${change.did}: ${issue.id} ${issue.summary}` : `${issue.id} ${issue.summary}`;
+export function fallbackText(issue: CardIssue, tr: Translator, change?: CardChange): string {
+  return change ? previewOf(tr, change, `${issue.id} ${issue.summary}`) : `${issue.id} ${issue.summary}`;
 }

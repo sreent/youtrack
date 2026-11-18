@@ -13,6 +13,7 @@ import { needsSetup, pruneSessions } from './services/auth';
 import { pruneTickets } from './services/two-factor';
 import { pruneLoginThrottle } from './services/login-throttle';
 import { insertUser } from './services/users';
+import { stopWhiteboardLive } from './events/whiteboard-live';
 
 export interface Started {
   runtime: Runtime;
@@ -80,6 +81,7 @@ export async function startBackground(
     worker,
     stop: async (stopOpts) => {
       runtime.live.stop();
+      stopWhiteboardLive(runtime);
       await worker.stop(stopOpts);
       await runtime.signals.stop();
     },
@@ -141,6 +143,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
       // End the live streams, or their connections would hold the server open; their
       // clients reconnect (to another instance, behind a load balancer) and resume.
       runtime.live.stop();
+      stopWhiteboardLive(runtime);
       const extrasStopped = stopExtras();
       await closed;
       await extrasStopped;

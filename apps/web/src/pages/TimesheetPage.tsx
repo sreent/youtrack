@@ -12,7 +12,7 @@ import { Link, useSearchParams } from 'react-router';
 import { get, put, qs } from '../api/client';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText } from '../features/issues/api';
-import { intlLocale, t as tx, tr } from '../i18n';
+import { formatItems, intlLocale, t as tx, tr } from '../i18n';
 
 const localToday = () => new Date().toLocaleDateString('en-CA');
 const addDays = (iso: string, n: number) => {
@@ -166,7 +166,7 @@ export default function TimesheetPage() {
                     {r.type ? <span className="item-about">{r.type}</span> : null}
                   </th>
                   {t.days.map((d, i) => (
-                    <Cell key={d} row={r} date={d} index={i} label={`${r.issue}${r.type ? `, ${r.type}` : ''}, ${dayName(d)}`} onSave={save} />
+                    <Cell key={d} row={r} date={d} index={i} label={formatItems([r.issue, r.type ?? '', dayName(d)].filter(Boolean))} onSave={save} />
                   ))}
                 </tr>
               ))}

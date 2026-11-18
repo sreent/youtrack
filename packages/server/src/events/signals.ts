@@ -15,7 +15,9 @@ export type Signal =
   /** Signals may have been missed (the LISTEN connection was lost): catch up from the database. */
   | { kind: 'resync' }
   /** These people's notifications changed on another instance: their open inboxes count again. */
-  | { kind: 'inbox'; origin: string; users: string[] };
+  | { kind: 'inbox'; origin: string; users: string[] }
+  /** These whiteboards changed on another instance, or who looks at them did (D58): their open streams read them again. */
+  | { kind: 'whiteboard'; origin: string; ids: string[] };
 
 export type SignalHandler = (signal: Signal) => void;
 
@@ -39,9 +41,11 @@ export interface Signals {
   announceSchemaChange(tx?: Db): Promise<void>;
   /** After commit: tell the other instances whose notifications changed (this one tells its own streams). */
   announceInbox(userIds: string[]): Promise<void>;
+  /** After commit: tell the other instances which whiteboards changed (this one tells its own streams). */
+  announceWhiteboards(ids: string[]): Promise<void>;
 }
 
-export const CHANNELS = { events: 'a4a_events', schema: 'a4a_schema', ping: 'a4a_ping', inbox: 'a4a_inbox' } as const;
+export const CHANNELS = { events: 'a4a_events', schema: 'a4a_schema', ping: 'a4a_ping', inbox: 'a4a_inbox', whiteboard: 'a4a_whiteboard' } as const;
 
 /** NOTIFY payloads must stay under 8000 bytes. */
 const MAX_PAYLOAD = 7_000;
@@ -125,6 +129,8 @@ export class LocalSignals implements Signals {
   async announceSchemaChange(): Promise<void> {}
 
   async announceInbox(): Promise<void> {}
+
+  async announceWhiteboards(): Promise<void> {}
 }
 
 export interface PgSignalsOptions {
@@ -232,6 +238,12 @@ export class PgSignals implements Signals {
     if (batch.length) await this.notify(this.db, CHANNELS.inbox, `${this.origin} ${batch.join(',')}`);
   }
 
+  async announceWhiteboards(ids: string[]): Promise<void> {
+    const unique = [...new Set(ids)];
+    // A whiteboard's id is 16 characters: hundreds fit in one notification, and a change names one or two.
+    for (let i = 0; i < unique.length; i += 300) await this.notify(this.db, CHANNELS.whiteboard, `${this.origin} ${unique.slice(i, i + 300).join(',')}`);
+  }
+
   private async notify(db: Db, channel: string, payload: string): Promise<void> {
     await db.execute(sql`select pg_notify(${channel}, ${payload})`);
   }
@@ -252,7 +264,7 @@ export class PgSignals implements Signals {
       });
       client.on('notification', (msg) => this.received(msg.channel, msg.payload ?? ''));
       await client.connect();
-      await client.query(`LISTEN ${CHANNELS.events}; LISTEN ${CHANNELS.schema}; LISTEN ${CHANNELS.ping}; LISTEN ${CHANNELS.inbox}`);
+      await client.query(`LISTEN ${CHANNELS.events}; LISTEN ${CHANNELS.schema}; LISTEN ${CHANNELS.ping}; LISTEN ${CHANNELS.inbox}; LISTEN ${CHANNELS.whiteboard}`);
       const pid = await client.query<{ pid: number }>('select pg_backend_pid() as pid');
       if (dead) throw new Error('the connection closed while it started listening');
       if (this.stopped) {
@@ -347,6 +359,9 @@ export class PgSignals implements Signals {
     } else if (channel === CHANNELS.inbox) {
       const users = rest.split(',').filter(Boolean);
       if (origin !== this.origin && users.length) this.fanout.dispatch({ kind: 'inbox', origin, users });
+    } else if (channel === CHANNELS.whiteboard) {
+      const ids = rest.split(',').filter(Boolean);
+      if (origin !== this.origin && ids.length) this.fanout.dispatch({ kind: 'whiteboard', origin, ids });
     }
   }
 }

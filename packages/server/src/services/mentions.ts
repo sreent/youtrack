@@ -10,12 +10,12 @@ import type { AppServices, Ctx } from '../context';
 import type { Db } from '../db/client';
 import { comments, issues, mentions } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
-import { commentSeenSql, projectAccess, seenIssueIds, visibleProjectIds } from './access';
+import { commentSeenSql, projectAccess, seenArticleIds, seenIssueIds, visibleProjectIds } from './access';
 import { currentIds } from './aliases';
 import { articleRefsById } from './article-refs';
 import { findIssue } from './issues';
 import { issueRefsById, readableId } from './issue-refs';
-import type { SchemaSnapshot } from './schema-cache';
+import { idWithKeyNow, type SchemaSnapshot } from './schema-cache';
 
 export type MentionSource =
   | { type: 'issue'; id: string; projectId: string }
@@ -37,7 +37,8 @@ export async function indexMentions(db: Db, s: SchemaSnapshot, source: MentionSo
   // An id an issue had before it moved names the issue by the id it has now (D41).
   const now = await currentIds(db, s, refs.filter((r) => r.kind === 'issue').map((r) => r.id));
   for (const found of refs) {
-    const ref = found.kind === 'issue' && now.get(found.id) !== found.id ? { ...found, id: now.get(found.id)! } : found;
+    // An article's id under a key its project had before it was renamed names it as it reads now (D52).
+    const ref = found.kind === 'issue' && now.get(found.id) !== found.id ? { ...found, id: now.get(found.id)! } : found.kind === 'article' ? { ...found, id: idWithKeyNow(s, found.id) } : found;
     if (seen.has(ref.id) || ref.id === self?.toUpperCase() || !s.projectsByKey.has(ref.key)) continue;
     seen.add(ref.id);
     rows.push({
@@ -78,7 +79,8 @@ export async function mentionsOf(ctx: Ctx, target: string, opts: { exceptArticle
     .limit(500);
   const seen = await seenIssueIds(ctx, rows.map((r) => r.issueId).filter((x): x is string => Boolean(x)));
   const issueIds = [...seen];
-  const articleIds = [...new Set(rows.map((r) => r.articleId).filter((x): x is string => Boolean(x) && x !== opts.exceptArticle))];
+  // An article limited away from the caller, or under one that is (D51), mentions nothing to them.
+  const articleIds = [...(await seenArticleIds(ctx, rows.map((r) => r.articleId).filter((x): x is string => Boolean(x) && x !== opts.exceptArticle)))];
   const [issueRefs, articleRefs] = await Promise.all([issueRefsById(ctx.db, s, issueIds), articleRefsById(ctx.db, s, articleIds)]);
   const byId = (x: { id: string }, y: { id: string }) => x.id.localeCompare(y.id, undefined, { numeric: true });
   return { issues: [...issueRefs.values()].sort(byId).slice(0, 100), articles: [...articleRefs.values()].sort(byId).slice(0, 100) };

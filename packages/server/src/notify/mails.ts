@@ -1,12 +1,12 @@
 /** A notification's email, and the daily digest: rendered when sent, from what is true then. */
 import type { IssueRef, NotificationKind } from '@a4a/shared';
-import { subscriptionTells } from '@a4a/shared/i18n';
+import { joinSentences, langTag, subscriptionTells } from '@a4a/shared/i18n';
 import { eq, inArray, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import { comments, notifications, notificationSettings, users } from '../db/schema';
 import { AUTOMATIC, composeMail, threadHeaders, unsubscribeHeaders, type MailSection, type RenderedMail } from '../mail/compose';
 import { mailHost, type MailRow } from '../mail/outbox';
-import { accessFor, eventSeen } from '../services/access';
+import { accessFor, eventFor, eventSeen } from '../services/access';
 import { digestRows, eventsOf, unsubscribeToken, type UnsubscribeKind } from '../services/notifications';
 import { aboutSubscriptions } from '../services/subscriptions';
 import { forgetTeamReplyAddress, mintTeamReplyAddress } from '../services/team-replies';
@@ -53,7 +53,7 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   const view = await accessFor(app.db, user);
   if (!n.projectId || !view.canRead(n.projectId)) return null;
 
-  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
+  const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e), shape: (e) => eventFor(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
   if (!events.length) return null;
   const issue = n.issue as IssueRef;
   const tr = translatorFor(localeOfPerson(app, user));
@@ -77,7 +77,8 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
       ? await mintTeamReplyAddress(app, app.db, user.id, n.issueId, (lastComment?.data as { visibility?: string } | undefined)?.visibility === 'public')
       : null;
   const sections: MailSection[] = events.map((e) => {
-    const head = `${actorName(tr, e)} ${eventVerb(tr, e)} · ${emailTime(e.occurredAt, zone, tr.locale)}`;
+    // Who did what as the language says it (Korean's 이(가) after the name, Japanese's が), then when.
+    const head = `${tr.t('server.notify.title.one', { who: actorName(tr, e), did: eventVerb(tr, e) })} · ${emailTime(e.occurredAt, zone, tr.locale)}`;
     if (e.type.startsWith('comment')) {
       const c = written.get(String((e.data as { commentId?: string }).commentId ?? ''));
       if (c?.deletedAt) return { head: tr.t('server.mail.deletedSince', { head }) };
@@ -89,10 +90,14 @@ export async function renderNotificationMail(app: AppServices, row: MailRow): Pr
   });
   const t = tr.t;
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: t('server.mail.lead', { title, id: issue.id, summary: issue.summary }),
     sections,
     action: n.issueId ? { label: t('server.mail.open', { id: issue.id }), url: l.issue(issue.id) } : { label: t('server.mail.openInbox'), url: l.inbox },
-    why: `${stopKind === 'subscription' ? t('server.mail.whySubscribed', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name }) : t('server.mail.why', { because: because(tr, kind) })}${replyTo ? ` ${t('server.mail.replyToComment')}` : ''}`,
+    why: joinSentences(tr, [
+      stopKind === 'subscription' ? t('server.mail.whySubscribed', { tells: subscriptionTells(sub!.target, sub!.events), name: sub!.name }) : t('server.mail.why', { because: because(tr, kind) }),
+      replyTo ? t('server.mail.replyToComment') : '',
+    ]),
     stop: {
       label:
         stopKind === 'subscription'
@@ -139,7 +144,7 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
     return null;
   }
   const s = await app.schema.get();
-  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e) });
+  const events = await eventsOf(app.db, s, rows.map((r) => r.id), { visible: (e) => eventSeen(view, app.db, s, e), shape: (e) => eventFor(view, s, e) });
   const l = links(app);
   const token = await unsubscribeToken(app, 'digest', userId);
   const tr = translatorFor(localeOfPerson(app, user));
@@ -160,6 +165,7 @@ export async function renderDigestMail(app: AppServices, row: MailRow): Promise<
   }
   const subject = t('server.mail.digest.subject', { n: rows.length });
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: t('server.mail.digest.lead', { n: byIssue.size }),
     sections: [...byIssue.values()].map((g) => ({ head: `${g.issue.id}: ${g.issue.summary} · ${l.issue(g.issue.id)}`, lines: g.lines })),
     action: { label: t('server.mail.openInbox'), url: l.inbox },

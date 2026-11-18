@@ -1,28 +1,33 @@
 /**
  * The requesters' portal (D45): a requester signs in with a link sent to their email, no password
- * to forget, and sees the requests they made, with public comments only; and, where a desk shares
- * them, their organization's (requesters of an email domain the desk names). They reply on their
- * own requests, and open new ones on a desk's form without its proof of work.
+ * to forget, and sees the requests they made, with public comments only; and those filed under a
+ * customer group they're in, where the group shares them (D56), unless one was kept private. They
+ * reply on their own requests, and on their group's where it lets its members answer, and open new
+ * ones on a desk's form without its proof of work.
  *
  * A requester is never a member: the portal answers for requests alone, through the access seam's
  * `requesterSees` (services/access.ts), and anything else, or anything not theirs, as missing.
  */
-import type { PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
+import type { CustomerSharing, PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
-import { comments, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
+import { comments, customerGroups, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
+import { langTag } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
-import { newId } from '../lib/ids';
 import { mailConfigured } from '../notify/state';
-import { emailDomain, requesterSees } from './access';
-import { deskProject, openRequest, postRequesterReply } from './helpdesk';
+import { requesterMayComment, requesterSees } from './access';
+import { groupsOfRequester, requesterByEmail, sharingOf, type GroupRow } from './customer-groups';
+import { botCtx, deskProject, openRequest, postRequesterReply } from './helpdesk';
+import { applyChanges } from './issues';
+import { publishActivities } from '../events/activity';
+import { copyFromPortal, portalCcsOf } from './request-ccs';
+import { outsideAuthors, outsideKey } from './request-authors';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
-import type { SchemaSnapshot } from './schema-cache';
 import { translatorFor } from '../i18n';
 
 const SIGN_IN_PREFIX = 'hdl_';
@@ -35,18 +40,6 @@ type RequesterRow = typeof requesters.$inferSelect;
 
 const missing = () => new AppError(404, 'not_found', "There's no request here", 'Open it from your list of requests.').said('portal.noRequestHere');
 const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see your requests', 'Ask for a sign-in link with your email address.').said('portal.signInToSee');
-
-/** Find the requester an email names, or make them, named for the email until they say otherwise. */
-async function requesterByEmail(db: Db, email: string): Promise<RequesterRow> {
-  const clean = email.trim();
-  const res = await db.execute(sql`
-    INSERT INTO requesters (id, email, name) VALUES (${newId()}, ${clean}, ${clean.split('@')[0] || clean})
-    ON CONFLICT ((lower(email))) DO UPDATE SET updated_at = requesters.updated_at
-    RETURNING id`);
-  const id = String((res as unknown as { rows: { id: string }[] }).rows[0]!.id);
-  const [row] = await db.select().from(requesters).where(eq(requesters.id, id));
-  return row!;
-}
 
 /**
  * Send a sign-in link. It says the same whether or not the address has asked for help before, so
@@ -86,6 +79,7 @@ export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promi
   const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
   const subject = tr.t('server.portal.subject', { where });
   const { text, html } = composeMail(subject, {
+    lang: langTag(tr.locale),
     lead: tr.t('server.portal.lead', { where }),
     sections: [],
     action: { label: tr.t('server.portal.signIn'), url: `${app.config.publicUrl}/portal#${token}` },
@@ -135,11 +129,18 @@ export async function signOut(app: AppServices, session: string | undefined): Pr
   if (session) await app.db.delete(requesterSessions).where(eq(requesterSessions.tokenHash, sha256(session)));
 }
 
+/** The groups they're in whose members share requests: those are the ones they see others' requests of. */
+async function sharingGroups(app: AppServices, r: RequesterRow): Promise<GroupRow[]> {
+  return (await groupsOfRequester(app.db, r)).filter((g) => g.sharing !== 'none');
+}
+
 async function meOf(app: AppServices, r: RequesterRow): Promise<PortalMe> {
   const s = await app.schema.get();
-  const domain = emailDomain(r.email);
-  const shared = [...s.projects.values()].some((p) => projectSettings(p).helpdesk.organizations.includes(domain));
-  return { name: r.name, email: r.email, organization: shared ? domain : null };
+  const groups = (await sharingGroups(app, r)).flatMap((g) => {
+    const desk = s.projects.get(g.projectId);
+    return desk && !desk.archived ? [{ desk: { key: desk.key, name: desk.name }, name: g.name, sharing: g.sharing as 'read' | 'comment' }] : [];
+  });
+  return { name: r.name, email: r.email, groups };
 }
 
 export async function portalMe(app: AppServices, r: RequesterRow): Promise<PortalMe> {
@@ -152,42 +153,43 @@ export async function renameRequester(app: AppServices, r: RequesterRow, name: s
   return meOf(app, fresh!);
 }
 
-/** The desks whose requests they see: their own requests', and those that share within their organization. */
-function sharingDeskIds(s: SchemaSnapshot, email: string): string[] {
-  const domain = emailDomain(email);
-  return [...s.projects.values()].filter((p) => projectSettings(p).helpdesk.organizations.includes(domain)).map((p) => p.id);
-}
+type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow; copied: boolean };
+type Sharing = Map<string, CustomerSharing>;
 
-type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow };
-
-async function visibleRows(app: AppServices, r: RequesterRow, only?: string): Promise<Row[]> {
-  const s = await app.schema.get();
-  const desks = sharingDeskIds(s, r.email);
-  const domain = emailDomain(r.email);
-  const theirs = eq(helpdeskRequests.requesterId, r.id);
-  // Colleagues': in a desk that shares within this domain, from a requester of the same domain.
-  const colleagues = desks.length ? and(inArray(helpdeskRequests.projectId, desks), sql`lower(split_part(${requesters.email}, '@', 2)) = ${domain}`) : undefined;
+async function visibleRows(app: AppServices, r: RequesterRow, groups: Sharing, only?: string): Promise<Row[]> {
+  // Theirs, and those they're copied on (D57).
+  const theirs = sql`(${helpdeskRequests.requesterId} = ${r.id} OR ${copiedSql(r.email)})`;
+  // Their groups': filed under a group of theirs that shares, and not kept private (D56).
+  const shared = groups.size ? and(inArray(helpdeskRequests.groupId, [...groups.keys()]), eq(helpdeskRequests.private, false)) : undefined;
   const rows = await app.db
-    .select({ request: helpdeskRequests, issue: issues, requester: requesters })
+    .select({ request: helpdeskRequests, issue: issues, requester: requesters, copied: sql<boolean>`${copiedSql(r.email)}` })
     .from(helpdeskRequests)
     .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
     .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
-    .where(and(colleagues ? sql`(${theirs} OR ${colleagues})` : theirs, only ? eq(issues.id, only) : undefined))
+    .where(and(shared ? sql`(${theirs} OR ${shared})` : theirs, only ? eq(issues.id, only) : undefined))
     .orderBy(desc(issues.updatedAt))
     .limit(only ? 1 : 200);
   // The seam decides, row by row, whatever the query found.
-  return rows.filter((row) => {
-    const project = s.projects.get(row.issue.projectId);
-    return project ? requesterSees(project, r, row.requester) : false;
-  });
+  return rows
+    .map((row) => ({ ...row, copied: row.copied === true || String(row.copied) === 'true' }))
+    .filter((row) => requesterSees(row.request, r, groups, row.copied));
 }
 
-async function summaries(app: AppServices, r: RequesterRow, rows: Row[]): Promise<PortalRequest[]> {
+/** Whether this address is copied on the request now (D57), as SQL over the request's row. */
+function copiedSql(email: string) {
+  return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND lower(c.email) = ${email.trim().toLowerCase()})`;
+}
+
+async function summaries(app: AppServices, r: RequesterRow, groups: Sharing, rows: Row[]): Promise<PortalRequest[]> {
   const s = await app.schema.get();
   const states = await stateNames(app.db, s, rows.map((x) => x.issue.id));
-  return rows.map(({ issue, requester }) => {
+  const ids = [...new Set(rows.map((x) => x.request.groupId).filter((id): id is string => Boolean(id)))];
+  const named = new Map(ids.length ? (await app.db.select().from(customerGroups).where(inArray(customerGroups.id, ids))).map((g) => [g.id, g]) : []);
+  return rows.map(({ issue, requester, request, copied }) => {
     const project = s.projects.get(issue.projectId)!;
+    const group = request.groupId ? named.get(request.groupId) : undefined;
     return {
+      copied: copied && requester.id !== r.id,
       id: readableId(s, issue),
       desk: { key: project.key, name: project.name },
       summary: issue.summary,
@@ -195,49 +197,58 @@ async function summaries(app: AppServices, r: RequesterRow, rows: Row[]): Promis
       createdAt: issue.createdAt.toISOString(),
       updatedAt: issue.updatedAt.toISOString(),
       requester: { name: requester.name, mine: requester.id === r.id },
+      // The group it's shared with, when its members share; a group that shares nothing isn't news to them.
+      group: group && group.sharing !== 'none' ? group.name : null,
+      private: request.private,
+      canReply: requesterMayComment(request, r, groups, copied),
     };
   });
 }
 
 export async function portalRequests(app: AppServices, r: RequesterRow): Promise<PortalRequest[]> {
-  return summaries(app, r, await visibleRows(app, r));
+  const groups = sharingOf(await sharingGroups(app, r));
+  return summaries(app, r, groups, await visibleRows(app, r, groups));
 }
 
 /** A request by its readable id, when they see it; missing otherwise, alike. */
-async function oneRow(app: AppServices, r: RequesterRow, id: string): Promise<Row> {
+async function oneRow(app: AppServices, r: RequesterRow, id: string, groups: Sharing): Promise<Row> {
   const s = await app.schema.get();
   const m = /^([A-Za-z][A-Za-z0-9_]*)-(\d+)$/.exec(id.trim());
   const project = m ? s.projectsByKey.get(m[1]!.toUpperCase()) : undefined;
   if (!m || !project) throw missing();
   const [issue] = await app.db.select({ id: issues.id }).from(issues).where(and(eq(issues.projectId, project.id), eq(issues.number, Number(m[2]))));
-  const row = issue ? (await visibleRows(app, r, issue.id))[0] : undefined;
+  const row = issue ? (await visibleRows(app, r, groups, issue.id))[0] : undefined;
   if (!row) throw missing();
   return row;
 }
 
 export async function portalRequest(app: AppServices, r: RequesterRow, id: string): Promise<PortalRequestDetail> {
-  const row = await oneRow(app, r, id);
-  const [summary] = await summaries(app, r, [row]);
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  const [summary] = await summaries(app, r, groups, [row]);
   const s = await app.schema.get();
   const rows = await app.db
     .select()
     .from(comments)
     .where(and(eq(comments.issueId, row.issue.id), eq(comments.visibility, 'public'), isNull(comments.deletedAt)))
     .orderBy(asc(comments.createdAt));
-  const byId = new Map<string, string>();
-  const ids = [...new Set(rows.map((c) => c.requesterId).filter((x): x is string => Boolean(x)))];
-  if (ids.length) for (const q of await app.db.select().from(requesters).where(inArray(requesters.id, ids))) byId.set(q.id, q.name);
+  // Who outside the team wrote each: its requester, someone copied on it (D57), or a colleague (D56).
+  const outside = await outsideAuthors(app.db, rows);
   return {
     ...summary!,
+    // Its requester sees who is copied, and copies more; anyone else isn't shown the list.
+    ccs: row.requester.id === r.id ? await portalCcsOf(app.db, row.issue.id) : null,
     description: row.issue.description,
-    // The team by name, them as "you", a colleague by name; never anything internal.
+    // The team by name, them as "you", its requester or a colleague by name, someone copied on it
+    // (D57) by name; never anything internal.
     messages: rows.map((c) => {
       const author = c.authorId ? s.users.get(c.authorId) : undefined;
-      const from = c.requesterId === r.id ? ('you' as const) : c.requesterId ? ('colleague' as const) : ('team' as const);
+      const other = c.requesterId ? outside.get(outsideKey(c.issueId, c.requesterId)) : undefined;
+      const from = c.requesterId === r.id ? ('you' as const) : other?.as === 'copied' ? ('cc' as const) : c.requesterId ? ('colleague' as const) : ('team' as const);
       return {
         id: c.id,
         from,
-        name: c.requesterId ? (byId.get(c.requesterId) ?? 'Someone') : author ? (author.isBot ? author.login : author.name) : 'The team',
+        name: c.requesterId ? (other?.name ?? 'Someone') : author ? (author.isBot ? author.login : author.name) : 'The team',
         text: c.text,
         at: c.createdAt.toISOString(),
       };
@@ -245,13 +256,37 @@ export async function portalRequest(app: AppServices, r: RequesterRow, id: strin
   };
 }
 
-/** Their reply, on a request of their own: a public comment in their name, as on the tracking page. */
+/**
+ * Their reply: on a request of their own; on one they're copied on (D57); or on one of their group's
+ * where the group lets its members answer each other's (D56). A public comment in their name, as on
+ * the tracking page. A colleague's reaches the request's requester by email too; a4a carries no words
+ * of someone copied to anyone (D57).
+ */
 export async function portalReply(app: AppServices, r: RequesterRow, id: string, text: string): Promise<PortalRequestDetail> {
-  const row = await oneRow(app, r, id);
-  if (row.requester.id !== r.id) {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  if (!requesterMayComment(row.request, r, groups, row.copied)) {
     throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.').said('portal.colleaguesRequest');
   }
-  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page');
+  // Theirs, or a colleague's; one copied on it writes as themselves, and their words aren't relayed (D57).
+  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague: row.requester.id !== r.id && !row.copied });
+  return portalRequest(app, r, id);
+}
+
+/**
+ * Keep a request of theirs from their group's other members, or share it again (D56): a change to
+ * the request, by the help desk's agent in their name, in its history. Only its requester does this
+ * here; the team does it on the request's page.
+ */
+export async function portalSetPrivate(app: AppServices, r: RequesterRow, id: string, value: boolean): Promise<PortalRequestDetail> {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  if (row.requester.id !== r.id) {
+    throw new AppError(403, 'forbidden', 'Only its requester keeps a request private', 'Ask them, or the team.').said('portal.onlyRequesterKeepsPrivate');
+  }
+  const ctx = await botCtx(app, row.issue.projectId);
+  const res = await app.db.transaction(async (tx) => applyChanges(tx as unknown as Db, ctx, row.issue, { requestPrivate: value, data: { requester: { name: r.name } } }));
+  await publishActivities(app, res.activities);
   return portalRequest(app, r, id);
 }
 
@@ -259,7 +294,7 @@ export async function portalReply(app: AppServices, r: RequesterRow, id: string,
 export async function portalDesks(app: AppServices, r: RequesterRow): Promise<PortalDesk[]> {
   const s = await app.schema.get();
   const used = await app.db.selectDistinct({ projectId: helpdeskRequests.projectId }).from(helpdeskRequests).where(eq(helpdeskRequests.requesterId, r.id));
-  const ids = new Set([...used.map((u) => u.projectId), ...sharingDeskIds(s, r.email)]);
+  const ids = new Set([...used.map((u) => u.projectId), ...(await sharingGroups(app, r)).map((g) => g.projectId)]);
   return [...s.projects.values()]
     .filter((p) => ids.has(p.id) && !p.archived && projectSettings(p).helpdesk.enabled)
     .map((p) => ({ key: p.key, name: p.name }))
@@ -267,9 +302,9 @@ export async function portalDesks(app: AppServices, r: RequesterRow): Promise<Po
 }
 
 /** A new request from the portal: they're known, so no proof of work; as the form files one. */
-export async function portalNewRequest(app: AppServices, r: RequesterRow, input: { desk: string; summary: string; description: string }): Promise<PortalRequestDetail> {
+export async function portalNewRequest(app: AppServices, r: RequesterRow, input: { desk: string; summary: string; description: string; private?: boolean }): Promise<PortalRequestDetail> {
   const project = await deskProject(app, input.desk);
-  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form' });
+  const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false });
   return portalRequest(app, r, issue.id);
 }
 
@@ -277,4 +312,18 @@ export async function portalNewRequest(app: AppServices, r: RequesterRow, input:
 export async function prunePortal(db: Db): Promise<void> {
   await db.delete(requesterSessions).where(sql`${requesterSessions.expiresAt} < now()`);
   await db.delete(requesterSignIns).where(sql`${requesterSignIns.expiresAt} < now() - interval '1 day'`);
+}
+
+/**
+ * The requester copies someone on a request of theirs, on the portal (D57): anyone they choose, as
+ * forwarding its emails would. Someone copied on it, or a colleague, can't copy others.
+ */
+export async function portalCopy(app: AppServices, r: RequesterRow, id: string, person: { email: string; name?: string }): Promise<PortalRequestDetail> {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  if (row.requester.id !== r.id) {
+    throw new AppError(403, 'forbidden', 'Only the person who asked can copy others on a request', 'Ask them, or the team.').said('portal.onlyTheRequesterCopies');
+  }
+  await copyFromPortal(app, row.issue, r.name, person);
+  return portalRequest(app, r, id);
 }

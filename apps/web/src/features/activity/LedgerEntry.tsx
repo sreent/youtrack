@@ -5,7 +5,7 @@ import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
 import { aRole } from '../roles/words';
-import { commandNote, t, t as tx, tr } from '../../i18n';
+import { commandNote, formatList, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Grammar = 'reads' | 'writes' | 'changes' | 'outside' | 'own';
@@ -89,6 +89,45 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       return { text: <>{tr('activity.ledgerEntry.putIn', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
     case 'sprint.issue_removed':
       return { text: <>{tr('activity.ledgerEntry.tookOutOf', { issue: issue, str: str(e.data.sprint) })}</>, badge: ['changes', t('activity.ledgerEntry.changesASprint')] };
+    case 'board.issue_ranked':
+      return { text: <>{tr('activity.ledgerEntry.rankedOn', { issue: issue, str: str(e.data.board) })}</>, badge: ['changes', t('activity.ledgerEntry.changesABoardSOrder')] };
+    case 'whiteboard.created':
+    case 'whiteboard.renamed':
+    case 'whiteboard.deleted':
+    case 'whiteboard.converted': {
+      // A whiteboard's life, and what was made from it (D58); its elements' edits aren't events.
+      const wb = e.data.whiteboard as { id?: string; name?: string } | undefined;
+      const name = e.type === 'whiteboard.deleted' || !wb?.id ? str(wb?.name) : <Link to={`/whiteboards/${wb.id}`}>{str(wb.name)}</Link>;
+      if (e.type === 'whiteboard.created') return { text: <>{tr('activity.ledgerEntry.whiteboardCreated', { name })}</>, badge: ['writes', t('activity.ledgerEntry.changesAWhiteboard')] };
+      if (e.type === 'whiteboard.renamed') return { text: <>{tr('activity.ledgerEntry.whiteboardRenamed', { from: str(e.data.from), to: name })}</>, badge: ['writes', t('activity.ledgerEntry.changesAWhiteboard')] };
+      if (e.type === 'whiteboard.deleted') return { text: <>{tr('activity.ledgerEntry.whiteboardDeleted', { name })}</>, badge: ['changes', t('activity.ledgerEntry.deletesAWhiteboard')] };
+      const made = Array.isArray(e.data.issues) ? (e.data.issues as string[]) : [];
+      const links = Array.isArray(e.data.links) ? (e.data.links as { from?: string; relation?: string; to?: string }[]) : [];
+      return {
+        text: <>{tr('activity.ledgerEntry.whiteboardConverted', { name, issues: made.length, links: links.length })}</>,
+        badge: ['changes', t('activity.ledgerEntry.makesIssues')],
+        more: made.length ? (
+          <span>
+            {made.map((id, i) => (
+              <span key={id}>
+                {i ? ' ' : null}
+                <IssueLink id={id} />
+              </span>
+            ))}
+          </span>
+        ) : null,
+      };
+    }
+    case 'request.cc_added':
+    case 'request.cc_removed': {
+      // Someone copied on a help desk request, or no longer (D57): by their address.
+      const email = str((e.data.cc as { email?: string } | undefined)?.email);
+      const text =
+        e.type === 'request.cc_added'
+          ? tr('activity.ledgerEntry.copiedOn', { email, issue })
+          : tr('activity.ledgerEntry.stoppedCopyingOn', { via: e.data.via === 'unsubscribe' ? 'unsubscribe' : 'team', email, issue });
+      return { text: <>{text}</>, badge: ['outside', t('activity.ledgerEntry.changesWhoIsCopied')] };
+    }
     case 'issue.updated':
       if (e.data.undoes !== undefined)
         return {
@@ -145,7 +184,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         more:
           str(e.data.description) || str(e.data.date) ? (
             <span className="ledger-note">
-              {[str(e.data.date) ? t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }) : '', str(e.data.description)].filter(Boolean).join(': ')}
+              {str(e.data.date) && str(e.data.description) ? t('ui.labelled', { label: t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }), value: str(e.data.description) }) : str(e.data.date) ? t('activity.ledgerEntry.for', { dateRead: dateRead(str(e.data.date)) }) : str(e.data.description)}
             </span>
           ) : null,
       };
@@ -179,7 +218,14 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       if (e.type === 'article.deleted') return { text: <>{tr('activity.ledgerEntry.deleted2', { named: named })}</>, badge: ['changes', t('activity.ledgerEntry.deletesAnArticle')] };
       return {
         text: e.data.moved && e.changes.every((c) => c.field === 'Parent' || c.field === 'Position') ? <>{tr('activity.ledgerEntry.moved', { named: named })}</> : <>{tr('activity.ledgerEntry.changed2', { named: named })}</>,
-        badge: ['changes', e.changes.some((c) => c.field === 'Content' || c.field === 'Title') ? t('activity.ledgerEntry.savesAVersion') : t('activity.ledgerEntry.movesAnArticle')],
+        badge: [
+          'changes',
+          e.changes.some((c) => c.field === 'Content' || c.field === 'Title')
+            ? t('activity.ledgerEntry.savesAVersion')
+            : e.changes.some((c) => c.field === 'Visible to')
+              ? t('activity.ledgerEntry.changesWhoSeesAnArticle')
+              : t('activity.ledgerEntry.movesAnArticle'),
+        ],
         more: <ChangeLines changes={e.changes} />,
       };
     }
@@ -239,6 +285,11 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       if (e.type === 'project.group.removed') return { text: <>{tr('activity.ledgerEntry.tookOutOf3', { group: group, project: project })}</>, badge: ['changes', t('activity.ledgerEntry.takesARoleAway')] };
       return { text: <>{tr('activity.ledgerEntry.madeRoleOfNot2', { group: group, role: aRole(str(e.data.to), str(e.data.to)), project: project, before: aRole(str(e.data.from), str(e.data.from)) })}</>, badge: ['changes', t('activity.ledgerEntry.changesARole')] };
     }
+    case 'project.key.changed':
+      return {
+        text: <>{tr('activity.ledgerEntry.renamedKey', { from: str(e.data.from), to: <Link to={`/projects/${e.project ?? str(e.data.to)}`}>{str(e.data.to)}</Link> })}</>,
+        badge: ['changes', t('activity.ledgerEntry.renamesAKey')],
+      };
     case 'project.visibility.changed':
       return {
         text: (
@@ -250,7 +301,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
       const people = Array.isArray(e.data.people) ? (e.data.people as unknown[]).map(String) : [];
       return {
         text: (
-          <>{tr('activity.ledgerEntry.toldOf', { v: people.map((p) => `@${p}`).join(', ') || t('activity.ledgerEntry.nobody'), issue: issue })}</>
+          <>{tr('activity.ledgerEntry.toldOf', { v: formatList(people.map((p) => `@${p}`)), anyone: people.length ? 'yes' : 'no', issue: issue })}</>
         ),
         badge: ['own', tx('activity.ledgerEntry.badgeTellsPeople')],
         more: <span className="ledger-note">“{str(e.data.message)}”</span>,

@@ -60,8 +60,15 @@ export function throttleKey(limit: HelpLimit, value: string): string {
  * window over its limit ends, or 0 when all of them allow it.
  */
 export async function helpHit(db: Db, hits: [HelpLimit, string][]): Promise<number> {
-  if (!hits.length) return 0;
-  const limits = new Map(hits.map(([limit, value]) => [throttleKey(limit, value), HELP_THROTTLE[limit]]));
+  return countHits(db, new Map(hits.map(([limit, value]) => [throttleKey(limit, value), HELP_THROTTLE[limit]])));
+}
+
+/**
+ * The same count, for a limit of a4a's own beyond the help desk's (each key named by what it limits,
+ * such as `aiWriting:<user id>`, D59): seconds to wait, or 0 while every limit allows it.
+ */
+export async function countHits(db: Db, limits: Map<string, { limit: number; windowMs: number }>): Promise<number> {
+  if (!limits.size) return 0;
   const expired = sql`${helpThrottle.windowEnds} <= now()`;
   const rows = await db
     .insert(helpThrottle)
@@ -80,7 +87,12 @@ export async function helpHit(db: Db, hits: [HelpLimit, string][]): Promise<numb
       wait: sql<number>`greatest(1, ceil(extract(epoch from (${helpThrottle.windowEnds} - now()))))::integer`,
     });
   let wait = 0;
-  for (const r of rows) if (r.hits > (limits.get(r.key)?.limit ?? Infinity)) wait = Math.max(wait, Number(r.wait));
+  for (const r of rows) {
+    const l = limits.get(r.key);
+    // Never longer than the window: an ask whose transaction began just before the one that opened it
+    // reads a now() a moment earlier, and so a window a moment longer.
+    if (l && r.hits > l.limit) wait = Math.max(wait, Math.min(Number(r.wait), Math.ceil(l.windowMs / 1000)));
+  }
   return wait;
 }
 

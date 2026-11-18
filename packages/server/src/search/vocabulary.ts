@@ -13,6 +13,7 @@ export type TermKind =
   | { kind: 'sla'; target?: 'first_response' | 'resolution' }
   | { kind: 'slaDue'; target: 'first_response' | 'resolution' }
   | { kind: 'requester' }
+  | { kind: 'customer' }
   | { kind: 'dateAttr'; column: 'created' | 'updated' | 'resolved' }
   | { kind: 'tag' }
   | { kind: 'has' }
@@ -60,6 +61,8 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   'first response due': { name: 'first response due', term: { kind: 'slaDue', target: 'first_response' }, valueType: 'date', description: "When a request's first-response target runs out, while it counts" },
   'resolution due': { name: 'resolution due', term: { kind: 'slaDue', target: 'resolution' }, valueType: 'date', description: "When a request's resolution target runs out, while it counts" },
   requester: { name: 'requester', term: { kind: 'requester' }, valueType: 'string', description: 'Who asked, through the help desk: an email or a name' },
+  customer: { name: 'customer', term: { kind: 'customer' }, valueType: 'string', description: "A help desk request's customer group, by name (D56)" },
+  'customer group': { name: 'customer', term: { kind: 'customer' }, valueType: 'string', description: "A help desk request's customer group, by name (D56)" },
   'commented by': { name: 'commenter', term: { kind: 'userAttr', column: 'commenter' }, valueType: 'user', description: 'Who commented' },
   for: { name: 'for', term: { kind: 'assigneeAlias' }, valueType: 'user', description: 'Assignee (shortcut)' },
   created: { name: 'created', term: { kind: 'dateAttr', column: 'created' }, valueType: 'date', description: 'Creation date' },
@@ -74,7 +77,7 @@ const ATTRIBUTES: Record<string, Omit<TermDef, 'name'> & { name: string }> = {
   links: { name: 'links', term: { kind: 'links' }, valueType: 'issue', description: 'Linked to an issue in any way' },
 };
 
-export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request', 'votes'];
+export const HAS_ATTRIBUTES = ['description', 'comments', 'links', 'tags', 'subtasks', 'parent', 'work', 'watchers', 'request', 'votes', 'customer'];
 
 /**
  * sla: values (D45): a request's status (the worst of its targets), or any target waiting within it
@@ -161,6 +164,8 @@ export function buildVocabulary(s: SchemaSnapshot): Vocabulary {
           return ['today', 'yesterday', '{this week}', '{last week}', '{this month}', '{last month}', '-7d', '-30d'];
         case 'sla':
           return t.target ? SLA_TARGET_VALUES : SLA_VALUES;
+        case 'customer':
+          return [...new Set([...s.customerGroups.values()].map((g) => g.name))];
         case 'slaDue':
           return ['today', 'tomorrow', '{this week}', '{next week}'];
         default:

@@ -8,7 +8,7 @@
  * Which language: the one the person chose on their profile (kept here once the server says it), else
  * the browser's, else the server's default, else English.
  */
-import { canSayProblem, createTranslator, DEFAULT_LOCALE, isLocale, joinSentences, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
+import { canSayProblem, createTranslator, DEFAULT_LOCALE, intlTag, isLocale, joinList, joinSentences, langTag, listParts, matchLocale, sayProblem, type Locale, type MessageValues, type ProblemSaid, type Translator } from '@a4a/shared/i18n';
 import { noteIn } from '@a4a/shared/notes';
 import { createElement, Fragment, type ReactNode } from 'react';
 
@@ -51,7 +51,7 @@ export async function startI18n(locale: Locale = wantedLocale()): Promise<void> 
   const load = catalogOf(locale) ?? catalogOf(DEFAULT_LOCALE);
   const messages = load ? (await load()).default : {};
   translator = createTranslator(catalogOf(locale) ? locale : DEFAULT_LOCALE, messages);
-  document.documentElement.lang = translator.locale;
+  document.documentElement.lang = langTag(translator.locale);
 }
 
 /** A message in plain words: for an attribute, a title, a status line. */
@@ -67,9 +67,21 @@ export function canSay(key: string): boolean {
 /** A list of things a page draws, joined as the page's language joins a list: "A, B and C", "A、B、C". */
 export function listNodes(items: ReactNode[], type: Intl.ListFormatType = 'conjunction'): ReactNode {
   if (items.length <= 1) return items[0] ?? null;
-  const marks = items.map((_, i) => `\u0001${i}\u0001`);
-  const parts = new Intl.ListFormat(intlLocale(), { style: 'long', type }).formatToParts(marks);
-  return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, p.type === 'element' ? items[Number(p.value.slice(1, -1))] : p.value)));
+  const parts = listParts(translator.locale, items.length, (i) => (typeof items[i] === 'string' ? (items[i] as string) : ''), { type });
+  return createElement(Fragment, null, ...parts.map((p, i) => createElement(Fragment, { key: i }, typeof p === 'number' ? items[p] : p)));
+}
+
+/** Things a page draws one after another with no "and" (`formatItems`'s elements): "BACK-1, BACK-2", Chinese's "BACK-1、BACK-2". */
+export function itemNodes(items: ReactNode[]): ReactNode {
+  if (items.length <= 1) return items[0] ?? null;
+  const text = (i: number) => {
+    const item = items[Math.min(i, items.length - 1)];
+    return typeof item === 'string' ? item : '';
+  };
+  // A list one longer has every one of these before its "and": keep it up to the last of them.
+  const parts = listParts(translator.locale, items.length + 1, text);
+  const kept = parts.slice(0, parts.indexOf(items.length - 1) + 1);
+  return createElement(Fragment, null, ...kept.map((p, i) => createElement(Fragment, { key: i }, typeof p === 'number' ? items[p] : p)));
 }
 
 /** A message whose tags or values are elements: what a page draws. */
@@ -136,17 +148,22 @@ export function getLocale(): Locale {
   return translator.locale;
 }
 
-/** Intl's tag for the page's language: a4a's English writes dates the British way ("9 Nov"). */
+/** Intl's tag for the page's language, the server's own (`intlTag`): English writes dates the British way ("9 Nov"), and Thai's years are Gregorian. */
 export function intlLocale(): string {
-  return translator.locale === 'en' ? 'en-GB' : translator.locale;
+  return intlTag(translator.locale);
 }
 
-/** Languages whose nouns keep their capital inside a sentence. */
-const CAPITAL_NOUNS: ReadonlySet<Locale> = new Set<Locale>(['de']);
+/**
+ * Languages that lower a label's first letter inside a sentence ("Time logged" in "…, time logged by
+ * person"). Every other keeps it: German, whose nouns keep their capital, and the languages with no case
+ * (Chinese, Japanese, Korean, Thai), where a capital can only begin a Latin word or a name ("CI", "Backend 中的新问题").
+ * A new language joins this list only if it lowers a common noun as these do.
+ */
+const LOWERS_LABELS: ReadonlySet<Locale> = new Set<Locale>(['en', 'es', 'fr', 'id', 'pt', 'vi']);
 
-/** A label set inside a sentence ("Time logged, by person"): lower-cased at its start, unless the page's language capitalises its nouns. */
+/** A label set inside a sentence ("Time logged, by person"): lower-cased at its start where the page's language does that. */
 export function inSentence(label: string): string {
-  return CAPITAL_NOUNS.has(translator.locale) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+  return LOWERS_LABELS.has(translator.locale) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 }
 
 /**
@@ -176,7 +193,21 @@ export const formatNumber = (n: number, options?: Intl.NumberFormatOptions) => n
 export const formatDate = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleDateString(intlLocale(), options);
 export const formatDateTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleString(intlLocale(), options);
 export const formatTime = (d: Date | string | number, options?: Intl.DateTimeFormatOptions) => new Date(d).toLocaleTimeString(intlLocale(), options);
-export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => new Intl.ListFormat(intlLocale(), { style: 'long', type }).format(items);
+export const formatList = (items: string[], type: Intl.ListFormatType = 'conjunction') => joinList(translator.locale, items, { type });
+/**
+ * Things said one after another with no "and" (a card's summary, its state, its assignee), with the
+ * comma the page's language puts between a list's first items: ", ", Japanese's and Chinese's "、",
+ * Thai's space or comma as `listParts` sets it beside a name.
+ */
+export function formatItems(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  // A list one longer has every one of these before its "and": keep it up to the last of them.
+  const parts = listParts(translator.locale, items.length + 1, (i) => items[Math.min(i, items.length - 1)]!);
+  return parts
+    .slice(0, parts.indexOf(items.length - 1) + 1)
+    .map((p) => (typeof p === 'number' ? items[p] : p))
+    .join('');
+}
 const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const EN_DAYS = { short: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] };
 /** The months' short names, January first, in the page's language (English keeps its three letters). */

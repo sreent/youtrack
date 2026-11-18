@@ -6,12 +6,12 @@ import type { EmailLevel, Me, PushKey } from '@a4a/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
 import { get } from '../../api/client';
-import { ago } from '../../components/Badges';
+import { agoSaid } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said } from '../common/bits';
 import { useNotificationSettings, useSaveNotificationSettings } from './api';
 import { currentSubscription, pushKeys, pushSupport, turnPushOff, turnPushOn, usePushDevices, useRemoveDevice, useTestPush } from './push';
-import { t, tr } from '../../i18n';
+import { formatList, t, tr } from '../../i18n';
 
 const LEVELS: { value: EmailLevel; name: string; about: string }[] = [
   { value: 'all', name: t('notifications.pushSettings.everything'), about: t('notifications.pushSettings.mentionsAndAssignmentsChangesOn') },
@@ -79,7 +79,7 @@ export function PushSettings({ me }: { me: Me }) {
       onSuccess: (r) =>
         setSaid(
           r.failed.length
-            ? { text: t('notifications.pushSettings.sentTo', { sent: r.sent, join: r.failed.map((f) => `${f.device}: ${f.error}`).join(' ') }), bad: true }
+            ? { text: t('notifications.pushSettings.sentTo', { sent: r.sent, join: formatList(r.failed.map((f) => t('notifications.pushSettings.deviceRefused', { device: f.device, error: f.error }))) }), bad: true }
             : { text: r.sent === 1 ? t('notifications.pushSettings.sentItShouldBeOn') : t('notifications.pushSettings.sentToYourDevices', { sent: r.sent }) },
         ),
       onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -136,7 +136,7 @@ export function PushSettings({ me }: { me: Me }) {
                 <strong>{d.label}</strong>
                 {d.current ? <span className="badge">{t('notifications.pushSettings.thisDevice')}</span> : null}{' '}
                 <span className="note">
-                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: ago(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: ago(d.createdAt) })}
+                  {d.lastError ? t('notifications.pushSettings.itsPushServiceRefusedThe', { lastError: d.lastError }) : d.lastSentAt ? t('notifications.pushSettings.lastSent', { when: agoSaid(d.lastSentAt) }) : t('notifications.pushSettings.added', { when: agoSaid(d.createdAt) })}
                 </span>
               </span>
               <button

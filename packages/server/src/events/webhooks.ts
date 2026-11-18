@@ -5,7 +5,7 @@ import { rules, webhookDeliveries, webhooks } from '../db/schema';
 import { hmacSha256, randomToken } from '../lib/crypto';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { eventLimited } from '../services/access';
+import { eventFor, eventLimited } from '../services/access';
 import { projectByKey } from '../services/schema-cache';
 import type { OutboxConsumer } from './worker';
 
@@ -220,14 +220,19 @@ export function webhookConsumer(app: AppServices): OutboxConsumer {
       // A webhook's address is outside a4a, where nobody's access is known: what's limited to some
       // people (D37) isn't sent there, a rule's call included.
       if (await eventLimited(app.db, s, event)) return;
-      if (event.type === 'rule.called') return callFromRule(app, event);
+      // Nor a private field (D50): only what every reader may see, its changes taken out, and a change
+      // to nothing else not sent at all. An administrator made the webhook, not whoever reads its end.
+      const shown = eventFor(null, s, event);
+      if (!shown) return;
+      if (shown.type === 'rule.called') return callFromRule(app, shown);
       const hooks = await app.db.select().from(webhooks).where(eq(webhooks.active, true));
       const matching = hooks.filter((h) => {
         if (!h.events.includes('*') && !h.events.includes(event.type)) return false;
         if (!h.projectId) return true;
-        return s.projects.get(h.projectId)?.key === event.project;
+        // By the project, not its key: an event worded before a rename names a key it had (D52).
+        return shown.project !== null && projectByKey(s, shown.project)?.id === h.projectId;
       });
-      await Promise.all(matching.map((h) => deliver(app, h, event)));
+      await Promise.all(matching.map((h) => deliver(app, h, shown)));
     },
   };
 }

@@ -69,7 +69,7 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
       method: 'post',
       path: '/imports/from-api',
       tags,
-      summary: "Read issues from YouTrack's or Jira's API, to import into a project",
+      summary: "Read issues from another tracker's API (YouTrack, Jira, GitHub, Redmine, Zendesk, Asana, ClickUp), to import into a project",
       description:
         "The token is tried and the query counted first, so a wrong address, token or query says so at once. Then the issues the query matches are read as a job (status fetching; follow it with GET /imports/{id}): their fields, links and tags as the columns an export would have, and their comments, work items and files beside them. The address must be https and public (an administrator may allow hosts inside the network: IMPORT_ALLOW_HOSTS). The token is used and not kept: running the import asks for it again when files are to come. Issues and comments only some people may see there are left out. Then map, check and run it as an upload. For the project's managers, and administrators.",
       body: ImportFromApiBody,
@@ -107,7 +107,7 @@ export function importRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Map columns to fields, and values to a4a\'s',
       description:
-        'Columns by index to a target: summary, description, key, external-id, parent, created, updated, resolved, reporter, tags, comment, spent, sprint, field:<name>, link:<phrase> or ignore. Values by target: each value in the file to an a4a value, a login or a sprint id, or null to leave it empty.',
+        'Columns by index to a target: summary, description, key, external-id, parent, created, updated, resolved, reporter, tags, comment, spent, sprint, watchers, field:<name>, link:<phrase> or ignore. Values by target: each value in the file to an a4a value, a login or a sprint id, or null to leave it empty.',
       params: Id,
       body: ImportMappingBody,
       response: ImportSchema,

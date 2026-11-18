@@ -6,8 +6,8 @@ import type { Db } from '../db/client';
 import { fields, fieldValues, issueFieldValues, projectFields } from '../db/schema';
 import { badRequest, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { requireProject, visibleSchema } from './access';
-import { checkFieldCondition } from './conditions';
+import { assigneeFieldIdOf, requireProject, visibleSchema } from './access';
+import { checkFieldCondition, conditionReads } from './conditions';
 import { allowedValues, fieldByName, findUser, projectByKey, type FieldRow, type FieldValueRow, type SchemaSnapshot } from './schema-cache';
 import { toneOf, userRefDto } from './values';
 
@@ -67,6 +67,7 @@ export function projectFieldDtos(s: SchemaSnapshot, projectId: string): ProjectF
       defaultValue: pf.defaultValue ?? null,
       values: f.type === 'group' ? groupChoices(s) : allowedValues(s, f.id, projectId).map((v) => valueDto(v, s)),
       condition: pf.condition ?? null,
+      private: pf.private,
     });
   }
   return out;
@@ -150,10 +151,13 @@ export async function updateField(ctx: Ctx, id: string, input: { name?: string; 
     if (current.type !== 'enum' && current.type !== 'owned') throw badRequest(`${current.name} is a ${current.type} field`, 'Only an enum field becomes owned, and back.').said('fields.onlyEnumBecomesOwned', { name: current.name, type: current.type });
     if (input.type === 'enum') await ctx.db.update(fieldValues).set({ ownerId: null }).where(eq(fieldValues.fieldId, id));
   }
+  // History keeps a change under the name a field had then: a private field's are known by it still (D50).
+  const renamed = input.name && input.name !== current.name ? [...new Set([...(current.formerNames ?? []), current.name])] : null;
   const [row] = await ctx.db
     .update(fields)
     .set({
       ...(input.name ? { name: input.name } : {}),
+      ...(renamed ? { formerNames: renamed } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.type ? { type: input.type } : {}),
     })
@@ -260,7 +264,7 @@ export async function attachField(
   ctx: Ctx,
   projectKey: string,
   fieldId: string,
-  input: { required?: boolean; ordinal?: number; defaultValue?: unknown; condition?: string | null },
+  input: { required?: boolean; ordinal?: number; defaultValue?: unknown; condition?: string | null; private?: boolean },
 ): Promise<ProjectField[]> {
   // Which fields a project has is its managers' to say; the catalogue of fields is the administrators'.
   const project = await requireProject(ctx, projectKey, 'manage');
@@ -270,6 +274,30 @@ export async function attachField(
   const existing = (s.projectFields.get(project.id) ?? []).length;
   // A condition is a search in the project's words; one that doesn't read is refused now (D41).
   const condition = input.condition === undefined ? undefined : checkFieldCondition(s, project.id, input.condition);
+  // a4a reads whether an issue is resolved and who has it for everyone: whom to tell, who sees a limited
+  // issue, boards' columns and #Resolved. Kept from some, they'd still say what they hold (D50).
+  if (input.private && (field.type === 'state' || field.id === assigneeFieldIdOf(s))) {
+    throw badRequest(`${field.name} can't be private`, 'a4a reads it for everyone: whether an issue is resolved, and who has it. Make another field private instead.').said('fields.cantBePrivate', { name: field.name });
+  }
+  // A field everyone sees can't show and hide by a value only some see (D50): its condition reads no
+  // private field, and a field a public one's condition reads can't turn private.
+  const pfs = s.projectFields.get(project.id) ?? [];
+  const now = pfs.find((pf) => pf.fieldId === field.id);
+  const isPrivate = input.private ?? now?.private ?? false;
+  const reads = condition !== undefined ? condition : (now?.condition ?? null);
+  if (!isPrivate) {
+    const read = pfs.find((pf) => pf.private && pf.fieldId !== field.id && conditionReads(s, project.id, reads, new Set([pf.fieldId])));
+    const other = read ? s.fields.get(read.fieldId)?.name : undefined;
+    if (other) {
+      throw badRequest(`${field.name}'s condition reads ${other}, a private field, and everyone sees ${field.name}`, `Make ${field.name} private too, or write its condition with fields everyone sees.`).said('fields.conditionReadsPrivate', { name: field.name, other });
+    }
+  } else {
+    const by = pfs.find((pf) => !pf.private && pf.fieldId !== field.id && conditionReads(s, project.id, pf.condition, new Set([field.id])));
+    const other = by ? s.fields.get(by.fieldId)?.name : undefined;
+    if (other) {
+      throw badRequest(`${field.name} can't be private while ${other}'s condition reads it`, `Everyone sees ${other}, so it would show and hide by a value they can't see. Change that condition first, or make ${other} private too.`).said('fields.readByCondition', { name: field.name, other });
+    }
+  }
   await ctx.db
     .insert(projectFields)
     .values({
@@ -279,6 +307,7 @@ export async function attachField(
       ordinal: input.ordinal ?? existing,
       defaultValue: (input.defaultValue ?? null) as never,
       condition: condition ?? null,
+      private: input.private ?? false,
     })
     .onConflictDoUpdate({
       target: [projectFields.projectId, projectFields.fieldId],
@@ -288,6 +317,7 @@ export async function attachField(
         defaultValue: (input.defaultValue ?? null) as never,
         // Left as it is unless the call says.
         ...(condition !== undefined ? { condition } : {}),
+        ...(input.private !== undefined ? { private: input.private } : {}),
       },
     });
   ctx.app.schema.invalidate();

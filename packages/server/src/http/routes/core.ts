@@ -10,6 +10,7 @@ import {
   LinkTypeSchema,
   ProjectFieldSchema,
   ProjectSchema,
+  RenameProjectKeyBody,
   SettingsBody,
   SettingsSchema,
   TagBody,
@@ -22,6 +23,7 @@ import {
 } from '@a4a/shared';
 import { z } from 'zod';
 import { notFound } from '../../lib/errors';
+import { renameProjectKey } from '../../services/project-keys';
 import {
   addFieldValue,
   attachField,
@@ -40,7 +42,7 @@ import { projectByKey } from '../../services/schema-cache';
 import { getSettings, updateSettings } from '../../services/settings';
 import { createTag, deleteTag, listTags, updateTag } from '../../services/tags';
 import { createUser, deleteUser, getUser, listUsers, updateUser } from '../../services/users';
-import { requireProject } from '../../services/access';
+import { requireProject, visibleSchema } from '../../services/access';
 import type { HttpEnv } from '../env';
 import { route } from '../route';
 
@@ -69,9 +71,11 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
     await deleteProject(ctx, params.key);
     return null;
   });
+  route(app, { method: 'post', path: '/projects/{key}/key', tags: projects, summary: "Rename a project's key (its managers). Its issues keep their numbers; the old key stays the project's for good, so its ids still find them (D52)", params: Key, body: RenameProjectKeyBody, response: ProjectSchema, status: 200 }, ({ ctx, params, body }) => renameProjectKey(ctx, params.key, body));
   route(app, { method: 'get', path: '/projects/{key}/fields', tags: projects, summary: "A project's fields and their allowed values", params: Key, response: z.array(ProjectFieldSchema) }, async ({ ctx, params }) => {
     const p = await requireProject(ctx, params.key);
-    return projectFieldDtos(await ctx.app.schema.get(), p.id);
+    // Without the private fields kept from the caller (D50).
+    return projectFieldDtos(await visibleSchema(ctx), p.id);
   });
   route(app, { method: 'put', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Attach or configure a field in a project (its managers)', params: z.object({ key: z.string(), fieldId: z.string() }), body: AttachFieldBody, response: z.array(ProjectFieldSchema) }, ({ ctx, params, body }) => attachField(ctx, params.key, params.fieldId, body));
   route(app, { method: 'delete', path: '/projects/{key}/fields/{fieldId}', tags: projects, summary: 'Detach a field from a project (its managers)', params: z.object({ key: z.string(), fieldId: z.string() }), status: 204 }, async ({ ctx, params }) => {

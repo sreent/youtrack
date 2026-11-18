@@ -6,7 +6,7 @@ import { del, patch, post } from '../api/client';
 import { keys, useMe, useSettings, useSetupStatus, useUsers } from '../api/queries';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
-import { ago } from '../components/Badges';
+import { agoSaid } from '../components/Badges';
 import { AdminOnly, errorText, FormField, Said, Scroll } from '../features/common/bits';
 import { LadderChoice } from '../features/common/Ladder';
 import { GroupsSection } from '../features/groups/GroupsSection';
@@ -40,7 +40,7 @@ function signsInWith(user: User, ways: SignInWays): { words: string; about: stri
   const now = [...(user.signIn?.password && ways.passwords ? [t('page.admin.password')] : []), ...providers];
   const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
   // Two-factor and provisioning (D38) say how, beside where.
-  const also = [user.signIn?.twoFactor ? t('page.admin.withTwoFactor') : null, user.signIn?.provisioned ? t('page.admin.provisioned') : null, last ? t('page.admin.last', { when: ago(last) }) : null].filter(Boolean);
+  const also = [user.signIn?.twoFactor ? t('page.admin.withTwoFactor') : null, user.signIn?.provisioned ? t('page.admin.provisioned') : null, last ? t('page.admin.last', { when: agoSaid(last) }) : null].filter(Boolean);
   if (now.length) return { words: formatList(now), about: also.length ? also.join(' · ') : null };
   if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: t('page.admin.notYet'), about: t('page.admin.findsThemByEmail', { name: ways.sso.name }) };
   if (ways.sso && user.email) return { words: t('page.admin.notYet'), about: t('page.admin.onceTheirEmailIsConfirmed') };
@@ -425,7 +425,7 @@ export default function AdminPage() {
             </table>
           </Scroll>
         ) : null}
-        <p className="note">{tr('page.admin.rolesATokenNeverDoes', { join: ROLES.map((r) => ROLE_WORDS[r]).join(', ') })}</p>
+        <p className="note">{tr('page.admin.rolesATokenNeverDoes', { join: formatList(ROLES.map((r) => ROLE_WORDS[r])) })}</p>
         <AddPerson />
       </section>
       <GroupsSection />

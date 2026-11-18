@@ -62,3 +62,18 @@ export const TEAMS = {
   tenantId: '0e2e0e2e-1111-2222-3333-444455556666',
   url: `http://127.0.0.1:${Number(required('E2E_TEAMS_PORT'))}`,
 } as const;
+
+/** The Slack app's workspace, token and signing secret, and where the spec's Slack Web API listens (support/slack.ts). */
+export const SLACK = {
+  teamId: 'T0E2E',
+  botToken: 'xoxb-e2e-bot-token',
+  signingSecret: 'e2e-slack-signing-secret-0123456789',
+  url: `http://127.0.0.1:${Number(required('E2E_SLACK_PORT'))}`,
+} as const;
+
+/** The Forgejo the server lets people connect their accounts at, on this machine (support/forgejo.ts). */
+export const FORGEJO = {
+  url: `http://127.0.0.1:${Number(required('E2E_FORGEJO_PORT'))}`,
+  clientId: 'e2e-forgejo-app',
+  clientSecret: 'e2e-forgejo-secret',
+} as const;

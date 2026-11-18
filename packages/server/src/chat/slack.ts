@@ -8,13 +8,16 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { TrackerEvent } from '@a4a/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx, type UserRow } from '../context';
-import { chatWorkspaces } from '../db/schema';
+import { sha256 } from '../lib/crypto';
+import { chatChannels, chatWorkspaces } from '../db/schema';
 import { AppError, asSentence, badRequest, conflict, notFound, unauthorized } from '../lib/errors';
 import { runCommand } from '../commands/executor';
 import { findVisibleIssue } from '../services/issues';
 import type { Translator } from '@a4a/shared/i18n';
 import { problemFor, translatorFor } from '../i18n';
-import { cardChange, fallbackText, slackBlocks, type CardIssue } from './cards';
+import { cardChange, fallbackText, slackBlocks, slackText, type CardIssue } from './cards';
+import { checkIssueForm, describeWithReplies, draftFor, firstTime, isRefusal, makeChatIssue, openIssueForm, REPLIES_MAX, threadMayHear, type ChatReply, type IssueForm, type MadeIssue, type Refusal } from './issues';
+import { FORM_MAX, mrkdwnToMarkdown, slackMentions } from './markdown';
 import { callable, channelTr, ChatCallError, chatCtx, openSecret, personTr, retryAfterMs, sealSecret, stopError, stopReason, type Answer, type StopReason } from './common';
 import {
   channelByExternal,
@@ -67,11 +70,13 @@ export async function verifySlackRequest(app: AppServices, header: (name: string
   const expected = Buffer.from(`v0=${createHmac('sha256', secret).update(`v0:${ts}:${raw}`).digest('hex')}`);
   const given = Buffer.from(sig);
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw refuse('bad signature');
+  // A signed request is taken once: the same one again, within its five minutes, is a replay (D60).
+  if (!(await firstTime(app.db, `slack:${sha256(sig)}`, new Date((Number(ts) + MAX_AGE_S) * 1000 + 60_000)))) throw refuse('replayed');
   return ws;
 }
 
 /** One Web API method, with the bot's token: its answer, or a ChatCallError saying what to do. */
-export async function slackCall(app: AppServices, token: string, method: string, params: Record<string, unknown>, opts: { json?: boolean } = {}): Promise<Record<string, unknown>> {
+export async function slackCall(app: AppServices, token: string, method: string, params: Record<string, unknown>, opts: { json?: boolean; timeoutMs?: number } = {}): Promise<Record<string, unknown>> {
   const url = `${app.config.slackApiUrl}/${method}`;
   if (!callable(app, url, ['slack.com'])) throw new ChatCallError(`a4a doesn't call ${url}`, 'failed');
   let res: Response;
@@ -83,7 +88,7 @@ export async function slackCall(app: AppServices, token: string, method: string,
         'content-type': opts.json ? 'application/json; charset=utf-8' : 'application/x-www-form-urlencoded',
       },
       body: opts.json ? JSON.stringify(params) : new URLSearchParams(Object.entries(params).map(([k, v]): [string, string] => [k, typeof v === 'string' ? v : JSON.stringify(v)])),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
       redirect: 'error',
     });
   } catch (e) {
@@ -94,9 +99,9 @@ export async function slackCall(app: AppServices, token: string, method: string,
   if (body.ok === true) return body;
   const error = typeof body.error === 'string' ? body.error : `HTTP ${res.status}`;
   if (error === 'ratelimited') throw new ChatCallError('Slack is limiting a4a', 'retry', retryAfterMs(res.headers.get('retry-after')));
-  if (CHANNEL_GONE[error]) throw stopError('gone', CHANNEL_GONE[error]);
+  if (CHANNEL_GONE[error]) throw stopError('gone', CHANNEL_GONE[error], error);
   if (APP_GONE.has(error)) throw stopError('removed', stopReason(`Slack refused a4a's token (${error}): the app was removed, or its token revoked`, 'chat.stop.slackTokenRefused', { error }));
-  throw new ChatCallError(`Slack said ${error}`, 'failed');
+  throw new ChatCallError(`Slack said ${error}`, 'failed', undefined, undefined, error);
 }
 
 const tokenOf = (app: AppServices, ws: WorkspaceRow) => {
@@ -155,7 +160,7 @@ export async function disconnectSlack(ctx: Ctx): Promise<void> {
 export async function slackPost(app: AppServices, ws: WorkspaceRow, channel: string, issue: CardIssue, event: TrackerEvent): Promise<string | null> {
   const tr = channelTr(app);
   const change = cardChange(event, tr);
-  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, change), blocks: slackBlocks(issue, tr, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
+  const res = await slackCall(app, tokenOf(app, ws), 'chat.postMessage', { channel, text: fallbackText(issue, tr, change), blocks: slackBlocks(issue, tr, { change }), unfurl_links: false, unfurl_media: false }, { json: true });
   return typeof res.ts === 'string' ? res.ts : null;
 }
 
@@ -283,7 +288,7 @@ async function unfurl(app: AppServices, ws: WorkspaceRow, e: Record<string, unkn
     const project = s.projects.get(row.projectId);
     if (!project || (await whyNotFor(app.db, user.id, row.projectId, project.name))) continue;
     // The channel reads it: in the channel's language (D49).
-    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id), channelTr(app), { actions: false }) };
+    unfurls[l.url!] = { blocks: slackBlocks(await issueForCard(ctx, id, { everyone: true }), channelTr(app), { actions: false }) };
   }
   if (!Object.keys(unfurls).length) return;
   const where = typeof e.unfurl_id === 'string' && typeof e.source === 'string' ? { unfurl_id: e.unfurl_id, source: e.source } : { channel: e.channel, ts: e.message_ts };
@@ -337,4 +342,255 @@ export async function slackEvent(app: AppServices, ws: WorkspaceRow, body: Recor
       break;
   }
   return {};
+}
+
+// ---------------------------------------------------------------------------
+// A message made an issue (D60): the message shortcut, its modal, and what's sent
+// ---------------------------------------------------------------------------
+
+/** The message shortcut's callback ID, as the app's settings name it (Interactivity & Shortcuts). */
+export const SLACK_ISSUE_SHORTCUT = 'a4a_create_issue';
+/** Calls made within Slack's three seconds wait this long at most. */
+const QUICK_MS = 2_000;
+
+interface SlackMessage {
+  type?: string;
+  subtype?: string;
+  user?: string;
+  username?: string;
+  bot_id?: string;
+  ts?: string;
+  thread_ts?: string;
+  reply_count?: number;
+  text?: string;
+  files?: { name?: string; title?: string; permalink?: string; mode?: string }[];
+}
+
+/** A link into Slack's own pages, https on its hosts, or nothing. */
+function slackLink(raw: unknown): string | null {
+  try {
+    const url = new URL(String(raw ?? ''));
+    return url.protocol === 'https:' && (url.hostname === 'slack.com' || url.hostname.endsWith('.slack.com')) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** People's names by their Slack ids, as Slack shows them; one who can't be asked keeps their id. */
+async function slackNames(app: AppServices, ws: WorkspaceRow, ids: string[]): Promise<Map<string, string>> {
+  const token = tokenOf(app, ws);
+  const names = new Map<string, string>();
+  await Promise.all(
+    [...new Set(ids)].slice(0, 20).map(async (id) => {
+      const res = await slackCall(app, token, 'users.info', { user: id }, { timeoutMs: QUICK_MS }).catch(() => null);
+      const u = res?.user as { name?: string; real_name?: string; profile?: { display_name?: string; real_name?: string } } | undefined;
+      const name = u?.profile?.display_name || u?.profile?.real_name || u?.real_name || u?.name;
+      if (name) names.set(id, name);
+    }),
+  );
+  return names;
+}
+
+const plain = (text: string, max = 2000) => ({ type: 'plain_text', text: text.slice(0, max) });
+
+/** A modal saying one thing, with nothing to send: a refusal, or how to link. */
+function noticeView(tr: Translator, text: string): Record<string, unknown> {
+  return {
+    type: 'modal',
+    title: plain(tr.t('server.chat.issue.title'), 24),
+    close: plain(tr.t('server.chat.issue.close'), 24),
+    blocks: [{ type: 'section', text: { type: 'mrkdwn', text: slackText(text) } }],
+  };
+}
+
+/** The modal: the projects they may create in, a summary, the message as the description, and its thread's replies when it has any. */
+function issueView(form: IssueForm, tr: Translator, from: string, thread: boolean): Record<string, unknown> {
+  const options = form.projects.slice(0, 100).map((p) => ({ text: plain(`${p.name} (${p.key})`, 75), value: p.key }));
+  const chosen = options.find((o) => o.value === form.project);
+  const input = (block: string, label: string, element: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ type: 'input', block_id: block, label: plain(label), element, ...extra });
+  return {
+    type: 'modal',
+    callback_id: SLACK_ISSUE_SHORTCUT,
+    // The form's draft, which names who opened it: what comes back is checked against it, never trusted.
+    private_metadata: form.draft,
+    title: plain(tr.t('server.chat.issue.title'), 24),
+    submit: plain(tr.t('server.chat.issue.create'), 24),
+    close: plain(tr.t('server.chat.issue.cancel'), 24),
+    blocks: [
+      { type: 'context', elements: [{ type: 'mrkdwn', text: slackText(from) }] },
+      input('project', tr.t('server.chat.issue.project'), { type: 'static_select', action_id: 'value', placeholder: plain(tr.t('server.chat.issue.chooseProject'), 150), options, ...(chosen ? { initial_option: chosen } : {}) }),
+      input('summary', tr.t('server.chat.issue.summary'), { type: 'plain_text_input', action_id: 'value', max_length: 500, ...(form.summary ? { initial_value: form.summary } : {}) }),
+      input(
+        'description',
+        tr.t('server.chat.issue.description'),
+        { type: 'plain_text_input', action_id: 'value', multiline: true, max_length: FORM_MAX, ...(form.description ? { initial_value: form.description } : {}) },
+        { optional: true, ...(form.cut ? { hint: plain(tr.t('server.chat.issue.cut', { max: FORM_MAX })) } : {}) },
+      ),
+      ...(thread
+        ? [input('replies', tr.t('server.chat.issue.thread'), { type: 'checkboxes', action_id: 'value', options: [{ text: plain(tr.t('server.chat.issue.withReplies', { max: REPLIES_MAX }), 75), value: 'yes' }] }, { optional: true })]
+        : []),
+      ...(form.files ? [{ type: 'context', elements: [{ type: 'mrkdwn', text: slackText(tr.t('server.chat.issue.files', { n: form.files })) }] }] : []),
+    ],
+  };
+}
+
+/**
+ * The message shortcut ("Create an a4a issue"): a modal on the message, opened with the shortcut's
+ * trigger within Slack's three seconds. Answered already; this opens what it says. Someone a4a doesn't
+ * know is told how to link, and nothing else; a message in a channel a4a isn't in, or deleted, or someone
+ * making issues too fast, is refused there, in their language.
+ */
+export async function slackIssueShortcut(app: AppServices, ws: WorkspaceRow, payload: Record<string, unknown>): Promise<void> {
+  if (payload.callback_id !== SLACK_ISSUE_SHORTCUT) return;
+  const team = (payload.team as { id?: string } | undefined)?.id ?? (payload.user as { team_id?: string } | undefined)?.team_id;
+  const slackUser = payload.user as { id?: string; username?: string; name?: string } | undefined;
+  const trigger = typeof payload.trigger_id === 'string' ? payload.trigger_id : '';
+  if (team !== ws.externalId || !slackUser?.id || !trigger) return;
+  const token = tokenOf(app, ws);
+  const open = async (view: Record<string, unknown>) => {
+    await slackCall(app, token, 'views.open', { trigger_id: trigger, view }, { json: true, timeoutMs: QUICK_MS });
+  };
+  const who = personOf(ws, slackUser.id, slackUser.name ?? slackUser.username ?? slackUser.id);
+  const user = await personFor(app, who);
+  if (!user) return open(noticeView(channelTr(app), linkWords(app, await linkUrl(app, who), null)));
+  const tr = personTr(app, user);
+  const ctx = chatCtx(app, user, 'slack');
+  const channelId = (payload.channel as { id?: string } | undefined)?.id ?? '';
+  const message = (payload.message ?? {}) as SlackMessage;
+  // Only a channel's message: a direct one has no channel to answer in, nor anyone a4a vouches for.
+  if (!/^[CG]/.test(channelId)) return open(noticeView(tr, tr.t('server.chat.issue.onlyChannels')));
+  if (!message.ts || message.subtype === 'tombstone' || message.subtype === 'message_deleted') return open(noticeView(tr, tr.t('server.chat.issue.deleted')));
+  const text = message.text ?? '';
+  // Within Slack's three seconds, side by side: whether a4a is in the channel, the message's link, and names.
+  const [info, permalink, names] = await Promise.all([
+    slackCall(app, token, 'conversations.info', { channel: channelId }, { timeoutMs: QUICK_MS }).catch((e: unknown) => e),
+    slackCall(app, token, 'chat.getPermalink', { channel: channelId, message_ts: message.ts }, { timeoutMs: QUICK_MS }).catch(() => null),
+    slackNames(app, ws, [...(message.user ? [message.user] : []), ...slackMentions(text)]),
+  ]);
+  // Slack not answering isn't a4a missing from the channel: said as what it is.
+  if (info instanceof ChatCallError && info.outcome === 'retry') return open(noticeView(tr, tr.t('server.chat.issue.didntAnswer', { platform: platformName('slack') })));
+  const channel = info instanceof Error ? null : (info as { channel?: { name?: string; is_member?: boolean; is_archived?: boolean } }).channel;
+  const channelName = `#${channel?.name ?? (payload.channel as { name?: string } | undefined)?.name ?? channelId}`;
+  if (!channel?.is_member || channel.is_archived) return open(noticeView(tr, tr.t('server.chat.issue.notInChannel', { platform: 'slack', channel: channelName })));
+  const row = await upsertChannel(app.db, ws.id, channelId, channelName);
+  const authorName = (message.user && names.get(message.user)) || message.username || message.user || '?';
+  const author = message.user ? await personFor(app, personOf(ws, message.user, authorName)) : null;
+  const files = (message.files ?? []).filter((f) => f.mode !== 'tombstone' && f.mode !== 'hidden_by_limit');
+  const form = await openIssueForm(
+    ctx,
+    slackUser.id,
+    {
+      platform: 'slack',
+      workspace: { id: ws.id, name: ws.name },
+      channel: { id: row.id, name: channelName },
+      ref: message.ts,
+      thread: message.thread_ts ?? message.ts,
+      url: slackLink((permalink as { permalink?: unknown } | null)?.permalink),
+      author: { name: authorName, externalId: message.user ?? null, userId: author?.id ?? null },
+      sentAt: Number.isFinite(Number(message.ts)) ? new Date(Number(message.ts) * 1000) : null,
+      markdown: mrkdwnToMarkdown(text, names),
+      files: files.map((f) => ({ name: (f.title || f.name || '').slice(0, 200), url: slackLink(f.permalink) })),
+      moreFiles: 0,
+    },
+    tr,
+  );
+  if (isRefusal(form)) return open(noticeView(tr, form.text));
+  const thread = (message.reply_count ?? 0) > 0 || Boolean(message.thread_ts && message.thread_ts !== message.ts);
+  await open(issueView(form, tr, tr.t('server.chat.issue.from', { author: authorName, channel: channelName }), thread));
+}
+
+/** The message again, from Slack, as the form is sent: still there, and the replies after it in its thread when they're asked for. */
+async function slackThread(app: AppServices, ws: WorkspaceRow, channel: string, draft: { messageRef: string; threadRef: string }, replies: boolean): Promise<{ found: boolean; replies: ChatReply[] }> {
+  let res: Record<string, unknown>;
+  try {
+    res = await slackCall(app, tokenOf(app, ws), 'conversations.replies', { channel, ts: draft.threadRef, oldest: draft.messageRef, inclusive: 'true', limit: String(REPLIES_MAX + 2) }, { timeoutMs: QUICK_MS });
+  } catch (e) {
+    if (e instanceof ChatCallError && (e.code === 'thread_not_found' || e.code === 'message_not_found')) return { found: false, replies: [] };
+    throw e;
+  }
+  const messages = (Array.isArray(res.messages) ? res.messages : []) as SlackMessage[];
+  const own = messages.find((m) => m.ts === draft.messageRef);
+  if (!own || own.subtype === 'tombstone') return { found: false, replies: [] };
+  if (!replies) return { found: true, replies: [] };
+  // Slack's ts are the same width, so they sort as text: the replies after the message, in order.
+  const later = messages.filter((m) => m.ts && m.ts > draft.messageRef && m.ts !== draft.threadRef && m.subtype !== 'tombstone').slice(0, REPLIES_MAX);
+  const names = await slackNames(app, ws, later.flatMap((m) => [...(m.user ? [m.user] : []), ...slackMentions(m.text ?? '')]));
+  return { found: true, replies: later.map((m) => ({ author: (m.user && names.get(m.user)) || m.username || m.user || '?', markdown: mrkdwnToMarkdown(m.text ?? '', names) })) };
+}
+
+type ViewState = Record<string, Record<string, { value?: string | null; selected_option?: { value?: string } | null; selected_options?: { value?: string }[] }>>;
+
+/**
+ * The modal sent: answered within Slack's three seconds, with what was wrong under its field when
+ * something was (`response_action: errors`), or closed once the issue is made. The person is then told,
+ * where only they see it, and the thread where D42's line allows.
+ */
+export async function slackIssueSubmitted(app: AppServices, ws: WorkspaceRow, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const view = (payload.view ?? {}) as { callback_id?: string; private_metadata?: string; state?: { values?: ViewState } };
+  const team = (payload.team as { id?: string } | undefined)?.id ?? (payload.user as { team_id?: string } | undefined)?.team_id;
+  const slackUser = payload.user as { id?: string; username?: string; name?: string } | undefined;
+  if (view.callback_id !== SLACK_ISSUE_SHORTCUT || team !== ws.externalId || !slackUser?.id) return {};
+  const errors = (field: string, text: string) => ({ response_action: 'errors', errors: { [field === 'form' ? 'project' : field]: text } });
+  const who = personOf(ws, slackUser.id, slackUser.name ?? slackUser.username ?? slackUser.id);
+  const user = await personFor(app, who);
+  if (!user) return errors('project', linkWords(app, await linkUrl(app, who), null));
+  const tr = personTr(app, user);
+  const ctx = chatCtx(app, user, 'slack');
+  const draft = await draftFor(app.db, String(view.private_metadata ?? ''), 'slack', user, slackUser.id);
+  if (!draft) return errors('project', tr.t('server.chat.issue.expired'));
+  const [channel] = draft.channelId ? await app.db.select().from(chatChannels).where(eq(chatChannels.id, draft.channelId)) : [];
+  const values = view.state?.values ?? {};
+  const input = {
+    project: values.project?.value?.selected_option?.value ?? '',
+    summary: values.summary?.value?.value ?? '',
+    description: (values.description?.value?.value ?? '').slice(0, FORM_MAX),
+  };
+  let made: MadeIssue | Refusal;
+  if (draft.issueId) made = await makeChatIssue(ctx, draft, { ...input, replies: 0, cut: false }, tr);
+  else {
+    const checked = await checkIssueForm(ctx, input, tr);
+    if (isRefusal(checked)) return errors(checked.field, checked.text);
+    if (!channel) return errors('project', tr.t('server.chat.issue.expired'));
+    let thread: Awaited<ReturnType<typeof slackThread>>;
+    try {
+      const asked = (values.replies?.value?.selected_options ?? []).some((o) => o.value === 'yes');
+      thread = await slackThread(app, ws, channel.externalId, draft, asked);
+    } catch (e) {
+      if (e instanceof ChatCallError && (e.outcome === 'gone' || e.outcome === 'removed')) return errors('project', tr.t('server.chat.issue.notInChannel', { platform: 'slack', channel: draft.channelName }));
+      return errors('project', tr.t('server.chat.issue.didntAnswer', { platform: platformName('slack') }));
+    }
+    if (!thread.found) return errors('project', tr.t('server.chat.issue.deleted'));
+    const description = describeWithReplies(input.description, thread.replies);
+    made = await makeChatIssue(ctx, draft, { project: checked.key, summary: input.summary, description: description.text, replies: thread.replies.length, cut: description.cut }, tr);
+  }
+  if (isRefusal(made)) return errors(made.field, made.text);
+  const done = made;
+  // Slack has its answer first: the rest is said after.
+  void slackIssueMade(app, ws, ctx, slackUser.id, channel?.externalId, draft.threadRef, done, tr).catch((e: unknown) =>
+    console.warn(`chat: a Slack issue's answers weren't sent: ${e instanceof Error ? e.message : String(e)}`),
+  );
+  return { response_action: 'clear' };
+}
+
+/**
+ * Tell the person it's done, where only they see it, with the issue's id and link; and the thread, for
+ * everyone, only where D42's line allows (threadMayHear), in the channel's language.
+ */
+async function slackIssueMade(app: AppServices, ws: WorkspaceRow, ctx: Ctx, slackUserId: string, channel: string | undefined, thread: string, made: MadeIssue, tr: Translator): Promise<void> {
+  const note = tr.t(made.again ? 'server.chat.issue.madeAlready' : 'server.chat.issue.made', { id: made.issue.id });
+  await tellOne(app, ws, slackUserId, channel, { text: note, blocks: slackBlocks(await issueForCard(ctx, made.issue.id), tr, { note, actions: false }) });
+  if (made.again || !channel || !(await threadMayHear(ctx, made.issue))) return;
+  const [still] = await app.db.select().from(chatChannels).where(and(eq(chatChannels.workspaceId, ws.id), eq(chatChannels.externalId, channel)));
+  if (!still || still.goneAt) return;
+  // What the channel reads: the issue as its maker reads it, and only what every reader of the project may see.
+  const issue = await issueForCard(ctx, made.issue.id, { everyone: true });
+  const words = channelTr(app);
+  const change = { who: ctx.actor.user.name, did: words.t('server.chat.issue.didMake'), details: [], kind: 'created' as const };
+  await slackCall(
+    app,
+    tokenOf(app, ws),
+    'chat.postMessage',
+    { channel, thread_ts: thread, text: fallbackText(issue, words, change), blocks: slackBlocks(issue, words, { change }), unfurl_links: false, unfurl_media: false },
+    { json: true },
+  );
 }

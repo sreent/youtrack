@@ -178,7 +178,12 @@ export default function NewIssuePage() {
   }, [project, projects.data]);
   useEffect(() => setKey(newKey()), [project, summary, description, fields]);
 
-  const asked = useMemo(() => (projectFields.data ?? []).filter((f) => ASKED.includes(f.name)).sort((a, b) => ASKED.indexOf(a.name) - ASKED.indexOf(b.name)), [projectFields.data]);
+  // A private field only for who may set it (D50); to anyone else it isn't there at all.
+  const setsPrivate = Boolean(projects.data?.find((p) => p.key === project)?.access.permissions.includes('editPrivate'));
+  const asked = useMemo(
+    () => (projectFields.data ?? []).filter((f) => ASKED.includes(f.name) && (!f.private || setsPrivate)).sort((a, b) => ASKED.indexOf(a.name) - ASKED.indexOf(b.name)),
+    [projectFields.data, setsPrivate],
+  );
 
   const create = async () => {
     setBusy(true);
@@ -231,7 +236,15 @@ export default function NewIssuePage() {
           </FormField>
           <FormField label={t('page.newIssue.description')}>
             {(id) => (
-              <RichField id={id} label={t('page.newIssue.description')} value={description} onChange={setDescription} rows={8} placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')} />
+              <RichField
+                id={id}
+                label={t('page.newIssue.description')}
+                value={description}
+                onChange={setDescription}
+                rows={8}
+                placeholder={t('page.newIssue.stepsWhatYouExpectedWhat')}
+                writing={{ kind: 'description', project: project || undefined, title: summary || undefined }}
+              />
             )}
           </FormField>
           {asked.length ? (

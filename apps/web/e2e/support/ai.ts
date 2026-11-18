@@ -5,7 +5,7 @@
  * vitest suite (packages/server/test/ai.test.ts), with a fake client.
  */
 import type { Page, Route } from '@playwright/test';
-import type { ChatStreamEvent, Conversation, ConversationDetail, IssueDetail, NLQueryResult, Suggestion, TriagePayload } from '@a4a/shared';
+import type { ChatStreamEvent, Conversation, ConversationDetail, IssueDetail, NLQueryResult, Suggestion, SummarizeResult, TriagePayload } from '@a4a/shared';
 import { unique, type Api } from './api';
 import { NOW } from './env';
 
@@ -32,7 +32,7 @@ export async function mockSummary(page: Page, issueId: string, summary: string) 
   let asked = 0;
   await page.route(`**/api/v1/issues/${issueId}/summarize`, async (route) => {
     asked += 1;
-    await route.fulfill({ json: { summary, model: 'claude-opus-5-5' } });
+    await route.fulfill({ json: { summary, language: 'en', partial: false, post: null, model: 'stand-in' } satisfies SummarizeResult });
   });
   return { asked: () => asked };
 }

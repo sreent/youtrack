@@ -76,14 +76,16 @@ function AuthCard({ title, about, children }: { title: string; about: string; ch
 }
 
 /** Why single sign-on sent someone back here (the callback's ?sso=), and what to do about it. */
+/** A sign-in that failed, by the provider's name when there's one provider, else as "your identity provider" (`named`). */
 function ssoFailure(code: string, name: string): { what: string; fix: string } {
+  const who = { name, named: name ? 'yes' : 'no' };
   switch (code) {
     case 'cancelled':
-      return { what: t('app.auth.signingInWithWasCancelled', { name: name }), fix: t('app.auth.signInAgainWhenYou') };
+      return { what: t('app.auth.signingInWithWasCancelled', who), fix: t('app.auth.signInAgainWhenYou') };
     case 'expired':
       return { what: t('app.auth.thatSignInRanOut'), fix: t('app.auth.startAgainHere') };
     case 'unverified':
-      return { what: t('app.auth.hasnTVerifiedYourEmail', { name: name }), fix: t('app.auth.verifyItWithThenSign', { name: name }) };
+      return { what: t('app.auth.hasnTVerifiedYourEmail', who), fix: t('app.auth.verifyItWithThenSign', who) };
     case 'domain':
       return { what: t('app.auth.accountsWithYourEmailS'), fix: t('app.auth.signInWithYourWork') };
     case 'no_account':
@@ -96,14 +98,14 @@ function ssoFailure(code: string, name: string): { what: string; fix: string } {
     case 'ambiguous':
       return { what: t('app.auth.moreThanOneA4aAccount'), fix: t('app.auth.askAnAdministratorToSort') };
     case 'refused':
-      return { what: t('app.auth.thisAccountCanTSign', { name: name }), fix: t('app.auth.askAnAdministrator') };
+      return { what: t('app.auth.thisAccountCanTSign', who), fix: t('app.auth.askAnAdministrator') };
     case 'unlinked':
       return {
-        what: t('app.auth.anA4aAccountAlreadyHas', { name: name }),
-        fix: t('app.auth.askAnAdministratorTheyCan', { name: name }),
+        what: t('app.auth.anA4aAccountAlreadyHas', who),
+        fix: t('app.auth.askAnAdministratorTheyCan', who),
       };
     default:
-      return { what: t('app.auth.didnTSignYouIn', { name: name }), fix: t('app.auth.tryAgainIfItKeeps') };
+      return { what: t('app.auth.didnTSignYouIn', who), fix: t('app.auth.tryAgainIfItKeeps') };
   }
 }
 
@@ -194,7 +196,7 @@ export function LoginPage() {
   const next = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/issues';
   // OpenID Connect, SAML, or both (D16, D27).
   const providers = [status.data?.signIn.sso, status.data?.signIn.saml].filter((p): p is { name: string; url: string } => Boolean(p));
-  const sso = providers.length ? { name: providers.map((p) => p.name).join(' or ') } : null;
+  const sso = providers.length ? { name: formatList(providers.map((p) => p.name), 'disjunction') } : null;
   // a4a's own passwords, a directory's (LDAP, D38), or both: one form either way.
   const ldap = status.data?.signIn.ldap ?? null;
   const own = status.data?.signIn.password ?? true;
@@ -219,7 +221,7 @@ export function LoginPage() {
       setBusy(false);
     }
   };
-  const failure = failed && sso ? ssoFailure(failed, providers.length === 1 ? providers[0]!.name : t('app.auth.yourIdentityProvider')) : null;
+  const failure = failed && sso ? ssoFailure(failed, providers.length === 1 ? providers[0]!.name : '') : null;
   if (step) {
     return (
       <SecondStep
