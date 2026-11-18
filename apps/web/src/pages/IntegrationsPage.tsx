@@ -1,4 +1,4 @@
-import type { VcsDelivery, VcsDeliveryOutcome, VcsIntegration, VcsIntegrationCreated, VcsProvider, VcsTestResult } from '@a4a/shared';
+import type { VcsDelivery, VcsDeliveryOutcome, VcsGithubApp, VcsIntegration, VcsIntegrationCreated, VcsProvider, VcsTestResult } from '@a4a/shared';
 import { VCS_PROVIDERS, VCS_PROVIDER_NAMES } from '@a4a/shared/constants';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -296,6 +296,63 @@ function AppForm({ integration, onSaved, onCancel }: { integration: VcsIntegrati
   );
 }
 
+/** Where the app is installed, by account: each repository is read through its own installation (D66). */
+function Installations({ app }: { app: VcsGithubApp }) {
+  if (!app.installations.length) return null;
+  return (
+    <div className="stack tight">
+      <p className="note">{t('page.integrations.appInstallations', { n: app.installations.filter((i) => !i.gone).length })}</p>
+      <ul className="stack tight" aria-label={t('page.integrations.installationsList')}>
+        {app.installations.map((i) => (
+          <li key={i.id} className="cluster">
+            <span className="mono">{i.account ?? i.id}</span>
+            {i.accountType ? <Badge tone="idle">{i.accountType === 'organization' ? t('page.integrations.accountOrganization') : t('page.integrations.accountUser')}</Badge> : null}
+            {i.gone ? <Badge tone="idle">{t('page.integrations.installationGone')}</Badge> : i.suspended ? <Badge tone="bad">{t('page.integrations.installationSuspended')}</Badge> : null}
+            <span className="item-about">{i.repositories.length ? t('page.integrations.readThrough', { list: formatList(i.repositories) }) : t('page.integrations.nothingReadThroughYet')}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Check runs on pull requests, written as the app (D66): off by default, and said to whoever sees the repository. */
+function Checks({ integration, onSaid }: { integration: VcsIntegration; onSaid: (said: { text: string; bad?: boolean }) => void }) {
+  const qc = useQueryClient();
+  const checks = integration.checks;
+  const save = useMutation({
+    mutationFn: (body: { enabled?: boolean; states?: boolean; requireResolved?: boolean }) => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, { checks: body }),
+    onSuccess: (_i, body) => {
+      void qc.invalidateQueries({ queryKey: vcsKeys.all });
+      onSaid({ text: body.enabled === true ? t('page.integrations.checksTurnedOn') : body.enabled === false ? t('page.integrations.checksTurnedOff') : t('page.integrations.checksSettingsSaved') });
+    },
+    onError: (e) => onSaid({ text: errorText(e), bad: true }),
+  });
+  if (!checks) return null;
+  return (
+    <div className="stack tight">
+      <fieldset className="choice-group" disabled={save.isPending}>
+        <legend>{t('page.integrations.checksLegend')}</legend>
+        <label className="choice">
+          <input type="checkbox" checked={checks.enabled} onChange={(e) => save.mutate({ enabled: e.target.checked })} />
+          <span>{t('page.integrations.checksOn')}</span>
+        </label>
+        <label className="choice">
+          <input type="checkbox" checked={checks.states} disabled={!checks.enabled} onChange={(e) => save.mutate({ states: e.target.checked })} />
+          <span>{t('page.integrations.checksStates')}</span>
+        </label>
+        <label className="choice">
+          <input type="checkbox" checked={checks.requireResolved} disabled={!checks.enabled} onChange={(e) => save.mutate({ requireResolved: e.target.checked })} />
+          <span>{t('page.integrations.checksResolved')}</span>
+        </label>
+      </fieldset>
+      <p className="note">{tr('page.integrations.checksNeedPermission', { t0: STRONG, t1: STRONG })}</p>
+      <p className="note">{t('page.integrations.checksAudience')}</p>
+      {checks.problem && checks.problemAt ? <p className="note">{t('page.integrations.checksLastProblem', { when: agoSaid(checks.problemAt), problem: checks.problem })}</p> : null}
+    </div>
+  );
+}
+
 /** How a GitHub integration reads from GitHub: as its GitHub App, with a person's token, or not at all. */
 function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onSaid: (said: { text: string; bad?: boolean }) => void }) {
   const qc = useQueryClient();
@@ -318,7 +375,9 @@ function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onS
       <div className="cluster">
         {app ? (
           <>
-            <Badge tone="good">{t('page.integrations.readsAsTheGithubApp', { app: app.slug ?? app.appId, account: app.account ?? app.installationId })}</Badge>
+            {/* The app's name beside the badge, not in it: a badge doesn't wrap, and its accounts are listed below (D66). */}
+            <Badge tone="good">{t('page.integrations.readsAsItsApp')}</Badge>
+            <span className="mono">{app.slug ?? app.appId}</span>
             <button type="button" className="small" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{t('page.integrations.changeTheApp')}</button>
             <Confirm
               small
@@ -340,6 +399,8 @@ function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onS
       </div>
       {!app && integration.hasAccessToken ? <p className="note">{t('page.integrations.aPersonSTokenStopsWorking')}</p> : null}
       {open ? <AppForm integration={integration} onSaved={saved} onCancel={() => setOpen(false)} /> : null}
+      {app ? <Installations app={app} /> : null}
+      {app ? <Checks integration={integration} onSaid={onSaid} /> : null}
     </>
   );
 }

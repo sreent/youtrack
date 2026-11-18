@@ -363,6 +363,7 @@ const CONNECT_SAID: Record<string, string> = {
   denied: t('builds.builds.youSaidNoThereSo'),
   taken: t('builds.builds.thatAccountIsSomeoneElse'),
   refused: t('builds.builds.theProviderDidnTSay'),
+  wide: t('builds.builds.tokenTooWide'),
   unreachable: t('builds.builds.a4aCouldnTReachThe'),
   failed: t('builds.builds.somethingWentWrongTryAgain'),
 };
@@ -419,6 +420,12 @@ export function CodeHostAccounts() {
           ))}
         </ul>
       ) : null}
+      {/* Before anyone goes on: a Forgejo or Gitea that can't take back the token a4a is given (D66). */}
+      {available
+        .filter((h) => h.revokes === false)
+        .map((h) => (
+          <p key={`${h.provider}-keeps`} className="note">{t('builds.builds.forgeKeepsToken', { name: h.name })}</p>
+        ))}
       <div className="cluster">
         {available.map((h) => (
           <button key={h.provider} type="button" onClick={() => connect.mutate(h.provider)} disabled={connect.isPending}>{tr('builds.builds.connect', { name: h.name })}</button>

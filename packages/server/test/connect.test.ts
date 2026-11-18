@@ -70,12 +70,12 @@ afterAll(async () => {
 });
 
 describe('connecting your own account', () => {
-  it('offers the providers an administrator set up', () => {
-    expect(codeHosts(w.app)).toEqual([
-      { provider: 'github', name: 'GitHub', available: true },
-      { provider: 'gitlab', name: 'GitLab', available: true },
-      { provider: 'bitbucket', name: 'Bitbucket', available: false },
-      { provider: 'gitea', name: 'Forgejo/Gitea', available: false },
+  it('offers the providers an administrator set up', async () => {
+    expect(await codeHosts(w.app)).toEqual([
+      { provider: 'github', name: 'GitHub', available: true, revokes: null },
+      { provider: 'gitlab', name: 'GitLab', available: true, revokes: null },
+      { provider: 'bitbucket', name: 'Bitbucket', available: false, revokes: null },
+      { provider: 'gitea', name: 'Forgejo/Gitea', available: false, revokes: null },
     ]);
   });
 

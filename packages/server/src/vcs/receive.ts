@@ -27,12 +27,12 @@ import { RateLimiter } from '../http/middleware';
 import { newId } from '../lib/ids';
 import { excerpt } from '../lib/text';
 import { findIssue } from '../services/issues';
-import { keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 import { buildsFromRun } from '../ci/builds';
 import { authorOf } from './authors';
+import { queueCheck } from './checks';
 import { moreCommits } from './commits';
 import { linkCommit, syncPullRequest, type IntegrationRow } from './links';
-import { mentions } from './mentions';
+import { integrationKeys, mentions } from './mentions';
 import { readDelivery, type Delivery } from './payloads';
 import { tokenOf } from './tokens';
 
@@ -204,17 +204,9 @@ function replyWords(linked: number, applied: number): string {
   return `Read: ${count(linked, 'link')} made, ${count(applied, 'command')} applied. a4a's log of this integration's deliveries says what each was.`;
 }
 
-/** The projects whose issue ids this integration looks for, by key. */
-function keysFor(s: SchemaSnapshot, integration: IntegrationRow): Map<string, string> {
-  const out = new Map<string, string>();
-  // And the keys each had before it was renamed (D52): a commit that names OLD-12 finds NEW-12.
-  for (const p of s.projects.values()) if (!integration.projectIds.length || integration.projectIds.includes(p.id)) for (const k of keysOfProject(s, p.id)) out.set(k, p.id);
-  return out;
-}
-
 async function handle(app: AppServices, integration: IntegrationRow, delivery: Delivery): Promise<Done> {
   const s = await app.schema.get();
-  const keys = keysFor(s, integration);
+  const keys = integrationKeys(s, integration.projectIds);
   const keySet = new Set(keys.keys());
   const providerId = providerOf(integration);
   const provider = VCS_PROVIDER_NAMES[providerId];
@@ -285,16 +277,18 @@ async function handle(app: AppServices, integration: IntegrationRow, delivery: D
       // Who opened it, as the provider signed them in; known to a4a by their login there.
       const author = found.length ? await authorOf(app.db, s, providerId, delivery.author) : null;
       const r = await syncPullRequest(app, s, integration, delivery, issues, author?.user?.id ?? null);
+      // Its check run, as the app (D66): written by the sender, from what the pull request is now.
+      const check = providerId === 'github' && (await queueCheck(app, integration, delivery)) ? ' Its check run is due.' : '';
       if (!r.said.length) {
         return {
           outcome: 'processed',
-          message: found.length ? `#${delivery.number} (${delivery.state}): nothing new.` : `#${delivery.number} (${delivery.state}) mentions no issue.`,
+          message: `${found.length ? `#${delivery.number} (${delivery.state}): nothing new.` : `#${delivery.number} (${delivery.state}) mentions no issue.`}${check}`,
           reply: replyWords(0, 0),
           linked: 0,
           applied: 0,
         };
       }
-      return { outcome: 'processed', message: `#${delivery.number} (${delivery.state}). ${r.said.join('; ')}.`, reply: replyWords(r.linked, 0), linked: r.linked, applied: 0 };
+      return { outcome: 'processed', message: `#${delivery.number} (${delivery.state}). ${r.said.join('; ')}.${check}`, reply: replyWords(r.linked, 0), linked: r.linked, applied: 0 };
     }
   }
 }

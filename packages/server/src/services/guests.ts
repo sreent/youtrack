@@ -74,6 +74,14 @@ export async function guestInfo(app: Ctx['app']): Promise<GuestInfo> {
   return { projects: await guestProjects(app) };
 }
 
+/**
+ * Nobody in particular, as a guest reads, whether or not a project is open to guests: what a check run
+ * on a pull request may say (D66), since whoever sees the repository reads it.
+ */
+export function outsiderCtx(runtime: Ctx['app']): Ctx {
+  return { app: runtime, db: runtime.db, actor: { user: GUEST_USER, scopes: ['read'], channel: 'web', tokenId: null, tokenName: null, authMethod: 'session', guest: true } };
+}
+
 /** A request's context as a guest, when some project is open to guests; null otherwise. */
 export async function guestCtx(runtime: Runtime): Promise<Ctx | null> {
   if (!(await guestProjects(runtime)).length) return null;

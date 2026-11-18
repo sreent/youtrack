@@ -60,6 +60,9 @@ export type Delivery =
       state: PullRequestState;
       author: Person;
       at: Date | null;
+      /** GitHub's: the commit it's at, and its base's, which its check run is on and its commits lie between (D66). */
+      headSha?: string | null;
+      baseSha?: string | null;
     }
   | {
       /** A GitHub, Gitea or Forgejo Actions run, which a build source may take as a build (D46, D55). */
@@ -139,8 +142,8 @@ const GithubPullRequest = z.object({
     merged_at: text,
     updated_at: text,
     user: z.object({ login: z.string() }).nullish(),
-    head: z.object({ ref: z.string() }).nullish(),
-    base: z.object({ ref: z.string() }).nullish(),
+    head: z.object({ ref: z.string(), sha: z.string().min(4).max(64).nullish() }).nullish(),
+    base: z.object({ ref: z.string(), sha: z.string().min(4).max(64).nullish() }).nullish(),
   }),
 });
 
@@ -208,6 +211,8 @@ function github(event: string, body: unknown): Delivery {
         // The account that opened it, signed in at the provider.
         author: { name: null, email: null, login: pr.user?.login ?? null, match: present(pr.user?.login) },
         at: when(pr.updated_at),
+        headSha: pr.head?.sha ?? null,
+        baseSha: pr.base?.sha ?? null,
       };
     }
     case 'workflow_run': {

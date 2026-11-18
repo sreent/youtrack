@@ -186,6 +186,8 @@ export interface Config {
   codeHosts: CodeHostApps;
   /** For tests: version control and code hosts may be reached over plain http on this machine (VCS_ALLOW_HTTP_LOOPBACK). Never in production. */
   vcsAllowHttpLoopback: boolean;
+  /** Check runs a4a writes through one GitHub App installation a minute, across every instance (D66): VCS_CHECKS_PER_MINUTE. */
+  vcsChecksPerMinute: number;
   /**
    * Whether an MCP client may be known by a client ID metadata document: an https client_id whose
    * metadata a4a reads (MCP_OAUTH_CLIENT_DOCUMENTS, on unless "false"; D38).
@@ -648,6 +650,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     ldap,
     codeHosts: codeHostsFromEnv(env),
     vcsAllowHttpLoopback: truthy(env.VCS_ALLOW_HTTP_LOOPBACK, false),
+    vcsChecksPerMinute: intEnv(env.VCS_CHECKS_PER_MINUTE, 20, 1),
     oauthClientDocuments: truthy(env.MCP_OAUTH_CLIENT_DOCUMENTS, true),
     oauthClientDocumentsAllowHttpLoopback: truthy(env.OAUTH_CLIENT_DOCUMENTS_ALLOW_HTTP_LOOPBACK, false),
     teams: teamsFromEnv(env),
