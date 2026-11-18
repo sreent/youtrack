@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "ถามก่อน ถ้าไคลเอนต์รองรับ",
   "page.agents.autonomy": "ความเป็นอิสระ",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "ให้บิลด์บริดจ์ก่อนในสำเนา a4a ด้วย {command} แล้วแทน {path} ด้วยพาธของสำเนานั้น",
   "page.agents.canOverwrite": "เขียนทับได้",
   "page.agents.changes": "เปลี่ยน",
   "page.agents.chooseAtLeastOneProject": "เลือกอย่างน้อยหนึ่งโปรเจกต์",

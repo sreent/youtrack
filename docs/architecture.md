@@ -2027,11 +2027,15 @@ Planned, with the seams already in place:
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
 - a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
 - a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
+- a lane's own order on a board, a card's place in its issue's history, and ranks for boards of tens of thousands: fractional keys, and a move that reads only its neighbours (D53);
+- passkeys that outlive an instance's move to another address (a parent domain's id, or WebAuthn's related origins), passkeys required or only some authenticators taken (attestation), an account with passkeys and no password, and passkeys for the portal's requesters (D62);
 - SAML for requesters' identity providers, a desk's own provider limited to its customers, and the desk's emails in a requester's own language (D63);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);
+- a requester taking off someone they copied, a desk's own cap on CCs, CCs hearing each other's and the requester's words (from a sender a4a can trust, such as DMARC passing), and a new request's Cc held until its requester confirms it (D57);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);
 - Asana's time tracking and ClickUp's comment threads in an import (D61);
 - a Forgejo run's commits read from Forgejo's compare, once its integrations hold a token (D55);
+- a GitHub App installed on several accounts reading each repository through its own installation, builds reported back to GitHub as the app (check runs), and Forgejo's tokens narrowed where an instance takes no scopes (D54);
 - acting from a push notification without opening a4a (assign to me, a state), and reading or writing offline (D47);
 - apps that call out to services of their own, share code between their parts, ship guards, or are installed by a project's managers; a catalog with reviews; widgets that follow live events (D48);
 - a right-to-left language; and a project's own words in several languages (D49);

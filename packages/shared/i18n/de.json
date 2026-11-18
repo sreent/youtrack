@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "fragt zuerst, wenn sein Client das tut",
   "page.agents.autonomy": "Autonomie",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "Bauen Sie die Brücke zuerst in einem Checkout von a4a, mit {command}; ersetzen Sie dann {path} durch den Pfad dieses Checkouts.",
   "page.agents.canOverwrite": "kann überschreiben",
   "page.agents.changes": "Ändert",
   "page.agents.chooseAtLeastOneProject": "Wählen Sie mindestens ein Projekt.",

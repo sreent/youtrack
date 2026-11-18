@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "先询问（如果客户端支持）",
   "page.agents.autonomy": "自主程度",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "请先在 a4a 的检出目录中用 {command} 构建桥接程序，然后把 {path} 换成该目录的路径。",
   "page.agents.canOverwrite": "可能覆盖",
   "page.agents.changes": "更改",
   "page.agents.chooseAtLeastOneProject": "请至少选择一个项目。",

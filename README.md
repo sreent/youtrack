@@ -215,10 +215,10 @@ claude mcp add --transport http a4a http://localhost:3000/mcp --header "Authoriz
 **Claude Desktop, and other stdio-only clients**: use the bridge.
 
 ```json
-{ "mcpServers": { "a4a": { "command": "npx", "args": ["a4a-mcp"], "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
+{ "mcpServers": { "a4a": { "command": "node", "args": ["/path/to/a4a/packages/mcp-bridge/dist/index.js"], "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
 ```
 
-The bridge isn't published to npm yet. Until it is, build it with `pnpm build` and use `"command": "node", "args": ["<repo>/packages/mcp-bridge/dist/index.js"]`.
+a4a is internal, so the bridge isn't published to npm: build it in a checkout of a4a with `pnpm --filter a4a-mcp build`, and put that checkout's path in place of `/path/to/a4a`. Don't run it as `npx a4a-mcp`: that would fetch whatever someone else publishes under the name, and hand it your token.
 
 What agents get is described in [docs/mcp-and-api.md](docs/mcp-and-api.md):
 

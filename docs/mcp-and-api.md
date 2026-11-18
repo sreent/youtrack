@@ -320,11 +320,11 @@ claude mcp add --transport http a4a http://localhost:3000/mcp \
     "headers": { "Authorization": "Bearer a4a_your_token" } } } }
 
 // Claude Desktop and other stdio-only clients (claude_desktop_config.json)
-{ "mcpServers": { "a4a": { "command": "npx", "args": ["a4a-mcp"],
+{ "mcpServers": { "a4a": { "command": "node", "args": ["/path/to/a4a/packages/mcp-bridge/dist/index.js"],
     "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
 ```
 
-**Connect an agent**, on the web UI's Agents and tokens page, creates a token and fills in these snippets for you. Until the bridge is on npm, run it from a build of the repository, as the [README says](../README.md#connect-an-agent-mcp). A client that signs in by itself needs none of it: `claude mcp add --transport http a4a http://localhost:3000/mcp`, then `/mcp` in Claude Code to sign in; in Claude, a custom connector with your a4a's https address and `/mcp`, reachable from the internet.
+**Connect an agent**, on the web UI's Agents and tokens page, creates a token and fills in these snippets for you. The bridge isn't published to npm, as a4a is internal: it runs from a build in a checkout, as the [README says](../README.md#connect-an-agent-mcp). A client that signs in by itself needs none of it: `claude mcp add --transport http a4a http://localhost:3000/mcp`, then `/mcp` in Claude Code to sign in; in Claude, a custom connector with your a4a's https address and `/mcp`, reachable from the internet.
 
 ### 5.6 Signing in with OAuth
 
