@@ -28,6 +28,7 @@ import {
   computeCosts,
   computeLoad,
   computeSchedule,
+  isAwayWarning,
   levelResources,
   whatIf,
   type PlanBaseline,
@@ -43,7 +44,7 @@ import { isWorkingDay, normalizeCalendar } from '../planning/calendar';
 import type { AwayPart } from '../planning/types';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type ProjectNeed } from './access';
+import { canReadProject, hiddenFields, issueSeenSql, projectAccess, requireProject, seenIssueIds, type AccessView, type ProjectNeed } from './access';
 import { readableId, stateNames, type IssueRow } from './issue-refs';
 import { applyChanges, resolveFieldsInput } from './issues';
 import { projectSettings } from './projects';
@@ -56,6 +57,8 @@ interface Loaded {
   input: PlanInput;
   project: ProjectRow;
   s: SchemaSnapshot;
+  /** Who reads it: what they may see of its money and its people (D64). */
+  view: AccessView;
   refs: Map<string, IssueRef>;
   rowsById: Map<string, IssueRow>;
   priorityName: Map<string, string | null>;
@@ -77,13 +80,17 @@ export async function loadPlan(
   opts: { query?: string; baselineId?: string; today?: string; need?: ProjectNeed } = {},
 ): Promise<Loaded> {
   const { s, project } = await projectFor(ctx, key, opts.need);
+  const view = await projectAccess(ctx);
+  // A guest reads the plan as it stands (D64): a baseline is the team's record of what it planned, and
+  // what it cost, so to a guest one is missing, as one that doesn't exist.
+  if (opts.baselineId && view.guest) throw notFound('Baseline').said('planning.baselineNotFound');
   const rows: IssueRow[] = opts.query?.trim()
     ? (await searchIssueRows(ctx, opts.query, { projectId: project.id, limit: MAX_PLAN_ISSUES })).rows
     : await ctx.db
         .select()
         .from(issues)
         // A plan holds the issues the caller sees (D37): its managers, who level it, see them all.
-        .where(and(eq(issues.projectId, project.id), issueSeenSql(await projectAccess(ctx), s)))
+        .where(and(eq(issues.projectId, project.id), issueSeenSql(view, s)))
         .orderBy(asc(issues.number))
         .limit(MAX_PLAN_ISSUES);
   const ids = rows.map((r) => r.id);
@@ -99,7 +106,7 @@ export async function loadPlan(
   const fType = field(WELL_KNOWN_FIELDS.type);
 
   // A private field kept from the caller is no value to the plan they read (D50), as a limited issue is no task (D37).
-  const kept = hiddenFields(await projectAccess(ctx), s).get(project.id);
+  const kept = hiddenFields(view, s).get(project.id);
   const values = (ids.length ? await ctx.db.select().from(issueFieldValues).where(inArray(issueFieldValues.issueId, ids)) : []).filter((v) => !kept?.has(v.fieldId));
   const byIssue = new Map<string, typeof values>();
   for (const v of values) byIssue.set(v.issueId, [...(byIssue.get(v.issueId) ?? []), v]);
@@ -128,7 +135,6 @@ export async function loadPlan(
   if (externalIds.size) {
     // A dependency on an issue in another project is named only when the caller can see it: the
     // plan's warnings must not give away an issue they can't open.
-    const view = await projectAccess(ctx);
     const ext = await ctx.db.select().from(issues).where(inArray(issues.id, [...externalIds]));
     const seen = await seenIssueIds(ctx, ext.map((e) => e.id));
     for (const e of ext) if (view.canRead(e.projectId) && seen.has(e.id)) rid.set(e.id, readableId(s, e));
@@ -198,13 +204,22 @@ export async function loadPlan(
     input: { today, calendar: plan, tasks, resources, workItems: items, baseline, absences: away },
     project,
     s,
+    view,
     refs,
     rowsById: new Map(rows.map((r) => [rid.get(r.id)!, r])),
     priorityName,
   };
 }
 
-function taskDto(l: Loaded, t: ScheduledTask): ScheduleTask {
+/**
+ * Whether the reader sees a plan's money: costs, rates, the budget and earned value. It takes the costs
+ * permission, as the cost report does (D37); a guest never has it, and neither does a role without it (D64).
+ */
+function seesMoney(l: Loaded): boolean {
+  return l.view.allows(l.project.id, 'costs');
+}
+
+function taskDto(l: Loaded, t: ScheduledTask, money = seesMoney(l)): ScheduleTask {
   const u = t.assigneeId ? l.s.users.get(t.assigneeId) : undefined;
   return {
     issue: l.refs.get(t.id) ?? { id: t.id, summary: t.summary, resolved: t.resolved, state: null },
@@ -230,25 +245,29 @@ function taskDto(l: Loaded, t: ScheduledTask): ScheduleTask {
     late: t.late,
     scheduledFrom: t.scheduledFrom,
     predecessors: t.predecessors,
-    plannedCost: t.plannedCost,
-    actualCost: t.actualCost,
-    baseline: t.baseline,
-    variance: t.variance,
+    plannedCost: money ? t.plannedCost : null,
+    actualCost: money ? t.actualCost : null,
+    baseline: t.baseline && (money ? t.baseline : { ...t.baseline, cost: null }),
+    variance: t.variance && (money ? t.variance : { ...t.variance, cost: null }),
   };
 }
 
 function scheduleDto(l: Loaded, r: ScheduleResult): Schedule {
+  const money = seesMoney(l);
+  // A guest reaches no people (D37): not who is away, nor when, in the list or in a warning (D64). The
+  // dates are the team's all the same, worked out on everyone's own days.
+  const people = !l.view.guest;
   return {
     project: { id: l.project.id, key: l.project.key, name: l.project.name },
-    calendar: l.input.calendar,
+    calendar: money ? l.input.calendar : { ...l.input.calendar, budget: null },
     start: r.start,
     finish: r.finish,
     today: r.today,
     criticalPath: r.criticalPath,
-    tasks: r.tasks.map((t) => taskDto(l, t)),
-    warnings: r.warnings,
+    tasks: r.tasks.map((t) => taskDto(l, t, money)),
+    warnings: people ? r.warnings : r.warnings.filter((w) => !isAwayWarning(w)),
     baseline: r.baseline,
-    away: awayDto(l, r),
+    away: people ? awayDto(l, r) : [],
   };
 }
 

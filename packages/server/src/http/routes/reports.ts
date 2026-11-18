@@ -40,7 +40,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/burndown',
+      path: '/reports/burndown', guests: true,
       tags,
       summary: "A sprint's burndown: what was committed, what's left each working day, the ideal, and scope changes",
       description:
@@ -50,7 +50,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => burndownReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/burndown.csv', tags, summary: "A sprint's burndown, day by day, as CSV", description: csv, query: BurndownQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/burndown.csv', guests: true, tags, summary: "A sprint's burndown, day by day, as CSV", description: csv, query: BurndownQuery }, async ({ ctx, query }) => {
     const b = await burndownReport(ctx, query);
     const unit = b.by === 'count' ? 'issues' : 'hours';
     const v = (n: number | null) => (n === null ? null : b.by === 'count' ? n : hours(n));
@@ -67,7 +67,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/flow',
+      path: '/reports/flow', guests: true,
       tags,
       summary: 'Cumulative flow: issues in each state at the end of each day',
       description: 'A project (with its deleted issues on the days they existed), or a query (issues as they match it now).',
@@ -76,7 +76,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => flowReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/flow.csv', tags, summary: 'Cumulative flow as CSV', description: csv, query: FlowQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/flow.csv', guests: true, tags, summary: 'Cumulative flow as CSV', description: csv, query: FlowQuery }, async ({ ctx, query }) => {
     const f = await flowReport(ctx, query);
     return csvResponse(
       toCsv(['Date', ...f.states.map((s) => s.name), 'Total'], f.days.map((d) => [d.date, ...d.counts, d.total])),
@@ -88,7 +88,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/created-resolved',
+      path: '/reports/created-resolved', guests: true,
       tags,
       summary: 'Issues created against issues resolved, by day, week or month, with how many were open',
       query: CreatedResolvedQuery,
@@ -96,7 +96,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => createdResolvedReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/created-resolved.csv', tags, summary: 'Created against resolved as CSV', description: csv, query: CreatedResolvedQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/created-resolved.csv', guests: true, tags, summary: 'Created against resolved as CSV', description: csv, query: CreatedResolvedQuery }, async ({ ctx, query }) => {
     const r = await createdResolvedReport(ctx, query);
     return csvResponse(
       toCsv(['From', 'To', 'Created', 'Resolved', 'Reopened', 'Open at the end'], r.buckets.map((b) => [b.from, b.to, b.created, b.resolved, b.reopened, b.open])),
@@ -108,7 +108,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/cycle-time',
+      path: '/reports/cycle-time', guests: true,
       tags,
       summary: 'Cycle time: from first In Progress to resolved, as a distribution with its percentiles',
       description: 'Issues resolved in the window, and still resolved at its end. Issues resolved without being started are listed apart, and left out of the figures.',
@@ -117,7 +117,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => cycleTimeReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/cycle-time.csv', tags, summary: 'Each issue\'s cycle time as CSV', description: csv, query: CycleTimeQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/cycle-time.csv', guests: true, tags, summary: 'Each issue\'s cycle time as CSV', description: csv, query: CycleTimeQuery }, async ({ ctx, query }) => {
     const c = await cycleTimeReport(ctx, query);
     return csvResponse(
       toCsv(
@@ -194,7 +194,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/issues-per-field',
+      path: '/reports/issues-per-field', guests: true,
       tags,
       summary: "Issues per field: how many have each of a field's values",
       description: `${now} Any field, of any type, or Project; dates by day, week or month. Each value carries the query that finds its issues; a multi-valued field counts an issue under each of its values.`,
@@ -203,7 +203,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => issuesPerFieldReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/issues-per-field.csv', tags, summary: 'Issues per field as CSV', description: csv, query: IssuesPerFieldQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/issues-per-field.csv', guests: true, tags, summary: 'Issues per field as CSV', description: csv, query: IssuesPerFieldQuery }, async ({ ctx, query }) => {
     const r = await issuesPerFieldReport(ctx, query);
     return csvResponse(toCsv([r.field.name, 'Issues'], [...r.values.map((v) => [v.label, v.count]), ['Total issues', r.total]], new Set([0])), `issues-per-${r.field.name}-${scopeName(query)}.csv`);
   });
@@ -212,7 +212,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/matrix',
+      path: '/reports/matrix', guests: true,
       tags,
       summary: 'Matrix: two fields against each other, with the issues in each pair of values',
       description: `${now} Rows and columns are any two fields (or Project); each cell, row and column carries the query that finds its issues, with totals.`,
@@ -221,7 +221,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => matrixReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/matrix.csv', tags, summary: 'Matrix as CSV', description: csv, query: MatrixQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/matrix.csv', guests: true, tags, summary: 'Matrix as CSV', description: csv, query: MatrixQuery }, async ({ ctx, query }) => {
     const m = await matrixReport(ctx, query);
     return csvResponse(
       toCsv(
@@ -237,7 +237,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/average-age',
+      path: '/reports/average-age', guests: true,
       tags,
       summary: 'Average age: how long open issues had been open, each day as it stood',
       description:
@@ -247,7 +247,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => averageAgeReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/average-age.csv', tags, summary: 'Average age, day by day, as CSV', description: csv, query: AverageAgeQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/average-age.csv', guests: true, tags, summary: 'Average age, day by day, as CSV', description: csv, query: AverageAgeQuery }, async ({ ctx, query }) => {
     const a = await averageAgeReport(ctx, query);
     return csvResponse(
       toCsv(
@@ -262,7 +262,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/reports/time-in-state',
+      path: '/reports/time-in-state', guests: true,
       tags,
       summary: 'Time in state: how long issues spend in each state, or in each of a board\'s columns',
       description:
@@ -272,7 +272,7 @@ export function reportRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, query }) => timeInStateReport(ctx, query),
   );
-  route(app, { method: 'get', path: '/reports/time-in-state.csv', tags, summary: 'Time in state, issue by issue, as CSV', description: csv, query: TimeInStateQuery }, async ({ ctx, query }) => {
+  route(app, { method: 'get', path: '/reports/time-in-state.csv', guests: true, tags, summary: 'Time in state, issue by issue, as CSV', description: csv, query: TimeInStateQuery }, async ({ ctx, query }) => {
     const t = await timeInStateReport(ctx, query);
     return csvResponse(
       toCsv(

@@ -38,7 +38,7 @@ import type { Db } from '../db/client';
 import { articles, issues, whiteboardChanges, whiteboardElements, whiteboards, whiteboardViewers } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { whiteboardLive } from '../events/whiteboard-live';
-import { AppError, badRequest, conflict, errorWords, forbidden, notFound, pageWords } from '../lib/errors';
+import { AppError, badRequest, conflict, errorWords, forbidden, notFound, pageWords, unauthorized } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { assertCanProject, projectAccess, requireProject, seenArticleIds, seenIssueIds, type AccessView } from './access';
 import { articleReadableId, resolveArticle } from './article-refs';
@@ -82,7 +82,7 @@ export async function requireWhiteboard(ctx: Ctx, id: string, need: 'read' | 'ed
   const view = await projectAccess(ctx, db);
   const query = db.select().from(whiteboards).where(eq(whiteboards.id, id.trim()));
   const [row] = lock ? await query.for('no key update') : await query;
-  if (!row || view.guest || !view.canRead(row.projectId)) throw missing();
+  if (!row || !view.canRead(row.projectId)) throw missing();
   if (need === 'edit') await assertCanProject(ctx, row.projectId, 'edit', db);
   return row;
 }
@@ -141,7 +141,6 @@ async function countsOf(db: Db, ids: string[]): Promise<Map<string, number>> {
 export async function listWhiteboards(ctx: Ctx, opts: { project?: string } = {}): Promise<Whiteboard[]> {
   requireScope(ctx, 'read');
   const [view, s] = [await projectAccess(ctx), await ctx.app.schema.get()];
-  if (view.guest) return [];
   let projectIds = view.visibleIds();
   if (opts.project) projectIds = [(await requireProject(ctx, opts.project)).id];
   if (projectIds && !projectIds.length) return [];
@@ -204,8 +203,17 @@ export async function getWhiteboard(ctx: Ctx, id: string): Promise<WhiteboardDet
     whiteboard: boardDto(s, view, ctx, row, rows.length),
     elements: rows.map((r) => elementDto(s, r)),
     cards: await cardsFor(ctx, rows),
-    viewers: await viewersOf(ctx.db, s, row.id),
+    viewers: seesViewers(ctx) ? await viewersOf(ctx.db, s, row.id) : [],
   };
+}
+
+/**
+ * Whether the caller is told who's looking, and counted among them. Not a guest (D64): who has a
+ * whiteboard open is what people are doing now, the team's to know, and a guest reaches no people
+ * (D37); nor is a guest, who is nobody in particular, anyone to show the team.
+ */
+export function seesViewers(ctx: Ctx): boolean {
+  return !ctx.actor.guest;
 }
 
 /** Just the cards, for a page to read again when an issue or article on it changes. */
@@ -675,13 +683,20 @@ export async function stopViewing(ctx: Ctx, id: string, session: string): Promis
   if (gone.length) whiteboardLive(ctx.app).changed([id]);
 }
 
+/** Who's looking is for people who sign in (D64), as anything else a guest may not do. */
+function requireViewersSeen(ctx: Ctx): void {
+  if (!seesViewers(ctx)) throw unauthorized('Sign in to do that', 'Guests can read the projects open to them, and nothing else.').said('access.signInFirst');
+}
+
 export async function listViewers(ctx: Ctx, id: string): Promise<WhiteboardViewer[]> {
+  requireViewersSeen(ctx);
   const row = await requireWhiteboard(ctx, id);
   return viewersOf(ctx.db, await ctx.app.schema.get(), row.id);
 }
 
 /** An API client says it's looking, for the next 45 seconds: one row per token, or per person. */
 export async function lookAt(ctx: Ctx, id: string): Promise<WhiteboardViewer[]> {
+  requireViewersSeen(ctx);
   const row = await requireWhiteboard(ctx, id);
   await markViewing(ctx, row.id, `api:${ctx.actor.tokenId ?? ctx.actor.user.id}`);
   return viewersOf(ctx.db, await ctx.app.schema.get(), row.id);

@@ -23,6 +23,7 @@ import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { whiteboards } from '../../db/schema';
 import { whiteboardLive, type WhiteboardChangeRow, type WhiteboardSignal } from '../../events/whiteboard-live';
+import { AppError } from '../../lib/errors';
 import { newId } from '../../lib/ids';
 import { projectAccess } from '../../services/access';
 import { userRefDto } from '../../services/values';
@@ -39,15 +40,45 @@ import {
   markViewing,
   renameWhiteboard,
   requireWhiteboard,
+  seesViewers,
   stopViewing,
   viewersOf,
 } from '../../services/whiteboards';
 import type { HttpEnv } from '../env';
+import { clientIp } from '../middleware';
 import { route } from '../route';
 
 const Id = z.object({ id: z.string().min(1).max(40) });
 /** Signals waiting for a slow client before its stream is closed (it reconnects and resumes). */
 const MAX_QUEUE = 2_000;
+
+/**
+ * Guests' open streams, on this instance (D64). A stream is one request however long it stays open, so
+ * the guest rate limit alone would let one address hold hundreds, each read again on every change; and
+ * guests are nobody in particular. So each address holds a few, and all guests together a few hundred:
+ * past either, a guest is told to close one, and the team's streams are never what runs out.
+ */
+export const GUEST_STREAM_LIMITS = { perAddress: 4, total: 400 };
+const guestStreams = new Map<string, number>();
+let guestStreamsOpen = 0;
+
+function openGuestStream(address: string): () => void {
+  const mine = guestStreams.get(address) ?? 0;
+  if (mine >= GUEST_STREAM_LIMITS.perAddress || guestStreamsOpen >= GUEST_STREAM_LIMITS.total) {
+    throw new AppError(429, 'rate_limited', 'Too many whiteboards are open live without signing in', 'Close one of them, or sign in, then open this one again.').said('whiteboards.guestStreams');
+  }
+  guestStreams.set(address, mine + 1);
+  guestStreamsOpen++;
+  let closed = false;
+  return () => {
+    if (closed) return;
+    closed = true;
+    guestStreamsOpen--;
+    const left = (guestStreams.get(address) ?? 1) - 1;
+    if (left > 0) guestStreams.set(address, left);
+    else guestStreams.delete(address);
+  };
+}
 
 export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Whiteboards'];
@@ -55,7 +86,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/whiteboards',
+      path: '/whiteboards', guests: true,
       tags,
       summary: 'Whiteboards you can see',
       description: 'The whiteboards of every project you read, or of one, the latest changed first.',
@@ -81,7 +112,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/whiteboards/{id}',
+      path: '/whiteboards/{id}', guests: true,
       tags,
       summary: 'A whiteboard, whole',
       description:
@@ -128,7 +159,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/whiteboards/{id}/cards',
+      path: '/whiteboards/{id}/cards', guests: true,
       tags,
       summary: 'What a whiteboard’s cards hold',
       description: 'Each issue card’s id, summary, state and assignee, and each article card’s id and title, as you may see them now; what you may not see is `shown: false`, the same for every reason.',
@@ -175,7 +206,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/whiteboards/{id}/stream',
+      path: '/whiteboards/{id}/stream', guests: true,
       tags,
       summary: 'A whiteboard, live, over Server-Sent Events',
       description:
@@ -185,12 +216,23 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     async ({ c, ctx, params, query }) => {
       const board = await requireWhiteboard(ctx, params.id);
+      // A guest's stream carries the changes, never who's looking, nor counts them among it (D64).
+      const people = seesViewers(ctx);
+      const release = people ? () => {} : openGuestStream(clientIp(c, ctx.app.config.trustProxy));
       const hub = whiteboardLive(ctx.app);
       const header = c.req.header('last-event-id')?.trim();
       const resume = header && /^\d+$/.test(header) ? Number(header) : (query.after ?? null);
       const session = newId();
       c.header('x-accel-buffering', 'no');
       return streamSSE(c, async (stream) => {
+        try {
+          await live(stream);
+        } finally {
+          release();
+        }
+      });
+
+      async function live(stream: Parameters<Parameters<typeof streamSSE>[1]>[0]): Promise<void> {
         const queue: WhiteboardSignal[] = [];
         let wake: (() => void) | null = null;
         const { position, unsubscribe } = await hub.subscribe(board.id, (signal) => {
@@ -215,11 +257,12 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
         let name = board.name;
         let viewers = '';
         const sayViewers = async () => {
+          if (!people) return;
           const now = JSON.stringify(await viewersOf(ctx.db, await s(), board.id));
           if (now !== viewers) await stream.writeSSE({ event: 'viewers', data: (viewers = now) });
         };
         try {
-          await markViewing(ctx, board.id, session);
+          if (people) await markViewing(ctx, board.id, session);
           await stream.writeSSE({ event: 'ready', id: String(Math.max(position, resume ?? 0)), data: JSON.stringify({ seq: position }) });
           let sent = position;
           if (resume !== null && resume < position) {
@@ -252,7 +295,7 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
             }
             if (stream.aborted) break;
             if (Date.now() - beat >= 15_000) {
-              await markViewing(ctx, board.id, session);
+              if (people) await markViewing(ctx, board.id, session);
               beat = Date.now();
             }
             await new Promise<void>((resolve) => {
@@ -264,9 +307,9 @@ export function whiteboardRoutes(app: OpenAPIHono<HttpEnv>) {
           }
         } finally {
           unsubscribe();
-          await stopViewing(ctx, board.id, session).catch(() => {});
+          if (people) await stopViewing(ctx, board.id, session).catch(() => {});
         }
-      });
+      }
     },
   );
 }

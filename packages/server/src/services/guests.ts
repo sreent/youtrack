@@ -7,6 +7,11 @@ import type { Ctx, UserRow } from '../context';
  * guest has the read permission there and nowhere else, and no scope but read, so nothing they do
  * writes. They reach only the reading routes below; people's details stay with the users routes,
  * which they don't reach. Their requests are limited per address (GUEST_RATE_LIMIT).
+ *
+ * Beyond issues (D64): boards, the reports but the time report, a plan's schedule and whiteboards with
+ * their live streams. Not a board's backlog, velocity or sprint plan, a plan's load, costs, baselines,
+ * what-if or levelling, nor who looks at a whiteboard: those are the team's planning, its money and its
+ * people.
  */
 
 /** Who a guest is, as far as the code that wants a person goes: nobody in particular. */
@@ -39,6 +44,15 @@ const READABLE = [
   /^\/fields$/,
   /^\/tags$/,
   /^\/link-types$/,
+  // D64: boards, reports, plans and whiteboards.
+  /^\/boards$/,
+  /^\/boards\/[^/]+$/,
+  /^\/boards\/[^/]+\/view$/,
+  /^\/reports\/(burndown|flow|created-resolved|cycle-time|issues-per-field|matrix|average-age|time-in-state)(\.csv)?$/,
+  /^\/projects\/[^/]+\/schedule$/,
+  /^\/whiteboards$/,
+  /^\/whiteboards\/[^/]+$/,
+  /^\/whiteboards\/[^/]+\/(cards|stream)$/,
 ];
 
 /** Whether a guest may make this request: reading one of the paths above (a count or a parse is a read, sent as a post). */

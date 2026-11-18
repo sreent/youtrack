@@ -97,6 +97,15 @@ export function projectVisibility(row: ProjectRow): ProjectVisibility {
 
 const NO_ACCESS: ProjectAccess = { role: 'viewer', roleName: 'Viewer', via: 'open', permissions: [], read: false, comment: false, write: false, manage: false };
 
+/**
+ * A project's settings as the caller may read them: its plan's budget is money, and money takes the
+ * costs permission (D37), which a guest never has (D64).
+ */
+export function settingsFor(row: ProjectRow, view: AccessView): ProjectSettings {
+  const settings = projectSettings(row);
+  return view.allows(row.id, 'costs') ? settings : { ...settings, plan: { ...settings.plan, budget: null } };
+}
+
 /** A project as the caller sees it, with what they may do in it. */
 export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView, c?: { total: number; open: number }): Project {
   const lead = row.leadId ? s.users.get(row.leadId) : undefined;
@@ -108,7 +117,7 @@ export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView,
     lead: lead ? userRefDto(lead) : null,
     archived: row.archived,
     visibility: projectVisibility(row),
-    settings: projectSettings(row),
+    settings: settingsFor(row, view),
     issueCount: c?.total ?? 0,
     openIssueCount: c?.open ?? 0,
     createdAt: row.createdAt.toISOString(),

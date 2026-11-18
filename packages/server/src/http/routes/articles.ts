@@ -37,7 +37,7 @@ export function articleRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/articles',
+      path: '/articles', guests: true,
       tags,
       summary: 'Search articles, or list the latest changed',
       description: 'Words are found in titles (first) and bodies, by full-text search with near misses on titles. Without `query`, the articles changed most recently come first.',
@@ -50,7 +50,7 @@ export function articleRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/projects/{key}/articles',
+      path: '/projects/{key}/articles', guests: true,
       tags,
       summary: "A project's knowledge base as a tree",
       description: 'Every article, flat, in reading order: each one, then those under it. `parent` and `position` say where each sits.',
@@ -72,7 +72,7 @@ export function articleRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, body }) => createArticle(ctx, body),
   );
-  route(app, { method: 'get', path: '/articles/{id}', tags, summary: 'An article, where it sits, and what mentions it', params: Id, response: ArticleDetailSchema }, ({ ctx, params }) =>
+  route(app, { method: 'get', path: '/articles/{id}', guests: true, tags, summary: 'An article, where it sits, and what mentions it', params: Id, response: ArticleDetailSchema }, ({ ctx, params }) =>
     getArticle(ctx, params.id),
   );
   route(
@@ -133,7 +133,7 @@ export function articleRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(
     app,
-    { method: 'get', path: '/issues/{id}/articles', tags, summary: 'Articles that mention an issue', params: z.object({ id: z.string() }), response: z.array(ArticleRefSchema) },
+    { method: 'get', path: '/issues/{id}/articles', guests: true, tags, summary: 'Articles that mention an issue', params: z.object({ id: z.string() }), response: z.array(ArticleRefSchema) },
     ({ ctx, params }) => articlesMentioningIssue(ctx, params.id),
   );
 }
