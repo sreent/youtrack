@@ -35,6 +35,16 @@ const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
   },
 });
 
+/**
+ * A board's rank key (D65): text compared by its bytes ("C"), whatever the database's own collation,
+ * so Postgres orders keys as `@a4a/shared/ranks` makes them, and an index on them serves a move.
+ */
+const rankKey = customType<{ data: string }>({
+  dataType() {
+    return 'text COLLATE "C"';
+  },
+});
+
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => ts('created_at').notNull().defaultNow();
 
@@ -505,6 +515,8 @@ export const boards = pgTable('boards', {
   /** The field its story points are in (D43), summed on columns and sprints. */
   pointsFieldId: text('points_field_id').references(() => fields.id, { onDelete: 'set null' }),
   sprintsEnabled: boolean('sprints_enabled').notNull().default(false),
+  /** Whether each swimlane keeps an order of its own (D65), rather than the board's one order (D53). */
+  laneOrder: boolean('lane_order').notNull().default(false),
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -2124,8 +2136,9 @@ export const scimGroups = pgTable('scim_groups', {
 // ---------------------------------------------------------------------------
 
 /**
- * An issue's place on a board, shared by its backlog and its columns: lower comes first. Ranks
- * are numbers with gaps; an issue without one comes after those with one, in the query's order.
+ * An issue's place on a board, shared by its backlog and its columns: the lower key comes first, by its
+ * bytes (D65). An issue without one comes after those with one, in the query's order. A move reads its
+ * anchor's key and the next one through the index, and writes one row.
  */
 export const boardRanks = pgTable(
   'board_ranks',
@@ -2136,9 +2149,9 @@ export const boardRanks = pgTable(
     issueId: text('issue_id')
       .notNull()
       .references(() => issues.id, { onDelete: 'cascade' }),
-    rank: doublePrecision('rank').notNull(),
+    key: rankKey('key').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_ranks_rank').on(t.boardId, t.rank)],
+  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_ranks_key').on(t.boardId, t.key)],
 );
 
 /** A project's kinds of work (development, testing, …), chosen when work is logged. */
@@ -3419,4 +3432,60 @@ export const requesterPasskeyAlerts = pgTable(
     createdAt: created(),
   },
   (t) => [index('requester_passkey_alerts_requester').on(t.requesterId)],
+);
+
+// ---------------------------------------------------------------------------
+// Boards at scale, lanes of their own, and a card's place in its history (docs/architecture.md, D65)
+// ---------------------------------------------------------------------------
+
+/**
+ * A card's place in its swimlane, on a board whose lanes keep their own order: one per card, in the
+ * lane it was placed in (`u:<user id>`, `v:<value's name>`, or '' for the lane of no value). In any
+ * other lane it has none there, and comes after the lane's placed cards, in the board's order.
+ */
+export const boardLaneRanks = pgTable(
+  'board_lane_ranks',
+  {
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    lane: text('lane').notNull(),
+    key: rankKey('key').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_lane_ranks_key').on(t.boardId, t.lane, t.key)],
+);
+
+/**
+ * A card's place in its issue's history: one line for a run of moves by one person, through one
+ * channel, on one board, while nothing else happens to the issue and within ten minutes of the run's
+ * first. Its place is a kept note (D49), said for each reader with what they may see; the ledger keeps
+ * every move as its own event.
+ */
+export const boardMoves = pgTable(
+  'board_moves',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    boardId: text('board_id').references(() => boards.id, { onDelete: 'set null' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    channel: text('channel').notNull(),
+    tokenName: text('token_name'),
+    /** The issue it was put next to, while it exists; `above`, `below` or `top` says where. */
+    anchorId: text('anchor_id').references(() => issues.id, { onDelete: 'set null' }),
+    side: text('side').notNull(),
+    moves: integer('moves').notNull().default(1),
+    /** The run's last move's `board.issue_ranked`, which the line stands for in the history. */
+    lastEventId: bigint('last_event_id', { mode: 'number' }).notNull(),
+    firstAt: ts('first_at').notNull().defaultNow(),
+    lastAt: ts('last_at').notNull().defaultNow(),
+    /** The line's words as kept (D49): its English, and its key and values. */
+    note: text('note').notNull(),
+    said: jsonb('said').$type<{ key: string; values?: Record<string, string | number> }>().notNull(),
+  },
+  (t) => [index('board_moves_issue').on(t.issueId, t.lastEventId)],
 );

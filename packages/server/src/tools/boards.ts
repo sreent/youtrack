@@ -49,7 +49,8 @@ const rankIssueTool = defineTool({
   description:
     "Put an issue just after or before another in a board's order, which its backlog and every column share; with neither, at the top. " +
     "With column (and lane), its card moves into that column (and swimlane) in the same change: the board's column field becomes the column's first value, checked as any change is (a state machine or guard that refuses it refuses the whole move), and with neither after nor before it keeps its place. " +
-    'Read the columns and their cards, in order, with get_board.',
+    "On a board whose lanes keep their own order (get_board's lanes.ownOrder), a card moved with column is placed among its lane's cards, after or before one in that lane, and the backlog's order (without column) stays the board's. " +
+    'Read the columns, lanes and their cards, in order, with get_board.',
   input,
   kind: 'changes',
   // Into another column, its state is overwritten.

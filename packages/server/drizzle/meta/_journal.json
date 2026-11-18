@@ -309,6 +309,13 @@
       "when": 1794988500124,
       "tag": "0043_requester_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794988652438,
+      "tag": "0044_board_ranks_keys",
+      "breakpoints": true
     }
   ]
 }

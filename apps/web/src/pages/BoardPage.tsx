@@ -1,12 +1,54 @@
-import type { Sprint } from '@a4a/shared';
+import type { Board as BoardSettings, Sprint } from '@a4a/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
-import { ErrorNote, Loading, PageHead } from '../components/States';
+import { patch } from '../api/client';
+import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
+import { errorText } from '../features/issues/api';
 import { CommandBar } from '../features/issues/CommandBar';
 import { span } from '../features/plan/dates';
 import { formatItems, formatList, t, tr } from '../i18n';
+
+/**
+ * Whether the board's lanes keep their own order (D65): its managers turn it on and off here; to
+ * anyone else it's said, while it's on, since cards are then ranked within their lanes.
+ */
+function LaneOrder({ board }: { board: BoardSettings }) {
+  const qc = useQueryClient();
+  const helpId = useId();
+  const [said, setSaid] = useState('');
+  const save = useMutation({
+    mutationFn: (laneOrder: boolean) => patch<BoardSettings>(`/boards/${board.id}`, { laneOrder }),
+    onSuccess: async (b) => {
+      await qc.invalidateQueries({ queryKey: ['boards'] });
+      setSaid(b.laneOrder ? t('page.board.laneOrderTurnedOn') : t('page.board.laneOrderTurnedOff'));
+    },
+  });
+  if (!board.manageable) return board.laneOrder ? <p className="note">{t('page.board.laneOrderOn')}</p> : null;
+  return (
+    <div className="stack tight">
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={save.isPending ? Boolean(save.variables) : board.laneOrder}
+          disabled={save.isPending}
+          aria-describedby={helpId}
+          onChange={(e) => {
+            setSaid('');
+            save.mutate(e.target.checked);
+          }}
+        />
+        <span>
+          {t('page.board.laneOrder')} <small className="field-help" id={helpId}>{t('page.board.laneOrderHelp')}</small>
+        </span>
+      </label>
+      <p role="status" className="hidden">{said}</p>
+      {save.error ? <ErrorLine>{errorText(save.error)}</ErrorLine> : null}
+    </div>
+  );
+}
 
 function sprintOption(s: Sprint): string {
   return formatItems(s.startDate && s.endDate ? [s.name, span(s.startDate, s.endDate)] : [s.name]);
@@ -127,6 +169,7 @@ export default function BoardPage() {
       <div className="stack">
         {v.board.sprintsEnabled && !v.sprint ? <p className="note">{t('page.board.thisBoardHasNoSprint')}</p> : null}
         {total === 0 ? <p className="note">{v.sprint ? t('page.board.nothingIsInYet', { name: v.sprint.name }) : t('page.board.thereAreNoIssuesOn')}</p> : null}
+        {v.swimlanes.length ? <LaneOrder board={v.board} /> : null}
         <Board view={v} onCommand={askFor} />
       </div>
       <CommandBar issues={ask?.issues ?? []} open={ask !== null} initial={ask?.initial} onClose={closeAsk} />

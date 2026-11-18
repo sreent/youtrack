@@ -54,7 +54,8 @@ export function agileRoutes(app: OpenAPIHono<HttpEnv>) {
       description:
         'The rank is the board’s, shared by its backlog and its cards (D43). With neither after nor before, the issue goes to the top. ' +
         'On the board (D53), `column` (and `lane`) move its card too, in the same change as its place: its column field becomes the column’s first value its project has, through the issue’s one write path, so a state machine, guard or condition that refuses it refuses the whole move (its place included), and `expectedVersion` makes it 409 when the issue changed since it was read. ' +
-        'With `column` and neither after nor before, it keeps its place. Ranking takes the edit permission in the issue’s project; within its column it needs nothing of its state. Every move is the event `board.issue_ranked`.',
+        'With `column` and neither after nor before, it keeps its place. Ranking takes the edit permission in the issue’s project; within its column it needs nothing of its state. Every move is the event `board.issue_ranked`. ' +
+        'On a board whose lanes keep their own order (`laneOrder`, D65), a move with `column` places the card among its lane’s cards (the lane it goes into, or is in), and one without leaves the board’s order, the backlog’s, as it ranks. A move reads only the keys beside its place, and writes one.',
       params: Id,
       body: RankBody,
       status: 204,
