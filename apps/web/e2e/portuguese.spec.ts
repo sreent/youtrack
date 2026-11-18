@@ -27,9 +27,9 @@ async function person(api: Api) {
 async function signIn(page: Page, login: string) {
   await page.goto('/login');
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT');
-  await page.getByLabel('Login', { exact: true }).fill(login);
-  await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await page.getByLabel('Nome de utilizador', { exact: true }).fill(login);
+  await page.getByLabel('Palavra-passe', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Iniciar sessão', exact: true }).click();
   await expect(page).toHaveURL(/\/issues$/);
 }
 
@@ -75,9 +75,9 @@ test('speaks Portuguese where the browser asks for it, dates and all', async ({ 
   await shoot(page, info, 'inbox');
 
   await page.goto('/me');
-  await expect(page.getByRole('heading', { name: 'Seu perfil', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Perfil', exact: true })).toBeVisible();
   await expect(page.getByLabel('Idioma')).toHaveValue('');
-  await expect(page.getByLabel('Idioma').locator('option:checked')).toHaveText('Idioma do navegador: Português');
+  await expect(page.getByLabel('Idioma').locator('option:checked')).toHaveText('Idioma do browser: Português');
   // Each language by its own name, and marked as such for a screen reader.
   await expect(page.getByLabel('Idioma').locator('option[value="pt"]')).toHaveAttribute('lang', 'pt-PT');
   await shoot(page, info, 'profile');
@@ -89,12 +89,12 @@ test('says a problem in Portuguese to a browser in Brazil, on the sign-in page t
   const page = await context.newPage();
   await page.goto('/login');
   await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT');
-  await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
-  await page.getByLabel('Login', { exact: true }).fill(`ninguem.${unique()}`);
-  await page.getByLabel('Senha', { exact: true }).fill('senha-errada');
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Iniciar sessão' })).toBeVisible();
+  await page.getByLabel('Nome de utilizador', { exact: true }).fill(`ninguem.${unique()}`);
+  await page.getByLabel('Palavra-passe', { exact: true }).fill('senha-errada');
+  await page.getByRole('button', { name: 'Iniciar sessão', exact: true }).click();
   // The server's problem carries a key beside its English; the page says it in Portuguese.
-  await expect(page.getByText('Login ou senha incorretos.')).toBeVisible();
+  await expect(page.getByText('Nome de utilizador ou palavra-passe incorretos.')).toBeVisible();
   await expect(page.getByText('Wrong login or password')).toHaveCount(0);
   await shoot(page, info, 'sign-in');
   await context.close();
