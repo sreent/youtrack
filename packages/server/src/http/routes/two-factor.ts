@@ -14,6 +14,7 @@ import { requireScope, type Ctx } from '../../context';
 import { users } from '../../db/schema';
 import { AppError, conflict, forbidden, notFound, unauthorized } from '../../lib/errors';
 import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
+import { codesFollowPasswords, passkeyOwed } from '../../services/passkey-policy';
 import type { UserRow } from '../../services/schema-cache';
 import { getSetting } from '../../services/settings';
 import {
@@ -37,6 +38,8 @@ import { route } from '../route';
 import { startSessionFor } from './auth';
 
 const signInAgain = () => unauthorized('This sign-in timed out', 'Sign in again with your login and password.').said('signIn.timedOut');
+const passkeyNotCode = () =>
+  forbidden('Passkeys are required here', 'A code doesn’t stand in for one: finish signing in with one of your passkeys.').said('passkeys.requiredNotCode');
 
 /** Who a ticket is for, if they may still sign in. */
 async function ticketUser(runtime: Runtime, userId: string): Promise<UserRow | null> {
@@ -73,6 +76,8 @@ function inBrowser(ctx: Ctx, runtime: Runtime): void {
   if (ctx.actor.authMethod !== 'session') {
     throw forbidden('Two-factor sign-in is changed from a signed-in browser', 'Open Profile in a4a; a token can’t change how you sign in.').said('twoFactor.browserOnly');
   }
+  // Passkeys alone (D68): each one checks its person, and there's no password for a code to follow.
+  if (ctx.actor.user.passkeysOnly) throw codesFollowPasswords();
   if (!ctx.actor.user.passwordHash && !runtime.config.ldap) {
     throw conflict('You don’t sign in with a password here', 'Your identity provider asks for any second factor when you sign in with it.').said('twoFactor.noPassword');
   }
@@ -102,6 +107,8 @@ export function twoFactorRoutes(app: OpenAPIHono<HttpEnv>) {
       const ticket = await useTicket(runtime.db, token, 'verify');
       const user = ticket && (await ticketUser(runtime, ticket.userId));
       if (!token || !ticket || !user) throw signInAgain();
+      // Where passkeys are required of them, and they have one, a code doesn't stand in for it (D68).
+      if ((await passkeyOwed(runtime, user)) === 'owed') throw passkeyNotCode();
       const attempt = await codeAttempt(c, runtime, user.id);
       const took = await takeSecondFactor(runtime, user.id, body.code);
       if (!took) throw wrongCode();

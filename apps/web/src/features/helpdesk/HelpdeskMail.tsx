@@ -11,6 +11,14 @@ import { whenRead } from '../common/format';
 import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
+/** How a line of the log came: by mail, or words a desk that relays didn't pass on, written on a page (D67). */
+function viaWords(via: HelpdeskInbound['via']): string {
+  if (via === 'imap') return t('helpdesk.helpdeskMail.readFromTheMailbox');
+  if (via === 'page') return t('helpdesk.helpdeskMail.writtenOnItsPage');
+  if (via === 'portal') return t('helpdesk.helpdeskMail.writtenOnThePortal');
+  return t('helpdesk.helpdeskMail.postedByTheProvider');
+}
+
 const mailKeys = {
   mail: (key: string) => ['helpdesk-mail', key] as const,
   log: (key: string) => ['helpdesk-mail', key, 'log'] as const,
@@ -71,7 +79,7 @@ function Log({ projectKey }: { projectKey: string }) {
               </td>
               <td>
                 {m.subject || <span className="note">{t('helpdesk.helpdeskMail.noSubject')}</span>}
-                <span className="item-about">{tr('helpdesk.helpdeskMail.from', { v: m.sender || t('helpdesk.helpdeskMail.nobody'), t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: m.via === 'imap' ? t('helpdesk.helpdeskMail.readFromTheMailbox') : t('helpdesk.helpdeskMail.postedByTheProvider') })}</span>
+                <span className="item-about">{tr('helpdesk.helpdeskMail.from', { v: m.sender || t('helpdesk.helpdeskMail.nobody'), t0: (c: ReactNode) => <span className="mono">{c}</span>, v2: viaWords(m.via) })}</span>
               </td>
               <td>
                 <Badge tone={OUTCOME[m.outcome].tone}>{OUTCOME[m.outcome].word}</Badge> {m.issue ? <IssueLink id={m.issue} /> : null}

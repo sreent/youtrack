@@ -1,9 +1,9 @@
-import type { Me } from '@a4a/shared';
+import type { Me, MyPasskeys } from '@a4a/shared';
 import { NotifyKindsSettingsCard } from '../features/notifications/Kinds';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { patch } from '../api/client';
+import { ApiError, get, patch } from '../api/client';
 import { keys, useMe, useSetupStatus } from '../api/queries';
 import { ErrorLine, Loading, PageHead } from '../components/States';
 import { Avatar } from '../components/Who';
@@ -16,7 +16,7 @@ import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
 import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
-import { PasskeysSection } from '../features/identity/Passkeys';
+import { passkeyAt, passkeyKeys, PasskeysSection } from '../features/identity/Passkeys';
 import { ChatAccounts } from '../features/chat/Chat';
 import { t, tr, useLocaleNow } from '../i18n';
 import { isLocale, langTag, LOCALE_NAMES, LOCALES, matchLocale, type Locale } from '@a4a/shared/i18n';
@@ -139,15 +139,17 @@ function You({ me }: { me: Me }) {
   );
 }
 
-function Password({ me }: { me: Me }) {
+/** Changing your password; or, with passkeys alone (D68), setting one, after a recent sign-in or a passkey's proof. */
+function Password({ me, passwordless }: { me: Me; passwordless: boolean }) {
   const qc = useQueryClient();
+  const [proving, setProving] = useState(false);
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   const [changed, setChanged] = useState(false);
   const change = useMutation({
-    mutationFn: () => patch<Me>('/me', { password: next, currentPassword: current }),
+    mutationFn: () => patch<Me>('/me', passwordless ? { password: next } : { password: next, currentPassword: current }),
     onSuccess: () => {
       setCurrent('');
       setNext('');
@@ -155,8 +157,21 @@ function Password({ me }: { me: Me }) {
       setChanged(true);
       setSaid({ text: t('page.profile.yourPasswordIsChangedAnd') });
     },
-    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+    onError: (e) => {
+      // With passkeys alone, a password is a new way in: a passkey proves it's you, if the sign-in isn't recent.
+      if (passwordless && e instanceof ApiError && e.code === 'confirm_needed') setProving(true);
+      setSaid({ text: errorText(e), bad: true });
+    },
   });
+  const prove = async () => {
+    try {
+      await passkeyAt('/me/confirm/passkey/options', '/me/confirm/passkey');
+      setProving(false);
+      change.mutate();
+    } catch (e) {
+      setSaid({ text: errorText(e), bad: true });
+    }
+  };
   const mismatch = again.length > 0 && again !== next;
   return (
     <form
@@ -171,10 +186,13 @@ function Password({ me }: { me: Me }) {
       }}
     >
       <input type="text" name="username" autoComplete="username" value={me.login} readOnly hidden />
+      {passwordless ? <p className="note">{t('page.profile.noPasswordNow')}</p> : null}
       <div className="form-fields">
-        <FormField label={t('page.profile.currentPassword')}>
-          {(id) => <input id={id} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required autoComplete="current-password" />}
-        </FormField>
+        {passwordless ? null : (
+          <FormField label={t('page.profile.currentPassword')}>
+            {(id) => <input id={id} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required autoComplete="current-password" />}
+          </FormField>
+        )}
         <FormField label={t('page.profile.newPassword')} help={t('page.profile.atLeast8Characters')}>
           {(id, help) => (
             <input
@@ -212,10 +230,15 @@ function Password({ me }: { me: Me }) {
         {changed ? (
           <Link className="button" to="/login" onClick={() => qc.clear()}>{t('page.profile.signInAgain')}</Link>
         ) : (
-          <button type="submit" disabled={!current || next.length < 8 || mismatch || change.isPending}>
-            {change.isPending ? t('page.profile.changing') : t('page.profile.changeThePassword')}
+          <button type="submit" disabled={(!passwordless && !current) || next.length < 8 || mismatch || change.isPending}>
+            {change.isPending ? t('page.profile.changing') : passwordless ? t('page.profile.setAPassword') : t('page.profile.changeThePassword')}
           </button>
         )}
+        {proving ? (
+          <button type="button" onClick={() => void prove()}>
+            {t('page.profile.confirmWithAPasskey')}
+          </button>
+        ) : null}
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </div>
     </form>
@@ -226,13 +249,16 @@ function Password({ me }: { me: Me }) {
 export default function ProfilePage() {
   const me = useMe();
   const status = useSetupStatus();
+  // Whether you have a password at all (D68): an account with passkeys alone has none to change, nor codes to follow it.
+  const mine = useQuery({ queryKey: passkeyKeys.mine, queryFn: () => get<MyPasskeys>('/me/passkeys'), enabled: Boolean(me.data && !me.data.isBot) });
   if (!me.data) return <Loading what="loadingLine.profile" />;
   const m = me.data;
   const sso = status.data?.signIn.sso ?? status.data?.signIn.saml ?? null;
   const passwords = status.data?.signIn.password ?? true;
   const ldap = status.data?.signIn.ldap ?? null;
   // A code after the password, for whoever signs in with one: a4a's or the directory's (D38).
-  const signsInWithPassword = !m.isBot && ((passwords && m.signIn?.password !== false) || Boolean(ldap));
+  const passwordless = mine.data?.password?.set === false && mine.data.off !== 'account';
+  const signsInWithPassword = !m.isBot && !passwordless && ((passwords && m.signIn?.password !== false) || Boolean(ldap));
   return (
     <>
       <PageHead
@@ -300,7 +326,7 @@ export default function ProfilePage() {
       </section>
       <section className="card" aria-labelledby="password">
         <h2 id="password">{passwords ? t('page.profile.password') : t('page.profile.signingIn')}</h2>
-        {passwords ? <Password me={m} /> : <p className="note">{tr('page.profile.youSignInWithPasswords', { v: sso?.name ?? t('page.profile.singleSignOn') })}</p>}
+        {passwords ? <Password me={m} passwordless={passwordless} /> : <p className="note">{tr('page.profile.youSignInWithPasswords', { v: sso?.name ?? t('page.profile.singleSignOn') })}</p>}
         {passwords && sso ? <p className="note">{tr('page.profile.youCanAlsoSignIn', { name: sso.name, name2: sso.name })}</p> : null}
       </section>
       {signsInWithPassword ? (

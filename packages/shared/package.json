@@ -12,6 +12,7 @@
     "./refs": "./src/refs.ts",
     "./mentions": "./src/mentions.ts",
     "./whiteboard": "./src/whiteboard.ts",
+    "./ranks": "./src/ranks.ts",
     "./markdown": "./src/markdown.ts",
     "./i18n": "./src/i18n.ts",
     "./notes": "./src/notes.ts",

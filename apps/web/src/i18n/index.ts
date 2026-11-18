@@ -138,6 +138,15 @@ export function commandNote(said: unknown, note: unknown): string {
   return noteIn(translator, kept, english);
 }
 
+/**
+ * A note the server kept beside its English (D49), in the page's language: where a card was moved on a
+ * board, in its issue's history (D65). In the English it came in where a catalog lacks its words.
+ */
+export function keptNote(said: unknown, note: unknown): string {
+  const kept = said && typeof said === 'object' && typeof (said as { key?: unknown }).key === 'string' ? (said as { key: string; values?: Record<string, unknown> }) : null;
+  return noteIn(translator, kept, typeof note === 'string' ? note : '');
+}
+
 /** Words the shared package says with a translator (`@a4a/shared/notes`), said in the page's language. */
 export function inPage<T>(say: (tr: Translator) => T): T {
   return say(translator);

@@ -29,7 +29,8 @@ export const TICKET_TTL_MS = 10 * 60_000;
 export const TICKET_TRIES = 5;
 export const RECOVERY_CODE_COUNT = 10;
 
-export type TicketPurpose = 'verify' | 'enroll';
+/** `passkey`: passkeys are required of them and they have none: the sign-in adds one (D68). */
+export type TicketPurpose = 'verify' | 'enroll' | 'passkey';
 
 const keySource = (app: AppServices) => ({ secretKey: app.config.secretKey, dataDir: app.config.dataDir });
 

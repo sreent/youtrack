@@ -18,6 +18,10 @@
  *   address, forwarded to them: a4a mails them nothing of their own.
  * - Mail no person wrote (auto-replies, bounces, lists) and mail a4a or a desk sent itself is set
  *   aside, so nothing loops; a message whose own server says it failed DMARC is refused.
+ * - Whether a4a can trust who sent it (D67) is read once, from the Authentication-Results of a mail
+ *   server the administrator names: a new request's Cc is copied at once only then, or where its
+ *   desk doesn't hold it, else held for its requester; and only then are its words relayed to
+ *   everyone else on the request, where its desk relays them.
  * - Nobody is ever told of a message set aside or refused, so a forged sender gets no mail.
  */
 import { Readable } from 'node:stream';
@@ -37,6 +41,8 @@ import { handleTeamReply, teamReplyProject, teamReplyTokensOf } from '../service
 import { copiedOn, copyFromMail } from '../services/request-ccs';
 import { deskRecipient, replyTokenOf, splitAddress } from './addresses';
 import { clip, readMail, stripSignature, type MailFile, type ReadMail } from './reading';
+import { relaySaid, type RelayHow } from './relay';
+import { senderTrust, untrustedWords } from './trust';
 
 export interface Inbound {
   via: 'webhook' | 'imap';
@@ -56,7 +62,7 @@ const STALE_CLAIM_MS = 10 * 60_000;
 /** How long the log keeps what came in. */
 export const INBOUND_KEEP_MS = 30 * 24 * 3_600_000;
 /** Answers to mail that are a4a's own, and so may be cited by a reply. */
-const REQUEST_MAIL = ['request-received', 'request-reply', 'request-state'];
+const REQUEST_MAIL = ['request-received', 'request-reply', 'request-state', 'request-relay'];
 
 type Mailbox = { projectId: string; address: string };
 
@@ -154,6 +160,8 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   if (mail.failedSenderChecks) return { outcome: 'refused', reason: 'its own server says it failed DMARC, so it may not be from who it says' };
   if (await helpHit(app.db, [['mailDesk', desk.id]])) return { outcome: 'refused', reason: 'the help desk is taking too much mail just now' };
 
+  // Whom a4a can trust sent it (D67): its sender's domain passed DMARC at a mail server the administrator names.
+  const trust = senderTrust(mail.authResults, sender, app.config.helpdeskTrustedAuthservIds);
   const byToken = await replyTokenOf(app.db, tokens);
   const answered = byToken ? null : await answeredRequest(app.db, mail.answers, sender);
   const threaded = byToken || answered ? null : await threadOf(app.db, desk.id, mail.answers, sender);
@@ -167,13 +175,14 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
     if (byToken?.email && byToken.email.toLowerCase() !== sender) {
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address it wasn’t sent to`, issueId: found.issue.id };
     }
-    if (byToken?.email && !cc) return { outcome: 'refused', reason: `a reply ${how}, from someone no longer copied on it`, issueId: found.issue.id };
     // Someone of its customer group, where the group lets its members answer each other's (D56), writes
-    // as themselves: by the requester's reply address, forwarded to them, since a4a mails them nothing.
+    // as themselves: by the requester's reply address, forwarded to them; or, where its desk relays
+    // (D67), by the reply address of a relayed email a4a sent them, or answering one.
     const colleague =
-      !isRequester && !cc && byToken && !byToken.email
+      !isRequester && !cc && (byToken || answered)
         ? await commentingColleague(app.db, found.request, sender, clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text)
         : null;
+    if (byToken?.email && !cc && !colleague) return { outcome: 'refused', reason: `a reply ${how}, from someone no longer copied on it`, issueId: found.issue.id };
     if (!isRequester && !colleague && (!cc || (byToken && !byToken.email))) {
       return { outcome: 'refused', reason: `a reply ${how}, sent from an address that isn’t the requester’s`, issueId: found.issue.id };
     }
@@ -189,10 +198,14 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
     const author = cc
       ? await requesterByEmail(app.db, cc.email, clip(mail.from?.name || cc.name, HELP_LIMITS.name).text)
       : (colleague ?? { id: found.requester.id, name: found.requester.name });
-    const { commentId } = await postRequesterReply(app, found.issue, { id: author.id, name: author.name }, text, 'email', { colleague: Boolean(colleague) });
+    // Passed on to everyone else on it only when a4a can trust who wrote it (D67); its files never are, only how many came.
+    const relay: RelayHow = trust.trusted ? { on: 'email', sender, trusted: true } : { on: 'email', sender, trusted: false, why: trust.why };
+    const posted = await postRequesterReply(app, found.issue, { id: author.id, name: author.name }, text, 'email', { colleague: Boolean(colleague), relay, files: mail.files.length });
+    const commentId = posted.commentId;
     const left = commentId ? await keepFiles(app, desk.id, { kind: 'comment', issue: found.issue, commentId }, mail, reply.cut) : [];
     const said = cc ? `a reply ${how}, from someone copied on it` : colleague ? `a reply ${how}, from someone of its customer group` : `a reply ${how}`;
-    return { outcome: 'reply', reason: withLeftOut(withCopied(said, copied), [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
+    const relayed = relaySaid(posted.relay);
+    return { outcome: 'reply', reason: withLeftOut(withCopied(relayed ? `${said}; ${relayed}` : said, copied), [...mail.skipped, ...left]), issueId: found.issue.id, commentId };
   }
 
   // A new request.
@@ -202,13 +215,15 @@ async function handle(app: AppServices, desk: ProjectRow, boxes: Mailbox[], mail
   const description = clip(stripSignature(mail.text), HELP_LIMITS.description);
   const summary = clip(mail.subject || firstLine(description.text) || 'A request by email', HELP_LIMITS.summary).text;
   const name = clip(mail.from?.name || splitAddress(sender)?.local || sender, HELP_LIMITS.name).text;
-  // Whom the requester copied is copied on the request as it opens (D57).
+  // Whom the requester copied is copied on the request as it opens (D57), when a4a can trust who sent
+  // it or its desk doesn't hold a Cc; else it waits for the requester to confirm it (D67).
   const cc = mail.cc.map((c) => ({ email: c.address, name: c.name }));
-  const issue = await openRequest(app, desk, { name, email: sender, summary, description: description.text, via: 'email', threadId: mail.messageId, cc });
+  const ccHeld = cc.length > 0 && helpdesk.ccsConfirm && !trust.trusted;
+  const issue = await openRequest(app, desk, { name, email: sender, summary, description: description.text, via: 'email', threadId: mail.messageId, cc, ccHeld });
   const [row] = await app.db.select().from(issues).where(eq(issues.id, issue.uid));
-  const copied = issue.copied;
   const left = row ? await keepFiles(app, desk.id, { kind: 'issue', issue: row }, mail, description.cut) : [];
-  return { outcome: 'request', reason: withLeftOut(withCopied('a new request', copied), [...mail.skipped, ...left]), issueId: issue.uid };
+  const said = issue.held ? withHeld('a new request', issue.held, trust.trusted ? null : trust.why) : withCopied('a new request', issue.copied);
+  return { outcome: 'request', reason: withLeftOut(said, [...mail.skipped, ...left]), issueId: issue.uid };
 }
 
 /**
@@ -229,6 +244,14 @@ async function threadOf(db: Db, deskId: string, answers: string[], sender: strin
     ORDER BY r.created_at DESC LIMIT 1`);
   const rows = (res as unknown as { rows: { issue_id: string }[] }).rows;
   return rows[0]?.issue_id ?? null;
+}
+
+/** The log's words for whom a new request's Cc held for its requester to confirm (D67), and why, and whom it left out. */
+function withHeld(reason: string, held: { held: string[]; left: string[] }, why: Parameters<typeof untrustedWords>[0] | null): string {
+  const parts = [reason];
+  if (held.held.length) parts.push(`held ${held.held.join(', ')} for its requester to confirm, since ${why ? untrustedWords(why) : 'nobody vouched for its sender'}`);
+  if (held.left.length) parts.push(`left out of its Cc ${held.left.join(', ')}`);
+  return parts.join('; ');
 }
 
 /** The log's words for whom a message's Cc copied, and whom it left out. */

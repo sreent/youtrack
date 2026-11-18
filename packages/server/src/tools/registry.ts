@@ -388,17 +388,20 @@ const getBoardTool = defineTool({
     // api only: an MCP tool's, met by agents alone
     if (!b) throw new AppError(404, 'not_found', `No board "${input.board}"`, `Boards: ${boards.map((x) => x.name).join(', ')}`);
     const view = await boardView(ctx, b.id, input.sprint);
+    const laneField = view.swimlanes.length ? view.board.swimlaneField : null;
     return {
       data: {
         board: b.name,
         sprint: view.sprint ? { id: view.sprint.id, name: view.sprint.name, goal: view.sprint.goal, start: view.sprint.startDate, end: view.sprint.endDate } : null,
+        // Lanes (D53), and whether each keeps its own order (D65): then a card's place is among its lane's cards.
+        lanes: laneField ? { field: laneField, ownOrder: view.board.laneOrder } : null,
         columns: view.columns.map((c) => ({
           name: c.name,
           count: c.count,
           wipLimit: c.wipLimit,
           issues: c.issues.map((i) => {
             const f = fieldsMap(i.fields);
-            return { id: i.id, summary: i.summary, assignee: f.Assignee ?? null, priority: f.Priority ?? null };
+            return { id: i.id, summary: i.summary, assignee: f.Assignee ?? null, priority: f.Priority ?? null, ...(laneField ? { lane: f[laneField] ?? null } : {}) };
           }),
         })),
       },

@@ -6,9 +6,9 @@
  * without a reload. Each test has a project and a board of its own.
  */
 import type { Locator, Page } from '@playwright/test';
-import type { Board } from '@a4a/shared';
+import type { Backlog, Board, BoardView } from '@a4a/shared';
 import { fieldValue, uniqueKey, type Api } from './support/api';
-import { SECOND_AUTH_FILE } from './support/env';
+import { ADMIN, SECOND, SECOND_AUTH_FILE } from './support/env';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
 import { expect, test } from './support/fixtures';
 
@@ -163,8 +163,117 @@ test("dragged into another column at a place, a card's state and its place chang
   expect(now.version).toBe(version + 1);
 });
 
+/** A project and a board with a lane per assignee (D65), its lanes keeping the board's order until a manager says otherwise. */
+async function lanedBoard(api: Api, laneOrder = false): Promise<{ board: Board; key: string }> {
+  const key = uniqueKey('LN');
+  await api.createProject({ key, name: `Lanes ${key}` });
+  const board = await api.createBoard({
+    name: `Lanes ${key}`,
+    projects: [key],
+    swimlaneField: 'Assignee',
+    laneOrder,
+    columns: [
+      { name: 'Open', values: ['Open'] },
+      { name: 'Done', values: ['Fixed'] },
+    ],
+  });
+  for (const [summary, who] of [
+    ['Plan the data migration', SECOND.login],
+    ['Write the rollback steps', SECOND.login],
+    ['Book the maintenance window', SECOND.login],
+    ['Review the alert rules', ADMIN.login],
+    ['Rotate the on-call rota', ADMIN.login],
+  ]) {
+    await api.createIssue({ project: key, summary: summary!, fields: { State: 'Open', Assignee: who! } });
+  }
+  return { board, key };
+}
+
+const theirs = `Open, ${SECOND.name}`;
+const admins = `Open, ${ADMIN.name}`;
+const backlogOf = async (api: Api, board: Board) => (await api.get<Backlog>(`/boards/${board.id}/backlog`)).issues.map((i) => i.id);
+
+test("a board's lanes keep their own order: turned on by its manager, moved by keyboard and by pointer, the backlog keeping the board's", async ({ page, api }) => {
+  const { board } = await lanedBoard(api);
+  await page.goto(`/boards/${board.id}`);
+  await expect(column(page, theirs).locator('li.board-card')).toHaveCount(3);
+  const backlog = await backlogOf(api, board);
+
+  // Turned on from the board itself.
+  const setting = page.getByRole('checkbox', { name: 'Each lane keeps its own order' });
+  await expect(setting).not.toBeChecked();
+  const saved = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().endsWith(`/api/v1/boards/${board.id}`));
+  await setting.check();
+  expect((await saved).postDataJSON()).toEqual({ laneOrder: true });
+  await expect(status(page, 'Each lane keeps its own order now.')).toBeAttached();
+  await expect(setting).toBeChecked();
+
+  // From the keyboard: Alt and Up, twice, takes the last of a lane to its top.
+  const [t0, t1, t2] = await order(page, theirs);
+  await idButton(page, t2!).focus();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(status(page, `Moved ${t2} above ${t1}.`)).toBeAttached();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(status(page, `Moved ${t2} above ${t0}.`)).toBeAttached();
+  await expect.poll(() => order(page, theirs)).toEqual([t2, t0, t1]);
+  await expect(idButton(page, t2!)).toBeFocused();
+  // A lane's moves leave the board's own order, the backlog's, as it was.
+  expect(await backlogOf(api, board)).toEqual(backlog);
+  await page.screenshot({ path: test.info().outputPath('board-lanes-light.png') });
+  await expectAccessible(page);
+
+  // By pointer: within a lane, then into another lane at a place in that lane's order.
+  const [a0, a1] = await order(page, admins);
+  await pickUp(page, a1!);
+  await carryOnto(page, cardOf(page, a0!), 'upper', `Drop it to put ${a1} above ${a0}`);
+  await page.mouse.up();
+  await expect.poll(() => order(page, admins)).toEqual([a1, a0]);
+  const moved = ranked(page, board);
+  await pickUp(page, a0!);
+  // Into the lane from its side, through its empty Done cell: coming in from above, the slot would open above every card.
+  const onto = (await cardOf(page, t2!).boundingBox())!;
+  const side = (await column(page, `Done, ${SECOND.name}`).boundingBox())!;
+  await page.mouse.move(side.x + side.width / 2, onto.y + onto.height * 0.75, { steps: 12 });
+  await carryOnto(page, cardOf(page, t2!), 'lower', `Drop it below ${t2} to give ${a0} to ${SECOND.name}`);
+  await page.mouse.up();
+  expect((await moved).postDataJSON()).toMatchObject({ issue: a0, column: 'Open', lane: SECOND.login, after: t2 });
+  await expect.poll(() => order(page, theirs)).toEqual([t2, a0, t0, t1]);
+  expect(fieldValue(await api.issue(a0!), 'Assignee')).toBe(SECOND.login);
+  expect(await backlogOf(api, board)).toEqual(backlog);
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.screenshot({ path: test.info().outputPath('board-lanes-dark.png') });
+  await expectAccessible(page);
+  await page.emulateMedia({ colorScheme: 'light' });
+
+  // Its issue's history says where it went, once for the two moves in a row.
+  await page.goto(`/issues/${t2}`);
+  await expect(page.getByText(`moved it above ${t0} on ${board.name}`)).toBeVisible();
+  await expect(page.getByText(`moved it above ${t1} on`)).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('board-lanes-history.png') });
+});
+
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test("a board whose lanes keep their own order, and a card's place in its history, fit the screen", async ({ page, api }) => {
+    const { board } = await lanedBoard(api, true);
+    const view = await api.get<BoardView>(`/boards/${board.id}/view`);
+    const assignee = (id: string) => (view.columns[0]!.issues.find((i) => i.id === id)?.fields.find((f) => f.name === 'Assignee')?.value as { login?: string } | null)?.login;
+    const [first, , last] = view.order.filter((id) => assignee(id) === SECOND.login);
+    await api.post(`/boards/${board.id}/rank`, { issue: last, before: first, column: 'Open' });
+    await page.goto(`/boards/${board.id}`);
+    await expect(page.getByRole('checkbox', { name: 'Each lane keeps its own order' })).toBeChecked();
+    await expect.poll(() => order(page, theirs)).toEqual([last, first, expect.any(String)]);
+    await page.screenshot({ path: test.info().outputPath('board-lanes-phone.png') });
+    await expectNoSidewaysScroll(page);
+    await page.goto(`/issues/${last}`);
+    const line = page.getByText(`moved it above ${first} on ${board.name}`);
+    await expect(line).toBeVisible();
+    await line.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath('board-lanes-history-phone.png') });
+    await expectNoSidewaysScroll(page);
+  });
 
   test('a card held still is picked up; a finger that moves at once swipes through the columns', async ({ page, api }) => {
     const board = await boardWith(api, [

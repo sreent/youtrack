@@ -559,7 +559,7 @@ export default function IssuePage() {
           ) : (
             <Loading what="loadingLine.fields" />
           )}
-          <RequestCard issue={data} canEdit={canWrite} />
+          <RequestCard issue={data} canEdit={canWrite} canManage={project.data?.access.manage ?? false} />
           {data.source ? <ChatSourceCard source={data.source} /> : null}
           <VisibleToCard issue={data} canEdit={canWrite} />
           <WatchersCard issue={data.id} />

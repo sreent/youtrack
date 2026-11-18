@@ -1,18 +1,19 @@
-import type { CaptchaChallenge, CaptchaSolution, PortalDesk, PortalMe, PortalRequest, PortalRequestDetail, PortalSignInMethods } from '@a4a/shared';
+import type { CaptchaChallenge, CaptchaSolution, CcConfirmation, CcConfirmed, PortalDesk, PortalMe, PortalRequest, PortalRequestDetail, PortalSignInMethods } from '@a4a/shared';
 import { HELP_LIMITS } from '@a4a/shared/constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { ApiError, get, patch, post, put } from '../api/client';
+import { api, ApiError, get, patch, post, put, qs } from '../api/client';
 import { Lone } from '../app/Auth';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading } from '../components/States';
 import { Avatar, Who } from '../components/Who';
-import { FormField } from '../features/common/bits';
+import { errorText, FormField } from '../features/common/bits';
 import { solveCaptcha } from '../features/helpdesk/pow';
+import { PortalNotMe, PortalPasskeyButton, PortalPasskeysSection, usePortalPasskeySignIn } from '../features/helpdesk/PortalPasskeys';
 import { whenRead } from '../features/common/format';
-import { formatList, t, tr } from '../i18n';
+import { formatList, intlLocale, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 /** A sign-in link's token is in the fragment, which never leaves the browser: it's sent once, then dropped. */
@@ -21,10 +22,22 @@ function linkToken(): string {
   return /^hdl_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
 }
 
+/** The link that confirms whom a new request's Cc named (D67) carries its token the same way. */
+function confirmToken(): string {
+  const t = window.location.hash.replace(/^#/, '').trim();
+  return /^hdc_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
+}
+
 /** A link to set a password (D63) carries its token the same way. */
 function passwordToken(): string {
   const t = window.location.hash.replace(/^#/, '').trim();
   return /^hdp_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
+}
+
+/** A mail's "this wasn't me" link about their passkeys (D69) carries its token the same way. */
+function alertToken(): string {
+  const t = window.location.hash.replace(/^#/, '').trim();
+  return /^hdk_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
 }
 
 /** The desk whose page this is: named, or the one a request's id names (an email to someone copied links to it, D57). */
@@ -92,6 +105,8 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
   const [error, setError] = useState<unknown>(null);
   const failed = new URLSearchParams(window.location.search).get('sso');
   const failure = failed ? ssoFailure(failed) : null;
+  // A passkey (D69): from the email field's autofill where the browser offers it, and a button.
+  const passkeys = usePortalPasskeySignIn(Boolean(methods.data?.passkey) && !sent, desk, onSignedIn);
   if (methods.error) return <Lone><ErrorNote error={methods.error} /></Lone>;
   if (!methods.data) return <Loone />;
   const m = methods.data;
@@ -154,7 +169,9 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
           {byEmail ? (
             <form className="form" onSubmit={m.password ? signIn : (e) => { e.preventDefault(); void sendLink('link'); }} aria-label={m.password ? t('page.portal.signInWithYourPassword') : t('page.portal.signInWithYourEmail')}>
               <p className="note">{intro}</p>
-              <FormField label={t('page.portal.yourEmail')}>{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+              <FormField label={t('page.portal.yourEmail')}>
+                {(id) => <input id={id} type="email" required autoComplete={passkeys.on ? 'username webauthn' : 'email'} value={email} onChange={(e) => setEmail(e.target.value)} />}
+              </FormField>
               {m.password ? (
                 <FormField label={t('page.portal.password')}>
                   {(id) => <input id={id} type="password" autoComplete="current-password" value={password} maxLength={200} onChange={(e) => setPassword(e.target.value)} />}
@@ -180,6 +197,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
               </div>
             </form>
           ) : null}
+          <PortalPasskeyButton passkeys={passkeys} />
         </>
       )}
     </Lone>
@@ -273,7 +291,7 @@ function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe)
   return (
     <section className="stack tight" aria-labelledby="portal-sign-in">
       <h2 id="portal-sign-in">{t('page.portal.howYouSignIn')}</h2>
-      <p className="note">{t('page.portal.signedInWith', { method: via.method, provider: via.provider?.name ?? '' })}</p>
+      <p className="note">{via.method === 'passkey' ? t('page.portal.signedInWithPasskey') : t('page.portal.signedInWith', { method: via.method, provider: via.provider?.name ?? '' })}</p>
       {me.elsewhere.map((d) => (
         <div key={d.desk.key} className="cluster">
           <p className="note">
@@ -282,6 +300,7 @@ function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe)
               ways: formatList([
                 ...(d.password ? [t('page.portal.wayPassword')] : []),
                 ...(d.link ? [t('page.portal.wayLink')] : []),
+                ...(d.passkey ? [t('page.portal.wayPasskey')] : []),
                 ...d.providers.map((p) => p.name),
               ], 'disjunction'),
             })}
@@ -367,6 +386,20 @@ function Copied({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalR
   const [error, setError] = useState<unknown>(null);
   const [said, setSaid] = useState<string | null>(null);
   if (!r.ccs) return null;
+  // Its requester takes anyone off (D67), whoever copied them: they hear nothing more of it.
+  const stop = async (who: string) => {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      onChange(await api<PortalRequestDetail>('DELETE', `/portal/requests/${encodeURIComponent(r.id)}/ccs${qs({ email: who })}`));
+      setSaid(t('page.portal.noLongerCopied', { email: who }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
   const copy = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -389,14 +422,18 @@ function Copied({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalR
       {r.ccs.length ? (
         <ul className="plain stack tight">
           {r.ccs.map((c) => (
-            <li key={c.email}>
+            <li key={c.email} className="split">
               <Who kind="person" name={c.name || c.email} about={c.name ? `${c.email} · ${c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')}` : c.byYou ? t('page.portal.copiedByYou') : t('page.portal.copiedByTheTeam')} small />
+              <button type="button" className="link" disabled={busy} aria-label={t('page.portal.stopCopyingWho', { email: c.email })} onClick={() => void stop(c.email)}>
+                {t('page.portal.stopCopying')}
+              </button>
             </li>
           ))}
         </ul>
       ) : (
         <p className="note">{t('page.portal.nobodyCopied')}</p>
       )}
+      {r.ccs.length >= r.ccsMax ? <p className="note">{t('page.portal.capReached', { max: r.ccsMax })}</p> : null}
       <form className="form" onSubmit={copy} aria-label={t('page.portal.copySomeone')}>
         <FormField label={t('page.portal.theirEmail')} help={t('page.portal.copyHelp')}>
           {(fid, helpId) => <input id={fid} type="email" required autoComplete="off" maxLength={HELP_LIMITS.email} aria-describedby={helpId} value={email} onChange={(e) => setEmail(e.target.value)} />}
@@ -410,6 +447,148 @@ function Copied({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalR
       </form>
       {said ? <p role="status" className="outcome">{said}</p> : null}
     </section>
+  );
+}
+
+/**
+ * Whom the Cc of the email that opened a request named, when a4a couldn't be sure who sent it (D67):
+ * held, told nothing, until its requester copies them here or drops them.
+ */
+function Held({ r, onChange }: { r: PortalRequestDetail; onChange: (d: PortalRequestDetail) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  if (!r.held?.length) return null;
+  const settle = async (email: string, copy: boolean) => {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      onChange(await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(r.id)}/held-ccs`, { email, copy }));
+      setSaid(copy ? t('page.portal.nowCopied', { email }) : t('page.portal.heldDropped', { email }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="stack tight" aria-labelledby="portal-held">
+      <h3 id="portal-held">{t('page.portal.heldTitle')}</h3>
+      <p className="note">{t('page.portal.heldNote')}</p>
+      <ul className="plain stack tight">
+        {r.held.map((h) => (
+          <li key={h.email} className="split">
+            <Who kind="person" name={h.name || h.email} about={h.name ? h.email : undefined} small />
+            <div className="cluster">
+              <button type="button" disabled={busy} aria-label={t('page.portal.copyHeldWho', { email: h.email })} onClick={() => void settle(h.email, true)}>
+                {t('page.portal.copyHeld')}
+              </button>
+              <button type="button" className="link" disabled={busy} aria-label={t('page.portal.dropHeldWho', { email: h.email })} onClick={() => void settle(h.email, false)}>
+                {t('page.portal.dropHeld')}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {error ? <ErrorNote error={error} /> : null}
+      {said ? <p role="status" className="outcome">{said}</p> : null}
+    </section>
+  );
+}
+
+/**
+ * The link in a new request's acknowledgement (D67): whom its Cc named, to copy or not, once, without
+ * signing in, since the link came to the requester's address. Opening it changes nothing.
+ */
+function ConfirmCopies({ token }: { token: string }) {
+  const headers = { 'x-cc-confirmation': token };
+  const q = useQuery({ queryKey: ['portal', 'cc-confirmation', token], queryFn: () => get<CcConfirmation>('/portal/cc-confirmation', { headers }), retry: false });
+  const [chosen, setChosen] = useState<Set<string> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [done, setDone] = useState<CcConfirmed | null>(null);
+  useEffect(() => {
+    document.title = t('page.portal.confirm.title');
+  }, []);
+  if (q.error) {
+    return (
+      <Lone>
+        <h1>{t('page.portal.confirm.title')}</h1>
+        <ErrorNote error={q.error} />
+        <a href="/portal">{t('page.portal.confirm.openPortal')}</a>
+      </Lone>
+    );
+  }
+  if (!q.data) return <Loone />;
+  const c = q.data;
+  const picked = chosen ?? new Set(c.held.map((h) => h.email));
+  const toggle = (email: string, on: boolean) => {
+    const next = new Set(picked);
+    if (on) next.add(email);
+    else next.delete(email);
+    setChosen(next);
+  };
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      setDone(await post<CcConfirmed>('/portal/cc-confirmation', { copy: [...picked] }, { headers }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const portal = `/portal?request=${encodeURIComponent(c.request.id)}`;
+  return (
+    <Lone>
+      <h1>{t('page.portal.confirm.title')}</h1>
+      {done ? (
+        <div className="stack">
+          <p role="status" className="outcome">
+            {t('page.portal.confirm.copied', { count: done.copied.length })}
+          </p>
+          {done.dropped.length ? <p className="note">{t('page.portal.confirm.dropped', { count: done.dropped.length })}</p> : null}
+          {done.refused.length ? (
+            <ul className="plain stack tight">
+              {done.refused.map((x) => (
+                <li key={x.email} className="note">
+                  {t('page.portal.confirm.notCopied', { email: x.email, why: errorText(x) })}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <a href={portal}>{t('page.portal.confirm.openPortal')}</a>
+        </div>
+      ) : c.held.length ? (
+        <form className="form" onSubmit={send}>
+          <p>{t('page.portal.confirm.lead', { desk: c.request.desk, summary: c.request.summary })}</p>
+          <fieldset className="unframed form" disabled={busy}>
+            <legend>{t('page.portal.confirm.chooseLabel')}</legend>
+            {c.held.map((h) => (
+              <label key={h.email} className="choice">
+                <input type="checkbox" checked={picked.has(h.email)} onChange={(e) => toggle(h.email, e.target.checked)} />
+                <Who kind="person" name={h.name || h.email} about={h.name ? h.email : undefined} small />
+              </label>
+            ))}
+          </fieldset>
+          {error ? <ErrorNote error={error} /> : null}
+          <p className="note">{t('page.portal.confirm.until', { date: new Date(c.expiresAt).toLocaleString(intlLocale(), { dateStyle: 'medium', timeStyle: 'short' }) })}</p>
+          <div className="cluster end">
+            <button type="submit" className="primary" disabled={busy}>
+              {busy ? t('page.portal.confirm.saving') : t('page.portal.confirm.copyThem')}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="stack">
+          <p className="note">{t('page.portal.confirm.nobody')}</p>
+          <a href={portal}>{t('page.portal.confirm.openPortal')}</a>
+        </div>
+      )}
+    </Lone>
   );
 }
 
@@ -483,6 +662,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
       ) : (
         <p className="note">{tr('page.portal.sharedReadOnly', { name: r.requester.name, group: r.group ?? '' })}</p>
       )}
+      <Held r={r} onChange={(d) => qc.setQueryData(['portal', 'request', id], d)} />
       <Copied r={r} onChange={(d) => qc.setQueryData(['portal', 'request', id], d)} />
     </section>
   );
@@ -548,6 +728,9 @@ export default function PortalPage() {
   const qc = useQueryClient();
   const [token, setToken] = useState(linkToken);
   const [settingPassword, setSettingPassword] = useState(passwordToken);
+  // The link that confirms whom a new request's Cc named (D67): a page of its own, signed in or not.
+  const [confirming] = useState(confirmToken);
+  const [alert, setAlert] = useState(alertToken);
   const desk = deskOfPage();
   // A sign-in link opened where the portal already is changes only the address's hash: take it then too.
   useEffect(() => {
@@ -556,6 +739,8 @@ export default function PortalPage() {
       if (next) setToken(next);
       const chosen = passwordToken();
       if (chosen) setSettingPassword(chosen);
+      const told = alertToken();
+      if (told) setAlert(told);
     };
     window.addEventListener('hashchange', taken);
     return () => window.removeEventListener('hashchange', taken);
@@ -563,7 +748,7 @@ export default function PortalPage() {
   const [redeemError, setRedeemError] = useState<unknown>(null);
   // An email to someone copied on a request links to it here (D57): opened once they're signed in.
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
-  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword });
+  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword && !confirming && !alert });
   useEffect(() => {
     if (!token) return;
     history.replaceState(null, '', window.location.pathname);
@@ -580,6 +765,7 @@ export default function PortalPage() {
     document.title = t('page.portal.yourRequests');
   }, []);
 
+  if (confirming) return <ConfirmCopies token={confirming} />;
   if (redeemError) {
     return (
       <Lone>
@@ -594,6 +780,7 @@ export default function PortalPage() {
     setSettingPassword('');
     void qc.invalidateQueries({ queryKey: ['portal'], predicate: (q) => q.queryKey[1] !== 'me' });
   };
+  if (alert) return <PortalNotMe token={alert} />;
   if (settingPassword) return <ChoosePassword token={settingPassword} onSignedIn={signedInNow} />;
   if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
   if (!me.data) {
@@ -658,6 +845,7 @@ export default function PortalPage() {
             </div>
           </form>
           <HowYouSignIn me={m} onChange={(x) => qc.setQueryData(['portal', 'me'], x)} />
+          <PortalPasskeysSection me={m} />
         </div>
       )}
     </Lone>

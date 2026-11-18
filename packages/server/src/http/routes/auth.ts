@@ -25,10 +25,11 @@ import { serverTimeZone } from '../../reports/tz';
 import { AppError, badRequest, unauthorized } from '../../lib/errors';
 import { projectAccess } from '../../services/access';
 import { createToken, listTokens, login, logout, needsSetup, passwordUser, revokeToken, SESSION_COOKIE, startSession, updateToken, type SignInHow } from '../../services/auth';
-import { hasWorkingPasskey, mayHavePasskeys, passkeysOff } from '../../services/passkeys';
+import { browserOnly, hasWorkingPasskey, mayHavePasskeys, passkeysOff, requireRecent, sessionRef } from '../../services/passkeys';
+import { passkeyOwed, passkeysOnlyAccount, passkeysOnlySignIn } from '../../services/passkey-policy';
 import { ldapSignIn } from '../../services/ldap';
 import type { UserRow } from '../../services/schema-cache';
-import { hasTwoFactor, issueTicket, secondStepFor, TICKET_COOKIE, TICKET_COOKIE_PATH } from '../../services/two-factor';
+import { hasTwoFactor, issueTicket, secondStepFor, TICKET_COOKIE, TICKET_COOKIE_PATH, type TicketPurpose } from '../../services/two-factor';
 import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
@@ -145,7 +146,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       // a4a's own password first, then the directory's (D38).
       const own = runtime.config.passwordLogin ? await passwordUser(runtime.db, body.login, body.password) : null;
       const user = own ?? (ldap ? await ldapSignIn(runtime, ldap, body.login, body.password) : null);
-      if (!user) throw unauthorized('Wrong login or password').said('wrongLogin');
+      if (!user) {
+        // An account with passkeys alone has no password to get wrong (D68): it's told what signs it in.
+        if (runtime.config.passwordLogin && (await passkeysOnlyAccount(runtime.db, body.login))) throw passkeysOnlySignIn();
+        throw unauthorized('Wrong login or password').said('wrongLogin');
+      }
       await attempt.succeeded();
       return afterPassword(c, runtime, user, own ? 'password' : 'ldap');
     },
@@ -160,7 +165,13 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(app, { method: 'get', path: '/me', tags, summary: 'Who you are, and what this session or token may do', response: MeSchema }, async ({ ctx }) => meDto(ctx));
 
-  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email, password, time zone or working week', body: UpdateMeBody, response: MeSchema }, async ({ ctx, body }) => {
+  route(app, { method: 'patch', path: '/me', tags, summary: 'Change your name, email, password, time zone or working week', body: UpdateMeBody, response: MeSchema }, async ({ c, ctx, body }) => {
+    // With passkeys alone (D68), a password is a new way in: a signed-in browser, and a sign-in or proof from the last ten minutes.
+    if (body.password && ctx.actor.user.passkeysOnly) {
+      const session = ctx.actor.authMethod === 'session' ? await sessionRef(ctx.db, getCookie(c, SESSION_COOKIE)) : null;
+      if (!session) throw browserOnly();
+      requireRecent(session);
+    }
     const user = await updateMe(ctx, body);
     // Answer with you as saved: the row the request began with is from before the change.
     const [row] = await ctx.db.select().from(users).where(eq(users.id, ctx.actor.user.id));
@@ -208,10 +219,17 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
   });
 }
 
-/** A password was right: a session, or first the step two-factor sign-in still asks for (D38): a code, or a passkey (D62). */
+/**
+ * A password was right: a session, or first the step still owed: a code, or a passkey in its place
+ * (D38, D62). Where passkeys are required of them (D68), the step is one of their passkeys, or adding
+ * one now; someone an administrator let off gives a code instead, setting an app up if they have none.
+ */
 async function afterPassword(c: Context<HttpEnv>, runtime: Runtime, user: UserRow, first: 'password' | 'ldap'): Promise<Me | SignInStep> {
   const passkey = mayHavePasskeys(user) && (await passkeysOff(runtime)) === null && (await hasWorkingPasskey(runtime, user.id));
-  const step = await secondStepFor(runtime.db, user.id, passkey);
+  const owed = await passkeyOwed(runtime, user);
+  const code = await hasTwoFactor(runtime.db, user.id);
+  const step: TicketPurpose | null =
+    owed === 'owed' ? (passkey ? 'verify' : 'passkey') : owed === 'exempt' ? (code || passkey ? 'verify' : 'enroll') : await secondStepFor(runtime.db, user.id, passkey);
   if (!step) return startSessionFor(c, runtime, user, { with: first });
   const ticket = await issueTicket(runtime.db, user.id, step);
   setCookie(c, TICKET_COOKIE, ticket.token, {
@@ -221,7 +239,8 @@ async function afterPassword(c: Context<HttpEnv>, runtime: Runtime, user: UserRo
     secure: runtime.config.publicUrl.startsWith('https://'),
     expires: ticket.expiresAt,
   });
-  return step === 'verify' ? { step: 'two_factor', code: await hasTwoFactor(runtime.db, user.id), passkey } : { step: 'two_factor_setup' };
+  if (step === 'passkey') return { step: 'passkey_setup', code };
+  return step === 'verify' ? { step: 'two_factor', code: owed === 'owed' ? false : code, passkey } : { step: 'two_factor_setup' };
 }
 
 /** Signed in: a new session, its cookie, and who they are. The session says how (D62). */

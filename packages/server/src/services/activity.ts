@@ -1,18 +1,22 @@
 import type { TrackerEvent } from '@a4a/shared';
-import { and, asc, desc, eq, gt, gte, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, ne, type SQL } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
-import { activities } from '../db/schema';
+import { activities, boardMoves, boards } from '../db/schema';
 import { toEventDto } from '../events/activity';
+import { translatorFor } from '../i18n';
 import { parseDateExpression } from '../lib/dates';
 import { badRequest } from '../lib/errors';
 import { startOfDay, todayIn } from '../reports/tz';
-import { eventFor, eventsFieldsSql, eventsVisibleSql, projectAccess } from './access';
+import { eventFor, eventsFieldsSql, eventsVisibleSql, projectAccess, seenIssueIds, type AccessView } from './access';
 import { undoStandings } from './agents';
 import { resolveIssue } from './issues';
-import { projectByKey } from './schema-cache';
+import { projectByKey, type SchemaSnapshot } from './schema-cache';
 import { zoneOf } from './time-zones';
 
-/** An issue's history, leaving out links to issues the caller can't see; an agent's change says whether it can be undone. */
+/**
+ * An issue's history, leaving out links to issues the caller can't see; an agent's change says whether
+ * it can be undone. Its card's moves on boards are a line for each run of them (D65), not every move.
+ */
 export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Promise<TrackerEvent[]> {
   requireScope(ctx, 'read');
   const s = await ctx.app.schema.get();
@@ -22,14 +26,52 @@ export async function issueActivity(ctx: Ctx, issueId: string, limit = 200): Pro
   const rows = await ctx.db
     .select()
     .from(activities)
-    .where(and(eq(activities.issueId, issue.id), seen, eventsFieldsSql(view, s)))
+    .where(and(eq(activities.issueId, issue.id), ne(activities.type, 'board.issue_ranked'), seen, eventsFieldsSql(view, s)))
     .orderBy(asc(activities.id))
     .limit(limit);
   // A change to a private field kept from them isn't there (D50).
   const events = rows.map((r) => eventFor(view, s, toEventDto(s, r))).filter((e): e is TrackerEvent => e !== null);
   // A change an agent made on its own says whether a person can still undo it (D34).
   const standings = await undoStandings(ctx.db, s, events);
-  return events.map((e) => (standings.has(e.id) ? { ...e, undo: standings.get(e.id) } : e));
+  const said = events.map((e) => (standings.has(e.id) ? { ...e, undo: standings.get(e.id) } : e));
+  const moves = await movesInHistory(ctx, view, s, issue.id, limit);
+  return [...said, ...moves].sort((a, b) => a.id - b.id).slice(0, limit);
+}
+
+type KeptNote = { key: string; values?: Record<string, string | number> };
+
+/**
+ * A card's moves, a line for each run (D65): each as the run's last `board.issue_ranked`, with how many
+ * moves it holds and its place as a kept note. It names the anchor and the board only to a reader who
+ * sees them now, and says less to anyone else ("changed its place", "on a board"); the event's own
+ * board goes with it.
+ */
+async function movesInHistory(ctx: Ctx, view: AccessView, s: SchemaSnapshot, issueId: string, limit: number): Promise<TrackerEvent[]> {
+  const lines = await ctx.db.select().from(boardMoves).where(eq(boardMoves.issueId, issueId)).orderBy(asc(boardMoves.lastEventId)).limit(limit);
+  if (!lines.length) return [];
+  const rows = await ctx.db.select().from(activities).where(inArray(activities.id, lines.map((l) => l.lastEventId)));
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const anchors = await seenIssueIds(ctx, lines.flatMap((l) => (l.anchorId ? [l.anchorId] : [])));
+  const boardIds = [...new Set(lines.flatMap((l) => (l.boardId ? [l.boardId] : [])))];
+  const boardRows = boardIds.length ? await ctx.db.select({ id: boards.id, projectIds: boards.projectIds }).from(boards).where(inArray(boards.id, boardIds)) : [];
+  const seenBoards = new Set(boardRows.filter((b) => b.projectIds.some((id) => view.canRead(id))).map((b) => b.id));
+  const english = translatorFor('en');
+  return lines.flatMap((l) => {
+    const row = byId.get(l.lastEventId);
+    const event = row ? eventFor(view, s, toEventDto(s, row)) : null;
+    if (!event) return [];
+    const sees = { anchor: l.anchorId !== null && anchors.has(l.anchorId), board: l.boardId !== null && seenBoards.has(l.boardId) };
+    const kept = l.said as KeptNote;
+    const values = { ...kept.values, ...(sees.anchor || l.side === 'top' ? {} : { side: 'moved', anchor: '' }), ...(sees.board ? {} : { onBoard: 'no', board: '' }) };
+    const said = { key: kept.key, values };
+    const { boardId, board, ...data } = event.data as Record<string, unknown>;
+    return [
+      {
+        ...event,
+        data: { ...data, ...(sees.board ? { boardId, board } : {}), moves: l.moves, firstAt: l.firstAt.toISOString(), said, note: sees.anchor && sees.board ? l.note : english.t(said.key, values) },
+      },
+    ];
+  });
 }
 
 export interface EventFeedOptions {

@@ -15,7 +15,7 @@ import type {
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lte, sql, type SQL } from 'drizzle-orm';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { activities, helpdeskRequests, notificationEvents, notifications, notificationSettings, subscriptions } from '../db/schema';
+import { activities, helpdeskRequests, notificationEvents, notifications, notificationSettings, requestRelayStops, requesters, subscriptions } from '../db/schema';
 import { toEventDto } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { DEFAULT_PREFS, emailPrefs } from '../notify/notifier';
@@ -238,8 +238,8 @@ async function saveSettings(db: Db, userId: string, input: { email?: EmailLevel;
  * A requester's link stops email about their one request. Someone copied on a request (D57) stops
  * being copied: they're told nothing more of it, and their replies by email are refused.
  */
-export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription' | 'cc';
-const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription', 'cc'];
+export type UnsubscribeKind = 'watching' | 'direct' | 'digest' | 'request' | 'subscription' | 'cc' | 'relay';
+const KINDS: UnsubscribeKind[] = ['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'];
 
 const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
   watching: 'Emails about changes and comments on issues you watch. Mentions and assignments still come by email.',
@@ -247,6 +247,7 @@ const WORDS: Record<Exclude<UnsubscribeKind, 'subscription'>, string> = {
   digest: 'The daily digest.',
   request: 'Emails about this request. Its page still shows every reply.',
   cc: 'Emails about this request: you stop being copied on it.',
+  relay: 'Emails passing on what others write on this request. The portal still shows every reply.',
 };
 
 /** What a link stops, in words: a subscription's, by what it tells of. */
@@ -257,7 +258,11 @@ async function wordsFor(app: AppServices, kind: UnsubscribeKind, subject: string
   return { what: `Emails about ${aboutInline(about.about)}. Your inbox in a4a still has them.`, subscription: { target: about.target, events: about.events, name: about.name } };
 }
 
-/** For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the request's issue id; for a CC's, its row's id. */
+/**
+ * For a person's kinds, `subject` is their user id; for a subscription's, its id; for a requester's, the
+ * request's issue id; for a CC's, its row's id; for a colleague hearing a request's relayed words (D67),
+ * the request's issue id and their requester id, joined by "-".
+ */
 export async function unsubscribeToken(app: AppServices, kind: UnsubscribeKind, subject: string): Promise<string> {
   return `${kind}.${subject}.${await sign(app, 'unsubscribe', `${kind}.${subject}`)}`;
 }
@@ -289,6 +294,11 @@ async function isStopped(db: Db, kind: UnsubscribeKind, subject: string): Promis
     const cc = await ccById(db, subject);
     return !cc || cc.removedAt !== null;
   }
+  if (kind === 'relay') {
+    const [issueId, requesterId] = subject.split('-');
+    const [stop] = await db.select().from(requestRelayStops).where(and(eq(requestRelayStops.issueId, issueId ?? ''), eq(requestRelayStops.requesterId, requesterId ?? '')));
+    return Boolean(stop);
+  }
   const prefs = await emailPrefs(db, subject);
   if (kind === 'digest') return !prefs.digest;
   if (kind === 'watching') return prefs.email !== 'all';
@@ -309,6 +319,12 @@ export async function applyUnsubscribe(app: AppServices, token: string): Promise
   } else if (kind === 'cc') {
     // They stop being copied (D57), and the request's history says they did.
     await stopCopy(app, subject);
+  } else if (kind === 'relay') {
+    // A colleague who answered stops hearing the others' words on it (D67); a request gone stops them already.
+    const [issueId, requesterId] = subject.split('-');
+    const [request] = await app.db.select({ id: helpdeskRequests.issueId }).from(helpdeskRequests).where(eq(helpdeskRequests.issueId, issueId ?? ''));
+    const [requester] = await app.db.select({ id: requesters.id }).from(requesters).where(eq(requesters.id, requesterId ?? ''));
+    if (request && requester) await app.db.insert(requestRelayStops).values({ issueId: request.id, requesterId: requester.id }).onConflictDoNothing();
   } else {
     const s = await app.schema.get();
     if (!s.users.get(subject)) throw notFound('This unsubscribe link').said('notifications.unsubscribeLinkNotFound');

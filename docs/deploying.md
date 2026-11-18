@@ -31,7 +31,7 @@ a4a serves from the root of its host (`/`, `/api`, `/mcp`, `/assets`), so it nee
 - **for links**: in email, webhooks' payloads, MCP's setup snippets and the OpenAPI document, and the addresses single sign-on registers with the provider (`PUBLIC_URL/api/v1/auth/oidc/callback`, SAML's);
 - **for the CSRF check**: a write made with the session cookie must come from a page on PUBLIC_URL's host (or the request's own `Host`);
 - **for cookies**: they're `Secure` when PUBLIC_URL is https, whatever the proxy says;
-- **for passkeys** ([D62](architecture.md#d62-passkeys-both-factors-at-once-beside-a4as-own-password-and-every-change-told-to-its-person)): PUBLIC_URL's host is the relying party. Browsers make passkeys only for a domain over https (or `localhost`), so at an IP address or on plain http they're off. A passkey works only on the host it was made for: choose the address before people add them;
+- **for passkeys** ([D62](architecture.md#d62-passkeys-both-factors-at-once-beside-a4as-own-password-and-every-change-told-to-its-person), [D68](architecture.md#d68-passkeys-in-depth-an-id-chosen-for-a-move-passkeys-required-with-an-administrators-escape-some-authenticators-by-attestation-and-accounts-with-no-password)): PUBLIC_URL's host is the relying party, or the parent domain `PASSKEY_RP_ID` names (`example.com` for `a4a.example.com`). Browsers make passkeys only for a domain over https (or `localhost`), so at an IP address or on plain http they're off. A passkey works only for the id it was made for: choose the address, or its parent, before people add them;
 - **for MCP clients that sign in by themselves** ([D28](architecture.md#d28-remote-mcp-signs-in-with-oauth-21-and-a4a-is-its-own-authorization-server)), which needs https.
 
 Without it, a4a takes `http://localhost:PORT`, which is right only on your own computer.
@@ -161,8 +161,8 @@ It's any text, hashed to 32 bytes, or exactly 32 bytes in hex (64 characters) or
 ### What lives only in an instance's memory
 
 - **The reference data**: fields, values, people, tags and workflow rules, loaded from the database, reloaded on every instance after a change on any, and every minute anyway (D17).
-- **Some limits.** Each instance counts its own: the general rate limits (`API_RATE_LIMIT`, `MCP_RATE_LIMIT`, `GUEST_RATE_LIMIT`), OAuth's limits on registrations and token requests, the limits on starting single sign-on and on making passkey challenges, deliveries per version-control integration and build source, and guests' live whiteboards. Behind N instances a client gets up to N times a limit. Shared by every instance, in Postgres: the sign-in throttle, the AI's hourly caps, issues made from chat, and the help desk's limits.
-- **Open live streams**, and **GitHub Apps' installation tokens**, which last an hour (D54).
+- **Some limits.** Each instance counts its own: the general rate limits (`API_RATE_LIMIT`, `MCP_RATE_LIMIT`, `GUEST_RATE_LIMIT`), OAuth's limits on registrations and token requests, the limits on starting single sign-on and on making passkey challenges, deliveries per version-control integration and build source, and guests' live whiteboards. Behind N instances a client gets up to N times a limit. Shared by every instance, in Postgres: the sign-in throttle (the portal's passkeys among it), the AI's hourly caps, issues made from chat, the help desk's limits (CC relays among them), and the check runs written through each GitHub installation.
+- **Open live streams**; **GitHub Apps' installation tokens**, which last an hour, and which installation holds each repository (D54, D66); and what a Forgejo or Gitea instance says it offers (D66).
 
 When a replica stops or restarts:
 
@@ -177,19 +177,19 @@ When a replica stops or restarts:
 
 - where a4a is and what's in front of it: `PUBLIC_URL`, `PORT`, `TRUST_PROXY`, the rate limits;
 - where it keeps things: `DATABASE_URL`, `DATABASE_LISTEN_URL`, `DATA_DIR`, `ATTACHMENT_STORAGE` and `S3_*`, `SECRET_KEY`;
-- how the team signs in: `OIDC_*`, `SAML_*`, `LDAP_*`, `PASSWORD_LOGIN`, `MCP_OAUTH`;
+- how the team signs in: `OIDC_*`, `SAML_*`, `LDAP_*`, `PASSWORD_LOGIN`, `MCP_OAUTH`, and passkeys' id, related origins and FIDO's metadata (`PASSKEY_*`);
 - the AI's provider, its key and its caps;
-- mail and push: `SMTP_URL`, `MAIL_FROM`, `MAIL_REPLY_ADDRESS`, the shared help desk mailbox (`HELPDESK_IMAP_URL`), `VAPID_*`, `PUSH_HOSTS`;
+- mail and push: `SMTP_URL`, `MAIL_FROM`, `MAIL_REPLY_ADDRESS`, the shared help desk mailbox (`HELPDESK_IMAP_URL`), the receiving servers whose DMARC results the help desk trusts (`HELPDESK_TRUSTED_AUTHSERV_IDS`), `VAPID_*`, `PUSH_HOSTS`;
 - what a4a connects to: the Teams bot (`TEAMS_*`), the OAuth apps people connect their code-host accounts through (`GITHUB_CLIENT_ID` and the like), app catalogs and the keys they're signed with, `IMPORT_ALLOW_HOSTS`;
-- limits and defaults: `ATTACHMENT_MAX_MB`, `DEFAULT_LOCALE`, `DIGEST_HOUR`, `NOTIFY_WINDOW_SECONDS`;
+- limits and defaults: `ATTACHMENT_MAX_MB`, `DEFAULT_LOCALE`, `DIGEST_HOUR`, `NOTIFY_WINDOW_SECONDS`, `VCS_CHECKS_PER_MINUTE`;
 - the first administrator: `ADMIN_*` and `SEED_DEMO`.
 
 **Settings made in the web are kept in the database.** Every instance sees a change at once, and the database's backup holds them:
 
-- the instance's own, under Administration: its name, the default triage mode, two-factor for everyone, passkeys on or off;
-- projects and everything in them: fields, workflow rules, state machines and custom actions, boards, help desks with their addresses, SLAs, mailboxes and the portal's sign-in, customer groups;
+- the instance's own, under Administration: its name, the default triage mode, two-factor for everyone, passkeys on or off, whom they're required of, and which authenticators may make them;
+- projects and everything in them: fields, workflow rules, state machines and custom actions, boards, help desks with their addresses, SLAs, mailboxes, the portal's sign-in and how CCs are capped, held and relayed, customer groups;
 - people, groups, roles and tokens, and SCIM's tokens;
-- integrations: webhooks, version control, build sources, Slack's connection and chat channels, apps and their settings.
+- integrations: webhooks, version control and its checks on pull requests, build sources, Slack's connection and chat channels, apps and their settings.
 
 Some pairs are split between the two: the team's single sign-on is set in the environment, the portal's identity providers in the web; the shared help desk mailbox in the environment, a desk's own in the web; the Teams bot in the environment, Slack in the web.
 
@@ -443,7 +443,7 @@ That one instance is billed all the time.
 - **Shutting down.** Cloud Run sends `SIGTERM` and allows 10 seconds, which is a4a's own limit.
 - **Outbound mail.** Google Cloud blocks connections out to port 25. Put 587 (`smtp://…:587`, upgraded with STARTTLS) or 465 (`smtps://…:465`) in `SMTP_URL`.
 - **Request size.** Cloud Run takes requests of up to 32 MiB from a server that speaks HTTP/1, as a4a does: files under `ATTACHMENT_MAX_MB` (20) and the help desk's mail pass, but a CSV import over 32 MiB doesn't.
-- **A custom domain.** Passkeys are bound to the host they were made on (D62, "What it costs"): when a4a moves to another address, browsers don't offer them there, and everyone adds theirs again. So give a4a its own domain before people add passkeys, and set `PUBLIC_URL` to it from the first deploy. A domain mapping is the shortest way, `gcloud beta run domain-mappings create --service=a4a --domain=a4a.example.com --region=REGION`, then the DNS records it names; a global external Application Load Balancer with a serverless network endpoint group is the other (`TRUST_PROXY=2` then).
+- **A custom domain.** Passkeys are bound to the id they were made for ([D68](architecture.md#d68-passkeys-in-depth-an-id-chosen-for-a-move-passkeys-required-with-an-administrators-escape-some-authenticators-by-attestation-and-accounts-with-no-password)), and a `run.app` address is its own registrable domain, so `PASSKEY_RP_ID` can't name a parent of it. When a4a moves from it to a domain, browsers don't offer its passkeys there, and everyone adds theirs again, unless `PASSKEY_RP_ID` stays the `run.app` host, which goes on serving a4a, and the new address is in `PASSKEY_RELATED_ORIGINS`: Chrome, Edge and Safari honour that, Firefox doesn't. So give a4a its own domain before people add passkeys, and set `PUBLIC_URL` to it from the first deploy. A domain mapping is the shortest way, `gcloud beta run domain-mappings create --service=a4a --domain=a4a.example.com --region=REGION`, then the DNS records it names; a global external Application Load Balancer with a serverless network endpoint group is the other (`TRUST_PROXY=2` then).
 
 ## Upgrades
 
@@ -453,7 +453,7 @@ A new version is a new image, rolled out as any other: a rolling update on Kuber
 2. The new replica starts, takes the startup lock, and runs the new migrations in one transaction. The old replicas keep serving meanwhile.
 3. Once it's ready, an old replica stops, and so on, each shutting down as above.
 
-While old and new run side by side, they share everything in the database, sessions and the outbox among it, and live events pass between them. One of them, old or new, holds the worker's lease until it stops, and another takes it within a couple of seconds. The old replicas run on the new schema until they stop. Neither the code nor D17 says that migrations are written for that, so a4a doesn't promise it. So far every migration (41, from `0000_init` to `0040_passkeys`) adds tables, columns (each nullable or with a default), indexes and constraints, and none drops or renames anything, so old code has found the tables and columns it uses. Migrations hold their locks until their one transaction commits: while they run, the old replicas' work on the tables they change waits, which matters when one rewrites a large table or builds an index on it. When a release says its migrations change what an older version reads, stop the old replicas before the new one starts: scale to 0 first, or use `strategy: Recreate`.
+While old and new run side by side, they share everything in the database, sessions and the outbox among it, and live events pass between them. One of them, old or new, holds the worker's lease until it stops, and another takes it within a couple of seconds. The old replicas run on the new schema until they stop. Neither the code nor D17 says that migrations are written for that, so a4a doesn't promise it. Up to `0043_requester_passkeys`, every migration adds tables, columns (each nullable or with a default), indexes and constraints, and none drops or renames anything, so old code has found the tables and columns it uses. `0044_board_ranks_keys` ([D65](architecture.md#d65-boards-at-scale-lanes-of-their-own-and-a-cards-place-in-its-history)) is the first that doesn't: it turns boards' ranks into keys and drops `board_ranks.rank`, so a version from before it fails to show or move a board's cards once it has run. Migrations hold their locks until their one transaction commits: while they run, the old replicas' work on the tables they change waits, which matters when one rewrites a large table or builds an index on it. When a release's migrations change what an older version reads, as an upgrade past `0044` does, stop the old replicas before the new one starts: scale to 0 first, or use `strategy: Recreate`. Cloud Run starts a new revision beside the old one, so there the old revision's boards fail from the migration until the new revision takes the traffic.
 
 A migration that fails rolls back whole, and the new replica doesn't start; with `maxUnavailable: 0`, the old ones keep serving. To go back after a migration has run, restore the backup.
 

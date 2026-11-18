@@ -1,5 +1,5 @@
 import type { GuestInfo, Me, PasskeyOptions, RecoveryCodes, SignInStep, TwoFactorEnrolment } from '@a4a/shared';
-import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthentication, WebAuthnAbortService } from '@simplewebauthn/browser';
+import { browserSupportsWebAuthn, browserSupportsWebAuthnAutofill, startAuthentication, startRegistration, WebAuthnAbortService } from '@simplewebauthn/browser';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -152,6 +152,7 @@ function SecondStep({ step: answer, next, onRestart }: { step: SignInStep; next:
         if (!passkeyCancelled(e)) throw e;
       }
     });
+  if (step === 'passkey_setup') return <OwedPasskey code={answer.code === true} next={next} again={again} />;
   if (step === 'two_factor') {
     return (
       <AuthCard title={t('app.auth.twoFactorSignIn')} about={code ? t('app.auth.yourPasswordWasRightNow') : t('app.auth.yourPasswordWasRightPasskey')}>
@@ -203,6 +204,63 @@ function SecondStep({ step: answer, next, onRestart }: { step: SignInStep; next:
           {timedOut ? <p className="note">{again}</p> : null}
         </>
       )}
+    </AuthCard>
+  );
+}
+
+/**
+ * Passkeys are required of them here and they have none (D68): the sign-in adds one before it
+ * starts, with a code too where they have codes. For devices that can't, an administrator lets them off.
+ */
+function OwedPasskey({ code, next, again }: { code: boolean; next: string; again: ReactNode }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [typed, setTyped] = useState('');
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
+  const supported = browserSupportsWebAuthn();
+  const timedOut = error instanceof ApiError && error.status === 401;
+  const add = async () => {
+    setBusy(true);
+    setError(null);
+    setCancelled(false);
+    try {
+      const options = await post<PasskeyOptions>('/auth/two-factor/passkey-setup/options');
+      const response = await startRegistration({ optionsJSON: options as never });
+      const me = await post<Me>('/auth/two-factor/passkey-setup', { response, ...(code ? { code: typed.trim() } : {}) });
+      qc.setQueryData(keys.me, me);
+      navigate(next);
+    } catch (e) {
+      if (passkeyCancelled(e)) setCancelled(true);
+      else setError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <AuthCard title={t('app.auth.addAPasskeyToSignIn')} about={t('app.auth.passkeysAreRequiredOfYou')}>
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void add();
+        }}
+      >
+        {code ? <CodeField value={typed} onChange={setTyped} recovery autoFocus /> : null}
+        {supported ? null : <p className="note">{t('app.auth.thisBrowserCantMakePasskeys')}</p>}
+        {error ? <ErrorNote error={error} /> : null}
+        {cancelled ? (
+          <p className="note" role="status">
+            {t('identity.passkeys.cancelled')}
+          </p>
+        ) : null}
+        <button type="submit" className="primary" disabled={busy || !supported || (code && typed.trim().length < 6)}>
+          {busy ? t('app.auth.waitingForYourPasskey') : t('app.auth.addAPasskey')}
+        </button>
+      </form>
+      <p className="note">{t('app.auth.noDeviceCanMakeOne')}</p>
+      {timedOut ? <p className="note">{again}</p> : null}
     </AuthCard>
   );
 }

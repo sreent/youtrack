@@ -5,6 +5,7 @@
  * watchers. Every instance sends mail (the outbox's claims keep them apart) and serves inboxes.
  */
 import { helpdeskConsumer } from '../helpdesk/consumer';
+import { relayConsumer } from '../helpdesk/relay';
 import { MailWorker, pruneMail, scheduleDigests } from '../mail/outbox';
 import { backgroundFactories, choreFactories, consumerFactories } from '../server';
 import { pruneHelpThrottle } from '../services/help-throttle';
@@ -12,7 +13,7 @@ import { backfillWatchers } from '../services/watchers';
 import { notifierConsumer } from './notifier';
 import { endInboxStreams } from './state';
 
-consumerFactories.push(notifierConsumer, helpdeskConsumer);
+consumerFactories.push(notifierConsumer, helpdeskConsumer, relayConsumer);
 
 choreFactories.push((runtime) => [
   {

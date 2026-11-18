@@ -14,8 +14,10 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  PASSKEYS_REQUIRED,
   PORTAL_SIGN_IN_METHODS,
   REQUEST_CC_VIA,
+  REQUEST_CCS_CEILING,
   WHITEBOARD_KINDS,
   WHITEBOARD_LIMITS,
   WHITEBOARD_TONES,
@@ -137,6 +139,12 @@ export const SignInSchema = z
     ),
     twoFactor: z.boolean().optional().describe('Their password sign-in asks for a code from an authenticator app too (D38)'),
     passkeys: z.number().int().optional().describe('How many passkeys they sign in with (D62)'),
+    passkeysOnly: z.boolean().optional().describe('They have no password: they sign in with passkeys alone (D68)'),
+    passkeyExempt: z.boolean().optional().describe('Where passkeys are required, an administrator lets them sign in without one: their password and a code (D68)'),
+    passkeySetupUntil: timestamp
+      .nullable()
+      .optional()
+      .describe('Until when the link an administrator sent them to add a passkey works, while it’s unused (D68)'),
     lastSignInAt: timestamp.nullable().optional().describe('When they last signed in, whichever way'),
     provisioned: z.boolean().optional().describe('The identity provider manages this account through SCIM (D38)'),
   })
@@ -227,6 +235,10 @@ export const CreateUserBody = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().nullable().optional(),
   password: z.string().min(8).optional().describe('Omit for bot users that only use API tokens'),
+  passkeysOnly: z
+    .boolean()
+    .optional()
+    .describe('No password: they sign in with passkeys alone, the first added from a link you send (POST /users/{id}/passkey-setup, D68)'),
   role: z.enum(ROLES).default('member'),
   isBot: z.boolean().default(false),
   hourlyRate: z.number().min(0).nullable().optional(),
@@ -239,6 +251,10 @@ export const UpdateUserBody = z.object({
   password: z.string().min(8).optional(),
   role: z.enum(ROLES).optional(),
   banned: z.boolean().optional(),
+  passkeyExempt: z
+    .boolean()
+    .optional()
+    .describe('Where passkeys are required: let them sign in without one, with their password and a code, for a device that can’t make one (D68)'),
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
@@ -326,6 +342,10 @@ export const HelpdeskSignInSchema = z
       .array(z.string().trim().min(1).max(40))
       .max(10)
       .describe('The ids of identity providers for requesters (administrators add them at /portal-providers) they may sign in through'),
+    passkey: z
+      .boolean()
+      .optional()
+      .describe('A passkey they add on the portal (D69), in place of the link or the password; never the only way. Left out, the desk keeps what it had'),
   })
   .meta({ id: 'HelpdeskSignIn' });
 export type HelpdeskSignIn = z.infer<typeof HelpdeskSignInSchema>;
@@ -356,6 +376,18 @@ export const HelpdeskSettingsSchema = z
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
     signIn: HelpdeskSignInSchema.describe("How its requesters sign in to the portal (D63), one way at least. A session opens a desk's requests only when it was opened in a way the desk takes"),
+    ccsMax: z
+      .number()
+      .int()
+      .min(1)
+      .max(REQUEST_CCS_CEILING)
+      .describe(`The most people copied on one of its requests at once (D67), 20 unless its managers say otherwise, at most ${REQUEST_CCS_CEILING}. Lowering it takes no one off: it stops new copies past it`),
+    ccsConfirm: z
+      .boolean()
+      .describe("A new request by email whose sender a4a can't trust (no DMARC pass from a mail server the administrator names) has its Cc held until its requester confirms it, by a link in the acknowledgement or on the portal (D67). On by default. Turned off, every new request's Cc is copied at once, and those already held stay held"),
+    ccsRelay: z
+      .boolean()
+      .describe("Everyone on a request (its requester, the people copied on it, and colleagues of its customer group who answered it) is emailed each other's public words, where a4a can trust who wrote them: on the portal, signed in, or by email that passed DMARC at a mail server the administrator names (D67). Off by default"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -1075,6 +1107,10 @@ export const BoardSchema = z
     backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved, or left out, as its query is (D64)'),
     pointsField: z.string().nullable().describe('The field its story points are in'),
     sprintsEnabled: z.boolean(),
+    laneOrder: z
+      .boolean()
+      .describe("Whether each swimlane keeps its own order (D65): cards are ranked among their lane's cards, and the backlog keeps the board's order. Off: one order for the board, its lanes included (D53)"),
+    manageable: z.boolean().describe("Whether you may change the board's settings: you manage boards in every project on it"),
   })
   .meta({ id: 'Board' });
 export type Board = z.infer<typeof BoardSchema>;
@@ -1092,6 +1128,10 @@ export const BoardBody = z.object({
   backlogQuery: z.string().max(1000).nullable().optional().describe('What its backlog holds; #Unresolved by default'),
   pointsField: z.string().nullable().optional().describe('A number or period field to sum as story points'),
   sprintsEnabled: z.boolean().default(false),
+  laneOrder: z
+    .boolean()
+    .optional()
+    .describe("Whether each swimlane keeps its own order (D65), off by default. Turning it off keeps the lanes' places for when it's on again; choosing another swimlane field forgets them"),
 });
 
 export const BoardViewSchema = z
@@ -1108,7 +1148,11 @@ export const BoardViewSchema = z
     ),
     points: z.number().nullable().describe('Story points of every issue shown; null without a points field'),
     swimlanes: z.array(z.string()).describe('Swimlane values in display order (empty when no swimlane field)'),
-    order: z.array(z.string()).describe("Every card's id in the board's order (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it"),
+    order: z
+      .array(z.string())
+      .describe(
+        "Every card's id in the order the board shows them (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it. Where lanes keep their own order (D65), each lane's cards are in the lane's order among themselves: placed in the lane first, then the rest in the board's order",
+      ),
   })
   .meta({ id: 'BoardView' });
 export type BoardView = z.infer<typeof BoardViewSchema>;
@@ -1163,6 +1207,13 @@ export const WebhookDeliverySchema = z
 
 // Settings ------------------------------------------------------------------
 
+/** An authenticator's model, as FIDO's metadata names it: a UUID. */
+const aaguid = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, 'an AAGUID, such as cb69481e-8ff7-4039-93ec-0a2729a154a8');
+
 export const SettingsSchema = z
   .object({
     instanceName: z.string(),
@@ -1173,6 +1224,15 @@ export const SettingsSchema = z
       .optional()
       .describe('Every sign-in with a password asks for a code from an authenticator app, and someone without one sets it up first (D38)'),
     passkeys: z.boolean().optional().describe('People may add passkeys and sign in with them (D62). Off, passkeys sign nobody in, and are kept'),
+    requirePasskeys: z
+      .enum(PASSKEYS_REQUIRED)
+      .optional()
+      .describe('Whose password sign-in owes a passkey (D68): nobody (off), everyone, or administrators. Someone without one adds one as they sign in'),
+    passkeyAuthenticators: z
+      .array(z.string())
+      .nullable()
+      .optional()
+      .describe('The only authenticators new passkeys may come from, by AAGUID, checked against FIDO’s metadata (D68); null for any'),
   })
   .meta({ id: 'Settings' });
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -1181,6 +1241,8 @@ export const SettingsBody = z.object({
   defaultTriageMode: z.enum(TRIAGE_MODES).optional(),
   requireTwoFactor: z.boolean().optional(),
   passkeys: z.boolean().optional(),
+  requirePasskeys: z.enum(PASSKEYS_REQUIRED).optional(),
+  passkeyAuthenticators: z.array(aaguid).max(100).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -1912,8 +1974,8 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57)"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'])
+      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67)"),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
@@ -1976,6 +2038,12 @@ export const RequestCcSchema = z
   .meta({ id: 'RequestCc' });
 export type RequestCc = z.infer<typeof RequestCcSchema>;
 
+/** Someone a new request's Cc named, waiting for its requester to confirm them (D67): told nothing until then. */
+export const HeldCcSchema = z
+  .object({ email: z.string(), name: z.string().describe('As the email named them; empty for none'), heldAt: timestamp })
+  .meta({ id: 'HeldCc' });
+export type HeldCc = z.infer<typeof HeldCcSchema>;
+
 /** Someone copied on a request, as its requester sees them on the portal. */
 export const PortalCcSchema = z
   .object({
@@ -1990,13 +2058,19 @@ export type PortalCc = z.infer<typeof PortalCcSchema>;
 export const HelpdeskRequestSchema = z
   .object({
     issue: z.string(),
-    requester: z.object({ name: z.string(), email: z.string() }),
+    requester: z.object({
+      name: z.string(),
+      email: z.string(),
+      passkeys: z.number().int().describe('How many passkeys they sign in to the portal with (D69); never which'),
+    }),
     createdAt: timestamp,
     firstResponse: SlaSchema,
     sla: RequestSlaSchema,
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
     ccs: z.array(RequestCcSchema).describe('Who is copied on it now (D57), first copied first'),
+    ccsMax: z.number().int().describe('The most its desk copies on a request at once (D67)'),
+    held: z.array(HeldCcSchema).describe('Named in the Cc of the email that opened it, and waiting for its requester to confirm them (D67): told nothing until then'),
     group: z
       .object({ id: z.string(), name: z.string(), sharing: z.enum(['none', 'read', 'comment']) })
       .nullable()
@@ -2303,16 +2377,43 @@ export const RuleCheckResultSchema = z
 // Version control
 // ---------------------------------------------------------------------------
 
+/** An installation of a GitHub integration's app, as a4a knows it (D66): each repository is read through its own. */
+export const VcsInstallationSchema = z
+  .object({
+    id: z.string().describe("The installation's id, as in its address on GitHub (…/installations/12345678)"),
+    account: z.string().nullable().describe('The user or organization it is installed on'),
+    accountType: z.enum(['user', 'organization']).nullable(),
+    allRepositories: z.boolean().describe("Whether it was given all of the account's repositories, rather than some"),
+    repositories: z.array(z.string()).describe('Repositories a4a has read or reported to through it, the latest first, at most ten'),
+    suspended: z.boolean().describe('GitHub said it is suspended: nothing is read or reported through it until it is unsuspended'),
+    gone: z.boolean().describe('GitHub said it is gone: the app was uninstalled from that account'),
+  })
+  .meta({ id: 'VcsInstallation' });
+export type VcsInstallation = z.infer<typeof VcsInstallationSchema>;
+
 /** A GitHub App a GitHub integration reads as (D54): its private key is never shown. */
 export const VcsGithubAppSchema = z
   .object({
     appId: z.string().describe("The app's id (or its client id), as GitHub shows it on the app's settings page"),
     slug: z.string().nullable().describe("The app's name in GitHub's addresses, e.g. a4a-acme"),
-    installationId: z.string().describe('The installation a4a reads through'),
-    account: z.string().nullable().describe('The user or organization the app is installed on'),
+    installationId: z.string().describe("The integration's own installation: its repository's, the one given, or the app's first. Each repository is read through its own (D66)"),
+    account: z.string().nullable().describe('The user or organization its own installation is on'),
+    installations: z.array(VcsInstallationSchema).describe('The installations of the app a4a knows of, with their accounts (D66)'),
   })
   .meta({ id: 'VcsGithubApp' });
 export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
+
+/** A GitHub integration's check runs on pull requests, as its app (D66). */
+export const VcsChecksSchema = z
+  .object({
+    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a". Off by default; it takes the app\'s Checks: Read and write'),
+    states: z.boolean().describe("Whether the check says each issue's state, beside its id and link"),
+    requireResolved: z.boolean().describe("Whether the check fails while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
+    problem: z.string().nullable().describe('Why the last check run a4a wrote for it didn\'t go, in the words of its deliveries\' log; null when the last went'),
+    problemAt: timestamp.nullable(),
+  })
+  .meta({ id: 'VcsChecks' });
+export type VcsChecks = z.infer<typeof VcsChecksSchema>;
 
 export const VcsIntegrationSchema = z
   .object({
@@ -2326,6 +2427,7 @@ export const VcsIntegrationSchema = z
     baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
     githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
+    checks: VcsChecksSchema.nullable().describe('GitHub: check runs on pull requests, written as its app (D66); null for the other providers'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2387,6 +2489,14 @@ export const UpdateVcsIntegrationBody = z.object({
   baseUrl: VcsBaseUrl.nullable().optional(),
   accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it. Giving one stops reading as a GitHub App'),
   githubApp: VcsGithubAppBody.nullable().optional(),
+  checks: z
+    .object({
+      enabled: z.boolean().optional().describe('Report to each pull request as a check run named "a4a". Only a GitHub integration that reads as a GitHub App; turning it on checks the app may write checks'),
+      states: z.boolean().optional().describe("Say each issue's state beside its id and link. A check run is seen by whoever sees the repository"),
+      requireResolved: z.boolean().optional().describe("Fail while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
+    })
+    .optional()
+    .describe('Check runs on pull requests, as the app (D66)'),
 });
 
 export const VcsDeliverySchema = z
@@ -2725,6 +2835,9 @@ export const HelpdeskMailSchema = z
       })
       .describe('Mail read from the shared mailbox'),
     maxBytes: z.number().int().describe('The largest message the desk takes, attachments included'),
+    trustedServers: z
+      .array(z.string())
+      .describe("The mail servers whose DMARC results a4a trusts (HELPDESK_TRUSTED_AUTHSERV_IDS, their authserv-ids, D67): an email whose sender's domain passed DMARC at one of them is known to be from its sender"),
   })
   .meta({ id: 'HelpdeskMail' });
 export type HelpdeskMail = z.infer<typeof HelpdeskMailSchema>;
@@ -2753,7 +2866,9 @@ export const HelpdeskInboundSchema = z
   .object({
     id: z.number().int(),
     at: timestamp,
-    via: z.enum(['webhook', 'imap']),
+    via: z
+      .enum(['webhook', 'imap', 'page', 'portal'])
+      .describe('By the webhook or from the mailbox; or, for words a desk that relays didn’t pass on (D67), written on the tracking page or the portal'),
     sender: z.string(),
     subject: z.string(),
     outcome: z.enum(HELPDESK_INBOUND_OUTCOMES),
@@ -3139,9 +3254,11 @@ export type GuestInfo = z.infer<typeof GuestInfoSchema>;
 export const SignInStepSchema = z
   .object({
     step: z
-      .enum(['two_factor', 'two_factor_setup'])
-      .describe('two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup)'),
-    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it'),
+      .enum(['two_factor', 'two_factor_setup', 'passkey_setup'])
+      .describe(
+        'two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup). passkey_setup: passkeys are required of you and you have none: add one (POST /auth/two-factor/passkey-setup, D68)',
+      ),
+    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it. passkey_setup: adding the passkey takes a code too'),
     passkey: z.boolean().optional().describe('two_factor: one of their passkeys finishes it instead (POST /auth/two-factor/passkey, D62)'),
   })
   .meta({ id: 'SignInStep' });
@@ -3220,7 +3337,7 @@ export type Backlog = z.infer<typeof BacklogSchema>;
 
 export const RankBody = z.object({
   issue: z.string().max(100).describe('The issue to move (readable id)'),
-  after: z.string().max(100).nullable().optional().describe('Put it just after this issue'),
+  after: z.string().max(100).nullable().optional().describe("Put it just after this issue: in the board's order, or, on the board where lanes keep their own order (D65), in its lane's"),
   before: z.string().max(100).nullable().optional().describe('Put it just before this issue; with neither, at the top (on the board, see column)'),
   // Ranking a card on the board itself (D53): its place and its column, and its lane, in one change.
   column: z
@@ -3601,6 +3718,12 @@ export const CodeHostSchema = z
     provider: z.enum(CODE_HOSTS),
     name: z.string(),
     available: z.boolean().describe('Whether an administrator has set up signing in there, to connect accounts'),
+    revokes: z
+      .boolean()
+      .nullable()
+      .describe(
+        "Forgejo and Gitea (D66): whether a4a can take back the token it's given as soon as it has asked who you are, because the instance offers revocation; when false, the token stays good until it expires there, and the page says so before you go on. Null for the hosts whose tokens only read who you are",
+      ),
   })
   .meta({ id: 'CodeHost' });
 export type CodeHostInfo = z.infer<typeof CodeHostSchema>;
@@ -3742,6 +3865,7 @@ export const PortalDeskSignInSchema = z
     link: z.boolean(),
     password: z.boolean(),
     providers: z.array(z.object({ id: z.string(), name: z.string() })),
+    passkey: z.boolean().describe('A passkey of theirs signs them in there (D69)'),
   })
   .meta({ id: 'PortalDeskSignIn' });
 export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
@@ -3795,7 +3919,12 @@ export const PortalRequestDetailSchema = PortalRequestSchema.extend({
   ccs: z
     .array(PortalCcSchema)
     .nullable()
-    .describe('Who is copied on it (D57): shown to its requester, who may copy more people; null to anyone else'),
+    .describe('Who is copied on it (D57): shown to its requester, who may copy more people and take anyone off (D67); null to anyone else'),
+  held: z
+    .array(HeldCcSchema)
+    .nullable()
+    .describe('Whom the Cc of the email that opened it named, waiting for its requester to confirm or drop them (D67); null to anyone else'),
+  ccsMax: z.number().int().describe('The most its desk copies on a request at once (D67)'),
 }).meta({ id: 'PortalRequestDetail' });
 export type PortalRequestDetail = z.infer<typeof PortalRequestDetailSchema>;
 
@@ -4558,6 +4687,7 @@ export const PortalSignInMethodsSchema = z
     providers: z.array(z.object({ id: z.string(), name: z.string(), start: z.string().describe('Where the browser goes to sign in through it') })),
     captcha: CaptchaChallengeSchema.nullable().describe('A proof of work a password sign-in sends back solved, when a desk that takes passwords asks its form for one (D30)'),
     mail: z.boolean().describe('Whether this server sends email: links and passwords need it'),
+    passkey: z.boolean().describe('A passkey signs them in here (D69): the desk takes passkeys (or, with no desk named, some desk does), and this address can have them'),
   })
   .meta({ id: 'PortalSignInMethods' });
 export type PortalSignInMethods = z.infer<typeof PortalSignInMethodsSchema>;
@@ -4590,6 +4720,12 @@ export const PasskeySchema = z
     synced: z.boolean().describe('Its passkey provider may copy it to its person’s other devices (backup eligible)'),
     copied: z.boolean().describe('Its sign count went back: two authenticators hold it, so it signs nobody in again'),
     elsewhere: z.string().nullable().describe('The address it was made for, when that isn’t this one: it can’t sign in here'),
+    attested: z.boolean().optional().describe('Its maker vouched for it, checked against FIDO’s metadata, as only some authenticators were taken (D68)'),
+    listed: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('Where only some authenticators are taken: whether it’s one of them (false for one added before, whose maker a4a never asked). It signs in either way. Null: any is taken'),
   })
   .meta({ id: 'Passkey' });
 export type Passkey = z.infer<typeof PasskeySchema>;
@@ -4611,6 +4747,23 @@ export const MyPasskeysSchema = z
       code: z.boolean().describe('With a code from your authenticator app'),
       passkey: z.boolean().describe('Or one of your passkeys does'),
     }),
+    required: z.boolean().optional().describe('Passkeys are required of you here: a password sign-in owes one (D68)'),
+    authenticators: z
+      .array(z.string())
+      .nullable()
+      .optional()
+      .describe('Where only some authenticators are taken, their names, as FIDO’s metadata gives them; null for any (D68)'),
+    password: z
+      .object({
+        set: z.boolean().describe('You have a password'),
+        removable: z.boolean().describe('You may remove it now (DELETE /me/password)'),
+        needs: z
+          .enum(['spare', 'passkey'])
+          .nullable()
+          .describe('What removing it still needs: spare, a second passkey or a synced one; passkey, proving it’s you with a passkey in the last ten minutes'),
+      })
+      .optional()
+      .describe('Signing in with passkeys alone (D68)'),
   })
   .meta({ id: 'MyPasskeys' });
 export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
@@ -4676,7 +4829,7 @@ export type Confirmed = z.infer<typeof ConfirmedSchema>;
 /** A "this wasn't me" link from a mail about someone's passkeys, as its page shows it. */
 export const PasskeyAlertSchema = z
   .object({
-    change: z.enum(['added', 'removed', 'copied']),
+    change: z.enum(['added', 'removed', 'copied', 'password-removed']),
     name: z.string().describe('The passkey’s name'),
     login: z.string(),
     changedAt: timestamp,
@@ -4684,3 +4837,154 @@ export const PasskeyAlertSchema = z
   })
   .meta({ id: 'PasskeyAlert' });
 export type PasskeyAlert = z.infer<typeof PasskeyAlertSchema>;
+
+// ---------------------------------------------------------------------------
+// CCs in depth (D67): the requester takes people off, a desk's own cap, held CCs
+// ---------------------------------------------------------------------------
+
+export const PortalCcQuery = z.object({ email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('The address to stop copying') });
+
+/** The requester's choice about someone a new request's Cc named (D67): copy them, or drop them. */
+export const PortalHeldCcBody = z.object({
+  email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('Whom the Cc named'),
+  copy: z.boolean().describe('true copies them on the request; false drops them, and they are told nothing'),
+});
+
+/** What the link in a new request's acknowledgement confirms (D67), as its page shows it. */
+export const CcConfirmationSchema = z
+  .object({
+    request: z.object({ id: z.string(), summary: z.string(), desk: z.string() }),
+    held: z.array(HeldCcSchema).describe('Whom the Cc of the email named, still waiting'),
+    expiresAt: timestamp.describe('Until when the link works, once'),
+  })
+  .meta({ id: 'CcConfirmation' });
+export type CcConfirmation = z.infer<typeof CcConfirmationSchema>;
+
+export const CcConfirmationBody = z.object({
+  copy: z
+    .array(z.string().trim().min(3).max(HELP_LIMITS.email))
+    .max(REQUEST_CCS_CEILING)
+    .describe('Whom to copy, of those held; the others are dropped. The link is then used'),
+});
+
+export const CcConfirmedSchema = z
+  .object({
+    copied: z.array(z.string()).describe('Copied on the request now'),
+    dropped: z.array(z.string()).describe('Dropped: told nothing'),
+    refused: z
+      .array(z.object({ email: z.string(), key: z.string().describe('The problem’s key, under problem.*'), values: z.record(z.string(), z.unknown()), message: z.string() }))
+      .describe('Not copied, and why'),
+  })
+  .meta({ id: 'CcConfirmed' });
+export type CcConfirmed = z.infer<typeof CcConfirmedSchema>;
+
+// ---------------------------------------------------------------------------
+// Requesters' passkeys (D69)
+// ---------------------------------------------------------------------------
+
+/** Why a requester can't add or use passkeys here: the address isn't one browsers make them for, an administrator turned them off, or no desk takes them. */
+export const PORTAL_PASSKEYS_OFF = ['address', 'instance', 'desks'] as const;
+export type PortalPasskeysOff = (typeof PORTAL_PASSKEYS_OFF)[number];
+
+/** A requester's passkeys, as the portal's account page shows them. */
+export const PortalPasskeysSchema = z
+  .object({
+    passkeys: z.array(PasskeySchema),
+    on: z.boolean().describe('Whether they may add passkeys here, and sign in with them'),
+    off: z
+      .enum(PORTAL_PASSKEYS_OFF)
+      .nullable()
+      .describe('Why not: address, PUBLIC_URL isn’t https; instance, an administrator turned passkeys off; desks, no help desk here takes them'),
+    confirmedUntil: timestamp
+      .nullable()
+      .describe('Until when this session may add and remove passkeys: ten minutes from a sign-in by an emailed link or a passkey, or from confirming with a passkey'),
+    confirmWith: z.object({
+      passkey: z.boolean().describe('One of their passkeys confirms it'),
+      link: z.boolean().describe('A new sign-in by a link emailed to them does: this server sends email'),
+    }),
+  })
+  .meta({ id: 'PortalPasskeys' });
+export type PortalPasskeys = z.infer<typeof PortalPasskeysSchema>;
+
+/** A "this wasn't me" link from a mail about a requester's passkeys, as the portal shows it. */
+export const PortalPasskeyAlertSchema = z
+  .object({
+    change: z.enum(['added', 'removed', 'copied']),
+    name: z.string().describe('The passkey’s name'),
+    email: z.string().describe('The requester’s address'),
+    changedAt: timestamp,
+    done: z.boolean().describe('The link was followed: every portal session of theirs ended, and the passkey stopped'),
+  })
+  .meta({ id: 'PortalPasskeyAlert' });
+export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
+const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
+export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk });
+export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
+
+/** How many passkeys the team took from a requester (D69). */
+export const RemovedPasskeysSchema = z.object({ removed: z.number().int() }).meta({ id: 'RemovedPasskeys' });
+export type RemovedPasskeys = z.infer<typeof RemovedPasskeysSchema>;
+
+// ---------------------------------------------------------------------------
+// Passkeys in depth (D68): FIDO's metadata, setup links, a passkey owed at sign-in
+// ---------------------------------------------------------------------------
+
+export const PASSKEY_METADATA_FAILURES = ['unreachable', 'unreadable', 'unverified', 'older', 'tooLarge'] as const;
+export type PasskeyMetadataFailure = (typeof PASSKEY_METADATA_FAILURES)[number];
+
+export const PasskeyMetadataSchema = z
+  .object({
+    source: z.enum(['url', 'file']).describe('Where a4a reads FIDO’s BLOB: PASSKEY_MDS_URL, or PASSKEY_MDS_FILE'),
+    from: z.string().describe('The address or file'),
+    no: z.number().int().nullable().describe('The serial number of the BLOB in use; null when none was read yet'),
+    nextUpdate: z.string().nullable().describe('When FIDO says the next BLOB comes, at the latest (a date)'),
+    gotAt: timestamp.nullable().describe('When the BLOB in use was fetched or read'),
+    stale: z.boolean().describe('Its next update is past, and no later BLOB came: a4a keeps using it'),
+    triedAt: timestamp.nullable(),
+    failedAt: timestamp.nullable().describe('When the last try failed, if it did'),
+    failure: z.enum(PASSKEY_METADATA_FAILURES).nullable().describe('What kind of failure'),
+    failureDetail: z.string().nullable().describe('What went wrong, in English, for administrators'),
+    authenticators: z
+      .array(z.object({ aaguid: z.string(), name: z.string(), revoked: z.boolean().describe('FIDO says it can’t be trusted: never taken') }))
+      .describe('The FIDO2 authenticators the BLOB describes, to choose from'),
+  })
+  .meta({ id: 'PasskeyMetadata' });
+export type PasskeyMetadata = z.infer<typeof PasskeyMetadataSchema>;
+
+export const PasskeySetupLinkBody = z.object({
+  deliver: z
+    .enum(['email', 'show'])
+    .optional()
+    .describe('email: mail it to their address (the default where they have one and mail is set up); show: answer with the link, once, to hand over yourself'),
+});
+export const PasskeySetupLinkSchema = z
+  .object({
+    mailed: z.boolean(),
+    url: z.string().nullable().describe('The link, when shown: it is not kept, and works once'),
+    expiresAt: timestamp,
+  })
+  .meta({ id: 'PasskeySetupLink' });
+export type PasskeySetupLink = z.infer<typeof PasskeySetupLinkSchema>;
+
+export const PasskeySetupInfoSchema = z
+  .object({
+    login: z.string(),
+    name: z.string(),
+    expiresAt: timestamp,
+    signedInAs: z.string().nullable().describe('The login this browser is signed in as, when it isn’t the link’s'),
+  })
+  .meta({ id: 'PasskeySetupInfo' });
+export type PasskeySetupInfo = z.infer<typeof PasskeySetupInfoSchema>;
+
+const setupToken = z.string().min(10).max(100);
+export const PasskeySetupTokenBody = z.object({ token: setupToken });
+export const PasskeySetupBody = z.object({
+  token: setupToken,
+  response: PasskeyRegistrationSchema,
+  name: z.string().trim().min(1).max(60).optional(),
+});
+export const OwedPasskeyBody = z.object({
+  response: PasskeyRegistrationSchema,
+  code: z.string().trim().min(6).max(20).optional().describe('Where two-factor sign-in is on for you: a code from the app, or a recovery code'),
+  name: z.string().trim().min(1).max(60).optional(),
+});

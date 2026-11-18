@@ -26,7 +26,7 @@ import { groupsOfRequester, requesterByEmail, sharingOf, type GroupRow } from '.
 import { botCtx, deskProject, openRequest, postRequesterReply } from './helpdesk';
 import { applyChanges } from './issues';
 import { publishActivities } from '../events/activity';
-import { copyFromPortal, portalCcsOf } from './request-ccs';
+import { copyFromPortal, deskCcsMax, heldOf, portalCcsOf, refusalProblem, settleHeld, uncopyFromPortal } from './request-ccs';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
@@ -75,7 +75,7 @@ export async function inviteRequester(app: AppServices, issueId: string, deskKey
   if (!row) throw new AppError(404, 'not_found', 'This issue is no help desk request', 'Only requests have requesters to invite.').said('portal.notARequest');
   const s = await app.schema.get();
   const project = s.projects.get(row.request.projectId);
-  const choice = project ? deskSignIn(project) : { link: true, password: false, providers: [] };
+  const choice = project ? deskSignIn(project) : { link: true, password: false, providers: [] as string[] };
   const tied = (await groupsOfRequester(app.db, row.requester)).find((g) => g.projectId === row.request.projectId)?.providerId;
   if (!tied && choice.link) return requestSignIn(app, row.requester.email, deskKey);
   if (!tied && choice.password) return requestPasswordLink(app, row.requester.email, deskKey);
@@ -138,7 +138,7 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
   }
-  const method = row.s.method === 'password' || row.s.method === 'sso' ? row.s.method : 'link';
+  const method = row.s.method === 'password' || row.s.method === 'sso' || row.s.method === 'passkey' ? row.s.method : 'link';
   return { ...row.requester, signedIn: { method, providerId: row.s.providerId ?? null } };
 }
 
@@ -179,7 +179,7 @@ async function meOf(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   const ways = closed.map((p) => {
     const tied = view.tiedAt.get(p.id);
     const choice = deskSignIn(p);
-    return { desk: { key: p.key, name: p.name }, link: !tied && choice.link, password: !tied && choice.password, ids: tied ? [tied] : choice.providers };
+    return { desk: { key: p.key, name: p.name }, link: !tied && choice.link, password: !tied && choice.password, passkey: !tied && Boolean(choice.passkey), ids: tied ? [tied] : choice.providers };
   });
   const names = await providerNames(app.db, [...new Set([...ways.flatMap((w) => w.ids), ...(r.signedIn.providerId ? [r.signedIn.providerId] : [])])]);
   const elsewhere: PortalDeskSignIn[] = ways
@@ -295,8 +295,11 @@ export async function portalRequest(app: AppServices, r: PortalViewer, id: strin
   const outside = await outsideAuthors(app.db, rows);
   return {
     ...summary!,
-    // Its requester sees who is copied, and copies more; anyone else isn't shown the list.
+    // Its requester sees who is copied, copies more and takes anyone off (D67); anyone else isn't shown the list.
     ccs: row.requester.id === r.id ? await portalCcsOf(app.db, row.issue.id) : null,
+    // And whom the Cc of the email that opened it named, waiting for them to confirm (D67).
+    held: row.requester.id === r.id ? await heldOf(app.db, row.issue.id) : null,
+    ccsMax: deskCcsMax(s, row.issue.projectId),
     description: row.issue.description,
     // The team by name, them as "you", its requester or a colleague by name, someone copied on it
     // (D57) by name; never anything internal.
@@ -327,8 +330,10 @@ export async function portalReply(app: AppServices, r: PortalViewer, id: string,
   if (!requesterMayComment(row.request, r, groups, row.copied)) {
     throw new AppError(403, 'forbidden', "This is a colleague's request: you can read it, and they reply", 'Open a request of your own to ask something.').said('portal.colleaguesRequest');
   }
-  // Theirs, or a colleague's; one copied on it writes as themselves, and their words aren't relayed (D57).
-  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague: row.requester.id !== r.id && !row.copied });
+  // Theirs, or a colleague's; one copied on it writes as themselves. Signed in, a4a knows who wrote it, so
+  // where the desk relays, everyone else on it hears it (D67).
+  const colleague = row.requester.id !== r.id && !row.copied;
+  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague, relay: { on: 'portal', sender: r.email, trusted: true } });
   return portalRequest(app, r, id);
 }
 
@@ -390,5 +395,40 @@ export async function portalCopy(app: AppServices, r: PortalViewer, id: string, 
     throw new AppError(403, 'forbidden', 'Only the person who asked can copy others on a request', 'Ask them, or the team.').said('portal.onlyTheRequesterCopies');
   }
   await copyFromPortal(app, row.issue, r.name, person);
+  return portalRequest(app, r, id);
+}
+
+/** Only a request's requester changes whom it copies on the portal (D67): a colleague or someone copied is told so. */
+function onlyTheRequester(): AppError {
+  return new AppError(403, 'forbidden', 'Only the person who asked can change who is copied on a request', 'Ask them, or the team. To stop being copied yourself, use the link at the end of any email about it.').said(
+    'portal.onlyTheRequesterChangesCopies',
+  );
+}
+
+/**
+ * The requester takes someone off a request of theirs, on the portal (D67): anyone copied on it, those
+ * the team copied too, since what they're told is the requester's request. Kept as D57 keeps them, so
+ * an email's Cc doesn't put them back, and the history names the requester. A colleague (D56) or
+ * someone copied can't.
+ */
+export async function portalUncopy(app: AppServices, r: PortalViewer, id: string, email: string): Promise<PortalRequestDetail> {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  if (row.requester.id !== r.id) throw onlyTheRequester();
+  await uncopyFromPortal(app, row.issue, r.name, email);
+  return portalRequest(app, r, id);
+}
+
+/**
+ * The requester copies or drops someone the Cc of their new request's email named, held for them to
+ * confirm (D67). Copied, they hear the team's replies from now on; dropped, they're told nothing. A
+ * cap that keeps them out is said as a copy's is, and they stay held.
+ */
+export async function portalSettleHeld(app: AppServices, r: PortalViewer, id: string, email: string, copy: boolean): Promise<PortalRequestDetail> {
+  const groups = sharingOf(await sharingGroups(app, r));
+  const row = await oneRow(app, r, id, groups);
+  if (row.requester.id !== r.id) throw onlyTheRequester();
+  const done = await settleHeld(app, row.issue, r.name, copy ? [email] : [], copy ? [] : [email]);
+  if (done.refused[0]) throw refusalProblem(done.refused[0]);
   return portalRequest(app, r, id);
 }

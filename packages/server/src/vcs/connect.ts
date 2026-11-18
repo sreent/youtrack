@@ -13,6 +13,11 @@
  * The state binds the round trip to the person who started it, as a hash, for ten minutes, once:
  * the callback must come back to the same signed-in person, so nobody can connect their own account
  * to someone else's a4a by sending them a link.
+ *
+ * Forgejo's and Gitea's tokens are narrowed where the instance lets a4a (D66): what the instance
+ * advertises in its OpenID discovery document says whether it revokes (RFC 7009) and introspects
+ * (RFC 7662). A token that says it reaches more than `read:user` is refused; one the instance can take
+ * back is, as soon as it has been asked who you are; where it can't, the profile says so first.
  */
 import { CODE_HOSTS, type CodeHost, type CodeHostInfo, type ProviderLogin } from '@a4a/shared';
 import { createHash, randomBytes } from 'node:crypto';
@@ -36,7 +41,7 @@ const underTest = () => Boolean(process.env.VITEST) || process.env.NODE_ENV === 
 /** Why a connection didn't happen, for the profile page to say (`?connect=`). */
 export class ConnectError extends Error {
   constructor(
-    readonly failure: 'expired' | 'denied' | 'refused' | 'taken' | 'unreachable' | 'mismatch',
+    readonly failure: 'expired' | 'denied' | 'refused' | 'taken' | 'unreachable' | 'mismatch' | 'wide',
     message: string,
   ) {
     super(message);
@@ -68,8 +73,61 @@ function checked(app: AppServices, raw: string): string {
 /** What people call a code host here: Forgejo or Gitea by which one an administrator set up. */
 const nameOf = (app: AppServices, provider: CodeHost) => app.config.codeHosts[provider]?.name ?? CODE_HOST_NAMES[provider];
 
-export function codeHosts(app: AppServices): CodeHostInfo[] {
-  return CODE_HOSTS.map((provider) => ({ provider, name: nameOf(app, provider), available: Boolean(app.config.codeHosts[provider]) }));
+/** What an instance says it offers (OpenID Connect Discovery, RFC 8414's names): only addresses on its own origin. */
+interface Offered {
+  revocation: string | null;
+  introspection: string | null;
+}
+const DISCOVERY_TTL_MS = 60 * 60_000;
+const DISCOVERY_RETRY_MS = 5 * 60_000;
+const offered = new Map<string, { at: Offered; until: number }>();
+const Discovery = z.object({ revocation_endpoint: z.string().nullish(), introspection_endpoint: z.string().nullish() });
+
+/**
+ * Whether a Forgejo or Gitea revokes and introspects tokens, as its discovery document says
+ * (`/.well-known/openid-configuration`): kept an hour, or five minutes when it didn't answer. An
+ * address on another origin is taken as none, so the instance can't send a token elsewhere.
+ */
+export async function offeredBy(app: AppServices, host: CodeHostApp): Promise<Offered> {
+  const web = host.webUrl.replace(/\/$/, '');
+  const kept = offered.get(web);
+  if (kept && kept.until > Date.now()) return kept.at;
+  const origin = new URL(web).origin;
+  const same = (v: string | null | undefined) => {
+    if (!v) return null;
+    try {
+      return new URL(v).origin === origin ? new URL(v).href : null;
+    } catch {
+      return null;
+    }
+  };
+  try {
+    const d = Discovery.parse(await call(app, `${web}/.well-known/openid-configuration`, { headers: { accept: 'application/json' } }));
+    const at = { revocation: same(d.revocation_endpoint), introspection: same(d.introspection_endpoint) };
+    offered.set(web, { at, until: Date.now() + DISCOVERY_TTL_MS });
+    return at;
+  } catch (e) {
+    if (!(e instanceof ConnectError) && !(e instanceof z.ZodError)) throw e;
+    const at = { revocation: null, introspection: null };
+    offered.set(web, { at, until: Date.now() + DISCOVERY_RETRY_MS });
+    return at;
+  }
+}
+
+/** Forget what instances said they offer (tests). */
+export function forgetOffered(): void {
+  offered.clear();
+}
+
+export async function codeHosts(app: AppServices): Promise<CodeHostInfo[]> {
+  return Promise.all(
+    CODE_HOSTS.map(async (provider) => {
+      const host = app.config.codeHosts[provider];
+      // GitHub's, GitLab's and Bitbucket's tokens read who you are and nothing more: there's nothing to say.
+      const revokes = provider === 'gitea' && host ? Boolean((await offeredBy(app, host)).revocation) : null;
+      return { provider, name: nameOf(app, provider), available: Boolean(host), revokes };
+    }),
+  );
 }
 
 const b64url = (b: Buffer) => b.toString('base64url');
@@ -136,9 +194,18 @@ async function call(app: AppServices, url: string, init: RequestInit): Promise<u
 }
 
 const Token = z.object({ access_token: z.string().min(1) });
+/** Forgejo's and Gitea's answer: the refresh token too, to take back, and what it says of the scope it granted. */
+const ForgeToken = Token.extend({ refresh_token: z.string().nullish(), scope: z.string().nullish() });
+
+interface Granted {
+  token: string;
+  refresh: string | null;
+  scope: string | null;
+}
 
 /** The code for a token, with the app's secret: only to ask who it is. */
-async function exchange(app: AppServices, provider: CodeHost, host: CodeHostApp, code: string, verifier: string, redirect: string): Promise<string> {
+async function exchange(app: AppServices, provider: CodeHost, host: CodeHostApp, code: string, verifier: string, redirect: string): Promise<Granted> {
+  const one = (token: string): Granted => ({ token, refresh: null, scope: null });
   const web = host.webUrl.replace(/\/$/, '');
   if (provider === 'github') {
     const got = await call(app, `${web}/login/oauth/access_token`, {
@@ -148,7 +215,7 @@ async function exchange(app: AppServices, provider: CodeHost, host: CodeHostApp,
     });
     const parsed = Token.safeParse(got);
     if (!parsed.success) throw new ConnectError('refused', 'GitHub gave no token for the code');
-    return parsed.data.access_token;
+    return one(parsed.data.access_token);
   }
   if (provider === 'gitlab' || provider === 'gitea') {
     const got = await call(app, provider === 'gitlab' ? `${web}/oauth/token` : `${web}/login/oauth/access_token`, {
@@ -156,9 +223,9 @@ async function exchange(app: AppServices, provider: CodeHost, host: CodeHostApp,
       headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ grant_type: 'authorization_code', client_id: host.clientId, client_secret: host.clientSecret, code, redirect_uri: redirect, code_verifier: verifier }),
     });
-    const parsed = Token.safeParse(got);
+    const parsed = ForgeToken.safeParse(got);
     if (!parsed.success) throw new ConnectError('refused', `${host.name ?? CODE_HOST_NAMES[provider]} gave no token for the code`);
-    return parsed.data.access_token;
+    return provider === 'gitea' ? { token: parsed.data.access_token, refresh: parsed.data.refresh_token ?? null, scope: parsed.data.scope ?? null } : one(parsed.data.access_token);
   }
   const got = await call(app, `${web}/site/oauth2/access_token`, {
     method: 'POST',
@@ -171,7 +238,62 @@ async function exchange(app: AppServices, provider: CodeHost, host: CodeHostApp,
   });
   const parsed = Token.safeParse(got);
   if (!parsed.success) throw new ConnectError('refused', 'Bitbucket gave no token for the code');
-  return parsed.data.access_token;
+  return one(parsed.data.access_token);
+}
+
+/** Scopes that reach no API: OpenID Connect's, which shape only the ID token and the user's info. */
+const ASKED = new Set(['read:user', 'openid', 'profile', 'email', 'groups']);
+const clientAuth = (host: CodeHostApp) => `Basic ${Buffer.from(`${encodeURIComponent(host.clientId)}:${encodeURIComponent(host.clientSecret)}`).toString('base64')}`;
+const Introspected = z.object({ active: z.boolean(), scope: z.string().nullish() });
+
+/**
+ * Where the instance says what it granted (the token's answer, else its introspection, RFC 7662),
+ * the token must reach no more than `read:user`; one that says more, or that the instance says isn't
+ * active, is refused before it's used. Where it says nothing, the instance takes no scopes, and the
+ * profile said what that means before the person went on.
+ */
+async function checkScope(app: AppServices, host: CodeHostApp, granted: Granted, at: Offered): Promise<void> {
+  let scope = granted.scope;
+  if (scope === null && at.introspection) {
+    const got = Introspected.safeParse(
+      await call(app, at.introspection, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', authorization: clientAuth(host) },
+        body: new URLSearchParams({ token: granted.token, token_type_hint: 'access_token' }),
+      }),
+    );
+    if (!got.success || !got.data.active) throw new ConnectError('refused', `${host.name ?? 'Forgejo'} says the token it gave isn't good`);
+    scope = got.data.scope ?? null;
+  }
+  if (scope === null) return;
+  const wider = scope.split(/[\s,]+/).filter((s) => s && !ASKED.has(s));
+  if (wider.length) throw new ConnectError('wide', `${host.name ?? 'Forgejo'} gave a token that reaches more than reading who you are (${wider.join(' ')}), so a4a didn't use it`);
+}
+
+/**
+ * Take the token back (RFC 7009), as soon as it has been used, where the instance offers it: the
+ * refresh token first, which ends its grant's access tokens where the server does so, then the access
+ * token. What goes wrong is logged without the token, and changes nothing the person sees: they were
+ * told before they went on.
+ */
+async function takeBack(app: AppServices, host: CodeHostApp, granted: Granted, at: Offered): Promise<void> {
+  if (!at.revocation) return;
+  const tokens: [string, string][] = [...(granted.refresh ? [[granted.refresh, 'refresh_token'] as [string, string]] : []), [granted.token, 'access_token']];
+  for (const [token, hint] of tokens) {
+    try {
+      await call(app, at.revocation, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded', authorization: clientAuth(host) },
+        body: new URLSearchParams({ token, token_type_hint: hint }),
+      }).catch((e: unknown) => {
+        // RFC 7009 answers 200 with an empty body: that's the token taken back.
+        if (e instanceof ConnectError && /didn't answer in JSON/.test(e.message)) return null;
+        throw e;
+      });
+    } catch (e) {
+      console.warn(`connect: ${new URL(at.revocation).host} didn't take back a ${hint} (${e instanceof Error ? e.message : 'unknown'})`);
+    }
+  }
 }
 
 /** Who the token is, there: the provider's own id, and the login commits name them by. */
@@ -208,8 +330,16 @@ export async function finishConnect(app: AppServices, ctx: Ctx | null, provider:
   const code = params.get('code');
   if (!code) throw new ConnectError('refused', 'The provider sent no code back.');
   const { host, provider: p } = appFor(app, provider);
-  const token = await exchange(app, p, host, code, row.verifier, callbackUrl(app, p));
-  const who = await whoIs(app, p, host, token);
+  const granted = await exchange(app, p, host, code, row.verifier, callbackUrl(app, p));
+  // Forgejo and Gitea (D66): no wider than asked, and taken back as soon as it's been used.
+  const at = p === 'gitea' ? await offeredBy(app, host) : null;
+  let who: { id: string; login: string };
+  try {
+    if (at) await checkScope(app, host, granted, at);
+    who = await whoIs(app, p, host, granted.token);
+  } finally {
+    if (at) await takeBack(app, host, granted, at);
+  }
   const matchKey = loginKey(p, who.login);
   const [taken] = await app.db.select().from(providerLogins).where(and(eq(providerLogins.provider, p), eq(providerLogins.matchKey, matchKey)));
   if (taken && taken.userId !== row.userId) throw new ConnectError('taken', `That ${nameOf(app, p)} account is someone else's in a4a: an administrator can move it.`);

@@ -76,7 +76,7 @@ export class Api {
     return this.get<IssueList>(`/issues?query=${encodeURIComponent(query)}&limit=200`);
   }
 
-  createBoard(input: { name: string; projects: string[]; columns?: { name: string; values: string[]; wipLimit?: number | null }[]; sprintsEnabled?: boolean }): Promise<Board> {
+  createBoard(input: { name: string; projects: string[]; columns?: { name: string; values: string[]; wipLimit?: number | null }[]; sprintsEnabled?: boolean; swimlaneField?: string | null; laneOrder?: boolean }): Promise<Board> {
     return this.post<Board>('/boards', input);
   }
 

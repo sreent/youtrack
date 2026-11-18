@@ -9,6 +9,7 @@ import './knowledge/register';
 import './notify/register';
 import './oauth/register';
 import './push/register';
+import './vcs/register';
 
 // A stop while it starts (migrating, or waiting while another instance migrates) ends it at once:
 // it serves nothing yet, and a migration cut off rolls back. In a container a4a is process 1, which

@@ -32,6 +32,7 @@ import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { mailConfigured } from '../notify/state';
 import { emailDomain, projectAccess, type PortalSignedIn } from './access';
 import { requesterByEmail } from './customer-groups';
+import { passkeyOffered } from './portal-passkeys';
 import { projectSettings } from './projects';
 import type { ProjectRow } from './schema-cache';
 
@@ -78,7 +79,11 @@ const taking = (projects: Iterable<ProjectRow>) => [...projects].filter((p) => !
  */
 export async function checkDeskSignIn(ctx: Ctx, project: ProjectRow, input: HelpdeskSignIn, current: HelpdeskSignIn) {
   const providers = [...new Set(input.providers)];
+  // Left out, a desk keeps whether it takes passkeys (D69): a script written before them doesn't turn them off.
+  const passkey = input.passkey ?? Boolean(current.passkey);
   if (!input.link && !input.password && !providers.length) {
+    // A passkey is added once a requester is signed in another way: alone, it would let nobody new in.
+    if (passkey) throw badRequest('A passkey can’t be a desk’s only way in', 'Requesters add one once they’re signed in: keep the emailed link, a password or an identity provider beside it.').said('portalSignIn.passkeyNotAlone');
     throw badRequest('A desk needs one way at least for its requesters to sign in', 'Keep the emailed link, or choose a password or an identity provider.').said('portalSignIn.oneWayAtLeast');
   }
   const known = providers.length ? await ctx.db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(inArray(portalProviders.id, providers)) : [];
@@ -95,12 +100,12 @@ export async function checkDeskSignIn(ctx: Ctx, project: ProjectRow, input: Help
       throw conflict(`${tied.group}'s people sign in through ${tied.provider}`, `Tie ${tied.group} to another way first, then take ${tied.provider} off.`).said('portalSignIn.groupSignsInThrough', { group: tied.group, provider: tied.provider });
     }
   }
-  const next: HelpdeskSignIn = { link: input.link, password: input.password, providers };
+  const next: HelpdeskSignIn = { link: input.link, password: input.password, providers, passkey };
   const names = new Map(known.map((k) => [k.id, k.name]));
   const before = current.providers.length ? await ctx.db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(inArray(portalProviders.id, current.providers)) : [];
   for (const b of before) names.set(b.id, b.name);
-  const said = (x: HelpdeskSignIn) => ({ link: x.link, password: x.password, providers: x.providers.map((id) => names.get(id) ?? id) });
-  const changed = next.link !== current.link || next.password !== current.password || next.providers.join() !== current.providers.join();
+  const said = (x: HelpdeskSignIn) => ({ link: x.link, password: x.password, providers: x.providers.map((id) => names.get(id) ?? id), passkey: Boolean(x.passkey) });
+  const changed = next.link !== current.link || next.password !== current.password || next.providers.join() !== current.providers.join() || next.passkey !== Boolean(current.passkey);
   return { next, changed, data: { from: said(current), to: said(next) } };
 }
 
@@ -308,6 +313,8 @@ export async function signInMethods(app: AppServices, deskKey: string | undefine
   const desk = openDesk(s.projectsByKey, deskKey);
   const all = taking(s.projects.values());
   const choice = desk ? deskSignIn(desk) : { link: !all.length || all.some((p) => deskSignIn(p).link), password: all.some((p) => deskSignIn(p).password), providers: [] as string[] };
+  // An unknown desk offers no passkey, as it names no provider; the portal's own page, if some desk takes them.
+  const passkey = await passkeyOffered(app, desk ? desk.key : deskKey, desk ? choice : null);
   const names = await providerNames(app.db, choice.providers);
   return {
     desk: desk ? { key: desk.key, name: desk.name } : null,
@@ -316,6 +323,7 @@ export async function signInMethods(app: AppServices, deskKey: string | undefine
     providers: choice.providers.flatMap((id) => (names.has(id) ? [{ id, name: names.get(id)!, start: `/api/v1/portal/sso/${encodeURIComponent(id)}/start${desk ? `?desk=${desk.key}` : ''}` }] : [])),
     captcha: choice.password && captchaAsked(s.projects.values()) ? await captchaChallenge(app, PORTAL_CAPTCHA) : null,
     mail: mailConfigured(app),
+    passkey,
   };
 }
 
@@ -415,10 +423,23 @@ export async function renderPortalPassword(app: AppServices, mail: MailRow): Pro
   };
 }
 
-/** A new session's token for a requester, opened the way it says. */
-export async function startPortalSession(db: Db, requesterId: string, how: PortalSignedIn, ttlMs: number): Promise<string> {
+/**
+ * A new session's token for a requester, opened the way it says. One opened by what only the
+ * mailbox's holder has (an emailed link, a passkey, or the link that set the password: `confirmed`)
+ * may add and remove passkeys for ten minutes (D69).
+ */
+export async function startPortalSession(db: Db, requesterId: string, how: PortalSignedIn & { passkeyId?: string; confirmed?: boolean }, ttlMs: number): Promise<string> {
   const session = randomToken('hds_', 32);
-  await db.insert(requesterSessions).values({ tokenHash: sha256(session), requesterId, method: how.method, providerId: how.providerId, expiresAt: new Date(Date.now() + ttlMs) });
+  const confirmed = how.confirmed ?? (how.method === 'link' || how.method === 'passkey');
+  await db.insert(requesterSessions).values({
+    tokenHash: sha256(session),
+    requesterId,
+    method: how.method,
+    providerId: how.providerId,
+    passkeyId: how.passkeyId ?? null,
+    confirmedAt: confirmed ? new Date() : null,
+    expiresAt: new Date(Date.now() + ttlMs),
+  });
   return session;
 }
 
@@ -448,7 +469,8 @@ export async function setPasswordWithLink(app: AppServices, token: string, passw
     await tx.update(requesters).set({ passwordHash: hash, passwordSetAt: now, updatedAt: now }).where(eq(requesters.id, r!.id));
     await tx.delete(requesterSessions).where(eq(requesterSessions.requesterId, r!.id));
     await tx.delete(requesterSignIns).where(and(eq(requesterSignIns.requesterId, r!.id), eq(requesterSignIns.purpose, 'password'), isNull(requesterSignIns.usedAt)));
-    const session = await startPortalSession(tx, r!.id, { method: 'password', providerId: null }, ttlMs);
+    // Opened by the link the mailbox's holder had: as recent as a sign-in link, for adding a passkey (D69).
+    const session = await startPortalSession(tx, r!.id, { method: 'password', providerId: null, confirmed: true }, ttlMs);
     return { session, requesterId: r!.id, first: !r!.passwordHash };
   });
   await tellOfSignIn(app, done.requesterId, done.first ? 'passwordSet' : 'passwordChanged');

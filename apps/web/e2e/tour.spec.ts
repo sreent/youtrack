@@ -528,6 +528,10 @@ for (const mode of MODES) {
         const g = await guestSurfaces(api);
         await visit(page, `/public/whiteboards/${g.whiteboard}`, page.getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: /Ship it in spring/ }));
       });
+      test('a passkey setup link that no longer works', async ({ page }) => {
+        // The run's server is at an address, where passkeys are off: a link is drawn as one that doesn't work. passkeys.spec draws the rest (D68).
+        await visit(page, '/passkey-setup#a4k_spent', page.getByRole('heading', { name: 'This link doesn’t work' }));
+      });
       test('the code after the password', async ({ page, api }) => {
         await visit(page, await atTheCode(api, page), page.getByRole('button', { name: 'Sign in' }), signInWithPassword);
         // The code's field is drawn and labelled; nothing is typed, so the step stays as it is.

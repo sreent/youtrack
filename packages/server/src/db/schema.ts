@@ -35,6 +35,16 @@ const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
   },
 });
 
+/**
+ * A board's rank key (D65): text compared by its bytes ("C"), whatever the database's own collation,
+ * so Postgres orders keys as `@a4a/shared/ranks` makes them, and an index on them serves a move.
+ */
+const rankKey = customType<{ data: string }>({
+  dataType() {
+    return 'text COLLATE "C"';
+  },
+});
+
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => ts('created_at').notNull().defaultNow();
 
@@ -55,6 +65,13 @@ export const users = pgTable(
      */
     emailVerified: boolean('email_verified').notNull().default(false),
     passwordHash: text('password_hash'),
+    /**
+     * a4a's own account that signs in with passkeys alone, no password (D68): made so by an
+     * administrator, with a link to add its first passkey, or by its person removing their password.
+     */
+    passkeysOnly: boolean('passkeys_only').notNull().default(false),
+    /** Where passkeys are required, an administrator let them sign in without one, for a device that can't make one (D68). */
+    passkeyExemptAt: ts('passkey_exempt_at'),
     role: text('role').notNull().default('member'),
     isBot: boolean('is_bot').notNull().default(false),
     avatarColor: text('avatar_color').notNull(),
@@ -98,6 +115,8 @@ export const sessions = pgTable(
     passkeyId: text('passkey_id'),
     /** When its person last proved it's them in it: at the sign-in, or since, to add or remove a passkey. */
     verifiedAt: ts('verified_at').notNull().defaultNow(),
+    /** How they proved it then: `passkey`, or `password` (D68). Removing a password takes a passkey's proof. */
+    verifiedBy: text('verified_by'),
   },
   (t) => [index('sessions_user').on(t.userId), index('sessions_passkey').on(t.passkeyId)],
 );
@@ -505,6 +524,8 @@ export const boards = pgTable('boards', {
   /** The field its story points are in (D43), summed on columns and sprints. */
   pointsFieldId: text('points_field_id').references(() => fields.id, { onDelete: 'set null' }),
   sprintsEnabled: boolean('sprints_enabled').notNull().default(false),
+  /** Whether each swimlane keeps an order of its own (D65), rather than the board's one order (D53). */
+  laneOrder: boolean('lane_order').notNull().default(false),
   ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -802,6 +823,14 @@ export const vcsIntegrations = pgTable('vcs_integrations', {
   /** What GitHub calls the app (its slug) and the account it's installed on, to show. */
   githubAppSlug: text('github_app_slug'),
   githubAccount: text('github_account'),
+  /**
+   * GitHub, as its app (D66): report to each pull request as a check run named "a4a", off by default.
+   * It names the issues the pull request names, by id and link; `checksStates` adds each one's state,
+   * and `checksResolved` makes it fail while a named issue isn't resolved, or an id names none.
+   */
+  checks: boolean('checks').notNull().default(false),
+  checksStates: boolean('checks_states').notNull().default(false),
+  checksResolved: boolean('checks_resolved').notNull().default(false),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -2116,8 +2145,9 @@ export const scimGroups = pgTable('scim_groups', {
 // ---------------------------------------------------------------------------
 
 /**
- * An issue's place on a board, shared by its backlog and its columns: lower comes first. Ranks
- * are numbers with gaps; an issue without one comes after those with one, in the query's order.
+ * An issue's place on a board, shared by its backlog and its columns: the lower key comes first, by its
+ * bytes (D65). An issue without one comes after those with one, in the query's order. A move reads its
+ * anchor's key and the next one through the index, and writes one row.
  */
 export const boardRanks = pgTable(
   'board_ranks',
@@ -2128,9 +2158,9 @@ export const boardRanks = pgTable(
     issueId: text('issue_id')
       .notNull()
       .references(() => issues.id, { onDelete: 'cascade' }),
-    rank: doublePrecision('rank').notNull(),
+    key: rankKey('key').notNull(),
   },
-  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_ranks_rank').on(t.boardId, t.rank)],
+  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_ranks_key').on(t.boardId, t.key)],
 );
 
 /** A project's kinds of work (development, testing, …), chosen when work is logged. */
@@ -2557,15 +2587,23 @@ export const requesterSessions = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
-    /** How it was opened (D63): 'link', 'password' or 'sso'. It opens the requests of desks that take that way. */
+    /** How it was opened (D63): 'link', 'password', 'sso' or 'passkey' (D69). It opens the requests of desks that take that way. */
     method: text('method').notNull().default('link'),
     /** With 'sso', the identity provider it came through. */
     providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'cascade' }),
+    /** With 'passkey', the passkey that opened it: removing that passkey ends it, unless this is the session that removes it (D69). */
+    passkeyId: text('passkey_id'),
+    /**
+     * When its requester last proved, in it, that they hold their mailbox (D69): opened by an emailed
+     * link or a passkey, or confirmed with a passkey since. Ten minutes from then it may add and remove
+     * passkeys. Null for a session opened by a password or a provider, which never may.
+     */
+    confirmedAt: ts('confirmed_at'),
     createdAt: created(),
     lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
     expiresAt: ts('expires_at').notNull(),
   },
-  (t) => [index('requester_sessions_requester').on(t.requesterId)],
+  (t) => [index('requester_sessions_requester').on(t.requesterId), index('requester_sessions_passkey').on(t.passkeyId)],
 );
 
 /** A sign-in link sent to a requester, or a link to set their password (D63): its token as a hash, good once, for a short while. */
@@ -2869,7 +2907,7 @@ export const requestCcs = pgTable(
     addedAt: ts('added_at').notNull().defaultNow(),
     /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
     removedAt: ts('removed_at'),
-    /** 'team', or 'unsubscribe': they stopped it themselves, from an email. */
+    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; or 'portal': its requester took them off (D67). */
     removedVia: text('removed_via'),
     removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
@@ -3134,6 +3172,8 @@ export const passkeys = pgTable(
     aaguid: text('aaguid'),
     name: text('name').notNull(),
     rpId: text('rp_id').notNull(),
+    /** Its maker vouched for it (attestation), checked against FIDO's metadata, while only some authenticators were taken (D68). */
+    attested: boolean('attested').notNull().default(false),
     createdAt: created(),
     lastUsedAt: ts('last_used_at'),
     copiedAt: ts('copied_at'),
@@ -3181,4 +3221,330 @@ export const passkeyAlerts = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_alerts_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// githosts (D66): a GitHub App's installations, and its check runs on pull requests
+// ---------------------------------------------------------------------------
+
+/**
+ * The installations of a GitHub integration's app that a4a knows of: all of them when the app is given
+ * or tested, and each as a repository is read through it, since each repository reads through its own
+ * (D66). The page lists them with their accounts. The tokens they're traded for live in memory alone.
+ * Check runs written through one are counted here, so every instance counts as one against its limit.
+ */
+export const vcsInstallations = pgTable(
+  'vcs_installations',
+  {
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    installationId: text('installation_id').notNull(),
+    /** The user or organization it's installed on, and which GitHub says it is (User, Organization). */
+    account: text('account'),
+    accountType: text('account_type'),
+    /** `all` or `selected`: which of the account's repositories it was given. */
+    repositorySelection: text('repository_selection'),
+    suspendedAt: ts('suspended_at'),
+    /** When GitHub last said it's gone (uninstalled, or another app's). */
+    goneAt: ts('gone_at'),
+    /** Repositories a4a has read or reported to through it, the latest first, a few. */
+    repositories: text('repositories').array().notNull().default(sql`'{}'::text[]`),
+    /** Check runs written in the current minute: where it began, and how many. */
+    checksWindowAt: ts('checks_window_at'),
+    checksInWindow: integer('checks_in_window').notNull().default(0),
+    /** GitHub said to wait (its rate limit): nothing is written through it before then. */
+    checksPausedUntil: ts('checks_paused_until'),
+    seenAt: ts('seen_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.integrationId, t.installationId] })],
+);
+
+/**
+ * A pull request's check run (D66): one row per pull request, kept by its deliveries and marked due by
+ * them and by the outbox's consumer when an issue it names changes; the sender on every instance writes
+ * what's due to GitHub, claimed so two never write one at once. `marks` counts what made it due, so a
+ * write that raced a newer change leaves it due.
+ */
+export const vcsChecks = pgTable(
+  'vcs_checks',
+  {
+    id: text('id').primaryKey(),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    repository: text('repository').notNull(),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    branch: text('branch'),
+    /** open, merged or closed: only an open one's check is written. */
+    state: text('state').notNull(),
+    headSha: text('head_sha').notNull(),
+    baseSha: text('base_sha'),
+    /** The ids its commits name, read as the app from GitHub's compare of its base and head, and the head they were read at. */
+    commitIds: text('commit_ids').array().notNull().default(sql`'{}'::text[]`),
+    commitsOf: text('commits_of'),
+    /** The ids it names, as typed (upper case), and the issues they named when last written: a change to one finds it. */
+    mentioned: text('mentioned').array().notNull().default(sql`'{}'::text[]`),
+    issueIds: text('issue_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** GitHub's check run, and the commit it's on: a new head gets a run of its own. */
+    checkRunId: text('check_run_id'),
+    checkSha: text('check_sha'),
+    /** A hash of what was last written, and its conclusion: the same words aren't written twice. */
+    written: text('written'),
+    conclusion: text('conclusion'),
+    writtenAt: ts('written_at'),
+    marks: integer('marks').notNull().default(0),
+    dueAt: ts('due_at'),
+    lockedUntil: ts('locked_until'),
+    attempts: integer('attempts').notNull().default(0),
+    /** Why the last write didn't go, for the integrations page, in the words of a delivery's log. */
+    problem: text('problem'),
+    problemAt: ts('problem_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('vcs_checks_pull').on(t.integrationId, t.repository, t.number), index('vcs_checks_due').on(t.dueAt)],
+);
+
+// ---------------------------------------------------------------------------
+// CCs in depth (wave 6: docs/architecture.md, D67)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whom the Cc of a new request's email named, when a4a couldn't trust who sent it (D67): held, not
+ * copied, until its requester confirms them, by the link in their acknowledgement or on the portal.
+ * Nobody held is sent anything. Forgotten after 30 days (CC_HOLD_DAYS), or once copied or dropped.
+ */
+export const requestCcHolds = pgTable(
+  'request_cc_holds',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    /** As the email named them; empty for none. */
+    name: text('name').notNull().default(''),
+    heldAt: ts('held_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('request_cc_holds_address').on(t.issueId, sql`lower(${t.email})`), index('request_cc_holds_held').on(t.heldAt)],
+);
+
+/**
+ * The link in a new request's acknowledgement that confirms whom its Cc named (D67): minted as the
+ * email is sent, kept as a SHA-256 hash, good once for CC_CONFIRM_DAYS. Using it settles every hold.
+ */
+export const requestCcConfirmations = pgTable(
+  'request_cc_confirmations',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('request_cc_confirmations_issue').on(t.issueId)],
+);
+
+/**
+ * A colleague of a request's customer group (D56) who answered it and then stopped hearing the others'
+ * relayed words on it (D67), from the link in a relayed email. The requester stops by muting the
+ * request's emails, and someone copied by being taken off it.
+ */
+export const requestRelayStops = pgTable(
+  'request_relay_stops',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.requesterId] })],
+);
+
+// ---------------------------------------------------------------------------
+// Requesters' passkeys (D69): the portal's, apart from the team's (D62)
+// ---------------------------------------------------------------------------
+
+/**
+ * A requester's passkey: a WebAuthn credential for the portal alone, kept apart from members'
+ * (`passkeys`), so the portal's routes read only these and the team's only those. Its user handle
+ * is `hdr:` and the requester's id (`handle`), which no member's handle (their id alone) can be.
+ * A credential id is in one of the two tables at most (services/passkey-credentials.ts).
+ */
+export const requesterPasskeys = pgTable(
+  'requester_passkeys',
+  {
+    id: text('id').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** The credential's id, base64url, as the authenticator made it. */
+    credentialId: text('credential_id').notNull(),
+    /** Its public key, COSE-encoded, as it was registered. */
+    publicKey: bytea('public_key').notNull(),
+    signCount: bigint('sign_count', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array().notNull().default(sql`'{}'::text[]`),
+    multiDevice: boolean('multi_device').notNull().default(false),
+    backedUp: boolean('backed_up').notNull().default(false),
+    aaguid: text('aaguid'),
+    name: text('name').notNull(),
+    rpId: text('rp_id').notNull(),
+    createdAt: created(),
+    lastUsedAt: ts('last_used_at'),
+    copiedAt: ts('copied_at'),
+  },
+  (t) => [uniqueIndex('requester_passkeys_credential').on(t.credentialId), index('requester_passkeys_requester').on(t.requesterId)],
+);
+
+/**
+ * A requester's passkey ceremony under way: the challenge, kept as a hash, for five minutes, taken
+ * once. `purpose` is `register`, `sign-in` or `confirm`; `boundTo` the browser that asked: its portal
+ * session's token hash, or the hash of the sign-in ticket its cookie holds (`a4a_portal_pk`).
+ */
+export const requesterPasskeyChallenges = pgTable(
+  'requester_passkey_challenges',
+  {
+    id: text('id').primaryKey(),
+    purpose: text('purpose').notNull(),
+    requesterId: text('requester_id').references(() => requesters.id, { onDelete: 'cascade' }),
+    boundTo: text('bound_to').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: created(),
+  },
+  (t) => [index('requester_passkey_challenges_expires').on(t.expiresAt)],
+);
+
+/**
+ * The "this wasn't me" link in a mail that told a requester their passkeys changed: its token as a
+ * hash, minted as the mail is sent, good once for two weeks. It only takes access away.
+ */
+export const requesterPasskeyAlerts = pgTable(
+  'requester_passkey_alerts',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** `added`, `removed` or `copied`. */
+    change: text('change').notNull(),
+    passkeyId: text('passkey_id'),
+    name: text('name').notNull(),
+    changedAt: ts('changed_at').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('requester_passkey_alerts_requester').on(t.requesterId)],
+);
+
+// ---------------------------------------------------------------------------
+// Boards at scale, lanes of their own, and a card's place in its history (docs/architecture.md, D65)
+// ---------------------------------------------------------------------------
+
+/**
+ * A card's place in its swimlane, on a board whose lanes keep their own order: one per card, in the
+ * lane it was placed in (`u:<user id>`, `v:<value's name>`, or '' for the lane of no value). In any
+ * other lane it has none there, and comes after the lane's placed cards, in the board's order.
+ */
+export const boardLaneRanks = pgTable(
+  'board_lane_ranks',
+  {
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    lane: text('lane').notNull(),
+    key: rankKey('key').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.boardId, t.issueId] }), index('board_lane_ranks_key').on(t.boardId, t.lane, t.key)],
+);
+
+/**
+ * A card's place in its issue's history: one line for a run of moves by one person, through one
+ * channel, on one board, while nothing else happens to the issue and within ten minutes of the run's
+ * first. Its place is a kept note (D49), said for each reader with what they may see; the ledger keeps
+ * every move as its own event.
+ */
+export const boardMoves = pgTable(
+  'board_moves',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => issues.id, { onDelete: 'cascade' }),
+    boardId: text('board_id').references(() => boards.id, { onDelete: 'set null' }),
+    actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    channel: text('channel').notNull(),
+    tokenName: text('token_name'),
+    /** The issue it was put next to, while it exists; `above`, `below` or `top` says where. */
+    anchorId: text('anchor_id').references(() => issues.id, { onDelete: 'set null' }),
+    side: text('side').notNull(),
+    moves: integer('moves').notNull().default(1),
+    /** The run's last move's `board.issue_ranked`, which the line stands for in the history. */
+    lastEventId: bigint('last_event_id', { mode: 'number' }).notNull(),
+    firstAt: ts('first_at').notNull().defaultNow(),
+    lastAt: ts('last_at').notNull().defaultNow(),
+    /** The line's words as kept (D49): its English, and its key and values. */
+    note: text('note').notNull(),
+    said: jsonb('said').$type<{ key: string; values?: Record<string, string | number> }>().notNull(),
+  },
+  (t) => [index('board_moves_issue').on(t.issueId, t.lastEventId)],
+);
+
+// ---------------------------------------------------------------------------
+// Passkeys in depth (D68)
+// ---------------------------------------------------------------------------
+
+/**
+ * FIDO's Metadata Service as a4a last read it: one row (`mds`), shared by every instance. The BLOB
+ * in use is the last one whose signature chained to FIDO's root and whose number passed the one
+ * before; a fetch that fails keeps it, and says when and why beside it.
+ */
+export const passkeyMetadata = pgTable('passkey_metadata', {
+  id: text('id').primaryKey(),
+  /** The BLOB's serial number: a later one must be greater. Null: none read yet. */
+  no: integer('no'),
+  /** When FIDO says the next BLOB comes, at the latest (YYYY-MM-DD). Past it, the BLOB is stale. */
+  nextUpdate: text('next_update'),
+  /** When the BLOB in use was fetched or read. */
+  gotAt: ts('got_at'),
+  /** Its FIDO2 authenticators: each AAGUID's metadata statement (without its icon) and status reports. */
+  entries: jsonb('entries').$type<unknown[]>(),
+  /** The last try, and, when it failed, what kind of failure and the detail (English, for administrators). */
+  triedAt: ts('tried_at'),
+  failedAt: ts('failed_at'),
+  failure: text('failure'),
+  failureDetail: text('failure_detail'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * A one-time link that adds an account's first passkey (D68): for an account an administrator made
+ * without a password, or one that lost every passkey. Kept as a hash, minted as its mail is sent, or
+ * shown once to the administrator; good once, for three days; a newer link voids it.
+ */
+export const passkeySetupLinks = pgTable(
+  'passkey_setup_links',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The administrator who sent it. */
+    madeBy: text('made_by').references(() => users.id, { onDelete: 'set null' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('passkey_setup_links_user').on(t.userId)],
 );

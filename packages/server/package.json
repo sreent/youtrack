@@ -44,6 +44,7 @@
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "quickjs-emscripten": "0.31.0",
+    "tldts": "7.4.19",
     "zod": "^4.6.7"
   },
   "devDependencies": {

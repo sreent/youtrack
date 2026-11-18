@@ -2,6 +2,8 @@
  * Passkeys (docs/architecture.md, D62): signing in with one from the sign-in page, one in place of a
  * code after a password, and a person's own from their profile; an administrator's removal; and the
  * "this wasn't me" link their mails carry. Signing in is a browser's, so MCP has no tools for it.
+ * D68 adds the passkey a sign-in owes where they're required, setup links for accounts with no
+ * password, removing your password, and FIDO's metadata for administrators.
  */
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import {
@@ -10,9 +12,16 @@ import {
   ConfirmItsYouBody,
   MeSchema,
   MyPasskeysSchema,
+  OwedPasskeyBody,
   PasskeyAlertSchema,
+  PasskeyMetadataSchema,
   PasskeyOptionsSchema,
   PasskeySchema,
+  PasskeySetupBody,
+  PasskeySetupInfoSchema,
+  PasskeySetupLinkBody,
+  PasskeySetupLinkSchema,
+  PasskeySetupTokenBody,
   PasskeySignInBody,
   RenamePasskeyBody,
 } from '@a4a/shared';
@@ -24,7 +33,7 @@ import { z } from 'zod';
 import type { Runtime } from '../../app-services';
 import { requireScope, type Ctx } from '../../context';
 import { users } from '../../db/schema';
-import { randomToken, verifyPassword } from '../../lib/crypto';
+import { randomToken, sha256, verifyPassword } from '../../lib/crypto';
 import { AppError, badRequest, forbidden, unauthorized } from '../../lib/errors';
 import { SESSION_COOKIE } from '../../services/auth';
 import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
@@ -52,6 +61,20 @@ import {
   signInWithPasskey,
   type SessionRef,
 } from '../../services/passkeys';
+import { metadataStatus, refreshMetadata } from '../../services/passkey-metadata';
+import {
+  addOwedPasskey,
+  adminRemovalCheck,
+  confirmWithAPasskey,
+  finishSetup,
+  moreOfMine,
+  owedOptions,
+  ownRemovalCheck,
+  removePassword,
+  sendSetupLink,
+  setupInfo,
+  setupOptions,
+} from '../../services/passkey-policy';
 import type { UserRow } from '../../services/schema-cache';
 import { endTicket, hasTwoFactor, peekTicket, takeSecondFactor, TICKET_COOKIE, TICKET_COOKIE_PATH, useTicket, wrongCode } from '../../services/two-factor';
 import type { HttpEnv } from '../env';
@@ -226,7 +249,7 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
   route(app, { method: 'get', path: '/me/passkeys', tags, summary: 'Your passkeys, and whether this session may add and remove them now', response: MyPasskeysSchema }, async ({ c, ctx }) => {
     requireScope(ctx, 'read');
     const session = ctx.actor.authMethod === 'session' ? await sessionRef(ctx.db, getCookie(c, SESSION_COOKIE)) : null;
-    return myPasskeys(ctx.app, ctx.actor.user, session, await hasTwoFactor(ctx.db, ctx.actor.user.id));
+    return { ...(await myPasskeys(ctx.app, ctx.actor.user, session, await hasTwoFactor(ctx.db, ctx.actor.user.id))), ...(await moreOfMine(ctx.app, ctx.actor.user, session)) };
   });
 
   route(
@@ -283,7 +306,7 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       status: 204,
     },
     async ({ c, ctx, params }) => {
-      await removePasskey(ctx.app, ctx.actor.user, await browserSession(c, ctx), params.id);
+      await removePasskey(ctx.app, ctx.actor.user, await browserSession(c, ctx), params.id, ownRemovalCheck(ctx.app, ctx.actor.user));
       return null;
     },
   );
@@ -304,6 +327,8 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       const session = await browserSession(c, ctx);
       const runtime = c.get('runtime');
       const user = ctx.actor.user;
+      // Passkeys alone (D68): no password to type, so one of them confirms it.
+      if (user.passkeysOnly) throw confirmWithAPasskey();
       const tries = await attempt(c, runtime, user.login);
       if (!user.passwordHash || !(await verifyPassword(body.password, user.passwordHash))) throw forbidden('Current password is incorrect').said('users.wrongPassword');
       if (await hasTwoFactor(ctx.db, user.id)) {
@@ -311,7 +336,7 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
         if (!(await takeSecondFactor(runtime, user.id, body.code))) throw wrongCode();
       }
       await tries.succeeded();
-      return { confirmedUntil: (await markVerified(ctx.db, session.id)).toISOString() };
+      return { confirmedUntil: (await markVerified(ctx.db, session.id, 'password')).toISOString() };
     },
   );
 
@@ -364,8 +389,204 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       status: 204,
     },
     async ({ ctx, params }) => {
-      await removePasskeysOf(ctx, params.id);
+      await removePasskeysOf(ctx, params.id, adminRemovalCheck(ctx.app, params.id));
       return null;
+    },
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/users/{id}/passkey-setup',
+      tags: ['Users'],
+      summary: 'Send someone with no password a link to add a passkey (admin)',
+      description:
+        'For an account made with `passkeysOnly`, its first; or one that lost every passkey, in their place (D68). Mailed to their address, or shown once to hand over yourself. Good once, for three days; a newer link voids it, and using it ends every session the account had.',
+      params: z.object({ id: z.string() }),
+      body: PasskeySetupLinkBody,
+      response: PasskeySetupLinkSchema,
+      status: 200,
+    },
+    async ({ ctx, params, body }) => sendSetupLink(ctx, params.id, body.deliver),
+  );
+
+  route(
+    app,
+    { method: 'get', path: '/passkey-metadata', tags: ['Settings'], summary: 'FIDO’s metadata, as a4a last read it (admin)', description: 'Where it comes from, how old the BLOB in use is, the last try, and the authenticators it describes (D68).', response: PasskeyMetadataSchema },
+    async ({ ctx }) => {
+      requireScope(ctx, 'admin');
+      return metadataStatus(ctx.app);
+    },
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/passkey-metadata/refresh',
+      tags: ['Settings'],
+      summary: 'Read FIDO’s metadata again now (admin)',
+      description: 'A newer BLOB that verifies replaces the one in use; a failure keeps it, and says why.',
+      response: PasskeyMetadataSchema,
+      status: 200,
+    },
+    async ({ ctx }) => {
+      requireScope(ctx, 'admin');
+      return refreshMetadata(ctx.app, { force: true });
+    },
+  );
+
+  // --- A passkey a sign-in owes (D68) ---------------------------------------------------------------
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/auth/two-factor/passkey-setup/options',
+      tags,
+      summary: 'Add the passkey this sign-in owes: a challenge for navigator.credentials.create()',
+      description: 'After `POST /auth/login` answered `{ "step": "passkey_setup" }`: passkeys are required of you here, and you have none. Finish with `POST /auth/two-factor/passkey-setup`.',
+      auth: 'none',
+      response: PasskeyOptionsSchema,
+      status: 200,
+    },
+    async ({ c }) => {
+      const runtime = c.get('runtime');
+      fromHere(c, runtime);
+      holdBack(c, runtime);
+      const ticket = await peekTicket(runtime.db, getCookie(c, TICKET_COOKIE), 'passkey');
+      const user = ticket && (await signInUser(runtime, ticket.userId));
+      if (!ticket || !user) throw signInAgain();
+      return owedOptions(runtime, ticket.id, user);
+    },
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/auth/two-factor/passkey-setup',
+      tags,
+      summary: 'Add the passkey this sign-in owes, and finish signing in',
+      description: 'With a code too where two-factor sign-in is on for you. Five tries; the sign-in lasts ten minutes. Its person is emailed, as for any passkey added.',
+      auth: 'none',
+      body: OwedPasskeyBody,
+      response: MeSchema,
+      status: 200,
+    },
+    async ({ c, body }) => {
+      const runtime = c.get('runtime');
+      fromHere(c, runtime);
+      const token = getCookie(c, TICKET_COOKIE);
+      const ticket = await useTicket(runtime.db, token, 'passkey');
+      const user = ticket && (await signInUser(runtime, ticket.userId));
+      if (!token || !ticket || !user) throw signInAgain();
+      const tries = await attempt(c, runtime, `passkey:${user.id}`);
+      // Someone who knows only the password could add a passkey of their own here: a code, where they have codes, says it's them.
+      if (await hasTwoFactor(runtime.db, user.id)) {
+        if (!body.code) throw badRequest('Type a code from your authenticator app too', 'Two-factor sign-in is on for you: adding a passkey as you sign in takes a code, as signing in does.').said('passkeys.owedCodeNeeded');
+        if (!(await takeSecondFactor(runtime, user.id, body.code))) throw wrongCode();
+      }
+      const made = await addOwedPasskey(runtime, ticket.id, user, { response: body.response as RegistrationResponseJSON, name: body.name }, c.req.header('user-agent'));
+      await tries.succeeded();
+      await endTicket(runtime.db, token);
+      deleteCookie(c, TICKET_COOKIE, { path: TICKET_COOKIE_PATH });
+      return startSessionFor(c, runtime, user, { with: `${first(user)}+passkey`, passkeyId: made.id });
+    },
+  );
+
+  // --- No password (D68) ------------------------------------------------------------------------------
+
+  route(
+    app,
+    {
+      method: 'delete',
+      path: '/me/password',
+      tags,
+      summary: 'Remove your password: passkeys alone sign you in',
+      description:
+        'Takes a spare (two passkeys that sign in here, or one your passkey provider syncs) and one of your passkeys in the last ten minutes. Your two-factor codes go with it, and the other sessions no passkey signed in end. You are emailed.',
+      status: 204,
+    },
+    async ({ c, ctx }) => {
+      await removePassword(ctx.app, ctx.actor.user, await browserSession(c, ctx));
+      return null;
+    },
+  );
+
+  // --- A setup link from an administrator (D68) -----------------------------------------------------
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/auth/passkey/setup/info',
+      tags,
+      summary: 'What a passkey setup link is for (using it changes nothing)',
+      description: 'The token is the part of the link after `#`: kept out of addresses, so no server’s log holds it.',
+      auth: 'none',
+      body: PasskeySetupTokenBody,
+      response: PasskeySetupInfoSchema,
+      status: 200,
+    },
+    async ({ c, body }) => {
+      const runtime = c.get('runtime');
+      fromHere(c, runtime);
+      holdBack(c, runtime);
+      return setupInfo(runtime, body.token, getCookie(c, SESSION_COOKIE));
+    },
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/auth/passkey/setup/options',
+      tags,
+      summary: 'Start adding the passkey a setup link is for: a challenge for navigator.credentials.create()',
+      description: 'Bound to this browser by a short-lived cookie, and to the link’s account. Finish with `POST /auth/passkey/setup`.',
+      auth: 'none',
+      body: PasskeySetupTokenBody,
+      response: PasskeyOptionsSchema,
+      status: 200,
+    },
+    async ({ c, body }) => {
+      const runtime = c.get('runtime');
+      fromHere(c, runtime);
+      holdBack(c, runtime);
+      return setupOptions(runtime, body.token, ticketFor(c, runtime), getCookie(c, SESSION_COOKIE));
+    },
+  );
+
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/auth/passkey/setup',
+      tags,
+      summary: 'Add the passkey a setup link is for, and sign in (sets a session cookie)',
+      description: 'The link works once: every session the account had ends, and its other links stop working. Counts in the sign-in throttle, per address and per link.',
+      auth: 'none',
+      body: PasskeySetupBody,
+      response: MeSchema,
+      status: 200,
+    },
+    async ({ c, body }) => {
+      const runtime = c.get('runtime');
+      fromHere(c, runtime);
+      const tries = await attempt(c, runtime, `setup:${sha256(body.token).slice(0, 32)}`);
+      const { user, passkeyId } = await finishSetup(
+        runtime,
+        body.token,
+        getCookie(c, PASSKEY_TICKET_COOKIE),
+        getCookie(c, SESSION_COOKIE),
+        { response: body.response as RegistrationResponseJSON, name: body.name },
+        c.req.header('user-agent'),
+      );
+      await tries.succeeded();
+      deleteCookie(c, PASSKEY_TICKET_COOKIE, { path: PASSKEY_TICKET_PATH });
+      return startSessionFor(c, runtime, user, { with: 'passkey', passkeyId });
     },
   );
 

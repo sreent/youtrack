@@ -18,7 +18,7 @@ import { zoneOfUser } from '../services/time-zones';
 import { renderMail } from './render';
 import { PermanentMailError } from './transport';
 
-export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state' | 'email-confirm' | 'portal-sign-in' | 'portal-password' | 'portal-account' | 'passkey';
+export type MailKind = 'notification' | 'digest' | 'request-received' | 'request-reply' | 'request-state' | 'request-relay' | 'email-confirm' | 'portal-sign-in' | 'portal-password' | 'portal-account' | 'passkey' | 'portal-passkey' | 'passkey-setup';
 export type MailRow = typeof mailOutbox.$inferSelect;
 
 const POLL_MS = 5_000;
