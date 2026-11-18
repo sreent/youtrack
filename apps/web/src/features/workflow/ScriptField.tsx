@@ -6,7 +6,7 @@ import { Icon } from '../../components/Icon';
 import { ErrorLine } from '../../components/States';
 import { ChangeLines } from '../common/ChangeLines';
 import { checkScript } from './api';
-import { errorSaid, inPage, problemSaid, t, tr } from '../../i18n';
+import { errorSaid, formatList, inPage, problemSaid, t, tr } from '../../i18n';
 
 /** The line (from 1) that a place in the text is on. */
 function lineAt(text: string, at: number): number {
@@ -148,7 +148,7 @@ export function ScriptRunView({ issue, run }: { issue: string; run: ScriptRun })
           ))}
         </ul>
       ) : null}
-      {run.comments.length ? <p className="note">{tr('workflow.scriptField.itWouldComment', { join: run.comments.map((c) => `“${c}”`).join(', ') })}</p> : null}
+      {run.comments.length ? <p className="note">{tr('workflow.scriptField.itWouldComment', { join: formatList(run.comments.map((c) => `“${c}”`)) })}</p> : null}
       <p className="note">{tr('workflow.scriptField.itTookMs', { note: inPage((page) => scriptRunNote(page, run)), ms: run.ms })}</p>
     </div>
   );

@@ -8,7 +8,7 @@ import { dayMonth } from '../features/plan/dates';
 import { money } from '../features/plan/format';
 import { Resources } from '../features/plan/Resources';
 import { Timeline } from '../features/plan/Timeline';
-import { t, tr } from '../i18n';
+import { formatItems, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const VIEWS = [
@@ -21,7 +21,7 @@ type View = (typeof VIEWS)[number]['id'];
 function planFacts(p: Project): string {
   const plan = p.settings.plan;
   const parts = [plan.startDate ? t('page.plan.starts', { dayMonth: dayMonth(plan.startDate) }) : t('page.plan.noStartDateSet'), plan.budget !== null ? t('page.plan.budget', { money: money(plan.budget, plan.currency) }) : t('page.plan.noBudgetSet')];
-  return `${parts.join(', ')} · ${t('count.openIssues', { n: p.openIssueCount })}`;
+  return `${formatItems(parts)} · ${t('count.openIssues', { n: p.openIssueCount })}`;
 }
 
 function ChooseProject() {

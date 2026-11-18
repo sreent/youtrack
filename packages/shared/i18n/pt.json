@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "O que está feito, ao custo planeado",
   "plan.costs.whatTheWorkHasCost": "Quanto o trabalho custou até agora",
   "plan.costs.withABaselineA4aMeasures": "Com uma linha de base, o a4a mede o trabalho feito em relação ao plano acordado: quanto do que estava planeado até agora está feito, se está a custar mais do que o planeado (IDC) e quanto está adiantado ou atrasado (IDP).",
-  "plan.format.and": "{join} e {v}",
   "plan.format.asItWas": "como era",
   "plan.format.daysEarlier": "{n, plural, one {# dia antes} other {# dias antes}}",
   "plan.format.daysLater": "{n, plural, one {# dia depois} other {# dias depois}}",

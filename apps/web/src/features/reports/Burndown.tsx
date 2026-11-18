@@ -11,7 +11,7 @@ import { IssueLink } from '../../app/places';
 import { Badge } from '../../components/Badges';
 import { dayMonth, span } from '../plan/dates';
 import { hoursOf, labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
-import { t, tr } from '../../i18n';
+import { formatItems, t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 250, left: 46, right: 76, top: 18, bottom: 32 };
 
@@ -252,7 +252,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
         </div>
         <div>
           <dt>{t('reports.burndown.scopeChanged2')}</dt>
-          <dd>{b.added || b.removed ? [b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean).join(', ') : t('reports.burndown.no')}</dd>
+          <dd>{b.added || b.removed ? formatItems([b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean)) : t('reports.burndown.no')}</dd>
         </div>
         {!compact ? (
           <div>

@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "Yang sudah selesai, dengan biaya rencananya",
   "plan.costs.whatTheWorkHasCost": "Biaya pekerjaan sejauh ini",
   "plan.costs.withABaselineA4aMeasures": "Dengan baseline, a4a mengukur pekerjaan yang selesai terhadap rencana yang disepakati: berapa banyak yang direncanakan hingga kini sudah selesai, apakah biayanya melebihi rencana (CPI), dan seberapa jauh lebih cepat atau lebih lambat (SPI).",
-  "plan.format.and": "{join} dan {v}",
   "plan.format.asItWas": "seperti semula",
   "plan.format.daysEarlier": "{n, plural, other {# hari}} lebih awal",
   "plan.format.daysLater": "{n, plural, other {# hari}} lebih lambat",

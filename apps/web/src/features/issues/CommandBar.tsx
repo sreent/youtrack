@@ -7,7 +7,7 @@ import { ChangeLines } from '../../components/Changes';
 import { Who } from '../../components/Who';
 import { LanguageField, useLanguage, type Checker } from './LanguageField';
 import { ErrorLine } from '../../components/States';
-import { errorSaid, itemNodes, listNodes, t, tr, problemWords } from '../../i18n';
+import { errorSaid, formatList, itemNodes, listNodes, t, tr, problemWords } from '../../i18n';
 
 interface Props {
   /** Readable ids and summaries, e.g. { id: 'BACK-12', summary: 'Login times out' }. */
@@ -241,7 +241,7 @@ export function CommandBar({ issues, open, onClose, onApplied, initial }: Props)
       <label className="command-comment">{tr('issues.commandBar.aCommentIfYouWant', { el: <textarea value={comment} onChange={(e) => setComment(e.target.value)} /> })}</label>
 
       {error ? <ErrorLine>{error}</ErrorLine> : null}
-      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: failed.map((f) => `${f.issue} (${f.errors.map((e, i) => errorSaid(f.errorWords?.[i], e)).join('; ')})`).join(', ') })}</ErrorLine> : null}
+      {failed.length ? <ErrorLine>{tr('issues.commandBar.someIssuesWerenTChanged', { join: formatList(failed.map((f) => `${f.issue} (${f.errors.map((e, i) => errorSaid(f.errorWords?.[i], e)).join('; ')})`)) })}</ErrorLine> : null}
 
       <div className="dialog-actions">
         {hint ? <p className="command-hint">{hint}</p> : null}

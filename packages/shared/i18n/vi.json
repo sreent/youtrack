@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "Phần việc đã xong, tính theo chi phí kế hoạch",
   "plan.costs.whatTheWorkHasCost": "Chi phí công việc đến nay",
   "plan.costs.withABaselineA4aMeasures": "Với một đường cơ sở, a4a đo công việc đã làm so với kế hoạch đã thống nhất: bao nhiêu phần đã lên kế hoạch đến nay đã xong, chi phí có vượt kế hoạch không (CPI), và nhanh hay chậm bao nhiêu (SPI).",
-  "plan.format.and": "{join} và {v}",
   "plan.format.asItWas": "như trước đó",
   "plan.format.daysEarlier": "sớm hơn {n, plural, other {# ngày}}",
   "plan.format.daysLater": "muộn hơn {n, plural, other {# ngày}}",

@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "已完成的工作，按计划成本计算",
   "plan.costs.whatTheWorkHasCost": "目前为止工作的实际成本",
   "plan.costs.withABaselineA4aMeasures": "有了基线，a4a 会对照已确定的计划衡量已完成的工作：到目前为止计划的工作完成了多少、成本是否超出计划（CPI），以及进度领先或落后多少（SPI）。",
-  "plan.format.and": "{join}和{v}",
   "plan.format.asItWas": "保持原样",
   "plan.format.daysEarlier": "{n, plural, other {提前 # 天}}",
   "plan.format.daysLater": "{n, plural, other {推迟 # 天}}",

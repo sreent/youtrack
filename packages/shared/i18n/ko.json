@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "완료된 작업을 계획 비용으로 환산한 값",
   "plan.costs.whatTheWorkHasCost": "지금까지 작업에 든 비용",
   "plan.costs.withABaselineA4aMeasures": "기준선이 있으면 a4a가 합의한 계획 대비 완료된 작업을 측정합니다. 지금까지 계획된 작업 중 얼마나 완료됐는지, 계획보다 비용이 더 드는지(CPI), 일정이 얼마나 앞서거나 늦는지(SPI) 알 수 있습니다.",
-  "plan.format.and": "{join} 및 {v}",
   "plan.format.asItWas": "변동 없음",
   "plan.format.daysEarlier": "{n, plural, other {#일}} 앞당겨짐",
   "plan.format.daysLater": "{n, plural, other {#일}} 늦어짐",
