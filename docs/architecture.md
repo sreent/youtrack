@@ -946,7 +946,7 @@ Until now a project was the one unit of access: whoever could read it read all o
 - **Guests.**
   - An administrator can open an open project to anyone (`guestAccess`). A project for its members only can't be, and making it so closes it to guests.
   - A request without credentials to one of the reading routes is then a guest's: the read permission in those projects and nowhere else, the read scope alone, so nothing writes.
-  - The routes are projects, issues and their comments, links, history and files, search, articles, and fields. People, the event stream, notifications, tokens and MCP are refused, as for anyone not signed in.
+  - The routes are projects, issues and their comments, links, history and files, search, articles, and fields; and boards, reports, plans and whiteboards (D64). People, the event stream, notifications, tokens and MCP are refused, as for anyone not signed in.
   - Guests have their own rate limit per address (`GUEST_RATE_LIMIT`), apart from people who sign in. A help desk requester's name shows as "The requester".
 
 **What it costs.**
@@ -956,7 +956,7 @@ Until now a project was the one unit of access: whoever could read it read all o
 - A plan holds what its reader sees, so someone who sees less sees a plan computed without what they can't see; its managers, who level it, see it all.
 - Permissions are checked in more places than roles were, so a custom role is only as narrow as the checks: costs gate logged time, the time report and the cost report, and not an issue's total time spent.
 
-**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`. (Fields came, by permission: D50.)
+**Revisit when:** fields should be limited too (a "Salary" field only HR sees); articles want their own limits; or guests should see boards, reports and plans. Each reads through the same seam, `services/access.ts`. (Fields came, by permission: D50. Guests on boards, reports, plans and whiteboards came: D64.)
 
 **Fixed since:** once a limited issue was deleted, its earlier events, its summary in them, reached everyone who reads its project: deleting it set their `issue_id` to null, and the feed lets an event without an issue through. So did a link naming it from the other end, a limited comment's events once its issue went, reports' history, and the inbox's notifications of it. Now its deletion keeps what was limited beside its event, never in what a reader gets: every id the issue had (from before it moved too, under every key its project had), and its comments that were limited. The feed, the live stream, webhooks, reports and the inbox leave all of it out for anyone who doesn't see all of its project, as they leave out the deletion itself, its own limit's people included (`goneEventsSql`, `goneIssueSql`, `goneEventSeen`; a partial index on deletions, migration 0034). An issue deleted before this kept only the id it had then: its events from before it moved still show, and so do a comment's limited after it was written. A rule's run log, and the last run on its card, also named runs on an issue limited away from their reader, with what each changed there, whether the issue stood or was deleted: a run on a standing issue now goes through `issueSeenSql`, and one on a deleted issue through `goneIssueSql`, by the id and project it kept.
 
@@ -1669,7 +1669,7 @@ YouTrack 2026.2 has whiteboards: a canvas beside the issues where a team plans a
 
 **Ocean.** Ocean had no canvas to draw on without inline style. Its new Whiteboard piece is SVG placed by attributes (`x`, `y`, `width`, `height`, `transform`, `viewBox`), words in a `foreignObject`, tones named by meaning, and a check that text reads on every tone's background.
 
-**Every channel.** REST through `route()`: the whiteboards (list, get, make, rename, delete), their elements in batches, their cards, converting, presence and the stream. MCP and the assistant: `list_whiteboards`, `get_whiteboard` (as structured text, in reading order, a hidden card only "hidden"), `add_to_whiteboard` and `convert_whiteboard_notes` (changes, each with a preview; converting previews by a dry run). Deleting a whiteboard stays off MCP (D8). Guests don't see whiteboards.
+**Every channel.** REST through `route()`: the whiteboards (list, get, make, rename, delete), their elements in batches, their cards, converting, presence and the stream. MCP and the assistant: `list_whiteboards`, `get_whiteboard` (as structured text, in reading order, a hidden card only "hidden"), `add_to_whiteboard` and `convert_whiteboard_notes` (changes, each with a preview; converting previews by a dry run). Deleting a whiteboard stays off MCP (D8). Guests read a guest-open project's whiteboards and their streams, never who's looking (D64).
 
 **What it costs.**
 - Every batch locks its whiteboard's row: one whiteboard's changes are one at a time, a few milliseconds each; two whiteboards never wait on each other.
@@ -1818,6 +1818,37 @@ Two more importers beside YouTrack's and Jira's (D29) and GitHub's, Redmine's an
 
 **Revisit when:** someone wants Asana's time tracking (its entries, a request per task), ClickUp's comment threads, or a project kept in step rather than imported (D29's revisit).
 
+### D64. Guests beyond issues: boards, reports, plans and whiteboards, without the team's money or its people
+
+D37 let an administrator open a project to anyone: a guest, sending no credentials, read its issues, comments, files and articles, and nothing else. Now a guest reads its boards, its reports, its plan and its whiteboards too, through the same seam, so a project run in the open shows its work the way its team sees it, less what is the team's own.
+
+- **The same seam, the same answers.** A guest's access is D37's: the read permission in the projects open to guests, the read scope alone, the guest rate limit per address. The reading routes of the four surfaces now answer a request without credentials (`guestMayRequest`), and each reads through `projectAccess`, `issueSeenSql` and `seenIssueIds`, `scopeFields` and `articleSeenSql` as it does for anyone. So what a guest may not see answers as if it didn't exist: a board, a whiteboard or a plan of another project is 404 in the words of a missing one, a report naming one is the error for a project that doesn't exist, a limited issue or article is no card and no count, and a private field (D50) is in no lane, column, point or report. Every write is refused (401, "Sign in to do that"), as before, since a guest holds no write scope.
+- **Boards** show their columns and the cards a guest may see, in the board's order, and nothing else: no backlog, velocity or sprint plan, no ranking, moving or sprint changes. A board across several projects shows only the guest-open ones' cards, names only them, and counts only them. Its queries are its managers' words, and could name a project or a value a guest can't see: to anyone who doesn't see every project on a board (a guest, or a person who sees some of them), a query is shown only when it names nothing they can't see, by the rule shared saved searches and dashboards follow, and otherwise left out (null). A board whose query names something they can't see shows them no cards and says only that, in words that don't repeat the query (`boards.queryNamesUnseen`); the query's own refusal would have named what's hidden.
+- **Reports** are all of D21's and D44's but the time report, which is people's logged work and takes the costs permission: each counts only the issues a guest sees, over the projects open to them or the one named, and comes as CSV too.
+- **Plans: the dates are the team's, the money and the people aren't.**
+  - A guest reads the schedule (the Gantt and its timeline): its tasks, the dates, the critical path, slack and what's late.
+  - **Money takes the costs permission**, wherever a plan shows it: a task's planned and actual cost, a baseline's and a variance's cost, and the plan's budget, on the schedule and on the project, are null without it. A guest never has it. Neither does a custom role without it, so this closes the gap D37 named (costs gated the cost report and not the schedule): the check asks for the permission, never for a guest.
+  - **Days away are people's**, and a guest reaches no people (D37: who reacted, never who): the schedule lists nobody's days away for a guest, and leaves out the warning that says someone's window falls while they're away. People's loads (the load grid, a sprint's plan) stay closed.
+  - **Baselines are the team's record of what it planned and what it would cost**: the plan of record, named and noted by its managers for the team, and its variance the team's measure of itself. On a public page it would read as a promise to the public that nobody made, and it carries cost. So a guest reads the plan as it stands; a baseline asked for answers as a missing one, whichever id is given, and the baselines, the cost report, the load, the what-if and levelling stay closed.
+  - The rest a guest sees on the issues already: who an issue is assigned to, its estimate, its total time spent (D37 keeps that ungated).
+  - What it costs: a guest's dates are worked out on everyone's own days, as the team's are, since a plan whose dates differ by reader would mislead whoever compares them. So a bar that stretches over a week tells a guest its assignee has fewer days then, though never which, nor why.
+- **Whiteboards**, read only. Cards as each guest may see them: one they may not is `shown: false`, a dashed card that says only that it's hidden (D58). A guest gets the live stream, and not who's looking.
+  - The stream, because a whiteboard is read as its team works on it; without it a guest reads it again and again under the rate limit, or sees it stale. It carries each change as a person's does, with who made it, as an issue's history names who changed it.
+  - Not presence: who has a whiteboard open is what people are doing now, which is the team's to know, not anyone's who passes; and a guest, nobody in particular, is no one to show the team either. So a guest is told nobody's looking, isn't counted among the lookers, and `GET`/`PUT /whiteboards/{id}/presence` are refused.
+  - A stream is one request however long it stays open, so the rate limit alone would let one address hold hundreds, each read again on every change. A guest holds four open streams per address, and guests together four hundred, on each instance; past either, 429 says to close one or sign in. The team's streams never run out for it.
+  - A card's facts follow their issue on the team's pages through the shell's live events, which guests don't get: a guest's cards are as fresh as the page.
+- **OpenAPI says which routes answer a guest**: their security lists an empty requirement beside the token and the cookie, and their description says so. A test holds that list and `guestMayRequest` to the same routes, D37's included, so neither drifts.
+- **The web**: the guest home's project lists its plan, its reports, its boards and its whiteboards, and each opens on a guest's page (`/public/boards/{id}`, `/public/reports/{kind}`, `/public/plan/{key}`, `/public/whiteboards/{id}`), on the lone page as wide as the window. The pages are the team's own views, drawn read-only: a board with no dragging and no commands (`ReadOnlyBoard`), the Reports page's charts, the timeline's facts and Gantt, and the whiteboard page in a guest's mode. Where their links lead comes from one place (`app/places.tsx`), so a card, a bar or a count opens a guest's own page, or nothing where a guest has none (an article, a report's list of issues), and never a page that asks them to sign in.
+- **MCP** needs a sign-in, so it's unchanged; chat and email are the team's.
+
+**What it costs.**
+- Listing boards, or reading one, compiles its queries again for anyone who doesn't see every project on it.
+- A custom role without the costs permission now reads a plan without its money, as a guest does.
+- A guest's plan can hint at an assignee's fewer days by a bar's length (above).
+- A guest's whiteboard cards don't follow their issues live, and four whiteboards at a time are live from one address.
+
+**Revisit when:** guests should read articles on a page of their own (cards and counts would open them), or a count's issues in a list; a project should open only some of its boards or whiteboards to guests, rather than all; or guests should be counted, anonymously, among a whiteboard's lookers.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1908,6 +1939,7 @@ Two more importers beside YouTrack's and Jira's (D29) and GitHub's, Redmine's an
 - **Readable ids** (`BACK-12`) change when an issue moves to another project, and the old one stays its alias for good (D41). A project's key can be renamed; the key it had stays its own, so `BACK-12` finds `CORE-12`, and no other project can take `BACK` while it exists (D52).
 - **Files are on one disk, or in a bucket.** Several instances need a bucket (`ATTACHMENT_STORAGE=s3`, D35) or `DATA_DIR/attachments` on a shared volume. Back either up with the database: a file's row and its bytes go together.
 - **A whiteboard** holds 500 elements, 2,000 characters of words in each; a batch is 500 operations, and a conversion 50 notes and 50 arrows. Its live stream replays the last 500 changes; further behind, it reads the whiteboard again (D58).
+- **Guests' live whiteboards** are four open streams per address and four hundred in all, on each instance (D64).
 - **Help desk mail** is read once a minute by default: from the shared mailbox, where desks are told apart by the address mail was sent to, or from a desk's own mailbox (D45). A desk's replies need its mail server to deliver plus addresses (D30).
 
 ## Not yet
@@ -1917,7 +1949,7 @@ Planned, with the seams already in place:
 - passkeys (WebAuthn) for sign-in, beside or instead of two-factor codes (D38);
 - being told what time alone brings into a saved search (an issue becoming overdue) (D31);
 - days away from an HR calendar (D36);
-- guests on boards, reports, plans and whiteboards (D37, D58);
+- a guest's page for an article, so a guest's whiteboard card or link to one opens it, and a report's count opening its issues for a guest (D64);
 - a whiteboard of a person's own, shared with people and groups, or limited to some, words merged as they're typed rather than refused, and freehand drawing and pictures on a whiteboard (D58);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);

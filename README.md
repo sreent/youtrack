@@ -124,7 +124,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **groups** get roles as people do, and someone may do what any of their own and their groups' roles allows;
   - **an issue, a comment or an article can be limited** to some people and groups: everyone else, everywhere, finds it missing (and what's under a limited article, D51);
   - **a field can be private** in a project: only people whose role may see private fields see it (managers do), and only those whose role may change them set it; to anyone else, everywhere, from search to email and Claude, it isn't there, and a chat channel or a webhook never gets it;
-  - **guests** read a project opened to anyone, without signing in, and change nothing;
+  - **guests** read a project opened to anyone, without signing in: its issues, articles, boards, reports, plan and whiteboards (live), never its money, people's days away and loads, or who's looking, and change nothing;
   - what you can't see doesn't exist for you, everywhere: search, links, boards, plans, the event feed, MCP and what goes to Claude;
   - tokens can be limited to some projects.
 - **Single sign-on** with your identity provider, by OpenID Connect or SAML 2.0 (or both), with password sign-in optional.
@@ -538,6 +538,7 @@ What it covers, in `apps/web/e2e`:
 - **Access**: a manager makes a project members only and gives someone a role in it; to someone outside, it and its issues don't exist; a viewer reads and comments, and is offered nothing that would change an issue.
 - **Groups**: an administrator makes a group and puts someone in it, and a project gives the group a role; someone in it sees a members-only project as far as that role goes, and not once they're taken out; a group from the identity provider can't be filled by hand.
 - **Access in depth**: an administrator makes a role and a project gives it; an issue and a comment limited to one person are missing to another; a project opened to guests is read signed out.
+- **Guests beyond issues**: signed out, a guest reads a guest-open project's board, reports, plan and whiteboard (live), with nothing offered that changes them, and finds nothing of a project that isn't open.
 - **Private fields**: a manager attaches a field as private, and a viewer finds the issue without it, its value nowhere on the page.
 - **The assistant**: a streamed answer, its approval cards, the decisions and the result.
 - **Writing help**: a line selected in a description fixed, shown as a change, accepted and saved; the whole text rewritten, and the suggestion discarded; an issue summarised and posted as the assistant's comment; a reply drafted on a help desk request and sent; and nothing offered without a provider. The AI is stood in for.
