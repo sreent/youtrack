@@ -86,6 +86,12 @@ export function ago(iso: string, now = Date.now()): string {
  * As `ago`, inside a sentence ("changed {when}"): a day takes the words a sentence puts before one,
  * `ui.badges.onDate` ("changed on 16 Nov", "geändert am 16. Nov.", Japanese's bare 「11月16日に変更」).
  */
+/** When something still to come runs out, as "in 3 days" or "in 5 hours" (D68's links). */
+export function untilSaid(iso: string, now = Date.now()): string {
+  const hours = Math.max(1, Math.round((new Date(iso).getTime() - now) / 3_600_000));
+  return hours >= 48 ? formatRelative(Math.round(hours / 24), 'day') : formatRelative(hours, 'hour');
+}
+
 export function agoSaid(iso: string, now = Date.now()): string {
   const { text, isDate } = agoParts(iso, now);
   return isDate ? t('ui.badges.onDate', { date: text }) : text;

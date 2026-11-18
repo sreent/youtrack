@@ -50,7 +50,7 @@ import { projectAccess } from './access';
 import { readableId } from './issue-refs';
 import { resolveIssue } from './issues';
 import { credentialFree } from './passkey-credentials';
-import { ALERT_TTL_MS, CHALLENGE_TTL_MS, MAX_PASSKEYS, passkeyName, RECENT_MS, relyingParty, type RelyingParty } from './passkeys';
+import { ALERT_TTL_MS, CHALLENGE_TTL_MS, MAX_PASSKEYS, passkeyName, RECENT_MS, rpOf, type RelyingParty } from './passkeys';
 import { deskSignIn } from './portal-sign-in';
 import { projectSettings } from './projects';
 import { getSetting } from './settings';
@@ -89,7 +89,7 @@ function passkeyDesks(projects: Iterable<Parameters<typeof deskSignIn>[0]>) {
 
 /** Why requesters' passkeys are off here, or null: the address, the instance's switch (D62's, for both), or no desk taking them. */
 export async function portalPasskeysOff(app: AppServices): Promise<PortalPasskeysOff | null> {
-  if (!relyingParty(app.config.publicUrl)) return 'address';
+  if (!rpOf(app)) return 'address';
   if ((await getSetting(app.db, 'passkeys')) === false) return 'instance';
   const s = await app.schema.get();
   return passkeyDesks(s.projects.values()).length ? null : 'desks';
@@ -97,7 +97,7 @@ export async function portalPasskeysOff(app: AppServices): Promise<PortalPasskey
 
 /** Whether the sign-in page offers a passkey: the desk named takes them, or with none named, some desk does; and they're on. */
 export async function passkeyOffered(app: AppServices, deskKey: string | undefined | null, desk: { passkey?: boolean } | null): Promise<boolean> {
-  if (!relyingParty(app.config.publicUrl) || (await getSetting(app.db, 'passkeys')) === false) return false;
+  if (!rpOf(app) || (await getSetting(app.db, 'passkeys')) === false) return false;
   if (desk) return Boolean(desk.passkey);
   if (deskKey) return false;
   return passkeyDesks((await app.schema.get()).projects.values()).length > 0;
@@ -114,7 +114,7 @@ const offProblem = (why: PortalPasskeysOff): AppError =>
 async function requireOn(app: AppServices): Promise<RelyingParty> {
   const off = await portalPasskeysOff(app);
   if (off) throw offProblem(off);
-  return relyingParty(app.config.publicUrl)!;
+  return rpOf(app)!;
 }
 
 /** A sign-in from a desk's page: that desk must take passkeys, as a password sign-in's must take passwords (D63). */
@@ -245,7 +245,7 @@ function requireRecent(session: PortalSessionRef): void {
 }
 
 export async function myPortalPasskeys(app: AppServices, requester: Pick<RequesterRow, 'id'>, session: PortalSessionRef | null): Promise<PortalPasskeys> {
-  const rp = relyingParty(app.config.publicUrl);
+  const rp = rpOf(app);
   const rows = await rowsOf(app.db, requester.id);
   const off = await portalPasskeysOff(app);
   return {
@@ -366,7 +366,7 @@ export async function renamePortalPasskey(app: AppServices, requester: Pick<Requ
     .where(and(eq(requesterPasskeys.id, id), eq(requesterPasskeys.requesterId, requester.id)))
     .returning();
   if (!row) throw missingPasskey();
-  return dto(row, relyingParty(app.config.publicUrl));
+  return dto(row, rpOf(app));
 }
 
 /** Its requester takes it away: it signs nobody in, and the other sessions it opened end. Even with passkeys off. */

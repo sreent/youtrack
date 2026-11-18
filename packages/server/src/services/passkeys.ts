@@ -17,6 +17,11 @@
  * - Adding or removing one takes a sign-in from the last ten minutes, or proving it's you again.
  * - Account changes, not projects': they record no events (as two-factor's don't, D38), and each
  *   addition or removal is mailed to its person, with a link that says it wasn't them.
+ * - In depth (D68): the id may be a parent of PUBLIC_URL's host, or the host an instance moved from
+ *   (related origins); only some authenticators may be taken, by attestation checked against FIDO's
+ *   metadata (passkey-metadata.ts); and an account may have passkeys and no password. Whose sign-in
+ *   owes a passkey, the setup links, and the guards that keep an administrator able to sign in are
+ *   in passkey-policy.ts.
  */
 import type { MyPasskeys, Passkey, PasskeyAlert, PasskeyOptions, PasskeysOff } from '@a4a/shared';
 import { APP_NAME } from '@a4a/shared';
@@ -29,7 +34,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import { decodeAttestationObject, decodeClientDataJSON, parseAuthenticatorData } from '@simplewebauthn/server/helpers';
+import { convertAAGUIDToString, decodeAttestationObject, decodeClientDataJSON, parseAuthenticatorData } from '@simplewebauthn/server/helpers';
 import { and, asc, count, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { isIP } from 'node:net';
@@ -46,6 +51,7 @@ import { emailTime } from '../notify/words';
 import { deviceLabel } from '../push/service';
 import type { UserRow } from './schema-cache';
 import { credentialFree } from './passkey-credentials';
+import { holdStatements, metadataInUse, nameOf, untrusted, type MdsEntry } from './passkey-metadata';
 import { getSetting } from './settings';
 import { zoneOfUser } from './time-zones';
 
@@ -64,7 +70,8 @@ export const PASSKEY_TICKET_PATH = '/api/v1/auth/passkey';
 const ALGORITHMS = [-8, -7, -257];
 
 type PasskeyRow = typeof passkeys.$inferSelect;
-export type Ceremony = 'register' | 'sign-in' | 'second-step' | 'confirm';
+/** `owed`: adding one as a password sign-in owes it (D68); `setup`: from an administrator's link (D68). */
+export type Ceremony = 'register' | 'sign-in' | 'second-step' | 'confirm' | 'owed' | 'setup';
 
 // ---------------------------------------------------------------------------
 // The relying party, and who may have passkeys
@@ -75,8 +82,12 @@ export interface RelyingParty {
   origin: string;
 }
 
-/** a4a as a relying party: PUBLIC_URL's host and origin; null where no browser makes passkeys for it. */
-export function relyingParty(publicUrl: string): RelyingParty | null {
+/**
+ * a4a as a relying party: PUBLIC_URL's origin, and its host as the id unless PASSKEY_RP_ID names
+ * another (D68: a parent domain, or the host an instance moved from); null where no browser makes
+ * passkeys for it.
+ */
+export function relyingParty(publicUrl: string, rpId?: string): RelyingParty | null {
   try {
     const u = new URL(publicUrl);
     const host = u.hostname;
@@ -84,24 +95,27 @@ export function relyingParty(publicUrl: string): RelyingParty | null {
     if (isIP(host.replace(/^\[|\]$/g, ''))) return null;
     const local = host === 'localhost' || host.endsWith('.localhost');
     if (u.protocol !== 'https:' && !(u.protocol === 'http:' && local)) return null;
-    return { id: host, origin: u.origin };
+    return { id: rpId ?? host, origin: u.origin };
   } catch {
     return null;
   }
 }
 
+/** This instance's relying party (D68): PUBLIC_URL's origin, with PASSKEY_RP_ID as its id where it's set. */
+export const rpOf = (app: AppServices): RelyingParty | null => relyingParty(app.config.publicUrl, app.config.passkeyRpId);
+
 /** Why passkeys are off on this instance, or null when they're on. */
 export async function passkeysOff(app: AppServices): Promise<Exclude<PasskeysOff, 'account'> | null> {
-  if (!relyingParty(app.config.publicUrl)) return 'address';
+  if (!rpOf(app)) return 'address';
   if (!app.config.passwordLogin) return 'passwords';
   if ((await getSetting(app.db, 'passkeys')) === false) return 'instance';
   return null;
 }
 
-/** Someone a4a's own password signs in, who may have passkeys beside it. */
-export const mayHavePasskeys = (user: Pick<UserRow, 'isBot' | 'passwordHash'>) => !user.isBot && Boolean(user.passwordHash);
+/** Someone a4a's own password signs in, who may have passkeys beside it; or an account with passkeys alone (D68). */
+export const mayHavePasskeys = (user: Pick<UserRow, 'isBot' | 'passwordHash' | 'passkeysOnly'>) => !user.isBot && (Boolean(user.passwordHash) || user.passkeysOnly);
 
-const offProblem = (why: PasskeysOff): AppError => {
+export const offProblem = (why: PasskeysOff): AppError => {
   switch (why) {
     case 'instance':
       return new AppError(403, 'passkeys_off', 'Passkeys are turned off here', 'An administrator turned them off; sign in with your password.').said('passkeys.offInstance');
@@ -119,7 +133,7 @@ export async function requireOn(app: AppServices, user?: UserRow): Promise<Relyi
   const off = await passkeysOff(app);
   if (off) throw offProblem(off);
   if (user && !mayHavePasskeys(user)) throw offProblem('account');
-  return relyingParty(app.config.publicUrl)!;
+  return rpOf(app)!;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +258,8 @@ export function passkeyName(typed: string | undefined, aaguid: string | undefine
 // What a person sees
 // ---------------------------------------------------------------------------
 
-function passkeyDto(row: PasskeyRow, rp: RelyingParty | null): Passkey {
+/** `list`: the authenticators taken here, where only some are (D68). */
+function passkeyDto(row: PasskeyRow, rp: RelyingParty | null, list?: string[] | null): Passkey {
   return {
     id: row.id,
     name: row.name,
@@ -253,6 +268,8 @@ function passkeyDto(row: PasskeyRow, rp: RelyingParty | null): Passkey {
     synced: row.multiDevice,
     copied: Boolean(row.copiedAt),
     elsewhere: rp && row.rpId !== rp.id ? row.rpId : null,
+    attested: row.attested,
+    listed: list ? row.attested && list.includes(row.aaguid ?? '') : null,
   };
 }
 
@@ -261,7 +278,7 @@ async function rowsOf(db: Db, userId: string): Promise<PasskeyRow[]> {
 }
 
 /** Passkeys that can sign in here now: not copied, made for this address. */
-const working = (rows: PasskeyRow[], rp: RelyingParty | null) => rows.filter((r) => !r.copiedAt && rp && r.rpId === rp.id);
+export const working = (rows: PasskeyRow[], rp: RelyingParty | null) => rows.filter((r) => !r.copiedAt && rp && r.rpId === rp.id);
 
 export interface SessionRef {
   /** The session's id: the hash of its cookie's token. */
@@ -269,6 +286,8 @@ export interface SessionRef {
   verifiedAt: Date;
   /** How it was signed in; null for a session from before a4a kept it, which is never recent. */
   signedInWith: string | null;
+  /** How its person last proved it's them: `passkey` or `password` (D68); null before a4a kept it. */
+  verifiedBy?: string | null;
 }
 
 export const confirmedUntil = (session: SessionRef | null): Date | null => {
@@ -281,12 +300,13 @@ export function requireRecent(session: SessionRef): void {
 }
 
 export async function myPasskeys(app: AppServices, user: UserRow, session: SessionRef | null, hasCode: boolean): Promise<MyPasskeys> {
-  const rp = relyingParty(app.config.publicUrl);
+  const rp = rpOf(app);
   const rows = await rowsOf(app.db, user.id);
+  const list = await authenticatorList(app);
   const instance = await passkeysOff(app);
   const off: PasskeysOff | null = instance ?? (mayHavePasskeys(user) ? null : 'account');
   return {
-    passkeys: rows.map((r) => passkeyDto(r, rp)),
+    passkeys: rows.map((r) => passkeyDto(r, rp, list)),
     on: off === null,
     off,
     confirmedUntil: confirmedUntil(session)?.toISOString() ?? null,
@@ -299,8 +319,9 @@ export async function passkeysOf(ctx: Ctx, userId: string): Promise<Passkey[]> {
   requireScope(ctx, 'admin');
   const [u] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, userId));
   if (!u) throw notFound(`User ${userId}`).said('notFound.user', { id: userId });
-  const rp = relyingParty(ctx.app.config.publicUrl);
-  return (await rowsOf(ctx.db, userId)).map((r) => passkeyDto(r, rp));
+  const rp = rpOf(ctx.app);
+  const list = await authenticatorList(ctx.app);
+  return (await rowsOf(ctx.db, userId)).map((r) => passkeyDto(r, rp, list));
 }
 
 /** How many passkeys each person has, for the people table. */
@@ -312,7 +333,7 @@ export async function passkeyCounts(db: Db, userIds: string[]): Promise<Map<stri
 
 /** Whether this person has a passkey that can sign in here now: a password sign-in may take it instead of a code. */
 export async function hasWorkingPasskey(app: AppServices, userId: string): Promise<boolean> {
-  return working(await rowsOf(app.db, userId), relyingParty(app.config.publicUrl)).length > 0;
+  return working(await rowsOf(app.db, userId), rpOf(app)).length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -327,11 +348,22 @@ async function instanceName(db: Db): Promise<string> {
 }
 
 export async function registrationOptions(app: AppServices, user: UserRow, session: SessionRef): Promise<PasskeyOptions> {
-  const rp = await requireOn(app, user);
   requireRecent(session);
+  return registrationOptionsFor(app, user, 'register', session.id);
+}
+
+/**
+ * A challenge for navigator.credentials.create(), for one ceremony, bound to what it's bound to: a
+ * session, a sign-in's ticket, or a setup link's browser (D68). Where only some authenticators are
+ * taken, it asks the authenticator's maker to vouch for it (`direct`), and only then (D68).
+ */
+export async function registrationOptionsFor(app: AppServices, user: UserRow, purpose: Ceremony, boundTo: string): Promise<PasskeyOptions> {
+  const rp = await requireOn(app, user);
   const rows = await rowsOf(app.db, user.id);
   if (rows.length >= MAX_PASSKEYS) throw tooMany();
-  const challenge = await newChallenge(app.db, 'register', session.id, user.id);
+  const list = await authenticatorList(app);
+  if (list && !(await metadataInUse(app))) throw noMetadata();
+  const challenge = await newChallenge(app.db, purpose, boundTo, user.id);
   return (await generateRegistrationOptions({
     rpName: await instanceName(app.db),
     rpID: rp.id,
@@ -342,7 +374,8 @@ export async function registrationOptions(app: AppServices, user: UserRow, sessi
     challenge: new Uint8Array(Buffer.from(challenge, 'base64url')),
     timeout: CHALLENGE_TTL_MS,
     // Why `none`: a4a takes any authenticator its person chooses, and doesn't need to know its make.
-    attestationType: 'none',
+    // Only where some authenticators alone are taken does it ask the maker (D68).
+    attestationType: list ? 'direct' : 'none',
     excludeCredentials: rows.map((r) => ({ id: r.credentialId, transports: r.transports })),
     // Discoverable, so it signs in without a name; and it checks its person, so it's both factors.
     authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
@@ -360,18 +393,41 @@ export async function addPasskey(
   input: { response: RegistrationResponseJSON; name?: string },
   userAgent?: string,
 ): Promise<Passkey> {
-  const rp = await requireOn(app, user);
+  await requireOn(app, user);
   requireRecent(session);
+  return (await registerPasskey(app, user, { purpose: 'register', boundTo: session.id }, input, userAgent)).passkey;
+}
+
+/**
+ * Check what the browser made against the challenge it answers, and keep it: the ceremony behind
+ * adding one from the profile, as a sign-in owes one, and from a setup link (D68). `within` runs in
+ * the same transaction, after the passkey is in: what throws there takes it back out.
+ */
+export async function registerPasskey(
+  app: AppServices,
+  user: UserRow,
+  bound: { purpose: Ceremony; boundTo: string },
+  input: { response: RegistrationResponseJSON; name?: string },
+  userAgent?: string,
+  within?: (tx: Db, made: PasskeyRow) => Promise<void>,
+): Promise<{ passkey: Passkey; id: string }> {
+  const rp = await requireOn(app, user);
   const { response } = input;
-  const challenge = await takeChallenge(app.db, response.response.clientDataJSON, 'register', session.id, user.id);
+  const challenge = await takeChallenge(app.db, response.response.clientDataJSON, bound.purpose, bound.boundTo, user.id);
   checkClient(rp, response.response.clientDataJSON, 'webauthn.create');
   let uv: boolean;
+  let attestation: ReturnType<typeof decodeAttestationObject>;
   try {
-    uv = flagsOf(decodeAttestationObject(Buffer.from(response.response.attestationObject, 'base64url')).get('authData')).uv;
+    attestation = decodeAttestationObject(Buffer.from(response.response.attestationObject, 'base64url'));
+    uv = flagsOf(attestation.get('authData')).uv;
   } catch {
     throw refused();
   }
   if (!uv) throw notVerified();
+  // Only some authenticators (D68): its maker must vouch for it, and be one of those taken.
+  const list = await authenticatorList(app);
+  const vouched = list ? await vouchedFor(app, attestation, list) : null;
+  await holdStatements(list ? await metadataInUse(app) : null);
   let verified;
   try {
     verified = await verifyRegistrationResponse({
@@ -388,7 +444,7 @@ export async function addPasskey(
   }
   if (!verified.verified) throw refused();
   const info = verified.registrationInfo;
-  const name = passkeyName(input.name, info.aaguid, userAgent);
+  const name = vouched ? (input.name?.trim() || nameOf(vouched)).slice(0, 60) : passkeyName(input.name, info.aaguid, userAgent);
   const row = await app.db.transaction(async (raw) => {
     const tx = raw as unknown as Db;
     // One at a time per person, so two at once can't pass the cap together.
@@ -411,15 +467,17 @@ export async function addPasskey(
         aaguid: info.aaguid,
         name,
         rpId: rp.id,
+        attested: Boolean(vouched),
       })
       .onConflictDoNothing()
       .returning();
     if (!made) throw conflict('That passkey is in a4a already', 'Each passkey is added once.').said('passkeys.already');
     await tellOf(tx, app, user.id, { change: 'added', passkeyId: made.id, name: made.name });
+    if (within) await within(tx, made);
     return made;
   });
   kickMail(app);
-  return passkeyDto(row, rp);
+  return { passkey: passkeyDto(row, rp, list), id: row.id };
 }
 
 export async function renamePasskey(app: AppServices, user: UserRow, id: string, name: string): Promise<Passkey> {
@@ -429,16 +487,20 @@ export async function renamePasskey(app: AppServices, user: UserRow, id: string,
     .where(and(eq(passkeys.id, id), eq(passkeys.userId, user.id)))
     .returning();
   if (!row) throw notFound('Passkey').said('notFound.passkey');
-  return passkeyDto(row, relyingParty(app.config.publicUrl));
+  return passkeyDto(row, rpOf(app));
 }
 
-/** Its person takes it away: it signs nobody in, and the other sessions it signed in end. Even with passkeys off. */
-export async function removePasskey(app: AppServices, user: UserRow, session: SessionRef, id: string): Promise<void> {
+/**
+ * Its person takes it away: it signs nobody in, and the other sessions it signed in end. Even with
+ * passkeys off. `check` runs in the transaction once it's gone, to refuse what that would leave (D68).
+ */
+export async function removePasskey(app: AppServices, user: UserRow, session: SessionRef, id: string, check?: (tx: Db) => Promise<void>): Promise<void> {
   requireRecent(session);
   await app.db.transaction(async (raw) => {
     const tx = raw as unknown as Db;
     const [gone] = await tx.delete(passkeys).where(and(eq(passkeys.id, id), eq(passkeys.userId, user.id))).returning();
     if (!gone) throw notFound('Passkey').said('notFound.passkey');
+    if (check) await check(tx);
     await tx.delete(sessions).where(and(eq(sessions.passkeyId, gone.id), ne(sessions.id, session.id)));
     await tellOf(tx, app, user.id, { change: 'removed', passkeyId: gone.id, name: gone.name });
   });
@@ -446,7 +508,7 @@ export async function removePasskey(app: AppServices, user: UserRow, session: Se
 }
 
 /** An administrator's removal, for a lost device: every passkey of theirs, and every session one signed in. */
-export async function removePasskeysOf(ctx: Ctx, userId: string): Promise<number> {
+export async function removePasskeysOf(ctx: Ctx, userId: string, check?: (tx: Db) => Promise<void>): Promise<number> {
   requireScope(ctx, 'admin');
   const [u] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, userId));
   if (!u) throw notFound(`User ${userId}`).said('notFound.user', { id: userId });
@@ -454,6 +516,7 @@ export async function removePasskeysOf(ctx: Ctx, userId: string): Promise<number
     const tx = raw as unknown as Db;
     const gone = await tx.delete(passkeys).where(eq(passkeys.userId, userId)).returning({ id: passkeys.id, name: passkeys.name });
     if (!gone.length) return 0;
+    if (check) await check(tx);
     await tx.delete(sessions).where(inArray(sessions.passkeyId, gone.map((g) => g.id)));
     await tellOf(tx, ctx.app, userId, { change: 'removed-by-admin', passkeyId: null, name: gone.length === 1 ? gone[0]!.name : '', n: gone.length });
     return gone.length;
@@ -592,16 +655,16 @@ export async function confirmWithPasskey(app: AppServices, user: UserRow, sessio
   const row = await rowByCredential(app.db, response.id);
   if (!row || row.userId !== user.id) throw notKnown();
   await verifyAssertion(app, rp, row, response, challenge);
-  return markVerified(app.db, session.id);
+  return markVerified(app.db, session.id, 'passkey');
 }
 
-/** The session's person proved it's them just now. */
-export async function markVerified(db: Db, sessionId: string): Promise<Date> {
+/** The session's person proved it's them just now: with a passkey, or a password (D68 keeps which). */
+export async function markVerified(db: Db, sessionId: string, by: 'passkey' | 'password' = 'password'): Promise<Date> {
   const now = new Date();
   // A session from before a4a kept how it was signed in is known from here on as one confirmed.
   await db
     .update(sessions)
-    .set({ verifiedAt: now, signedInWith: sql`coalesce(${sessions.signedInWith}, 'confirmed')` })
+    .set({ verifiedAt: now, verifiedBy: by, signedInWith: sql`coalesce(${sessions.signedInWith}, 'confirmed')` })
     .where(eq(sessions.id, sessionId));
   return new Date(now.getTime() + RECENT_MS);
 }
@@ -609,7 +672,10 @@ export async function markVerified(db: Db, sessionId: string): Promise<Date> {
 /** The session behind a request's cookie, for what only a signed-in browser may do. */
 export async function sessionRef(db: Db, token: string | undefined): Promise<SessionRef | null> {
   if (!token) return null;
-  const [row] = await db.select({ id: sessions.id, verifiedAt: sessions.verifiedAt, signedInWith: sessions.signedInWith }).from(sessions).where(eq(sessions.id, sha256(token)));
+  const [row] = await db
+    .select({ id: sessions.id, verifiedAt: sessions.verifiedAt, signedInWith: sessions.signedInWith, verifiedBy: sessions.verifiedBy })
+    .from(sessions)
+    .where(eq(sessions.id, sha256(token)));
   return row ?? null;
 }
 
@@ -617,10 +683,10 @@ export async function sessionRef(db: Db, token: string | undefined): Promise<Ses
 // Telling its person, and "this wasn't me"
 // ---------------------------------------------------------------------------
 
-type Change = 'added' | 'removed' | 'copied' | 'removed-by-admin';
+type Change = 'added' | 'removed' | 'copied' | 'removed-by-admin' | 'password-removed';
 
 /** Queue the mail that tells someone their passkeys changed, in the change's transaction. */
-async function tellOf(tx: Db, app: AppServices, userId: string, what: { change: Change; passkeyId: string | null; name: string; n?: number }): Promise<void> {
+export async function tellOf(tx: Db, app: AppServices, userId: string, what: { change: Change; passkeyId: string | null; name: string; n?: number }): Promise<void> {
   const id = newId();
   await enqueueMail(tx, app, { kind: 'passkey', dedupeKey: `passkey:${id}`, userId, payload: { ...what, at: new Date().toISOString() }, messageId: `pk-${id}` });
 }
@@ -641,7 +707,8 @@ export async function renderPasskeyMail(app: AppServices, row: MailRow): Promise
     const { text, html } = composeMail(subject, {
       lang: langTag(tr.locale),
       lead: tr.t('server.passkeys.removedByAdmin', words),
-      sections: [{ head: tr.t('server.passkeys.signInAndAddAgain') }],
+      // With no password (D68), only a link from an administrator lets them in again.
+      sections: [{ head: tr.t(u.passkeysOnly ? 'server.passkeys.askForALink' : 'server.passkeys.signInAndAddAgain') }],
       action: { label: tr.t('server.passkeys.openYourProfile'), url: profile },
       why: tr.t('server.passkeys.why', { login: u.login }),
     });
@@ -658,13 +725,16 @@ export async function renderPasskeyMail(app: AppServices, row: MailRow): Promise
     changedAt: new Date(p.at),
     expiresAt: new Date(Date.now() + ALERT_TTL_MS),
   });
-  const subject = tr.t(p.change === 'added' ? 'server.passkeys.addedSubject' : p.change === 'removed' ? 'server.passkeys.removedSubject' : 'server.passkeys.copiedSubject');
-  const lead = tr.t(p.change === 'added' ? 'server.passkeys.added' : p.change === 'removed' ? 'server.passkeys.removed' : 'server.passkeys.copied', words);
-  const head = tr.t(p.change === 'added' ? 'server.passkeys.ifYouAddedIt' : p.change === 'removed' ? 'server.passkeys.ifYouRemovedIt' : 'server.passkeys.removeAndAddNew');
+  const gonePassword = p.change === 'password-removed';
+  const subject = tr.t(gonePassword ? 'server.passkeys.passwordRemovedSubject' : p.change === 'added' ? 'server.passkeys.addedSubject' : p.change === 'removed' ? 'server.passkeys.removedSubject' : 'server.passkeys.copiedSubject');
+  const lead = tr.t(gonePassword ? 'server.passkeys.passwordRemoved' : p.change === 'added' ? 'server.passkeys.added' : p.change === 'removed' ? 'server.passkeys.removed' : 'server.passkeys.copied', words);
+  const head = tr.t(gonePassword ? 'server.passkeys.ifYouRemovedYourPassword' : p.change === 'added' ? 'server.passkeys.ifYouAddedIt' : p.change === 'removed' ? 'server.passkeys.ifYouRemovedIt' : u.passkeysOnly ? 'server.passkeys.removeItAndAddNew' : 'server.passkeys.removeAndAddNew');
+  // No password to change (D68): the fix is the link, and an administrator.
+  const notYou = gonePassword || u.passkeysOnly ? tr.t('server.passkeys.notYouPasskeysOnly', { change: p.change }) : tr.t('server.passkeys.notYou', { change: p.change });
   const { text, html } = composeMail(subject, {
     lang: langTag(tr.locale),
     lead,
-    sections: [{ head, lines: [tr.t('server.passkeys.notYou', { change: p.change })] }],
+    sections: [{ head, lines: [notYou] }],
     action: { label: tr.t(p.change === 'copied' ? 'server.passkeys.signOutEverywhere' : 'server.passkeys.thisWasntMe'), url: `${app.config.publicUrl}/not-me?token=${encodeURIComponent(token)}` },
     why: tr.t('server.passkeys.why', { login: u.login }),
   });
@@ -739,3 +809,64 @@ export async function followAlert(app: AppServices, token: string): Promise<Pass
 /** Thrown where only a signed-in browser may act. */
 export const browserOnly = () =>
   forbidden('Passkeys are changed from a signed-in browser', 'Open your profile in a4a; a token can’t change how you sign in.').said('passkeys.browserOnly');
+
+// ---------------------------------------------------------------------------
+// Only some authenticators (D68)
+// ---------------------------------------------------------------------------
+
+/** The authenticators new passkeys may come from, by AAGUID, where an administrator chose some; null for any. */
+export async function authenticatorList(app: AppServices): Promise<string[] | null> {
+  const list = (await getSetting(app.db, 'passkeyAuthenticators')) as string[] | null | undefined;
+  return Array.isArray(list) && list.length ? list : null;
+}
+
+/** Attestation formats whose check the library makes against the authenticator's metadata statement. */
+const VOUCHING = new Set(['packed', 'tpm', 'android-key']);
+
+export const noMetadata = () =>
+  new AppError(
+    503,
+    'passkey_metadata_missing',
+    'a4a can’t check passkeys’ makers yet',
+    'Only some authenticators are taken here, and FIDO’s list of them hasn’t been read yet. Try again later, or ask an administrator.',
+  ).said('passkeys.noMetadata');
+const unattested = () =>
+  new AppError(
+    400,
+    'passkey_unattested',
+    'This passkey’s maker didn’t vouch for it',
+    'Only some authenticators are taken here, and a4a knows which by what their maker vouches. Synced passkeys mostly don’t: use a security key or device your organisation chose.',
+  ).said('passkeys.unattested');
+const notListed = () =>
+  new AppError(403, 'passkey_not_listed', 'That kind of authenticator isn’t taken here', 'An administrator chose which are: your profile lists them.').said('passkeys.notListed');
+const unknownMaker = () =>
+  new AppError(403, 'passkey_not_listed', 'FIDO’s metadata doesn’t describe that authenticator', 'a4a checks a maker’s word against it, so it can’t take this one. Ask an administrator.').said('passkeys.unknownMaker');
+const untrustedMaker = (name: string) =>
+  new AppError(403, 'passkey_not_listed', `FIDO says ${name} can’t be trusted`, 'Its maker reported it compromised or revoked. Use another authenticator.').said('passkeys.untrustedMaker', { name });
+
+/**
+ * Before the cryptography: the attestation must be one its maker signed, from an authenticator on
+ * the list that FIDO's metadata describes and still trusts. Its signature, and that its certificates
+ * chain to the roots the statement names, the library checks after (holdStatements).
+ */
+async function vouchedFor(app: AppServices, attestation: ReturnType<typeof decodeAttestationObject>, list: string[]): Promise<MdsEntry> {
+  const metadata = await metadataInUse(app);
+  if (!metadata) throw noMetadata();
+  const fmt = attestation.get('fmt');
+  const x5c = attestation.get('attStmt')?.get('x5c');
+  // `none`, and self attestation (no certificate), prove nothing about who made the key.
+  if (!VOUCHING.has(fmt) || !Array.isArray(x5c) || !x5c.length) throw unattested();
+  let aaguid: string;
+  try {
+    const parsed = parseAuthenticatorData(new Uint8Array(attestation.get('authData')));
+    if (!parsed.aaguid) throw new Error('no AAGUID');
+    aaguid = convertAAGUIDToString(parsed.aaguid);
+  } catch {
+    throw refused();
+  }
+  if (!list.includes(aaguid)) throw notListed();
+  const entry = metadata.byAaguid.get(aaguid);
+  if (!entry) throw unknownMaker();
+  if (untrusted(entry)) throw untrustedMaker(nameOf(entry));
+  return entry;
+}

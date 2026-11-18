@@ -7,6 +7,8 @@ import { hashPassword, verifyPassword } from '../lib/crypto';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { colorFor, newId } from '../lib/ids';
 import { accessChanged } from './access';
+import { setPasskeyExempt } from './passkey-policy';
+import { requireOn } from './passkeys';
 import { findUser, type UserRow } from './schema-cache';
 import { signInsOf } from './sso';
 import { timeZoneOrRefuse } from './time-zones';
@@ -60,6 +62,8 @@ export interface NewUser {
   /** The email is vouched for (an administrator set it, or an identity provider verified it). */
   emailVerified?: boolean;
   password?: string;
+  /** No password: passkeys alone sign them in, the first added from a link an administrator sends (D68). */
+  passkeysOnly?: boolean;
   role?: Role;
   isBot?: boolean;
   hourlyRate?: number | null;
@@ -80,6 +84,7 @@ export async function insertUser(db: Db, input: NewUser): Promise<UserRow> {
       email: input.email ?? null,
       emailVerified: Boolean(input.email) && (input.emailVerified ?? false),
       passwordHash: input.password ? await hashPassword(input.password) : null,
+      passkeysOnly: Boolean(input.passkeysOnly) && !input.password,
       role: input.role ?? 'member',
       isBot: input.isBot ?? false,
       avatarColor: colorFor(input.login),
@@ -97,6 +102,12 @@ export async function createUser(ctx: Ctx, input: NewUser): Promise<User> {
   if ((OWN_AGENTS as readonly string[]).includes(input.login.trim().toLowerCase())) {
     throw new AppError(400, 'login_taken', `Login "${input.login}" belongs to a4a's own agent`, 'Choose another login: a4a makes that account itself.').said('users.loginIsAgents', { login: input.login });
   }
+  if (input.passkeysOnly) {
+    if (input.isBot) throw badRequest('An agent has no passkeys', 'Agents use API tokens.').said('passkeys.agentNoPasskeys');
+    if (input.password) throw badRequest('Give a password, or passkeys alone: not both', 'With passkeys alone, they add their first from a link you send.').said('passkeys.passwordOrPasskeys');
+    // Its first passkey comes from a link: where none can be made, nothing would ever sign it in.
+    await requireOn(ctx.app);
+  }
   // An email an administrator gives is one single sign-on may find the person by.
   const row = await insertUser(ctx.db, { ...input, emailVerified: Boolean(input.email) });
   ctx.app.schema.invalidate();
@@ -112,6 +123,8 @@ export async function updateUser(
     password?: string;
     role?: Role;
     banned?: boolean;
+    /** Where passkeys are required, they sign in without one: their password and a code (D68). */
+    passkeyExempt?: boolean;
     hourlyRate?: number | null;
     capacityHoursPerDay?: number;
     /** Hours on each weekday, Sunday first (D43), or null for the plan's working days. */
@@ -126,7 +139,7 @@ export async function updateUser(
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
   if (!target) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   const self = target.id === ctx.actor.user.id;
-  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined;
+  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined || input.passkeyExempt !== undefined;
   if (!self || adminOnly) requireScope(ctx, 'admin');
   else requireScope(ctx, 'write');
   if (self && input.role && input.role !== 'admin' && target.role === 'admin') {
@@ -135,6 +148,8 @@ export async function updateUser(
   if (input.password && self && !ctx.app.config.passwordLogin) {
     throw badRequest('Passwords aren’t used here', `You sign in with ${ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? 'single sign-on'}.`).said('users.noPasswords', { named: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ? 'yes' : 'no', provider: ctx.app.config.oidc?.name ?? ctx.app.config.saml?.name ?? '' });
   }
+  // Its own transaction, which refuses taking it back where no administrator would sign in (D68).
+  if (input.passkeyExempt !== undefined) await setPasskeyExempt(ctx, target.id, input.passkeyExempt);
   // An email counts for single sign-on when an administrator sets it; one people set for
   // themselves doesn't, until an administrator confirms it by saving it.
   const emailVerified =
@@ -144,7 +159,8 @@ export async function updateUser(
     .set({
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.email !== undefined ? { email: input.email, emailVerified } : {}),
-      ...(input.password ? { passwordHash: await hashPassword(input.password) } : {}),
+      // A password ends passkeys alone (D68): an administrator's reset, or its person's choice.
+      ...(input.password ? { passwordHash: await hashPassword(input.password), passkeysOnly: false } : {}),
       ...(input.role !== undefined ? { role: input.role } : {}),
       ...(input.banned !== undefined ? { banned: input.banned } : {}),
       ...(input.hourlyRate !== undefined ? { hourlyRate: input.hourlyRate } : {}),

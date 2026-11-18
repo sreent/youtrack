@@ -371,3 +371,7 @@ export type WhiteboardTone = (typeof WHITEBOARD_TONES)[number];
 
 export const WHITEBOARD_KINDS = ['note', 'text', 'issue', 'article', 'arrow', 'section'] as const;
 export type WhiteboardKind = (typeof WHITEBOARD_KINDS)[number];
+
+/** Whose password sign-in owes a passkey (D68): nobody, everyone, or administrators. */
+export const PASSKEYS_REQUIRED = ['off', 'everyone', 'admins'] as const;
+export type PasskeysRequired = (typeof PASSKEYS_REQUIRED)[number];

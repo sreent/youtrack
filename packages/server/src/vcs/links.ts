@@ -41,6 +41,8 @@ export const NOBODY = {
   email: null,
   emailVerified: false,
   passwordHash: null,
+  passkeysOnly: false,
+  passkeyExemptAt: null,
   role: 'viewer',
   isBot: true,
   avatarColor: '',

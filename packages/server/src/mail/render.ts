@@ -6,6 +6,7 @@ import { renderDigestMail, renderNotificationMail } from '../notify/mails';
 import { renderEmailConfirmMail } from '../services/emails';
 import { renderPasskeyMail } from '../services/passkeys';
 import { renderPortalPasskeyMail } from '../services/portal-passkeys';
+import { renderSetupMail } from '../services/passkey-policy';
 import { renderPortalSignIn } from '../services/portal';
 import { renderPortalAccount, renderPortalPassword } from '../services/portal-sign-in';
 import type { RenderedMail } from './compose';
@@ -35,6 +36,8 @@ export async function renderMail(app: AppServices, row: MailRow): Promise<Render
       return renderPasskeyMail(app, row);
     case 'portal-passkey':
       return renderPortalPasskeyMail(app, row);
+    case 'passkey-setup':
+      return renderSetupMail(app, row);
     default:
       return null;
   }

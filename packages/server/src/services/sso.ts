@@ -25,6 +25,7 @@ import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { startSession } from './auth';
+import { setupLinksOf } from './passkey-policy';
 import { passkeyCounts } from './passkeys';
 import { providerGroupNames, syncProviderGroups } from './groups';
 import type { UserRow } from './schema-cache';
@@ -367,11 +368,15 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     ids.length ? (await db.select({ userId: userTotp.userId }).from(userTotp).where(and(inArray(userTotp.userId, ids), isNotNull(userTotp.confirmedAt)))).map((r) => r.userId) : [],
   );
   const provisioned = new Set(ids.length ? (await db.select({ userId: scimUsers.userId }).from(scimUsers).where(inArray(scimUsers.userId, ids))).map((r) => r.userId) : []);
+  const setupLinks = await setupLinksOf(db, ids.filter((id) => people.find((u) => u.id === id)?.passkeysOnly));
   for (const u of people) {
     out.set(u.id, {
       password: Boolean(u.passwordHash),
       twoFactor: twoFactor.has(u.id),
       passkeys: passkeys.get(u.id) ?? 0,
+      passkeysOnly: u.passkeysOnly,
+      passkeyExempt: Boolean(u.passkeyExemptAt),
+      passkeySetupUntil: setupLinks.get(u.id) ?? null,
       lastSignInAt: lastSignIn.get(u.id) ?? null,
       provisioned: provisioned.has(u.id),
       emailConfirmed: Boolean(u.email) && u.emailVerified,
