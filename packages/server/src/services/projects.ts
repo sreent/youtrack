@@ -16,6 +16,7 @@ import { issues, projectFields, projects } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { calendarOf } from '../helpdesk/business-time';
+import { checkDeskSignIn } from './portal-sign-in';
 import { newId } from '../lib/ids';
 import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
 import { isUniqueViolation, keyHolders } from './project-keys';
@@ -34,7 +35,17 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null };
+export const DEFAULT_HELPDESK: HelpdeskSettings = {
+  enabled: false,
+  firstResponseHours: null,
+  intro: '',
+  captcha: false,
+  businessHours: null,
+  waitingStates: [],
+  resumeState: null,
+  // Requesters sign in to the portal by a link emailed to them, as before D63.
+  signIn: { link: true, password: false, providers: [] },
+};
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
 export const DEFAULT_TIME: TimeSettings = { workTypeRequired: false };
@@ -224,6 +235,9 @@ export async function updateProject(
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');
   // A desk's working hours must read before they're kept: a 400 says what's wrong with them (D45).
   calendarOf(settings.helpdesk.businessHours);
+  // How its requesters sign in (D63): one way at least, providers that exist, none a customer group still signs in through.
+  const signIn = helpdesk.signIn ? await checkDeskSignIn(ctx, p, helpdesk.signIn, current.helpdesk.signIn) : null;
+  if (signIn) settings.helpdesk.signIn = signIn.next;
   const slaChanged = ['businessHours', 'waitingStates', 'firstResponseHours'].some((k) => input.settings?.helpdesk && k in input.settings.helpdesk);
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
   // Opening a project to guests (D37) is an administrator's call, and only an open project can be:
@@ -250,6 +264,9 @@ export async function updateProject(
         updatedAt: new Date(),
       })
       .where(eq(projects.id, p.id));
+    if (signIn?.changed) {
+      activities.push(await recordActivity(tx, ctx, { type: 'project.portal_sign_in.changed', projectId: p.id, issueId: null, payload: { data: signIn.data } }));
+    }
     if (visibility || guestAccess !== undefined) {
       activities.push(
         await recordActivity(tx, ctx, {

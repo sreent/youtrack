@@ -18,6 +18,7 @@ import { ProjectKey } from '../features/projects/ProjectKey';
 import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
+import { PortalSignInSettings } from '../features/helpdesk/PortalSignIn';
 import { CustomerGroups } from '../features/helpdesk/CustomerGroups';
 import { WorkTypes } from '../features/projects/WorkTypes';
 import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
@@ -283,6 +284,15 @@ export default function ProjectPage() {
         </div>
         <HelpdeskSettings project={p} canEdit={canEdit} />
       </section>
+      {canEdit ? (
+        <section className="card" aria-labelledby="portal-sign-in">
+          <div className="section-head">
+            <h2 id="portal-sign-in">{t('page.project.portalSignIn')}</h2>
+            <span className="note">{t('page.project.portalSignInNote')}</span>
+          </div>
+          <PortalSignInSettings project={p} />
+        </section>
+      ) : null}
       <section className="card" aria-labelledby="service-levels">
         <div className="section-head">
           <h2 id="service-levels">{t('page.project.serviceLevels')}</h2>

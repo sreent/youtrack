@@ -894,6 +894,22 @@ export function requesterSees(request: RequestSharing, viewer: { id: string }, g
   return sharing === 'read' || sharing === 'comment';
 }
 
+/** How a requester's portal session was opened (D63): an emailed link, their password, or an identity provider. */
+export type PortalSignedIn = { method: 'link' | 'password' | 'sso'; providerId: string | null };
+
+/**
+ * Whether a portal session opens a desk's requests to its requester at all (D63), before
+ * `requesterSees` decides each: it was opened in a way the desk takes, and, where they're in a
+ * customer group of the desk tied to an identity provider (`groupProvider`), through that provider
+ * and no other way. Read at each request, so a desk that stops taking a way closes it at once. What a
+ * session doesn't open is missing, as a request that doesn't exist is.
+ */
+export function portalSessionOpens(desk: { link: boolean; password: boolean; providers: readonly string[] }, groupProvider: string | null, session: PortalSignedIn): boolean {
+  if (groupProvider) return session.method === 'sso' && session.providerId === groupProvider && desk.providers.includes(groupProvider);
+  if (session.method === 'sso') return session.providerId !== null && desk.providers.includes(session.providerId);
+  return session.method === 'password' ? desk.password : desk.link;
+}
+
 /** Whether they may answer it: their own, one they're copied on (D57), or one their group shares to comment on (D56). */
 export function requesterMayComment(request: RequestSharing, viewer: { id: string }, groups: ReadonlyMap<string, 'none' | 'read' | 'comment'>, copied = false): boolean {
   if (request.requesterId === viewer.id || copied) return true;

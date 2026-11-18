@@ -290,6 +290,15 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         text: <>{tr('activity.ledgerEntry.renamedKey', { from: str(e.data.from), to: <Link to={`/projects/${e.project ?? str(e.data.to)}`}>{str(e.data.to)}</Link> })}</>,
         badge: ['changes', t('activity.ledgerEntry.renamesAKey')],
       };
+    case 'project.portal_sign_in.changed': {
+      // How a desk's requesters sign in to the portal (D63): the ways it takes now.
+      const to = (e.data.to ?? {}) as { link?: boolean; password?: boolean; providers?: string[] };
+      const ways = [...(to.link ? [t('activity.ledgerEntry.signInByLink')] : []), ...(to.password ? [t('activity.ledgerEntry.signInByPassword')] : []), ...(to.providers ?? []).map((name) => t('activity.ledgerEntry.signInThrough', { name }))];
+      return {
+        text: <>{tr('activity.ledgerEntry.portalSignInChanged', { project: e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : t('activity.ledgerEntry.aProject'), ways: formatList(ways) })}</>,
+        badge: ['changes', t('activity.ledgerEntry.changesHowRequestersSignIn')],
+      };
+    }
     case 'project.visibility.changed':
       return {
         text: (

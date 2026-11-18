@@ -1,14 +1,16 @@
-import type { PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
+import type { CaptchaChallenge, CaptchaSolution, PortalDesk, PortalMe, PortalRequest, PortalRequestDetail, PortalSignInMethods } from '@a4a/shared';
 import { HELP_LIMITS } from '@a4a/shared/constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { ApiError, get, patch, post } from '../api/client';
+import { useEffect, useRef, useState } from 'react';
+import { ApiError, get, patch, post, put } from '../api/client';
 import { Lone } from '../app/Auth';
 import { Badge } from '../components/Badges';
 import { Markdown } from '../components/Markdown';
+import { Icon } from '../components/Icon';
 import { ErrorNote, Loading } from '../components/States';
 import { Avatar, Who } from '../components/Who';
 import { FormField } from '../features/common/bits';
+import { solveCaptcha } from '../features/helpdesk/pow';
 import { whenRead } from '../features/common/format';
 import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
@@ -19,19 +21,250 @@ function linkToken(): string {
   return /^hdl_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
 }
 
-function SignIn() {
+/** A link to set a password (D63) carries its token the same way. */
+function passwordToken(): string {
+  const t = window.location.hash.replace(/^#/, '').trim();
+  return /^hdp_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
+}
+
+/** The desk whose page this is: named, or the one a request's id names (an email to someone copied links to it, D57). */
+function deskOfPage(): string | undefined {
+  const q = new URLSearchParams(window.location.search);
+  const named = q.get('desk')?.trim();
+  if (named) return named.toUpperCase();
+  const request = /^([A-Za-z][A-Za-z0-9_]*)-\d+$/.exec(q.get('request')?.trim() ?? '');
+  return request ? request[1]!.toUpperCase() : undefined;
+}
+
+/**
+ * A password sign-in's proof of work, when a desk that takes passwords asks for one (D30): solved in
+ * the background from the moment the page loads, as the help desk's form solves its own.
+ */
+function useCaptcha(challenge: CaptchaChallenge | null | undefined) {
+  const pending = useRef<Promise<CaptchaSolution> | null>(null);
+  useEffect(() => {
+    if (!challenge) {
+      pending.current = null;
+      return;
+    }
+    const run = solveCaptcha(challenge);
+    pending.current = run.done;
+    run.done.catch(() => {}); // asked for when the form is sent, and said there
+    return () => run.stop();
+  }, [challenge?.signature]); // the signature names the challenge: a new one starts anew
+  return () => pending.current;
+}
+
+/** Why signing in through a provider sent someone back (the callback's ?sso=), and what to do. */
+function ssoFailure(code: string): { what: string; fix: string } {
+  switch (code) {
+    case 'cancelled':
+      return { what: t('page.portal.ssoCancelled'), fix: t('page.portal.ssoCancelledFix') };
+    case 'expired':
+      return { what: t('page.portal.ssoExpired'), fix: t('page.portal.ssoExpiredFix') };
+    case 'unverified':
+      return { what: t('page.portal.ssoUnverified'), fix: t('page.portal.ssoUnverifiedFix') };
+    case 'domain':
+      return { what: t('page.portal.ssoDomain'), fix: t('page.portal.ssoAnotherWay') };
+    case 'refused':
+      return { what: t('page.portal.ssoRefused'), fix: t('page.portal.ssoAnotherWay') };
+    default:
+      return { what: t('page.portal.ssoFailed'), fix: t('page.portal.ssoFailedFix') };
+  }
+}
+
+/**
+ * Signing in (D45, D63): the ways the desk whose page this is takes, or, on the portal's own page,
+ * those some desk takes. A password, an emailed link, and the desk's identity providers.
+ */
+function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (me: PortalMe) => void }) {
+  const methods = useQuery({
+    queryKey: ['portal', 'methods', desk ?? ''],
+    queryFn: () => get<PortalSignInMethods>(`/portal/sign-in-methods${desk ? `?desk=${encodeURIComponent(desk)}` : ''}`),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const captcha = useCaptcha(methods.data?.captcha);
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
+  const [sent, setSent] = useState<'link' | 'password' | null>(null);
+  const [busy, setBusy] = useState<false | 'checking' | 'signing' | 'sending'>(false);
+  const [error, setError] = useState<unknown>(null);
+  const failed = new URLSearchParams(window.location.search).get('sso');
+  const failure = failed ? ssoFailure(failed) : null;
+  if (methods.error) return <Lone><ErrorNote error={methods.error} /></Lone>;
+  if (!methods.data) return <Loone />;
+  const m = methods.data;
+  const where = m.desk ? { desk: m.desk.key } : {};
+  const sendLink = async (kind: 'link' | 'password') => {
+    setBusy('sending');
+    setError(null);
+    try {
+      await post(kind === 'link' ? '/portal/sign-in' : '/portal/password/link', { email, ...where });
+      setSent(kind);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      let solved: CaptchaSolution | undefined;
+      const pending = captcha();
+      if (pending) {
+        setBusy('checking');
+        solved = await pending;
+      }
+      setBusy('signing');
+      onSignedIn(await post<PortalMe>('/portal/password/sign-in', { email, password, ...where, ...(solved ? { captcha: solved } : {}) }));
+    } catch (err) {
+      setError(err);
+      // A proof of work is taken once: a new one for the next try.
+      if (methods.data?.captcha) void methods.refetch();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const byEmail = m.mail && (m.link || m.password);
+  const intro = m.password && m.link ? t('page.portal.linkOrPasswordIntro') : m.password ? t('page.portal.passwordIntro') : t('page.portal.weLlEmailYouA');
+  return (
+    <Lone>
+      {m.desk ? <p className="label">{m.desk.name}</p> : null}
+      <h1>{t('page.portal.yourRequests')}</h1>
+      {failure ? (
+        <div className="error-note" role="alert">
+          <Icon name="cross" />
+          <strong>{failure.what}</strong>
+          <p>{failure.fix}</p>
+        </div>
+      ) : null}
+      {sent ? (
+        <p role="status">{sent === 'link' ? tr('page.portal.ifCanSignInA', { email }) : tr('page.portal.passwordLinkSent', { email })}</p>
+      ) : (
+        <>
+          {m.providers.map((p) => (
+            <a key={p.id} className={byEmail ? 'button' : 'button primary'} href={p.start}>
+              {t('page.portal.signInThrough', { name: p.name })}
+            </a>
+          ))}
+          {byEmail ? (
+            <form className="form" onSubmit={m.password ? signIn : (e) => { e.preventDefault(); void sendLink('link'); }} aria-label={m.password ? t('page.portal.signInWithYourPassword') : t('page.portal.signInWithYourEmail')}>
+              <p className="note">{intro}</p>
+              <FormField label={t('page.portal.yourEmail')}>{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+              {m.password ? (
+                <FormField label={t('page.portal.password')}>
+                  {(id) => <input id={id} type="password" autoComplete="current-password" value={password} maxLength={200} onChange={(e) => setPassword(e.target.value)} />}
+                </FormField>
+              ) : null}
+              {error ? <ErrorNote error={error} /> : null}
+              <div className="cluster end">
+                {m.password ? (
+                  <button type="button" className="link" disabled={Boolean(busy) || !email.trim()} onClick={() => void sendLink('password')}>
+                    {t('page.portal.setOrResetPassword')}
+                  </button>
+                ) : null}
+                {m.link ? (
+                  <button type={m.password ? 'button' : 'submit'} className={m.password ? undefined : 'primary'} disabled={Boolean(busy) || !email.trim()} onClick={m.password ? () => void sendLink('link') : undefined}>
+                    {busy === 'sending' && !m.password ? t('page.portal.sending') : t('page.portal.emailMeALink')}
+                  </button>
+                ) : null}
+                {m.password ? (
+                  <button type="submit" className="primary" disabled={Boolean(busy) || !email.trim() || !password}>
+                    {busy === 'checking' || busy === 'signing' ? t('page.portal.signingIn') : t('page.portal.signIn')}
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          ) : !m.providers.length ? (
+            <p className="note">{t('page.portal.noWayWithoutEmail')}</p>
+          ) : null}
+        </>
+      )}
+    </Lone>
+  );
+}
+
+/** A link to set a password (D63): the requester chooses one, and is signed in with it. */
+function ChoosePassword({ token, onSignedIn }: { token: string; onSignedIn: (me: PortalMe) => void }) {
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const desk = new URLSearchParams(window.location.search).get('desk') ?? undefined;
-  const send = async (e: React.FormEvent) => {
+  const expired = error instanceof ApiError && error.code === 'link_expired';
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await post('/portal/sign-in', { email, desk });
-      setSent(true);
+      const me = await post<PortalMe>('/portal/password/set', { token, password });
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+      onSignedIn(me);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (expired) {
+    return (
+      <Lone>
+        <h1>{t('page.portal.thisPasswordLinkHas')}</h1>
+        <p className="note">{t('page.portal.passwordLinksWorkOnce')}</p>
+        <a href={`/portal${window.location.search}`}>{t('page.portal.signInAgain')}</a>
+      </Lone>
+    );
+  }
+  return (
+    <Lone>
+      <h1>{t('page.portal.choosePassword')}</h1>
+      <form className="form" onSubmit={save} aria-label={t('page.portal.choosePassword')}>
+        <FormField label={t('page.portal.newPassword')} help={t('page.portal.passwordHelp')}>
+          {(id, help) => <input id={id} type="password" required minLength={8} maxLength={200} autoComplete="new-password" aria-describedby={help} value={password} onChange={(e) => setPassword(e.target.value)} />}
+        </FormField>
+        {error ? <ErrorNote error={error} /> : null}
+        <div className="cluster end">
+          <button type="submit" className="primary" disabled={busy || password.length < 8}>
+            {busy ? t('page.portal.saving') : t('page.portal.setThePassword')}
+          </button>
+        </div>
+      </form>
+    </Lone>
+  );
+}
+
+/** How they signed in, and their password: changed with the one they have, or set by a link to their email (D63). */
+function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe) => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const via = me.signedInWith;
+  const change = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      onChange(await put<PortalMe>('/portal/me/password', { current, password: next }));
+      setCurrent('');
+      setNext('');
+      setSaid(t('page.portal.passwordChanged'));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const askForLink = async () => {
+    setBusy(true);
+    setError(null);
+    setSaid(null);
+    try {
+      await post('/portal/password/link', { email: me.email });
+      setSaid(t('page.portal.passwordLinkOnItsWay', { email: me.email }));
     } catch (err) {
       setError(err);
     } finally {
@@ -39,23 +272,52 @@ function SignIn() {
     }
   };
   return (
-    <Lone>
-      <h1>{t('page.portal.yourRequests')}</h1>
-      {sent ? (
-        <p role="status">{tr('page.portal.ifCanSignInA', { email: email })}</p>
-      ) : (
-        <form className="form" onSubmit={send} aria-label={t('page.portal.signInWithYourEmail')}>
-          <p className="note">{t('page.portal.weLlEmailYouA')}</p>
-          <FormField label={t('page.portal.yourEmail')}>{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+    <section className="stack tight" aria-labelledby="portal-sign-in">
+      <h2 id="portal-sign-in">{t('page.portal.howYouSignIn')}</h2>
+      <p className="note">{t('page.portal.signedInWith', { method: via.method, provider: via.provider?.name ?? '' })}</p>
+      {me.elsewhere.map((d) => (
+        <div key={d.desk.key} className="cluster">
+          <p className="note">
+            {t('page.portal.elsewhere', {
+              desk: d.desk.name,
+              ways: formatList([
+                ...(d.password ? [t('page.portal.wayPassword')] : []),
+                ...(d.link ? [t('page.portal.wayLink')] : []),
+                ...d.providers.map((p) => p.name),
+              ], 'disjunction'),
+            })}
+          </p>
+          <button type="button" className="link" onClick={() => void post('/portal/sign-out').finally(() => window.location.assign(`/portal?desk=${encodeURIComponent(d.desk.key)}`))}>
+            {t('page.portal.signInThere', { desk: d.desk.name })}
+          </button>
+        </div>
+      ))}
+      {me.password ? (
+        <form className="form" onSubmit={change} aria-label={t('page.portal.changePassword')}>
+          <FormField label={t('page.portal.currentPassword')}>{(id) => <input id={id} type="password" required autoComplete="current-password" maxLength={200} value={current} onChange={(e) => setCurrent(e.target.value)} />}</FormField>
+          <FormField label={t('page.portal.newPassword')} help={t('page.portal.passwordHelp')}>
+            {(id, help) => <input id={id} type="password" required minLength={8} maxLength={200} autoComplete="new-password" aria-describedby={help} value={next} onChange={(e) => setNext(e.target.value)} />}
+          </FormField>
           {error ? <ErrorNote error={error} /> : null}
           <div className="cluster end">
-            <button type="submit" className="primary" disabled={busy || !email.trim()}>
-              {busy ? t('page.portal.sending') : t('page.portal.emailMeALink')}
+            <button type="submit" disabled={busy || !current || next.length < 8}>
+              {busy ? t('page.portal.saving') : t('page.portal.changePassword')}
             </button>
           </div>
         </form>
-      )}
-    </Lone>
+      ) : me.passwords ? (
+        <div className="stack tight">
+          <p className="note">{t('page.portal.setAPasswordHelp')}</p>
+          {error ? <ErrorNote error={error} /> : null}
+          <div className="cluster">
+            <button type="button" disabled={busy} onClick={() => void askForLink()}>
+              {t('page.portal.emailMeAPasswordLink')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {said ? <p role="status" className="outcome">{said}</p> : null}
+    </section>
   );
 }
 
@@ -286,11 +548,15 @@ function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; 
 export default function PortalPage() {
   const qc = useQueryClient();
   const [token, setToken] = useState(linkToken);
+  const [settingPassword, setSettingPassword] = useState(passwordToken);
+  const desk = deskOfPage();
   // A sign-in link opened where the portal already is changes only the address's hash: take it then too.
   useEffect(() => {
     const taken = () => {
       const next = linkToken();
       if (next) setToken(next);
+      const chosen = passwordToken();
+      if (chosen) setSettingPassword(chosen);
     };
     window.addEventListener('hashchange', taken);
     return () => window.removeEventListener('hashchange', taken);
@@ -298,7 +564,7 @@ export default function PortalPage() {
   const [redeemError, setRedeemError] = useState<unknown>(null);
   // An email to someone copied on a request links to it here (D57): opened once they're signed in.
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
-  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token });
+  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword });
   useEffect(() => {
     if (!token) return;
     history.replaceState(null, '', window.location.pathname);
@@ -324,16 +590,22 @@ export default function PortalPage() {
       </Lone>
     );
   }
+  const signedInNow = (m: PortalMe) => {
+    qc.setQueryData(['portal', 'me'], m);
+    setSettingPassword('');
+    void qc.invalidateQueries({ queryKey: ['portal'], predicate: (q) => q.queryKey[1] !== 'me' });
+  };
+  if (settingPassword) return <ChoosePassword token={settingPassword} onSignedIn={signedInNow} />;
   if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
   if (!me.data) {
     if (me.error && !(me.error instanceof ApiError && me.error.status === 401)) return <Lone><ErrorNote error={me.error} /></Lone>;
-    return <SignIn />;
+    return <SignIn desk={desk} onSignedIn={signedInNow} />;
   }
   const m = me.data;
   const signOut = async () => {
     await post('/portal/sign-out');
     qc.removeQueries({ queryKey: ['portal'] });
-    window.location.assign('/portal');
+    window.location.assign(desk ? `/portal?desk=${encodeURIComponent(desk)}` : '/portal');
   };
   return (
     <Lone wide>
@@ -386,6 +658,7 @@ export default function PortalPage() {
               <button type="submit" disabled={!name.trim()}>{t('page.portal.changeMyName')}</button>
             </div>
           </form>
+          <HowYouSignIn me={m} onChange={(x) => qc.setQueryData(['portal', 'me'], x)} />
         </div>
       )}
     </Lone>
