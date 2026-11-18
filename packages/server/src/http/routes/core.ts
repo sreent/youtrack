@@ -63,16 +63,16 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
 
   // Projects ------------------------------------------------------------------
   const projects = ['Projects'];
-  route(app, { method: 'get', path: '/projects', tags: projects, summary: 'List projects', response: z.array(ProjectSchema) }, ({ ctx }) => listProjects(ctx));
+  route(app, { method: 'get', path: '/projects', guests: true, tags: projects, summary: 'List projects', response: z.array(ProjectSchema) }, ({ ctx }) => listProjects(ctx));
   route(app, { method: 'post', path: '/projects', tags: projects, summary: 'Create a project from a template (admin)', body: CreateProjectBody, response: ProjectSchema }, ({ ctx, body }) => createProject(ctx, body));
-  route(app, { method: 'get', path: '/projects/{key}', tags: projects, summary: 'Get a project', params: Key, response: ProjectSchema }, ({ ctx, params }) => getProject(ctx, params.key));
+  route(app, { method: 'get', path: '/projects/{key}', guests: true, tags: projects, summary: 'Get a project', params: Key, response: ProjectSchema }, ({ ctx, params }) => getProject(ctx, params.key));
   route(app, { method: 'patch', path: '/projects/{key}', tags: projects, summary: 'Update a project: its details, who sees it (visibility), its triage mode or its plan settings (its managers)', params: Key, body: UpdateProjectBody, response: ProjectSchema }, ({ ctx, params, body }) => updateProject(ctx, params.key, body));
   route(app, { method: 'delete', path: '/projects/{key}', tags: projects, summary: 'Delete a project and all its issues (admin)', params: Key, status: 204 }, async ({ ctx, params }) => {
     await deleteProject(ctx, params.key);
     return null;
   });
   route(app, { method: 'post', path: '/projects/{key}/key', tags: projects, summary: "Rename a project's key (its managers). Its issues keep their numbers; the old key stays the project's for good, so its ids still find them (D52)", params: Key, body: RenameProjectKeyBody, response: ProjectSchema, status: 200 }, ({ ctx, params, body }) => renameProjectKey(ctx, params.key, body));
-  route(app, { method: 'get', path: '/projects/{key}/fields', tags: projects, summary: "A project's fields and their allowed values", params: Key, response: z.array(ProjectFieldSchema) }, async ({ ctx, params }) => {
+  route(app, { method: 'get', path: '/projects/{key}/fields', guests: true, tags: projects, summary: "A project's fields and their allowed values", params: Key, response: z.array(ProjectFieldSchema) }, async ({ ctx, params }) => {
     const p = await requireProject(ctx, params.key);
     // Without the private fields kept from the caller (D50).
     return projectFieldDtos(await visibleSchema(ctx), p.id);
@@ -85,7 +85,7 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
 
   // Custom fields ---------------------------------------------------------------
   const fields = ['Custom fields'];
-  route(app, { method: 'get', path: '/fields', tags: fields, summary: 'All custom fields and their values', response: z.array(FieldSchema) }, ({ ctx }) => listFields(ctx));
+  route(app, { method: 'get', path: '/fields', guests: true, tags: fields, summary: 'All custom fields and their values', response: z.array(FieldSchema) }, ({ ctx }) => listFields(ctx));
   route(app, { method: 'post', path: '/fields', tags: fields, summary: 'Create a custom field (admin)', body: CreateFieldBody, response: FieldSchema }, ({ ctx, body }) => createField(ctx, body));
   route(app, { method: 'patch', path: '/fields/{id}', tags: fields, summary: 'Rename or describe a field (admin)', params: Id, body: UpdateFieldBody, response: FieldSchema }, ({ ctx, params, body }) => updateField(ctx, params.id, body));
   route(app, { method: 'delete', path: '/fields/{id}', tags: fields, summary: 'Delete a field and its values everywhere (admin)', params: Id, status: 204 }, async ({ ctx, params }) => {
@@ -100,14 +100,14 @@ export function coreRoutes(app: OpenAPIHono<HttpEnv>) {
   });
 
   // Tags & link types --------------------------------------------------------------
-  route(app, { method: 'get', path: '/tags', tags: ['Tags'], summary: 'List tags', response: z.array(TagSchema) }, ({ ctx }) => listTags(ctx));
+  route(app, { method: 'get', path: '/tags', guests: true, tags: ['Tags'], summary: 'List tags', response: z.array(TagSchema) }, ({ ctx }) => listTags(ctx));
   route(app, { method: 'post', path: '/tags', tags: ['Tags'], summary: 'Create a tag', body: TagBody, response: TagSchema }, ({ ctx, body }) => createTag(ctx, body));
   route(app, { method: 'patch', path: '/tags/{id}', tags: ['Tags'], summary: 'Rename a tag', params: Id, body: patchBody(TagBody), response: TagSchema }, ({ ctx, params, body }) => updateTag(ctx, params.id, body));
   route(app, { method: 'delete', path: '/tags/{id}', tags: ['Tags'], summary: 'Delete a tag', params: Id, status: 204 }, async ({ ctx, params }) => {
     await deleteTag(ctx, params.id);
     return null;
   });
-  route(app, { method: 'get', path: '/link-types', tags: ['Links'], summary: 'Link types and their phrases', response: z.array(LinkTypeSchema) }, ({ ctx }) => listLinkTypes(ctx));
+  route(app, { method: 'get', path: '/link-types', guests: true, tags: ['Links'], summary: 'Link types and their phrases', response: z.array(LinkTypeSchema) }, ({ ctx }) => listLinkTypes(ctx));
   route(
     app,
     {

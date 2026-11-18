@@ -22,9 +22,9 @@ const Id = z.object({ id: z.string() });
 
 export function boardRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Agile boards'];
-  route(app, { method: 'get', path: '/boards', tags, summary: 'List boards', response: z.array(BoardSchema) }, ({ ctx }) => listBoards(ctx));
+  route(app, { method: 'get', path: '/boards', guests: true, tags, summary: 'List boards', response: z.array(BoardSchema) }, ({ ctx }) => listBoards(ctx));
   route(app, { method: 'post', path: '/boards', tags, summary: 'Create a board', description: 'Columns default to one per open value of the column field, plus a Done column for resolved values.', body: BoardBody, response: BoardSchema }, ({ ctx, body }) => createBoard(ctx, body));
-  route(app, { method: 'get', path: '/boards/{id}', tags, summary: 'Get a board', params: Id, response: BoardSchema }, ({ ctx, params }) => getBoard(ctx, params.id));
+  route(app, { method: 'get', path: '/boards/{id}', guests: true, tags, summary: 'Get a board', params: Id, response: BoardSchema }, ({ ctx, params }) => getBoard(ctx, params.id));
   route(app, { method: 'patch', path: '/boards/{id}', tags, summary: 'Change a board', params: Id, body: patchBody(BoardBody), response: BoardSchema }, ({ ctx, params, body }) => updateBoard(ctx, params.id, body));
   route(app, { method: 'delete', path: '/boards/{id}', tags, summary: 'Delete a board', params: Id, status: 204 }, async ({ ctx, params }) => {
     await deleteBoard(ctx, params.id);
@@ -34,7 +34,7 @@ export function boardRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/boards/{id}/view',
+      path: '/boards/{id}/view', guests: true,
       tags,
       summary: 'The board as columns of issues (for a sprint, or the current one)',
       description: 'Move a card by changing its column field: PATCH /issues/{id} with {"fields": {"State": "In Progress"}}.',

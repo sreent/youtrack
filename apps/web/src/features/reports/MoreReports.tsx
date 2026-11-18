@@ -7,10 +7,10 @@
 import type { AverageAge, IssuesPerField, Matrix, TimeInState, ValueCount } from '@a4a/shared';
 import { useId } from 'react';
 import { Link } from 'react-router';
+import { IssueLink, usePlaces } from '../../app/places';
 import { labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, daysOf, type Frame } from './chart';
 import { t as tx, tr, monthNames } from '../../i18n';
 
-const issuesHref = (query: string) => `/issues?q=${encodeURIComponent(query)}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const MONTHS = monthNames();
 const dayMonth = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]}`;
@@ -18,10 +18,13 @@ const fixed1 = (n: number | null) => (n === null ? '—' : String(Math.round(n *
 
 /** A count that opens its issues, when one query finds them. */
 function Count({ n, query, shaded }: { n: number; query: string | null; shaded?: boolean }) {
-  if (!n || query === null) return <>{n}</>;
+  // Where the reader has no list of issues to open (a guest, D64), the count is a count.
+  const places = usePlaces();
+  const href = query === null ? null : places.issues(query);
+  if (!n || href === null) return <>{n}</>;
   return (
     // On a shaded cell, the figure keeps the shade's own ink, as the load grid's figures do.
-    <Link to={issuesHref(query)} title={tx('reports.moreReports.open', { v: n === 1 ? tx('reports.moreReports.thisIssue') : tx('reports.moreReports.theseIssues', { n: n }) })} style={shaded ? { color: 'inherit' } : undefined}>
+    <Link to={href} title={tx('reports.moreReports.open', { v: n === 1 ? tx('reports.moreReports.thisIssue') : tx('reports.moreReports.theseIssues', { n: n }) })} style={shaded ? { color: 'inherit' } : undefined}>
       {n}
     </Link>
   );
@@ -282,9 +285,9 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
             {a.oldest.map((o) => (
               <tr key={o.issue}>
                 <th scope="row">
-                  <Link className="issue-id" to={`/issues/${o.issue}`}>
+                  <IssueLink className="issue-id" id={o.issue}>
                     {o.issue}
-                  </Link>
+                  </IssueLink>
                 </th>
                 <td>{o.summary}</td>
                 <td className="num">{daysOf(o.days)}</td>
@@ -375,9 +378,9 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
             {shown.map((i) => (
               <tr key={i.issue}>
                 <th scope="row">
-                  <Link className="issue-id" to={`/issues/${i.issue}`} title={i.summary}>
+                  <IssueLink className="issue-id" id={i.issue} title={i.summary}>
                     {i.issue}
-                  </Link>
+                  </IssueLink>
                 </th>
                 {i.days.map((d, k) => (
                   <td key={k} className="num">
@@ -397,9 +400,9 @@ export function TimeInStateView({ t, compact }: { t: TimeInState; compact?: bool
             {t.ongoing.slice(0, 15).map((o) => (
               <tr key={o.issue}>
                 <th scope="row">
-                  <Link className="issue-id" to={`/issues/${o.issue}`}>
+                  <IssueLink className="issue-id" id={o.issue}>
                     {o.issue}
-                  </Link>
+                  </IssueLink>
                 </th>
                 <td>{o.summary}</td>
                 <td>{o.state}</td>

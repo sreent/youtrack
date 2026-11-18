@@ -13,7 +13,7 @@ function sprintOption(s: Sprint): string {
   return `${s.name}${dates}`;
 }
 
-function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {
+export function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {
   const open = sprints.filter((s) => !s.archived);
   const archived = sprints.filter((s) => s.archived);
   const id = useId();

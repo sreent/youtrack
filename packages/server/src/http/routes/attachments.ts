@@ -95,12 +95,12 @@ function downloadHeaders(row: AttachmentRow, asDownload: boolean): Headers {
 export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
   route(
     app,
-    { method: 'get', path: '/attachments/limits', tags, summary: 'How large files may be, and which are shown in place', response: AttachmentLimitsSchema },
+    { method: 'get', path: '/attachments/limits', guests: true, tags, summary: 'How large files may be, and which are shown in place', response: AttachmentLimitsSchema },
     async ({ ctx }) => attachmentLimits(ctx),
   );
   route(
     app,
-    { method: 'get', path: '/issues/{id}/attachments', tags, summary: "An issue's files, its comments' included", params: Id, response: z.array(AttachmentSchema) },
+    { method: 'get', path: '/issues/{id}/attachments', guests: true, tags, summary: "An issue's files, its comments' included", params: Id, response: z.array(AttachmentSchema) },
     ({ ctx, params }) => listIssueAttachments(ctx, params.id),
   );
   uploadRoute(
@@ -113,19 +113,19 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
   uploadRoute(app, '/comments/{id}/attachments', 'Attach a file to your comment', 'As for an issue; a comment takes files from its author.', (ctx, id) => commentUploadTarget(ctx, id));
   route(
     app,
-    { method: 'get', path: '/articles/{id}/attachments', tags, summary: "An article's files", params: Id, response: z.array(AttachmentSchema) },
+    { method: 'get', path: '/articles/{id}/attachments', guests: true, tags, summary: "An article's files", params: Id, response: z.array(AttachmentSchema) },
     ({ ctx, params }) => listArticleAttachments(ctx, params.id),
   );
   uploadRoute(app, '/articles/{id}/attachments', 'Attach a file to an article', 'As for an issue.', (ctx, id) => articleUploadTarget(ctx, id));
 
-  route(app, { method: 'get', path: '/attachments/{id}', tags, summary: 'A file: its name, type, size, checksum and who added it', params: Id, response: AttachmentSchema }, ({ ctx, params }) =>
+  route(app, { method: 'get', path: '/attachments/{id}', guests: true, tags, summary: 'A file: its name, type, size, checksum and who added it', params: Id, response: AttachmentSchema }, ({ ctx, params }) =>
     getAttachment(ctx, params.id),
   );
   route(
     app,
     {
       method: 'get',
-      path: '/attachments/{id}/text',
+      path: '/attachments/{id}/text', guests: true,
       tags,
       summary: 'Read a text file, or part of it',
       description: 'At most 128 KB at a time, cut on whole characters: from `offset`, or the end with `tail=true`, as for a log. Files that aren\'t text get 400.',
@@ -147,8 +147,9 @@ export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: "A file's bytes",
       description:
-        'PNG, JPEG, GIF and WebP images come `inline`; every other file, SVG and HTML included, as an `attachment` to download, and `download=1` makes images download too. Served with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and an ETag (the SHA-256), so `If-None-Match` gets 304. One byte range (`Range: bytes=…`, with `If-Range` if you like) gets 206 and that part, as players seek; several at once get the whole file.',
-      security: [{ bearerAuth: [] }, { cookieAuth: [] }],
+        'PNG, JPEG, GIF and WebP images come `inline`; every other file, SVG and HTML included, as an `attachment` to download, and `download=1` makes images download too. Served with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and an ETag (the SHA-256), so `If-None-Match` gets 304. One byte range (`Range: bytes=…`, with `If-Range` if you like) gets 206 and that part, as players seek; several at once get the whole file.\n\nGuests read it too, sending no credentials, in the projects an administrator opened to anyone (D37, D64).',
+      // An empty requirement: a guest may ask without credentials.
+      security: [{ bearerAuth: [] }, { cookieAuth: [] }, {}],
       request: {
         params: Id,
         query: z.object({ download: z.string().optional().describe('Any value: download even an image') }),

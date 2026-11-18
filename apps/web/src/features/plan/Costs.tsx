@@ -42,7 +42,7 @@ function plannedFraction(cal: WorkCalendar, start: string, finish: string, asOf:
 export function scheduleDays(s: Schedule, evm: Evm, cal: WorkCalendar): number | null {
   const rows = s.tasks.filter((t) => !t.isSummary && t.baseline);
   if (!rows.length || evm.spi === null) return null;
-  const pv = (d: string) => rows.reduce((sum, t) => sum + t.baseline!.cost * plannedFraction(cal, t.baseline!.start, t.baseline!.finish, d), 0);
+  const pv = (d: string) => rows.reduce((sum, t) => sum + (t.baseline!.cost ?? 0) * plannedFraction(cal, t.baseline!.start, t.baseline!.finish, d), 0);
   const first = rows.reduce((m, t) => (t.baseline!.start < m ? t.baseline!.start : m), rows[0]!.baseline!.start);
   const last = rows.reduce((m, t) => (t.baseline!.finish > m ? t.baseline!.finish : m), rows[0]!.baseline!.finish);
   let reached = last;

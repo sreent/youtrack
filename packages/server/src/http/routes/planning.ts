@@ -35,7 +35,7 @@ export function planningRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/projects/{key}/schedule',
+      path: '/projects/{key}/schedule', guests: true,
       tags,
       summary: "The project's schedule: critical path, slack, late tasks, baseline variance",
       description:

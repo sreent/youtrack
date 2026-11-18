@@ -6,7 +6,7 @@ import { boardRanks, boards, issues, sprintIssues, sprints } from '../db/schema'
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
-import { searchIssueRows } from '../search/service';
+import { prepareQuery, searchIssueRows } from '../search/service';
 import { assertCanProject, assertCanWriteProject, issueSeenSql, projectAccess, scopeFields, scopeSchema, type AccessView } from './access';
 import { issueRefsById, type IssueRow } from './issue-refs';
 import { issueDtos } from './issues';
@@ -168,11 +168,36 @@ export async function scoped(ctx: Ctx): Promise<{ s: SchemaSnapshot; view: Acces
   return { s: scopeFields(scopeSchema(await ctx.app.schema.get(), view.visibleIds()), view), view };
 }
 
+/** Whether they see every project on the board: then the board is theirs to read whole, its words too. */
+function seesWholeBoard(view: AccessView, row: BoardRow): boolean {
+  return row.projectIds.every((id) => view.canRead(id));
+}
+
+/** Whether a board's query makes sense to the caller: it names nothing they can't see (the saved searches' rule). */
+async function queryMakesSense(ctx: Ctx, query: string | null): Promise<boolean> {
+  return !query?.trim() || !(await prepareQuery(ctx, query)).compiled.problems.length;
+}
+
+/**
+ * The board as the caller reads it. Its queries are its managers' words: someone who doesn't see every
+ * project on it, a guest of one beside a closed project among them, reads one only when it names nothing
+ * they can't see, by the rule shared saved searches and dashboards follow, so the board says nothing of
+ * the projects they don't see (D64).
+ */
+async function boardFor(ctx: Ctx, s: SchemaSnapshot, view: AccessView, row: BoardRow): Promise<Board> {
+  const board = boardDto(s, row);
+  if (seesWholeBoard(view, row)) return board;
+  const [query, backlog] = [await queryMakesSense(ctx, row.query), await queryMakesSense(ctx, row.backlogQuery)];
+  return { ...board, query: query ? board.query : null, backlogQuery: backlog ? board.backlogQuery : null };
+}
+
 export async function listBoards(ctx: Ctx): Promise<Board[]> {
   requireScope(ctx, 'read');
   const { s, view } = await scoped(ctx);
   const rows = await ctx.db.select().from(boards).orderBy(asc(boards.name));
-  return rows.filter((r) => seesBoard(view, r)).map((r) => boardDto(s, r));
+  const out: Board[] = [];
+  for (const r of rows) if (seesBoard(view, r)) out.push(await boardFor(ctx, s, view, r));
+  return out;
 }
 
 export async function loadBoard(ctx: Ctx, id: string, need: 'read' | 'manage' = 'read'): Promise<BoardRow> {
@@ -194,8 +219,8 @@ async function assertCanManageBoard(ctx: Ctx, view: AccessView, projectIds: stri
 
 export async function getBoard(ctx: Ctx, id: string): Promise<Board> {
   const row = await loadBoard(ctx, id);
-  const { s } = await scoped(ctx);
-  return boardDto(s, row);
+  const { s, view } = await scoped(ctx);
+  return boardFor(ctx, s, view, row);
 }
 
 export interface BoardInput {
@@ -331,6 +356,11 @@ export function boardSprintRows(db: Db, boardId: string): Promise<SprintRow[]> {
  */
 export async function boardCardRows(ctx: Ctx, row: BoardRow, view: AccessView, sprintId: string | null): Promise<IssueRow[]> {
   const readable = row.projectIds.filter((pid) => view.canRead(pid));
+  // A query naming what they can't see would be refused in its own words, the hidden ones among them:
+  // they're told only that it names something they can't see (D64).
+  if (!seesWholeBoard(view, row) && !(await queryMakesSense(ctx, row.query))) {
+    throw badRequest('This board’s query names something you can’t see', 'A manager of every project on the board can change its query.').said('boards.queryNamesUnseen');
+  }
   const extraWhere = sprintId ? sql`EXISTS (SELECT 1 FROM sprint_issues si WHERE si.issue_id = issues.id AND si.sprint_id = ${sprintId})` : undefined;
   const found = await searchIssueRows(ctx, row.query ?? '', { projectIds: readable, extraWhere, limit: MAX_BOARD_ISSUES });
   return (await rankRows(ctx.db, row.id, found.rows)).rows;
@@ -340,7 +370,7 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
   requireScope(ctx, 'read');
   const row = await loadBoard(ctx, id);
   const { s, view } = await scoped(ctx);
-  const board = boardDto(s, row);
+  const board = await boardFor(ctx, s, view, row);
   const readable = row.projectIds.filter((pid) => view.canRead(pid));
   const allSprints = await sprintDtos(ctx.db, view, await boardSprintRows(ctx.db, id), s);
   const sprint: Sprint | null = shownSprint(row, allSprints, sprintId);

@@ -24,6 +24,12 @@ export interface RouteSpec<P extends AnyObject | undefined, Q extends AnyObject 
   status?: 200 | 201 | 202 | 204 | 302;
   /** 'required' (default): 401 without a user. 'none': public. */
   auth?: 'required' | 'none';
+  /**
+   * A guest, sending no credentials, reads it too, in the projects open to guests (D37, D64): said in
+   * OpenAPI as a request that may go without credentials. Which requests a guest makes is decided by
+   * `guestMayRequest` (services/guests.ts); a test holds the two to the same routes.
+   */
+  guests?: boolean;
   /** Hidden from the OpenAPI document. */
   hidden?: boolean;
 }
@@ -39,6 +45,7 @@ export interface HandlerArgs<P, Q, B> {
 }
 
 const errorContent = { 'application/json': { schema: ErrorSchema } };
+const GUESTS_READ = 'Guests read it too, sending no credentials, in the projects an administrator opened to anyone, and see there what a guest may see (D37, D64).';
 const ERRORS = {
   400: { description: 'Invalid request: the error says what to fix', content: errorContent },
   401: { description: 'Not signed in, or the token is unknown, expired or revoked', content: errorContent },
@@ -62,9 +69,10 @@ export function route<P extends AnyObject | undefined, Q extends AnyObject | und
     path: spec.path,
     tags: spec.tags,
     summary: spec.summary,
-    description: spec.description,
+    description: spec.guests ? [spec.description, GUESTS_READ].filter(Boolean).join('\n\n') : spec.description,
     hide: spec.hidden,
-    security: spec.auth === 'none' ? [] : [{ bearerAuth: [] }, { cookieAuth: [] }],
+    // An empty requirement is OpenAPI's way of saying a request may go without any.
+    security: spec.auth === 'none' ? [] : spec.guests ? [{ bearerAuth: [] }, { cookieAuth: [] }, {}] : [{ bearerAuth: [] }, { cookieAuth: [] }],
     request: {
       ...(spec.params ? { params: spec.params } : {}),
       ...(spec.query ? { query: spec.query } : {}),

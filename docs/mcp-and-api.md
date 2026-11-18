@@ -85,7 +85,7 @@ sprint Sprint 4                 # into a sprint of a board of the issue's projec
 
 - Session cookie for the web UI.
 - `Authorization: Bearer a4a_…` for API tokens.
-- Nothing, for a guest: where an administrator opened a project to anyone, a request without credentials to a reading route (projects, issues and their comments, links, history and files, search, articles, fields) reads those projects, and nothing else; `GET /guest` lists them (D37).
+- Nothing, for a guest: where an administrator opened a project to anyone, a request without credentials to a reading route (projects, issues and their comments, links, history and files, search, articles, fields; and boards, reports, plans and whiteboards, D64) reads those projects, and nothing else; `GET /guest` lists them (D37). Those routes say so in OpenAPI: their security has an empty requirement beside the token and the cookie.
 
 **Conventions**
 
@@ -430,6 +430,12 @@ Writing and reading help counts against `AI_WRITING_MAX_PER_HOUR` per person, on
   - `add_comment` takes `visibleTo` too.
 - **Private fields** (D50). `private: true` on `PUT /projects/{key}/fields/{fieldId}` (its managers; State and the assignee field can't be). Someone whose role lacks `readPrivate` there gets the issue without the field, everywhere: issue reads and lists, `get_project`, `get_issue`, search (an unknown field, or no value where it's public elsewhere), sorting and counts, reports, plans, history, the event feed and stream, notifications, and the AI's prompts. Its changes are taken out of events, and a change to nothing else isn't there. Setting it without `readPrivate` is a field the project lacks (400 `issues.noSuchField`, or a command's problem); with it but without `editPrivate`, 403. An issue's field says `private: true` to someone who sees it. Chat channels, webhooks and triage never get one.
 - **Guests**: see Authentication above. An administrator sets `guestAccess` on `PATCH /projects/{key}`, on an open project only.
+- **Guests beyond issues** (D64). Without credentials, in the projects open to guests:
+  - `GET /boards`, `GET /boards/{id}` and `GET /boards/{id}/view`: the cards a guest may see, in the board's order; a board across projects names and counts only the guest-open ones. Not the backlog, velocity or a sprint's plan. A board's `query` and `backlogQuery` are null to anyone who doesn't see every project on it when they name something that reader can't see, and such a board's view is 400 `boards.queryNamesUnseen`, without the query's words.
+  - Every `GET /reports/…` and its `.csv` but the time report, counting only the issues a guest sees.
+  - `GET /projects/{key}/schedule`, without a baseline (one asked for is 404, as a missing one), with `away` empty and no warning that someone is away. Money takes the costs permission, for anyone: without it a task's `plannedCost` and `actualCost`, a baseline's and a variance's `cost`, and `calendar.budget` (and a project's `settings.plan.budget`, unless you manage it) are null. The load, costs, baselines, what-if and levelling stay closed.
+  - `GET /whiteboards`, `GET /whiteboards/{id}` (with `viewers` empty), `GET /whiteboards/{id}/cards` and `GET /whiteboards/{id}/stream`, which sends no `viewers` and doesn't count a guest among them. Presence is refused. A guest holds four open streams per address (four hundred guests' in all, per instance); past that, 429 `whiteboards.guestStreams`.
+  - Every write is 401 `access.signInFirst`; MCP is unchanged, since it needs a sign-in.
 
 ## 7b. Apps (D48)
 

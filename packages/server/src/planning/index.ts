@@ -15,5 +15,5 @@ export {
 } from './calendar';
 export { computeCosts } from './costs';
 export { computeLoad, levelResources } from './resources';
-export { computeSchedule, whatIf } from './schedule';
+export { computeSchedule, isAwayWarning, whatIf } from './schedule';
 export type * from './types';

@@ -387,7 +387,7 @@ export const ProjectSchema = ProjectRefSchema.extend({
   lead: UserRefSchema.nullable(),
   archived: z.boolean(),
   visibility: z.enum(PROJECT_VISIBILITIES).describe('open: everyone sees it and works in it; members: only its people and administrators see it'),
-  settings: ProjectSettingsSchema,
+  settings: ProjectSettingsSchema.describe("Its settings; the plan's budget is null for a reader without the costs permission, a guest among them (D64)"),
   issueCount: z.number().int(),
   openIssueCount: z.number().int(),
   createdAt: timestamp,
@@ -1053,8 +1053,8 @@ export const BoardSchema = z
     columnField: z.string(),
     columns: z.array(BoardColumnSchema),
     swimlaneField: z.string().nullable(),
-    query: z.string().nullable(),
-    backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved'),
+    query: z.string().nullable().describe("Which issues it shows; left out (null) for someone who doesn't see every project on it when it names something they can't see (D64)"),
+    backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved, or left out, as its query is (D64)'),
     pointsField: z.string().nullable().describe('The field its story points are in'),
     sprintsEnabled: z.boolean(),
   })
@@ -1192,13 +1192,13 @@ export const ScheduleTaskSchema = z
     late: z.boolean().describe('Finishes after its due date'),
     scheduledFrom: z.enum(['actual', 'fixed', 'start', 'dependencies', 'project_start']),
     predecessors: z.array(z.string()),
-    plannedCost: z.number(),
-    actualCost: z.number(),
+    plannedCost: z.number().nullable().describe('Null for a reader without the costs permission, a guest among them (D64)'),
+    actualCost: z.number().nullable().describe('Null for a reader without the costs permission (D64)'),
     baseline: z
-      .object({ start: isoDate, finish: isoDate, effortMinutes: z.number().int(), cost: z.number() })
+      .object({ start: isoDate, finish: isoDate, effortMinutes: z.number().int(), cost: z.number().nullable() })
       .nullable(),
     variance: z
-      .object({ startDays: z.number(), finishDays: z.number(), effortMinutes: z.number().int(), cost: z.number() })
+      .object({ startDays: z.number(), finishDays: z.number(), effortMinutes: z.number().int(), cost: z.number().nullable() })
       .nullable(),
   })
   .meta({ id: 'ScheduleTask' });
@@ -1207,7 +1207,7 @@ export type ScheduleTask = z.infer<typeof ScheduleTaskSchema>;
 export const ScheduleSchema = z
   .object({
     project: ProjectRefSchema,
-    calendar: PlanSettingsSchema,
+    calendar: PlanSettingsSchema.describe("The plan's calendar; its budget is null for a reader without the costs permission, a guest among them (D64)"),
     start: isoDate,
     finish: isoDate,
     today: isoDate,
@@ -1219,7 +1219,7 @@ export const ScheduleSchema = z
       .nullable(),
     away: z
       .array(z.object({ assignee: z.string().describe('Login'), days: z.array(z.object({ date: isoDate, part: z.enum(['day', 'morning', 'afternoon']) })) }))
-      .describe("Assignees' days away between the plan's start and finish, drawn on the Gantt (D36, D43)"),
+      .describe("Assignees' days away between the plan's start and finish, drawn on the Gantt (D36, D43); none for a guest, who reaches no people (D64)"),
   })
   .meta({ id: 'Schedule' });
 export type Schedule = z.infer<typeof ScheduleSchema>;

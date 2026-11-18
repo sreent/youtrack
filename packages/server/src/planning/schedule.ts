@@ -106,6 +106,12 @@ interface Context {
 /** When two start terms give the same date, the more specific reason wins. */
 const REASON_RANK: Record<ScheduledFrom, number> = { project_start: 0, start: 1, fixed: 2, dependencies: 3, actual: 4 };
 
+/** The warning for a window that falls while its assignee is away (D36): it says when someone is away. */
+const AWAY_WARNING = ' falls on days its assignee is away; planned for when they’re back';
+export const awayWarning = (id: string): string => `${id}${AWAY_WARNING}`;
+/** Whether a warning says that someone is away, for a reader who isn't told who is (a guest, D64). */
+export const isAwayWarning = (warning: string): boolean => warning.endsWith(AWAY_WARNING);
+
 /** The project schedule, optionally with what-if overrides applied. */
 export function computeSchedule(input: PlanInput, overrides: readonly PlanOverride[] = []): ScheduleResult {
   return buildPlan(input, overrides).schedule;
@@ -340,7 +346,7 @@ function plannedDuration(ctx: Context, leaf: Leaf, ownStart: string | null): { d
   if (ownStart && t.deadline) {
     const theirs = workingDaysInclusive(leaf.avail.cal, ownStart, t.deadline);
     if (theirs === 0 && workingDaysInclusive(ctx.cal, ownStart, t.deadline) > 0) {
-      ctx.warn(`${t.id} falls on days its assignee is away; planned for when they’re back`);
+      ctx.warn(awayWarning(t.id));
     }
     return { duration: clampDays(ctx, t.id, theirs), pinned: true };
   }

@@ -6,7 +6,7 @@
  * screen readers: the list says in words what it shows.
  */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { IssueLink } from '../../app/places';
 import { addDays, dayMonth, diffDays, localToday, span, weekday, type WorkCalendar } from './dates';
 import { andList } from './format';
 import { anchors, DAY, ganttRange, HEAD, linkHead, linkPath, restDays, ROW, rowTop, scale, type GanttTask, type Scale } from './gantt';
@@ -236,7 +236,7 @@ export function Gantt({ title, rows, start, finish, today, cal, baselineName, wh
               {rows.map((t) => (
                 <li key={t.id} className={['gantt-row', t.kind === 'summary' ? 'summary' : '', t.late ? 'late' : ''].filter(Boolean).join(' ')} data-depth={t.depth}>
                   <span className="gantt-name" title={t.name}>
-                    <Link to={`/issues/${t.id}`}>{t.name}</Link>
+                    <IssueLink id={t.id}>{t.name}</IssueLink>
                     <span className="hidden">{said(t, names, today)}</span>
                   </span>
                   <span className="gantt-when">{span(t.start, t.finish)}</span>
