@@ -2040,7 +2040,7 @@
   "page.admin.itsName": "名前",
   "page.admin.last": "最終：{when}",
   "page.admin.letOff": "免除する",
-  "page.admin.letOffFor": "{name}がパスキーなしでログインできるようにする",
+  "page.admin.letOffFor": "{name}のパスキーを免除する",
   "page.admin.letOffPasskeys": "パスキー免除",
   "page.admin.letOffSaid": "{name}はパスワードとコードでログインします。",
   "page.admin.letPeopleUsePasskeys": "パスキーでのログインを許可する",

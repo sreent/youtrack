@@ -1,5 +1,5 @@
 import type { PasskeyMetadata, PasskeySetupLink, PasskeysRequired, Role, Settings, TriageMode, User } from '@a4a/shared';
-import { PASSKEYS_REQUIRED } from '@a4a/shared';
+import { PASSKEYS_REQUIRED } from '@a4a/shared/constants';
 import { ROLES } from '@a4a/shared/constants';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -197,22 +197,25 @@ function PersonRow({ user, isMe, ways, required }: { user: User; isMe: boolean; 
         <span className="tw:block tw:min-w-36">
           {how.words}
           {how.about ? <span className="item-about">{how.about}</span> : null}
-          {user.signIn?.twoFactor && !isMe ? (
-            <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={t('page.admin.resetTwoFactorFor', { name: user.name })}>{t('page.admin.resetTwoFactor')}</button>
-          ) : null}
-          {user.signIn?.passkeys && !isMe ? (
-            <button type="button" className="link" onClick={() => unpasskey.mutate()} disabled={unpasskey.isPending} aria-label={t('page.admin.removePasskeysOf', { name: user.name })}>{t('page.admin.removePasskeys')}</button>
-          ) : null}
-          {user.signIn?.passkeysOnly && !isMe ? (
-            <button type="button" className="link" onClick={() => link.mutate()} disabled={link.isPending} aria-label={t('page.admin.sendALinkTo', { name: user.name })}>{t('page.admin.sendALink')}</button>
-          ) : null}
-          {required && user.signIn?.password && !user.isBot ? (
-            user.signIn.passkeyExempt ? (
-              <button type="button" className="link" onClick={() => exempt.mutate(false)} disabled={exempt.isPending} aria-label={t('page.admin.askForAPasskeyOf', { name: user.name })}>{t('page.admin.askForAPasskey')}</button>
-            ) : (
-              <button type="button" className="link" onClick={() => exempt.mutate(true)} disabled={exempt.isPending} aria-label={t('page.admin.letOffFor', { name: user.name })}>{t('page.admin.letOff')}</button>
-            )
-          ) : null}
+          {/* Spaced apart, so each is a target of its own (WCAG 2.5.8). */}
+          <span className="cluster">
+            {user.signIn?.twoFactor && !isMe ? (
+              <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={t('page.admin.resetTwoFactorFor', { name: user.name })}>{t('page.admin.resetTwoFactor')}</button>
+            ) : null}
+            {user.signIn?.passkeys && !isMe ? (
+              <button type="button" className="link" onClick={() => unpasskey.mutate()} disabled={unpasskey.isPending} aria-label={t('page.admin.removePasskeysOf', { name: user.name })}>{t('page.admin.removePasskeys')}</button>
+            ) : null}
+            {user.signIn?.passkeysOnly && !isMe ? (
+              <button type="button" className="link" onClick={() => link.mutate()} disabled={link.isPending} aria-label={t('page.admin.sendALinkTo', { name: user.name })}>{t('page.admin.sendALink')}</button>
+            ) : null}
+            {required && user.signIn?.password && !user.isBot ? (
+              user.signIn.passkeyExempt ? (
+                <button type="button" className="link" onClick={() => exempt.mutate(false)} disabled={exempt.isPending} aria-label={t('page.admin.askForAPasskeyOf', { name: user.name })}>{t('page.admin.askForAPasskey')}</button>
+              ) : (
+                <button type="button" className="link" onClick={() => exempt.mutate(true)} disabled={exempt.isPending} aria-label={t('page.admin.letOffFor', { name: user.name })}>{t('page.admin.letOff')}</button>
+              )
+            ) : null}
+          </span>
           {shown ? <ShownLink url={shown} name={user.name} /> : null}
         </span>
       </td>

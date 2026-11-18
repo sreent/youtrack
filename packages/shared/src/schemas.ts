@@ -14,6 +14,7 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  PASSKEYS_REQUIRED,
   PORTAL_SIGN_IN_METHODS,
   REQUEST_CC_VIA,
   WHITEBOARD_KINDS,
@@ -1177,9 +1178,6 @@ export const WebhookDeliverySchema = z
 
 // Settings ------------------------------------------------------------------
 
-/** Whose password sign-in owes a passkey (D68). */
-export const PASSKEYS_REQUIRED = ['off', 'everyone', 'admins'] as const;
-export type PasskeysRequired = (typeof PASSKEYS_REQUIRED)[number];
 /** An authenticator's model, as FIDO's metadata names it: a UUID. */
 const aaguid = z
   .string()

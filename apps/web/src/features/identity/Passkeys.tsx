@@ -275,8 +275,8 @@ export function PasskeysCard() {
           </button>
         </div>
       ) : null}
+      <PasskeysAlone m={m} onChanged={refresh} say={setSaid} />
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
-      <PasskeysAlone m={m} onChanged={refresh} />
     </div>
   );
 }
@@ -285,9 +285,9 @@ export function PasskeysCard() {
  * Signing in with passkeys alone (D68): removing your password takes a spare (a second passkey, or
  * one your provider syncs) and a passkey's proof in the last ten minutes, asked for here if it's due.
  */
-function PasskeysAlone({ m, onChanged }: { m: MyPasskeys; onChanged: () => void }) {
+function PasskeysAlone({ m, onChanged, say }: { m: MyPasskeys; onChanged: () => void; say: (s: { text: string; bad?: boolean } | null) => void }) {
   const qc = useQueryClient();
-  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const setSaid = say;
   const remove = useMutation({
     mutationFn: async () => {
       if (m.password?.needs === 'passkey') await passkeyAt<Confirmed>('/me/confirm/passkey/options', '/me/confirm/passkey');
@@ -319,7 +319,6 @@ function PasskeysAlone({ m, onChanged }: { m: MyPasskeys; onChanged: () => void 
           />
         </div>
       )}
-      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
   );
 }

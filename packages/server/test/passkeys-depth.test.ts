@@ -44,11 +44,11 @@ const ALG = { name: 'ECDSA', hash: 'SHA-256' } as const;
 
 interface Issued {
   cert: x509.X509Certificate;
-  keys: CryptoKeyPair;
+  keys: webcrypto.CryptoKeyPair;
 }
 
 const day = 86_400_000;
-const newKeys = () => webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as Promise<CryptoKeyPair>;
+const newKeys = () => webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']) as Promise<webcrypto.CryptoKeyPair>;
 
 async function rootCa(name: string): Promise<Issued> {
   const keys = await newKeys();
