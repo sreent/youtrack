@@ -1,4 +1,6 @@
 import {
+  REQUEST_CCS_CEILING,
+  REQUEST_CCS_MAX,
   WELL_KNOWN_FIELDS,
   type HelpdeskSettings,
   type TimeSettings,
@@ -45,6 +47,10 @@ export const DEFAULT_HELPDESK: HelpdeskSettings = {
   resumeState: null,
   // Requesters sign in to the portal by a link emailed to them, as before D63.
   signIn: { link: true, password: false, providers: [] },
+  // D57's cap; a new request's Cc nobody vouches for waits for its requester; nobody's words are relayed (D67).
+  ccsMax: REQUEST_CCS_MAX,
+  ccsConfirm: true,
+  ccsRelay: false,
 };
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
@@ -243,6 +249,11 @@ export async function updateProject(
     time: { ...current.time, ...(input.settings?.time ?? {}) },
   };
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');
+  // A desk's own cap on CCs (D67): a whole number up to the ceiling, whoever calls.
+  const max = settings.helpdesk.ccsMax;
+  if (!Number.isInteger(max) || max < 1 || max > REQUEST_CCS_CEILING) {
+    throw badRequest(`A desk copies from 1 to ${REQUEST_CCS_CEILING} people on a request`, `Give a whole number from 1 to ${REQUEST_CCS_CEILING}.`).said('projects.ccsMaxOutOfRange', { ceiling: REQUEST_CCS_CEILING });
+  }
   // A desk's working hours must read before they're kept: a 400 says what's wrong with them (D45).
   calendarOf(settings.helpdesk.businessHours);
   // How its requesters sign in (D63): one way at least, providers that exist, none a customer group still signs in through.
@@ -276,6 +287,13 @@ export async function updateProject(
       .where(eq(projects.id, p.id));
     if (signIn?.changed) {
       activities.push(await recordActivity(tx, ctx, { type: 'project.portal_sign_in.changed', projectId: p.id, issueId: null, payload: { data: signIn.data } }));
+    }
+    // Its rules for CCs (D67): relaying outside words above all, a manager's choice, in its history.
+    const ccs = (h: HelpdeskSettings) => ({ max: h.ccsMax, confirm: h.ccsConfirm, relay: h.ccsRelay });
+    if (JSON.stringify(ccs(current.helpdesk)) !== JSON.stringify(ccs(settings.helpdesk))) {
+      activities.push(
+        await recordActivity(tx, ctx, { type: 'project.request_ccs.changed', projectId: p.id, issueId: null, payload: { data: { from: ccs(current.helpdesk), to: ccs(settings.helpdesk) } } }),
+      );
     }
     if (visibility || guestAccess !== undefined) {
       activities.push(

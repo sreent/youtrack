@@ -53,6 +53,7 @@ function toDto(ctx: Ctx, project: ProjectRow, row: MailboxRow | null): HelpdeskM
     inbound: { url: inboundUrl(ctx.app, project.key), secretPrefix: row?.secretPrefix ?? null },
     imap: { configured: imap !== null, server: imap },
     maxBytes: ctx.app.config.helpdeskMailMaxBytes,
+    trustedServers: ctx.app.config.helpdeskTrustedAuthservIds,
   };
 }
 
@@ -123,7 +124,7 @@ export async function inboundLog(ctx: Ctx, key: string, limit = 100): Promise<He
   return rows.map(({ row, issue }) => ({
     id: row.id,
     at: row.createdAt.toISOString(),
-    via: row.via === 'imap' ? 'imap' : 'webhook',
+    via: row.via === 'imap' || row.via === 'page' || row.via === 'portal' ? row.via : 'webhook',
     sender: row.sender,
     subject: row.subject,
     outcome: row.outcome as HelpdeskInbound['outcome'],

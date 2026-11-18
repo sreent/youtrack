@@ -32,6 +32,8 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
   const done = (ccs: RequestCc[]) => {
     qc.setQueryData<HelpdeskRequest | null>(inboxKeys.request(issue), (old) => (old ? { ...old, ccs } : old));
     void qc.invalidateQueries({ queryKey: keys.issueSub(issue, 'activity') });
+    // Copying someone held settles their hold (D67): the request says so when it's read again.
+    if (r.held.length) void qc.invalidateQueries({ queryKey: inboxKeys.request(issue) });
   };
   const copy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,6 +86,21 @@ export function RequestCcs({ issue, r, canEdit }: { issue: string; r: HelpdeskRe
       ) : (
         <p className="note">{t('helpdesk.requestCcs.nobody')}</p>
       )}
+      {r.ccs.length >= r.ccsMax ? <p className="note">{t('helpdesk.requestCcs.full', { max: r.ccsMax })}</p> : null}
+      {r.held.length ? (
+        // Whom the email that opened it named, waiting for its requester (D67): told nothing until then.
+        <div className="stack tight">
+          <h4>{t('helpdesk.requestCcs.held', { requester: r.requester.name })}</h4>
+          <p className="note">{t('helpdesk.requestCcs.heldNote', { requester: r.requester.name })}</p>
+          <ul className="plain stack tight">
+            {r.held.map((h) => (
+              <li key={h.email}>
+                <Who kind="person" name={h.name || h.email} about={h.name ? h.email : undefined} small />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {canEdit ? (
         <form className="form" onSubmit={copy} aria-label={t('helpdesk.requestCcs.copySomeone')}>
           <FormField label={t('helpdesk.requestCcs.theirEmail')}>

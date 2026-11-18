@@ -32,7 +32,8 @@ import { projectSettings } from './projects';
 import { requestSla, resumeFields, syncClocks } from './sla';
 import { projectByKey, type ProjectRow, type SchemaSnapshot } from './schema-cache';
 import { insertUser } from './users';
-import { ccsOf, copyOnNewRequest, type Person } from './request-ccs';
+import { ccsOf, copyOnNewRequest, deskCcsMax, heldOf, holdOnNewRequest, type Person } from './request-ccs';
+import { noteNotRelayed, relayChoice, type RelayChoice, type RelayHow } from '../helpdesk/relay';
 import { outsideAuthors, outsideKey } from './request-authors';
 import { addWatchers } from './watchers';
 
@@ -185,6 +186,8 @@ export interface NewRequest {
   threadId?: string | null;
   /** Whom their email copied (its Cc), to copy on the request (D57). */
   cc?: Person[];
+  /** Hold its Cc for the requester to confirm rather than copy it (D67): a4a can't trust who sent it. */
+  ccHeld?: boolean;
   /** Kept from their customer group's other members from the start (D56). */
   private?: boolean;
 }
@@ -209,6 +212,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   const group = await groupOfRequester(app.db, project.id, { id: requesterId, email });
   let slaActivities: ActivityRow[] = [];
   let copied: { copied: string[]; left: string[] } | null = null;
+  let heldCcs: { held: string[]; left: string[] } | null = null;
   const issue = await createIssue(
     ctx,
     { project: project.key, summary: input.summary.trim(), description: input.description.trim() },
@@ -224,8 +228,10 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
           .returning();
         // Its SLA clocks start with it (D45), counted from when it was filed, in its group's hours where it has some.
         slaActivities = await syncClocks(tx, app, await app.schema.get(tx), row, request!);
-        // Whom their email copied, before the email that says it came in is sent (D57).
-        if (input.cc?.length) {
+        // Whom their email copied, before the email that says it came in is sent (D57); held for
+        // them to confirm instead, when nobody can vouch that they sent it (D67).
+        if (input.cc?.length && input.ccHeld) heldCcs = await holdOnNewRequest(tx, app, row, input.cc);
+        else if (input.cc?.length) {
           const done = await copyOnNewRequest(tx, ctx, row, name, input.cc);
           copied = done.words;
           slaActivities.push(...done.activities);
@@ -241,7 +247,7 @@ export async function openRequest(app: AppServices, project: ProjectRow, input: 
   );
   kickMail(app);
   await publishActivities(app, slaActivities);
-  return { ...issue, copied };
+  return { ...issue, copied, held: heldCcs };
 }
 
 /** File a request from the public form, as an issue in the project. */
@@ -318,11 +324,19 @@ export async function postRequesterReply(
   requester: { id: string; name: string },
   text: string,
   via: 'page' | 'email',
-  opts: { colleague?: boolean } = {},
-): Promise<{ commentId: string | null; activities: ActivityRow[] }> {
+  opts: { colleague?: boolean; relay?: RelayHow; files?: number } = {},
+): Promise<{ commentId: string | null; activities: ActivityRow[]; relay: RelayChoice }> {
   const ctx = await botCtx(app, issue.projectId);
+  // Whether everyone else on it hears these words (D67): the desk's switch, whether a4a can trust who
+  // wrote them, and the limits, decided as they come in, so the desk's log can say why not.
+  const relay: RelayChoice = opts.relay ? await relayChoice(app, issue, opts.relay, Boolean(opts.colleague)) : { relay: false, why: null };
   // Someone of its customer group answering it (D56): their own words, which reach its requester too.
-  const data = { ...(via === 'email' ? { via: 'email' } : {}), ...(opts.colleague ? { colleague: true } : {}) };
+  const data = {
+    ...(via === 'email' ? { via: 'email' } : {}),
+    ...(opts.colleague ? { colleague: true } : {}),
+    ...(relay.relay ? { relay: true } : {}),
+    ...(opts.files ? { files: opts.files } : {}),
+  };
   const reply = (withResume: boolean) =>
     app.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
@@ -353,13 +367,16 @@ export async function postRequesterReply(
   await publishActivities(app, result.activities);
   const created = result.activities.find((a) => a.type === 'comment.created');
   const commentId = (created?.payload as { data?: { commentId?: unknown } } | undefined)?.data?.commentId;
-  return { commentId: typeof commentId === 'string' ? commentId : null, activities: result.activities };
+  // Words written on a page that a desk that relays didn't pass on: its log says why (D67). Mail's own line says it.
+  if (opts.relay && opts.relay.on !== 'email' && !relay.relay && relay.why) await noteNotRelayed(app, issue, opts.relay, typeof commentId === 'string' ? commentId : null, relay.why);
+  return { commentId: typeof commentId === 'string' ? commentId : null, activities: result.activities, relay };
 }
 
 /** The requester replies on their tracking page: a public comment, theirs, that tells the issue's watchers. */
 export async function replyToRequest(app: AppServices, token: string | undefined, text: string): Promise<TrackedRequest> {
   const { requester, issue } = await requestByToken(app, token);
-  await postRequesterReply(app, issue, { id: requester.id, name: requester.name }, text, 'page');
+  // A tracking link can be forwarded, and lives as long as the request: words written by it aren't passed on to others (D67).
+  await postRequesterReply(app, issue, { id: requester.id, name: requester.name }, text, 'page', { relay: { on: 'page', sender: requester.email, trusted: false, why: 'page' } });
   return trackRequest(app, token);
 }
 
@@ -416,6 +433,8 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
     emailMuted: row.request.emailMutedAt !== null,
     via: row.request.via === 'email' ? 'email' : 'form',
     ccs: await ccsOf(ctx.db, s, issue.id),
+    ccsMax: deskCcsMax(s, issue.projectId),
+    held: await heldOf(ctx.db, issue.id),
     group: group ? { id: group.id, name: group.name, sharing: group.sharing as CustomerSharing } : null,
     private: row.request.private,
   };

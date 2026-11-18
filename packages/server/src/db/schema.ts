@@ -2877,7 +2877,7 @@ export const requestCcs = pgTable(
     addedAt: ts('added_at').notNull().defaultNow(),
     /** No longer copied. They're told nothing, can't answer, and an email's Cc doesn't add them back. */
     removedAt: ts('removed_at'),
-    /** 'team', or 'unsubscribe': they stopped it themselves, from an email. */
+    /** 'team'; 'unsubscribe': they stopped it themselves, from an email; or 'portal': its requester took them off (D67). */
     removedVia: text('removed_via'),
     removedById: text('removed_by_id').references(() => users.id, { onDelete: 'set null' }),
   },
@@ -3274,4 +3274,65 @@ export const vcsChecks = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('vcs_checks_pull').on(t.integrationId, t.repository, t.number), index('vcs_checks_due').on(t.dueAt)],
+);
+
+// ---------------------------------------------------------------------------
+// CCs in depth (wave 6: docs/architecture.md, D67)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whom the Cc of a new request's email named, when a4a couldn't trust who sent it (D67): held, not
+ * copied, until its requester confirms them, by the link in their acknowledgement or on the portal.
+ * Nobody held is sent anything. Forgotten after 30 days (CC_HOLD_DAYS), or once copied or dropped.
+ */
+export const requestCcHolds = pgTable(
+  'request_cc_holds',
+  {
+    id: text('id').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    /** As the email named them; empty for none. */
+    name: text('name').notNull().default(''),
+    heldAt: ts('held_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('request_cc_holds_address').on(t.issueId, sql`lower(${t.email})`), index('request_cc_holds_held').on(t.heldAt)],
+);
+
+/**
+ * The link in a new request's acknowledgement that confirms whom its Cc named (D67): minted as the
+ * email is sent, kept as a SHA-256 hash, good once for CC_CONFIRM_DAYS. Using it settles every hold.
+ */
+export const requestCcConfirmations = pgTable(
+  'request_cc_confirmations',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('request_cc_confirmations_issue').on(t.issueId)],
+);
+
+/**
+ * A colleague of a request's customer group (D56) who answered it and then stopped hearing the others'
+ * relayed words on it (D67), from the link in a relayed email. The requester stops by muting the
+ * request's emails, and someone copied by being taken off it.
+ */
+export const requestRelayStops = pgTable(
+  'request_relay_stops',
+  {
+    issueId: text('issue_id')
+      .notNull()
+      .references(() => helpdeskRequests.issueId, { onDelete: 'cascade' }),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.issueId, t.requesterId] })],
 );

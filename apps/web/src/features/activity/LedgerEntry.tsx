@@ -297,6 +297,23 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         badge: ['changes', t('activity.ledgerEntry.changesHowRequestersSignIn')],
       };
     }
+    case 'project.request_ccs.changed': {
+      // A desk's own rules for CCs (D67): its cap, whether a new request's Cc waits, whether everyone hears each other.
+      const to = (e.data.to ?? {}) as { max?: number; confirm?: boolean; relay?: boolean };
+      return {
+        text: (
+          <>
+            {tr('activity.ledgerEntry.requestCcsChanged', {
+              project: e.project ? <Link to={`/projects/${e.project}`}>{e.project}</Link> : t('activity.ledgerEntry.aProject'),
+              max: Number(to.max ?? 0),
+              confirm: to.confirm ? 'yes' : 'no' /* not words: a select's code */,
+              relay: to.relay ? 'yes' : 'no' /* not words: a select's code */,
+            })}
+          </>
+        ),
+        badge: ['changes', t('activity.ledgerEntry.changesHowRequestsCopy')],
+      };
+    }
     case 'project.visibility.changed':
       return {
         text: (
