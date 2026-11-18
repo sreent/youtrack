@@ -301,6 +301,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `server.helpdesk.relay.whyAnswer` and `whyLink`: the people on a request "participent à" it ("d’autres personnes participent à votre demande auprès de {desk}"), since "suivre" is a4a's word for watching.
 - `page.portal.confirm.copyThem`, "Mettre en copie les personnes choisies", is long for a button, and wraps at 390px.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un statut de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): la documentation de GitLab en français dit "statut de commit". Le catalogue garde "commit" (voir `builds.builds.commits`). Cohérent ?
+- `page.group.requirePasskeys` est "Exiger une clé d’accès des membres du groupe" et `page.project.requirePasskeys` "…de toute personne pouvant voir ce projet". "Exiger quelque chose de quelqu’un" est le tour correct ; le participe "pouvant voir" est-il naturel dans un libellé ?
+- `page.project.requirePasskeysHelp` commence par "À partir de leur prochaine connexion, là où le mot de passe propre à a4a sert à se connecter." Le "là où" se répète dans l’aide du groupe : trop lourd ?
+- `builds.builds.reportCheck` est "Signaler à GitHub le résultat de chaque exécution". "Signaler" convient-il pour un compte-rendu automatique, ou "publier" (comme les check runs) dirait-il mieux ?
+- `page.integrations.statusesNeedToken` emploie le point-virgule avant "Gitea et Forgejo ont aussi besoin…", comme l’anglais. Lisibilité ?
 
 ## Japanese
 
