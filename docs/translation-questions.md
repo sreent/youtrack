@@ -68,6 +68,18 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **Caps said as English says them**: `problem.ai.writing.limit` "…; öfter antwortet er niemandem" and `server.chat.issue.tooFast` "…; mehr darf eine Person nicht". Natural?
 - `whiteboards.convertDialog.preview`, the dry run's button, is "Erst prüfen". "Vorschau" is the usual word, but the button runs the conversion and rolls it back.
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- **A passkey or a password "meldet Sie an"** (`identity.passkeys.none`, `isAdded`, `removeAbout`, `server.passkeys.ifYouAddedIt`, `server.portalAccount.lead`), as two-factor's "Ihr Passwort allein meldet Sie an" does. "Mit einem Passkey melden Sie sich an" is the more usual German, and some messages now say it so, where the other way read badly (`page.admin.passkeysOff`, `passkeysRemoved`, `identity.passkeys.offInstance`, `page.portal.passwordHelp`, `server.portalAccount.subject`). One way throughout?
+- `identity.passkeys.stopped`, the badge on a passkey that may have been copied, is "Gesperrt" (it was "Gestoppt"). a4a stops it rather than anyone locking it: is "Deaktiviert" better?
+- **A customer group's people** are "Mitglieder" (`helpdesk.groups.signsIn` "Anmeldung der Mitglieder", `signsInHelp`, `signsInThrough`, `problem.portalSignIn.groupSignsInThrough`), as the group's other messages say, though English says "its people" because some are in it by their domain.
+- `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "Arbeitsnachweis", where the desk's switch for it says "Sicherstellen, dass ein Mensch sie geschickt hat". "Proof of Work" or "Spamschutz des Formulars" are the alternatives.
+- **Ways to sign in** are "Arten der Anmeldung" (`helpdesk.portalSignIn.ways`, `oneWay`, `server.portalAccount.lead`), and signing in another way "auf eine andere Art". "Anmeldemethoden" is the usual word in IT.
+- `helpdesk.portalSignIn.redirectUri` is "Weiterleitungs-URI"; Microsoft Entra's German says "Umleitungs-URI".
+- `server.portalPassword.subject` reads "Passwort bei dem Helpdesk von Backend festlegen", and its `lead` "bei dem Helpdesk von …": `{where}` comes whole, as "dem Helpdesk von {project}", so German can't say "beim". `packages/server/test/portal-sign-in.test.ts` asserts the subject.
+- `page.guestPages.alsoOpenIn`, the heading over a project's plan, reports, boards and whiteboards on the guest page, is "Außerdem in {name} für alle offen". Natural as a heading?
+- `identity.passkeys.notAvailable` says "Telefon", as two-factor's messages do; "Smartphone" is the more common word now.
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
