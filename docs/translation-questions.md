@@ -396,6 +396,24 @@ A second pass, by a model again, read the catalog as Korean software rather than
 - **An SLA policy's summary** reads "모든 요청: 첫 응답 1h 이내, 해결 8h 이내. 기한 2h 전부터 위험으로 표시합니다." (`helpdesk.sla.atRiskBefore`, `firstResponseIn`, `resolvedIn`). The durations are a4a's own short forms; is "1시간" expected there?
 - **Reading versus viewing**: access is "보다" in what this pass touched (`page.profile.roleViewer` "뷰어(보기만 가능)", `page.admin.aViewerReads`, `page.issue.youCanReadSIssues`), while a4a reading an API stays "읽다" (`page.integrations.*`, `imports.*`). One verb for access throughout?
 
+Edited for natural phrasing, second round:
+
+A third pass, by a model again, read whole what the second only swept: the plan, rules, reports, integrations, imports, apps, webhooks, agents, workflow, builds, version control, whiteboards, roles, groups, identity, and their problems. It changed 584 messages. These are what it couldn't settle:
+
+- **Choosing** is "선택하세요" in these parts, and "고르세요" in 22 messages elsewhere (`page.plan.chooseAProjectToSee`, `page.reports.chooseABoardWithSprints`, `page.oAuthConsent.chooseAtLeastOneProject`, `problem.ai.issueNeeded`, …). Korean software mostly says 선택; should the catalog say it everywhere?
+- **A form's labels** name what goes in, where English chains its sentence ("And tell", "And call a webhook", "apply"): `rules.ruleForm.andTell` "알릴 대상", `andCallAWebhook` "호출할 웹훅", `apply` "적용할 명령", `and` "추가 조건", `in` "대상 필드". The query beside them is "다음 쿼리에 일치" (`rules.ruleForm.itMatches`, `itsParentMatches`, `aChangeWouldMakeAn`, …), since "다음에 일치" also reads as "matches next time". Does the form still read as one rule?
+- **A rule card's last run** puts when and where in parentheses: "마지막 동작(3분 전, BACK-12): Priority, State." (`rules.ruleCard.lastActed`, `lastFailed`, `lastRan`, `lastRan2`, `lastRefusedAChange` with `rules.ruleCard.by` ": Anna의 변경"). Natural, or "3분 전 BACK-12에서 동작: …"?
+- **An app's install line** names who installed it as the subject: "3분 전 Anna이(가) 카탈로그에서 설치했습니다." (`apps.appsSection.itsRulesActAsInstalled`, `by`, `fromACatalog`). Without a name it reads "3분 전 설치했습니다". Is "설치됨" better there?
+- **A what-if's lead** moves the replaced assignee before the new one: "BACK-1을 Ben 대신 Anna이(가) 맡으면, 계획이 2일 늦게 끝납니다." (`plan.timeline.ifDoes`, `insteadOf`, whose space now trails it). Clear?
+- **Copied things are named so a4a can choose the particle** in the copy button's status: `page.integrations.theUrl` "웹훅 주소", `builds.builds.theUrl` "빌드 수신 주소", `page.webhooks.theCheck` "서명 확인 코드" ("웹훅 주소를 복사했습니다"). Are the names right for what is copied?
+- **A mapping's date fields** are "생성됨", "업데이트됨", "해결됨" (`imports.mappingTable.created`, `updated`, `resolved`), as YouTrack's Korean names them, since `created` and `updated` also count what an import made ("생성됨 12"). "생성일" read as a date beside a count. Right for the field list?
+- **A count widget** reads "이슈 12개" with the number bold and "이슈" the link (`reports.widgets.issueCount`), where English shows the number first. Does a dashboard read better as "12건"?
+- **Never** is "없음" for a token's expiry and last use (`page.agents.never`, `agents.agentAccounts.never`, `agents.oAuthApps.never`), where it said "안 함", which read as "won't" beside a date. Is "만료 없음" better in the expiry select?
+- **An agent's facts** say "동작 계정: 내 계정(토큰 사용)" (`page.agents.worksFor`, `youWithItsToken`). Natural for "Works for: you, with its token"?
+- **The load window's spans** are "2주", "1개월", "3개월", "계획 종료일까지" (`plan.loadWindow.*`), where they said "한 달" and "분기". Is "분기" what a planner expects?
+- **Plan badges and status**: `reports.burndown.onTrack` "계획대로", `ahead` "앞서 있음", `plan.costs.onSchedule` "일정대로 진행 중입니다.", `plan.gantt.done` "완료율" (a column header that said "완료"). As Korean planning tools say them?
+- **An import's progress** puts the total first, in Korean's order: "지금까지 약 100개 중 이슈 12개를 읽었습니다." (`page.import.issuesReadSoFar`, `ofAbout`, whose space now trails it), and the undo "이슈 3개를 제거했습니다. 1개는 남았습니다." (`page.import.issuesTakenAway`, `stayed`). Clear?
+
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, and has had no second read. Everything below is open.
