@@ -419,6 +419,15 @@ describe('passkeys over HTTP', () => {
     expect((await call('POST', '/me/passkeys/options', { cookie: session })).status).toBe(200);
   });
 
+  it('holds every kind of challenge to 30 a minute per address, adding one too', async () => {
+    const { session } = await signIn('quinn', 'quinn-password-1');
+    const ip = '10.9.8.7';
+    const statuses = [];
+    for (let i = 0; i < 31; i++) statuses.push((await call('POST', '/me/passkeys/options', { cookie: session, ip })).status);
+    expect(statuses.slice(0, 30).every((s) => s === 200)).toBe(true);
+    expect(statuses[30]).toBe(429);
+  });
+
   it('holds passkey sign-ins to the sign-in throttle', async () => {
     const stranger = new Authenticator();
     stranger.userHandle = b64(Buffer.from(pat.id));
