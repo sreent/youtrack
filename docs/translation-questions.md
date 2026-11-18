@@ -956,6 +956,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Passkeys alone**: "Hanya kunci sandi" in the people table (`page.admin.passkeysAlone`), "Masuk hanya dengan kunci sandi" on the profile (`identity.passkeys.passkeysAlone`), and the setup link "tautan untuk menambahkan kunci sandi", which "kedaluwarsa dalam 3 hari" (`page.admin.linkRunsOut`, `page.passkeySetup.until`, `server.passkeySetup.*`). A passkey provider is a *penyedia kunci sandi* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), where Google names its own *Pengelola Sandi*.
 - **Forgejo's and Gitea's "Applications"** stays as their English settings name it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`), though their Indonesian says *Aplikasi*.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Status commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): katalog memakai "commit" tanpa diterjemahkan. GitLab berbahasa Indonesia juga menyebut "status commit". Cukup alami?
+- `page.group.requirePasskeys` adalah "Wajibkan kunci sandi bagi anggota grup ini", dan `page.project.requirePasskeys` "…bagi semua yang dapat melihat proyek ini". "bagi" atau "untuk" yang lebih cocok pada label?
+- `page.group.requirePasskeysHelp` diawali "Saat masuk dengan kata sandi a4a sendiri" — subjeknya "anggotanya" muncul setelahnya. Apakah urutannya terbaca jelas?
+- `builds.builds.reportCheck` adalah "Laporkan hasil tiap run ke GitHub". Kata "run" dibiarkan dalam bahasa Inggris seperti katalog Builds biasa. Konsisten?
+- `page.integrations.statusesNeedToken` memakai titik dua sebelum "Gitea dan Forgejo juga memerlukan alamat /api/v1." Apakah kalimat majemuk ini terbaca ringan pada layar kecil?
 
 ## Thai
 
