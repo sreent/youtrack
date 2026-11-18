@@ -265,6 +265,18 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - `whiteboards.convertDialog.relation` is 「{from}から見た{to}との関係」, so the link phrase chosen under it (depends on) reads in its direction. Too heavy for a label?
 - `whiteboards.tone.plain` is 標準 beside アイデア, 合意済み, 質問, 問題 and 保留: is 通常 better? A note's kind puts its tone in brackets, 「付箋（問題）」, since 「問題の付箋」 reads as "the note in question".
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- **Sign out everywhere** is 「すべてのセッションからログアウト」 (`page.notMe.signMeOut`, `server.passkeys.signOutEverywhere`, `page.notMe.doneAbout`), as `page.profile.yourPasswordIsChangedAnd` says it, and "a4a signs you out everywhere" is 「a4aがすべてのセッションを終了します」. Many services say 「すべてのデバイスからログアウト」, but a4a ends sessions, not devices. Which reads better to someone an alarming email just reached?
+- **A passkey's badges**: `identity.passkeys.synced` is 同期済み, and `identity.passkeys.stopped` (a passkey that may have been copied, stopped for good) is 使用停止. Do they read as "a synced passkey" and "no longer works"?
+- `server.passkeys.copied` says the sign count went back as 「a4aが記録している値より古いカウント値で、このパスキーが使われました」. Is it clear to someone who doesn't know authenticators count?
+- `server.passkeys.thisWasntMe`, the email's button, is 「心当たりがない」. Would 「心当たりがありません」 or 「自分ではない」 read better on a button?
+- **Vouch for** is 保証する (`helpdesk.portalSignIn.domainsHelp`, `throughAny`, `throughSome`). Does "the provider guarantees the address" read to an administrator as OpenID Connect's verified email?
+- `helpdesk.portalSignIn.providerAbout` counts desks with 件 (「2件のデスクで提供中」), the counter for things; would つ be more natural for desks?
+- `page.notMe.what` is a noun phrase with the time in brackets, 「a4aアカウントannaのパスキー「MacBook」（3時間前）」, under a heading that says what happened. Natural, or should it be a sentence?
+- `page.guestPages.noSuchBoard`, `noSuchProject` and `noSuchWhiteboard` keep the issue page's 「ゲストに公開されている、そのような…はありません。」 (`page.guestPages.thereSNoSuchIssue`). 「この…は存在しないか、ゲストには公開されていません。」 reads more naturally, for all four at once.
+- `helpdesk.portalSignIn.passwordHelp` names "the form's proof of work" by the form's own setting, 「人が送信したことを確認する」. Clear, or would プルーフ・オブ・ワーク be expected?
+
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
