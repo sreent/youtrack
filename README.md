@@ -489,7 +489,7 @@ The AI's tests use a scripted model. To run every AI feature against a real one,
 pnpm --filter @a4a/server test:live
 ```
 
-CI runs these on `main` for each provider whose key is a repository secret (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `QWEN_API_KEY`), and skips the rest.
+CI runs these on `main` for DeepSeek and Qwen, each when its key is a repository secret (`DEEPSEEK_API_KEY`, `QWEN_API_KEY`), and skips one without. It doesn't run Claude live; the command above does, with `ANTHROPIC_API_KEY` set.
 
 | Path | What |
 | --- | --- |
