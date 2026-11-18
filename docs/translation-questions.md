@@ -593,6 +593,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A lane's own order** is "레인마다 순서를 따로 유지" (`page.board.laneOrder`, `laneOrderOn`, `laneOrderTurnedOn`), and "레인별 순서" in its help. A card's move in an issue's history reads "Platform board에서 BACK-31 위로 옮겼습니다", and "보드에서" where the reader no longer sees the board (`boards.history.moved`, "on a board"). Is "어느 보드에서" better there?
 - `page.admin.metadataInUse` says "번호 {no}" for FIDO's BLOB ("사용 중인 FIDO 메타데이터: 번호 87, 3시간 전 읽음."), since "87번" would read as a count of times. Clear?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **커밋 상태** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHub 한국어 UI도 "커밋 상태"라고 씁니다. "체크"와 구분되어 자연스러운가요?
+- `page.group.requirePasskeys`는 "이 그룹의 사람들에게 패스키 요구"입니다. 다른 스위치 라벨처럼 명사로 끝나는데, "패스키 필수"처럼 더 짧게 할 수도 있습니다. 어느 쪽이 낫나요?
+- `page.group.requirePasskeysHelp`는 "Single Sign-on과 디렉터리 계정은 계속 공급자 소관이며"라고 씁니다. "소관"은 문서체 느낌인데, "계속 공급자가 관리하며"가 나을까요? (카탈로그의 SSO 표기는 "SSO"입니다.)
+- `builds.builds.reportCheck`는 "각 실행의 결과를 GitHub에 보고"입니다. "보고"가 자연스러운가요, "전송"이나 "알리기"는 어떨까요?
+- `page.integrations.statusesLastProblem`은 "마지막 커밋 상태를 작성하지 못했습니다({when}). 오류: {problem}"로 check run 문장과 같은 꼴입니다. 괄호 안 시간 표기가 자연스러운지도 check run 질문과 함께 살펴주세요.
 
 ## Simplified Chinese
 
