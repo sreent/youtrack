@@ -8,7 +8,7 @@ import { ago, agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
-import { t, tr } from '../../i18n';
+import { listNodes, t, tr } from '../../i18n';
 
 export const emailKeys = {
   mine: ['me', 'emails'] as const,
@@ -158,12 +158,18 @@ export function YourEmails() {
       {!canSend ? <p className="note">{t('vcs.people.a4aCanTSendEmail')}</p> : null}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       {logins.data?.length ? (
-        <p className="note">{tr('vcs.people.versionControlKnowsYouByLogins', { n: logins.data.length, map: logins.data.map((l, i) => (
-            <span key={l.id}>
-              {i ? ', ' : ''}
-              {VCS_PROVIDER_NAMES[l.provider]} <span className="mono">{l.login}</span>
-            </span>
-          )) })}</p>
+        <p className="note">
+          {tr('vcs.people.versionControlKnowsYouByLogins', {
+            n: logins.data.length,
+            map: listNodes(
+              logins.data.map((l) => (
+                <span key={l.id}>
+                  {VCS_PROVIDER_NAMES[l.provider]} <span className="mono">{l.login}</span>
+                </span>
+              )),
+            ),
+          })}
+        </p>
       ) : null}
     </div>
   );

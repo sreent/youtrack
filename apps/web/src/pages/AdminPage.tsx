@@ -15,7 +15,7 @@ import { ProvisioningSection } from '../features/identity/Provisioning';
 import { AppsSection } from '../features/apps/AppsSection';
 import { TRIAGE_RUNGS } from '../features/projects/triage';
 import { PeopleAtProviders } from '../features/vcs/People';
-import { formatList, t, tr } from '../i18n';
+import { formatItems, formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const ROLE_WORDS: Record<Role, string> = {
@@ -421,9 +421,7 @@ export default function AdminPage() {
         <div className="section-head">
           <h2 id="people">{t('page.admin.people')}</h2>
           <span className="note">
-            {[t('count.people', { n: humans }), bots ? t('page.admin.bots', { n: bots }) : null, banned ? t('page.admin.banned2', { banned: banned }) : null]
-              .filter(Boolean)
-              .join(', ')}
+            {formatItems([t('count.people', { n: humans }), bots ? t('page.admin.bots', { n: bots }) : '', banned ? t('page.admin.banned2', { banned: banned }) : ''].filter(Boolean))}
           </span>
         </div>
         <p className="note section-note">{t('page.admin.aRateAndHoursA')}</p>

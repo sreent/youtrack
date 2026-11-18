@@ -187,7 +187,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
             {has.spent ? <td className="num" /> : null}
           </tr>
           {b.days.map((d) => (
-            <tr key={d.date} className={d.date === b.today ? t('reports.burndown.today3') : undefined}>
+            <tr key={d.date} className={d.date === b.today ? 'today' : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
                 {d.date === b.today ? t('reports.burndown.today2') : ''}

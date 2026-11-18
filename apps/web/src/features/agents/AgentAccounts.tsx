@@ -186,8 +186,8 @@ function AgentCard({ account, origin }: { account: AgentAccount; origin: string 
                     </span>
                   </td>
                   <td>{t.projects === null ? tx('agents.agentAccounts.everyProjectItSees') : t.projects.length ? t.projects.join(', ') : <span className="muted">{tx('agents.agentAccounts.noProjectAnyMore')}</span>}</td>
-                  <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('agents.agentAccounts.never')}</span>}</td>
-                  <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('agents.agentAccounts.never')}</span>}</td>
+                  <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('agents.agentAccounts.neverUsed')}</span>}</td>
+                  <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('agents.agentAccounts.neverExpires')}</span>}</td>
                   <td className="fit">
                     <Confirm
                       small

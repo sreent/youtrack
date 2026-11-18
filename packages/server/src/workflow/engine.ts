@@ -42,7 +42,7 @@ import { condition, meets, relatedSql, ruleWorld, TARGETS_CAP, targetIssues } fr
 import { botCtx, draftOf, pruneRuleRuns, readingProblems, relatedCondition } from './rules';
 import { runScript } from './sandbox';
 import { changeOf, scriptInput, type ScriptChange } from './script-issue';
-import { applyPlanned, plannedChanges, scriptErrorSaid, scriptErrorText, type Planned } from './scripts';
+import { applyPlanned, plannedChanges, scriptErrorSaid, scriptErrorText, type OtherChanged, type Planned } from './scripts';
 import { recipientsFor } from './tell';
 import { appAgentCtx } from '../apps/actor';
 import { settingsForRule } from '../services/apps';
@@ -115,13 +115,29 @@ function errorSaid(e: unknown): NoteSaid {
   return { key: 'problem.inItsOwnWords', values: { words: asSentence(errorText(e)) } };
 }
 
-/** The fields it changed (their names and values, as named), and whether it commented. */
+/**
+ * The fields it changed (their names and values, as named), and whether it commented. Each change is
+ * a note of its own, so a page says them as its language's list, with its own colon (「State：Open → Fixed」).
+ */
 function changesSaid(changes: Change[]): NoteSaid[] {
   const fields = changes.filter((c) => c.field !== 'Comment');
   return [
-    ...(fields.length ? [{ key: 'rules.run.changed', values: { changes: fields.map((c) => `${c.field}: ${c.from ?? '—'} → ${c.to ?? '—'}`).join('; ') } }] : []),
+    ...(fields.length ? [{ key: 'rules.run.changed', values: { changes: fields.map((c) => ({ key: 'rules.run.fieldChange', values: { field: c.field, from: c.from ?? '—', to: c.to ?? '—' } })) } }] : []),
     ...(changes.length > fields.length ? [{ key: 'rules.run.commented' }] : []),
   ];
+}
+
+/** What it changed on other issues, as the API says it: "BACK-12: State → Fixed, Priority → High; BACK-13: …". */
+function othersWords(others: OtherChanged[]): string {
+  return others.map((o) => `${o.issue}: ${o.changes.map((c) => `${c.field} → ${c.to ?? '—'}`).join(', ')}`).join('; ');
+}
+
+/** The same, kept as data (D49): each issue a note, its changes a list in it, joined as a page's language joins them. */
+function othersSaid(others: OtherChanged[]): NoteSaid {
+  return {
+    key: 'rules.run.alsoChanged',
+    values: { others: others.map((o) => ({ key: 'rules.run.otherChanged', values: { issue: o.issue, changes: o.changes.map((c) => ({ key: 'rules.run.fieldTo', values: { field: c.field, to: c.to ?? '—' } })) } })) },
+  };
 }
 
 /** What a script logged, the first few lines, as it wrote them. */
@@ -394,7 +410,7 @@ export class RuleEngine {
         const tx = txRaw as unknown as Db;
         // applyChanges locks the issue's row first, as every write to an issue does.
         const fresh = (await findIssue(tx, s, issue.id)) ?? issue;
-        const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as string[], activities: [] as ActivityRow[] };
+        const res = planned.length ? await applyPlanned(tx, ctx, s, issue, planned) : { changes: [] as Change[], others: [] as OtherChanged[], activities: [] as ActivityRow[] };
         const activities = [...res.activities];
         const after = planned.length ? ((await findIssue(tx, s, issue.id)) ?? fresh) : fresh;
         const ref = (d.notify || call?.ok) && after ? await refOf(tx, s, after) : null;
@@ -430,13 +446,13 @@ export class RuleEngine {
         if (chain.origin !== null || acted) {
           const said = [
             res.changes.length ? changeWords(res.changes) : '',
-            res.others.length ? `Also changed ${res.others.join('; ')}` : '',
+            res.others.length ? `Also changed ${othersWords(res.others)}` : '',
             told.length ? `Told ${people(told)}` : d.notify ? 'Had nobody to tell: whoever set it off isn’t told, and only people who can see the issue are' : '',
             call?.ok ? `Called ${call.origin ?? 'its webhook'}` : call ? call.why : '',
           ].filter(Boolean);
           const words: NoteSaid[] = [
             ...changesSaid(res.changes),
-            ...(res.others.length ? [{ key: 'rules.run.alsoChanged', values: { others: res.others.join('; ') } }] : []),
+            ...(res.others.length ? [othersSaid(res.others)] : []),
             ...(told.length ? [toldSaid(told)] : d.notify ? [{ key: 'rules.run.toldNobody' }] : []),
             ...(call?.ok ? [call.origin ? { key: 'rules.run.called', values: { origin: call.origin } } : { key: 'rules.run.calledItsWebhook' }] : call ? [{ key: call.whyKey }] : []),
           ];

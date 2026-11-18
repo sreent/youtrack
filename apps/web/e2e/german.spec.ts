@@ -64,8 +64,8 @@ test('says roles and counts in German, where English code said them before', asy
   await api.createProject({ key, name: `Rollen ${key}` });
   await page.goto(`/projects/${key}`);
   const access = page.getByRole('region', { name: 'Personen und Zugang' });
-  // The built-in roles in German, said bare as German says a role, with what each may do.
-  await expect(access.getByText(/^Rollen: .*Betrachter darf seine Vorgänge lesen/)).toBeVisible();
+  // The built-in roles in German, said bare as German says a role, with what each may do: a sentence each.
+  await expect(access.getByText(/Betrachter darf seine Vorgänge lesen.*Seine Leitung ist Manager/)).toBeVisible();
   await expect(access.getByText(/a viewer|a member|report issues/)).toHaveCount(0);
   await shoot(page, info, 'people-and-access');
 

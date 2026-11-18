@@ -8,8 +8,8 @@ import { Avatar } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { ProjectGroups } from '../groups/ProjectGroups';
-import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp, roleLabel } from '../roles/words';
-import { t, tr } from '../../i18n';
+import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp, roleLabel, roleNamed } from '../roles/words';
+import { sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
@@ -28,6 +28,7 @@ export function yourRole(project: Project): string {
   const a = project.access;
   if (a.via === 'admin') return t('projects.peopleAndAccess.asAnAdministratorYouMay');
   const role = aRole(a.role, a.roleName);
+  const named = roleNamed(a.role);
   const why =
     a.via === 'lead'
       ? t('projects.peopleAndAccess.asItsLead')
@@ -41,10 +42,10 @@ export function yourRole(project: Project): string {
   if (a.via === 'guest') return t('projects.peopleAndAccess.youReReadingAsA', { key: project.key });
   if (!isBuiltinRole(a.role))
     return a.permissions.length
-      ? t('projects.peopleAndAccess.youAreRoleHereYouMay', { role: role, why: why, permissionWords: permissionWords(a.permissions) })
-      : t('projects.peopleAndAccess.youAreRoleHereNothing', { role: role, why: why });
-  if (!a.comment) return t('projects.peopleAndAccess.youAreRoleHereBut', { role: role, why: why });
-  return t('projects.peopleAndAccess.youAreRoleHere', { role: role, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
+      ? t('projects.peopleAndAccess.youAreRoleHereYouMay', { role: role, named, why: why, permissionWords: permissionWords(a.permissions) })
+      : t('projects.peopleAndAccess.youAreRoleHereNothing', { role: role, named, why: why });
+  if (!a.comment) return t('projects.peopleAndAccess.youAreRoleHereBut', { role: role, named, why: why });
+  return t('projects.peopleAndAccess.youAreRoleHere', { role: role, named, why: why, v: YOU_MAY[a.role as keyof typeof YOU_MAY] });
 }
 
 function useInvalidate(project: Project) {
@@ -146,7 +147,7 @@ function MemberRow({ project, member, canEdit }: { project: Project; member: Pro
   const change = useMutation({
     mutationFn: (role: string) => patch<ProjectMember>(`/projects/${project.key}/members/${u.login}`, { role }),
     onSuccess: (m) => {
-      setSaid({ text: t('projects.peopleAndAccess.isRoleNow', { name: name, role: aRole(m.role, m.roleName) }) });
+      setSaid({ text: t('projects.peopleAndAccess.isRoleNow', { name: name, role: aRole(m.role, m.roleName), named: roleNamed(m.role) }) });
       void invalidate();
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -219,7 +220,7 @@ function AddMember({ project, people, listed }: { project: Project; people: User
   const add = useMutation({
     mutationFn: () => post<ProjectMember>(`/projects/${project.key}/members`, { user: login, role }),
     onSuccess: (m) => {
-      setSaid({ text: t('projects.peopleAndAccess.isRoleOfNow', { v: m.user.isBot ? m.user.login : m.user.name, role: aRole(m.role, m.roleName), key: project.key }) });
+      setSaid({ text: t('projects.peopleAndAccess.isRoleOfNow', { v: m.user.isBot ? m.user.login : m.user.name, role: aRole(m.role, m.roleName), named: roleNamed(m.role), key: project.key }) });
       setLogin('');
       void invalidate();
     },
@@ -281,7 +282,8 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => (r.permissions.length ? t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) }) : t('projects.peopleAndAccess.roleMayNothing', { role: aRole(r.id, r.name) }))).join('; ') })}</p>
+      {/* What each role may do, a sentence each as the role picker's help says it, then who else may. */}
+      <p className="note section-note">{sentences([...roles.map((r) => roleHelp(roles, r.id)), t('projects.peopleAndAccess.itsLeadIsAManager')])}</p>
       {members.isLoading ? <Loading what="loadingLine.projectPeople" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (

@@ -4020,7 +4020,8 @@ export const ProjectAppSchema = z
     description: z.string(),
     enabled: z.boolean().describe('It runs and shows in this project'),
     off: z.boolean().describe("The project's managers turned it off here"),
-    words: z.array(z.string()),
+    granted: AppPermissionsSchema.describe('What it may do, as the administrator who installed or last updated it accepted'),
+    words: z.array(z.string()).describe('What it may do, in words'),
     settings: z.array(AppSettingDefSchema).describe('Its settings that take a value per project'),
   })
   .meta({ id: 'ProjectApp' });
