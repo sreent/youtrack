@@ -148,7 +148,7 @@ describe('two-factor sign-in over HTTP', () => {
   it('asks for a code after the password; the session comes only with it', async () => {
     const pw = await signIn('pat', 'pat-password-1');
     expect(pw.status).toBe(200);
-    expect(pw.body).toEqual({ step: 'two_factor' });
+    expect(pw.body).toEqual({ step: 'two_factor', code: true, passkey: false });
     expect(pw.session).toBe('');
     expect(pw.ticket).toMatch(/^a4a_2fa=a4t_/);
     expect(pw.res.headers.getSetCookie().find((c) => c.startsWith('a4a_2fa='))).toMatch(/Path=\/api\/v1\/auth\/two-factor; .*HttpOnly.*SameSite=Strict/);
