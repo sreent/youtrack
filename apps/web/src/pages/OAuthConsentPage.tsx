@@ -15,6 +15,7 @@ import { Lone } from '../app/Auth';
 import { Icon } from '../components/Icon';
 import { ErrorNote, Loading } from '../components/States';
 import { Avatar } from '../components/Who';
+import { quoted } from '../features/common/format';
 import { t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
@@ -39,7 +40,7 @@ function Consent({ asked, request, who }: { asked: Asked; request: Record<string
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<boolean | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const name = client.name ? `“${client.name}”` : t('page.oAuthConsent.anApp');
+  const name = client.name ? quoted(client.name) : t('page.oAuthConsent.anApp');
 
   useEffect(() => {
     document.title = t('page.oAuthConsent.asksToWorkInA4a2', { v: client.name ?? t('page.oAuthConsent.anApp') });

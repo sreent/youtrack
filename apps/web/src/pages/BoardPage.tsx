@@ -6,11 +6,10 @@ import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
 import { CommandBar } from '../features/issues/CommandBar';
 import { span } from '../features/plan/dates';
-import { formatList, t, tr } from '../i18n';
+import { formatItems, formatList, t, tr } from '../i18n';
 
 function sprintOption(s: Sprint): string {
-  const dates = s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : '';
-  return `${s.name}${dates}`;
+  return formatItems(s.startDate && s.endDate ? [s.name, span(s.startDate, s.endDate)] : [s.name]);
 }
 
 export function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {

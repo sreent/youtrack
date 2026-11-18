@@ -235,7 +235,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
             {b.sprint.name} <span className="note">{tr('reports.burndown.on', { name: b.sprint.board.name })}</span>
           </h2>
           <p className="note">
-            {span(b.sprint.startDate, b.sprint.endDate)}, {t('count.workingDays', { n: b.workingDays })}
+            {formatItems([span(b.sprint.startDate, b.sprint.endDate), t('count.workingDays', { n: b.workingDays })])}
             {b.sprint.goal ? ` · ${b.sprint.goal}` : ''}
           </p>
         </div>

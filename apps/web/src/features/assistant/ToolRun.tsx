@@ -2,7 +2,7 @@ import type { ChatPart } from '@a4a/shared';
 import { Badge } from '../../components/Badges';
 import { Avatar } from '../../components/Who';
 import { Linked } from '../common/bits';
-import { clock, excerpt, ISSUE_ID } from '../common/format';
+import { clock, excerpt, ISSUE_ID, quoted } from '../common/format';
 import type { AITool } from '../common/queries';
 import type { ToolStatus } from './live';
 import { formatItems, formatList, t, tr } from '../../i18n';
@@ -34,11 +34,11 @@ function aboutInput(input: unknown): string {
   const o = input as Record<string, unknown>;
   const ids = Array.isArray(o.issues) ? (o.issues as unknown[]).map(String) : [];
   // A command runs on each of them, "on BACK-1 and BACK-2"; on their own, they're listed.
-  if (typeof o.command === 'string') return `“${o.command}”${ids.length ? t('assistant.toolRun.on', { ids: formatList(ids) }) : ''}`;
-  if (typeof o.query === 'string' && o.query) return `“${excerpt(o.query, 80)}”`;
+  if (typeof o.command === 'string') return `${quoted(o.command)}${ids.length ? t('assistant.toolRun.on', { ids: formatList(ids) }) : ''}`;
+  if (typeof o.query === 'string' && o.query) return quoted(excerpt(o.query, 80));
   if (typeof o.issue === 'string') return typeof o.other === 'string' ? `${o.issue} ${String(o.relation ?? '')} ${o.other}` : o.issue;
-  if (typeof o.summary === 'string') return `“${excerpt(o.summary, 80)}”`;
-  if (typeof o.text === 'string') return `“${excerpt(o.text, 60)}”`;
+  if (typeof o.summary === 'string') return quoted(excerpt(o.summary, 80));
+  if (typeof o.text === 'string') return quoted(excerpt(o.text, 60));
   if (typeof o.project === 'string') return o.project;
   if (ids.length) return formatItems(ids);
   return '';

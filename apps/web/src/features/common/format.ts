@@ -109,3 +109,6 @@ export function periodWords(minutes: number, opts?: Parameters<typeof formatPeri
     .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: unitDisplay() }).format(Number(p.slice(0, -1))));
   return new Intl.ListFormat(intlLocale(), { type: 'unit', style: 'narrow' }).format(parts);
 }
+
+/** Words quoted as the page's language quotes them: “…”, German's „…“, French's « … », Japanese's 「…」. */
+export const quoted = (text: string) => t('ui.quoted', { text });

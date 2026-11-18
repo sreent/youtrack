@@ -380,7 +380,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                 choices={[
                   ...(!pf.required && !pf.multi ? [{ key: '', text: emptyWords(pf.name), view: <span className="empty">{emptyWords(pf.name)}</span> }] : []),
                   ...values.map((v) => {
-                    const kind = chosen.has(v.name) && !pf.multi ? 'now' : pf.type === 'state' && v.isResolved ? t('issues.fieldPanel.resolvesIt') : v.owner ? v.owner.name : undefined;
+                    const kind = chosen.has(v.name) && !pf.multi ? t('issues.fieldPanel.now') : pf.type === 'state' && v.isResolved ? t('issues.fieldPanel.resolvesIt') : v.owner ? v.owner.name : undefined;
                     return { key: v.name, text: v.name, view: optionView(pf, v), kind, label: isMeter(pf) ? formatItems(kind ? [v.name, kind] : [v.name]) : undefined };
                   }),
                 ]}
@@ -412,7 +412,7 @@ export function FieldPanel({ issue, fields, users, proposals: offered, canEdit =
                     key: p.login,
                     text: p.name,
                     view: <Who kind={p.isBot ? 'agent' : 'person'} name={p.isBot ? p.login : p.name} small />,
-                    kind: u?.login === p.login ? 'now' : undefined,
+                    kind: u?.login === p.login ? t('issues.fieldPanel.now') : undefined,
                   })),
                 ]}
                 onPick={(keys) => void set(pf.name, keys[0] || null).catch(() => {})}
