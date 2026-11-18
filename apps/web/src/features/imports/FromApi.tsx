@@ -235,7 +235,7 @@ export function OriginSummary({ imp }: { imp: Import }) {
   const brought = [
     o.bring.comments ? t('count.comments', { n: f.comments }) : null,
     o.bring.work && o.kind !== 'asana' ? t(o.kind === 'youtrack' ? 'count.workItems' : o.kind === 'redmine' || o.kind === 'clickup' ? 'count.timeEntries' : 'count.worklogs', { n: f.work }) : null,
-    o.bring.files ? `${t('count.files', { n: f.files })}${f.files ? ` (${formatBytes(f.fileBytes)})` : ''}` : null,
+    o.bring.files ? (f.files ? t('imports.fromApi.filesOfSize', { n: f.files, size: formatBytes(f.fileBytes) }) : t('count.files', { n: f.files })) : null,
   ].filter((x): x is string => Boolean(x));
   return (
     <p className="note">{tr('imports.fromApi.fromIssuesMatching', { name: name, url: o.url, t0: (c: ReactNode) => <span className="mono">{c}</span>, code: <code>{o.query}</code>, v: o.account ? t('imports.fromApi.readAs', { account: o.account }) : '', n: f.issues, v2: brought.length ? t('imports.fromApi.with', { join: formatList(brought) }) : '', v3: f.left.issues ? t('imports.fromApi.issuesOnlySomeMaySee', { n: f.left.issues }) : '' })}</p>
