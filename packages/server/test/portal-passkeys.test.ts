@@ -484,7 +484,7 @@ describe('emails, and “this wasn’t me”', () => {
       await mailer.drain();
       const told = [...smtp.messages].filter((m) => m.to.includes('vic@example.org') && m.text.includes('„Not mine“'));
       expect(told).toHaveLength(1);
-      expect(told[0]!.headers.get('subject')).toBe('Ein Passkey meldet Sie jetzt beim Helpdesk an');
+      expect(told[0]!.headers.get('subject')).toBe('Sie melden sich jetzt mit einem Passkey beim Helpdesk an');
       const link = ALERT_LINK.exec(told[0]!.text)![1]!;
       // Opening it changes nothing; following it does, once.
       const described = await browser(nextIp()).req('GET', `/portal/not-me?token=${link}`);
