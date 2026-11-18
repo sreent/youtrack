@@ -115,12 +115,16 @@ async function keysOf(tx: Db, o: PlaceOrder, ids: readonly string[]): Promise<Ma
   return new Map(rowsOf<{ issue_id: string; key: string }>(res).map((r) => [r.issue_id, r.key]));
 }
 
-/** The place next to a key: the first after it (or the first of all, for none), or the last before it. */
+/**
+ * The place next to a key: the first after it (or the first of all, for none), or the last before it.
+ * By the key alone, so the index on (board, [lane,] key) answers it: under the board's lock no two
+ * places share a key, and the bounds are strict, so even a tie couldn't put a card out of order.
+ */
 async function nextTo(tx: Db, o: PlaceOrder, key: string | null, side: 'after' | 'before'): Promise<{ id: string; key: string } | null> {
   const res =
     side === 'after'
-      ? await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key > ${key}`} ORDER BY key, issue_id LIMIT 1`)
-      : await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key < ${key}`} ORDER BY key DESC, issue_id DESC LIMIT 1`);
+      ? await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key > ${key}`} ORDER BY key LIMIT 1`)
+      : await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key < ${key}`} ORDER BY key DESC LIMIT 1`);
   const row = rowsOf<{ issue_id: string; key: string }>(res)[0];
   return row ? { id: row.issue_id, key: row.key } : null;
 }

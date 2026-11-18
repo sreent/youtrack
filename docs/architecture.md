@@ -1528,7 +1528,7 @@ A board already had one order, shared by its backlog and its cards (D43); only t
 - Each move is an event: the ledger has a line per rank, and a webhook listening for everything gets each one.
 - A card's id takes Alt and Left or Right from the browser.
 
-**Revisit when:** a board holds tens of thousands of ranks (read only a move's neighbours, and rank by fractional keys rather than doubles); people want a lane's own order; or a card's place should show in its issue's history.
+**Revisit when:** a board holds tens of thousands of ranks (read only a move's neighbours, and rank by fractional keys rather than doubles); people want a lane's own order; or a card's place should show in its issue's history. (All three came with D65: fractional keys and a move that reads only its neighbours, lanes that can keep their own order, and a line in an issue's history for a run of its card's moves.)
 
 ### D54. Git hosts as a4a itself: GitHub Apps, and Forgejo accounts people connect
 
@@ -1905,6 +1905,41 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 
 **Revisit when:** guests should read articles on a page of their own (cards and counts would open them), or a count's issues in a list; a project should open only some of its boards or whiteboards to guests, rather than all; or guests should be counted, anonymously, among a whiteboard's lookers.
 
+### D65. Boards at scale, lanes of their own, and a card's place in its history
+
+D53 left three things for later: ranks for boards of tens of thousands, a lane's own order, and a card's place in its issue's history. They're here.
+
+- **A rank is a key, and a move reads only its neighbours.** A card's place on a board is a string (`board_ranks.key`), a fractional index in base 62 whose order is its bytes' order. The column is `COLLATE "C"`, so Postgres compares keys as JavaScript's `<` does, whatever the database's own collation. A key can always be made between two others: `keyBetween` in `packages/shared/src/ranks.ts`, David Greenspan's scheme written from his description rather than taken as a dependency, since it's sixty lines and the server, the migration and the page share it.
+  - A move reads its anchor's key and the next one on the side it goes (the first, for the top), through the index on (board, key), and writes one row. Nothing is spaced out again. Counted on a board of two thousand ranks, a move sends three statements that touch them: the anchor's key, the next, and the write; on 50,000, the plan reads the next through the index.
+  - Placed next to a card without a place, D43's rule holds: that card, and those shown above it without one, take keys after the last placed one, in the order shown. That still reads what the board showed, one search, the first time only.
+  - **Two moves at once both land, under the board's lock.** Each move still locks the board's row (`FOR NO KEY UPDATE`), as D53 has it. A tie-break in the keys was the other way, but two moves just after one card read the same neighbours, and a suffix that puts the later first needs a clock every instance agrees on. The lock costs little now that a move holds it for two index reads and a write, and rewriting a board's keys (below) needs it anyway. The test on Postgres makes two moves meet: the first holds the board while it waits for its row, which the test holds, and the second comes in meanwhile. Without the lock it fails, two keys tying; with it, both land just after the card, the later first.
+  - **Keys are bounded.** Appending at either end steps a key's integer part, so keys there stay short: four characters for a quarter of a million cards. Placing between two keys halves the gap, about a character every six moves at one spot, which alone has no end. So a key longer than 64 characters is never written: the move first writes its board's keys afresh, in their order, as `a0`, `a1` … (`keyAt`), in one statement under the lock it holds, and places the card among them. Placing at one spot over and over, that's every 310 to 370 moves.
+  - **The migration** (0041) turns every board's doubles into keys in the same order, ties by issue as a move read them, in one statement: a board's nth key is `keyAt(n)`, worked out by the database. `rankKeySql` says the same on the server, for a rewrite, and the tests hold the shared function, the server's SQL and the migration's to one answer. On a board of 50,000 ranks it took 0.97 s on PGlite and 0.94 s on Postgres 16, here.
+  - **Every reader reads keys:** the board's cards and its `order`, the backlog, sprint planning, guests' boards (D64), and a move. Nothing imports or exports a rank: an import from Jira leaves its rank field out as noise, and no export holds one.
+- **A lane's own order.** A board can say its lanes keep their own order (`laneOrder`, off by default, so D53's one order stays what boards have). Its managers turn it on and off on the board itself, or with `PATCH /boards/{id}`; everyone else is told it's on.
+  - With it on, a card has a place in its lane (`board_lane_ranks`: one per card per board, with the lane it was put in, a person by their id or a value by its name, or none). Alt and Up or Down moves it among its lane's cards; dragged within its lane, or into another at a place, it goes where it was dropped in that lane's order; the rank endpoint and MCP's `rank_issue` do the same for a move with `column`. A lane's places are kept as the board's are: the same arithmetic, the same lock, the same bound, a lane rewritten on its own.
+  - The backlog has no lanes and keeps the board's own order, and so does a move without `column`. A lane's moves never change the board's order.
+  - **A card new to a lane**, reassigned on its issue or by a rule, has no place there: it comes after the lane's placed cards, in the board's order, as an unranked issue comes after the ranked ones (D43). It isn't given one: a change made away from the board writes nothing to the board, and a place would rank it where nobody chose. Placed next to it, D43's rule gives it, and those without one above it, places in the order shown, so nothing jumps.
+  - **Turning it on** changes nothing on screen: with no places yet, every lane shows the board's order. **Turning it off** shows the board's order again and keeps the lanes' places, unread, so turning it on brings each lane back as it was left; moves made meanwhile were the board's. Choosing another lane field forgets them in the same change: they were places in lanes the board no longer has.
+  - A card has one place in a lane at a time: moved into another lane, its place in the old one goes with it.
+  - Someone who can't see the lane field (D50) sees no lanes, and ranks in the board's order.
+- **A card's place in its issue's history.** D53 kept `board.issue_ranked` out of an issue's history, since the place is the board's. It's there now, without the drags.
+  - A move folds into the issue's latest line when that line is the same person's, through the same channel, on the same board, begun less than ten minutes before, and nothing else has happened to the issue since. Otherwise it starts a line. So rearranging a board is a line per card moved, and a line's time is within ten minutes of each move it holds: ten minutes from the line's first move rather than its last, so someone dragging on and off all afternoon gets a line every ten minutes, not one for the afternoon.
+  - Each line (`board_moves`) keeps its last place as a kept note (D49): `boards.history.moved`, with where it went (`above`, `below`, `top`), the anchor's id and the board's name as they were. The page says it in the reader's language: "Theo Ruiz moved it above BACK-31 on Platform board".
+  - It names the anchor and the board only to a reader who sees them now, through the seam (`seenIssueIds`, and a board's projects): an anchor limited away from them, or deleted, makes it "changed its place on Platform board"; a board they don't see any more, its projects changed, or one deleted, makes it "on a board", and the line then carries no board at all. Never "missing".
+  - `GET /issues/{id}/activity` gives each line as its run's last `board.issue_ranked`, with `moves`, `firstAt`, `said` and `note`. The ledger (`GET /events`, MCP's `get_activity`) and webhooks are as they were: every move is an event.
+  - Moves made before D65 have no line: their events kept no anchor to say.
+
+**What it costs.**
+- Moves on one board are still one at a time, now two index reads and a write each. A key that would pass 64 characters rewrites its board's (or lane's) keys, every row in one statement under the lock: on a board of 50,000, about as long as the migration's statement. Placing at one spot over and over does that every 310 to 370 moves.
+- Keys take more room than doubles: a few bytes as a rule, 64 at most.
+- A lane's order beside the board's is a second order to explain: the board page says when lanes keep their own, and the backlog shows the board's.
+- The first placement next to a card without a place in a lane reads the board's cards with their fields, to know each card's lane.
+- A history line is a row per run of moves, read beside the issue's events.
+- The migration is edited by hand around what drizzle-kit generates: a column added `NOT NULL` to a table with rows fails, and the doubles must be read before they're dropped. Generating the migrations again keeps those statements only by hand.
+
+**Revisit when:** one spot on a big board is placed at in bursts, so its rewrites show (then rewrite only the keys around the spot); a card's place in a lane should follow it to another lane and back; or people want every drag in an issue's history.
+
 ## Consistency and concurrency
 
 | Concern | Guarantee |
@@ -1947,7 +1982,8 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 | Two people undo one agent's change, or someone changes the issue as it's undone | The undo locks the change's row, then the issue, and checks the issue is as the agent left it under those locks: the second undo gets 409 `already_undone`, and a change that got in first makes it refuse with what changed (D34) |
 | Two people change one whiteboard at once | Each batch locks the whiteboard's row and takes its next `seq`: changes to different elements, or different properties of one, all land; places go to the last writer, and words sent with `expect` are refused alone, with what's there now, if someone changed them meanwhile. Live streams send each change once, in `seq` order, and resume after the last one seen (D58) |
 | Two sign-ins with one passkey at once, or one answer posted twice | Its challenge is taken in one statement, once. The passkey's count moves on in one conditional update: one sign-in passes; one beaten to a higher count is refused, and only a count already passed when it's read marks the passkey copied (D62) |
-| Two people rank one board at once, or a gap between two cards runs out | Each move locks the board's row (`FOR NO KEY UPDATE`), then the issue's: moves on one board are one at a time, each placed among the ranks the last left, and a respacing of the whole board happens inside the move that needed it. A card's column and its place change in that one transaction, all or nothing (D53) |
+| Two people rank one board at once, or a key would grow too long | Each move locks the board's row (`FOR NO KEY UPDATE`), then the issue's: moves on one board are one at a time, each reading the keys beside its anchor as the last move left them, so two placed just after one card both land, the later first. A board's (or a lane's) keys written afresh happen inside the move that needed it. A card's column and its place change in that one transaction, all or nothing (D53, D65) |
+| A card's moves in its issue's history | A move folds into the issue's latest line, or starts one, in the move's own transaction under the board's lock; a change to the issue in between ends the line, so a line never spans another entry (D65) |
 
 ## Security
 
@@ -2009,6 +2045,7 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 - **Guests' live whiteboards** are four open streams per address and four hundred in all, on each instance (D64).
 - **Help desk mail** is read once a minute by default: from the shared mailbox, where desks are told apart by the address mail was sent to, or from a desk's own mailbox (D45). A desk's replies need its mail server to deliver plus addresses (D30).
 - **A help desk request** copies 20 addresses at most (D57).
+- **A board's keys** are 64 characters at most: a move whose key would be longer writes its board's (or lane's) keys afresh first, in one statement (D65).
 - **The portal's own sign-in** takes identity providers that speak OpenID Connect, 50 at most, and no SAML. A session opens only the desks that take the way it was opened, so a requester whose desks differ signs in to each in turn (D63).
 - **Passkeys** are 20 a person, for PUBLIC_URL's host alone: an instance at an IP address, or on plain http other than localhost, has none, and one that moves to another address leaves its passkeys behind (D62).
 - **Writing and reading help** is 100 asks a person an hour (`AI_WRITING_MAX_PER_HOUR`), counted across instances. What someone sends is 12,000 characters at most to fix or rewrite, 40,000 to summarise and 2,000 for a line to draft from; an issue is read to its latest comments within 60,000 (D59).
@@ -2027,7 +2064,6 @@ Planned, with the seams already in place:
 - chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
 - a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
 - a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
-- a lane's own order on a board, a card's place in its issue's history, and ranks for boards of tens of thousands: fractional keys, and a move that reads only its neighbours (D53);
 - passkeys that outlive an instance's move to another address (a parent domain's id, or WebAuthn's related origins), passkeys required or only some authenticators taken (attestation), an account with passkeys and no password, and passkeys for the portal's requesters (D62);
 - SAML for requesters' identity providers, a desk's own provider limited to its customers, and the desk's emails in a requester's own language (D63);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);
