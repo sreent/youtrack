@@ -354,6 +354,17 @@ Phrasing:
 - **A rule names the issue it acts on** where English says "it": "o item pai", "as subtarefas", "os itens que o item {phrase}" (`rules.words.*`, `rules.ruleForm.*`), and the rule problems quote the same words (`problem.rule.subtaskLinkParent`, `subtaskLinkSubtasks`). Is "o item pai" heavy beside "o pai"?
 - **Gender left unguessed** costs length, as it did for Brazil: "quem fez o pedido", "a pessoa responsável", "Este pedido só é visível para si e para a equipa". Check the badges and narrow columns at 390px.
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- **A passkey is a *chave de acesso*** (`identity.passkeys.*`, `app.auth.signInWithAPasskey`, `server.passkeys.*`), as Microsoft's and Google's Portuguese say it; Apple's says *chave-passe*. Does it stay apart from a *token de acesso* and the portal's *link de acesso*?
+- **Through a provider**: buttons say "Iniciar sessão com {name}" (`page.portal.signInThrough`), as the team's sign-in does, and the desk's settings, its history and sentences "através de {name}" (`helpdesk.portalSignIn.through`, `helpdesk.groups.throughAlone`, `activity.ledgerEntry.signInThrough`). One throughout?
+- **Vouching**: a requesters' provider *confirma* an email (`helpdesk.portalSignIn.throughAny`, `throughSome`, `domainsHelp`), and a requester is told the provider "não é aceite para endereços como o seu" (`page.portal.ssoDomain`). *Garantir* or *responder por* are nearer "vouch for".
+- **OpenID Connect's words**: "Emissor", "ID do cliente", "Segredo do cliente", "URI de redirecionamento" and "documento de descoberta" (`helpdesk.portalSignIn.*`, `problem.portalSignIn.issuer*`, `providerUnreachable`). Would administrators rather read "issuer", or *deteção* for discovery?
+- `identity.passkeys.stopped`, the red badge on a passkey that may have been copied, is "Bloqueada"; "Parada" and "Suspensa" are the alternatives.
+- `page.guestPages.alsoOpenIn`, the heading over a project's plan, reports, boards and whiteboards on a guest's page, is "Também aberto em {name}". "Também em {name}" is shorter.
+- **The passkey emails' time** is in brackets, "… da sua conta do a4a, ana (quarta, 18/11, 14:03 WET)." (`server.passkeys.added`, `removed`, `removedByAdmin`, `copied`): it begins with a weekday, which *a* reads wrong before ("a sábado").
+- **Signing out everywhere** is "Terminar todas as sessões" (`page.notMe.signMeOut`, `server.passkeys.signOutEverywhere`); "Terminar sessão em todo o lado" is the alternative.
+
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone: no second reader has gone over it, and no native speaker has read it. Its 5,467 messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
