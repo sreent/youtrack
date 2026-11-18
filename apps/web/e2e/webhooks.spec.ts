@@ -40,7 +40,7 @@ test('a webhook is added for some events, sent a test that arrives signed, and i
   expect(secret).toMatch(/^whsec_/);
 
   const hook = page.getByRole('listitem').filter({ hasText: url });
-  await expect(hook).toContainText('When an issue is created, or someone comments · in every project · added just now');
+  await expect(hook).toContainText('When an issue is created or someone comments · in every project · added just now');
   await expect(hook.getByText('sends', { exact: true })).toBeVisible();
 
   await hook.getByRole('button', { name: 'Send a test' }).click();
@@ -71,7 +71,7 @@ test('a paused webhook stays paused, and keeps its events', async ({ page, api }
   // As saved, not only as shown.
   await page.reload();
   await expect(hook.getByText('paused', { exact: true })).toBeVisible();
-  await expect(hook).toContainText('When an issue is created, or someone comments');
+  await expect(hook).toContainText('When an issue is created or someone comments');
   let saved = (await api.webhooks()).find((h) => h.id === made.id)!;
   expect([saved.active, saved.events]).toEqual([false, ['issue.created', 'comment.created']]);
 
