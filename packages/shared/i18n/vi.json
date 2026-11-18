@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "Kênh nào nhận tin gì",
   "page.chat.teamsA4aIsIn": "Các nhóm có a4a",
   "page.chat.tenant": "Tenant",
-  "page.chat.theAppNeedsTheScopes": "Ứng dụng cần các scope {code}, {code2}, {code3}, {code4} và {code5} với {code6}, và các sự kiện {code7}, {code8}, {code9}, {code10}, {code11} và {code12}.",
+  "page.chat.theAppNeedsTheScopes": "Ứng dụng cần các scope {code}, {code2}, {code3}, {code4} và {code5} với {code6}, và các sự kiện {events}.",
   "page.chat.theMessagingEndpoint": "messaging endpoint",
   "page.chat.theUrl": "URL {name}",
   "page.chat.underBasicInformationA4aChecks": "Trong Basic Information. a4a kiểm tra mọi yêu cầu Slack gửi bằng khóa này. Lưu ở dạng mã hóa.",

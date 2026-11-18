@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "購読の一覧",
   "page.chat.teamsA4aIsIn": "a4aが参加しているチーム",
   "page.chat.tenant": "テナント",
-  "page.chat.theAppNeedsTheScopes": "アプリには、スコープ{code}、{code2}、{code3}、{code4}、{code5}と{code6}、イベント{code7}、{code8}、{code9}、{code10}、{code11}、{code12}が必要です。",
+  "page.chat.theAppNeedsTheScopes": "アプリには、スコープ{code}、{code2}、{code3}、{code4}、{code5}と{code6}、イベント{events}が必要です。",
   "page.chat.theMessagingEndpoint": "メッセージングエンドポイント",
   "page.chat.theUrl": "{name}のURL",
   "page.chat.underBasicInformationA4aChecks": "「Basic Information」にあります。a4aは、Slackから届くすべてのリクエストをこれで確認します。暗号化して保存します。",

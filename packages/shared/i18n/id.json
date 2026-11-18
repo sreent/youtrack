@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "Tabel langganan per saluran",
   "page.chat.teamsA4aIsIn": "Tim tempat a4a berada",
   "page.chat.tenant": "Tenant",
-  "page.chat.theAppNeedsTheScopes": "Aplikasi memerlukan scope {code}, {code2}, {code3}, {code4}, dan {code5} dengan {code6}, serta event {code7}, {code8}, {code9}, {code10}, {code11}, dan {code12}.",
+  "page.chat.theAppNeedsTheScopes": "Aplikasi memerlukan scope {code}, {code2}, {code3}, {code4}, dan {code5} dengan {code6}, serta event {events}.",
   "page.chat.theMessagingEndpoint": "messaging endpoint",
   "page.chat.theUrl": "URL {name}",
   "page.chat.underBasicInformationA4aChecks": "Ada di Basic Information. a4a memakainya untuk memeriksa setiap permintaan dari Slack. Disimpan terenkripsi.",

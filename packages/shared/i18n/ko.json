@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "어디에 무엇을 구독했는지의 표",
   "page.chat.teamsA4aIsIn": "a4a가 있는 팀",
   "page.chat.tenant": "테넌트",
-  "page.chat.theAppNeedsTheScopes": "앱에는 {code}, {code2}, {code3}, {code4}, {code5} 범위와 {code6}, 그리고 {code7}, {code8}, {code9}, {code10}, {code11}, {code12} 이벤트가 필요합니다.",
+  "page.chat.theAppNeedsTheScopes": "앱에는 {code}, {code2}, {code3}, {code4}, {code5} 범위와 {code6}, 그리고 {events} 이벤트가 필요합니다.",
   "page.chat.theMessagingEndpoint": "메시징 엔드포인트",
   "page.chat.theUrl": "{name} URL",
   "page.chat.underBasicInformationA4aChecks": "Basic Information에 있습니다. a4a는 이 값으로 Slack이 보내는 모든 요청을 확인하며, 값은 암호화해 보관합니다.",

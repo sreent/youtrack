@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "Tabelle, was wo abonniert ist",
   "page.chat.teamsA4aIsIn": "Teams, in denen a4a ist",
   "page.chat.tenant": "Tenant",
-  "page.chat.theAppNeedsTheScopes": "Die App braucht die Scopes {code}, {code2}, {code3}, {code4} und {code5} mit {code6} sowie die Events {code7}, {code8}, {code9}, {code10}, {code11} und {code12}.",
+  "page.chat.theAppNeedsTheScopes": "Die App braucht die Scopes {code}, {code2}, {code3}, {code4} und {code5} mit {code6} sowie die Events {events}.",
   "page.chat.theMessagingEndpoint": "der Messaging-Endpunkt",
   "page.chat.theUrl": "die {name}-URL",
   "page.chat.underBasicInformationA4aChecks": "Unter Basic Information. a4a prüft damit jede Anfrage, die Slack sendet. Wird versiegelt aufbewahrt.",

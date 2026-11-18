@@ -121,7 +121,7 @@ export interface Config {
   mailReplyAddress: string | undefined;
   /** Changes to one issue within this long fold into one notification (and one email). */
   notifyWindowMs: number;
-  /** The hour (server time, 0-23) the daily digest goes out. */
+  /** The hour (0-23) the daily digest goes out, in each person's own time zone (D31). */
   digestHour: number;
   /** The language a4a writes in to whoever chose none, and shows a browser that asks for none it speaks (DEFAULT_LOCALE, D49). */
   defaultLocale: Locale;

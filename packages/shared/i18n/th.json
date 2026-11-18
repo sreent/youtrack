@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "ตารางสิ่งที่สมัครรับในแต่ละที่",
   "page.chat.teamsA4aIsIn": "ทีมที่มี a4a",
   "page.chat.tenant": "เทนแนนต์",
-  "page.chat.theAppNeedsTheScopes": "แอปต้องมีขอบเขต {code}, {code2}, {code3}, {code4} และ {code5} พร้อม {code6} และเหตุการณ์ {code7}, {code8}, {code9}, {code10}, {code11} และ {code12}",
+  "page.chat.theAppNeedsTheScopes": "แอปต้องมีขอบเขต {code}, {code2}, {code3}, {code4} และ {code5} พร้อม {code6} และเหตุการณ์ {events}",
   "page.chat.theMessagingEndpoint": "ปลายทางรับข้อความ",
   "page.chat.theUrl": "URL ของ {name}",
   "page.chat.underBasicInformationA4aChecks": "อยู่ใน Basic Information a4a ใช้รหัสลับนี้ตรวจทุกคำขอที่ Slack ส่งมา และเก็บแบบเข้ารหัส",

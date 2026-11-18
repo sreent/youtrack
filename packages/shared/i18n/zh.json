@@ -2339,7 +2339,7 @@
   "page.chat.tableOfWhatSSubscribed": "订阅情况列表",
   "page.chat.teamsA4aIsIn": "a4a 所在的团队",
   "page.chat.tenant": "租户",
-  "page.chat.theAppNeedsTheScopes": "应用需要权限范围 {code}、{code2}、{code3}、{code4}、{code5} 和 {code6}，并订阅事件 {code7}、{code8}、{code9}、{code10}、{code11} 和 {code12}。",
+  "page.chat.theAppNeedsTheScopes": "应用需要权限范围 {code}、{code2}、{code3}、{code4}、{code5} 和 {code6}，并订阅事件 {events}。",
   "page.chat.theMessagingEndpoint": "消息终结点",
   "page.chat.theUrl": "此 {name} URL",
   "page.chat.underBasicInformationA4aChecks": "位于 Basic Information 下。a4a 用此密钥校验 Slack 发送的每个请求，并加密保存。",

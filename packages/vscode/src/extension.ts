@@ -167,7 +167,7 @@ export function activate(context: vscode.ExtensionContext): void {
     'a4a.useToken': async () => {
       const base = await askBase();
       if (!base) return;
-      const token = await vscode.window.showInputBox({ title: 'An a4a API token', prompt: 'Make one in a4a: your profile, API tokens.', password: true, ignoreFocusOut: true });
+      const token = await vscode.window.showInputBox({ title: 'An a4a API token', prompt: 'Make one in a4a, under Agents and tokens.', password: true, ignoreFocusOut: true });
       if (!token?.trim()) return;
       await session.keep({ base, apiToken: token.trim() });
       try {
