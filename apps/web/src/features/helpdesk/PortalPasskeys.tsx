@@ -175,8 +175,13 @@ function Item({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRe
         {p.copied ? <Badge tone="bad">{t('helpdesk.portalPasskeys.stopped')}</Badge> : p.synced ? <Badge tone="good">{t('helpdesk.portalPasskeys.synced')}</Badge> : null}{' '}
         <span className="note">
           {t('helpdesk.portalPasskeys.when', { added: agoSaid(p.createdAt), used: p.lastUsedAt ? 'yes' : 'no', last: p.lastUsedAt ? agoSaid(p.lastUsedAt) : '' })}
-          {p.copied ? ` ${t('helpdesk.portalPasskeys.mayBeCopied')}` : p.elsewhere ? ` ${t('helpdesk.portalPasskeys.elsewhere', { host: p.elsewhere })}` : null}
         </span>
+        {/* A line of its own, not joined to the one before by a space, which Japanese and Chinese don't put between sentences. */}
+        {p.copied || p.elsewhere ? (
+          <span className="item-about">
+            {p.copied ? t('helpdesk.portalPasskeys.mayBeCopied') : t('helpdesk.portalPasskeys.elsewhere', { host: p.elsewhere })}
+          </span>
+        ) : null}
       </span>
       <span className="cluster">
         <button type="button" className="small" disabled={busy} onClick={() => setEditing(true)} aria-label={t('helpdesk.portalPasskeys.renameIt', { name: p.name })}>
