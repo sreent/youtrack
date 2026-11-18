@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: a4a
+  namespace: a4a
+data:
+  PUBLIC_URL: "https://a4a.example.com"
+  # ingress-nginx puts the one address it took the request from in X-Forwarded-For (docs/deploying.md).
+  TRUST_PROXY: "1"
+  ATTACHMENT_STORAGE: "s3"
+  S3_BUCKET: "a4a-files"
+  S3_REGION: "us-east-1"
+  # A store other than AWS's: MinIO's, R2's, or Cloud Storage's (https://storage.googleapis.com, with S3_REGION "auto").
+  # S3_ENDPOINT: "https://s3.example.com"
+  SEED_DEMO: "false"
+  # Behind GKE's own Ingress (Google's load balancer keeps idle connections ten minutes), not ingress-nginx:
+  # KEEP_ALIVE_SECONDS: "620"

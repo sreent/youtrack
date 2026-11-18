@@ -34,6 +34,11 @@ const STARTUP_LOCK = 4_734_241;
 export interface OpenOptions {
   /** Postgres connection string. When empty, the embedded PGlite database is used. */
   url?: string;
+  /**
+   * Where the startup lock is taken, when not on `url`: DATABASE_LISTEN_URL, the direct connection
+   * past a pooler. The lock is a session's, which a pooler in transaction mode doesn't keep.
+   */
+  lockUrl?: string;
   /** Directory for PGlite data. Ignored when `memory` is true or `url` is set. */
   dataDir?: string;
   /** In-memory PGlite (tests). */
@@ -66,7 +71,7 @@ export async function openDatabase(opts: OpenOptions): Promise<Database> {
     // A session lock on a connection of its own, outside the pool (whose connections the
     // work itself needs): held across the pool's statements, and released by Postgres if
     // this process dies while holding it.
-    const url = opts.url;
+    const url = opts.lockUrl || opts.url;
     const exclusive = async <T>(fn: () => Promise<T>): Promise<T> => {
       const client = new pg.Client({ connectionString: url, application_name: 'a4a startup' });
       client.on('error', () => {});

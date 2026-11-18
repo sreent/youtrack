@@ -431,14 +431,20 @@ export async function setPasswordWithLink(app: AppServices, token: string, passw
   const now = new Date();
   const done = await app.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
+    const expired = () => new AppError(401, 'link_expired', 'This link has expired or was used', 'Ask for a new one: it comes by email in a minute.').said('portal.passwordLinkExpired');
+    const link = and(eq(requesterSignIns.tokenHash, sha256(token)), eq(requesterSignIns.purpose, 'password'));
+    const [whose] = await tx.select({ requesterId: requesterSignIns.requesterId }).from(requesterSignIns).where(link);
+    if (!whose) throw expired();
+    // One change to their password at a time, and the requester locked first, as changing it locks
+    // them first: a second link used at once waits here, then finds itself gone with the others.
+    // Taking the link before the requester would deadlock with it.
+    const [r] = await tx.select().from(requesters).where(eq(requesters.id, whose.requesterId)).for('update');
     const [used] = await tx
       .update(requesterSignIns)
       .set({ usedAt: now })
-      .where(and(eq(requesterSignIns.tokenHash, sha256(token)), eq(requesterSignIns.purpose, 'password'), isNull(requesterSignIns.usedAt), gt(requesterSignIns.expiresAt, now)))
+      .where(and(link, isNull(requesterSignIns.usedAt), gt(requesterSignIns.expiresAt, now)))
       .returning();
-    if (!used) throw new AppError(401, 'link_expired', 'This link has expired or was used', 'Ask for a new one: it comes by email in a minute.').said('portal.passwordLinkExpired');
-    // One change to their password at a time: a second link used at once waits, then finds this one's.
-    const [r] = await tx.select().from(requesters).where(eq(requesters.id, used.requesterId)).for('update');
+    if (!r || !used) throw expired();
     await tx.update(requesters).set({ passwordHash: hash, passwordSetAt: now, updatedAt: now }).where(eq(requesters.id, r!.id));
     await tx.delete(requesterSessions).where(eq(requesterSessions.requesterId, r!.id));
     await tx.delete(requesterSignIns).where(and(eq(requesterSignIns.requesterId, r!.id), eq(requesterSignIns.purpose, 'password'), isNull(requesterSignIns.usedAt)));

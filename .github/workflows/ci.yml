@@ -33,7 +33,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # The web app's design check (its look is all Ocean's), then the server's tests on embedded PGlite.
+      # The web app's checks (its look all Ocean's, its words in every catalog, its problems keyed), the
+      # server's tests on embedded PGlite, then the VS Code extension's.
       - run: pnpm test
       - run: pnpm build
 
@@ -145,11 +146,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        provider: [anthropic, deepseek, qwen]
+        # Claude isn't run live here; `pnpm --filter @a4a/server test:live` runs against it where ANTHROPIC_API_KEY is set.
+        provider: [deepseek, qwen]
     env:
       AI_PROVIDER: ${{ matrix.provider }}
       # Each job gets its own provider's key only. Without that repository secret, its tests skip and say why.
-      ANTHROPIC_API_KEY: ${{ matrix.provider == 'anthropic' && secrets.ANTHROPIC_API_KEY || '' }}
       DEEPSEEK_API_KEY: ${{ matrix.provider == 'deepseek' && secrets.DEEPSEEK_API_KEY || '' }}
       QWEN_API_KEY: ${{ matrix.provider == 'qwen' && secrets.QWEN_API_KEY || '' }}
     steps:

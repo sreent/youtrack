@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: a4a
+  namespace: a4a
+  annotations:
+    # The annotations are ingress-nginx's; another controller has its own for the same three things.
+    # Live streams (SSE) go on as they're written, and stay open between their reconnects. The
+    # assistant's streamed answer can be quiet for longer than nginx's default of 60 seconds.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # The largest request a4a takes is a CSV import, 64 MB. A file is 20 MB at most (ATTACHMENT_MAX_MB).
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - a4a.example.com
+      secretName: a4a-tls
+  rules:
+    - host: a4a.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: a4a
+                port:
+                  name: http

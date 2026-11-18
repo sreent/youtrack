@@ -240,7 +240,11 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       response: PasskeyOptionsSchema,
       status: 200,
     },
-    async ({ c, ctx }) => registrationOptions(ctx.app, ctx.actor.user, await browserSession(c, ctx)),
+    async ({ c, ctx }) => {
+      const session = await browserSession(c, ctx);
+      holdBack(c, c.get('runtime'));
+      return registrationOptions(ctx.app, ctx.actor.user, session);
+    },
   );
 
   route(

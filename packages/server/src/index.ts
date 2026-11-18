@@ -10,6 +10,16 @@ import './notify/register';
 import './oauth/register';
 import './push/register';
 
+// A stop while it starts (migrating, or waiting while another instance migrates) ends it at once:
+// it serves nothing yet, and a migration cut off rolls back. In a container a4a is process 1, which
+// ignores a signal it doesn't handle, so without this it would wait to be killed.
+const whileStarting = (signal: NodeJS.Signals) => {
+  console.log(`${signal} while starting: stopping`);
+  process.exit(0);
+};
+process.once('SIGINT', whileStarting);
+process.once('SIGTERM', whileStarting);
+
 // What stops it starting (a port in use, a bucket that refuses it, a setting it can't read) says
 // so in a line; the stack too, in development.
 const started = await startServer().catch((e: unknown) => {
@@ -28,6 +38,8 @@ console.log(`  AI         ${ai}`);
 if (await needsSetup(runtime.db)) console.log(`\n  Open ${url} to create the first administrator.`);
 if (!runtime.config.webDist) console.log('\n  The web UI is not built; in development run "pnpm dev" and open http://localhost:5173');
 
+process.off('SIGINT', whileStarting);
+process.off('SIGTERM', whileStarting);
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     console.log(`\n${signal}: shutting down`);

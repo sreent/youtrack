@@ -238,6 +238,10 @@ describe('MCP', () => {
     expect(history.body[0].actor).toMatchObject({ login: 'ada', channel: 'mcp', token: 'ci' });
     const doc = await c.readResource({ uri: `a4a://issues/${issue.id}` });
     expect((doc.contents[0] as { text: string }).text).toContain('Filed by an agent');
+    // A project's schema: its fields, and how its issues link.
+    const schema = (await c.readResource({ uri: 'a4a://projects/BACK' })).contents[0] as { text: string };
+    expect(schema.text).toContain('## Fields');
+    expect(schema.text).toMatch(/## Link types\n- \*\*\w/);
     await c.close();
   });
 

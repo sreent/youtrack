@@ -53,7 +53,7 @@ if (!config.s3) {
 }
 const to = new S3Storage(config.s3);
 const folder = localAttachmentsDir(config.dataDir);
-const database = await openDatabase({ url: config.databaseUrl, dataDir: config.dataDir });
+const database = await openDatabase({ url: config.databaseUrl, lockUrl: config.databaseListenUrl, dataDir: config.dataDir });
 try {
   await to.check();
   const report = await copyFilesToS3(database.db, new LocalDiskStorage(folder), to, {

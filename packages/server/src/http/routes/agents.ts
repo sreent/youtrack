@@ -17,7 +17,7 @@ export function agentRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Agents administrators added, each with its tokens (admin)',
       description:
-        "An agent is a bot account. With a token issued to it, a tool acts as the agent itself: its changes are its own, under its name, and `me` is the agent. a4a's own agents (triage, workflow, helpdesk) aren't listed: they take no tokens.",
+        "An agent is a bot account. With a token issued to it, a tool acts as the agent itself: its changes are its own, under its name, and `me` is the agent. a4a's own agents (triage, workflow, helpdesk, builds) aren't listed: they take no tokens.",
       response: z.array(AgentAccountSchema),
     },
     ({ ctx }) => listAgents(ctx),

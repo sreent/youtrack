@@ -267,8 +267,8 @@ importers:
   packages/vscode:
     dependencies:
       '@sreent/ocean':
-        specifier: github:sreent/ocean#ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2
-        version: https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2
+        specifier: github:sreent/ocean#e68303204aa67fcd39eee8569640a669bed9832f
+        version: https://codeload.github.com/sreent/ocean/tar.gz/e68303204aa67fcd39eee8569640a669bed9832f
     devDependencies:
       '@types/node':
         specifier: ^22.19.0
@@ -1801,11 +1801,6 @@ packages:
   '@smithy/types@4.20.0':
     resolution: {integrity: sha512-lCA6QG22dPk9ecHbv91jDQZsmtPUjdS1aE2Il6NNPqe7DrYc0dZQi6DhcESk2KYXH2sp5xbAcGdYMZDFnuzA2A==}
     engines: {node: '>=18.0.0'}
-
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2':
-    resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2}
-    version: 0.1.0
-    engines: {node: '>=20'}
 
   '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/e68303204aa67fcd39eee8569640a669bed9832f':
     resolution: {tarball: https://codeload.github.com/sreent/ocean/tar.gz/e68303204aa67fcd39eee8569640a669bed9832f}
@@ -7245,8 +7240,6 @@ snapshots:
   '@smithy/types@4.20.0':
     dependencies:
       tslib: 2.9.1
-
-  '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/ab2cea2b1f62a5f3bde2ea2314b8cf64af6ee7d2': {}
 
   '@sreent/ocean@https://codeload.github.com/sreent/ocean/tar.gz/e68303204aa67fcd39eee8569640a669bed9832f': {}
 

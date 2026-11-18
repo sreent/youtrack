@@ -9,7 +9,7 @@ import { chatKeys, ChatSubscriptionTable, useChatSubscriptions } from '../featur
 import { AdminOnly, errorText, FormField, Said } from '../features/common/bits';
 import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
-import { problemWords, t as tx, tr } from '../i18n';
+import { listNodes, problemWords, t as tx, tr } from '../i18n';
 
 const useChatStatus = () => useQuery({ queryKey: chatKeys.status, queryFn: () => get<ChatStatus>('/chat/status') });
 
@@ -159,11 +159,14 @@ function Slack({ status }: { status: ChatStatus }) {
           </div>
         ))}
       </dl>
-      <p className="note">{tr('page.chat.theAppNeedsTheScopes', { code: <code>chat:write</code>, code2: <code>commands</code>, code3: <code>channels:read</code>, code4: <code>groups:read</code>, code5: <code>links:read</code>, code6: <code>links:write</code>, code7: <code>link_shared</code>, code8: <code>member_joined_channel</code>, code9: <code>channel_deleted</code>, code10: <code>channel_archive</code>, code11: <code>channel_rename</code>, code12: <code>app_uninstalled</code> })}</p>
+      <p className="note">{tr('page.chat.theAppNeedsTheScopes', { code: <code>chat:write</code>, code2: <code>commands</code>, code3: <code>channels:read</code>, code4: <code>groups:read</code>, code5: <code>links:read</code>, code6: <code>links:write</code>, events: listNodes(SLACK_EVENTS.map((e) => <code key={e}>{e}</code>)) })}</p>
       <p className="note">{tr('page.chat.issuesFromMessagesNeed', { code: <code>channels:history</code>, code2: <code>groups:history</code>, code3: <code>users:read</code>, code4: <code>a4a_create_issue</code> })}</p>
     </div>
   );
 }
+
+/** The events the Slack app subscribes to: each one `chat/slack.ts` handles. */
+const SLACK_EVENTS = ['link_shared', 'member_joined_channel', 'member_left_channel', 'channel_deleted', 'group_deleted', 'channel_archive', 'group_archive', 'channel_rename', 'group_rename', 'app_uninstalled', 'tokens_revoked'];
 
 function Everywhere() {
   const subs = useChatSubscriptions();

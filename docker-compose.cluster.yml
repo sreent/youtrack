@@ -23,6 +23,13 @@ x-a4a: &a4a
     ADMIN_LOGIN: ${ADMIN_LOGIN:-}
     ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     SEED_DEMO: ${SEED_DEMO:-false}
+    # Every instance seals and opens secrets with one key. Set SECRET_KEY to choose it; without it, the
+    # first instance to need one writes DATA_DIR/secret.key, and the shared volume below gives it to both.
+    SECRET_KEY: ${SECRET_KEY:-}
+  # One DATA_DIR for both, on this one machine: the key above, and uploaded files (ATTACHMENT_STORAGE=local).
+  # On several machines, set SECRET_KEY and keep files in a bucket instead (docs/deploying.md).
+  volumes:
+    - a4a-data-cluster:/data
   # The image's own check (GET /api/v1/health), more often, so the proxy starts sooner.
   healthcheck:
     interval: 5s
@@ -65,3 +72,4 @@ services:
 
 volumes:
   pgdata-cluster:
+  a4a-data-cluster:

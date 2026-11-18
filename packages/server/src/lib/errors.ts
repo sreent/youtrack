@@ -38,13 +38,9 @@ export const forbidden = (message?: string, hint?: string) => {
 export const notFound = (what: string, hint?: string) => new AppError(404, 'not_found', `${what} not found`, hint);
 export const conflict = (message: string, hint?: string, details?: unknown) =>
   new AppError(409, 'conflict', message, hint, details);
-export const aiDisabled = () =>
-  new AppError(
-    503,
-    'ai_disabled',
-    'AI features are not configured on this server',
-    'Set ANTHROPIC_API_KEY in the server environment and restart.',
-  ).said('aiDisabled');
+/** `key`: the variable that gives the configured provider its key (AI_PROVIDER: ANTHROPIC_API_KEY, DEEPSEEK_API_KEY…). */
+export const aiDisabled = (key = 'ANTHROPIC_API_KEY') =>
+  new AppError(503, 'ai_disabled', 'AI features are not configured on this server', `Set ${key} in the server environment and restart.`).said('aiDisabled', { key });
 
 /**
  * Words of a problem's own that someone wrote (a script's refusal, a rule's message), ended as a

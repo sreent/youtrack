@@ -237,6 +237,16 @@ describe('a password', () => {
     const once = mailed('tia@example.org', PASSWORD_LINK).token;
     const both = await Promise.all([browser('10.3.4.2').req('POST', '/portal/password/set', { token: once, password: 'tia password 1' }), browser('10.3.4.3').req('POST', '/portal/password/set', { token: once, password: 'tia password 2' })]);
     expect(both.map((r) => r.status).sort()).toEqual([200, 401]);
+    // Two links of one requester's at once: one sets it, and the other finds itself gone, not a deadlock.
+    for (let i = 0; i < 2; i++) {
+      expect((await browser('10.3.4.6').req('POST', '/portal/password/link', { email: 'una@example.org' })).status).toBe(202);
+      await flush();
+    }
+    const links = [...new Set(smtp.messages.filter((m) => m.to.includes('una@example.org')).map((m) => PASSWORD_LINK.exec(m.text)?.[1]).filter(Boolean))] as string[];
+    expect(links).toHaveLength(2);
+    const racing = await Promise.all(links.map((token, i) => browser(`10.3.4.${4 + i}`).req('POST', '/portal/password/set', { token, password: `una password ${i + 1}` })));
+    expect(racing.map((r) => r.status).sort()).toEqual([200, 401]);
+    expect(racing.find((r) => r.status === 401)!.body.error.key).toBe('portal.passwordLinkExpired');
   });
 
   it('is locked out as members’ sign-ins are, per email, and the right password waits too', async () => {

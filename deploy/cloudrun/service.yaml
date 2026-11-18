@@ -1,0 +1,76 @@
+# gcloud run services replace deploy/cloudrun/service.yaml --region=REGION (docs/deploying.md).
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: a4a
+  labels:
+    cloud.googleapis.com/location: REGION
+spec:
+  template:
+    metadata:
+      annotations:
+        # The outbox, mail, rules, schedules and IMAP polling run inside the server: CPU all the
+        # time, and one instance at least.
+        run.googleapis.com/cpu-throttling: "false"
+        autoscaling.knative.dev/minScale: "1"
+        # Each instance holds up to 11 connections to Postgres: DATABASE_POOL_SIZE (10), and one for LISTEN.
+        autoscaling.knative.dev/maxScale: "4"
+        run.googleapis.com/cloudsql-instances: PROJECT:REGION:a4a-db
+    spec:
+      serviceAccountName: a4a@PROJECT.iam.gserviceaccount.com
+      # Each open tab holds two live streams, and Cloud Run counts each as a request in flight.
+      containerConcurrency: 250
+      # A live stream ends here, then reconnects and resumes.
+      timeoutSeconds: 3600
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT/a4a/a4a:VERSION
+          ports:
+            - name: http1
+              containerPort: 3000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: PUBLIC_URL
+              value: https://a4a.example.com
+            # Cloud Run's front end appends the client's address to X-Forwarded-For.
+            - name: TRUST_PROXY
+              value: "1"
+            - name: ATTACHMENT_STORAGE
+              value: s3
+            - name: S3_BUCKET
+              value: PROJECT-a4a-files
+            - name: S3_ENDPOINT
+              value: https://storage.googleapis.com
+            - name: S3_REGION
+              value: auto
+            - name: SEED_DEMO
+              value: "false"
+            # Its first version, for good: a new version of this secret would be another key.
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: a4a-secret-key
+                  key: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: a4a-database-url
+                  key: latest
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: a4a-s3-access-key-id
+                  key: latest
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: a4a-s3-secret-access-key
+                  key: latest
+            # Mail goes out on 587 or 465: Google Cloud blocks port 25.
+            # - name: SMTP_URL
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: a4a-smtp-url
+            #       key: latest
