@@ -2837,7 +2837,6 @@
   "page.integrations.privateKeyHelp": "앱의 Private keys에서 키를 만든 다음 .pem 파일 내용을 전부 붙여 넣거나 아래에서 파일을 선택하세요. a4a는 키를 암호화해 보관하며 다시 표시하지 않습니다.",
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "GitHub App으로 읽기",
-  "page.integrations.readsAsTheGithubApp": "{account}에 설치된 GitHub App {app}(으)로 읽음",
   "page.integrations.readsBuildsCommitsWithIts": "토큰으로 빌드의 커밋을 읽음",
   "page.integrations.readsCommitsAt": "<t0>{baseUrl}</t0>에서 커밋을 읽음",
   "page.integrations.readsCommitsWithItsToken": "토큰으로 커밋을 읽음",

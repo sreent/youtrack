@@ -51,6 +51,8 @@ test.describe('signed in as themselves', () => {
 
       await page.goto('/me');
       const card = page.getByRole('region', { name: 'Your accounts at code hosts' });
+      // This Forgejo offers no revocation (as Forgejo's documentation says), so the page says what that means first (D66).
+      await expect(card.getByText(/^Forgejo can’t be asked to take back the token a4a is given\./)).toBeVisible();
       await card.getByRole('button', { name: 'Connect Forgejo' }).click();
       // At Forgejo: its own page asks, and sends the browser back.
       await expect(page.getByRole('heading', { name: 'Authorize a4a to access your account?' })).toBeVisible();

@@ -2837,7 +2837,6 @@
   "page.integrations.privateKeyHelp": "在应用的 Private keys 下生成私钥，然后粘贴整个 .pem 文件的内容，或在下方选择该文件。a4a 会加密保存私钥，且不会再次显示。",
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "以 GitHub App 身份读取",
-  "page.integrations.readsAsTheGithubApp": "以 GitHub App {app} 的身份读取（安装于 {account}）",
   "page.integrations.readsBuildsCommitsWithIts": "用令牌读取构建的提交",
   "page.integrations.readsCommitsAt": "从 <t0>{baseUrl}</t0> 读取提交",
   "page.integrations.readsCommitsWithItsToken": "用令牌读取提交",

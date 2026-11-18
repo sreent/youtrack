@@ -16,7 +16,7 @@ import { createHttpApp } from '../src/http/app';
 import { createToken } from '../src/services/auth';
 import { createIssue, updateIssue } from '../src/services/issues';
 import { createProject, updateProject } from '../src/services/projects';
-import { checksConsumer, ChecksSender } from '../src/vcs/checks';
+import { checksConsumer, ChecksSender, sendCheck } from '../src/vcs/checks';
 import { getJson, ReadError } from '../src/vcs/commits';
 import { listIntegrations, listVcsDeliveries } from '../src/vcs/integrations';
 import type { IntegrationRow } from '../src/vcs/links';
@@ -293,6 +293,20 @@ describe('check runs on pull requests', () => {
     expect(held!.dueAt!.getTime()).toBeGreaterThan(Date.now() + 60_000);
     expect(held!.problem).toBeNull();
     await w.app.db.update(vcsInstallations).set({ checksPausedUntil: null });
+  });
+
+  it('stays due when its pull request changes while its check is being written', async () => {
+    await deliver('pull_request', pull({ repository: 'acme/web', number: 30, title: `${ids.guest}`, head: sha('7') }));
+    // The row as the sender claimed it; then a new head comes before that write settles.
+    const [claimed] = await w.app.db.select().from(vcsChecks).where(eq(vcsChecks.number, 30));
+    await deliver('pull_request', { ...pull({ repository: 'acme/web', number: 30, title: `${ids.guest}`, head: sha('8') }), action: 'synchronize' });
+    await sendCheck(w.app, claimed!);
+    expect(gh.runs.filter((r) => r.headSha === sha('7'))).toHaveLength(1);
+    // What went was the old head's: it's due again, for the new one.
+    const [after] = await w.app.db.select().from(vcsChecks).where(eq(vcsChecks.number, 30));
+    expect(after!.dueAt).not.toBeNull();
+    await sender().drain();
+    expect(gh.runs.filter((r) => r.headSha === sha('8'))).toHaveLength(1);
   });
 
   it('says on the integration why a check didn’t go: an installation that may not write checks', async () => {

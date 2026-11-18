@@ -68,7 +68,10 @@ test('an administrator gives a GitHub integration a GitHub App to read as, inste
     await form.getByLabel('Private key').fill(github.privateKey);
     await form.getByRole('button', { name: 'Save the app' }).click();
     await expect(card.getByRole('status').filter({ hasText: 'Saved: a4a reads as the GitHub App a4a-e2e, installed on acme.' })).toBeVisible();
-    await expect(card.getByText('reads as the GitHub App a4a-e2e, installed on acme', { exact: true })).toBeVisible();
+    await expect(card.getByText('reads as its GitHub App', { exact: true })).toBeVisible();
+    await expect(card.getByText('a4a-e2e', { exact: true })).toBeVisible();
+    // Its installation, by account (D66).
+    await expect(card.getByRole('list', { name: 'The app’s installations' })).toContainText('acme');
     await expect(card.getByRole('form', { name: 'Read as a GitHub App' })).toHaveCount(0);
     await expectAccessible(page);
 
@@ -78,7 +81,7 @@ test('an administrator gives a GitHub integration a GitHub App to read as, inste
 
     // The key is never shown again.
     await page.reload();
-    await expect(card.getByText('reads as the GitHub App a4a-e2e, installed on acme', { exact: true })).toBeVisible();
+    await expect(card.getByText('reads as its GitHub App', { exact: true })).toBeVisible();
     await expect(page.getByText(/-----BEGIN/)).toHaveCount(0);
 
     await card.getByRole('button', { name: 'Stop reading as the app' }).click();

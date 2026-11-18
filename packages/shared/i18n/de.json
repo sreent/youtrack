@@ -2857,7 +2857,7 @@
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "Als GitHub App lesen",
   "page.integrations.readThrough": "hier gelesen: {list}",
-  "page.integrations.readsAsTheGithubApp": "liest als GitHub App {app}, installiert auf {account}",
+  "page.integrations.readsAsItsApp": "liest als ihre GitHub App",
   "page.integrations.readsBuildsCommitsWithIts": "liest die Commits von Builds mit ihrem Token",
   "page.integrations.readsCommitsAt": "Liest Commits unter <t0>{baseUrl}</t0>",
   "page.integrations.readsCommitsWithItsToken": "liest Commits mit ihrem Token",

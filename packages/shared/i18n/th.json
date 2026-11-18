@@ -2837,7 +2837,6 @@
   "page.integrations.privateKeyHelp": "สร้างคีย์ในส่วน Private keys ของแอป แล้ววางเนื้อหาไฟล์ .pem ทั้งหมด หรือเลือกไฟล์ด้านล่าง a4a จะเก็บคีย์แบบเข้ารหัส และไม่แสดงอีก",
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "อ่านในนามของ GitHub App",
-  "page.integrations.readsAsTheGithubApp": "อ่านในนามของ GitHub App {app} ที่ติดตั้งบน {account}",
   "page.integrations.readsBuildsCommitsWithIts": "อ่านคอมมิตของบิลด์ด้วยโทเค็น",
   "page.integrations.readsCommitsAt": "อ่านคอมมิตที่ <t0>{baseUrl}</t0>",
   "page.integrations.readsCommitsWithItsToken": "อ่านคอมมิตด้วยโทเค็น",

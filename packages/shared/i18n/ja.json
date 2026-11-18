@@ -2857,7 +2857,7 @@
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "GitHub Appとして読み取る",
   "page.integrations.readThrough": "ここで読み取り：{list}",
-  "page.integrations.readsAsTheGithubApp": "GitHub App {app}（{account}にインストール）として読み取ります",
+  "page.integrations.readsAsItsApp": "GitHub Appとして読み取り",
   "page.integrations.readsBuildsCommitsWithIts": "トークンでビルドのコミットを読み取ります",
   "page.integrations.readsCommitsAt": "<t0>{baseUrl}</t0>のコミットを読み取ります",
   "page.integrations.readsCommitsWithItsToken": "トークンでコミットを読み取ります",

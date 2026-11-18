@@ -2837,7 +2837,6 @@
   "page.integrations.privateKeyHelp": "Gere uma em Private keys da aplicação e cole o ficheiro .pem completo, ou escolha-o abaixo. O a4a guarda-a encriptada e nunca mais a mostra.",
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "Ler como uma GitHub App",
-  "page.integrations.readsAsTheGithubApp": "lê como a GitHub App {app}, instalada em {account}",
   "page.integrations.readsBuildsCommitsWithIts": "lê os commits dos builds com o token da integração",
   "page.integrations.readsCommitsAt": "Lê commits em <t0>{baseUrl}</t0>",
   "page.integrations.readsCommitsWithItsToken": "lê commits com o token da integração",

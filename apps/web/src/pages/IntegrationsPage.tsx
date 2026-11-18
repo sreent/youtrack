@@ -375,7 +375,9 @@ function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onS
       <div className="cluster">
         {app ? (
           <>
-            <Badge tone="good">{t('page.integrations.readsAsTheGithubApp', { app: app.slug ?? app.appId, account: app.account ?? app.installationId })}</Badge>
+            {/* The app's name beside the badge, not in it: a badge doesn't wrap, and its accounts are listed below (D66). */}
+            <Badge tone="good">{t('page.integrations.readsAsItsApp')}</Badge>
+            <span className="mono">{app.slug ?? app.appId}</span>
             <button type="button" className="small" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{t('page.integrations.changeTheApp')}</button>
             <Confirm
               small

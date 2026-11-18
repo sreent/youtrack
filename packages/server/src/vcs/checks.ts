@@ -38,7 +38,7 @@ import { readableId, stateNames, type IssueRow } from '../services/issue-refs';
 import { findIssue } from '../services/issues';
 import { stateField } from '../services/schema-cache';
 import { getJson, ReadError } from './commits';
-import { GITHUB_API, repoPath } from './github-app';
+import { forgetInstallationToken, GITHUB_API, repoPath } from './github-app';
 import type { IntegrationRow } from './links';
 import { integrationKeys, mentions } from './mentions';
 import { appCredentials, asApp } from './tokens';
@@ -388,6 +388,8 @@ export async function writeCheck(app: AppServices, row: Row): Promise<Outcome> {
         return String(made.id);
       } catch (e) {
         if (e instanceof Wait) await pause(app.db, integration.id, installationId, e.ms);
+        // Its permissions changed since the token was taken: the next try takes a new one, which says so.
+        if (e instanceof ReadError && e.status === 403) forgetInstallationToken(integration.id, installationId, 'checks');
         throw e;
       }
     });
@@ -442,6 +444,14 @@ export async function sendCheck(app: AppServices, row: Row): Promise<Outcome> {
       .where(eq(vcsChecks.id, row.id));
   }
   return outcome;
+}
+
+/** How long a closed pull request's row is kept: its run on GitHub stays as last written. */
+const KEEP_CLOSED_DAYS = 30;
+
+/** Forget the rows of pull requests closed a while ago (the lease holder's chore). */
+export async function pruneChecks(app: AppServices): Promise<void> {
+  await app.db.delete(vcsChecks).where(and(sql`${vcsChecks.state} <> 'open'`, lt(vcsChecks.updatedAt, new Date(Date.now() - KEEP_CLOSED_DAYS * 86_400_000))));
 }
 
 /** The latest problem of each integration's checks, for the integrations page. */

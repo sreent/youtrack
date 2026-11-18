@@ -2837,7 +2837,6 @@
   "page.integrations.privateKeyHelp": "Tạo một khóa trong Private keys của ứng dụng, và dán nguyên tệp .pem, hoặc chọn tệp ở dưới. a4a lưu khóa ở dạng mã hóa, và không bao giờ hiển thị lại.",
   "page.integrations.projBackend": "PROJ/backend",
   "page.integrations.readAsAGithubApp": "Đọc với tư cách GitHub App",
-  "page.integrations.readsAsTheGithubApp": "đọc với tư cách GitHub App {app}, cài trên {account}",
   "page.integrations.readsBuildsCommitsWithIts": "đọc commit của bản build bằng token",
   "page.integrations.readsCommitsAt": "Đọc commit tại <t0>{baseUrl}</t0>",
   "page.integrations.readsCommitsWithItsToken": "đọc commit bằng token",
