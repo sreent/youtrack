@@ -97,7 +97,8 @@ function Row({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRen
             className="cluster"
             onSubmit={(e) => {
               e.preventDefault();
-              void onRename(name.trim()).then(() => setEditing(false));
+              // A refusal is said under the list, by the mutation; the field stays open to try again.
+              onRename(name.trim()).then(() => setEditing(false), () => {});
             }}
           >
             <input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('identity.passkeys.newName', { name: p.name })} maxLength={60} required autoFocus />

@@ -401,6 +401,14 @@ describe('passkeys over HTTP', () => {
     expect((await call('GET', '/me/passkeys', { bearer: samToken })).body).toMatchObject({ on: false, off: 'account', confirmWith: { password: false } });
   });
 
+  it('counts a session from before a4a kept how it was signed in as not recent, until its person confirms', async () => {
+    const { session } = await signIn('quinn', 'quinn-password-1');
+    await w.app.db.update(sessions).set({ signedInWith: null }).where(eq(sessions.userId, quinn.id));
+    expect((await call('POST', '/me/passkeys/options', { cookie: session })).body.error.code).toBe('confirm_needed');
+    expect((await call('POST', '/me/confirm', { cookie: session, body: { password: 'quinn-password-1' } })).status).toBe(200);
+    expect((await call('POST', '/me/passkeys/options', { cookie: session })).status).toBe(200);
+  });
+
   it('holds passkey sign-ins to the sign-in throttle', async () => {
     const stranger = new Authenticator();
     stranger.userHandle = b64(Buffer.from(pat.id));

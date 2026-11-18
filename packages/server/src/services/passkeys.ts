@@ -266,10 +266,12 @@ export interface SessionRef {
   /** The session's id: the hash of its cookie's token. */
   id: string;
   verifiedAt: Date;
+  /** How it was signed in; null for a session from before a4a kept it, which is never recent. */
+  signedInWith: string | null;
 }
 
 export const confirmedUntil = (session: SessionRef | null): Date | null => {
-  const until = session ? new Date(session.verifiedAt.getTime() + RECENT_MS) : null;
+  const until = session?.signedInWith ? new Date(session.verifiedAt.getTime() + RECENT_MS) : null;
   return until && until.getTime() > Date.now() ? until : null;
 };
 
@@ -593,14 +595,18 @@ export async function confirmWithPasskey(app: AppServices, user: UserRow, sessio
 /** The session's person proved it's them just now. */
 export async function markVerified(db: Db, sessionId: string): Promise<Date> {
   const now = new Date();
-  await db.update(sessions).set({ verifiedAt: now }).where(eq(sessions.id, sessionId));
+  // A session from before a4a kept how it was signed in is known from here on as one confirmed.
+  await db
+    .update(sessions)
+    .set({ verifiedAt: now, signedInWith: sql`coalesce(${sessions.signedInWith}, 'confirmed')` })
+    .where(eq(sessions.id, sessionId));
   return new Date(now.getTime() + RECENT_MS);
 }
 
 /** The session behind a request's cookie, for what only a signed-in browser may do. */
 export async function sessionRef(db: Db, token: string | undefined): Promise<SessionRef | null> {
   if (!token) return null;
-  const [row] = await db.select({ id: sessions.id, verifiedAt: sessions.verifiedAt }).from(sessions).where(eq(sessions.id, sha256(token)));
+  const [row] = await db.select({ id: sessions.id, verifiedAt: sessions.verifiedAt, signedInWith: sessions.signedInWith }).from(sessions).where(eq(sessions.id, sha256(token)));
   return row ?? null;
 }
 

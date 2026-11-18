@@ -90,7 +90,8 @@ export const sessions = pgTable(
     userAgent: text('user_agent'),
     /**
      * How it was signed in (D62): `password`, `ldap`, `oidc` or `saml`, then `+totp`, `+recovery` or
-     * `+passkey` for a second step; or `passkey`, both factors at once. Null for sessions from before.
+     * `+passkey` for a second step; or `passkey`, both factors at once. Null for sessions from before,
+     * never recent enough to add or remove a passkey until their person confirms it's them (`confirmed`).
      */
     signedInWith: text('signed_in_with'),
     /** The passkey that signed it in, first or second: removing that passkey ends the session. */
