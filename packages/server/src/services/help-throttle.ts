@@ -7,6 +7,7 @@
  * so parallel posts can't slip past between a check and a write. Emails and tracking tokens are
  * counted by their hash, so neither is kept here in plain text.
  */
+import { CC_RELAY_LIMITS } from '@a4a/shared';
 import { lt, sql } from 'drizzle-orm';
 import type { Db } from '../db/client';
 import { helpThrottle } from '../db/schema';
@@ -47,13 +48,19 @@ export const HELP_THROTTLE = {
   portalSso: { limit: 30, windowMs: 15 * 60_000 },
   /** Team replies by email (D45), per person. */
   teamReply: { limit: 60, windowMs: 60 * 60_000 },
+  /** Words relayed among everyone on a request (D67), per request: each is an email to everyone on it. */
+  relayRequest: { limit: CC_RELAY_LIMITS.perRequest, windowMs: 60 * 60_000 },
+  /** Words relayed from one sender (by their address), across every request (D67). */
+  relaySender: { limit: CC_RELAY_LIMITS.perSender, windowMs: 60 * 60_000 },
+  /** What the link that confirms a new request's Cc is tried with (D67), per address: its token is guessed at no faster. */
+  ccConfirm: { limit: 30, windowMs: 15 * 60_000 },
 } as const;
 
 export type HelpLimit = keyof typeof HELP_THROTTLE;
 
 /** How a value is kept as a key: addresses and ids as they are (capped), emails and tokens hashed. */
 export function throttleKey(limit: HelpLimit, value: string): string {
-  const hashed = limit === 'submitEmail' || limit === 'replyRequest' || limit === 'mailSender' || limit === 'captcha' || limit === 'portalEmail';
+  const hashed = limit === 'submitEmail' || limit === 'replyRequest' || limit === 'mailSender' || limit === 'captcha' || limit === 'portalEmail' || limit === 'relaySender';
   return `${limit}:${hashed ? sha256(value.trim().toLowerCase()) : value.trim().slice(0, 64)}`;
 }
 

@@ -149,6 +149,12 @@ export interface Config {
   /** How hard a help desk's proof of work is: the most numbers a browser may have to try (HELPDESK_CAPTCHA_MAX_NUMBER). */
   helpdeskCaptchaMaxNumber: number;
   /**
+   * The mail servers whose Authentication-Results a4a trusts, by their authserv-ids, lower case
+   * (HELPDESK_TRUSTED_AUTHSERV_IDS, comma-separated, D67): an email whose sender's domain passed
+   * DMARC at one of them, said in the topmost such header, is known to be from its sender.
+   */
+  helpdeskTrustedAuthservIds: string[];
+  /**
    * Hosts an import may read from although their addresses are inside the network
    * (IMPORT_ALLOW_HOSTS, comma-separated names): a YouTrack or Jira of the company's own.
    * Every other host must be public. https always.
@@ -629,6 +635,10 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     helpdeskImapPollMs: intEnv(env.HELPDESK_IMAP_POLL_SECONDS, 60, 10) * 1000,
     helpdeskMailMaxBytes: megabytes(env.HELPDESK_MAIL_MAX_MB, 25),
     helpdeskCaptchaMaxNumber: intEnv(env.HELPDESK_CAPTCHA_MAX_NUMBER, 100_000, 100),
+    helpdeskTrustedAuthservIds: (env.HELPDESK_TRUSTED_AUTHSERV_IDS ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
     importAllowHosts: (env.IMPORT_ALLOW_HOSTS ?? '')
       .split(',')
       .map((h) => h.trim().toLowerCase())

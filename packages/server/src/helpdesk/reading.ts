@@ -45,6 +45,8 @@ export interface ReadMail {
   automatic: string | null;
   /** Its own server says it failed DMARC: whoever it says sent it may not have. */
   failedSenderChecks: boolean;
+  /** Its Authentication-Results headers' values, top first as they came (RFC 8601): whom a4a trusts is read from them (helpdesk/trust.ts, D67). */
+  authResults: string[];
   /** The message as it came, to keep when what's shown isn't all of it. */
   raw: Buffer;
 }
@@ -85,6 +87,7 @@ export async function readMail(raw: Buffer): Promise<ReadMail> {
     skipped,
     automatic: automaticReason(mail, lines, from),
     failedSenderChecks: failedDmarc(lines),
+    authResults: lines.filter((l) => l.key === 'authentication-results').map((l) => l.value),
     raw,
   };
 }

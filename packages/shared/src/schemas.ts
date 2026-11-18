@@ -16,6 +16,7 @@ import {
   HELP_LIMITS,
   PORTAL_SIGN_IN_METHODS,
   REQUEST_CC_VIA,
+  REQUEST_CCS_CEILING,
   WHITEBOARD_KINDS,
   WHITEBOARD_LIMITS,
   WHITEBOARD_TONES,
@@ -356,6 +357,18 @@ export const HelpdeskSettingsSchema = z
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
     signIn: HelpdeskSignInSchema.describe("How its requesters sign in to the portal (D63), one way at least. A session opens a desk's requests only when it was opened in a way the desk takes"),
+    ccsMax: z
+      .number()
+      .int()
+      .min(1)
+      .max(REQUEST_CCS_CEILING)
+      .describe(`The most people copied on one of its requests at once (D67), 20 unless its managers say otherwise, at most ${REQUEST_CCS_CEILING}. Lowering it takes no one off: it stops new copies past it`),
+    ccsConfirm: z
+      .boolean()
+      .describe("A new request by email whose sender a4a can't trust (no DMARC pass from a mail server the administrator names) has its Cc held until its requester confirms it, by a link in the acknowledgement or on the portal (D67). On by default. Turned off, every new request's Cc is copied at once, and those already held stay held"),
+    ccsRelay: z
+      .boolean()
+      .describe("Everyone on a request (its requester, the people copied on it, and colleagues of its customer group who answered it) is emailed each other's public words, where a4a can trust who wrote them: on the portal, signed in, or by email that passed DMARC at a mail server the administrator names (D67). Off by default"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -1912,8 +1925,8 @@ export const UnsubscribeQuery = z.object({ token: z.string().min(10).max(400) })
 export const UnsubscribeSchema = z
   .object({
     kind: z
-      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc'])
-      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57)"),
+      .enum(['watching', 'direct', 'digest', 'request', 'subscription', 'cc', 'relay'])
+      .describe("What the link is for: a person's kind of email, one subscription's emails, a help desk request's emails to its requester, or to someone copied on it (cc: stopping takes them off it, D57), or relayed to a colleague who answered it (relay: they stop hearing it, D67)"),
     what: z.string().describe('What the link stops, in words'),
     subscription: z
       .object({ target: z.enum(['project', 'search']), events: z.enum(SUBSCRIPTION_EVENTS), name: z.string().describe('The project’s name, or the saved search’s') })
@@ -1976,6 +1989,12 @@ export const RequestCcSchema = z
   .meta({ id: 'RequestCc' });
 export type RequestCc = z.infer<typeof RequestCcSchema>;
 
+/** Someone a new request's Cc named, waiting for its requester to confirm them (D67): told nothing until then. */
+export const HeldCcSchema = z
+  .object({ email: z.string(), name: z.string().describe('As the email named them; empty for none'), heldAt: timestamp })
+  .meta({ id: 'HeldCc' });
+export type HeldCc = z.infer<typeof HeldCcSchema>;
+
 /** Someone copied on a request, as its requester sees them on the portal. */
 export const PortalCcSchema = z
   .object({
@@ -1997,6 +2016,8 @@ export const HelpdeskRequestSchema = z
     emailMuted: z.boolean().describe('The requester stopped emails about it; their tracking page still works'),
     via: z.enum(['form', 'email']).describe('How it came in: the public form, or an email to the desk (D30)'),
     ccs: z.array(RequestCcSchema).describe('Who is copied on it now (D57), first copied first'),
+    ccsMax: z.number().int().describe('The most its desk copies on a request at once (D67)'),
+    held: z.array(HeldCcSchema).describe('Named in the Cc of the email that opened it, and waiting for its requester to confirm them (D67): told nothing until then'),
     group: z
       .object({ id: z.string(), name: z.string(), sharing: z.enum(['none', 'read', 'comment']) })
       .nullable()
@@ -2725,6 +2746,9 @@ export const HelpdeskMailSchema = z
       })
       .describe('Mail read from the shared mailbox'),
     maxBytes: z.number().int().describe('The largest message the desk takes, attachments included'),
+    trustedServers: z
+      .array(z.string())
+      .describe("The mail servers whose DMARC results a4a trusts (HELPDESK_TRUSTED_AUTHSERV_IDS, their authserv-ids, D67): an email whose sender's domain passed DMARC at one of them is known to be from its sender"),
   })
   .meta({ id: 'HelpdeskMail' });
 export type HelpdeskMail = z.infer<typeof HelpdeskMailSchema>;
@@ -2753,7 +2777,9 @@ export const HelpdeskInboundSchema = z
   .object({
     id: z.number().int(),
     at: timestamp,
-    via: z.enum(['webhook', 'imap']),
+    via: z
+      .enum(['webhook', 'imap', 'page', 'portal'])
+      .describe('By the webhook or from the mailbox; or, for words a desk that relays didn’t pass on (D67), written on the tracking page or the portal'),
     sender: z.string(),
     subject: z.string(),
     outcome: z.enum(HELPDESK_INBOUND_OUTCOMES),
@@ -3795,7 +3821,12 @@ export const PortalRequestDetailSchema = PortalRequestSchema.extend({
   ccs: z
     .array(PortalCcSchema)
     .nullable()
-    .describe('Who is copied on it (D57): shown to its requester, who may copy more people; null to anyone else'),
+    .describe('Who is copied on it (D57): shown to its requester, who may copy more people and take anyone off (D67); null to anyone else'),
+  held: z
+    .array(HeldCcSchema)
+    .nullable()
+    .describe('Whom the Cc of the email that opened it named, waiting for its requester to confirm or drop them (D67); null to anyone else'),
+  ccsMax: z.number().int().describe('The most its desk copies on a request at once (D67)'),
 }).meta({ id: 'PortalRequestDetail' });
 export type PortalRequestDetail = z.infer<typeof PortalRequestDetailSchema>;
 
@@ -4684,3 +4715,43 @@ export const PasskeyAlertSchema = z
   })
   .meta({ id: 'PasskeyAlert' });
 export type PasskeyAlert = z.infer<typeof PasskeyAlertSchema>;
+
+// ---------------------------------------------------------------------------
+// CCs in depth (D67): the requester takes people off, a desk's own cap, held CCs
+// ---------------------------------------------------------------------------
+
+export const PortalCcQuery = z.object({ email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('The address to stop copying') });
+
+/** The requester's choice about someone a new request's Cc named (D67): copy them, or drop them. */
+export const PortalHeldCcBody = z.object({
+  email: z.string().trim().min(3).max(HELP_LIMITS.email).describe('Whom the Cc named'),
+  copy: z.boolean().describe('true copies them on the request; false drops them, and they are told nothing'),
+});
+
+/** What the link in a new request's acknowledgement confirms (D67), as its page shows it. */
+export const CcConfirmationSchema = z
+  .object({
+    request: z.object({ id: z.string(), summary: z.string(), desk: z.string() }),
+    held: z.array(HeldCcSchema).describe('Whom the Cc of the email named, still waiting'),
+    expiresAt: timestamp.describe('Until when the link works, once'),
+  })
+  .meta({ id: 'CcConfirmation' });
+export type CcConfirmation = z.infer<typeof CcConfirmationSchema>;
+
+export const CcConfirmationBody = z.object({
+  copy: z
+    .array(z.string().trim().min(3).max(HELP_LIMITS.email))
+    .max(REQUEST_CCS_CEILING)
+    .describe('Whom to copy, of those held; the others are dropped. The link is then used'),
+});
+
+export const CcConfirmedSchema = z
+  .object({
+    copied: z.array(z.string()).describe('Copied on the request now'),
+    dropped: z.array(z.string()).describe('Dropped: told nothing'),
+    refused: z
+      .array(z.object({ email: z.string(), key: z.string().describe('The problem’s key, under problem.*'), values: z.record(z.string(), z.unknown()), message: z.string() }))
+      .describe('Not copied, and why'),
+  })
+  .meta({ id: 'CcConfirmed' });
+export type CcConfirmed = z.infer<typeof CcConfirmedSchema>;

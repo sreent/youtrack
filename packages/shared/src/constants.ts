@@ -159,6 +159,8 @@ export const EVENT_TYPES = [
   'whiteboard.converted',
   // How a desk's requesters sign in to the portal changed (D63): who can reach its requests there.
   'project.portal_sign_in.changed',
+  // A desk's own rules for CCs changed (D67): its cap, whether a new request's Cc waits for its requester, and whether everyone on a request hears each other.
+  'project.request_ccs.changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -247,6 +249,23 @@ export const HELP_LIMITS = { name: 100, email: 254, summary: 200, description: 1
  * address counts as one.
  */
 export const REQUEST_CCS_MAX = 20;
+/**
+ * The most a desk may set its own cap to (D67): Zendesk's 48, rounded. One public reply then sends at
+ * most 51 emails (the requester's, and one per CC), each with a reply token of its own; past that a
+ * desk wants a list address, which counts as one, rather than a4a acting as a list server.
+ */
+export const REQUEST_CCS_CEILING = 50;
+/**
+ * Words relayed among everyone on a request (D67), each hour, in the help desk's shared throttle: at
+ * most this many messages on one request, and from one sender (by their address) across every
+ * request. A relay is one email per person on the request, so these bound what one person, or one
+ * lively conversation, makes a4a send.
+ */
+export const CC_RELAY_LIMITS = { perRequest: 20, perSender: 10 } as const;
+/** How long the link in a new request's acknowledgement confirms whom its Cc named (D67): once, within this. */
+export const CC_CONFIRM_DAYS = 3;
+/** How long a new request's Cc waits for its requester (D67), on the portal, before it's forgotten. */
+export const CC_HOLD_DAYS = 30;
 /** How someone came to be copied on a request (D57): by the team, the Cc of the requester's email, or the requester on the portal. */
 export const REQUEST_CC_VIA = ['team', 'email', 'portal'] as const;
 export type RequestCcVia = (typeof REQUEST_CC_VIA)[number];

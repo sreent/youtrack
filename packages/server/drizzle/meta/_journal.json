@@ -288,6 +288,13 @@
       "when": 1794967091423,
       "tag": "0040_passkeys",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794983698210,
+      "tag": "0041_request_ccs_depth",
+      "breakpoints": true
     }
   ]
 }

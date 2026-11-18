@@ -1,4 +1,5 @@
 import {
+  REQUEST_CCS_MAX,
   WELL_KNOWN_FIELDS,
   type HelpdeskSettings,
   type TimeSettings,
@@ -45,6 +46,10 @@ export const DEFAULT_HELPDESK: HelpdeskSettings = {
   resumeState: null,
   // Requesters sign in to the portal by a link emailed to them, as before D63.
   signIn: { link: true, password: false, providers: [] },
+  // D57's cap; a new request's Cc nobody vouches for waits for its requester; nobody's words are relayed (D67).
+  ccsMax: REQUEST_CCS_MAX,
+  ccsConfirm: true,
+  ccsRelay: false,
 };
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
@@ -276,6 +281,13 @@ export async function updateProject(
       .where(eq(projects.id, p.id));
     if (signIn?.changed) {
       activities.push(await recordActivity(tx, ctx, { type: 'project.portal_sign_in.changed', projectId: p.id, issueId: null, payload: { data: signIn.data } }));
+    }
+    // Its rules for CCs (D67): relaying outside words above all, a manager's choice, in its history.
+    const ccs = (h: HelpdeskSettings) => ({ max: h.ccsMax, confirm: h.ccsConfirm, relay: h.ccsRelay });
+    if (JSON.stringify(ccs(current.helpdesk)) !== JSON.stringify(ccs(settings.helpdesk))) {
+      activities.push(
+        await recordActivity(tx, ctx, { type: 'project.request_ccs.changed', projectId: p.id, issueId: null, payload: { data: { from: ccs(current.helpdesk), to: ccs(settings.helpdesk) } } }),
+      );
     }
     if (visibility || guestAccess !== undefined) {
       activities.push(

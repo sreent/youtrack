@@ -16,7 +16,7 @@ import { deskSender } from '../services/desk-mailbox';
 import { mintReplyToken, replyAddress } from './addresses';
 import type { Translator } from '@a4a/shared/i18n';
 import { translatorFor } from '../i18n';
-import { ccById, ccsToTell } from '../services/request-ccs';
+import { ccById, ccsToTell, forgetCcConfirmation, heldOf, mintCcConfirmation } from '../services/request-ccs';
 import { readableId } from '../services/issue-refs';
 import type { SchemaSnapshot } from '../services/schema-cache';
 
@@ -55,6 +55,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   let quote: string | undefined;
   let head: string | undefined;
   let copied: string[] = [];
+  let held: string[] = [];
   if (row.kind === 'request-received') {
     subject = issue.summary;
     lead = tr.t('server.helpdesk.received', { name: requester.name });
@@ -63,6 +64,8 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     quote = [issue.summary, asked.length > 4000 ? `${asked.slice(0, 3999)}…` : asked].filter(Boolean).join('\n\n');
     // Who their email copied (D57): the address's real owner sees who will hear the team's answers.
     copied = (await ccsToTell(app.db, issue.id, new Date())).map((c) => (c.name ? `${c.name} <${c.email}>` : c.email));
+    // Whom it named but a4a couldn't vouch they meant (D67): held, told nothing, until they confirm them.
+    held = (await heldOf(app.db, issue.id)).map((c) => (c.name ? `${c.name} <${c.email}>` : c.email));
   } else if (row.kind === 'request-reply') {
     const [comment] = await app.db
       .select()
@@ -88,15 +91,20 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   // of its own, minted as it's sent, as the tracking link's is (D30).
   const deskMail = await deskAddress(app, issue.projectId);
   const replyToken = deskMail ? await mintReplyToken(app.db, issue.id) : null;
+  // Its link to confirm whom it held, once, for a few days, kept as a hash (D67).
+  const confirm = held.length ? await mintCcConfirmation(app.db, issue.id) : null;
   const base = app.config.publicUrl;
+  const see = { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, token) };
   const { text, html } = composeMail(subject, {
     lang: langTag(tr.locale),
     lead,
     sections: [
       ...(quote || head ? [{ head: head ?? tr.t('server.helpdesk.theyWrote'), quote }] : []),
       ...(copied.length ? [{ head: tr.t('server.helpdesk.copiedOnIt'), lines: copied }] : []),
+      ...(held.length ? [{ head: tr.t('server.helpdesk.heldForYou', { count: held.length }), lines: held }] : []),
     ],
-    action: { label: tr.t('server.helpdesk.seeRequest'), url: trackingUrl(app, token) },
+    action: confirm ? { label: tr.t('server.helpdesk.confirmCopied', { count: held.length }), url: `${base}/portal#${confirm}` } : see,
+    ...(confirm ? { also: see } : {}),
     why: replyToken
       ? tr.t('server.helpdesk.whyAnswer', { desk })
       : tr.t('server.helpdesk.whyLink', { desk }),
@@ -122,6 +130,7 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
     onFailed: async () => {
       await app.db.delete(helpdeskTokens).where(eq(helpdeskTokens.tokenHash, sha256(token)));
       if (replyToken) await app.db.delete(helpdeskReplyTokens).where(eq(helpdeskReplyTokens.tokenHash, sha256(replyToken)));
+      if (confirm) await forgetCcConfirmation(app.db, confirm);
     },
   };
 }

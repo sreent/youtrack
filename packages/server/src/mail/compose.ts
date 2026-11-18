@@ -19,6 +19,8 @@ export interface MailContent {
   lead: string;
   sections: MailSection[];
   action: { label: string; url: string };
+  /** A second link after it, such as a request's page beside the link that confirms whom it copied (D67). */
+  also?: { label: string; url: string };
   /** Why this came: "You get this because you were mentioned." */
   why: string;
   stop?: { label: string; url: string };
@@ -69,8 +71,14 @@ export function composeMail(subject: string, c: MailContent): { text: string; ht
     }
     text.push('');
   }
-  text.push(`${c.action.label}: ${c.action.url}`, '', '--', c.why);
-  html.push(`<p><a href="${esc(c.action.url)}">${esc(c.action.label)}</a></p>`, '<hr>');
+  text.push(`${c.action.label}: ${c.action.url}`);
+  html.push(`<p><a href="${esc(c.action.url)}">${esc(c.action.label)}</a></p>`);
+  if (c.also) {
+    text.push(`${c.also.label}: ${c.also.url}`);
+    html.push(`<p><a href="${esc(c.also.url)}">${esc(c.also.label)}</a></p>`);
+  }
+  text.push('', '--', c.why);
+  html.push('<hr>');
   const foot: string[] = [esc(c.why)];
   if (c.stop) {
     text.push(`${c.stop.label}: ${c.stop.url}`);

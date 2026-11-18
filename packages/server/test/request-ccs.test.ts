@@ -46,9 +46,14 @@ let serial = 0;
 
 const as = (u: UserRow): Ctx => systemCtx(w.app, u, 'web');
 
+/** The mail server these tests' desk trusts (D67): its DMARC pass vouches for a sender, so a new request's Cc is copied at once, as D57 copies it. */
+const TRUSTED = 'mx.desk.test';
+
 function message(opts: { from: string; to?: string; cc?: string; subject: string; body: string; headers?: string[]; inReplyTo?: string; id?: string }): Buffer {
+  const domain = (/@([^>\s]+)>?\s*$/.exec(opts.from)?.[1] ?? '').toLowerCase();
   return Buffer.from(
     [
+      `Authentication-Results: ${TRUSTED}; spf=pass smtp.mailfrom=${domain}; dmarc=pass (p=none) header.from=${domain}`,
       `From: ${opts.from}`,
       `To: ${opts.to ?? DESK}`,
       ...(opts.cc ? [`Cc: ${opts.cc}`] : []),
@@ -96,7 +101,7 @@ async function api(method: string, path: string, user: UserRow, body?: unknown) 
 
 beforeAll(async () => {
   smtp = await fakeSmtp();
-  w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, mailFrom: 'a4a <a4a@desk.test>', notifyWindowMs: 60_000, trustProxy: 1 } });
+  w = await createWorld({ config: { smtpUrl: smtp.url, publicUrl: BASE, mailFrom: 'a4a <a4a@desk.test>', notifyWindowMs: 60_000, trustProxy: 1, helpdeskTrustedAuthservIds: [TRUSTED] } });
   await w.app.db.update(users).set({ email: 'anna@example.com' }).where(eq(users.id, w.anna.id));
   w.app.schema.invalidate();
   await updateProject(w.adminCtx, 'BACK', { lead: 'anna', settings: { helpdesk: { enabled: true, firstResponseHours: 4, intro: '' } } });
@@ -318,7 +323,7 @@ describe('CCs on a help desk request', () => {
     // An email's Cc past the cap is left out, and the log says so.
     const jane = newestTo('jane@example.com');
     const over = await mailIn(message({ from: 'jane@example.com', to: jane.replyTo, cc: 'zed@example.org', subject: 'Re: x', body: 'And Zed.' }));
-    expect(over.reason).toContain(`zed@example.org (it copies ${REQUEST_CCS_MAX} already)`);
+    expect(over.reason).toContain(`zed@example.org (the desk copies at most ${REQUEST_CCS_MAX} on a request)`);
     const [logged] = await w.app.db.select().from(helpdeskInbound).where(eq(helpdeskInbound.commentId, over.commentId!));
     expect(logged?.reason).toContain('zed@example.org');
   });
