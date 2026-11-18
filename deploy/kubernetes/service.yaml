@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: a4a
+  namespace: a4a
+spec:
+  selector:
+    app.kubernetes.io/name: a4a
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
