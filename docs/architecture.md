@@ -7,21 +7,25 @@ This is how a4a is put together, and why. Each decision says what it costs and w
 ```text
                  ┌──────────── each instance (one, or several behind a proxy: D17) ─────────────┐
   browser ──────▶│ /            web UI (React SPA, Ocean)            static files, strict CSP   │
-  scripts ──────▶│ /api/v1/*    REST + OpenAPI (Hono, zod)  ─┐                                   │
-  MCP clients ──▶│ /mcp         MCP, Streamable HTTP          ├─▶ services ──▶ Postgres / PGlite│
-  stdio clients ─│  (a4a-mcp bridge ─▶ /mcp)            │      ▲  │                         │
-                 │ assistant    Claude tool loop ─────────────┘      │  └─▶ activities (outbox)  │
-                 │ worker       webhooks · rules · triage · notifier · SSE ◀─┘                  │
-                 │ mail sender  the mail outbox ─────────────────────▶ SMTP (SMTP_URL)          │
-  people outside▶│ /help /request  the help desk's public pages (no sign-in)                    │
-                 └────────────────────────────────────────────────────────────────────────────┘
+  scripts ──────▶│ /api/v1/*    REST + OpenAPI (Hono, zod) ─┐                                   │
+  MCP clients ──▶│ /mcp         MCP, Streamable HTTP ───────┼─▶ services ──▶ Postgres / PGlite  │
+  stdio clients ─│ (a4a-mcp bridge ─▶ /mcp)                 │      │                            │
+  directories ──▶│ /scim/v2     SCIM provisioning (D38) ────┤      └─▶ activities (outbox)      │
+                 │ assistant    Claude tool loop ───────────┘                   │               │
+                 │ worker       webhooks · rules · triage · notifier · chat ◀───┤               │
+                 │ live feed    SSE, on every instance ◀────────────────────────┘               │
+                 │ senders      mail, chat and push outboxes ─▶ SMTP · Teams · Slack · push     │
+  people outside▶│ /help /request /portal  the help desk's form, tracking and portal (D24, D45) │
+  guests ───────▶│ /public/*    projects open to guests, read without signing in (D37, D64)     │
+                 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 | Package | Role |
 | --- | --- |
-| `packages/shared` | The contract: zod schemas for every request and response, constants, period parsing. The server validates with them, generates OpenAPI from them, and the UI types itself from them. |
+| `packages/shared` | The contract: zod schemas for every request and response, and constants. The server validates with them, generates OpenAPI from them, and the UI types itself from them. Beside them, what the server and the web read alike: periods, ids in text, Markdown, and each language's catalog (`i18n/`, D49). |
 | `packages/server` | Services (the domain), the query and command languages, the planning engine, AI, MCP, HTTP, and the background worker. |
 | `packages/mcp-bridge` | `a4a-mcp`: a 60-line stdio-to-HTTP bridge for MCP clients that only speak stdio. |
+| `packages/vscode` | a4a's extension for VS Code, which works through a4a's MCP tools (D46). |
 | `apps/web` | The SPA, on the Ocean design system, pinned to a commit. |
 
 ## Decisions
@@ -42,10 +46,10 @@ There is one SQL dialect, with Postgres full-text search and `pg_trgm` for simil
 
 ### D3. Custom fields as typed rows, not JSON
 
-Every project picks its fields (State, Priority, Assignee, Estimation, Start date …) from a shared catalogue. Option values can be shared or scoped to one project. A value is stored as a row in `issue_field_values`, with typed columns (`value_id`, `user_id`, `number_value`, `date_value`, `text_value`).
+Every project picks its fields (State, Priority, Assignee, Estimation, Start date …) from a shared catalogue. Option values can be shared or scoped to one project. A value is stored as a row in `issue_field_values`, with typed columns (`value_id`, `user_id`, `group_id`, `number_value`, `date_value`, `time_value`, `text_value`; the group and the instant came with D41's kinds).
 
 - **Why:** queries and sorts need types (priority sorts by its order, not alphabetically), references need integrity (a deleted user can't linger as a string), and renaming a value must not rewrite every issue.
-- **Costs:** a search term becomes a correlated `EXISTS`, so `(issue_id, field_id)`, `(field_id, value_id)` and `(field_id, user_id)` are indexed.
+- **Costs:** a search term becomes a correlated `EXISTS`, so `(issue_id, field_id)`, `(field_id, value_id)`, `(field_id, user_id)` and `(field_id, group_id)` are indexed.
 - **Revisit when:** a single project exceeds roughly a million issues. Consider denormalised sort keys then.
 
 ### D4. One write path
@@ -61,6 +65,8 @@ The function, in order:
 5. Records the history entries in the same transaction.
 
 Commands, dry runs and the AI's previews are this function with `dryRun`. So a preview is exactly what would happen, not an approximation.
+
+**Since:** the same function, in the same transaction, checks guards (D25), state machines (D40), fields' conditions (D41) and private fields (D50), keeps what undoing an agent's change needs (D34), and moves a help desk request's SLA clocks (D45).
 
 ### D5. The activity log is the event log (transactional outbox)
 
@@ -84,13 +90,13 @@ Delivery is **at least once**. Webhook receivers dedupe on the event `id` in the
 - **Costs:** a webhook can arrive twice when the lease changes hands mid-event: the old holder's last event, handled again by the new one from the saved cursor.
 - **Revisit when:** one instance can't keep up with the consumers. Then split them by consumer, each with its own lease.
 
-The notifier and the help desk's mail are consumers too (D22, D24), registered like triage (`notify/register.ts`).
+The other consumers are workflow rules (D25), the knowledge base's mentions and the file sweeper (D19, D18), the notifier and the help desk's mail (D22, D24), and chat's posts (D42). Most register beside their feature, as triage does (`ai/register.ts`, `notify/register.ts`).
 
 ### D6. The query and command languages compile to parameterised SQL
 
 The lexer keeps positions, so problems point at characters. The parser is schema-aware, so `State: In Progress` and `fix versions: 2.0` work without quotes: it matches the longest known field name and value. The compiler emits Drizzle `sql` fragments, and every user value is a bound parameter. There is no `sql.raw` on input, so injection is impossible by construction.
 
-Problems come back as `{message, start, end, hint}`, for example *Unknown value "Fixd" for State · Did you mean "Fixed"?*. The UI underlines them, and agents repair their own queries from them.
+Problems come back as `{message, start, end, hint, fix}` (D13), for example *Unknown value "Fixd" for State · Did you mean "Fixed"?*, with a key and values a page says in its own language (D49). The UI underlines them, and agents repair their own queries from them.
 
 Commands reuse the lexer, resolve names per issue (values can be project-scoped), and run through D4.
 
@@ -106,20 +112,20 @@ effective scopes = role scopes ∩ token scopes
 | member | read, write |
 | viewer | read |
 
-Every service function checks the scope it needs (`requireScope`), so a REST route, an MCP tool and the assistant can't drift apart: there is no route-level permission logic to forget.
+Every service function checks the scope it needs (`requireScope`), so a REST route, an MCP tool and the assistant can't drift apart: there is no route-level permission logic to forget. Two lists at the edge only narrow which routes may be called at all, by a guest (D37, D64) or by an app's widget (D48); what a call reaches, the services still decide.
 
 All project visibility goes through one module (`services/access.ts`): see D15 for what it decides.
 
 ### D8. MCP is a curated tool layer, shared with the assistant
 
-`tools/` defines about 20 task-shaped tools once, each with:
+`tools/` defines 60 task-shaped tools once (`summarize_issue` among them, offered only while the server has an AI provider: D59), each with:
 
 - a zod schema;
 - a handler over the services;
 - MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`);
 - an Ocean grammar tag (`reads`, `changes`) used by the UI.
 
-The MCP server registers them, and the in-app assistant gives the same ones to Claude. Results are compact text and JSON with readable ids, sized for an agent's context.
+The MCP server registers them, with 5 resources and 6 prompts, and the in-app assistant gives the same tools to Claude. Results are compact text and JSON with readable ids, sized for an agent's context.
 
 The transport is stateless Streamable HTTP: a new `McpServer` per request, authenticated by bearer token. Nothing to sticky-route, and it restarts safely.
 
@@ -160,7 +166,7 @@ All AI calls go through `ai/client.ts`.
 
 ### D10. Planning is a pure engine over a snapshot
 
-The planning service loads a project's issues, fields, links, work items, people and calendar. It hands the engine plain data; the engine (`planning/*`) is pure functions:
+The planning service loads a project's issues, fields, links, work items, people (with their working weeks, D43, and days away, D36) and calendar. It hands the engine plain data; the engine (`planning/*`) is pure functions:
 
 - critical-path scheduling over working days;
 - resource load;
@@ -182,7 +188,7 @@ Levelling is proposed before it is applied, and applying writes exactly what was
 
 ### D11. The UI follows Ocean
 
-The UI takes `@sreent/ocean` pinned to a commit and imports its tokens and component CSS. a4a's own pieces (the issue list, query and command bars, field panel, links, history, board, Gantt, load grid and cost panel) were added to Ocean first, each with its markup contract, and a4a's components emit that markup. That change is sreent/ocean#7, and the pin is Ocean's `main` at its merge.
+The UI takes `@sreent/ocean` pinned to a commit and imports its tokens and component CSS. a4a's own pieces (the issue list, query and command bars, field panel, links, history, board, Gantt, load grid and cost panel) were added to Ocean first, each with its markup contract, and a4a's components emit that markup. The first of them came in sreent/ocean#7, and each piece since went into Ocean the same way; the pin is a commit of Ocean's `main`.
 
 a4a keeps no look of its own (Ocean's rule 7: take from Ocean, and extend Ocean where it has nothing, so there is one truth). Its one stylesheet imports Ocean, maps Tailwind's theme to Ocean's meanings, and lets React's root hold the frame (`#root`). How its pages place pieces is Ocean's too: stacks, clusters, a main column with an aside, forms. Tailwind's utilities carry a `tw:` prefix and place only structure, such as a grid's columns. The prefix matters: without it Tailwind turned the word "hidden" in the code into `display: none`, which took every screen-reader label out of the app. `apps/web/scripts/check-design.mjs`, part of `pnpm test`, fails on any other rule, and on any utility that would carry a look or space a piece. Tailwind's theme is mapped to Ocean's *meanings* (never its primitives), as `docs/products.md` in Ocean prescribes.
 
@@ -227,10 +233,11 @@ a4a is built for Claude and gets every feature from it. It also runs on services
   - A mistake there turns the AI off and says why (`GET /ai/status`); the tracker keeps working.
   - A key is passed only to its own service. The SDK then reads no Anthropic key from the environment, so none is sent elsewhere (tested).
   - The assistant's facts show who it runs on.
-- **Tested live.** `pnpm --filter @a4a/server test:live` runs every AI feature against the configured provider, on the demo data, and checks what must hold whatever the wording. CI runs it on `main` for each provider whose key is a repository secret. On DeepSeek V4 Pro and Qwen 3.8 Max it found the faults above, and three in a4a itself:
+- **Tested live.** `pnpm --filter @a4a/server test:live` runs every AI feature against the configured provider, on the demo data, and checks what must hold whatever the wording. CI runs it on `main` for DeepSeek and Qwen, each when its key is a repository secret. CI doesn't run Claude live; the command does, wherever `ANTHROPIC_API_KEY` is set. On DeepSeek V4 Pro and Qwen 3.8 Max it found the faults above, and three in a4a itself:
   - a command that repeated its own comment posted it twice;
   - an issue id in a command got a generic problem with no fix (now named, with a fix that takes it out, D13);
   - the command guide's inline `comment` clause invited the model to put the comment in both places (an inline comment now moves to the comment field).
+
 ### D15. Projects have their own people; what you can't see doesn't exist
 
 Every project is **open** (everyone works in it) or **members only** (only its people and administrators see it at all). Its people have roles:
@@ -241,7 +248,7 @@ Every project is **open** (everyone works in it) or **members only** (only its p
 | member | also change its issues: fields, links, work, sprints, levelling |
 | manager | also change its settings, fields, people, visibility, boards and baselines |
 
-- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the highest of the role the project gives them and the roles it gives groups they're in (D27); otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out.
+- **Someone's role in a project** is, in order: manager if they're an administrator or its lead; otherwise the highest of the role the project gives them and the roles it gives groups they're in (D27); otherwise member, if it is open. So an open project can still keep someone to reading, by naming them a viewer, and the lead can never lock themselves out. (Roles became sets of permissions, custom ones too, and someone may do what all their roles there allow together: D37.)
 - **Scopes still cap it.** Reading needs `read`; commenting, changing issues and managing need `write`. A read-only account or token never writes, whatever its role in a project.
 - **Commenting counts as a write** for scopes (it changes the record, notifies, fires webhooks), but a viewer's role is enough for it. A manager may change or delete anyone's comment in their project.
 - **A link needs write access to both ends**, because it shows on both issues and changes both histories. Its other end must be visible to be named at all.
@@ -261,29 +268,30 @@ Every project is **open** (everyone works in it) or **members only** (only its p
 - `projectRolesOf(db, projectId, userIds)` answers who can see a project, for whoever decides whom to tell or assign.
 
 - **Costs:** one small query per request; every list that names other issues (links, events, suggestions, boards) filters as it reads.
-- **Not done:** tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers everything (only administrators make them).
+- **Not done:** tags stay instance-wide, so a tag's name is seen by everyone; a webhook delivers every project's events, members-only ones included (only administrators make them), though never what's limited to some people (D37, D51) or a private field (D50).
 - **Groups** came as this section planned (D27): a `project_group_roles` table joins the same query, and the rest stayed as it was.
+- **Access in depth** came on the same seam (D37): roles as sets of permissions, issues and comments limited to some people, and guests.
 
 ### D16. Single sign-on with OpenID Connect, through openid-client
 
 People can sign in with their organisation's identity provider: the authorization code flow with PKCE (S256), a state and a nonce, configured from `OIDC_*` in the environment.
 
-**The choice: `openid-client` (v6), not `jose` and our own code.** Both are by the same author; `jose` would do the cryptography well, but the protocol around it would be ours: discovery and its issuer check, building the request, the token request and client authentication, RFC 9207's `iss`, the order and meaning of every claim check. openid-client is certified by the OpenID Foundation for the relying-party profiles, and turns the flow into a few calls that each check what the specification says. What is left to a4a (about 300 lines, with its routes) is mostly deciding who someone is. One default had to change: for an ID token received straight from the token endpoint, openid-client relies on TLS and doesn't check the signature; a4a turns that check on (`enableNonRepudiationChecks`), so the token's signature is verified against the provider's keys, as well as its issuer, audience, expiry and nonce. The tests sign tokens with `jose` in a provider made for them.
+**The choice: `openid-client` (v6), not `jose` and our own code.** Both are by the same author; `jose` would do the cryptography well, but the protocol around it would be ours: discovery and its issuer check, building the request, the token request and client authentication, RFC 9207's `iss`, the order and meaning of every claim check. openid-client is certified by the OpenID Foundation for the relying-party profiles, and turns the flow into a few calls that each check what the specification says. What is left to a4a (a few hundred lines, with its routes) is mostly deciding who someone is. One default had to change: for an ID token received straight from the token endpoint, openid-client relies on TLS and doesn't check the signature; a4a turns that check on (`enableNonRepudiationChecks`), so the token's signature is verified against the provider's keys, as well as its issuer, audience, expiry and nonce. The tests sign tokens with `jose` in a provider made for them.
 
 - **The redirect URI** is `PUBLIC_URL/api/v1/auth/oidc/callback`, sent the same at both steps; nothing in a request chooses it, and the URL handed to the library is built from it, not from the request's Host.
 - **The state** is bound to the browser that started (an HttpOnly cookie) and stored with the PKCE verifier and nonce, keyed by its hash, for ten minutes. The callback takes the row (a `DELETE … RETURNING`), so a state works once.
-- **Who someone is:** found by the provider's issuer and subject (`user_identities`). The first time, by email only when the provider vouches for it, and only to an account whose own email an administrator set or a provider verified (`users.email_verified`). An email people type for themselves never links: otherwise anyone could claim an address before its owner first signs in. A provider vouches with `email_verified: true`; Microsoft Entra ID, which never sends that, vouches with its optional claim `xms_edov`, that the email's domain is one the tenant verified. Either must be a real `true`, not a string. An account already linked to another subject at the same provider isn't taken over by a second one with the same email (a reused address).
-- **Optionally:** allowed email domains, accounts made on first sign-in, and password sign-in turned off (only while single sign-on is on).
+- **Who someone is:** found by the provider's issuer and subject (`user_identities`). The first time, by email only when the provider vouches for it, and only to an account whose own email an administrator set or a provider verified (`users.email_verified`; its person confirming it by a mailed link sets it too, D33). An email people type for themselves never links: otherwise anyone could claim an address before its owner first signs in. A provider vouches with `email_verified: true`; Microsoft Entra ID, which never sends that, vouches with its optional claim `xms_edov`, that the email's domain is one the tenant verified. Either must be a real `true`, not a string. An account already linked to another subject at the same provider isn't taken over by a second one with the same email (a reused address).
+- **Optionally:** allowed email domains, accounts made on first sign-in, and password sign-in turned off (only while single sign-on, or a directory, is on: D38).
 - **Each sign-in starts a new session**, and ends the one the browser had.
 
 - **Costs:** a provider's keys are cached; one that rotates a key under the same key id fails sign-ins until the cache expires (ten minutes). Back-channel logout is not done: an account removed at the provider keeps its a4a sessions until they expire, until an administrator bans it, or until provisioning deactivates it (SCIM, D38).
-- **Revisit when:** several providers are needed (the table already keys identities by provider).
+- **Revisit when:** several providers are needed (the table already keys identities by provider). (Several came for the help desk's requesters only, kept apart from the team's: D63.)
 
 **OAuth for remote MCP** is D28: a4a is the authorization server for `/mcp`, and signs the person in on the way with a password or this single sign-on.
 
 ### D17. Several instances on one Postgres behave as one
 
-a4a runs as one process or as several behind a load balancer, on one Postgres, and behaves the same either way. Nothing is sticky: any instance can serve any request. What was per process is now shared, or is per process on purpose:
+a4a runs as one process or as several behind a load balancer, on one Postgres, and behaves the same either way. Nothing is sticky: any instance can serve any request. What one process would keep to itself is shared, or is per process on purpose:
 
 | What | How |
 | --- | --- |
@@ -295,7 +303,7 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 | General rate limits | Per instance, on purpose; below |
 | Migrations, defaults, the first administrator | Under an advisory lock, one instance at a time, so replicas starting together on an empty database don't race |
 
-**Reading the log in order.** Ids come from a sequence at insert, but transactions commit in their own order: 41 can become visible after 42, and an id taken by a transaction that rolls back never appears. A reader that moved past 41 when it saw 42 would never send it, and a client resuming "after 42" would miss it. Before, the worker and the tail took only rows older than 3 seconds and moved past anything missing, so a transaction that took longer lost its events for good. Now the live feed and the worker stop at a missing id, and pass it once it can no longer appear: every transaction that was writing to the log when the gap was seen has ended.
+**Reading the log in order.** Ids come from a sequence at insert, but transactions commit in their own order: 41 can become visible after 42, and an id taken by a transaction that rolls back never appears. A reader that moved past 41 when it saw 42 would never send it, and a client resuming "after 42" would miss it. Taking only rows older than a few seconds, and moving past anything missing, would lose for good the events of a transaction that took longer. So the live feed and the worker stop at a missing id, and pass it once it can no longer appear: every transaction that was writing to the log when the gap was seen has ended.
 
 - Postgres's lock table says which those are: an insert holds a lock on `activities` from before it takes its id (the lock comes with parsing, the id with executing) until its transaction ends. Unrelated work, even a session left open, doesn't count.
 - `pg_current_snapshot()` would not do: its list of running transactions leaves out one whose id is newer than every finished one, which is just the one that took the missing id last.
@@ -306,14 +314,14 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 
 - Each instance listens on a connection of its own. After a reconnect it tells every reader to catch up from the log.
 - That connection pings itself every 30 seconds, and reconnects when its own notification doesn't come back: a network path that died without an error, or a pooler in transaction mode, which drops `LISTEN` (point `DATABASE_LISTEN_URL` past it).
-- **The polling tail stays, as a backstop**, every 10 seconds instead of 3. It covers what the two above don't: a process that died between its commit and its `NOTIFY`, or a write path that forgot to publish. It costs one indexed read per instance every 10 seconds that usually finds nothing, and it bounds the worst case at 10 seconds instead of "until the next event".
+- **A polling tail is the backstop**, every 10 seconds. It covers what the two above don't: a process that died between its commit and its `NOTIFY`, or a write path that forgot to publish. It costs one indexed read per instance every 10 seconds that usually finds nothing, and it bounds the worst case at 10 seconds instead of "until the next event".
 
 **Resuming a stream.** Each frame's `id` is its event's id. Since every instance sends events in id order, it is a true watermark: everything up to it was sent, or never existed. A client that reconnects, to any instance, sends it back (`Last-Event-ID`, which browsers send by themselves, or `?after=`), and the stream replays the log after it before going live. Past 1000 missed events it sends `resync` instead, with the id to go on from: re-read, or page through `GET /events`. An instance that shuts down ends its streams, so their clients reconnect elsewhere and resume.
 
 **The worker lease.** One row in `worker_leases`, taken with one upsert that succeeds for the holder, or for anyone once the lease has expired.
 
-- Its times are the database's (`now()`), never an instance's, so instances whose clocks disagree can't both believe they hold it. Before, each side compared its own clock.
-- The holder renews it on every pass, and every 10 seconds while a consumer is busy. Before, a webhook with its retries (up to 35 seconds) outlived the 30-second lease, and a second instance started the same work.
+- Its times are the database's (`now()`), never an instance's, so instances whose clocks disagree can't both believe they hold it.
+- The holder renews it on every pass, and every 10 seconds while a consumer is busy: a webhook with its retries (up to 35 seconds) can outlast the 30-second lease, and a second instance would start the same work.
 - The holder stops handing out events once its own deadline passes without a renewal, and a cursor moves only while the lease is still the holder's in the database. So a holder that stalled can't move its successor's cursor.
 - A holder that stops cleanly releases the lease, after at most 5 seconds for the event in hand, and the next instance takes it at its next poll. One that dies is replaced within the lease (30 seconds) plus one poll (2 seconds).
 - Periodic upkeep (expired sessions, sign-in windows that have passed) runs on the holder, so it runs once.
@@ -324,11 +332,11 @@ a4a runs as one process or as several behind a load balancer, on one Postgres, a
 - A fixed window lets twice the limit straddle a window's edge. The average holds, and a sliding window would need a second count per row for little gain.
 - The price of a per-login limit: someone who knows a login can keep it locked by failing ten times a window. Its owner waits for the window, as the 429 says.
 
-**General rate limits stay per instance.** A shared limit would add a write, to a hot row per caller, to every request. That would be the most frequent write in the system, to guard capacity that is per instance anyway: a runaway script exhausts the instance it hits, not the cluster. These limits are not a security boundary; the sign-in throttle, which guards accounts, is shared. Behind N instances a client gets between one and N times the limit (`API_RATE_LIMIT`, 1200 a minute; `MCP_RATE_LIMIT`, 600). Set them to each instance's share, or limit at the proxy when one number must hold.
+**General rate limits stay per instance.** A shared limit would add a write, to a hot row per caller, to every request. That would be the most frequent write in the system, to guard capacity that is per instance anyway: a runaway script exhausts the instance it hits, not the cluster. These limits are not a security boundary; the sign-in throttle, which guards accounts, is shared. Behind N instances a client gets between one and N times the limit (`API_RATE_LIMIT`, 1200 a minute; `MCP_RATE_LIMIT`, 600; `GUEST_RATE_LIMIT`, 300 per address, D37). Set them to each instance's share, or limit at the proxy when one number must hold.
 
-**Client addresses.** Behind a proxy, every request comes from the proxy, and `X-Forwarded-For` is whatever the client sent plus what the proxies added. `TRUST_PROXY` says how many proxies append to it; the client is the entry the outermost one added. With 0, the default, the header is ignored. Before, its first entry was trusted, so a client could choose its own address and walk around the per-IP limits.
+**Client addresses.** Behind a proxy, every request comes from the proxy, and `X-Forwarded-For` is whatever the client sent plus what the proxies added. `TRUST_PROXY` says how many proxies append to it; the client is the entry the outermost one added. With 0, the default, the header is ignored. Taking its first entry instead would let a client choose its own address and walk around the per-IP limits.
 
-**Checked, and right already.** Sessions and tokens are rows: a session made on one instance works on all, and signing out ends it everywhere. An `Idempotency-Key` is claimed by inserting its primary key, so two instances can't both run it, and a retry on the other instance replays the answer. One gap was there: a claim left by an instance that died mid-request answered 409 for a day; it can now be claimed again after 5 minutes. Webhooks are delivered by the lease holder only.
+**Checked, and right already.** Sessions and tokens are rows: a session made on one instance works on all, and signing out ends it everywhere. An `Idempotency-Key` is claimed by inserting its primary key, so two instances can't both run it, and a retry on the other instance replays the answer. A claim left by an instance that died mid-request can be claimed again after 5 minutes; until then a retry answers 409. Webhooks are delivered by the lease holder only.
 
 - **Costs:** each instance holds its pool plus one `LISTEN` connection, and reads the log once per write anywhere (one indexed read). A rolled-back id holds live events for about a tenth of a second, and an event waits for a slower, concurrent commit before it: ordered delivery is what makes resuming exact.
 - **Revisit when:** writes reach hundreds a second, where every instance reading every write adds up; fan out from one reader then. Or when one number must limit every request: use the proxy's limiter or a shared store.
@@ -349,18 +357,12 @@ If anything fails after the bytes are stored, they're removed; what a crash leav
 
 **The store** is three calls, `write(key, stream)`, `read(key, range?)` and `remove(key)`, behind `BlobStorage`. Local disk (`DATA_DIR/attachments`) writes to a part file, syncs it, and renames it into place, so a key never holds half a file. Keys are random and sharded by their first two characters.
 
-An S3-compatible store (S3, MinIO, R2) is one class, `ATTACHMENT_STORAGE=s3` (D35):
-
-- `write` with `@aws-sdk/lib-storage`'s `Upload`, which streams a body of unknown length as a multipart upload, so memory stays at a few parts.
-- `read` with `GetObject` and its `Range`; `remove` with `DeleteObject`.
-- Config: a bucket, an endpoint and a region, and keys or the usual AWS chain.
-
-Downloads keep coming through a4a, so the access check and the headers stay ours; presigned URLs, with `response-content-disposition` and `response-content-type` set by a4a, are the step after, for large files. The sweeper also aborts multipart uploads left unfinished.
+The other store is an S3-compatible bucket (S3, MinIO, R2), chosen with `ATTACHMENT_STORAGE=s3`, behind the same three calls. Downloads still come through a4a, so the access check and the headers stay its own: D35.
 
 **Serving.** `GET /attachments/{id}/content` reads the project through `services/access.ts`; a hidden one looks like a missing file.
 
 - PNG, JPEG, GIF and WebP come `inline`, so they show in place. Everything else, SVG and HTML included, is an `attachment`, whatever its name says: an HTML page named `cat.png` downloads as `cat.png`, typed `text/html`.
-- Every file comes with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. The page middleware no longer puts the app's own policy over a response that brings one, so an HTML file keeps its sandbox.
+- Every file comes with `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` and `Cross-Origin-Resource-Policy: same-origin`. The page middleware leaves a response's own policy in place, so an HTML file keeps its sandbox.
 - `Cache-Control: private, max-age=86400`, with the SHA-256 as the ETag (`If-None-Match` gets 304): a file's bytes never change under its id, but who may see them can, so only the browser keeps them.
 
 **Cleaning up.** Rows go with their issue, comment, article or project, by cascade or by the sweeper, but bytes don't. The sweeper removes blobs nothing points at: "stored" ones whose row is gone, and "uploading" ones older than six hours. It also removes a deleted comment's files, and part files a crash left. It runs as an outbox consumer after the events that can leave files behind (`attachment.removed`, `issue.deleted`, `comment.deleted`, `article.deleted`), and once when the server starts. It's safe to run anywhere and more than once at a time.
@@ -368,11 +370,11 @@ Downloads keep coming through a4a, so the access check and the headers stay ours
 **Retries.** An upload sent again with the same `Idempotency-Key` is replayed. Its body isn't read twice, so the key is matched on the request's length rather than a hash of the body.
 
 - **Costs:** a project's deletion leaves its files until the next sweep. Thumbnails are the images themselves, scaled by the browser.
-- **Revisit when:** files are large or many. Make server-side thumbnails then, and serve through presigned URLs.
+- **Revisit when:** files are large or many. Make server-side thumbnails then, and serve through presigned URLs. (A bucket came, still served through a4a, and thumbnails made on the server were weighed and left out: D35.)
 
 ### D19. The knowledge base: articles per project, ids no issue can have, whole versions, mentions from the outbox
 
-**Per project, no global space.** An article belongs to a project, and the project's access is the article's: when per-project permissions land in `services/access.ts`, the knowledge base follows with no change. A global space would need a second policy of its own (who reads it, who writes it) and a second kind of id. A team that wants documents beyond one project makes a project for them, which costs nothing.
+**Per project, no global space.** An article belongs to a project, and the project's access is the article's: the knowledge base reads it through `services/access.ts` (D15) and has no policy of its own. (Articles limited to some people came, checked up the tree: D51.) A global space would need a second policy of its own (who reads it, who writes it) and a second kind of id. A team that wants documents beyond one project makes a project for them, which costs nothing.
 
 **Ids.** `BACK-A-3`, as YouTrack writes them: numbered per project from a counter row, gap-free and never reused, so a link to an article never comes to mean another.
 
@@ -388,14 +390,14 @@ An article's id can't be read as an issue's, and the reverse:
 
 **Search.** As for issues: a generated `tsvector` (title weighted A, body B) with prefix matching, and trigram word similarity on titles for near misses, with `ts_headline` snippets whose matches are marked.
 
-**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), or as it reads now for an issue that has moved (D41); a mention of an article written before the article exists counts once it does.
+**Mentions.** Ids in an article, in an issue's description or in a comment are recorded in `mentions`, with the target as written (`BACK-A-3`), or as it reads now for an issue that has moved (D41) or whose project's key was renamed (D52); a mention of an article written before the article exists counts once it does.
 
 - An article's mentions are written in the transaction that saves it.
 - An issue's description and its comments are read by an outbox consumer, from the events their write path already records. So `applyChanges` needs to know nothing of the knowledge base.
 - The consumer reads the text as it is when it runs, so running twice, or late, lands in the same place.
 - A deleted comment's mentions stop counting at once, at read time, before the consumer removes them.
 
-- **Costs:** an issue's new mention of an article shows on the article a few seconds later, after the outbox settles. Issue text from before the knowledge base existed isn't indexed until it's next edited. Versions keep whole texts, which is more space than diffs.
+- **Costs:** an issue's new mention of an article shows on the article a moment later, once the worker reads its event. Issue text from before the knowledge base existed isn't indexed until it's next edited. Versions keep whole texts, which is more space than diffs.
 - **Revisit when:** articles are long and edited often. Store diffs between occasional whole versions then.
 
 ### D20. End-to-end tests run the production build, with the AI stood in for in the browser
@@ -403,7 +405,7 @@ An article's id can't be read as an issue's, and the reverse:
 `apps/web/e2e` drives Chromium against what ships: the built server serving the built UI, under its real CSP, on a fresh embedded database with the demo data. A dev server would hide what only the build does (the CSP over every page, the bundled assets, the server serving them).
 
 - **Isolation by data, not by server.** One server per run; each spec file makes its own projects, boards and people, with keys no other file or retry has, so files run in parallel. Specs that only read (the tour) hold the live feed, so other specs' writes can't redraw a page mid-check.
-- **Four administrators**, one taking the tour and three for the flows, a spec file each, because the server allows each person 1200 API requests a minute, and a browser session counts as its person: every file of one person's shares their allowance. The tour and the flows together came to about 900 when there were 140 tests; at 210, the flows alone passed 1200 on four workers; at 280, `admin`'s files did, and their pages logged 429s. A file reads what's personal to its page's person (saved searches, tokens) only through that person, and one whose page shows what the run's token changed under `admin`'s name stays with `admin`. The limit (`API_RATE_LIMIT`) is held at its default rather than raised, so a page that starts asking too much shows up as a 429 in its console.
+- **Four administrators**, one taking the tour and three for the flows, each spec file signed in as one of them, because the server allows each person 1200 API requests a minute, and a browser session counts as its person: every file of one person's shares their allowance. The tour and the flows together came to about 900 when there were 140 tests; at 210, the flows alone passed 1200 on four workers; at 280, `admin`'s files did, and their pages logged 429s. A file reads what's personal to its page's person (saved searches, tokens) only through that person, and one whose page shows what the run's token changed under `admin`'s name stays with `admin`. The limit (`API_RATE_LIMIT`) is held at its default rather than raised, so a page that starts asking too much shows up as a 429 in its console.
 - **People of their own** for what a role changes: a spec makes the person, gives them their role, and signs in as them, so the administrators' sessions are never the ones signed out or kept out.
 - **What happens meanwhile** is made real: a spec changes an issue or a plan through the API between a page reading and saving, with the page's live feed held, to get the 409s people would get.
 - **Callers from outside come without a cookie.** A delivery from GitHub is sent from a request context of its own, signed as GitHub signs it: the page's own requests carry the session, and a cookie-authenticated POST with no Origin is refused as CSRF (403), which GitHub never meets.
@@ -441,7 +443,7 @@ An article's id can't be read as an issue's, and the reverse:
 - **Who:** importing writes history as others made it, so it is managing the project: its managers, and administrators. In a members-only project, only its people can be its reporters, assignees and comment authors; anyone else in the file is left empty, and choosing them is refused.
 
 - **Costs:** an upload is kept as rows until it is forgotten (`DELETE /imports/{id}`), about the file's size again.
-- **Reading YouTrack's and Jira's APIs** fills the same rows instead of a file, and the rest stays: D29.
+- **Reading another tracker's API** fills the same rows instead of a file, and the rest stays: YouTrack's and Jira's (D29), GitHub Issues', Redmine's and Zendesk's (D46), Asana's and ClickUp's (D61).
 
 ### D22. Notifications come from the outbox, once per person per event, a burst at a time
 
@@ -449,11 +451,11 @@ People watch what they report, are assigned, comment on or are mentioned in (`@l
 
 The change's activity says what notifications need, as logins, worked out against the issue before the change: `data.assigned` (new assignees), `data.mentions` (people newly mentioned, not those mentioned already), and on deletion `data.watchers`, whose rows go with the issue. Text from a help desk's requester mentions nobody.
 
-The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `watching` over `subscribed`, D31), and leaves out whoever acted and whoever can't see the project as they would signing in (`projectRolesOf`), and, for a link, the issue at its other end. Each person's delivery is one transaction:
+The notifier is an outbox consumer (`notify/notifier.ts`). For each event it finds who it concerns, with the strongest reason (`assigned` over `mentioned` over `request` over `rule` over `watching` over `subscribed`; `rule` is D32's, `subscribed` D31's), and leaves out whoever acted and whoever can't see the project as they would signing in (`projectRolesOf`), and, for a link, the issue at its other end. Each person's delivery is one transaction:
 
 1. **Once.** `notification_events (user_id, event_id)` is the key. An event the outbox hands over twice, or two instances deliver at once, reaches a person once.
 2. **A burst is one.** An unread notification about the same issue, begun within `NOTIFY_WINDOW_SECONDS` of this event (by the events' own times, so a replay folds the same way) and not yet sealed by its email, takes the event under `FOR UPDATE`; otherwise a new one starts. A read one never takes more: what came after you read it is new.
-3. **Its email** is queued in the same transaction if the person wants this kind (D23), due when the window has passed.
+3. **Its email** is queued in the same transaction if the person wants this kind (D23), due when the window has passed. So is a push to each of their devices, by their push level (D47).
 
 What a notification shows is its events, read from the activity log, so there's one account of what happened. The inbox lists only projects the reader can still read. Marking read takes `until` (the latest event the reader saw), so what arrived since stays unread.
 
@@ -469,7 +471,7 @@ Watching, reading and email preferences are the person's own, like their tokens:
 The unread count is live on every instance: a change tells this process's open streams (`GET /notifications/stream`) and, by `NOTIFY` on `a4a_inbox` with the people's ids only, every other instance's. Each stream also counts again every 15 seconds, and after `LISTEN` reconnects, for a notification that was lost. A stream ends when its instance stops, and the client reconnects, to any instance: it carries a count, not events, so there's nothing to resume.
 
 - **Costs:** a row per person per event in `notification_events`; read notifications are kept 180 days.
-- **Revisit when:** a team wants subscriptions by kind of change. Subscriptions to a project or a saved search are D31.
+- **Revisit when:** a team wants subscriptions by kind of change. Subscriptions to a project or a saved search are D31. (Subscriptions by kind came, each person's choice: D45.)
 
 ### D23. Mail is an outbox too: rendered when sent, at least once
 
@@ -489,15 +491,16 @@ Mail is a row in `mail_outbox` first, written in the transaction that calls for 
 
 A project can open a help desk: a public form at `/help/<KEY>` that files an issue, and a page per request (`/request#<token>`) where the requester follows the public conversation and answers it.
 
-- **A requester isn't a user.** They're a row of their own (`requesters`: email and name), so they can't sign in, never appear among people to assign or mention, and can be found and forgotten by email. Their issue is reported by the `helpdesk` agent through the `helpdesk` channel, and its history names them. The agent acts with an elevated system context that reaches the request's project only (`actor.projectIds`), so it works in a members-only project and nowhere else.
+- **A requester isn't a user.** They're a row of their own (`requesters`: email and name), so they can't sign in (but to the portal, which opens nothing of the team's: D45, D63), never appear among people to assign or mention, and can be found and forgotten by email. Their issue is reported by the `helpdesk` agent through the `helpdesk` channel, and its history names them. The agent acts with an elevated system context that reaches the request's project only (`actor.projectIds`), so it works in a members-only project and nowhere else.
 - **Tracking tokens are hashed, and minted as they're sent.** Each email to the requester carries a fresh 256-bit token, made while the email is rendered and kept only as its SHA-256 hash, so no token waits in plain text, in the outbox or anywhere; one minted for a failed attempt is deleted. Every token stays good for the request. Only without SMTP does the form's answer carry one, once, since no email will. In a link the token sits in the fragment; to the API, in a header.
 - **Comments are internal unless made public.** A comment's `visibility` is `internal` by default, on every channel; `public` is allowed only on a request, and is the only thing the requester's page and email show. The requester's own replies are public comments by the `helpdesk` agent, with `requester_id`, and tell the issue's watchers. The project's lead watches each new request and is told of it (`request`).
 - **The first-response target** is per project, in hours round the clock; the deadline in force when a request was filed is kept on it. The first public reply from the team answers it, and so does resolving it without one; it's worked out when read (`slaOf`, and the same in SQL for `sla:`), so nothing has to be updated when a reply comes.
 - **Public routes reveal nothing beyond the one request,** and answer alike whether a project, request or token is missing or just not theirs. The form's posts need an `Origin` of this server and a signed form token tied to a `SameSite=Strict` cookie; anything anonymous may post is small (body limits), limited per address, per email and per help desk, and a hidden field catches bots. Turning the help desk off closes the form; requests already filed keep their pages.
 - **Who does what.** A project's managers set its help desk up, like its other settings. A public reply answers the requester for the project and counts as the first response, so it takes someone who may change the project's issues; a viewer's comments on a request stay internal. On a members-only project the form shows the project's name and intro to anyone with its address; that is what opening it means, and the settings say so.
 - **Limits are shared** by every instance, in Postgres (`help_throttle`, fixed windows, emails and tokens counted by their hash), as the sign-in throttle is, so a spammer behind a load balancer gets what one instance would give.
-- **Costs:** no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours.
-- **Since:** requests and replies by email, and a proof of work a desk can ask its form for, are D30.
+- **Costs:** no proof the email is the requester's (docs/mcp-and-api.md, 8a); first-response hours count round the clock, not working hours. (SLA policies in working hours came, and a desk without them keeps this one target: D45.)
+- **Since:** requests and replies by email, and a proof of work a desk can ask its form for, are D30; SLAs, a mailbox per desk, requester accounts and a portal, and the team replying by email are D45; customer groups are D56, CCs D57, and the portal's own sign-in D63.
+
 ### D25. Workflow rules: an outbox consumer that acts, and guards inside the write path
 
 A rule belongs to a project (or, for administrators, to every project) and is one of three kinds. All three are the query language for *which issues* and the command language for *what to change*, so a rule is checked, previewed and explained the way a query or a command is.
@@ -511,7 +514,7 @@ A rule belongs to a project (or, for administrators, to every project) and is on
 
 **Who sees rules, and who makes them.**
 
-- Reading a project's rules and their run log needs only reading the project, and a rule of a project someone can't see answers as one that doesn't exist (404, in the same words). Making, changing, turning off and deleting them needs one of the project's managers (D15); a rule for every project needs an administrator whose token reaches every project.
+- Reading a project's rules and their run log needs only reading the project, and a rule of a project someone can't see answers as one that doesn't exist (404, in the same words). Making, changing, turning off and deleting them needs one of the project's managers (D15); a rule for every project needs an administrator whose token reaches every project. (Only administrators make, change or delete a rule that calls a webhook or runs a script, which managers can still turn off: D32, D40.)
 - A project's rule reads only its own project's names (`ruleWorld`, over `scopeSchema`): another project, its values and its issues are unknown words to it, as they are to someone who can't see them. So checking or previewing a rule can't probe another project, and a rule runs as it was checked. A rule for every project is checked and previewed over the projects the person can see, and counts only their issues.
 - Such a rule writes some runs for no one project: how a scheduled run went everywhere, or that it no longer reads. They count and name things in every project, so only those who see every project see them; the others see its runs on issues they can see.
 - Rules act for the project's managers, not for whoever sets them off. A viewer may comment, and a rule may act on that comment (a reply that reopens an issue waiting for one is the usual case): what it changes is the managers' choice, and "me" is all the viewer brings to it. A viewer can't make, change or turn off a rule.
@@ -527,11 +530,11 @@ A rule belongs to a project (or, for administrators, to every project) and is on
 - A refusal is written to the run log on the pool and not awaited. The refused transaction never waits on it: on PGlite it queues behind the transaction, and on Postgres it waits for the issue's row lock, which the refused transaction releases as it ends.
 - The rule engine's own writes take the issue's row lock first, as every write to an issue does, then claim the run.
 
-**What it costs.** A rule acts a few seconds after a change (the outbox's settle time), not inside it, so a person sees their own change first and the rule's a moment later, each in the history under its own name. Dry runs don't evaluate guards (they write nothing to evaluate), so a command's preview can't say a guard will refuse it; applying it does, per issue. Guards see changes made through the write path: deleting a comment or logging work isn't checked. A new or changed guard holds on another instance once its snapshot reloads: at once, when the change's `NOTIFY` arrives, or within a minute if a notification is lost.
+**What it costs.** A rule acts just after a change, once the worker reads its event (D17), not inside it, so a person sees their own change first and the rule's a moment later, each in the history under its own name. Dry runs don't evaluate guards (they write nothing to evaluate), so a command's preview can't say a guard will refuse it; applying it does, per issue. Guards see changes made through the write path: deleting a comment or logging work isn't checked. A new or changed guard holds on another instance once its snapshot reloads: at once, when the change's `NOTIFY` arrives, or within a minute if a notification is lost.
 
 **Agents can't make rules.** They list them and preview them over MCP. A rule acts later, on its own, on every issue that ever matches it: it would outlive the conversation and the caps on an agent's commands, and agents read text anyone can write.
 
-**Revisit when:** rules need to read more than one issue (a parent's state, a sprint's), or to do something other than a command (notify, call out): then a small expression language over the issue, still evaluated by the same engine.
+**Revisit when:** rules need to read more than one issue (a parent's state, a sprint's), or to do something other than a command (notify, call out): then a small expression language over the issue, still evaluated by the same engine. (Related issues, telling people and calling a webhook came as words in the rule's sentence rather than a language: D32. Rules written as scripts came: D40.)
 
 ### D26. Version control: verified deliveries, idempotent links, commands as the verified author
 
@@ -540,7 +543,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Who sent it.** GitHub's `X-Hub-Signature-256`, an HMAC-SHA256 of the raw body, is recomputed and compared in constant time; GitLab's `X-Gitlab-Token` is hashed and compared in constant time. The raw bytes are read before anything parses them. GitHub's secret is an HMAC key, so a4a keeps it to check signatures (as it keeps its own webhooks' secrets to sign); GitLab's token is kept only as a SHA-256. Neither is shown after it's made.
 - **How often.** Deliveries are rate-limited per integration; refusals are rate-limited per address, and those over the limit aren't logged, so the log can't be flooded. Like the general limits (D17), these are per instance.
 - **Once.** The provider's delivery id is claimed before the work. One sent again is answered as a duplicate. One that failed (or died, after ten minutes) may be handled again, which is safe because linking is idempotent per (issue, commit) and per (issue, pull request), held by unique keys.
-- **Commands.** `BACK-12 #Fixed` applies the command after `#` as the person whose *verified* email wrote the commit, with their own access as they would sign in, and only if they can change the project's issues (asked through `services/access.ts`): a viewer's command, or that of someone outside a members-only project, links and isn't applied. Like a token limited to projects, it reaches only the integration's projects, so a command can't link to an issue elsewhere. A commit's author email is whatever the committer typed, and a4a's own emails are whatever people typed, so an email counts only when it is confirmed: set or confirmed by an administrator, or verified by the identity provider (`users.email_verified`, the same flag single sign-on trusts, D16; a person changing their own clears it). Each (commit, issue) is one transaction that locks the issue first; the command runs in a savepoint, so a command that fails, or a guard that refuses it, leaves the link and says why.
+- **Commands.** `BACK-12 #Fixed` applies the command after `#` as the person whose *verified* email wrote the commit, with their own access as they would sign in, and only if they can change the project's issues (asked through `services/access.ts`): a viewer's command, or that of someone outside a members-only project, links and isn't applied. Like a token limited to projects, it reaches only the integration's projects, so a command can't link to an issue elsewhere. A commit's author email is whatever the committer typed, and a4a's own emails are whatever people typed, so an email counts only when it is confirmed: set or confirmed by an administrator, or verified by the identity provider (`users.email_verified`, the same flag single sign-on trusts, D16; a person changing their own clears it). (People confirm their own emails, several each, and logins count too: D33.) Each (commit, issue) is one transaction that locks the issue first; the command runs in a savepoint, so a command that fails, or a guard that refuses it, leaves the link and says why.
 - **History.** Linking records `commit.linked`, `pull_request.linked` and `pull_request.updated`, on a new channel, `vcs`, as the matched person or as the integration itself, so the issue's history, the event feed and webhooks see it.
 - **Reach.** Linking needs no one's access in a4a: an integration links the issues of the projects an administrator gave it, and "every project" means members-only ones too. A commit's message and a pull request's title are their authors' words, shown as written, as a comment is.
 - **What the provider is told.** GitHub and GitLab show a delivery's reply to the repository's administrators, who aren't a4a's. So the reply names no issue and no person, and says nothing of who may do what in a4a: only what kind of delivery it was and how many links and commands came of it. a4a's own log of deliveries, which its administrators read, says the rest.
@@ -551,7 +554,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 
 ### D27. Groups, and SAML sign-in beside OpenID Connect
 
-**Groups.** A group is some people. A project gives a group a role (viewer, member, manager) as it gives one to a person, and everyone in the group has at least that role there. Someone's role is the highest of their own and their groups' (their own, when they're the same), after administrator and lead and before an open project's member. So an open project can keep a group to reading, as it keeps a person.
+**Groups.** A group is some people. A project gives a group a role (viewer, member, manager) as it gives one to a person, and everyone in the group has at least that role there. Someone's role is the highest of their own and their groups' (their own, when they're the same), after administrator and lead and before an open project's member. So an open project can keep a group to reading, as it keeps a person. (With roles as sets of permissions, someone may do what their own role and their groups' allow together: D37.)
 
 - **The seam held** (D15). `projectAccess` still works out every project's role in one query: a lateral join picks the best role a group of theirs has there, and that group's name, for "as one of …". `projectRolesOf`, which decides whom to tell and who may be assigned, reads groups' roles beside people's. Nothing else reads the tables. Every change calls `accessChanged`, so someone taken out of a group loses what it gave them at once on this instance, and within two seconds on others (D17).
 - **Who changes what.** Administrators make groups and say who is in them; a project's managers give groups roles in it, as they give people roles. Anyone signed in sees groups and who is in them, as they see people; a group's roles are listed and counted only in projects the reader can see.
@@ -573,7 +576,7 @@ GitHub and GitLab post pushes and pull (merge) requests to `/api/v1/vcs/hooks/{i
 - **Who someone is**, as with OIDC: one function serves both. Identities are kept under `saml:` and the provider's entity id, with the NameID, and a first sign-in race is made safe the same way. SAML has no `email_verified`, so an asserted email counts as verified only with `SAML_TRUST_EMAIL`. Without it, an email links no existing account, and gives no second account an address one already has (the sign-in page says so: `unlinked`); a new account's email stays unconfirmed, and its NameID links it from then on. Allowed domains need it.
 
 - **Costs:** encrypted assertions aren't read, a4a's AuthnRequests aren't signed, and there's no single logout, so an account removed at the provider keeps its a4a sessions until they end or an administrator bans it, as with OIDC. One SAML provider at most, beside one OIDC provider. Groups follow the provider at sign-in only: someone it takes out of a group keeps that group in a4a until they next sign in.
-- **Revisit when:** a provider must encrypt assertions or wants signed requests (node-saml does both, given a key of a4a's); membership must follow the provider between sign-ins (SCIM); or people sign in with LDAP. (D38 does both.)
+- **Revisit when:** a provider must encrypt assertions or wants signed requests (node-saml does both, given a key of a4a's); membership must follow the provider between sign-ins (SCIM); or people sign in with LDAP. (Provisioning by SCIM and LDAP sign-in came: D38.)
 
 ### D28. Remote MCP signs in with OAuth 2.1, and a4a is its own authorization server
 
@@ -642,9 +645,9 @@ An MCP client such as Claude or Claude Code needs only `PUBLIC_URL/mcp`. The fir
 
 **Revisit when:**
 
-- MCP clients move to client ID metadata documents. a4a would then fetch a document the client names, with the care any outbound request takes. (Done: D38.)
+- MCP clients move to client ID metadata documents. a4a would then fetch a document the client names, with the care any outbound request takes. (Client ID metadata documents came: D38.)
 - An organisation wants its own provider to issue the tokens. a4a would then check that provider's tokens for audience `/mcp` and map their scopes.
-- A tool should ask for writing only when it needs it (step-up, with `insufficient_scope`). (Done: D38.)
+- A tool should ask for writing only when it needs it (step-up, with `insufficient_scope`). (Step-up came: D38.)
 
 ### D29. Importing from YouTrack's and Jira's APIs: the CSV importer's rows, read with a token nobody keeps
 
@@ -693,12 +696,12 @@ A desk can have an address, and then people write to it as well as fill in its f
 **What a message becomes.**
 
 - **Once.** A message is known by its Message-ID within its desk, and claimed in the log before the work. One posted again, or read twice, is a duplicate. One whose work failed, or died (ten minutes on), may be handled again. A failure of a4a's own answers the provider 5xx, so it tries again, and ends a poll there, so the next tries it again; a message a4a can't take for a reason in it (unreadable, too large) is logged and passed.
-- **A reply** is the requester's when it comes from their address and either goes to a reply address whose token is the request's (`support+<token>@…`, each email to them minting one, kept as a hash, as tracking tokens are), or answers an email a4a sent them about it (In-Reply-To or References). Help desk mail now has random Message-IDs (`replyable` in the outbox), so citing one shows the email was had; older ones could be guessed and don't count. A reply becomes the requester's public comment, by the `helpdesk` agent, the same path as a reply on their page.
+- **A reply** is the requester's when it comes from their address and either goes to a reply address whose token is the request's (`support+<token>@…`, each email to them minting one, kept as a hash, as tracking tokens are), or answers an email a4a sent them about it (In-Reply-To or References). Help desk mail has random Message-IDs (`replyable` in the outbox), so citing one shows the email was had; older ones could be guessed and don't count. A reply becomes the requester's public comment, by the `helpdesk` agent, the same path as a reply on their page.
 - **A new request** is anything else to the desk's plain address, while the desk is open: the subject is its summary, the words its description, the sender its requester, their message the root its emails thread under (and the first answers it as "Re:").
 - **Words.** A reply's are what's above its quoted history and signature, cut as Gmail, Outlook, Apple Mail and a few languages write them ("On … wrote:", Outlook's header block and reply div, a cited blockquote, "-- ", "Sent from my iPhone"); answers written between quotes stay. HTML-only mail is read as words, its quoted parts dropped first; none of its markup survives, as none of anyone's does anywhere in a4a. A new request keeps its quoted history (a forwarded message is often the request) and loses its signature.
 - **Files** go through the usual checks (the type read from the bytes, the per-file and per-issue limits), on the request or on the reply's comment; signatures, Outlook's wrappers and small inline pictures (a signature's logo) are left out, and at most 20 come from one message. The original goes with them as `original-message.eml` when what's shown isn't all of it: words read from HTML, or cut for length.
 
-**What never becomes anything.** Mail no person wrote: `Auto-Submitted` other than `no` (RFC 3834), the auto-reply headers, `Precedence: bulk`, list headers, delivery reports, a null return path, `mailer-daemon`, and no-reply senders. Mail from a4a's own address or a desk's. Every email a4a sends says `Auto-Submitted: auto-generated`, so an out-of-office answering one is set aside too, and nothing loops. A message whose receiving server says it failed DMARC is refused: only the topmost `Authentication-Results` counts, being that server's own. A reply from anyone but the requester is refused, even with the token, since it would speak in their name. Nobody is ever told of what's set aside or refused, so a forged sender gets no mail.
+**What never becomes anything.** Mail no person wrote: `Auto-Submitted` other than `no` (RFC 3834), the auto-reply headers, `Precedence: bulk`, list headers, delivery reports, a null return path, `mailer-daemon`, and no-reply senders. Mail from a4a's own address or a desk's. Every email a4a sends says `Auto-Submitted: auto-generated`, so an out-of-office answering one is set aside too, and nothing loops. A message whose receiving server says it failed DMARC is refused: only the topmost `Authentication-Results` counts, being that server's own. A reply from anyone but the requester is refused, even with the token, since it would speak in their name. (Colleagues who may answer it are taken, as themselves: D56. CCs and the team answer at reply addresses of their own: D57, D45.) Nobody is ever told of what's set aside or refused, so a forged sender gets no mail.
 
 **Limits:** 5 new requests per sender an hour, 30 replies per request, 300 messages per desk, in the help desk's shared throttle; 25 MB a message (`HELPDESK_MAIL_MAX_MB`). The log keeps 30 days, for the desk's managers: when, from whom, the subject, and what became of it, in words.
 
@@ -706,7 +709,7 @@ A desk can have an address, and then people write to it as well as fill in its f
 
 **Costs.** The desk's mail server must deliver plus addresses to the same mailbox (Google's, Microsoft's and most others do); without them, replies thread by what they answer alone. A sender can still be forged where DMARC isn't checked: the request is filed, and its confirmation goes to the real owner of the address, as with the form. One mailbox serves every desk.
 
-**Revisit when:** a desk wants a mailbox of its own (`HELPDESK_IMAP_URL` per desk, its password kept encrypted), people other than the requester should answer by email (as the request's CCs), or a determined bot gets past the proof of work (raise `HELPDESK_CAPTCHA_MAX_NUMBER`, or a challenge per address). (CCs came, answering as themselves: D57.)
+**Revisit when:** a desk wants a mailbox of its own (`HELPDESK_IMAP_URL` per desk, its password kept encrypted), people other than the requester should answer by email (as the request's CCs), or a determined bot gets past the proof of work (raise `HELPDESK_CAPTCHA_MAX_NUMBER`, or a challenge per address). (A mailbox per desk came, its password sealed: D45. CCs came, answering as themselves: D57.)
 
 ### D31. Subscriptions keep their search's issues; dates are read where the person is
 
@@ -736,7 +739,7 @@ A desk can have an address, and then people write to it as well as fill in its f
 
 **Costs.** A search subscription keeps a row per issue its search finds. Each change to an issue compiles each search subscription's query for its person, and reads them all for that issue in one query: fine at a team's scale (Limits). An issue that comes into a search by time alone (one becoming overdue), or by a change to another issue (a link), is told at its own next change.
 
-**Revisit when:** many people subscribe to large searches. Compile each subscription once per schema version, and check changes in batches. Or when someone wants subscriptions by kind of change (only resolutions), or to hear of what time alone brings into a search: a chore that reads the searches again.
+**Revisit when:** many people subscribe to large searches. Compile each subscription once per schema version, and check changes in batches. Or when someone wants subscriptions by kind of change (only resolutions), or to hear of what time alone brings into a search: a chore that reads the searches again. (Subscriptions by kind came, a subscription choosing for itself: D45.)
 
 ### D32. Rules across issues, and rules that tell people or call out: the same sentence, the same once
 
@@ -747,7 +750,7 @@ D25's rules read and changed one issue. The classic workflow needs more: "when t
 - **A further condition** ("and …"): its parent, its subtasks, its parent's subtasks, or the issues linked to it by a phrase ("depends on", "is required for"), matching a query: all of them or any one. "All" needs at least one, so an issue without subtasks doesn't count as having them all resolved. The query is compiled by the query language's own compiler, inside a subquery over `issue_links` correlated to the issue the rule acts for (`workflow/match.ts`). So one SQL condition serves a change (one issue), a scheduled run (pages of issues) and a preview (a count). Subtask links are said as a parent and subtasks, never as a phrase.
 - **What it acts on** ("to its parent"): the issue itself, its parent, its subtasks, or the issues linked to it by a phrase, at most 200 per issue.
 - **What it does**, besides a command and a comment:
-  - **Tell people**: its assignee, its reporter, its watchers, the project's managers (its lead and members with the manager role, not every administrator), and people by login, in the rule's own words.
+  - **Tell people**: its assignee, its reporter, its watchers, the project's managers (its lead, and those whose role there, or a group's, may manage it: not every administrator), and people by login, in the rule's own words.
   - **Call a webhook**: one of the webhooks an administrator made.
 
 **The guarantees are D25's, per issue acted on.** The run log's unique (rule, issue, change that started the chain) is claimed in the same transaction as everything the rule does to that issue: its command, its message and its call. If the claim loses, all of it is taken back. A replay therefore tells nobody twice and calls nothing twice, and a loop between linked issues stops at its second turn. The chain's depth carries through related issues, so a cascade up a hierarchy stops three rules deep. The run log then says so on the issue the rule would have changed, since the issue that set it off may already have been acted on in that chain.
@@ -793,7 +796,7 @@ D26 took GitHub and GitLab, and knew a commit's author by one verified email. Bi
 - **Where a4a goes.** Data Center's address is the one an administrator gives: https, kept without a trailing slash (plain http only to this machine, and only in tests).
   - Redirects aren't followed, and a page's link to the next must stay on that address, so no answer can send a4a elsewhere.
   - Like a webhook's URL, it may be an internal address: only administrators set it.
-  - The token is kept as it's given, as signing keys are, since a4a must send it. It's never shown again.
+  - The token is kept as it's given, as signing keys are, since a4a must send it. It's never shown again. (D46 seals access tokens with `SECRET_KEY`.)
 - **More emails.** A person's emails are their primary one (`users.email`) and others (`user_emails`). One counts once it's confirmed:
   - **By a link a4a mails to it.** Its token is minted as the mail is sent (D23) and kept as a SHA-256, so none waits in the outbox. It works once, for 24 hours, and only for the person who added the email, signed in. A stranger who adds your address can't use the link even if you open it, and the mail says whose account asked. The page it opens says what it confirms and asks first, since scanners open links.
   - **By an administrator,** who vouches for it: they add it confirmed, or confirm a primary as before.
@@ -814,19 +817,19 @@ D26 took GitHub and GitLab, and knew a commit's author by one verified email. Bi
 - A login is matched as the provider sends it. A person who renames their account there needs the new one recorded, and the old one forgotten: someone else could take a freed name.
 - A login names an account at a kind of provider, so two instances of one (two GitLabs) that give one login to two people can't be told apart.
 - The pusher, whom the provider signed in, isn't the commit's author, and a4a doesn't ask that they be the same: pushing others' commits, or merging them, would stop working.
-- Access tokens and signing keys are in the database as given.
+- Access tokens and signing keys are in the database as given. (Access tokens are sealed since D46.)
 
-**Revisit when:** people should connect their own account at a provider (OAuth with it) rather than an administrator recording logins; or commands should need a signed commit, read from the provider's API.
+**Revisit when:** people should connect their own account at a provider (OAuth with it) rather than an administrator recording logins; or commands should need a signed commit, read from the provider's API. (Accounts people connect came, at GitHub, GitLab and Bitbucket: D46; at Forgejo and Gitea: D54.)
 
 ### D34. Agents act as themselves; what they change on their own, a person undoes
 
-Until now an agent over MCP acted for a person, with that person's token: its changes read "claude-code for Anna Schmidt", and it could take no work of its own. Now an agent can be an account of its own.
+An agent over MCP can act for a person, with that person's token: its changes read "claude-code for Anna Schmidt", and it takes no work of its own. Or it can be an account of its own.
 
-**Agents of their own.** An agent is a bot account an administrator adds. a4a's own agents (`triage`, `workflow`, `helpdesk`, in `OWN_AGENTS`) act for a4a itself: they take no tokens and no work, and their logins are a4a's to make.
+**Agents of their own.** An agent is a bot account an administrator adds. a4a's own agents (`triage`, `workflow`, `helpdesk`, and D46's `builds`, in `OWN_AGENTS`) act for a4a itself: they take no tokens and no work, and their logins are a4a's to make.
 
 - **Tokens.** An administrator issues an agent its tokens (`POST /users/{agent}/tokens`), with scopes, an expiry and, if wanted, projects, as any token has. A token never does more than its agent's role allows, and a token limited to a project the agent can't see is refused with how to fix it, since it would reach nothing there. The agent never makes its own tokens: a token that leaked can't make itself another. Banning the agent stops all of them.
 - **As itself.** With such a token, the agent's changes are its own. The event's actor says so (`isBot`), the history reads "claude · via MCP" for no one, `me` in a query is the agent, and `get_current_user` says `agent: true`.
-- **Assignees.** An agent can be assigned issues, as a person can: by anyone who may change the issue, and in a members-only project once it is one of the project's people. `for: me #Unresolved` over its token is its work. a4a's own agents are refused as values of a person field, with what to choose instead. Agents don't watch issues, so they get no notifications: an agent finds its work by searching.
+- **Assignees.** An agent can be assigned issues, as a person can: by anyone who may change the issue, and in a members-only project once it is one of the project's people. `for: me #Unresolved` over its token is its work. a4a's own agents are refused as values of a person field, with what to choose instead. Agents don't watch issues: an agent assigned or mentioned finds a notification in its inbox (D22), never an email, and finds its work by searching.
 
 **Undo.** A change an agent made on its own can be undone by a person who may change the issue, from the issue's history or `POST /events/{id}/undo`.
 
@@ -874,7 +877,7 @@ D18's store, still three calls, can be a bucket: S3, MinIO, R2 and the like, cho
 
 - **Text** (`text`: logs, code, CSV, JSON, Markdown, and HTML and SVG as their source) comes through `GET /attachments/{id}/text`: the first 64 KB, or the last. It's React text in a `<pre>`, so nothing in it is markup. A character that changes the direction text reads in shows as its code (`U+202E`), so a line can't pass for another.
 - **Sound and video** (`play`, from the bytes: MP3, AAC, M4A, Ogg, WAV, FLAC; MP4 and WebM) play in the browser's own player, from the same URL, with `nosniff`. The page's policy gains `media-src 'self'`.
-- QuickTime, AVI and Matroska download, since browsers don't all play them. Sniffing now tells WebM from Matroska by its DocType, and knows MP3 without an ID3 tag and AAC in ADTS frames.
+- QuickTime, AVI and Matroska download, since browsers don't all play them. Sniffing tells WebM from Matroska by its DocType, and knows MP3 without an ID3 tag and AAC in ADTS frames.
 
 **Not shown in place:**
 
