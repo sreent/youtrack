@@ -269,6 +269,15 @@ test('an administrator makes an account with no password, and its mailed link ad
   expect(sent.text).toContain('made you an a4a account, sam.');
   const link = /http:\/\/localhost:\d+(\/passkey-setup#a4k_[A-Za-z0-9_-]+)/.exec(sent.text)![1]!;
 
+  // Someone with no email: their link is shown, once, to hand over.
+  const tia = await admin.page.request.post('/api/v1/users', { data: { login: 'tia', name: 'Tia Handed', passkeysOnly: true }, headers: { origin: server.url } });
+  expect(tia.status(), await tia.text()).toBe(201);
+  await admin.page.reload();
+  const tiaRow = people.getByRole('row').filter({ hasText: 'tia' });
+  await tiaRow.getByRole('button', { name: 'Send a link to Tia Handed, to add a passkey' }).click();
+  await expect(tiaRow.getByRole('textbox', { name: 'Give Tia Handed this link: it works once, for three days.' })).toHaveValue(/\/passkey-setup#a4k_[A-Za-z0-9_-]{43}$/);
+  await shoot(admin.page, people, 'admin-shown-link');
+
   // Opened in the administrator's browser, the link says it's someone else's and asks to sign out.
   await admin.page.goto(link);
   await expect(admin.page.getByRole('alert')).toHaveText('You’re signed in as admin, and this link is for sam. Sign out first.');

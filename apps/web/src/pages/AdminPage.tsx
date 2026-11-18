@@ -63,11 +63,13 @@ function signsInWith(user: User, ways: SignInWays): { words: string; about: stri
   return { words: t('page.admin.canTYet'), about: ways.sso ? t('page.admin.giveThemAPasswordOr') : t('page.admin.giveThemAPassword') };
 }
 
-/** A link to add a passkey, shown once to hand over (D68): mailed ones aren't shown. */
+/** A link to add a passkey, shown once to hand over (D68): mailed ones aren't shown. In a field, to copy, and never wider than the page. */
 function ShownLink({ url, name }: { url: string; name: string }) {
+  const said = t('page.admin.giveThemThisLink', { name });
   return (
-    <span className="item-about">
-      {t('page.admin.giveThemThisLink', { name })} <output className="mono">{url}</output>
+    <span className="stack">
+      <span className="item-about">{said}</span>
+      <input readOnly value={url} aria-label={said} className="mono" onFocus={(e) => e.currentTarget.select()} />
     </span>
   );
 }
