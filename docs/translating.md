@@ -1047,6 +1047,9 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 
 - **Polite and plain, with no speaker in it.** Sentences are whole and polite, as Thai software for teams writes them, and carry no particle: never ครับ or ค่ะ, which say the speaker's gender, nor นะ, which is talk. คุณ is the reader, where a sentence must address them: “คุณเข้าสู่ระบบด้วย {login}”. Thai leaves out whom it has already named, so a sentence never says เขา or เธอ (either can read as one gender): it leaves the person out, or names them again.
 - **Buttons and labels are short verb phrases or nouns**, never sentences: “บันทึก”, “บันทึกการเปลี่ยนแปลง”, “ลบฟิลด์”. A status line says what's done with แล้ว and what's going on with กำลัง: “บันทึกแล้ว”, “กำลังบันทึก…”, “เพิ่ม {name} แล้ว”.
+  - A label or a column's head is the noun a Thai form uses, never English's question or bare word: “ใช้สำหรับ” for "What it's for", “ผู้ใช้” for "Whose" and "Person", “ขอบเขต” over a token's scopes, “เวลา” or “ช่วงเวลา” for "When", and a "From" says what it chooses (“นำเข้าจาก”, “ผู้ให้บริการ”). "{v} only" is “เฉพาะ {v}”.
+  - A confirm button names what it removes (“ลบไวต์บอร์ด”), unless one key confirms two things: `page.fields.deleteIt` deletes a field and a value, `page.integrations.removeIt` an integration and its token, so those say the verb alone (“ลบ”, “นำออก”). "Nobody can bring it back" is “กู้คืนไม่ได้”.
+- **The chat bot names itself a4a**, as its handle reads in Slack and Teams (“a4a ไม่ได้อยู่ใน {channel} เชิญด้วย /invite @a4a”), or leaves itself out (“ยังไม่รู้ว่าคุณเป็นใครใน a4a”); never บอต for itself, nor ผม or ฉัน. Its help lists “คำสั่งที่ใช้ได้”.
 - **Instructions are bare verbs**, as Thai apps give them: “เลือกโปรเจกต์”, “ลองอีกครั้ง”. โปรด only where English says please, where something is asked of someone; never กรุณา, which reads as a notice.
 - **Typography:**
   - No space between words. A space between phrases, clauses and sentences, where Thai pauses, and on each side of a value, a number, an id or a Latin word: “เปิด {issue}”, “อิชชู {n} รายการ”, “ตาม Type: Bug”. None before `:` or `)`, or inside “”. A value that is itself Thai, a piece the page translates, joins as a word does: “ใช้{formName} ของคุณ” reads “ใช้ชื่อผู้ใช้ a4a ของคุณ”.
@@ -1100,7 +1103,7 @@ Indonesian teams mostly read their trackers in English, and this catalog found n
 | rule | กฎ |
 | if (a rule's or a transition's condition) | ถ้า, after a trigger's “เมื่อ” |
 | state machine | เครื่องสถานะ |
-| transition | การเปลี่ยนสถานะ |
+| transition, a machine's moves | การเปลี่ยนสถานะ; “เปลี่ยนสถานะ” on the issue's bar |
 | state | สถานะ |
 | knowledge base | ฐานความรู้ |
 | article | บทความ |

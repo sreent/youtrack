@@ -2349,7 +2349,7 @@
   "page.fields.adding": "กำลังเพิ่ม…",
   "page.fields.archived": "เก็บถาวรแล้ว",
   "page.fields.delete": "ลบ",
-  "page.fields.deleteIt": "ลบฟิลด์",
+  "page.fields.deleteIt": "ลบ",
   "page.fields.deleteTheField": "ลบฟิลด์",
   "page.fields.deleteTheField2": "ลบฟิลด์ {name} ไหม?",
   "page.fields.deleteTheValueOf": "ลบค่า {name} ของ {name2} ไหม?",
