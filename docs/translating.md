@@ -788,8 +788,8 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 
 - **"Bạn", always**, where a sentence speaks to its reader, the help desk's emails and portal included: "Bạn đã bình chọn.", "Token của bạn". Vietnamese pronouns carry age and rank (anh, chị, em, quý khách); software for teams, Google's, Microsoft's and Trello's Vietnamese among them, says "bạn", which is polite to anyone and assumes neither. "Quý khách" is a bank's or a carrier's word to its customers: on the portal it would read as a form letter beside the pages. In emails to a requester the team speaks as "chúng tôi", and the chat bot, which says "I" in English, says "tôi".
 - **Sentences are plain and polite**, with no exclamation marks. A fix is a bare imperative after the sentence that says what went wrong, as Microsoft's and Google's Vietnamese give one: "Không tìm thấy nhãn “x”. Dùng một trong: …", "Thử lại sau một phút.". "Hãy" goes only after a leading clause, where a bare verb would read curt ("Nếu vẫn lỗi, hãy báo quản trị viên.", "Để đọc lại từ đầu, hãy nhập lại."), and "vui lòng" (please) only where English asks something of someone.
-- **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does.
-- **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.". What someone did is said as done, by whom, not in English's passive: "Đã đổi mật khẩu và đăng xuất mọi phiên.", "Người khác đã thay đổi BACK-12 (…)", not "Mật khẩu của bạn đã được đổi", "BACK-12 đã được người khác thay đổi".
+- **Buttons and labels are short verb phrases or nouns**, never sentences: "Lưu", "Lưu thay đổi", "Hủy", "Xóa trường". A button that names what it changes says it, as English's does. A label, a legend or a column names what it holds, as a Vietnamese form does, where English describes it: "Quyền" for "What it may do", "Áp dụng cho" for "Where it may", "Nguồn" for "From", "Mô tả" for "What it's for", "Kiểu dữ liệu" for "What it holds"; a table's column of buttons, shown or hidden, is "Thao tác". A heading over a preview asks, as Vietnamese software does: "Quy tắc sẽ làm gì lúc này", "Trợ lý đã làm gì", not "Những gì quy tắc sẽ làm". An option or a kind stands without English's article: "lựa chọn từ danh sách", "số nguyên", "Mốc", not "một lựa chọn …".
+- **Status lines** are "Đã …" for what happened and "Đang …" for what is under way: "Đã lưu.", "Đang lưu…", "Đã thêm {name}.". What someone did is said as done, by whom, not in English's passive: "Đã đổi mật khẩu và đăng xuất mọi phiên.", "Người khác đã thay đổi BACK-12 (…)", not "Mật khẩu của bạn đã được đổi", "BACK-12 đã được người khác thay đổi". A line after a toggle or a removal says what was done, then what follows from it: "Đã tắt: …", "Đã bật lại: …", "Đã thu hồi token {name}. …", "Đã gỡ token. …", not English's "{name} is revoked", "It's off"; what changes from then on is "Từ giờ, …".
 - **The passive** is "được" for what is neutral or welcome and "bị" for what befalls a thing: "một vấn đề được tạo", "bình luận bị xóa", "thay đổi bị từ chối". It stays for a state ("Kênh đã bị xóa.") and in the clauses a page joins (a webhook's events, a rule's trigger). Whoever did it goes between "được" and the verb, "vấn đề được Ada báo cáo", and a byline puts them first, "Ada báo cáo ngày …"; "bởi" (by) is English's order, and a4a doesn't use it.
 - **Gender**: Vietnamese nouns and verbs have none, but its pronouns do (anh ấy, chị ấy), so a4a never gives a person one: it says "người đó", "người này", "những người theo dõi", or the name again. A thing is named again rather than called "nó", which reads as spoken: "vấn đề này", "quy tắc này"; "chính nó" (itself) is the exception.
 - **Roles** are words for anyone: "Quản trị viên", "Quản lý", "Thành viên", "Người xem", "Khách". In a sentence a role is bare and a page lower-cases it (`inSentence()`): "{name} giờ là thành viên của BACK".
@@ -860,6 +860,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | vote | bình chọn |
 | timesheet | bảng chấm công |
 | work logged, log time | thời gian đã ghi, ghi thời gian |
+| a time entry, a worklog, a work item (another tracker's) | bản ghi thời gian, bản ghi công việc, mục công việc |
 | estimate | ước tính |
 | rate (per hour) | đơn giá theo giờ |
 | days away, away | ngày vắng mặt, vắng mặt |
@@ -876,7 +877,7 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | suggestion | gợi ý |
 | token, revoke | token, thu hồi |
 | fingerprint (of a token) | dấu vân tay |
-| scope (of a token) | phạm vi |
+| scope (of a token) | phạm vi; on the page, where English says "What it may do" and "Where it may": "Quyền", "Áp dụng cho" |
 | two-factor sign-in | xác thực hai yếu tố |
 | sign in, sign out | đăng nhập, đăng xuất |
 | login (a person's handle) | tên đăng nhập |
@@ -904,9 +905,10 @@ The shots in this repository's container are drawn in WenQuanYi Zen Hei, its onl
 | app, handler (of an app) | ứng dụng, trình xử lý |
 | allow (an app) | cho phép |
 | person, people | người, mọi người; "người dùng" in administration |
-| for {name} (acting on their behalf), as {name} | thay mặt {name}, với tư cách {name} |
+| for {name} (acting on their behalf), as {name} | thay mặt {name}, với tư cách {name}; an integration reads "với tư cách GitHub App" |
 | table (a screen reader's name for one) | danh sách; "bảng" is a board |
 | role, permission | vai trò, quyền |
+| take out (of a project, a group) | gỡ … khỏi; the ledger says "đã xóa … khỏi" |
 | administrator, manager, member, viewer, guest | quản trị viên, quản lý, thành viên, người xem, khách |
 | problem (what went wrong) | lỗi |
 | whiteboard; a note, card, section, arrow, an arrow's label, the outline | bảng trắng, ghi chú, thẻ, khu vực, mũi tên, chú thích, dàn ý |

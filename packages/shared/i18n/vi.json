@@ -197,7 +197,7 @@
   "agents.oAuthApps.tableOfTheAppsYou": "Danh sách ứng dụng bạn đã cho phép",
   "agents.oAuthApps.theAddressOfA4aS": "địa chỉ máy chủ MCP của a4a",
   "agents.oAuthApps.where": "Dự án",
-  "api.client.requestFailed": "Yêu cầu thất bại ({status})",
+  "api.client.requestFailed": "Thao tác không thành công ({status})",
   "app.auth.a4": "a4",
   "app.auth.a4a": "a4a",
   "app.auth.a4aLogin": "tài khoản a4a",
