@@ -189,6 +189,15 @@ export function createHttpApp(runtime: Runtime) {
   root.get('/api/docs', Scalar({ url: '/api/v1/openapi.json', pageTitle: `${APP_NAME} API`, cdn: '/api/docs/scalar.js', theme: 'default' }));
 
   root.all('/mcp', (c) => handleMcp(c));
+  // WebAuthn's related origins (D68): served on whichever host asks, so an instance's old host,
+  // kept pointing here, names its new origin related to the passkeys made for it.
+  root.get('/.well-known/webauthn', (c) => {
+    const origins = runtime.config.passkeyRelatedOrigins;
+    if (!origins.length) return c.json({ error: 'not_found', error_description: 'This a4a names no related origins (PASSKEY_RELATED_ORIGINS)' }, 404);
+    c.header('cache-control', 'public, max-age=3600');
+    c.header('access-control-allow-origin', '*');
+    return c.json({ origins });
+  });
   mountOAuth(root, runtime);
   mountAppFiles(root, runtime);
 

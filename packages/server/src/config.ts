@@ -1,6 +1,8 @@
 import { DEFAULT_LOCALE, isLocale, LOCALES, type Locale } from '@a4a/shared/i18n';
 import { existsSync, readFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 import path from 'node:path';
+import { getDomain, getDomainWithoutSuffix } from 'tldts';
 import { AI_PROVIDER_IDS, AI_PROVIDERS, isAIProviderId, providerKey, type AIProviderId } from './ai/providers';
 import { validPublicKey, vapidPairMatches } from './push/webpush';
 
@@ -137,6 +139,20 @@ export interface Config {
    * this machine for development: with any other PUBLIC_URL it stays off.
    */
   mcpOAuth: boolean;
+  /**
+   * The relying party id passkeys are made for (PASSKEY_RP_ID, D68); unset, PUBLIC_URL's host. A
+   * registrable parent of that host, chosen ahead of a move, or the host an instance moved from when
+   * PUBLIC_URL's origin is among the related origins.
+   */
+  passkeyRpId: string | undefined;
+  /** The origins `/.well-known/webauthn` names related to the relying party (PASSKEY_RELATED_ORIGINS, D68). */
+  passkeyRelatedOrigins: string[];
+  /**
+   * FIDO's Metadata Service, read only while only some authenticators are taken (D68): its BLOB from
+   * `url` (PASSKEY_MDS_URL), or from `file` instead (PASSKEY_MDS_FILE); signed by a certificate that
+   * chains to `rootCerts` (PASSKEY_MDS_ROOT_CERT, PEM), FIDO's own roots when unset.
+   */
+  passkeyMds: { url: string; file: string | undefined; rootCerts: string[] | undefined; allowHttpLoopback: boolean };
   /**
    * A mailbox the help desks read their mail from, e.g. imaps://support%40acme.example:pass@imap.acme.example/INBOX
    * (HELPDESK_IMAP_URL). Each message goes to the desk whose address it was sent to (D30).
@@ -655,7 +671,114 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     chatAllowHttpLoopback: truthy(env.CHAT_ALLOW_HTTP_LOOPBACK, false),
     chatIssueLimit: intEnv(env.CHAT_ISSUE_LIMIT, 10, 1),
     push: pushFromEnv(env, overrides.publicUrl ?? publicUrl, env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`),
+    ...passkeysFromEnv(env, overrides.publicUrl ?? publicUrl),
     ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Passkeys that outlive a move, and FIDO's metadata (D68)
+// ---------------------------------------------------------------------------
+
+/** FIDO's Metadata Service: where its BLOB is published (MDS3). */
+export const FIDO_MDS_URL = 'https://mds3.fidoalliance.org/';
+/** Browsers read at most five registrable domains' labels from a relying party's related origins. */
+export const MAX_RELATED_LABELS = 5;
+const PSL = { allowPrivateDomains: true };
+
+const hostOf = (url: string): string => new URL(url).hostname.toLowerCase();
+const isLocalHost = (host: string) => host === 'localhost' || host.endsWith('.localhost');
+
+/**
+ * Whether a domain is one a site may be registered under, by the public suffix list (tldts, pinned):
+ * not a public suffix itself (`co.uk`, `github.io`), and not an address. Browsers use the same list,
+ * private entries included, and refuse a relying party id that is a suffix on it.
+ */
+export function registrable(domain: string): boolean {
+  return !isIP(domain) && getDomain(domain, PSL) !== null;
+}
+
+/** PASSKEY_RELATED_ORIGINS: https origins (http only on localhost), with at most five registrable domains between them. */
+export function relatedOriginsFromEnv(value: string | undefined): string[] {
+  const origins: string[] = [];
+  for (const raw of (value ?? '').split(',').map((v) => v.trim()).filter(Boolean)) {
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      throw new Error(`PASSKEY_RELATED_ORIGINS: "${raw}" isn't an address; give origins such as https://a4a.example.com, separated by commas`);
+    }
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && isLocalHost(host))) throw new Error(`PASSKEY_RELATED_ORIGINS: ${raw} must be https: browsers use passkeys only in a secure context`);
+    if (isIP(host.replace(/^\[|\]$/g, ''))) throw new Error(`PASSKEY_RELATED_ORIGINS: ${raw} is an address, not a domain; passkeys need a domain`);
+    if ((u.pathname !== '/' && u.pathname !== '') || u.search || u.hash || u.username) throw new Error(`PASSKEY_RELATED_ORIGINS: ${raw} must be an origin alone, such as ${u.origin}, without a path`);
+    if (!origins.includes(u.origin)) origins.push(u.origin);
+  }
+  if (origins.length > 20) throw new Error('PASSKEY_RELATED_ORIGINS names more than 20 origins');
+  const labels = new Set(origins.map((o) => getDomainWithoutSuffix(hostOf(o), PSL) ?? hostOf(o)));
+  if (labels.size > MAX_RELATED_LABELS) {
+    throw new Error(`PASSKEY_RELATED_ORIGINS spans ${labels.size} registrable domains (${[...labels].join(', ')}); browsers read at most ${MAX_RELATED_LABELS}, so the rest would never be related`);
+  }
+  return origins;
+}
+
+/**
+ * PASSKEY_RP_ID, checked at start: PUBLIC_URL's host; a parent domain of it that isn't a public suffix
+ * (`example.com` for `a4a.example.com`), which every browser takes there; or, once an instance has
+ * moved, the host it moved from, when PUBLIC_URL's origin is among the related origins that host serves.
+ */
+export function passkeyRpIdFromEnv(value: string | undefined, publicUrl: string, related: string[]): string | undefined {
+  const raw = value?.trim().toLowerCase().replace(/\.$/, '');
+  if (!raw) return undefined;
+  let id: string;
+  try {
+    // Through URL, so an international name is the punycode browsers compare.
+    id = new URL(`https://${raw}`).hostname;
+  } catch {
+    throw new Error(`PASSKEY_RP_ID=${value} isn't a domain name`);
+  }
+  if (isIP(id.replace(/^\[|\]$/g, ''))) throw new Error(`PASSKEY_RP_ID=${value} is an address: a relying party id is a domain name`);
+  const host = hostOf(publicUrl);
+  if (id === host) return id;
+  if (host.endsWith(`.${id}`)) {
+    if (!registrable(id)) throw new Error(`PASSKEY_RP_ID=${value} is a public suffix, which anyone can register under: browsers make no passkeys for it. Use the domain your organisation registered, such as ${getDomain(host, PSL) ?? host}`);
+    return id;
+  }
+  if (related.includes(new URL(publicUrl).origin)) {
+    if (!registrable(id) && !isLocalHost(id)) throw new Error(`PASSKEY_RP_ID=${value} is a public suffix: browsers make no passkeys for it`);
+    return id;
+  }
+  throw new Error(
+    `PASSKEY_RP_ID=${value} must be PUBLIC_URL's host (${host}) or a parent domain of it, such as ${getDomain(host, PSL) ?? host}; or, for an instance that moved from ${value}, keep it and add PUBLIC_URL's origin (${new URL(publicUrl).origin}) to PASSKEY_RELATED_ORIGINS`,
+  );
+}
+
+/** PASSKEY_MDS_ROOT_CERT: the PEM certificates FIDO's BLOB must chain to, read at start. */
+function mdsRootsFromEnv(file: string | undefined): string[] | undefined {
+  if (!file?.trim()) return undefined;
+  let pem: string;
+  try {
+    pem = readFileSync(file.trim(), 'utf8');
+  } catch (e) {
+    throw new Error(`PASSKEY_MDS_ROOT_CERT=${file} can't be read: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const certs = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
+  if (!certs.length) throw new Error(`PASSKEY_MDS_ROOT_CERT=${file} holds no PEM certificate`);
+  return certs.map((c) => `${c}\n`);
+}
+
+export function passkeysFromEnv(env: NodeJS.ProcessEnv, publicUrl: string): Pick<Config, 'passkeyRpId' | 'passkeyRelatedOrigins' | 'passkeyMds'> {
+  const passkeyRelatedOrigins = relatedOriginsFromEnv(env.PASSKEY_RELATED_ORIGINS);
+  const allowHttpLoopback = truthy(env.PASSKEY_MDS_ALLOW_HTTP_LOOPBACK, false);
+  const url = env.PASSKEY_MDS_URL?.trim() || FIDO_MDS_URL;
+  const u = new URL(url);
+  if (u.protocol !== 'https:' && !(allowHttpLoopback && u.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname))) {
+    throw new Error(`PASSKEY_MDS_URL=${url} must be https: a4a trusts what it reads there only by its signature, and fetches it in the open otherwise`);
+  }
+  return {
+    passkeyRpId: passkeyRpIdFromEnv(env.PASSKEY_RP_ID, publicUrl, passkeyRelatedOrigins),
+    passkeyRelatedOrigins,
+    passkeyMds: { url, file: env.PASSKEY_MDS_FILE?.trim() || undefined, rootCerts: mdsRootsFromEnv(env.PASSKEY_MDS_ROOT_CERT), allowHttpLoopback },
   };
 }
 

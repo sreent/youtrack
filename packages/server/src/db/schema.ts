@@ -55,6 +55,13 @@ export const users = pgTable(
      */
     emailVerified: boolean('email_verified').notNull().default(false),
     passwordHash: text('password_hash'),
+    /**
+     * a4a's own account that signs in with passkeys alone, no password (D68): made so by an
+     * administrator, with a link to add its first passkey, or by its person removing their password.
+     */
+    passkeysOnly: boolean('passkeys_only').notNull().default(false),
+    /** Where passkeys are required, an administrator let them sign in without one, for a device that can't make one (D68). */
+    passkeyExemptAt: ts('passkey_exempt_at'),
     role: text('role').notNull().default('member'),
     isBot: boolean('is_bot').notNull().default(false),
     avatarColor: text('avatar_color').notNull(),
@@ -98,6 +105,8 @@ export const sessions = pgTable(
     passkeyId: text('passkey_id'),
     /** When its person last proved it's them in it: at the sign-in, or since, to add or remove a passkey. */
     verifiedAt: ts('verified_at').notNull().defaultNow(),
+    /** How they proved it then: `passkey`, or `password` (D68). Removing a password takes a passkey's proof. */
+    verifiedBy: text('verified_by'),
   },
   (t) => [index('sessions_user').on(t.userId), index('sessions_passkey').on(t.passkeyId)],
 );
@@ -3134,6 +3143,8 @@ export const passkeys = pgTable(
     aaguid: text('aaguid'),
     name: text('name').notNull(),
     rpId: text('rp_id').notNull(),
+    /** Its maker vouched for it (attestation), checked against FIDO's metadata, while only some authenticators were taken (D68). */
+    attested: boolean('attested').notNull().default(false),
     createdAt: created(),
     lastUsedAt: ts('last_used_at'),
     copiedAt: ts('copied_at'),
@@ -3181,4 +3192,52 @@ export const passkeyAlerts = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_alerts_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Passkeys in depth (D68)
+// ---------------------------------------------------------------------------
+
+/**
+ * FIDO's Metadata Service as a4a last read it: one row (`mds`), shared by every instance. The BLOB
+ * in use is the last one whose signature chained to FIDO's root and whose number passed the one
+ * before; a fetch that fails keeps it, and says when and why beside it.
+ */
+export const passkeyMetadata = pgTable('passkey_metadata', {
+  id: text('id').primaryKey(),
+  /** The BLOB's serial number: a later one must be greater. Null: none read yet. */
+  no: integer('no'),
+  /** When FIDO says the next BLOB comes, at the latest (YYYY-MM-DD). Past it, the BLOB is stale. */
+  nextUpdate: text('next_update'),
+  /** When the BLOB in use was fetched or read. */
+  gotAt: ts('got_at'),
+  /** Its FIDO2 authenticators: each AAGUID's metadata statement (without its icon) and status reports. */
+  entries: jsonb('entries').$type<unknown[]>(),
+  /** The last try, and, when it failed, what kind of failure and the detail (English, for administrators). */
+  triedAt: ts('tried_at'),
+  failedAt: ts('failed_at'),
+  failure: text('failure'),
+  failureDetail: text('failure_detail'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/**
+ * A one-time link that adds an account's first passkey (D68): for an account an administrator made
+ * without a password, or one that lost every passkey. Kept as a hash, minted as its mail is sent, or
+ * shown once to the administrator; good once, for three days; a newer link voids it.
+ */
+export const passkeySetupLinks = pgTable(
+  'passkey_setup_links',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The administrator who sent it. */
+    madeBy: text('made_by').references(() => users.id, { onDelete: 'set null' }),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('passkey_setup_links_user').on(t.userId)],
 );

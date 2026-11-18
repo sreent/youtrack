@@ -4,3 +4,7 @@ packages:
 
 onlyBuiltDependencies:
   - esbuild
+
+# tldts reads the public suffix list from tldts-core: both pinned to one release (D68).
+overrides:
+  tldts-core: 7.4.19

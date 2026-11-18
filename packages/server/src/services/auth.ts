@@ -44,7 +44,9 @@ export interface SignInHow {
 export async function startSession(db: Db, userId: string, ttlDays: number, userAgent?: string, how: SignInHow = { with: 'password' }): Promise<{ token: string; expiresAt: Date }> {
   const token = randomToken('tls_', 32);
   const expiresAt = new Date(Date.now() + ttlDays * 86_400_000);
-  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, userAgent: userAgent?.slice(0, 300), signedInWith: how.with, passkeyId: how.passkeyId ?? null });
+  // How its person proved it's them (D68): a passkey, first or second, or else their password.
+  const verifiedBy = how.with.includes('passkey') ? 'passkey' : 'password';
+  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, userAgent: userAgent?.slice(0, 300), signedInWith: how.with, passkeyId: how.passkeyId ?? null, verifiedBy });
   // Not through the people cache: when someone last signed in is read fresh, where it's shown.
   await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, userId));
   return { token, expiresAt };

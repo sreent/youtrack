@@ -137,6 +137,12 @@ export const SignInSchema = z
     ),
     twoFactor: z.boolean().optional().describe('Their password sign-in asks for a code from an authenticator app too (D38)'),
     passkeys: z.number().int().optional().describe('How many passkeys they sign in with (D62)'),
+    passkeysOnly: z.boolean().optional().describe('They have no password: they sign in with passkeys alone (D68)'),
+    passkeyExempt: z.boolean().optional().describe('Where passkeys are required, an administrator lets them sign in without one: their password and a code (D68)'),
+    passkeySetupUntil: timestamp
+      .nullable()
+      .optional()
+      .describe('Until when the link an administrator sent them to add a passkey works, while it’s unused (D68)'),
     lastSignInAt: timestamp.nullable().optional().describe('When they last signed in, whichever way'),
     provisioned: z.boolean().optional().describe('The identity provider manages this account through SCIM (D38)'),
   })
@@ -227,6 +233,10 @@ export const CreateUserBody = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().nullable().optional(),
   password: z.string().min(8).optional().describe('Omit for bot users that only use API tokens'),
+  passkeysOnly: z
+    .boolean()
+    .optional()
+    .describe('No password: they sign in with passkeys alone, the first added from a link you send (POST /users/{id}/passkey-setup, D68)'),
   role: z.enum(ROLES).default('member'),
   isBot: z.boolean().default(false),
   hourlyRate: z.number().min(0).nullable().optional(),
@@ -239,6 +249,10 @@ export const UpdateUserBody = z.object({
   password: z.string().min(8).optional(),
   role: z.enum(ROLES).optional(),
   banned: z.boolean().optional(),
+  passkeyExempt: z
+    .boolean()
+    .optional()
+    .describe('Where passkeys are required: let them sign in without one, with their password and a code, for a device that can’t make one (D68)'),
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
@@ -1163,6 +1177,16 @@ export const WebhookDeliverySchema = z
 
 // Settings ------------------------------------------------------------------
 
+/** Whose password sign-in owes a passkey (D68). */
+export const PASSKEYS_REQUIRED = ['off', 'everyone', 'admins'] as const;
+export type PasskeysRequired = (typeof PASSKEYS_REQUIRED)[number];
+/** An authenticator's model, as FIDO's metadata names it: a UUID. */
+const aaguid = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, 'an AAGUID, such as cb69481e-8ff7-4039-93ec-0a2729a154a8');
+
 export const SettingsSchema = z
   .object({
     instanceName: z.string(),
@@ -1173,6 +1197,15 @@ export const SettingsSchema = z
       .optional()
       .describe('Every sign-in with a password asks for a code from an authenticator app, and someone without one sets it up first (D38)'),
     passkeys: z.boolean().optional().describe('People may add passkeys and sign in with them (D62). Off, passkeys sign nobody in, and are kept'),
+    requirePasskeys: z
+      .enum(PASSKEYS_REQUIRED)
+      .optional()
+      .describe('Whose password sign-in owes a passkey (D68): nobody (off), everyone, or administrators. Someone without one adds one as they sign in'),
+    passkeyAuthenticators: z
+      .array(z.string())
+      .nullable()
+      .optional()
+      .describe('The only authenticators new passkeys may come from, by AAGUID, checked against FIDO’s metadata (D68); null for any'),
   })
   .meta({ id: 'Settings' });
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -1181,6 +1214,8 @@ export const SettingsBody = z.object({
   defaultTriageMode: z.enum(TRIAGE_MODES).optional(),
   requireTwoFactor: z.boolean().optional(),
   passkeys: z.boolean().optional(),
+  requirePasskeys: z.enum(PASSKEYS_REQUIRED).optional(),
+  passkeyAuthenticators: z.array(aaguid).max(100).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -3139,9 +3174,11 @@ export type GuestInfo = z.infer<typeof GuestInfoSchema>;
 export const SignInStepSchema = z
   .object({
     step: z
-      .enum(['two_factor', 'two_factor_setup'])
-      .describe('two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup)'),
-    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it'),
+      .enum(['two_factor', 'two_factor_setup', 'passkey_setup'])
+      .describe(
+        'two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup). passkey_setup: passkeys are required of you and you have none: add one (POST /auth/two-factor/passkey-setup, D68)',
+      ),
+    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it. passkey_setup: adding the passkey takes a code too'),
     passkey: z.boolean().optional().describe('two_factor: one of their passkeys finishes it instead (POST /auth/two-factor/passkey, D62)'),
   })
   .meta({ id: 'SignInStep' });
@@ -4590,6 +4627,12 @@ export const PasskeySchema = z
     synced: z.boolean().describe('Its passkey provider may copy it to its person’s other devices (backup eligible)'),
     copied: z.boolean().describe('Its sign count went back: two authenticators hold it, so it signs nobody in again'),
     elsewhere: z.string().nullable().describe('The address it was made for, when that isn’t this one: it can’t sign in here'),
+    attested: z.boolean().optional().describe('Its maker vouched for it, checked against FIDO’s metadata, as only some authenticators were taken (D68)'),
+    listed: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('Where only some authenticators are taken: whether it’s one of them (false for one added before, whose maker a4a never asked). It signs in either way. Null: any is taken'),
   })
   .meta({ id: 'Passkey' });
 export type Passkey = z.infer<typeof PasskeySchema>;
@@ -4611,6 +4654,23 @@ export const MyPasskeysSchema = z
       code: z.boolean().describe('With a code from your authenticator app'),
       passkey: z.boolean().describe('Or one of your passkeys does'),
     }),
+    required: z.boolean().optional().describe('Passkeys are required of you here: a password sign-in owes one (D68)'),
+    authenticators: z
+      .array(z.string())
+      .nullable()
+      .optional()
+      .describe('Where only some authenticators are taken, their names, as FIDO’s metadata gives them; null for any (D68)'),
+    password: z
+      .object({
+        set: z.boolean().describe('You have a password'),
+        removable: z.boolean().describe('You may remove it now (DELETE /me/password)'),
+        needs: z
+          .enum(['spare', 'passkey'])
+          .nullable()
+          .describe('What removing it still needs: spare, a second passkey or a synced one; passkey, proving it’s you with a passkey in the last ten minutes'),
+      })
+      .optional()
+      .describe('Signing in with passkeys alone (D68)'),
   })
   .meta({ id: 'MyPasskeys' });
 export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
@@ -4676,7 +4736,7 @@ export type Confirmed = z.infer<typeof ConfirmedSchema>;
 /** A "this wasn't me" link from a mail about someone's passkeys, as its page shows it. */
 export const PasskeyAlertSchema = z
   .object({
-    change: z.enum(['added', 'removed', 'copied']),
+    change: z.enum(['added', 'removed', 'copied', 'password-removed']),
     name: z.string().describe('The passkey’s name'),
     login: z.string(),
     changedAt: timestamp,
@@ -4684,3 +4744,67 @@ export const PasskeyAlertSchema = z
   })
   .meta({ id: 'PasskeyAlert' });
 export type PasskeyAlert = z.infer<typeof PasskeyAlertSchema>;
+
+// ---------------------------------------------------------------------------
+// Passkeys in depth (D68): FIDO's metadata, setup links, a passkey owed at sign-in
+// ---------------------------------------------------------------------------
+
+export const PASSKEY_METADATA_FAILURES = ['unreachable', 'unreadable', 'unverified', 'older', 'tooLarge'] as const;
+export type PasskeyMetadataFailure = (typeof PASSKEY_METADATA_FAILURES)[number];
+
+export const PasskeyMetadataSchema = z
+  .object({
+    source: z.enum(['url', 'file']).describe('Where a4a reads FIDO’s BLOB: PASSKEY_MDS_URL, or PASSKEY_MDS_FILE'),
+    from: z.string().describe('The address or file'),
+    no: z.number().int().nullable().describe('The serial number of the BLOB in use; null when none was read yet'),
+    nextUpdate: z.string().nullable().describe('When FIDO says the next BLOB comes, at the latest (a date)'),
+    gotAt: timestamp.nullable().describe('When the BLOB in use was fetched or read'),
+    stale: z.boolean().describe('Its next update is past, and no later BLOB came: a4a keeps using it'),
+    triedAt: timestamp.nullable(),
+    failedAt: timestamp.nullable().describe('When the last try failed, if it did'),
+    failure: z.enum(PASSKEY_METADATA_FAILURES).nullable().describe('What kind of failure'),
+    failureDetail: z.string().nullable().describe('What went wrong, in English, for administrators'),
+    authenticators: z
+      .array(z.object({ aaguid: z.string(), name: z.string(), revoked: z.boolean().describe('FIDO says it can’t be trusted: never taken') }))
+      .describe('The FIDO2 authenticators the BLOB describes, to choose from'),
+  })
+  .meta({ id: 'PasskeyMetadata' });
+export type PasskeyMetadata = z.infer<typeof PasskeyMetadataSchema>;
+
+export const PasskeySetupLinkBody = z.object({
+  deliver: z
+    .enum(['email', 'show'])
+    .optional()
+    .describe('email: mail it to their address (the default where they have one and mail is set up); show: answer with the link, once, to hand over yourself'),
+});
+export const PasskeySetupLinkSchema = z
+  .object({
+    mailed: z.boolean(),
+    url: z.string().nullable().describe('The link, when shown: it is not kept, and works once'),
+    expiresAt: timestamp,
+  })
+  .meta({ id: 'PasskeySetupLink' });
+export type PasskeySetupLink = z.infer<typeof PasskeySetupLinkSchema>;
+
+export const PasskeySetupInfoSchema = z
+  .object({
+    login: z.string(),
+    name: z.string(),
+    expiresAt: timestamp,
+    signedInAs: z.string().nullable().describe('The login this browser is signed in as, when it isn’t the link’s'),
+  })
+  .meta({ id: 'PasskeySetupInfo' });
+export type PasskeySetupInfo = z.infer<typeof PasskeySetupInfoSchema>;
+
+const setupToken = z.string().min(10).max(100);
+export const PasskeySetupTokenBody = z.object({ token: setupToken });
+export const PasskeySetupBody = z.object({
+  token: setupToken,
+  response: PasskeyRegistrationSchema,
+  name: z.string().trim().min(1).max(60).optional(),
+});
+export const OwedPasskeyBody = z.object({
+  response: PasskeyRegistrationSchema,
+  code: z.string().trim().min(6).max(20).optional().describe('Where two-factor sign-in is on for you: a code from the app, or a recovery code'),
+  name: z.string().trim().min(1).max(60).optional(),
+});
