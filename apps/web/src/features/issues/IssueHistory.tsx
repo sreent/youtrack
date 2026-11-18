@@ -21,6 +21,7 @@ import { useRequestInfo } from '../notifications/api';
 import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
 import { sourceName } from '../imports/names';
+import { periodWords } from '../common/format';
 import { commandNote, formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -172,12 +173,12 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
       return {
         ...base,
         did: (
-          <>{tr('issues.issueHistory.committed', { v: typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
+          <>{tr('issues.issueHistory.committed', { sha: sha.slice(0, 7), t0: (c: ReactNode) => typeof data.url === 'string' && /^https?:\/\//.test(data.url) ? (
               <a className="mono" href={data.url} rel="noreferrer noopener" target="_blank">
-                {sha.slice(0, 7)}
+                {c}
               </a>
             ) : (
-              <span className="mono">{sha.slice(0, 7)}</span>
+              <span className="mono">{c}</span>
             ), v2: data.branch ? <>{tr('issues.issueHistory.on', { String: String(data.branch), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</> : null })}</>
         ),
         body: (
@@ -250,7 +251,7 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
         body: (
           <ul className="change-lines">
             <li>
-              <span className="change-field">{t('issues.issueHistory.spentTime')}</span> <ins className="mono">{String(data.duration ?? '')}</ins> <span className="same">{t('issues.issueHistory.logged')}</span>
+              <span className="change-field">{t('issues.issueHistory.spentTime')}</span> <ins className="mono">{typeof data.minutes === 'number' ? periodWords(data.minutes) : String(data.duration ?? '')}</ins>
               {data.description ? <span className="same"> · {String(data.description)}</span> : null}
             </li>
           </ul>
