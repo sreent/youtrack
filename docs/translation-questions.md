@@ -1,6 +1,6 @@
 # Questions for native speakers
 
-Each catalog was translated, then read again whole by a reviewer who hadn't written it, working from English, the code and [translating.md](translating.md). That reviewer was a model, not a native speaker. The second reads changed 1,371 messages: 502 in German, 316 in Spanish, 299 in French and 254 in Japanese. The same reviewers then translated the 909 messages added since (the server's problems, `problem.*`, and the messages that replaced English the catalogs couldn't say), and those have had no second read. The last 103 (what the server words for a page: a rule's preview and runs, a commit's note, why a chat subscription stopped) were written in every language by the developers who added them, then read by the reviewers.
+German, Spanish, French and Japanese were each translated, then read again whole by a reviewer who hadn't written it, working from English, the code and [translating.md](translating.md). That reviewer was a model, not a native speaker. The second reads changed 1,371 messages: 502 in German, 316 in Spanish, 299 in French and 254 in Japanese. The same reviewers then translated the 909 messages added since (the server's problems, `problem.*`, and the messages that replaced English the catalogs couldn't say), and those have had no second read. Then 103 more (what the server words for a page: a rule's preview and runs, a commit's note, why a chat subscription stopped) were written in every language by the developers who added them, then read by the reviewers. Each language that came later says at the head of its section how it was written.
 
 What follows is what the reviewers couldn't settle, by language. Each item names its key, says what the catalog says now, and asks the question.
 
@@ -21,11 +21,10 @@ Terms:
 Phrasing:
 
 - `decide.suggestionCard.sameAs`: "Same as" is "Duplikat von", which assumes the suggestion marks a duplicate.
-- `imports.mappingTable.importedWithoutIt`: "Imported without it" is "Teilweise importiert".
 - `helpdesk.sla.atRiskBefore2`: "At risk before" is "Vorwarnzeit".
 - `page.dashboard.aQueryIWrite` is "Eigene Abfrage", and `page.reports.datesIChoose` is "Eigener Zeitraum".
 - `assistant.talk.aConversationWithAssistant`: "Eine Unterhaltung mit assistant" keeps the agent's name as it is. If German reads it as a word, it's "mit dem Assistenten".
-- `page.profile.yourBrowsersLanguage` and its siblings `theServerS` and `useYourBrowserS`: "Die Ihres Browsers: {name}". `e2e/german.spec.ts` looks for these words, so change the spec with them.
+- `page.profile.yourBrowsersLanguage` and its siblings `theServerS` and `useYourBrowserS`: "Die Ihres Browsers: {name}". `apps/web/e2e/german.spec.ts` looks for these words, so change the spec with them.
 - **The query parser's "Unexpected …"** is "Unerwartet: „x“". A compiler would say "Unerwartetes Zeichen „x“".
 - **"Status" as a plural** ("Mögliche Status", "zwischen zwei Status") is correct, but some readers take it for a singular.
 - `problem.rule.writeScript`: "Schreiben Sie in JavaScript, was es tut." "es" is the script; "was sie tut" would be the rule.
@@ -39,7 +38,7 @@ Phrasing:
 From the read of wave 4's messages (D50 to D55):
 
 - `server.access.issueYouCantSee` and `articleYouCantSee` ("ein Vorgang, den Sie nicht sehen können") stand in for an id inside someone's text, so their case can't be known: the nominative reads wrong after "Siehe" or a preposition.
-- **Reading as a GitHub App**: "nicht mehr als App lesen" (`stopReadingAsTheApp` and its siblings) can read as "no more than". "Lesen als App beenden" is the alternative. "installiert auf dem Repository" may be better as "im Repository".
+- **Reading as a GitHub App**: "Nicht mehr als App lesen" (`page.integrations.stopReadingAsTheApp`, `stopReadingAsTheGithub`) can read as "no more than". "Lesen als App beenden" is the alternative. "installieren Sie die App auf dem Repository" (`page.integrations.generateAPrivateKeyInstall`) may be better as "im Repository".
 - "ausscheiden", for a person who leaves (`page.integrations.aGithubIntegrationCanRead`), may be too formal; "das Team verlassen" is the alternative.
 - `articles.articleTree.limited` is "Eingeschränkt", where the catalog says "beschränkt" elsewhere.
 - `board.board.movedTo`, moved to the top of a column, says "nach" twice ("nach In Review ganz nach oben verschoben").
@@ -107,7 +106,7 @@ Phrasing:
 - `away.daysAway.addedAway` and `changedAway`: "Added:" and "Changed:" are "Ausencia agregada:" and "Ausencia cambiada:", naming what was added.
 - **Worded so as not to guess a gender**: `problem.portal.colleaguesRequest` ("otra persona de tu organización"), `problem.users.deleteYourself` ("No puedes eliminar tu propia cuenta") and `problem.members.leadIsManager` ("le da el rol de gestor").
 - **"Your address"** in the help desk's limits (`problem.helpdesk.tooManyFromAddress` and its siblings) is "tu dirección IP", since an email address sits beside it.
-- **The issue list's count line** puts the count last ("Incidencias en el proyecto BACK, sin resolver: 4"), since the explanation's pieces are plural and wouldn't agree after "1 incidencia". It reads differently from English's "4 issues …".
+- **The issue list's count line** puts the count last ("Incidencias del proyecto BACK y sin resolver: 4"), since the explanation's pieces are plural and wouldn't agree after "1 incidencia". It reads differently from English's "4 issues …".
 - `rules.run.scheduled` keeps "worker" in English ("otra instancia tomó el control del worker").
 - `rules.run.logged`: a script's log lines are "Escribió en el registro:", and "registro" is also the word for a rule's runs.
 - **The chat bot's changes** are infinitives after "Hecho:" (`server.command.*`): "Hecho: cambiar State a Fixed; agregar la etiqueta urgent".
@@ -120,8 +119,8 @@ From the read of wave 4's messages (D50 to D55):
 - `articles.visibleTo.letEveryoneSeeIt` and its issue twin, "Que lo vea todo el mundo", aren't infinitives, as buttons are meant to be. "Mostrarlo a todo el mundo" is the alternative.
 - `page.project.keyFormer`: "Antes usaba {keys}." Is "usaba" clear under the "Clave" heading, or is "Claves anteriores: {keys}." better?
 - **The board's moves**: "la mueven un puesto" (`board.board.chooseACardSId`, `dragACardToAnother`) matches the backlog. "una posición" may be more usual.
-- `problem.vcs.githubApp.answered` and its siblings: "{host} respondió {status}". "respondió con {status}" reads more naturally.
-- "leer como GitHub App", in about 15 messages: "como" in the sense of "in the capacity of".
+- `problem.vcs.githubApp.answered`, `problem.imports.source.answeredSaying` and `problem.chat.stop.teamsAnswered`: "{host} respondió {status}". "respondió con {status}" reads more naturally.
+- "leer como GitHub App", in 11 messages (`page.integrations.readAsAGithubApp` and its family): "como" in the sense of "in the capacity of".
 - `projects.projectFields.everyone` is "Todos", a short checkbox label, where the catalog says "Todo el mundo" elsewhere.
 
 From the read of D56's and D57's messages (customer groups, and CCs on requests):
@@ -142,7 +141,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **An arrow's label** is "Etiqueta" (`whiteboards.connectDialog.label`, `whiteboards.textDialog.label`, `labelArrow`), the catalog's word for a tag as well. "Texto" couldn't be taken for a tag.
 - `whiteboards.connectDialog.from` and `to`, an arrow's ends, are "Desde" and "Hasta", as a transition's are. "Origen" and "Destino" may suit an arrow better.
 - `page.whiteboard.said.undid`: undoing an add or a removal says "Se ha deshecho lo agregado" or "Se ha deshecho lo quitado". Natural enough when a screen reader says it?
-- **ClickUp's List** is "Lista", capitalised as English and ClickUp write it (`imports.fromApi.theListSAddressIn`, `whichTasksAList`, `problem.imports.source.clickupNoList`, `notAClickupList`, and the clickup case of `problem.apiImports.nothingMatches` and `requestRefusedSaying`), so it isn't read as a checklist's "lista". Spanish would usually lower-case it.
+- **ClickUp's List** is "Lista", capitalised as English and ClickUp write it (`imports.fromApi.theListSAddressIn`, `whichTasksAList`, `problem.imports.source.clickupNoList`, `notAClickupList`, and the clickup cases of `problem.apiImports.nothingMatches` and `problem.imports.source.requestRefusedSaying`), so it isn't read as a checklist's "lista". Spanish would usually lower-case it.
 - `page.chat.issuesFromMessagesNeed` keeps "Callback ID" as Slack's app settings name the field, as the page keeps "Basic Information". "ID de callback" is the alternative.
 - `whiteboards.convertDialog.preview`, "Check first", is "Vista previa": with "Comprobar antes", the dialog's three buttons spilled past a 390px screen.
 - `writing.action` and `writing.suggestion.title`: friendlier is "Más cercano". "Más amable" is the alternative.
@@ -231,7 +230,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 
 - `identity.passkeys.stopped`, the badge on a passkey that may have been copied, is "Bloquée", where the developers wrote "Arrêtée". "Désactivée" is what passkeys turned off for the instance are, and they come back; "Hors service" is the other choice.
-- **"Signs you in"** is "vous connecte" ("elle vous connecte sans mot de passe", `page.portal.passwordHelp`'s "Il vous connecte au portail"), as the recovery codes' "chacun vous connecte une fois" was. "Signs nobody in" is "ne permet plus de se connecter" (`identity.passkeys.removed`, `mayBeCopied`, `offInstance`, `page.admin.passkeysOff`, `page.notMe.doneAbout`, `ifNotYou`), since "ne connecte personne" read as a calque. Natural?
+- **"Signs you in"** is "vous connecte" ("elle vous connecte sans mot de passe", `page.portal.passwordHelp`'s "Il vous connecte au portail"), as the recovery codes' "chacun vous connecte une fois" does (`identity.twoFactor.keepTheseNowYourRecovery`). "Signs nobody in" is "ne permet plus de se connecter" (`identity.passkeys.removed`, `mayBeCopied`, `offInstance`, `page.admin.passkeysOff`, `page.notMe.doneAbout`, `ifNotYou`), since "ne connecte personne" read as a calque. Natural?
 - `helpdesk.groups.asTheDeskTakes` is "Toute façon acceptée par le centre", an option beside "Uniquement via {name}" under "Connexion de ses membres", kept short for a phone's select. Clear?
 - `page.guestPages.alsoOpenIn`, over a guest's links to a project's plan, reports, boards and whiteboards, is "À voir aussi dans {name}". It drops "open"; "Également ouverts dans {name}" is closer to English.
 - `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "la vérification anti-robot du formulaire", the setting being "Vérifier qu’une personne l’a envoyée".
@@ -253,7 +252,7 @@ Terms:
 
 Phrasing:
 
-- `issues.visibleTo.nobodyElse` is 関係者のみ. Does 関係者 fit the people who always see an issue: its reporter and assignee, the project's managers, administrators?
+- **関係者** are those who always see an issue or an article: "visible to nobody else" is 「閲覧可能：関係者のみ」 (`issues.issueHistory.visibleTo`), and a limit to them alone 「閲覧者を、常に閲覧できる関係者のみに限定しました。」 (`issues.visibleTo.itSLimitedToNow`, `articles.visibleTo.limitedNow`). Does 関係者 fit them: an issue's reporter and assignee, an article's author, the project's managers, administrators?
 - `page.fields.aPlainFact` (a value's neutral colour) is 中立, and `page.projects.blank` (a project template) is 白紙.
 - `builds.builds.isPausedBuildsItS`: "refused politely" is 受け付けを断られ.
 - **Free text moved to the end**: `problem.apps.catalogUnreadable` (「…問い合わせてください。エラー：{error}」), `problem.workflow.ruleRefusesInItsWords` and `problem.query.invalid`. Does it read naturally?
@@ -274,11 +273,10 @@ Phrasing:
 
 From the read of wave 4's messages (D50 to D55):
 
-- `articles.visibleTo.limitedNow` and its issue twin: `{audience}` can be 「関係者のみ」, which gives 「…関係者のみに限定しました。関係者は常に…」. This is the 関係者 question above, now for articles too.
 - `articles.articleTree.limited` is 限定公開. Does it read as "limited to some people", or as YouTube's "unlisted"? 閲覧制限 is the alternative.
 - 「GitHub Appとして読み取る」 (`page.integrations.readAsAGithubApp` and its family): would 「GitHub Appとしてアクセス」 read more naturally?
 - 「異動や退職」 for a person who leaves (`page.integrations.aGithubIntegrationCanRead`, `aPersonSTokenStopsWorking`).
-- The board's drop text puts the state between the column and の (「Done（Fixedとして）のBACK-19の上に移動」), which may read awkwardly to a screen reader user.
+- The board's drop text (`board.board.dropItToMoveToAt` and its siblings) puts the state between the column and の (「Done（Fixedとして）のBACK-19の上に移動」), which may read awkwardly to a screen reader user.
 
 From the read of D56's and D57's messages (customer groups, and CCs on requests):
 
@@ -289,7 +287,7 @@ From the read of D56's and D57's messages (customer groups, and CCs on requests)
 - `helpdesk.groups.cantBeGiven`, 「現在は割り当てられません」: 「割り当て不可」 is shorter, but the catalog never uses 不可.
 - `page.unsubscribe.what`'s `cc` case, 「CCとして受け取っている、このリクエストに関するメール。」: the comma between the two modifiers may read stiffly.
 - `helpdesk.groups.sharingNone`, 「各自が自分のリクエストだけを見る」, where its sibling options say 閲覧できる.
-- `server.helpdesk.copiedOnIt`: a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
+- `server.helpdesk.copiedOnIt` is 「リクエストのCC（チームの返信も届きます）：」, where a company writing to a customer might say 「CCに追加された方（チームからの返信もお送りします）：」.
 
 Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
 
@@ -344,8 +342,8 @@ Phrasing:
 - **No você**: Portugal's software leaves the reader to the verb, and the catalog does too, so "Pode", "Tem", "Recebeu este e-mail porque…", "Quis dizer…?". *Você* stays where the code hands the reader in as a name: `decide.suggestionCard.you` ("Você aplicou."), `page.portal.you`, `page.track.you`, `page.track.youAsked` ("<t0>Você</t0> escreveu"), and `server.query.you` (the query's "me", after a preposition and alone: "Assignee: você"). Would "Eu" read better in the portal's thread?
 - **Clitics where Portugal puts them**: "{who} atribuiu-lhe o item", "{who} fez-lhe uma menção", "{who} reportou o item e atribuiu-lho" (`server.notify.title.*`). Is *atribuiu-lho* too literary for a notification's title?
 - **Status lines are "a" + infinitive**: "A carregar o plano…", "A guardar…", "A iniciar sessão…" (`loadingLine.*`, every `*.saving`, `*.loading`).
-- **Quotation marks are «…»**, with “…” inside, as Portugal's print and the EU's Portuguese style write them (247 messages). Microsoft's and Google's Portuguese often use "…" in their interfaces: which do Portuguese readers expect on a page?
-- **Limits** are "Demasiados pedidos em pouco tempo. Tente novamente daqui a 2 minutos." (`problem.rateLimited`, `problem.helpdesk.tooMany*`, `problem.tooManySignIns`).
+- **Quotation marks are «…»**, with “…” inside, as Portugal's print and the EU's Portuguese style write them (258 messages, among them `ui.quoted`, which quotes a command, a search, a script's comment or an app's name on a page). Microsoft's and Google's Portuguese often use "…" in their interfaces: which do Portuguese readers expect on a page?
+- **Limits** are "Demasiados pedidos em pouco tempo. Tente novamente daqui a 30 s." (`problem.rateLimited`) and "… Tente novamente daqui a 2 minutos." (`problem.helpdesk.tooMany*`, `problem.tooManySignIns`).
 - **A day in a sentence takes *a***: "Reportado por Ana a 4/12/2026" (`page.issue.reportedBy`, `ui.badges.onDate`), since Intl's `pt-PT` writes short dates as numbers.
 - **The query's count line still puts the count last** ("Itens no projeto SPR, não resolvidos: 4", `issues.queryBar.found*`): 0 is plural now, but the participles after it agree with the issues, not the count.
 - **The profile** is "Perfil" in the menu and on its page (`app.shell.yourProfile`, `page.profile.yourProfile`); "O seu perfil" is the alternative.
@@ -367,7 +365,7 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 
 ## Korean
 
-Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone: no second reader has gone over it, and no native speaker has read it. Its 5,467 messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
+Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
 
 Terms:
 
@@ -393,10 +391,9 @@ Phrasing:
 - **"You"** is 나 in notification titles ("Ada이(가) 나에게 할당했습니다", "나를 멘션했습니다"), as a list's filter says 나에게 할당됨; Facebook's and Slack's Korean say 회원님. Does 나 read naturally in a title addressed to the reader?
 - **The ledger and an issue's history** draw the actor's name, then a verb phrase in the polite past with no particle: "**Ada** BACK-12을(를) 변경했습니다". Would the terse 개조식 ("변경함") read better in a log?
 - **A rule's sentence** lists its actions as nouns joined by Korean's list ("Assignee anna 적용, “확인하세요” 댓글 작성 및 웹훅 호출."). Do verbs read better?
-- **A webhook's events** are nouns ("이슈 생성"), joined into "{join} 시" by Intl's "or" list (" 또는 "); the same nouns label the form's checkboxes.
-- **The board's drag announcements** (`board.board.dropItTo*`) are long sentences for a screen reader: "여기에 놓으면 BACK-1을(를) Done 열(Fixed)로 옮기고 Anna에게 할당합니다".
+- **A webhook's events** are nouns ("이슈 생성"), joined into "{join} 시" by Intl's "or" list (" 또는 "). The form's checkboxes say the same nouns, as labels of their own (`page.webhooks.label.*`).
+- **The board's drag announcements** (`board.board.dropItTo*`) are long sentences for a screen reader: "여기에 놓으면 BACK-1을 Done 열(Fixed)로 옮기고 Anna에게 할당합니다".
 - **"Did you mean"** in a problem is "혹시 “{guess}”인가요?"; on the issue list's query bar it is "이런 뜻인가요? {el}".
-- `server.notify.title.andOthers` is "{people} 외 여러 명", which then takes 이(가): "Anna, Ben 외 여러 명이(가) 댓글을 남겼습니다".
 - A rule run's whom-it-told list ends "및 다른 3명" (`rules.run.toldOthers`), since Korean's list puts 및 before the last item.
 
 Typography and layout:
@@ -409,8 +406,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - **A whiteboard's note** is 메모 (`page.whiteboard.addNote`, `whiteboards.kind.note`), as the catalog says a dashboard's note, and short on the toolbar. Whiteboard apps' Korean says 스티커 메모 or 스티키 노트. Which do Korean teams expect?
 - **Undo and redo** on a whiteboard are 실행 취소 and 다시 실행 (`page.whiteboard.undo`, `redo`, `said.undid`, `said.redid`), as editors say them; undoing an agent's change or an import stays 되돌리기. Does "이동을 실행 취소했습니다" read naturally, or is "이동을 되돌렸습니다" better?
 - **The outline** is 개요 (`page.whiteboard.outline`, `whiteboards.outline.title`), as Google Docs' Korean says a document's; a section is 섹션, and an arrow's label 레이블 (`whiteboards.textDialog.label`). 아웃라인 and 라벨 are the alternatives.
-- **Reading a whiteboard** is 볼 수 있다 (`page.whiteboards.about`, `noneAbout`, `projectHelp`, `page.whiteboard.readOnly`), where the access messages say a project is 읽다. One verb throughout?
-- **Converting** is 이슈로 만들기 (`page.whiteboard.convert`, `whiteboards.convertDialog.title`). A preview's lines are in the present (`whiteboards.convertDialog.wouldMake` "이슈가 됩니다: …", `wouldLink` "링크됩니다: …") beside the result's past (`made` "BACK-12이(가) 되었습니다: …"). Clear as a preview?
+- **Converting** is 이슈로 만들기 (`page.whiteboard.convert`, `whiteboards.convertDialog.title`). A preview's lines are in the present (`whiteboards.convertDialog.wouldMake` "이슈가 됩니다: …", `wouldLink` "링크됩니다: …") beside the result's past (`made` "BACK-12가 되었습니다: …"). Clear as a preview?
 - **Zero**: `activity.ledgerEntry.whiteboardConverted` and `page.whiteboard.said.converted` say "링크 0개" where English says "no links", since their plurals keep `other` alone. Should they keep English's `=0`?
 - **A chat thread's replies** are 답글 (`page.issue.source.replies`, `server.chat.issue.withReplies`), as Slack's Korean says them, kept apart from the help desk's 답장.
 - **The bot names itself** in `server.chat.issue.notInChannel` and `onlyChannels` ("a4a가 #eng에 참여하고 있지 않습니다"), where English says "I'm not in" and the bot's other lines leave the subject out, so the reader doesn't take it for themselves.
@@ -424,15 +420,15 @@ A second pass, by a model again, read the catalog as Korean software rather than
 - **The sign-in form's name** (`app.auth.a4aLogin`, `a4aOrLogin`, `login2`) is "a4a 계정", "a4a 또는 {name} 계정", "{name} 계정", as Google's Korean says "Google 계정 사용", so the page reads "a4a 계정을 사용하세요" and a4a chooses the particle. Is 계정 right for a directory's credentials ("Corp LDAP 계정")?
 - **"I've kept them: continue"** after recovery codes and a mailbox secret (`app.auth.iVeKeptThemContinue`, `helpdesk.helpdeskMail.iVeKeptIt`) is "보관 완료", as Korean apps say "입력 완료". Does it read as the reader's acknowledgment, not a status?
 - **Acting as the reader** is "내 계정으로" (`ui.who.throughTheApiAs`, `activity.ledgerEntry.fromAs`, `page.profile.teamsAndSlackAccountsThat`, `page.chatLink.*`, `agents.oAuthApps.*`), and as itself "자체 계정으로" (`ui.who.overMcpAsItself`, `activity.ledgerEntry.throughTheApiAsItself`). The catalog said "나로", which reads as the speaker. Is "내 계정으로" what Korean teams say, or "나 대신"?
-- **Two clauses** were joined with English's colon in about 180 messages; they're two sentences or one with a connective now (`rules.ruleCard.itSOffItDoes` "꺼져 있어 아무것도 하지 않습니다.", `problem.customerGroups.groupNotFound`, `builds.builds.*`, `page.integrations.*`). A status label keeps its colon ("꺼짐:", "일시 중지됨:", `identity.twoFactor.offYourPasswordAloneSigns`, `page.webhooks.itIsPausedNothingIs`). Is that where Korean draws the line?
+- **Two clauses** were joined with English's colon in about 180 messages; they're two sentences or one with a connective now (`rules.ruleCard.itSOffItDoes` "꺼져 있어 다시 켤 때까지 아무것도 하지 않습니다.", `problem.customerGroups.groupNotFound`, `builds.builds.*`, `page.integrations.*`). A status label keeps its colon ("꺼짐:", "일시 중지됨:", `identity.twoFactor.offYourPasswordAloneSigns`, `page.webhooks.itIsPausedNothingIs`). Is that where Korean draws the line?
 - **What the help desk asks of a customer** is "-어 주세요" on its form and request page (`page.help.aLineWhatYouWere`, `page.help.whatYouDidWhatYou`, `page.help.weVeEmailedALink`) and "-세요" elsewhere. Softer throughout the portal and its emails?
 - **An email's footer** is a sentence: `server.mail.why` "{because} 받는 메일입니다." with each `server.notify.because.*` a clause ("이슈를 지켜보고 있어서"), and `server.mail.whySubscribed`, `server.mail.digest.why` the same. Korean services often write "~하여 발송된 메일입니다". Which reads better in a team's tool?
-- **An issue's meta line** puts the date after the message, so `page.issue.reportedBy` and `page.issue.askedByThroughTheHelp` end in a comma: "보고자: Anna, 2026년 11월 16일", "헬프데스크 요청자: Anna, …". Natural, or should the code put the date first?
+- **An issue's meta line** puts the date last, after a comma: "보고자: Anna, 2026년 11월 16일", "헬프데스크 요청자: Anna, …" (`page.issue.reportedBy`, `page.issue.askedByThroughTheHelp`). The date is a value inside each message, so it can come first. Natural as it is?
 - **Asking in words** is "자연어로 묻기" (`issues.queryBar.askInWords`, `issues.languageField.askInWords`), its field "할 일을 문장으로 입력" (`issues.commandBar.sayWhatToDoIn`), and the history's channel "자연어 요청으로" (`issues.issueHistory.askedInWords`). 자연어 is what Korean AI products say; does it read too technical beside "말로"?
 - **A name a4a can't show** is "알 수 없는 사용자" (`issues.issueHistory.someone`, `page.guestPages.someone`, `activity.ledgerEntry.someone`, `page.dashboard.someone`), where the catalog said 누군가. `server.notify.someone` keeps 누군가, since a notification's title reads "누군가가 변경했습니다".
 - **Paging on the guest pages** is "더 최근" and "더 이전" (`page.guestPages.newer`, `older`). Korean boards say 이전/다음 for pages; is newer/older better kept?
 - **An SLA policy's summary** reads "모든 요청: 첫 응답 1h 이내, 해결 8h 이내. 기한 2h 전부터 위험으로 표시합니다." (`helpdesk.sla.atRiskBefore`, `firstResponseIn`, `resolvedIn`). The durations are a4a's own short forms; is "1시간" expected there?
-- **Reading versus viewing**: access is "보다" in what this pass touched (`page.profile.roleViewer` "뷰어(보기만 가능)", `page.admin.aViewerReads`, `page.issue.youCanReadSIssues`), while a4a reading an API stays "읽다" (`page.integrations.*`, `imports.*`). One verb for access throughout?
+- **Reading versus viewing**: access is "보다" in what this pass touched (`page.profile.roleViewer` "뷰어(보기만 가능)", `page.admin.aViewerReads`, `page.issue.youCanReadSIssues`) and on whiteboards (`page.whiteboards.about`, `noneAbout`, `projectHelp`, `page.whiteboard.readOnly`), and still "읽다" elsewhere (`problem.access.signInFirst`, `projects.peopleAndAccess.youReadCommentOnAnd`, `roles.words.read`), while a4a reading an API stays "읽다" (`page.integrations.*`, `imports.*`). One verb for access throughout?
 
 Edited for natural phrasing, second round:
 
@@ -470,7 +466,7 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 
 ## Simplified Chinese
 
-The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, and has had no second read. Everything below is open.
+The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
 
 Terms:
 
@@ -489,12 +485,12 @@ Terms:
 
 Phrasing:
 
-- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 创建」), so a person named in Chinese reads 「以 王芳 身份」. See below.
+- **Spaces around values**: the catalog spaces a placeholder as the Latin name, id or number it usually holds (「由 {name} 添加」), so a person named in Chinese reads 「以 王芳 身份」. See below.
 - **Intl's own spacing**: dates, durations and lists come from Intl unspaced (「2.5小时」, 「Anna Schmidt和Vera Viewer」) beside the catalog's 「3 个问题」. Acceptable side by side?
 - **Free text moved to the end**, after 错误：, 原因： or 回复： (`problem.apps.catalogUnreadable`, `problem.workflow.ruleRefusesInItsWords`, `problem.imports.source.answeredSaying`). Does it read naturally?
-- **The desk's name in quotes**: `server.helpdesk.whyAnswer`, `whyLink` and `server.portal.lead` quote it, 「向“BACK 的服务台”寻求了帮助」, so the plain 「服务台」 reads too.
+- **The desk's name in quotes**: `server.helpdesk.whyAnswer`, `whyLink` and `server.portal.lead` quote it, 「您向“BACK 的服务台”提交了请求」, so the plain 「服务台」 reads too.
 - **A rule's sentence**: 「当创建问题时，如果问题匹配 Type: Bug，则应用 Assignee anna。」 Conditions on linked issues say 「通过“{v}”链接的问题」 (`rules.words.*Linked*`, `rules.preview.actsOn`), where they said the heavier 「与它存在“{v}”关系的问题」. With an English phrase in the quotes (「通过“depends on”链接的问题」), does it read?
-- **The board's drop lines** (`board.board.dropItTo*`): 「放下即可将 BACK-1 移到 Done（设为 Fixed），并指派给 anna」, read by a screen reader as a card moves; it was 「放下以将…」.
+- **The board's drop lines** (`board.board.dropItTo*`): 「放下即可将 BACK-1 移到 Done（设为 Fixed），并将它指派给 anna」, read by a screen reader as a card moves; it was 「放下以将…」.
 - **Examples for the assistant** are Chinese (「把这些移到 Review，并指派给 anna」, 「本周无人处理的严重 Bug」); examples of the query and command languages stay as written.
 - **The issue list's count line** says 「4 个问题：项目 SPR、未解决」, joining the query's parts with 、.
 - **Traditional Chinese readers**: a browser asking for zh-TW or zh-HK gets this catalog, since a4a matches a language by its first part, and most such browsers list zh as well. Is Simplified better than English for them, or should a4a match only zh, zh-CN and zh-Hans until it has a Traditional catalog?
@@ -524,7 +520,7 @@ Edited for natural phrasing:
 - **The consent button says 授权** (`page.oAuthConsent.allow`), as the terms table's "allow (an app)" does, and 「请求以你的身份访问 a4a」 (`page.oAuthConsent.asksToWorkInA4a`) for "asks to work in a4a as you".
 - **A workflow's action is still 动作** (`workflow.actions.*`, `problem.workflow.action*`, `problem.command.action*`). Chinese tools often say 操作 for a button that runs a command; it is left as it was. Should it change everywhere?
 - **The profile's sections**: 「基本信息」 for "You" (`page.profile.you`), 「登录方式」 for "Signing in" (`page.profile.signingIn`), and the role line 「你是管理员，可以更改所有内容。」 (`page.profile.youRe` with `roleAdmin`, `roleMember`, `roleViewer`).
-- **Webhook events as clauses**: 「服务台请求新增抄送时」, 「从项目中移除成员时」 (`page.webhooks.someoneIsCopiedOnARequest`, `someoneIsTakenOutOf`, `aGroupIsTakenOut`), for English's passives.
+- **Webhook events as clauses**: 「服务台请求新增抄送」, 「从项目中移除成员」 (`page.webhooks.someoneIsCopiedOnARequest`, `someoneIsTakenOutOf`, `aGroupIsTakenOut`), for English's passives, read before 时 in a webhook's line (`page.webhooks.when2`). The form's checkboxes say the same, as labels of their own (`page.webhooks.label.*`).
 
 Edited for natural phrasing, second round:
 
@@ -553,18 +549,18 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - **Signing out everywhere is 在所有设备上退出登录** (`page.notMe.signMeOut`, `doneAbout`, `ifNotYou`, `server.passkeys.signOutEverywhere`, `notYou`), though it ends every session, a second browser's on one device too. 退出所有会话 is exact, but technical.
 - **A copied passkey is 已停用** (`identity.passkeys.stopped`, `server.passkeys.copiedSubject`, `problem.passkeys.copied`), since a4a stops it; 已失效 is the alternative. 可能已被复制 keeps a passive, as Chinese security notices say it (`identity.passkeys.mayBeCopied`, `page.notMe.copied`).
 - **The sign count** (`server.passkeys.copied`): 「a4a 发现此通行密钥使用时出现了一个此前已经用过的计数」 for "a count it had already passed". Clear to someone who doesn't know a passkey counts?
-- **The passkey mails** say what changed without a subject, 「已为你的 a4a 账号添加一个通行密钥」 and 「已从你的 a4a 账号移除一个通行密钥」 (`server.passkeys.addedSubject`, `removedSubject`, `page.notMe.added`, `removed`), and their leads begin with the time as Intl writes it: 「11月16日周一 GMT+8 22:05，通行密钥“…”已添加到你的 a4a 账号 ada。」 (`server.passkeys.added`, `removed`, `removedByAdmin`). Their button is 不是我本人操作 (`server.passkeys.thisWasntMe`). Natural?
+- **The passkey mails** say what changed without a subject, 「已为你的 a4a 账号添加一个通行密钥」 and 「已从你的 a4a 账号移除一个通行密钥」 (`server.passkeys.addedSubject`, `removedSubject`, `page.notMe.added`, `removed`), and their leads begin with the time as Intl writes it: 「11月16日周一 GMT+8 22:05，通行密钥“…”已添加到你的 a4a 账号 ada。」 (`server.passkeys.added`, `removed`, `removedByAdmin`). The added and removed mails' button is 不是我本人操作 (`server.passkeys.thisWasntMe`). Natural?
 - **Face** is 人脸 (`identity.passkeys.none`, `problem.passkeys.notVerified`), as Android and Windows say it; Apple's is 面容.
-- **The portal** is 门户 on the team's pages and 服务台门户 where requesters read it (`page.portal.passwordHelp`, `server.portalAccount.lead`). The lockout in `helpdesk.portalSignIn.passwordHelp` says 该邮箱地址, since ten tries are counted per email (the 429, `problem.portal.tooManyTries`, says so), where English says "the address".
+- **The portal** is 门户 on the team's pages and 服务台门户 where requesters read it (`page.portal.passwordHelp`, `server.portalAccount.lead`).
 - **A guest's project page** heads its plan, reports, boards and whiteboards 「{name} 的其他公开内容」 (`page.guestPages.alsoOpenIn`), for "Also open in {name}", and a missing board reads 「找不到这个看板，或该看板未对访客开放。」 (`page.guestPages.noSuchBoard`, `noSuchProject`, `noSuchWhiteboard`), naming it again where the issue's older message says 它.
 
 ## Vietnamese
 
-Translated whole by one model, from English, the code and [translating.md](translating.md), then edited by another for natural phrasing (the list at the end of this section), with no native speaker yet.
+Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
 
 Terms:
 
-- **An issue is "vấn đề"**, Redmine's word, and the brief's. It is also everyday Vietnamese for "a problem", so what went wrong is always "lỗi". Would teams rather read "issue" as it is, or "công việc"?
+- **An issue is "vấn đề"**, Redmine's word. It is also everyday Vietnamese for "a problem", so what went wrong is always "lỗi". Would teams rather read "issue" as it is, or "công việc"?
 - **There is no tracker's Vietnamese to lean on.** As far as the catalog's writer knows, neither Jira nor YouTrack has a Vietnamese interface; bảng, thẻ and nhãn are Trello's, and the plan's terms (đường găng, đường cơ sở, thời gian dự trữ, giá trị thu được) Vietnamese project management's. Check the whole table in translating.md against what your team says.
 - **An assignee is "người được giao"** (16 characters, in a column and on badges). "Người phụ trách" and "người thực hiện" are the alternatives.
 - **An agent is "tác nhân"**, as the Vietnamese press writes AI agents. Many developers say "agent"; "tác tử" is the academic word.
@@ -582,10 +578,9 @@ Phrasing:
 - **Dates** come from Intl's CLDR: "16 thg 11, 2026" for a short date. Some readers prefer "16/11/2026".
 - `problem.ai.error` adds a lead-in English doesn't have, "Dịch vụ AI báo lỗi: {error}", since what follows is another service's English.
 - `server.helpdesk.received` greets first ("Chào {name}, chúng tôi đã nhận được yêu cầu của bạn."), where English ends the sentence with the name.
-- **The ledger's bylines** say "với tư cách {name}" for "as {name}", "thay mặt {name}" for "for {name}", and "với danh nghĩa riêng" for "as itself". `activity.ledgerEntry.made` is "đã để {v} {v2}" ("đã để BACK chỉ hiển thị với thành viên").
+- **The ledger's bylines** say "với tư cách {name}" for "as {name}", "thay mặt {name}" for "for {name}", and "với danh nghĩa riêng" for "as itself". `activity.ledgerEntry.made` is "đã đặt {v} ở chế độ {v2}" ("đã đặt BACK ở chế độ chỉ thành viên xem được").
 - **Badges kept short for a phone**: `activity.ledgerEntry.changesWhoIsCopied` "đổi người được CC", `helpdesk.groups.cantBeGiven` "{name}: tạm không nhận yêu cầu", `helpdesk.requestCard.firstResponseDueIn` "phản hồi đầu tiên: còn {span}". Clear enough?
 - **The issue list's count line** puts the count first, as English does ("4 vấn đề trong dự án SPR, chưa giải quyết"), and its sort follows a comma (`server.query.sortedBy`, ", sắp xếp theo {sorts}").
-- **The parser's lines**: "Unexpected …" is "“x” không hợp lệ ở đây.", "Expected …" is "Thiếu … sau …", and "Unknown X" is "Không tìm thấy X" (see below).
 - `rules.preview.actsScheduled`: does "chạy cho từng vấn đề" against "tác động lên từng vấn đề" carry English's "for each of them" against "on each of them"?
 - **"Your address"** in the help desk's limits is "địa chỉ IP của bạn", since an email address sits beside it.
 - **Examples**: plain words for the assistant and the chat bot are Vietnamese ("comment BACK-12 Ổn rồi", "chuyển các vấn đề này sang review và giao cho anna"), and so are example rule names ("Báo tin lỗi nghiêm trọng"); states, fields and the query and command languages stay as typed ("Won't fix", "State Fixed").
@@ -621,11 +616,10 @@ A second read, again by a model, edited about 1,430 messages so they read as Vie
 - **Bylines put the person first**: "admin báo cáo ngày 17 thg 11, 2026" on the issue page (`page.issue.reportedBy`, `page.issue.askedByThroughTheHelp`), "vấn đề được Ada báo cáo" in the history (`issues.issueHistory.by`, `issues.issueHistory.whereItWasReported`), "Ada báo cáo 3 ngày trước" on the guest pages (`page.guestPages.by`, `page.guestPages.reported`), "Ada đã sửa …" on an article (`page.articles.by`), "do {name} thêm" for a login (`vcs.people.by`). "Bởi" is gone.
 - **Notification kinds are verb phrases** ("Tạo mới", "Bình luận mới", "Đổi trạng thái", "Giao cho ai đó", "Thêm tệp", `notifications.kinds.*`), and the email levels say when they tell ("Khi bạn được nhắc đến, được giao việc, …", `notifications.emailSettings.mentionsAndAssignmentsAndChanges`), with the option itself "Nhắc đến và giao việc".
 - **A saved search's issues "khớp" it** ("vấn đề mới khớp “{name}”", `server.mail.whySubscribed`, `page.inbox.becauseYouSubscribedTo`, `notifications.subscriptions.tellMeWhenAnIssue`), where they "mới vào" it.
-- **An email's first line** is "{title} ở {id}: {summary}" (`server.mail.lead`): "Ada đã bình luận ở BACK-12: …". "Ở" against "trên" or "tại"?
+- **An email's first line** puts the issue in brackets after the title, "{title} ({id}: {summary})" (`server.mail.lead`): "Ada đã bình luận (BACK-12: …)". Natural, or would "ở", "trên" or "tại" before the id read better?
 - **The new issue's button is "Báo cáo vấn đề"** (`page.newIssue.reportIt`), since "Báo cáo" alone reads as Reports; its help says "Mô tả điều đã xảy ra …" where it said "Nói …" (`page.newIssue.sayWhatHappenedAndWhat`). Would "Tạo vấn đề" be better?
 - **The command bar's words mode**: "Mô tả việc cần làm" for "Say what to do, in words" and "Chuyển thành lệnh" for "Read my words" (`issues.commandBar.sayWhatToDoIn`, `issues.commandBar.readMyWords`); the query field's toggle stays "Hỏi bằng lời".
 - **Smaller choices**: a table's name for screen readers is "Danh sách …" (`page.admin.tableOfPeople` and the other `tableOf*`), since "bảng" is a board; "50%" for a report's "Half" (`reports.distribution.half`); "24/7" for "round the clock" (`helpdesk.sla.roundTheClock`); "Gom người yêu cầu" for grouping requesters (`helpdesk.groups.intro`); "Cần bạn xử lý" for "Waiting on you" (`page.suggestions.waitingOnYou`); "Tiêu đề" for the help desk form's "What it's about" (`page.help.whatItSAbout`); "Lưu ở dạng mã hóa" for "Kept sealed" (`page.chat.underBasicInformationA4aChecks`); and the time zone example "Asia/Ho_Chi_Minh" (`helpdesk.sla.anIanaNameSuchAs`).
-- **Not read whole yet**: `page.integrations`, `page.webhooks`, `page.agents`, `agents`, `apps`, `builds`, `vcs`, `imports`, `page.import`, `identity`, `roles`, `groups`, `page.group`, `page.admin`, `page.fields`, `projects`, `page.oAuthConsent` and `api` had only their "Hãy", "bởi", "thay cho", "Một …" and table names edited. The second round below read them whole.
 
 Edited for natural phrasing, second round:
 
@@ -658,14 +652,14 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - **Signed out everywhere is "đăng xuất mọi phiên"** (`page.notMe.signMeOut` "Đăng xuất mọi phiên của tôi", `page.notMe.doneAbout`, `server.passkeys.signOutEverywhere`), as a changed password's line says it; Google says "đăng xuất khỏi mọi thiết bị".
 - **"Set or reset my password" is "Tạo hoặc đặt lại mật khẩu"** (`page.portal.setOrResetPassword`), where setting one is "đặt" elsewhere (`page.portal.setThePassword`): "Đặt hoặc đặt lại" repeats itself. Many sign-in forms say "Quên mật khẩu?".
 - **A password for a desk** is "mật khẩu đăng nhập vào {where}" in its emails (`server.portalPassword.subject`, `lead`), since "mật khẩu cho bộ phận hỗ trợ của BACK" could read as the desk's own.
-- **The form's proof of work** is named by its setting: "nếu biểu mẫu bật “Xác minh người gửi là người thật”, bước xác minh đó cũng áp dụng khi đăng nhập bằng mật khẩu" (`helpdesk.portalSignIn.passwordHelp`). The address ten wrong tries lock is the email address ("tạm khóa địa chỉ email đó"), as the server counts them.
+- **The form's proof of work** is named by its setting: "nếu biểu mẫu bật “Xác minh người gửi là người thật”, bước xác minh đó cũng áp dụng khi đăng nhập bằng mật khẩu" (`helpdesk.portalSignIn.passwordHelp`).
 - **A copied passkey's count** is "số đếm" ("với số đếm mà khóa đã vượt qua từ trước", `server.passkeys.copied`). Clear to someone who doesn't know WebAuthn?
 - **Badges**: a synced passkey is "Đồng bộ", its kind, rather than "Đã đồng bộ", which reads as something done once, and a stopped one "Đã dừng" (`identity.passkeys.synced`, `identity.passkeys.stopped`). "Use a passkey instead", at the code's step, is "Dùng khóa truy cập thay cho mã" (`app.auth.usePasskeyInstead`), naming what it replaces.
 - **A guest's pages say "công khai"**, as the guest home does: "Không tìm thấy bảng này trong các dự án công khai" (`page.guestPages.noSuchBoard`, `noSuchProject`, `noSuchWhiteboard`), "Nội dung công khai khác của {name}" over a project's plan, reports, boards and whiteboards (`page.guestPages.alsoOpenIn`), and "với tư cách khách" for as a guest (`page.guestPages.whiteboardReadOnly`).
 
 ## Indonesian
 
-Indonesian came later than the others, in one pass, by a model working from English, the code and [translating.md](translating.md). A second read edited it for natural phrasing (the last list below); no native speaker has read it yet.
+Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
 
 Terms:
 
@@ -681,7 +675,7 @@ Terms:
 - **Days away** is *ketidakhadiran*, and **away** *tidak hadir*. *Cuti* is leave, which a sick day or a training isn't; is *ketidakhadiran* too formal for a calendar?
 - **Levelling** is *perataan beban*, **slack** *kelonggaran*, **earned value** *nilai hasil (EV)*, **booked** *dialokasikan*. Indonesian project managers often keep the English (float, earned value): which would they read faster?
 - **Kept as Indonesian teams say them**: sprint, backlog, story point, velocity, burndown, baseline, milestone, commit, pull request, branch, build, webhook, token, widget, timer and secret. Should any be Indonesian?
-- **The navigation's groups**: *Pekerjaan*, *Rencana*, *Keputusan*, *Penyiapan* (Build: projects, rules, fields, import) and *Pemantauan* (Oversee). *Pemantauan* sits beside *pantau*, which is "watch" for an issue's watchers.
+- **The navigation's groups**: *Pekerjaan* (Work), *Keputusan* (Decide), *Penyiapan* (Build: projects, rules, fields, import) and *Pemantauan* (Oversee). *Pemantauan* sits beside *pantau*, which is "watch" for an issue's watchers.
 - **A guard rule** is *aturan penjaga*, a state machine's **moves** are *langkah*, and **triage** is *triase*, the hospital's word.
 
 Phrasing:
@@ -713,7 +707,7 @@ Edited for natural phrasing:
 A later read, again by a model and not a native speaker, edited 1,039 messages so they read as Indonesian software rather than as English translated: the sign-in page and a4a's frame, the issues and an issue, boards, the inbox and its emails, the help desk and its portal, the ledger, the query's and commands' problems, projects, dashboards, articles, and then parts of the rest (the plan, rules, days away, files, the editor, the assistant, the other problems, administration and fields). The rest of the catalog (reports, integrations, webhooks, apps, imports, builds, version control, chat, whiteboards, roles and groups) had only the sweeps below. What it chose that a native speaker should check:
 
 - **"Anda" left out** where the page says whose it is: "Profil" (`app.shell.yourProfile`), "Memuat kotak masuk…" (`loadingLine.inbox` and its siblings), "Ponsel hilang?" (`app.auth.lostYourPhoneTypeOne`), "Bahasa browser: {name}" (`page.profile.yourBrowsersLanguage`), "Semua sudah dibaca" (`page.inbox.youReUpToDate`). Do any now read as if nobody's?
-- **Acting for someone is "atas nama"**, not "untuk": "e2e atas nama Ada" (`issues.issueHistory.for`, `ui.who.for`, `activity.ledgerEntry.throughTheApiAs` and its siblings, `server.notify.agentFor`, `assistant.changeCard.for`), and an agent with its own token acts "atas nama sendiri" (`ui.who.overMcpAsItself`, `agents.agentAccounts.actsAsItself`). Is "atas nama sendiri" natural, or would *sebagai dirinya sendiri* be clearer?
+- **Acting for someone is "atas nama"**, not "untuk": "e2e atas nama Ada" (`issues.issueHistory.for`, `ui.who.for`, `activity.ledgerEntry.throughTheAssistantFor` and its siblings, `server.notify.agentFor`, `assistant.changeCard.for`), and an agent with its own token acts "atas nama sendiri" (`ui.who.overMcpAsItself`, `agents.agentAccounts.actsAsItself`). Is "atas nama sendiri" natural, or would *sebagai dirinya sendiri* be clearer?
 - **"On its own" is "otomatis"** in the history and the ledger (`issues.issueHistory.onItsOwn`, `issues.issueHistory.anAppOnItsOwn`, `activity.ledgerEntry.onItsOwn`, `assistant.toolRun.assistantOnItsOwn`), and *secara mandiri* for an agent's own change (`problem.agents.onlyAgentsOwnChange`). `ui.who.onItsOwn` keeps *dengan sendirinya*, since `ui.who.automation` before it is *otomatisasi*.
 - **Plain words for the assistant are "kalimat biasa"**: "Tanya dengan kalimat biasa" (`issues.queryBar.askInWords`, `issues.languageField.askInWords`), "Tulis perintah dengan kalimat biasa" (`issues.commandBar.sayWhatToDoIn`), "lewat kalimat biasa" (`issues.issueHistory.askedInWords`), and the button "Ubah jadi perintah" (`issues.commandBar.readMyWords`). *Bahasa sehari-hari* or *bahasa alami* are the alternatives.
 - **Due is "tenggat" everywhere**, no longer sometimes *jatuh tempo*, which reads as a bill's: "tenggat 2 jam lagi" (`helpdesk.sla.dueIn`, `helpdesk.sla.atRiskDueIn`, `helpdesk.requestCard.firstResponseDueIn`), "terlambat 3 hari: tenggatnya 16 Nov" (`plan.gantt.daysLateWasDue`, `plan.timeline.wouldBeDaysLate`), "menandai target penyelesaian terlampaui" (`issues.issueHistory.slaBreached` and its siblings).
@@ -723,7 +717,6 @@ A later read, again by a model and not a native speaker, edited 1,039 messages s
 - **A role in a sentence**: "Anda adalah anggota dan dapat membaca serta mengubah isu." (`page.profile.youRe` with `page.profile.roleMember` and its siblings), and the admin's list "pelihat dapat membaca, anggota dapat membaca dan mengubah isu, administrator dapat mengubah semuanya" (`page.admin.aViewerReads` and its siblings).
 - **Optional is "(opsional)"** where English says "if you want one" (`issues.commandBar.aCommentIfYouWant`, `away.daysAway.aNoteIfYouWant`, `plan.baselines.aNoteIfYouWant`, `rules.ruleForm.andACommentIfIt`, `page.timesheet.workTypeIfAny`).
 - **A rule that does nothing or tells nobody**: "tidak ada tindakan" (`rules.words.doNothing`) and "beri tahu “…” (tanpa penerima)" (`rules.words.tellNobody`), no longer orders not to act. A rule's example message asks with "mohon": "Ada bug kritis masuk, mohon segera diperiksa." (`rules.ruleForm.aCriticalBugCameIn`).
-- **Who was told, when nobody was**: the history's and the ledger's lines put the people after a colon so that "nobody" reads: "menerapkan aturan “…”, yang diberi tahu: tidak ada" (`issues.issueHistory.andTold`, `issues.issueHistory.nobody`), "memberi tahu tentang BACK-1: tidak ada" (`activity.ledgerEntry.toldOf`, `activity.ledgerEntry.nobody`).
 - **A board without a project**: "Papan kanban untuk proyek yang belum ditentukan, …" (`page.board.forInColumnsBy`, `page.board.noProject`).
 - **Typography in problems**: “…” quotes now, except around JSON a script sends (`problem.notifications.sayWhich`, `problem.ci.rangeNeedsRepository`, `problem.fields.notOwned`, `problem.fields.valueInUseBy`); a parser's unexpected token is "“)” tidak seharusnya ada di sini." (`problem.query.unexpected` and its siblings); times in prose take a point, "Senin 09.00–17.00" (`problem.helpdesk.hoursNeedDay`, `problem.helpdesk.hoursBackwards`), while a parser's examples keep the colon it reads (`problem.values.notADateTime`).
 - **A comment's label** is "Komentar sebagai Siti Rahayu" (`issues.issueHistory.aComment` with `issues.issueHistory.as`), without English's comma; with a requester it reads "Balasan untuk Ada sebagai Siti Rahayu" (`issues.issueHistory.aReplyTo`). Clear enough without the comma?
@@ -767,7 +760,7 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 
 ## Thai
 
-Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. docs/translating.md's Thai section gives the reasons for each choice below.
+Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
 
 Terms:
 
@@ -780,7 +773,7 @@ Terms:
 - **Days away are วันที่ไม่อยู่**, not วันลา (leave), since an absence may be a conference; is it natural?
 - **A login is ชื่อผู้ใช้** (a username); **undo is เลิกทำ**, Microsoft's; **dismissing a suggestion is ปฏิเสธ**, Google Docs' word for rejecting a suggestion (it was ละเว้น, "abstain from", which stays where English means "ignore").
 - **Loanwords in Thai letters**: คอมมิต, แบรนช์, เมิร์จ, บิลด์, เว็บฮุก, สปรินต์, แบ็กล็อก, เฮลป์เดสก์, and the long พูลรีเควสต์. Thai developers often write these in Latin letters instead.
-- **The navigation's groups**: งาน (Work), แผนงาน (Plan), สร้าง (Build), กำกับดูแล (Oversee), ตัดสินใจ (Decide).
+- **The navigation's groups**: งาน (Work), ตัดสินใจ (Decide), สร้าง (Build), กำกับดูแล (Oversee).
 - **Classifiers**: รายการ counts issues, requests and most things (“อิชชู 4 รายการ”); bots are “บอต # ตัว”; a count of zero says “อิชชู 0 รายการ” rather than ไม่มีอิชชู.
 
 Typography and phrasing:
@@ -821,11 +814,11 @@ A second editor, also a model and not a native speaker, read the catalog on its 
 - **"In words"** (plain language for the assistant) is เป็นประโยค, not the calque เป็นคำพูด: “ถามเป็นประโยค” (`issues.languageField.askInWords`, `issues.queryBar.askInWords`), “บอกสิ่งที่ต้องทำเป็นประโยค” (`issues.commandBar.sayWhatToDoIn`); the button that hands them over is “ให้ผู้ช่วยอ่าน” (`issues.commandBar.readMyWords`), and the history's “asked in words” is “สั่งด้วยข้อความ” (`issues.issueHistory.askedInWords`). Would Thai teams say ภาษาพูด, or ภาษาธรรมชาติ?
 - **The team is ทีมงาน where customers read it** (`page.portal.*`, `page.help.*`, `page.track.*`, `server.helpdesk.*`), ทีม on the team's own pages (`helpdesk.*`). Is the split natural, or should one word serve both?
 - **Someone a4a can't name** is “ผู้ใช้ไม่ทราบชื่อ”, shown in bold as a name (`issues.issueHistory.someone`, `page.issue.someone`, `activity.ledgerEntry.someone`, `server.notify.someone`, `page.guestPages.someone`, `page.articles.someone`, `vcs.issueCode.someone`), where it was ใครบางคน.
-- **A notification names "this issue"**: “{who} มอบหมายอิชชูนี้ให้คุณ” (`server.notify.title.assigned`, `server.notify.title.reportedAndAssigned`), “รายงานอิชชูนี้” (`server.notify.verb.reported`, `issues.issueHistory.reportedIt`). An email's lead (`server.mail.lead`) then reads “Ada มอบหมายอิชชูนี้ให้คุณ ใน BACK-12: …”: is อิชชูนี้ redundant beside the id?
+- **A notification names "this issue"**: “{who} มอบหมายอิชชูนี้ให้คุณ” (`server.notify.title.assigned`, `server.notify.title.reportedAndAssigned`), “รายงานอิชชูนี้” (`server.notify.verb.reported`, `issues.issueHistory.reportedIt`). An email's lead (`server.mail.lead`) then reads “Ada มอบหมายอิชชูนี้ให้คุณ (BACK-12: …)”: is อิชชูนี้ redundant beside the id?
 - **Acting on its own**: an automation or an app is “โดยอัตโนมัติ” (`ui.who.onItsOwn`, `issues.issueHistory.onItsOwn`, `activity.ledgerEntry.onItsOwn`, `issues.issueHistory.anAppOnItsOwn`), the assistant “ลงมือเอง”, as its Acts mode is ลงมือ (`assistant.toolRun.assistantOnItsOwn`, `assistant.toolRun.onItsOwnAsYou`).
 - **The profile's role line** is one sentence with ซึ่ง: “คุณเป็นผู้ดูแลระบบ ซึ่งเปลี่ยนแปลงได้ทุกอย่าง” (`page.profile.youRe` with `page.profile.roleAdmin`, `page.profile.roleMember`, `page.profile.roleViewer`). Natural, or better as two?
 - **The profile's first section** is ข้อมูลส่วนตัว, not คุณ (`page.profile.you`), and the email settings point to it by that name (`notifications.emailSettings.youHaveNoEmailAddress`). It holds name, email, time zone and language: is ข้อมูลส่วนตัว too narrow?
-- **A status word after a value takes แล้ว**: “bug เพิ่มแล้ว”, “นำออกแล้ว” (`ui.changes.added`, `ui.changes.removed`, `common.changeLines.*`), “เวลาที่ใช้: 1h 30m บันทึกแล้ว” (`issues.issueHistory.logged`).
+- **A status word after a value takes แล้ว**: “bug เพิ่มแล้ว”, “นำออกแล้ว” (`ui.changes.added`, `ui.changes.removed`, `common.changeLines.*`).
 - **Not found and unknown**: an unknown issue, project, user, tag, group or build is ไม่พบ, as the terms table says for not found (`problem.query.unknownProject`, `problem.command.unknownIssue` and siblings); an unknown field, value or command stays ไม่รู้จัก, as Thai tools say a word isn't recognised. Is the line drawn in the right place?
 - **The editor's Visual mode** is จัดรูปแบบ (`editor.richField.visual`), where it was ภาพ ("picture"). Which word do Thai teams know from their editors?
 - **Copies**: a shared dashboard's copy is named “สำเนาของ {name}”, as Google Drive names copies (`page.dashboard.yourCopy`), made with “ทำสำเนา” (`page.dashboard.copyIt`); the default dashboard's button is “สร้างแดชบอร์ดของฉัน” (`page.dashboard.makeItYours`).
@@ -843,7 +836,7 @@ A third editor, also a model, read the parts the second hadn't read whole (integ
 - **Holiday, as a reason for days away, is ลาพักร้อน** (`away.words.holiday`), HR's word for annual leave, where it was วันหยุด, a day off or a public holiday. Too formal for a team's calendar?
 - **Labels are nouns, not English's questions**: “อิชชูที่จะนำเข้า: JQL” (`imports.fromApi.whichIssuesAJql` and siblings), “ใช้สำหรับ” (`roles.rolesSection.whatItSFor`, `groups.groupsSection.whatItSFor`), a token's columns “ขอบเขต” and “โปรเจกต์” (`page.agents.may`, `page.agents.where`, `agents.agentAccounts.may`, `agents.oAuthApps.where`), and a webhook's “When”: “เวลา” over its deliveries (`page.webhooks.when`), as an integration's says, and “ส่งเมื่อ” over the events (`page.webhooks.sendsWhen`).
 - **Thai values joined as words**: where a piece's value is always Thai, it joins with no space: “ได้รับแจ้งเรื่อง{what}” (`chat.chat.hearsOf`), “ค้นหา{where}” (`page.integrations.looksForItsSecretBegins`), “อ่าน{r}” (`apps.appsSection.reading`, a part of a4a by its Thai name), “{v}การสมัครรับ” (`chat.chat.sSubscriptionTo`). Where a value was Thai words or project keys by turns, the message now selects on which, each case whole: “ทำงานในทุกโปรเจกต์” and “ทำงานใน BACK และ WEB” (`apps.appsSection.runsIn`), “· ฟิลด์: Fixed in build” and “· ยังไม่มีฟิลด์บิลด์” (`builds.builds.buildsOfFromInto`); and a widget's place is a case of its own (`apps.appsSection.widgetAt`: ““Panel” ใต้หัวเรื่องของอิชชู”).
-- **Your role in a project** says its consequence with จึง: “คุณเป็นสมาชิกในโปรเจกต์นี้ ในฐานะสมาชิกของ Eng จึงอ่าน แสดงความคิดเห็น และเปลี่ยนอิชชูได้” (`projects.peopleAndAccess.youAreRoleHere`, `projects.peopleAndAccess.youAreRoleHereYouMay`, with `projects.peopleAndAccess.youReadCommentOnAnd` and its siblings). A built-in role joins as a word now, and a role people named keeps its spaces (“คุณเป็น Auditor ในโปรเจกต์นี้”), since each message selects on which it is. Does the sentence hold together?
+- **Your role in a project** says its consequence with จึง: “คุณเป็นสมาชิกในโปรเจกต์นี้ ในฐานะสมาชิกของ Eng จึงอ่าน แสดงความคิดเห็น และเปลี่ยนอิชชูได้” (`projects.peopleAndAccess.youAreRoleHere`, `projects.peopleAndAccess.youAreRoleHereYouMay`, with `projects.peopleAndAccess.youReadCommentOnAnd` and its siblings). Does the sentence hold together?
 - **Lines of facts** in the import list and on a whiteboard's card are separated by “ · ” where English has commas (`page.import.fromIssues`, `page.import.fromRows`, `page.whiteboards.row`), since bare spaces ran a count into a clock time.
 - **The mapping table's “Created” and “Updated”** are two messages each now: a column maps to สร้างเมื่อ and อัปเดตเมื่อ (`imports.mappingTable.whenCreated`, `whenUpdated`), beside ปิดเมื่อ (`resolved`), and the tally after an import counts สร้างแล้ว and อัปเดตแล้ว (`imports.mappingTable.created`, `updated`), beside จะสร้าง and จะอัปเดต.
 - **“Send a test” is “ส่งทดสอบ”**, and its outcome “ส่งทดสอบถึงแล้ว”, “ส่งทดสอบไม่สำเร็จ” (`page.integrations.sendATest`, `page.webhooks.sendATest`, `page.webhooks.theTestArrived`, `page.integrations.theTestDidnTGo`), where it was การทดสอบ.
@@ -858,7 +851,7 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - **An identity provider for requesters** is “ผู้ให้บริการข้อมูลประจำตัวสำหรับผู้ร้องขอ” (`helpdesk.portalSignIn.providers`), counted with ราย (`problem.portalSignIn.tooManyProviders`). A desk that offers or takes a way “เปิดให้ใช้” it (`helpdesk.portalSignIn.providerAbout`, `helpdesk.groups.asTheDeskTakes`, `problem.portal.passwordsOff`), and a provider vouching for an address “รับรอง” it (`helpdesk.portalSignIn.throughAny`, `page.portal.ssoDomain`). Desks count themselves, “เปิดให้ใช้ใน 2 เฮลป์เดสก์”: would แห่ง read better?
 - **The portal's button for a provider is “เข้าสู่ระบบด้วย {name}”**, as the team's sign-in page says it (`page.portal.signInThrough`), while a desk's settings and the ledger say “ผ่าน {name}” (`helpdesk.portalSignIn.through`, `activity.ledgerEntry.signInThrough`).
 - **"My password"**: the portal's account page says “เปลี่ยนรหัสผ่านของฉัน”, beside its “เปลี่ยนชื่อของฉัน” (`page.portal.changePassword`), but the sign-in form's link is “ตั้งหรือรีเซ็ตรหัสผ่าน”, without ของฉัน, to stay short (`page.portal.setOrResetPassword`).
-- `helpdesk.portalSignIn.passwordHelp` says ten wrong tries lock the email address, since the throttle counts them per email, where English's "the address" could be read as the network's; it names the form's proof of work by its setting, การตรวจสอบว่าผู้ส่งเป็นคน.
+- `helpdesk.portalSignIn.passwordHelp` names the form's proof of work by its setting, การตรวจสอบว่าผู้ส่งเป็นคน (`helpdesk.helpdeskSettings.makeSureAPersonSent`).
 - **A guest's pages**: a guest project's other pages are under “ส่วนอื่นของ {name} ที่เปิดให้ดู” (`page.guestPages.alsoOpenIn`), and a whiteboard open live is “เปิดดูแบบเรียลไทม์” (`problem.whiteboards.guestStreams`).
 - The ledger's badge is “เปลี่ยนวิธีเข้าสู่ระบบ”, without whose, to stay a badge (`activity.ledgerEntry.changesHowRequestersSignIn`); `page.notMe.what` sets its time off with “ · ”, “พาสคีย์ “iCloud Keychain” ในบัญชี a4a anna · 3 ชั่วโมงที่ผ่านมา”, as lines of facts do above.
 
@@ -867,10 +860,10 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 These need the code to change, not a catalog:
 
 - **French can't elide before a name**: "de {name}" prints "de Ada", not "d’Ada", since the name is a value.
-- **Spanish's "y" before an "i" sound**: `problem.command.valueOfFields` joins two field names with "y", which should be "e" when the second starts with an "i" sound. Field names are data.
+- **Spanish's "y" before an "i" sound**: `problem.command.valueOfFields` joins two field names with "y", which should be "e" when the second starts with an "i" sound. Field names are data. Intl's lists already say "e" there ("Priority e Importancia"); this message writes its "y" itself.
 - **A field's or state's gender**: a message that agrees with `{field}`, `{state}` or `{close}` assumes one.
-- **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and a chat subscription's end, written before migrations 0028 and 0029, stay in the English they were kept in. New ones are said in each reader's language.
-- **Lists inside a GitHub App's problems**: the server joins installations and names with ", " (「acme (123), anna (456)」), where Japanese and Chinese would use 「、」.
+- **Notes kept before a4a kept their words**: a commit's command note, a rule's run, a build's note and why a chat subscription, channel or workspace stopped, written before migrations `0028_build_notes` and `0029_kept_notes`, stay in the English they were kept in. New ones are said in each reader's language.
+- **Lists inside the server's problems**: the server joins what a problem lists with ", ": fields, values, roles, boards, sprints, projects, logins, a GitHub App's installations (`problem.issues.noSuchField`, `problem.values.unknownValue`, `problem.access.unknownRole`, `problem.vcs.githubApp.whichInstallation` and their like). Japanese and Chinese read 「acme (123), anna (456)」 where they would write 「、」. An issue's history shows a change to a multi-value field or to its tags joined the same way, as the server keeps the change (`packages/server/src/services/issues.ts`, and `presentValues` in `packages/server/src/services/values.ts`).
 - **Whether a value is Chinese**: Chinese spaces a value written in Latin letters or digits and not one written in Chinese, and a catalog can't tell which a value is, so it spaces names, ids and numbers. A person or a project named in Chinese gets spaces it doesn't need: 「以 王芳 身份」.
-- **Korean's particles after a Latin word**: a4a chooses a particle after Hangul and digits (`koreanParticles`), but can't hear how a Latin name, state or key ends, so there Korean keeps both ways (을(를), 이(가)). A value passed with whether it ends in a consonant would let Korean choose the one it needs.
+- **Korean's particles after a Latin word**: a4a chooses a particle after Hangul and digits (`koreanParticles` in `packages/shared/src/i18n.ts`), but can't hear how a Latin name, state or key ends, so there Korean keeps both ways (을(를), 이(가)). A value passed with whether it ends in a consonant would let Korean choose the one it needs.
 - **Portuguese's contractions with a value**: a product's or a desk's name takes an article in Portuguese ("do GitHub", "no centro de apoio de X"). The catalog writes the article into the message, so it assumes a masculine product (identity providers, trackers, chat platforms) and leaves the desk's name without one, so each message says "ao", "no" or "do" before it (`server.helpdesk.deskOf`, `server.portal.deskOf`).
