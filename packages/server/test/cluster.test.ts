@@ -135,6 +135,14 @@ describe.skipIf(!PG_URL)('several instances on one Postgres', () => {
     await db?.drop();
   });
 
+  it('takes the startup lock on the direct connection, where DATABASE_LISTEN_URL names one', async () => {
+    // A pooler in transaction mode keeps no session lock, so the lock goes past it: here, to nowhere.
+    const nowhere = 'postgres://a4a:a4a@127.0.0.1:1/a4a';
+    await expect(openDatabase({ url: db!.url, lockUrl: nowhere })).rejects.toThrow();
+    const opened = await openDatabase({ url: db!.url, lockUrl: db!.url });
+    await opened.close();
+  });
+
   it('starts two instances together on an empty database: one migration, one set of defaults', async () => {
     const fresh = (await freshPostgres())!;
     try {

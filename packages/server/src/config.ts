@@ -121,6 +121,12 @@ export interface Config {
   mailReplyAddress: string | undefined;
   /** Changes to one issue within this long fold into one notification (and one email). */
   notifyWindowMs: number;
+  /**
+   * How long an idle connection stays open (KEEP_ALIVE_SECONDS, 65 s): longer than whatever is in
+   * front keeps one idle, or it can send a request down a connection a4a has just closed (a 502).
+   * Behind Google's external Application Load Balancer, which keeps them ten minutes, 620.
+   */
+  keepAliveMs: number;
   /** The hour (0-23) the daily digest goes out, in each person's own time zone (D31). */
   digestHour: number;
   /** The language a4a writes in to whoever chose none, and shows a browser that asks for none it speaks (DEFAULT_LOCALE, D49). */
@@ -590,7 +596,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     databaseUrl: env.DATABASE_URL || undefined,
     databaseListenUrl: env.DATABASE_LISTEN_URL || undefined,
     dataDir: path.resolve(env.DATA_DIR || path.resolve(process.cwd(), 'data')),
-    seedDemo: (env.SEED_DEMO ?? 'true') !== 'false',
+    seedDemo: truthy(env.SEED_DEMO, true),
     aiProvider: ai.provider,
     aiBaseUrl: ai.baseUrl,
     aiModel: ai.model,
@@ -615,6 +621,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     mailFrom: env.MAIL_FROM || `a4a <a4a@${hostnameOf(env.PUBLIC_URL)}>`,
     mailReplyAddress: env.MAIL_REPLY_ADDRESS?.trim().toLowerCase() || undefined,
     notifyWindowMs: Math.max(0, Number(env.NOTIFY_WINDOW_SECONDS ?? 120)) * 1000,
+    keepAliveMs: intEnv(env.KEEP_ALIVE_SECONDS, 65, 1) * 1000,
     digestHour: Math.min(23, Math.max(0, Number(env.DIGEST_HOUR ?? 8))),
     defaultLocale: localeEnv(env.DEFAULT_LOCALE),
     mcpOAuth,

@@ -42,6 +42,8 @@ const Id = z.object({ id: z.string() });
 
 /** Run an assistant turn and stream its events as SSE; the turn finishes even if the client leaves. */
 function streamTurn(c: Parameters<typeof streamSSE>[0], run: (emit: Emit) => Promise<void>) {
+  // Proxies such as nginx buffer responses unless told not to; a buffered answer comes all at once.
+  c.header('x-accel-buffering', 'no');
   return streamSSE(c, async (stream) => {
     const queue: ChatStreamEvent[] = [];
     let wake: (() => void) | null = null;
@@ -62,10 +64,18 @@ function streamTurn(c: Parameters<typeof streamSSE>[0], run: (emit: Emit) => Pro
         await stream.writeSSE({ event: e.type, data: JSON.stringify(e) });
       }
       if (finished) break;
+      // While the model thinks or a tool runs nothing else is sent: a comment every 15 s keeps a
+      // proxy's idle timeout from cutting the answer off.
+      let quiet = false;
       await new Promise<void>((r) => {
         wake = r;
+        setTimeout(() => {
+          quiet = true;
+          r();
+        }, 15_000).unref?.();
       });
       wake = null;
+      if (quiet && !queue.length && !finished && !stream.aborted) await stream.write(': keep-alive\n\n');
     }
     await work;
   });

@@ -561,6 +561,8 @@ describe('the channels', () => {
   it('SSE: the unread count, as it changes', async () => {
     const res = await http.request('/api/v1/notifications/stream', { headers: { authorization: `Bearer ${token}` } });
     expect(res.status).toBe(200);
+    // Not buffered by a proxy in front, as the events stream isn't.
+    expect(res.headers.get('x-accel-buffering')).toBe('no');
     const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
     const next = async () => {
       let buf = '';

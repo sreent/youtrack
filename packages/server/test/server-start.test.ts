@@ -3,11 +3,13 @@
  * idle connection open longer than a load balancer in front would.
  */
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { KEEP_ALIVE_MS, startServer, type Started } from '../src/server';
+import { loadConfig } from '../src/config';
+import { KEEP_ALIVE_MS, keepConnections, startServer, type Started } from '../src/server';
 
 let started: Started | undefined;
 let dir = '';
@@ -31,4 +33,33 @@ it("keeps an idle connection open past a load balancer's 60 seconds, and answers
   const { port } = server.address() as AddressInfo;
   const res = await fetch(`http://127.0.0.1:${port}/api/v1/health`);
   expect(res.status).toBe(200);
+});
+
+it('reads KEEP_ALIVE_SECONDS for whatever is in front, and SEED_DEMO as every switch is read', () => {
+  const kept = { KEEP_ALIVE_SECONDS: process.env.KEEP_ALIVE_SECONDS, SEED_DEMO: process.env.SEED_DEMO };
+  try {
+    delete process.env.KEEP_ALIVE_SECONDS;
+    expect(loadConfig().keepAliveMs).toBe(KEEP_ALIVE_MS);
+    // Behind Google's load balancer, which keeps idle connections ten minutes.
+    process.env.KEEP_ALIVE_SECONDS = '620';
+    expect(loadConfig().keepAliveMs).toBe(620_000);
+    const server = createServer();
+    keepConnections(server, 620_000);
+    expect([server.keepAliveTimeout, server.headersTimeout]).toEqual([620_000, 621_000]);
+    process.env.KEEP_ALIVE_SECONDS = 'soon';
+    expect(loadConfig().keepAliveMs).toBe(KEEP_ALIVE_MS);
+    for (const off of ['false', '0', 'no', 'off']) {
+      process.env.SEED_DEMO = off;
+      expect(loadConfig().seedDemo).toBe(false);
+    }
+    process.env.SEED_DEMO = 'true';
+    expect(loadConfig().seedDemo).toBe(true);
+    delete process.env.SEED_DEMO;
+    expect(loadConfig().seedDemo).toBe(true);
+  } finally {
+    for (const [k, v] of Object.entries(kept)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });

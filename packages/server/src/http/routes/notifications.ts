@@ -123,6 +123,8 @@ export function notificationRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, ctx }) => {
       const first = await unreadCount(ctx);
       const userId = ctx.actor.user.id;
+      // Proxies such as nginx buffer responses unless told not to; a buffered stream isn't live.
+      c.header('x-accel-buffering', 'no');
       return streamSSE(c, async (stream) => {
         let last = first;
         let dirty = false;

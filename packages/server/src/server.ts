@@ -32,9 +32,9 @@ export interface Started {
  */
 export const KEEP_ALIVE_MS = 65_000;
 
-export function keepConnections(server: Server): void {
-  server.keepAliveTimeout = KEEP_ALIVE_MS;
-  server.headersTimeout = KEEP_ALIVE_MS + 1_000;
+export function keepConnections(server: Server, keepAliveMs = KEEP_ALIVE_MS): void {
+  server.keepAliveTimeout = keepAliveMs;
+  server.headersTimeout = keepAliveMs + 1_000;
 }
 
 /** Extra consumers (e.g. AI triage) register here before start. */
@@ -92,7 +92,7 @@ export async function startBackground(
 
 export async function startServer(overrides: Partial<Config> = {}): Promise<Started> {
   const config = loadConfig(overrides);
-  const database = await openDatabase({ url: config.databaseUrl, dataDir: config.dataDir });
+  const database = await openDatabase({ url: config.databaseUrl, lockUrl: config.databaseListenUrl, dataDir: config.dataDir });
   const runtime = await createRuntime(config, database);
   // A bucket a4a can't reach or isn't let into stops it here, saying what to check (D35).
   await checkAttachmentStorage(runtime).catch(async (e: unknown) => {
@@ -136,7 +136,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Star
     await database.close();
     throw err;
   });
-  keepConnections(server);
+  keepConnections(server, config.keepAliveMs);
 
   let stopping: Promise<void> | null = null;
   const stop = () =>
