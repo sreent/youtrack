@@ -194,8 +194,11 @@ export function refusalProblem(r: Refused): AppError {
       return badRequest(`${r.email} belongs to someone on the team`, 'People on the team follow a request by watching it.').said('requestCcs.teamAddress', { email: r.email });
     case 'requester':
       return badRequest(`${r.email} is the requester’s own address`, 'The requester gets every email about it already.').said('requestCcs.requesterAddress', { email: r.email });
-    case 'full':
-      return conflict(`A request copies at most ${r.max} people`, 'Stop copying someone first.').said('requestCcs.full', { max: r.max });
+    case 'full': {
+      // The API's English says the desk's cap as the catalog's plural does: "1 person", "20 people".
+      const people = new Intl.PluralRules('en').select(r.max) === 'one' ? 'person' : 'people';
+      return conflict(`A request copies at most ${r.max} ${people}`, 'Stop copying someone first.').said('requestCcs.full', { max: r.max });
+    }
     case 'stopped':
     case 'removed':
       return conflict(`${r.email} asked to stop emails about this request`, 'Ask the team, who can copy them again.').said('requestCcs.theyStopped', { email: r.email });
@@ -423,6 +426,7 @@ export async function holdOnNewRequest(tx: Db, app: AppServices, issue: IssueRow
   const team = await teamAddresses(tx, people.map((p) => p.email));
   const max = deskCcsMax(await app.schema.get(tx), issue.projectId);
   const out = { held: [] as string[], left: [] as string[] };
+  const start = Date.now();
   const seen = new Set<string>();
   for (const p of people) {
     const email = p.email.trim();
@@ -434,7 +438,11 @@ export async function holdOnNewRequest(tx: Db, app: AppServices, issue: IssueRow
       continue;
     }
     const name = (p.name ?? '').trim().replace(/\s+/g, ' ').slice(0, 100);
-    await tx.insert(requestCcHolds).values({ id: newId(), issueId: issue.id, email, name }).onConflictDoNothing();
+    // A millisecond apart, so they're listed as the Cc named them.
+    await tx
+      .insert(requestCcHolds)
+      .values({ id: newId(), issueId: issue.id, email, name, heldAt: new Date(start + out.held.length) })
+      .onConflictDoNothing();
     out.held.push(email);
   }
   return out;
