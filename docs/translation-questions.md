@@ -505,6 +505,21 @@ Edited for natural phrasing, second round:
 - **Provisioning is 预配**, Microsoft's word, under the heading 用户预配 (`identity.provisioning.provisioning`). 同步 or 自动配置 are the alternatives.
 - **An import's mapping table** heads its columns 「来源：YouTrack」, 「BACK 中的对应项」 and 「匹配方式」, with chips 「按表头匹配」, 「手动选择」 and 「未匹配」 (`imports.mappingTable.in`, `becomesIn`, `how`, `foundFromItsHeader`, `chosen`, `nothingHereYet`).
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- **A passkey is 通行密钥** (`identity.passkeys.*`, `page.profile.passkeys`, `app.auth.signInWithAPasskey` 「使用通行密钥登录」), as Apple's, Google's and Microsoft's Chinese say it, counted with 个. 密钥 is also a webhook's secret and a provider's client secret (`helpdesk.portalSignIn.clientSecret` 「客户端密钥」): does 通行密钥 read apart? Some Chinese sites keep "Passkey".
+- **Ways to sign in are named 「…登录」**, as Chinese sign-in options are: the desk's choices 邮件链接登录, 密码登录 and 通过 {name} 登录 (`helpdesk.portalSignIn.link`, `password`, `through`), and the ledger's 「将 BACK 请求人的门户登录方式改为：邮件链接登录、密码登录和Okta 登录」 (`activity.ledgerEntry.signInByLink`, `signInByPassword`, `signInThrough`, `portalSignInChanged`). The portal's list ends in a provider's bare name, so it names things: 「密码、邮件中的登录链接或 Okta」 (`page.portal.wayPassword`, `wayLink`, `elsewhere`).
+- **Identity providers for requesters are 供请求人使用的身份提供商** (`helpdesk.portalSignIn.providers`, `noProviders`, `problem.portalSignIn.providersForManagers`, `tooManyProviders`): plain, but long in a sentence. 请求人身份提供商 is shorter.
+- **A provider vouches by 确认** (`helpdesk.portalSignIn.throughAny`, `throughSome`, `domainsHelp`, `page.portal.ssoDomain`): 「由提供商确认邮箱」. 担保 is literal; 验证 is the alternative.
+- **The OpenID Connect fields** are 颁发者（Issuer）, 客户端 ID, 客户端密钥, 重定向 URI and 发现文档 (`helpdesk.portalSignIn.issuer`, `clientId`, `clientSecret`, `redirectUri`, `problem.portalSignIn.issuerNotUrl`, `providerUnreachable`). Microsoft's Chinese says 客户端密码 for the secret, and many providers' Chinese consoles keep Issuer in English.
+- **Signing out everywhere is 在所有设备上退出登录** (`page.notMe.signMeOut`, `doneAbout`, `ifNotYou`, `server.passkeys.signOutEverywhere`, `notYou`), though it ends every session, a second browser's on one device too. 退出所有会话 is exact, but technical.
+- **A copied passkey is 已停用** (`identity.passkeys.stopped`, `server.passkeys.copiedSubject`, `problem.passkeys.copied`), since a4a stops it; 已失效 is the alternative. 可能已被复制 keeps a passive, as Chinese security notices say it (`identity.passkeys.mayBeCopied`, `page.notMe.copied`).
+- **The sign count** (`server.passkeys.copied`): 「a4a 发现此通行密钥使用时出现了一个此前已经用过的计数」 for "a count it had already passed". Clear to someone who doesn't know a passkey counts?
+- **The passkey mails** say what changed without a subject, 「已为你的 a4a 账号添加一个通行密钥」 and 「已从你的 a4a 账号移除一个通行密钥」 (`server.passkeys.addedSubject`, `removedSubject`, `page.notMe.added`, `removed`), and their leads begin with the time as Intl writes it: 「11月16日周一 GMT+8 22:05，通行密钥“…”已添加到你的 a4a 账号 ada。」 (`server.passkeys.added`, `removed`, `removedByAdmin`). Their button is 不是我本人操作 (`server.passkeys.thisWasntMe`). Natural?
+- **Face** is 人脸 (`identity.passkeys.none`, `problem.passkeys.notVerified`), as Android and Windows say it; Apple's is 面容.
+- **The portal** is 门户 on the team's pages and 服务台门户 where requesters read it (`page.portal.passwordHelp`, `server.portalAccount.lead`). The lockout in `helpdesk.portalSignIn.passwordHelp` says 该邮箱地址, since ten tries are counted per email (the 429, `problem.portal.tooManyTries`, says so), where English says "the address".
+- **A guest's project page** heads its plan, reports, boards and whiteboards 「{name} 的其他公开内容」 (`page.guestPages.alsoOpenIn`), for "Also open in {name}", and a missing board reads 「找不到这个看板，或该看板未对访客开放。」 (`page.guestPages.noSuchBoard`, `noSuchProject`, `noSuchWhiteboard`), naming it again where the issue's older message says 它.
+
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited by another for natural phrasing (the list at the end of this section), with no native speaker yet.
