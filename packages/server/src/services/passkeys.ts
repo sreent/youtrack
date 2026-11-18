@@ -104,6 +104,19 @@ export function relyingParty(publicUrl: string, rpId?: string): RelyingParty | n
 /** This instance's relying party (D68): PUBLIC_URL's origin, with PASSKEY_RP_ID as its id where it's set. */
 export const rpOf = (app: AppServices): RelyingParty | null => relyingParty(app.config.publicUrl, app.config.passkeyRpId);
 
+/** The current id, then earlier ids accepted during a domain migration (D70). */
+export function rpsOf(app: AppServices): RelyingParty[] {
+  const current = rpOf(app);
+  if (!current) return [];
+  return [current, ...app.config.passkeyLegacyRpIds.filter((id) => id !== current.id).map((id) => ({ id, origin: current.origin }))];
+}
+
+/** An id a browser may be offered here; unknown or retired ids are never accepted. */
+export function rpFor(app: AppServices, id?: string): RelyingParty | null {
+  const all = rpsOf(app);
+  return id ? (all.find((rp) => rp.id === id) ?? null) : (all[0] ?? null);
+}
+
 /** Why passkeys are off on this instance, or null when they're on. */
 export async function passkeysOff(app: AppServices): Promise<Exclude<PasskeysOff, 'account'> | null> {
   if (!rpOf(app)) return 'address';
@@ -259,7 +272,8 @@ export function passkeyName(typed: string | undefined, aaguid: string | undefine
 // ---------------------------------------------------------------------------
 
 /** `list`: the authenticators taken here, where only some are (D68). */
-function passkeyDto(row: PasskeyRow, rp: RelyingParty | null, list?: string[] | null): Passkey {
+function passkeyDto(app: AppServices, row: PasskeyRow, list?: string[] | null): Passkey {
+  const accepted = new Set(rpsOf(app).map((rp) => rp.id));
   return {
     id: row.id,
     name: row.name,
@@ -267,7 +281,7 @@ function passkeyDto(row: PasskeyRow, rp: RelyingParty | null, list?: string[] | 
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
     synced: row.multiDevice,
     copied: Boolean(row.copiedAt),
-    elsewhere: rp && row.rpId !== rp.id ? row.rpId : null,
+    elsewhere: !accepted.has(row.rpId) ? row.rpId : null,
     attested: row.attested,
     listed: list ? row.attested && list.includes(row.aaguid ?? '') : null,
   };
@@ -277,8 +291,10 @@ async function rowsOf(db: Db, userId: string): Promise<PasskeyRow[]> {
   return db.select().from(passkeys).where(eq(passkeys.userId, userId)).orderBy(asc(passkeys.createdAt));
 }
 
-/** Passkeys that can sign in here now: not copied, made for this address. */
-export const working = (rows: PasskeyRow[], rp: RelyingParty | null) => rows.filter((r) => !r.copiedAt && rp && r.rpId === rp.id);
+/** Passkeys that can sign in at one relying party: not copied, made for that id. */
+export const working = <T extends { copiedAt: Date | null; rpId: string }>(rows: T[], rp: RelyingParty | null) => rows.filter((r) => !r.copiedAt && rp && r.rpId === rp.id);
+/** All credentials still accepted after a domain change, current and legacy alike (D70). */
+export const workingFor = <T extends { copiedAt: Date | null; rpId: string }>(app: AppServices, rows: T[]) => rows.filter((r) => !r.copiedAt && rpsOf(app).some((rp) => rp.id === r.rpId));
 
 export interface SessionRef {
   /** The session's id: the hash of its cookie's token. */
@@ -300,17 +316,16 @@ export function requireRecent(session: SessionRef): void {
 }
 
 export async function myPasskeys(app: AppServices, user: UserRow, session: SessionRef | null, hasCode: boolean): Promise<MyPasskeys> {
-  const rp = rpOf(app);
   const rows = await rowsOf(app.db, user.id);
   const list = await authenticatorList(app);
   const instance = await passkeysOff(app);
   const off: PasskeysOff | null = instance ?? (mayHavePasskeys(user) ? null : 'account');
   return {
-    passkeys: rows.map((r) => passkeyDto(r, rp, list)),
+    passkeys: rows.map((r) => passkeyDto(app, r, list)),
     on: off === null,
     off,
     confirmedUntil: confirmedUntil(session)?.toISOString() ?? null,
-    confirmWith: { password: Boolean(user.passwordHash), code: Boolean(user.passwordHash) && hasCode, passkey: off === null && working(rows, rp).length > 0 },
+    confirmWith: { password: Boolean(user.passwordHash), code: Boolean(user.passwordHash) && hasCode, passkey: off === null && workingFor(app, rows).length > 0 },
   };
 }
 
@@ -319,9 +334,8 @@ export async function passkeysOf(ctx: Ctx, userId: string): Promise<Passkey[]> {
   requireScope(ctx, 'admin');
   const [u] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.id, userId));
   if (!u) throw notFound(`User ${userId}`).said('notFound.user', { id: userId });
-  const rp = rpOf(ctx.app);
   const list = await authenticatorList(ctx.app);
-  return (await rowsOf(ctx.db, userId)).map((r) => passkeyDto(r, rp, list));
+  return (await rowsOf(ctx.db, userId)).map((r) => passkeyDto(ctx.app, r, list));
 }
 
 /** How many passkeys each person has, for the people table. */
@@ -333,7 +347,7 @@ export async function passkeyCounts(db: Db, userIds: string[]): Promise<Map<stri
 
 /** Whether this person has a passkey that can sign in here now: a password sign-in may take it instead of a code. */
 export async function hasWorkingPasskey(app: AppServices, userId: string): Promise<boolean> {
-  return working(await rowsOf(app.db, userId), rpOf(app)).length > 0;
+  return workingFor(app, await rowsOf(app.db, userId)).length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -477,7 +491,7 @@ export async function registerPasskey(
     return made;
   });
   kickMail(app);
-  return { passkey: passkeyDto(row, rp, list), id: row.id };
+  return { passkey: passkeyDto(app, row, list), id: row.id };
 }
 
 export async function renamePasskey(app: AppServices, user: UserRow, id: string, name: string): Promise<Passkey> {
@@ -487,7 +501,7 @@ export async function renamePasskey(app: AppServices, user: UserRow, id: string,
     .where(and(eq(passkeys.id, id), eq(passkeys.userId, user.id)))
     .returning();
   if (!row) throw notFound('Passkey').said('notFound.passkey');
-  return passkeyDto(row, rpOf(app));
+  return passkeyDto(app, row);
 }
 
 /**
@@ -532,7 +546,7 @@ export async function removePasskeysOf(ctx: Ctx, userId: string, check?: (tx: Db
 async function requestOptions(app: AppServices, rp: RelyingParty, purpose: Ceremony, boundTo: string, user: UserRow | null): Promise<PasskeyOptions> {
   const challenge = await newChallenge(app.db, purpose, boundTo, user?.id ?? null);
   const allow = user ? working(await rowsOf(app.db, user.id), rp) : [];
-  return (await generateAuthenticationOptions({
+  const options = (await generateAuthenticationOptions({
     rpID: rp.id,
     // As bytes: a string would be taken as text, and encoded again.
     challenge: new Uint8Array(Buffer.from(challenge, 'base64url')),
@@ -541,21 +555,31 @@ async function requestOptions(app: AppServices, rp: RelyingParty, purpose: Cerem
     // Signing in from the sign-in page names nobody: the browser offers the passkeys it has for a4a.
     ...(user ? { allowCredentials: allow.map((r) => ({ id: r.credentialId, transports: r.transports })) } : {}),
   })) as unknown as PasskeyOptions;
+  return { ...options, legacyRpIds: rpsOf(app).filter((x) => x.id !== rp.id).map((x) => x.id) };
 }
 
 /** Options for signing in from the sign-in page, bound to the browser's ticket. */
-export async function signInOptions(app: AppServices, ticket: string): Promise<PasskeyOptions> {
-  return requestOptions(app, await requireOn(app), 'sign-in', sha256(ticket), null);
+export async function signInOptions(app: AppServices, ticket: string, rpId?: string): Promise<PasskeyOptions> {
+  await requireOn(app);
+  const rp = rpFor(app, rpId);
+  if (!rp) throw elsewhere(rpId ?? '');
+  return requestOptions(app, rp, 'sign-in', sha256(ticket), null);
 }
 
 /** Options for the step after a password: the person's own passkeys, bound to the sign-in's ticket. */
-export async function secondStepOptions(app: AppServices, ticketId: string, user: UserRow): Promise<PasskeyOptions> {
-  return requestOptions(app, await requireOn(app, user), 'second-step', ticketId, user);
+export async function secondStepOptions(app: AppServices, ticketId: string, user: UserRow, rpId?: string): Promise<PasskeyOptions> {
+  await requireOn(app, user);
+  const rp = rpFor(app, rpId);
+  if (!rp) throw elsewhere(rpId ?? '');
+  return requestOptions(app, rp, 'second-step', ticketId, user);
 }
 
 /** Options for proving it's you again, in a signed-in session. */
-export async function confirmOptions(app: AppServices, user: UserRow, session: SessionRef): Promise<PasskeyOptions> {
-  return requestOptions(app, await requireOn(app, user), 'confirm', session.id, user);
+export async function confirmOptions(app: AppServices, user: UserRow, session: SessionRef, rpId?: string): Promise<PasskeyOptions> {
+  await requireOn(app, user);
+  const rp = rpFor(app, rpId);
+  if (!rp) throw elsewhere(rpId ?? '');
+  return requestOptions(app, rp, 'confirm', session.id, user);
 }
 
 async function rowByCredential(db: Db, credentialId: string): Promise<PasskeyRow | undefined> {
@@ -580,9 +604,10 @@ async function markCopied(app: AppServices, row: PasskeyRow): Promise<void> {
 }
 
 /** Check one assertion against its passkey, and move the passkey's count on to it. */
-async function verifyAssertion(app: AppServices, rp: RelyingParty, row: PasskeyRow, response: AuthenticationResponseJSON, challenge: string): Promise<void> {
+async function verifyAssertion(app: AppServices, current: RelyingParty, row: PasskeyRow, response: AuthenticationResponseJSON, challenge: string): Promise<void> {
   if (row.copiedAt) throw copiedProblem();
-  if (row.rpId !== rp.id) throw elsewhere(row.rpId);
+  const rp = rpsOf(app).find((x) => x.id === row.rpId);
+  if (!rp) throw elsewhere(row.rpId);
   checkClient(rp, response.response.clientDataJSON, 'webauthn.get');
   let flags;
   try {

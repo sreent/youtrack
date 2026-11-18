@@ -1598,6 +1598,8 @@ export const groups = pgTable(
     description: text('description').notNull().default(''),
     /** Its name at the identity provider (an OIDC claim's or a SAML attribute's value), when it comes from there. */
     providerName: text('provider_name'),
+    /** Whether its people owe a passkey when a4a's own password signs them in (D70). */
+    requirePasskeys: boolean('require_passkeys').notNull().default(false),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -2384,6 +2386,8 @@ export const buildSources = pgTable('build_sources', {
   /** generic: the token's SHA-256. */
   tokenHash: text('token_hash'),
   tokenPrefix: text('token_prefix'),
+  /** github: report each finished run's own result as a check run on its head commit (D70). */
+  reportCheck: boolean('report_check').notNull().default(false),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -3282,6 +3286,10 @@ export const vcsChecks = pgTable(
     state: text('state').notNull(),
     headSha: text('head_sha').notNull(),
     baseSha: text('base_sha'),
+    /** Its page at the provider, for a commit status's target link. */
+    url: text('url'),
+    /** The head commit's own message, where a delivery carries it (GitLab's last_commit). */
+    headMessage: text('head_message').notNull().default(''),
     /** The ids its commits name, read as the app from GitHub's compare of its base and head, and the head they were read at. */
     commitIds: text('commit_ids').array().notNull().default(sql`'{}'::text[]`),
     commitsOf: text('commits_of'),
@@ -3306,6 +3314,43 @@ export const vcsChecks = pgTable(
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('vcs_checks_pull').on(t.integrationId, t.repository, t.number), index('vcs_checks_due').on(t.dueAt)],
+);
+
+/** A finished GitHub Actions run's own result, queued as a check run on the commit it built (D70). */
+export const buildChecks = pgTable(
+  'build_checks',
+  {
+    id: text('id').primaryKey(),
+    buildId: text('build_id')
+      .notNull()
+      .unique()
+      .references(() => builds.id, { onDelete: 'cascade' }),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => buildSources.id, { onDelete: 'cascade' }),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    repository: text('repository').notNull(),
+    headSha: text('head_sha').notNull(),
+    name: text('name').notNull(),
+    sourceName: text('source_name').notNull(),
+    status: text('status').notNull(),
+    url: text('url'),
+    checkRunId: text('check_run_id'),
+    checkSha: text('check_sha'),
+    written: text('written'),
+    writtenAt: ts('written_at'),
+    marks: integer('marks').notNull().default(0),
+    dueAt: ts('due_at'),
+    lockedUntil: ts('locked_until'),
+    attempts: integer('attempts').notNull().default(0),
+    problem: text('problem'),
+    problemAt: ts('problem_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [index('build_checks_due').on(t.dueAt)],
 );
 
 // ---------------------------------------------------------------------------

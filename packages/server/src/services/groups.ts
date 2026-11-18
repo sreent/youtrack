@@ -19,6 +19,7 @@ import { publishActivities, recordActivity, type ActivityRow } from '../events/a
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { accessChanged, loadRoles, projectAccess, requireProject, resolveRole, roleOrder } from './access';
+import { checkScopedRequirement } from './passkey-policy';
 import { findUser, type ProjectRow, type SchemaSnapshot, type UserRow } from './schema-cache';
 import { userRefDto } from './values';
 
@@ -36,7 +37,7 @@ async function sizes(db: Db, ids: string[]): Promise<Map<string, number>> {
 }
 
 function refDto(g: GroupRow, size: number): GroupRef {
-  return { id: g.id, name: g.name, providerName: g.providerName, size };
+  return { id: g.id, name: g.name, providerName: g.providerName, requirePasskeys: g.requirePasskeys, size };
 }
 
 /** A group by its id or its name (any case). */
@@ -124,16 +125,21 @@ function takenError(e: unknown, input: { name?: string; providerName?: string | 
   throw conflict(`There's already a group called "${input.name}"`, 'Choose another name, or add people to that one.').said('groups.nameTaken', { name: String(input.name) });
 }
 
-export async function createGroup(ctx: Ctx, input: { name: string; description?: string; providerName?: string | null }): Promise<GroupDetail> {
+export async function createGroup(ctx: Ctx, input: { name: string; description?: string; providerName?: string | null; requirePasskeys?: boolean }): Promise<GroupDetail> {
   requireScope(ctx, 'admin');
   const id = newId();
   try {
-    await ctx.db.insert(groups).values({
-      id,
-      name: input.name.trim(),
-      description: (input.description ?? '').trim(),
-      providerName: input.providerName?.trim() || null,
-      createdById: ctx.actor.user.id,
+    await ctx.db.transaction(async (txRaw) => {
+      const tx = txRaw as unknown as Db;
+      await tx.insert(groups).values({
+        id,
+        name: input.name.trim(),
+        description: (input.description ?? '').trim(),
+        providerName: input.providerName?.trim() || null,
+        requirePasskeys: input.requirePasskeys ?? false,
+        createdById: ctx.actor.user.id,
+      });
+      if (input.requirePasskeys) await checkScopedRequirement(tx, ctx.app);
     });
   } catch (e) {
     takenError(e, input);
@@ -143,7 +149,7 @@ export async function createGroup(ctx: Ctx, input: { name: string; description?:
   return getGroup(ctx, id);
 }
 
-export async function updateGroup(ctx: Ctx, ref: string, input: { name?: string; description?: string; providerName?: string | null }): Promise<GroupDetail> {
+export async function updateGroup(ctx: Ctx, ref: string, input: { name?: string; description?: string; providerName?: string | null; requirePasskeys?: boolean }): Promise<GroupDetail> {
   requireScope(ctx, 'admin');
   const g = await requireGroup(ctx.db, ref);
   const providerName = input.providerName === undefined ? undefined : input.providerName?.trim() || null;
@@ -159,11 +165,13 @@ export async function updateGroup(ctx: Ctx, ref: string, input: { name?: string;
           ...(input.name !== undefined ? { name: input.name.trim() } : {}),
           ...(input.description !== undefined ? { description: input.description.trim() } : {}),
           ...(providerName !== undefined ? { providerName } : {}),
+          ...(input.requirePasskeys !== undefined ? { requirePasskeys: input.requirePasskeys } : {}),
           updatedAt: new Date(),
         })
         .where(eq(groups.id, g.id));
       // From now on the provider says who is in it, at each sign-in; nobody stays in it by hand.
       if (toProvider) await tx.delete(groupMembers).where(eq(groupMembers.groupId, g.id));
+      if (input.requirePasskeys && !g.requirePasskeys) await checkScopedRequirement(tx, ctx.app);
     });
   } catch (e) {
     takenError(e, { name: input.name ?? g.name, providerName });

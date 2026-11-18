@@ -228,6 +228,9 @@ describe('PASSKEY_RP_ID and PASSKEY_RELATED_ORIGINS, checked at start', () => {
     // After a move: the old host, with PUBLIC_URL's origin among the related origins it serves.
     expect(passkeyRpIdFromEnv('a4a.old.com', 'https://a4a.new.com', ['https://a4a.new.com'])).toBe('a4a.old.com');
     expect(() => passkeyRpIdFromEnv('a4a.old.com', 'https://a4a.new.com', ['https://elsewhere.com'])).toThrow(/PASSKEY_RELATED_ORIGINS/);
+    // A legacy id is checked the same way, named as its own (D70).
+    expect(passkeyRpIdFromEnv('a4a.old.com', 'https://a4a.new.com', ['https://a4a.new.com'], 'PASSKEY_LEGACY_RP_IDS')).toBe('a4a.old.com');
+    expect(() => passkeyRpIdFromEnv('b.example.com', 'https://a4a.example.com', [], 'PASSKEY_LEGACY_RP_IDS')).toThrow(/PASSKEY_LEGACY_RP_IDS=b\.example\.com/);
   });
 
   it('takes https origins alone, within the five registrable domains browsers read', () => {
@@ -730,5 +733,41 @@ describe('FIDO’s BLOB from an address', () => {
     const kept = await refreshMetadata(w.app, { force: true });
     expect(kept).toMatchObject({ no: 3, failure: 'unreachable' });
     expect(kept.failureDetail).toMatch(/didn't answer/);
+  });
+});
+
+
+describe('changing the relying party after passkeys exist', () => {
+  it('signs in with an old credential while making new ones only for the current domain', async () => {
+    const origin = 'https://a4a.new.test';
+    const w = await createWorld({ projects: false, people: false, config: { publicUrl: origin, passkeyRpId: 'a4a.old.test', passkeyLegacyRpIds: [], passkeyRelatedOrigins: [origin], secretKey: 'legacy-rp' } });
+    try {
+      const http = client(createHttpApp(w.app), origin);
+      const login = await http.signIn('admin', 'password-admin');
+      const key = new Authenticator();
+      expect((await http.addPasskey(login.session, key)).status).toBe(201);
+
+      w.app.config.passkeyRpId = undefined;
+      w.app.config.passkeyLegacyRpIds = ['a4a.old.test'];
+      const current = await http.call('POST', '/auth/passkey/options');
+      expect(current.body).toMatchObject({ rpId: 'a4a.new.test', legacyRpIds: ['a4a.old.test'] });
+
+      const options = await http.call('POST', '/auth/passkey/options?rpId=a4a.old.test');
+      expect(options.body.rpId).toBe('a4a.old.test');
+      const ticket = http.cookieOf(options.res, 'a4a_pk');
+      const signed = await http.call('POST', '/auth/passkey', { cookie: ticket, body: { response: key.sign(options.body, { origin }) } });
+      expect(signed.status).toBe(200);
+      expect(signed.body.login).toBe('admin');
+
+      const session = http.cookieOf(signed.res, 'a4a_session');
+      const newer = new Authenticator();
+      const made = await http.addPasskey(session, newer);
+      expect(made.status).toBe(201);
+      const kept = await w.app.db.select().from(passkeys).where(eq(passkeys.userId, w.admin.id));
+      expect(new Set(kept.map((row) => row.rpId))).toEqual(new Set(['a4a.old.test', 'a4a.new.test']));
+      expect(made.body.elsewhere).toBeNull();
+    } finally {
+      await w.close();
+    }
   });
 });

@@ -55,10 +55,12 @@ import { issueRefsById, type IssueRow } from '../services/issue-refs';
 import { applyChanges, fieldValuesOf, findIssue, resolveIssue } from '../services/issues';
 import { fieldByName, type FieldRow, keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 import { getJson, ReadError } from '../vcs/commits';
+import { installationToken } from '../vcs/github-app';
 import { NOBODY, type IntegrationRow } from '../vcs/links';
 import { mentions } from '../vcs/mentions';
 import { link, when } from '../vcs/payloads';
-import { readsFromProvider, readWith } from '../vcs/tokens';
+import { appCredentials, readsFromProvider, readWith } from '../vcs/tokens';
+import { queueBuildCheck } from '../vcs/checks';
 
 type SourceRow = typeof buildSources.$inferSelect;
 type BuildRow = typeof builds.$inferSelect;
@@ -124,6 +126,7 @@ async function sourceDto(app: AppServices, s: SchemaSnapshot, row: SourceRow): P
     hookUrl: row.kind === 'generic' ? buildHookUrl(app, row.id) : null,
     tokenPrefix: row.tokenPrefix,
     active: row.active,
+    reportCheck: row.reportCheck,
     createdAt: row.createdAt.toISOString(),
     lastBuildAt: row.lastBuildAt?.toISOString() ?? null,
   };
@@ -175,6 +178,13 @@ function tokenFor(): { token: string; hash: string; prefix: string } {
   return { token, hash: sha256(token), prefix: token.slice(0, 11) };
 }
 
+async function checkReportable(app: AppServices, integrationId: string | null): Promise<void> {
+  const [i] = integrationId ? await app.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, integrationId)) : [];
+  const c = i?.provider === 'github' ? appCredentials(app, i) : null;
+  if (!i || !c) throw badRequest('Build check runs need a GitHub integration that reads as its app', 'Choose GitHub Actions with a GitHub App that has Checks: Read and write.').said('vcs.checks.needsApp');
+  await installationToken(i.id, c, { fresh: true, purpose: 'checks' });
+}
+
 export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSourceBody>): Promise<BuildSourceCreated> {
   requireScope(ctx, 'admin');
   const body = BuildSourceBody.parse(input);
@@ -197,6 +207,7 @@ export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSou
   } else if (body.integration || body.branch || body.workflow) {
     throw badRequest('A CI that posts its builds takes no integration, branch or workflow', 'It says which build it is, and its branch, as it posts each one.').said('ci.postingTakesNoSource');
   }
+  if (body.reportCheck) await checkReportable(ctx.app, integrationId);
   const fieldId = await fieldFor(ctx, project.key, project.id, body.field);
   const minted = body.kind === 'generic' ? tokenFor() : null;
   const [row] = await ctx.db
@@ -213,6 +224,7 @@ export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSou
       tokenHash: minted?.hash ?? null,
       tokenPrefix: minted?.prefix ?? null,
       active: body.active,
+      reportCheck: body.reportCheck,
       createdById: ctx.actor.user.id,
     })
     .returning();
@@ -222,13 +234,14 @@ export async function createBuildSource(ctx: Ctx, input: z.input<typeof BuildSou
 export async function updateBuildSource(
   ctx: Ctx,
   id: string,
-  input: { name?: string; field?: string | null; branch?: string | null; workflow?: string | null; active?: boolean },
+  input: { name?: string; field?: string | null; branch?: string | null; workflow?: string | null; active?: boolean; reportCheck?: boolean },
 ): Promise<BuildSource> {
   requireScope(ctx, 'admin');
   const row = await loadSource(ctx.db, id);
   const s = await ctx.app.schema.get();
   const key = s.projects.get(row.projectId)?.key ?? '';
   if (row.kind === 'generic' && (input.branch || input.workflow)) throw badRequest('A CI that posts its builds takes no branch or workflow', 'It says its branch as it posts each build.').said('ci.postingTakesNoBranch');
+  if (input.reportCheck && !row.reportCheck) await checkReportable(ctx.app, row.vcsIntegrationId);
   const fieldId = input.field !== undefined ? await fieldFor(ctx, key, row.projectId, input.field) : undefined;
   const [updated] = await ctx.db
     .update(buildSources)
@@ -238,6 +251,7 @@ export async function updateBuildSource(
       ...(input.branch !== undefined ? { branch: input.branch?.trim() || null } : {}),
       ...(input.workflow !== undefined ? { workflow: input.workflow?.trim() || null } : {}),
       ...(input.active !== undefined ? { active: input.active } : {}),
+      ...(input.reportCheck !== undefined ? { reportCheck: input.reportCheck } : {}),
     })
     .where(eq(buildSources.id, row.id))
     .returning();
@@ -459,6 +473,7 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
   const [finalRow] = await app.db.update(builds).set({ marked: total }).where(eq(builds.id, build.id)).returning();
   if (quiet && !marked) {
     await publishActivities(app, activities);
+    await queueBuildCheck(app, source, finalRow!);
     return { build: finalRow!, again: true, same: true, marked: 0, said };
   }
   await app.db.update(buildSources).set({ lastBuildAt: new Date() }).where(eq(buildSources.id, source.id));
@@ -471,6 +486,7 @@ export async function recordBuild(app: AppServices, source: SourceRow, facts: Bu
     }),
   );
   await publishActivities(app, activities);
+  await queueBuildCheck(app, source, finalRow!);
   return { build: finalRow!, again: Boolean(before), same: false, marked, said };
 }
 
