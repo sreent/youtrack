@@ -205,6 +205,19 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - `page.issue.source.from`, "Issu d’un message Slack dans #eng, Acme": or "Créé à partir d’un message…"?
 - **Asana's and ClickUp's settings** are named in English (`imports.fromApi.inAsanaMySettingsApps`, `inClickupSettingsApps`, and their cases in `problem.imports.source.tokenRefused`), as YouTrack's and Zendesk's are. Both products also come in French, whose labels their French readers see instead.
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- `identity.passkeys.stopped`, the badge on a passkey that may have been copied, is "Bloquée", where the developers wrote "Arrêtée". "Désactivée" is what passkeys turned off for the instance are, and they come back; "Hors service" is the other choice.
+- **"Signs you in"** is "vous connecte" ("elle vous connecte sans mot de passe", `page.portal.passwordHelp`'s "Il vous connecte au portail"), as the recovery codes' "chacun vous connecte une fois" was. "Signs nobody in" is "ne permet plus de se connecter" (`identity.passkeys.removed`, `mayBeCopied`, `offInstance`, `page.admin.passkeysOff`, `page.notMe.doneAbout`, `ifNotYou`), since "ne connecte personne" read as a calque. Natural?
+- `helpdesk.groups.asTheDeskTakes` is "Toute façon acceptée par le centre", an option beside "Uniquement via {name}" under "Connexion de ses membres", kept short for a phone's select. Clear?
+- `page.guestPages.alsoOpenIn`, over a guest's links to a project's plan, reports, boards and whiteboards, is "À voir aussi dans {name}". It drops "open"; "Également ouverts dans {name}" is closer to English.
+- `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "la vérification anti-robot du formulaire", the setting being "Vérifier qu’une personne l’a envoyée".
+- `server.portalAccount.lead`, for a provider's first sign-in: "Pour la première fois, une session a été ouverte via {provider} sur le portail du centre d’assistance, en tant que {email}." It's passive so that nothing agrees with the reader. Stiff for an email's first line?
+- `server.passkeys.added`, `removed`, `copied` and `removedByAdmin` say "le {when}", and {when} is "lun. 16 nov., 15:03 UTC+1".
+- `helpdesk.portalSignIn.throughSome`: "que des adresses de {list}", where {list} is bare domains ("de acme.com et acme.fr"), without elision.
+- `helpdesk.portalSignIn.save` is "Enregistrer la connexion", under the heading "Connexion des personnes qui font des demandes". Could it read as saving a login? "Enregistrer les façons de se connecter" is clearer, and longer.
+- **Requesters, plural,** are "les personnes qui font des demandes", as in D56's messages: long in headings (`page.project.portalSignIn`, `helpdesk.portalSignIn.providers`) and the ledger (`activity.ledgerEntry.portalSignInChanged`).
+
 ## Japanese
 
 Terms:
