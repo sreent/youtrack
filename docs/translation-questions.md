@@ -659,7 +659,7 @@ A second editor, also a model and not a native speaker, read the catalog on its 
 
 Edited for natural phrasing, second round:
 
-A third editor, also a model, read the parts the second hadn't read whole (integrations, webhooks, agents, apps, imports, builds, version control, chat, administration, roles, groups, identity, whiteboards, workflow, fields, days away, app consent, projects and the plan, with their problems) and changed 564 messages. These are its choices that a native speaker should settle:
+A third editor, also a model, read the parts the second hadn't read whole (integrations, webhooks, agents, apps, imports, builds, version control, chat, administration, roles, groups, identity, whiteboards, workflow, fields, days away, app consent, projects and the plan, with their problems) and changed 578 messages. These are its choices that a native speaker should settle:
 
 - **The chat bot names itself a4a**, as its handle reads, where it said บอต of itself: “a4a ไม่ได้อยู่ใน {channel} เชิญด้วย /invite @a4a”, “จากนั้น a4a จะทำงานในนามของคุณ” (`server.chat.issue.notInChannel`, `server.chat.issue.onlyChannels`, `server.chat.linkFirst`, `server.chat.linkedSlack`, `server.chat.linkedTeams`, `server.chat.whoAreYou`); its help is “คำสั่งที่ใช้ได้” (`server.chat.help`, `server.chat.unknown`). Does a4a read as the bot speaking, or would “บอต a4a” be clearer?
 - **On and paused**: an integration, a webhook and a build source that takes what's sent are “ใช้งานอยู่” beside “หยุดชั่วคราว” (`page.integrations.takesDeliveries`, `page.webhooks.sends`, `builds.builds.takesBuilds`), where the badges said รับการส่ง, ส่ง and รับบิลด์. English's verb is gone: is that what Thai admin pages say?
