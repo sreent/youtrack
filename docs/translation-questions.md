@@ -267,65 +267,39 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 
 ## Portuguese
 
-`pt.json` was written in one pass, all 5,467 messages, by a model working from English, the code and the section in [translating.md](translating.md), with German's, French's and Japanese's catalogs beside it. Nobody has read it a second time, and no native speaker has read it at all.
+`pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
 
 Terms:
 
-- **Issue is *item***, as Jira's Brazilian Portuguese says it ("Criar item", "Tipo de item"). *Tarefa* would collide with the Task type, *chamado* and *tíquete* read as a support desk's, and *issue* is what many Brazilian teams say, in English. Is *item* what readers expect in a tracker that isn't Jira?
-- **Zero takes the singular**: CLDR's and gettext's pt_BR rule put 0 in `one`, so a count says "0 item", "0 dia de atraso", as the norm says "zero hora". Everyday writing often says "0 itens". The issue list's count line puts the count last ("Itens no projeto SPR, não resolvidos: 4", as Spanish and French do), so it never chooses; elsewhere, should the catalog add `=0` branches?
-- **The help desk is the *central de atendimento***: plain to the customers who read its emails, but long in a heading. *Help desk*, *atendimento* or *suporte* are the alternatives; Jira Service Management's Brazilian Portuguese says *projeto de serviço* and *central de ajuda*.
-- **Subscribe is *assinar*** (Jira's "Assinaturas"), where GitHub and YouTube say *inscrever-se*; and **watch is *acompanhar***, where Jira says *observar*.
-- **An issue's summary is its *título***, not Jira's *Resumo*, since the assistant writes a *resumo* of an issue and the daily digest is a *resumo diário*.
-- **Reporter**: *relatar*, "Relatado por", "quem relatou". Jira's field is *Relator*; many teams say *reportar*.
-- **Roles**: *administrador*, *gerente*, *membro*, *leitor*, *convidado*, and a sentence says "tem o papel membro", never "é membro". *Leitor* and *convidado* are masculine words for anyone; "Somente leitura" and "Acesso de convidado" would be neutral, as French chose.
-- **Sign in is *entrar*, and a person's handle is their *login***, so "Entre com seu login" and "Login do a4a" sit side by side.
-- **Link is *vínculo* and *vincular*** (Jira's), for issues and for chat accounts alike; **merge is *mesclar*** (GitHub's and Microsoft's Brazilian Portuguese), where developers often say *fazer merge*; **secret is *segredo***; **an app is *app***, masculine, not *aplicativo*.
-- **Earned value uses the abbreviations of the PMBOK Guide in Brazilian Portuguese**: VA, VP, CR, IDC, IDP, VC, VPR, ONT, ENT, EPT, VNT, formulas included ("ONT ÷ IDC"). Many Brazilian project managers say EV, PV, CPI and SPI. Is VPR right for schedule variance?
-- **Timesheet is *planilha de horas***; Brazilian companies also say *apontamento de horas*, or *timesheet*.
-- **An HTTP request is a *requisição***, kept apart from a help desk's *solicitação*.
-- **"Your address"** in the help desk's limits (`problem.helpdesk.tooManyFromAddress` and its siblings) is *seu endereço de rede*, so a customer doesn't read it as their email address.
+- **Issue is still *item***, as Portuguese teams read it in Jira (Brazil's Portuguese, the only one Jira ships) and in Azure DevOps ("itens de trabalho"). Do teams in Portugal say *item*, or *issue*, *pedido* or *tarefa*?
+- **A sprint is masculine** ("o sprint", "um sprint", "Nenhum sprint terminou ainda": `board.*`, `page.sprintPlanning.*`, `server.notify.verb.addedToSprint`, `problem.reports.*Sprint*`), where Brazil's Scrum Guide says "a Sprint". Is masculine what Portugal's teams say?
+- **The help desk is a *centro de apoio*** (`page.help.*`, `page.portal.*`, `server.helpdesk.*`, `helpdesk.*`), its requests *pedidos* and whoever asks the *requerente*. *Apoio ao cliente*, *serviço de apoio* and *helpdesk* are the alternatives; *pedido* is also an HTTP request (`api.client.requestFailed`, `problem.tooLarge`).
+- **Reporting an issue is *reportar*** ("Reportado por", "quem reportou", `page.issue.reportedBy`, `page.newIssue.reportIt`), as developers in Portugal say it; Microsoft's Portuguese says *comunicar* ("Comunicar um problema").
+- **A link between issues is a *ligação*** (`issues.issueLinks.*`, "Ligação adicionada:"), as Azure DevOps' Portuguese has it, and linking a chat account *associar*; a URL stays a *link*. *Ligação* is also a connection to a server (`board.board.checkTheConnectionAndTry`).
+- **Merged is *integrado*** (`issues.issueHistory.linkedPullRequestState`, `vcs.*`); Microsoft's Portuguese says *intercalar*, and developers often say *fazer merge*.
+- **A branch is masculine, a build stays *build*** ("o branch", "o build": `problem.ci.*`, `builds.*`). Microsoft's Portuguese says *ramo* and *compilação*; many teams in Portugal say "a build". Which?
+- **A role is a *função*** (`roles.*`, `page.profile.youRe`, `problem.access.*`), as Microsoft 365's and Google Workspace's Portuguese say it, and the manager a *gestor*. Does *função* read as "function" anywhere, and is *papel* better?
+- **An app is an *aplicação*** (feminine), as Microsoft and Google say it; Apple says "a app". A GitHub App keeps its name (`problem.vcs.githubApp.*`).
+- **A tag is an *etiqueta*** (`decide.suggestionCard.tag*`, `problem.tags.*`), while the command language keeps `tag urgent`. Do teams say *tag*?
+- **Uploading is *carregar*** ("A carregar {name}…", `editor.richField.uploading`), as Google Drive's and OneDrive's Portuguese say it, which is also "Loading" ("A carregar o plano…"). Is *enviar* clearer for an upload?
+- **The browser is the *browser***, as Microsoft's Portuguese says it (`page.profile.yourBrowsersLanguage`, `app.auth.thatSignInRanOut`); Google says *navegador*.
+- **A timer is a *temporizador*** (`issues.workLog.*`, `problem.time.timerNotFound`).
+- **A person's handle is their *nome de utilizador*** (`app.auth.login`, `problem.users.loginTaken`), which makes "Use o nome de utilizador da pessoa" long; *login* is the alternative.
+- **Single sign-on is "SSO"** where the sentence already says *iniciar sessão* (`app.auth.singleSignOn`, `page.profile.singleSignOn`), and *início de sessão único (SSO)* in the terms table.
+- **Days away**: Sick is *Baixa médica*, Training *Formação* (`away.words.*`).
 
 Phrasing:
 
-- **A rule's sentence** (`rules.words.whenSentence`, `scheduleSentence`) reads "Quando um item é criado, se corresponder a Type: Bug, então aplicar Assignee anna." The trigger pieces are shared with the webhooks' events, so they're in the present ("um item é criado"); a person would write "Quando um item for criado, …, aplicar …". Does *então* earn its place?
-- **The ledger's badges** are lower-case nouns ("exclusão de item", "registro de trabalho"), as English's are lower case.
-- **Days away** (`away.daysAway.addedAway`, `changedAway`, `removedWhoNoLongerAway`, `away.words.away`): a date can be "sex., 4 de dez." or "a manhã de sex., 4 de dez.", so sentences take it after *para* or in brackets: "Ausência adicionada para a manhã de sex., 4 de dez.: …".
-- **Gender left unguessed costs length**: "a pessoa responsável", "quem o relatou"; a requester is now "quem solicitou" in a sentence and "Solicitante" where a name is missing. Check the badges and narrow columns at 390px, and say where a shorter word would do.
-- **The navigation's groups** (`app.shell.*`): Trabalho, Planejar → Plano, Decidir, Construir (Projects, Rules, Fields, Import) and Supervisionar (Activity, Agents and tokens, Webhooks, Integrations, Chat, Administration).
-- **Date formats in problems** are written AAAA-MM-DD, as Brazil describes one; what a person types is still 2026-11-20, and the query language's keywords (today, tomorrow) stay English.
-- **The chat bot's help** (`server.chat.help`) keeps its commands and their straight quotes in English (`subscribe "My bugs"`), so they copy as typed.
-- **Imports' statuses** agree with *importação* (concluída, pronta, parada), and a rule is *ela* while a script is *ele*: "Ela roda um script".
-
-Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and ClickUp):
-
-- **A whiteboard is *quadro branco***, never shortened, since *quadro* alone is the agile board (`app.shell.whiteboards`, `page.whiteboards.*`). It makes the ledger's badges long: "alteração de quadro branco" (`activity.ledgerEntry.changesAWhiteboard`). Its pieces are *nota*, *texto*, *cartão* (as the board's cards), *seção* and *seta*, and an arrow's label is a *rótulo*.
-- **The outline is *Estrutura*** (`page.whiteboard.outline`, `whiteboards.outline.title`), as Google Docs says "estrutura do documento", so the keys' help says "na ordem da estrutura" (`page.whiteboard.keys`). *Sumário* or *Lista* are the alternatives.
-- `page.whiteboard.canvas` is "A tela", a heading only screen readers hear; *tela* is also a screen. *Área de desenho* is the alternative.
-- **A note's tones** agree with *nota* (`whiteboards.tone.*`, `whiteboards.kind.note`): Simples, Ideia, Combinada, Pergunta, Problema, Em espera. *Combinada* is the Brazilian "combinado", but could read as "combined"; *Acordada* or *Decidida* are the alternatives, and *Estacionada*, from the facilitators' "estacionamento", for parked.
-- **Convert to issues** is "Criar itens" on the buttons (`page.whiteboard.convert`, `whiteboards.convertDialog.title`, `whiteboards.convertDialog.go`) and *virar item* in sentences ("Cada nota vira um item", `whiteboards.convertDialog.about`, `problem.whiteboards.notANote`). *Converter em itens* is the alternative.
-- **The toolbar's buttons have no article** ("Adicionar nota", `page.whiteboard.addNote`), and the dialogs they open keep English's ("Adicionar uma nota", `whiteboards.noteDialog.addTitle`), as the catalog's buttons and headings do elsewhere. Do they read well side by side?
-- `activity.ledgerEntry.whiteboardConverted` puts its counts after a colon ("criou a partir do quadro branco X: nenhum item e 2 vínculos"), since "criou nenhum item" isn't Portuguese.
-- **A Slack thread is a *conversa*** (`server.chat.issue.thread`, `page.issue.source.replies`), as Slack's Brazilian Portuguese names threads, as far as the translator recalls. Many teams say "thread", and *conversa* is also what someone has with the assistant.
-- `issues.watching.wroteTheMessage` is "escreveu a mensagem de origem", and the card beside it, `page.issue.source.title`, is "Origem".
-
-Edited for natural phrasing:
-
-A second pass, by a model again and not a native speaker, rewrote 778 messages so they read as Brazilian software rather than as English: the sign-in pages, the shell, the profile, the issues, boards, the inbox and its emails and the help desk whole, then the ledger, commands, projects, dashboards, articles, and across the rest the patterns below. These are its choices a native speaker should settle:
-
-- **"De novo" is "novamente" everywhere** (130 messages: `app.auth.tryAgain` "Tentar novamente", `app.auth.signInAgain`, every "Tente novamente em…"), as Google's and Microsoft's Brazilian Portuguese say it. Is *de novo* better where a4a is friendlier, the chat bot's replies (`server.chat.*`) say?
-- **Empty states** are "Ainda não há …" (`page.rules.noRulesYet`, `page.whiteboards.none`, `page.guestPages.noIssuesYet`, `page.track.noReplyYetTheTeam` and 27 more), where they were "Nenhum … ainda".
-- **Limits** are "Muitas solicitações em pouco tempo. Tente novamente em 2 minutos." (`problem.helpdesk.tooMany*`, `problem.helpdesk.deskBusy`, `problem.rateLimited`, `problem.tooManySignIns`, `problem.tooManyCodes`), where they were "Solicitações demais agora".
-- **An email's foot** is "Você recebeu este e-mail porque…" (`server.mail.why`, `server.mail.whySubscribed`, `server.mail.digest.why`, `server.helpdesk.whyAnswer`, `server.helpdesk.whyLink`, `server.helpdesk.cc.*`, `server.portal.why`, `server.emails.why`), and `server.notify.because.*` lose their own "você" to follow it ("…porque recebeu uma menção").
-- **Asking an administrator** is "Peça a um administrador" on the sign-in pages too (`app.auth.askAnAdministrator*`, `app.auth.tryAgainIfItKeeps`), as the rest of a4a says it, where they said the neutral but long "Peça a quem administra o a4a".
-- **Selecting** issues in the list and elements on a whiteboard is *selecionar*, with a plural of its own where English passes a bare number: "1 selecionado", "Limpar seleção" (`issues.issueList.choose`, `chooseAllIssues`, `chooseNone`, `chosen`, `page.whiteboard.said.chosen`, `page.whiteboard.keys`). Picking one option stays *escolher* ("Escolha um projeto").
-- **Asking in words** is "Pedir ao assistente" (`issues.queryBar.askInWords`, `issues.languageField.askInWords`), reading it "Interpretar" (`issues.commandBar.readMyWords`, `issues.commandBar.reading`), and the history's channel "pedido em linguagem natural" (`issues.issueHistory.askedInWords`). Is *linguagem natural* too technical for the history?
-- **A channel by its name** is "via {name}" ("via GitHub", "via Slack, como Ana": `ui.who.from`, `issues.issueHistory.from`, `issues.issueHistory.viaNamed`, `activity.ledgerEntry.from`, `activity.ledgerEntry.fromAs`), since "de {v}" can't contract with a product's name.
-- **The profile**: the "You" section is "Dados pessoais" (`page.profile.you`, and the link to it in `notifications.emailSettings.youHaveNoEmailAddress`); a role reads "Seu papel: membro (pode ler e alterar itens)." (`page.profile.youRe`, `page.profile.roleAdmin`, `roleMember`, `roleViewer`); the time zone options are "Fuso do servidor (…)" and "Usar o fuso do navegador (…)".
-- **Notification verbs name the issue** ("moveu o item de BACK para WEB", "adicionou o item a uma sprint": `server.notify.verb.moved`, `addedToSprint`, `tookOutOfSprint`, `unlinked`), and drop "nele" ("registrou tempo": `loggedTime`, `correctedTime`, `removedTime`). An email's lead, `server.mail.lead`, still puts the title before the issue ("Ana moveu o item de BACK para WEB em WEB-3: …"); would "{id}: {summary}" first read better?
-- **The customer's sign-in link** is a *link de acesso* (`page.portal.*`, `server.portal.*`, `problem.portal.linkExpired`, `problem.helpdesk.tooManyLinks*`), and a4a's own sign-in keeps *login*.
-- **"It" named**: messages that began "Ele" or "Ela" now name the rule, webhook, import, script or app (`rules.ruleCard.*`, `page.webhooks.itIsPausedNothingIs`, `problem.imports.stillReading*`, `workflow.scriptRun.*`, `workflow.machines.*`), and a label leaves it to the verb ("Pede para", "Roda um script").
-- **A few words chosen**: "Licença médica" for Sick (`away.words.sick`), "Possíveis duplicados" and "provável duplicado" on a new issue (`page.newIssue.issuesThatMayBeThe`, `likelyTheSame`), "Trilha de navegação" for the breadcrumbs' name (`ui.states.whereThisIs`), "Tudo em dia" for an empty inbox (`page.inbox.youReUpToDate`), and "os planos não alocam seu trabalho nesses dias" for days away (`away.daysAway.addedAway`, `changedAway`, `page.profile.plansSkipThemForYour`).
-- **Not read in this pass**, beyond the patterns above: most of `plan.*`, `reports.*`, `rules.*`, `imports.*`, `apps.*`, `page.integrations.*`, `page.webhooks.*`, `page.agents.*`, `workflow.*`, `builds.*`, `vcs.*`, `roles.*`, `identity.*`, `page.admin.*`, `whiteboards.*` and the `problem.*` keys outside the help desk.
+- **No você**: Portugal's software leaves the reader to the verb, and the catalog does too, so "Pode", "Tem", "Recebeu este e-mail porque…", "Quis dizer…?". *Você* stays where the code hands the reader in as a name: `decide.suggestionCard.you` ("Você aplicou."), `page.portal.you`, `page.track.you`, `page.track.youAsked` ("<t0>Você</t0> escreveu"), and `server.query.you` (the query's "me", after a preposition and alone: "Assignee: você"). Would "Eu" read better in the portal's thread?
+- **Clitics where Portugal puts them**: "{who} atribuiu-lhe o item", "{who} fez-lhe uma menção", "{who} reportou o item e atribuiu-lho" (`server.notify.title.*`). Is *atribuiu-lho* too literary for a notification's title?
+- **Status lines are "a" + infinitive**: "A carregar o plano…", "A guardar…", "A iniciar sessão…" (`loadingLine.*`, every `*.saving`, `*.loading`).
+- **Quotation marks are «…»**, with “…” inside, as Portugal's print and the EU's Portuguese style write them (247 messages). Microsoft's and Google's Portuguese often use "…" in their interfaces: which do Portuguese readers expect on a page?
+- **Limits** are "Demasiados pedidos em pouco tempo. Tente novamente daqui a 2 minutos." (`problem.rateLimited`, `problem.helpdesk.tooMany*`, `problem.tooManySignIns`).
+- **A day in a sentence takes *a***: "Reportado por Ana a 4/12/2026" (`page.issue.reportedBy`, `ui.badges.onDate`), since Intl's `pt-PT` writes short dates as numbers.
+- **The query's count line still puts the count last** ("Itens no projeto SPR, não resolvidos: 4", `issues.queryBar.found*`): 0 is plural now, but the participles after it agree with the issues, not the count.
+- **The profile** is "Perfil" in the menu and on its page (`app.shell.yourProfile`, `page.profile.yourProfile`); "O seu perfil" is the alternative.
+- **iPhone's own words** are quoted as its Portuguese (Portugal) writes them: "toque em Partilhar, depois em Adicionar ao ecrã principal" (`notifications.pushSettings.onAnIphoneOrIpad`). An iPhone set to Brazil's Portuguese says "Compartilhar" and "Adicionar à Tela de Início".
+- **Gender left unguessed** costs length, as it did for Brazil: "quem fez o pedido", "a pessoa responsável", "Este pedido só é visível para si e para a equipa". Check the badges and narrow columns at 390px.
 
 ## Korean
 
