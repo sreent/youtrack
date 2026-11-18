@@ -4012,7 +4012,7 @@
   "problem.ai.writing.summaryNotPostable": "Không thể đăng bản tóm tắt này: bản tóm tắt đã quá một giờ, hoặc không còn như trợ lý đã viết. Tóm tắt lại vấn đề, rồi đăng bản mới.",
   "problem.ai.writing.tooLong": "Văn bản dài {length, number} ký tự, và trợ lý chỉ sửa hoặc viết lại tối đa {max, number} ký tự. Chọn một phần, rồi yêu cầu lại.",
   "problem.ai.writing.unkept": "Trợ lý không giữ nguyên các đoạn mã, liên kết và lượt nhắc đến trong văn bản. Yêu cầu lại, hoặc chọn một phần nhỏ hơn.",
-  "problem.aiDisabled": "Máy chủ này chưa cấu hình tính năng AI. Đặt ANTHROPIC_API_KEY trong môi trường của máy chủ và khởi động lại.",
+  "problem.aiDisabled": "Máy chủ này chưa cấu hình tính năng AI. Đặt {key} trong môi trường của máy chủ và khởi động lại.",
   "problem.alreadyExists": "Mục này đã tồn tại.",
   "problem.apiImports.allReadAlready": "Đã đọc xong mọi vấn đề. Kiểm tra lần nhập, rồi chạy. Để đọc lại từ đầu, hãy nhập lại từ {source}.",
   "problem.apiImports.cameFromFile": "Lần nhập này đến từ một tệp. Tải tệp lên lại để nhập lại từ đầu.",

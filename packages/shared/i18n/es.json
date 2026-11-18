@@ -4012,7 +4012,7 @@
   "problem.ai.writing.summaryNotPostable": "Este resumen no se puede publicar: tiene más de una hora o no es como lo escribió el asistente. Resume de nuevo la incidencia y publica el nuevo.",
   "problem.ai.writing.tooLong": "El texto tiene {length, number} caracteres, y el asistente corrige o reescribe {max, number} como máximo. Selecciona una parte y pídelo de nuevo.",
   "problem.ai.writing.unkept": "El asistente no conservó el código, los enlaces y las menciones del texto tal como estaban. Pídelo de nuevo o selecciona una parte más pequeña.",
-  "problem.aiDisabled": "Las funciones de IA no están configuradas en este servidor. Define ANTHROPIC_API_KEY en el entorno del servidor y reinícialo.",
+  "problem.aiDisabled": "Las funciones de IA no están configuradas en este servidor. Define {key} en el entorno del servidor y reinícialo.",
   "problem.alreadyExists": "Eso ya existe.",
   "problem.apiImports.allReadAlready": "Ya se han leído todas las incidencias. Revisa la importación y luego ejecútala. Para volver a leer las incidencias desde cero, vuelve a importar desde {source}.",
   "problem.apiImports.cameFromFile": "Esta importación vino de un archivo. Vuelve a subir el archivo para importarlo desde cero.",

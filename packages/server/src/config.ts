@@ -89,7 +89,7 @@ export interface Config {
   isDev: boolean;
   oidc: OidcConfig | null;
   saml: SamlConfig | null;
-  /** Whether people may sign in with a password. It can be off only when single sign-on (OIDC or SAML) is on. */
+  /** Whether people may sign in with a password. It can be off only when another way in is on: OIDC, SAML or a directory (LDAP). */
   passwordLogin: boolean;
   /**
    * How many proxies in front of the server append to X-Forwarded-For (a load

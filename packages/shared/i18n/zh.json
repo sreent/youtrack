@@ -4012,7 +4012,7 @@
   "problem.ai.writing.summaryNotPostable": "无法发布此总结：距生成已超过一小时，或内容已不是助手写的原样。请重新总结该问题，再发布新的总结。",
   "problem.ai.writing.tooLong": "文本有 {length, number} 个字符，而助手最多修正或改写 {max, number} 个。请选中其中一部分，然后重新请求。",
   "problem.ai.writing.unkept": "助手没能保留文本中的代码、链接和提及。请重新请求，或选中更小的一部分。",
-  "problem.aiDisabled": "此服务器没有配置 AI 功能。请在服务器环境中设置 ANTHROPIC_API_KEY，然后重启。",
+  "problem.aiDisabled": "此服务器没有配置 AI 功能。请在服务器环境中设置 {key}，然后重启。",
   "problem.alreadyExists": "该内容已存在。",
   "problem.apiImports.allReadAlready": "所有问题都已读取。请检查导入，然后运行。如需重新读取问题，可重新从 {source} 导入。",
   "problem.apiImports.cameFromFile": "此导入来自文件。如需重新导入，请重新上传文件。",

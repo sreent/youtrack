@@ -129,7 +129,7 @@ The MCP server registers them, with 5 resources and 6 prompts, and the in-app as
 
 The transport is stateless Streamable HTTP: a new `McpServer` per request, authenticated by bearer token. Nothing to sticky-route, and it restarts safely.
 
-There are no deletes over MCP. Bulk commands are capped at 50 issues and have `dry_run`.
+MCP deletes no issue, article, file or whiteboard; what an agent can take away (a link between issues, someone copied on a request, a chat channel's subscription) is put back as easily. Bulk commands are capped at 50 issues and have `dry_run`.
 
 ### D9. AI: Claude first, guarded
 
@@ -703,7 +703,7 @@ A desk can have an address, and then people write to it as well as fill in its f
 
 **What never becomes anything.** Mail no person wrote: `Auto-Submitted` other than `no` (RFC 3834), the auto-reply headers, `Precedence: bulk`, list headers, delivery reports, a null return path, `mailer-daemon`, and no-reply senders. Mail from a4a's own address or a desk's. Every email a4a sends says `Auto-Submitted: auto-generated`, so an out-of-office answering one is set aside too, and nothing loops. A message whose receiving server says it failed DMARC is refused: only the topmost `Authentication-Results` counts, being that server's own. A reply from anyone but the requester is refused, even with the token, since it would speak in their name. (Colleagues who may answer it are taken, as themselves: D56. CCs and the team answer at reply addresses of their own: D57, D45.) Nobody is ever told of what's set aside or refused, so a forged sender gets no mail.
 
-**Limits:** 5 new requests per sender an hour, 30 replies per request, 300 messages per desk, in the help desk's shared throttle; 25 MB a message (`HELPDESK_MAIL_MAX_MB`). The log keeps 30 days, for the desk's managers: when, from whom, the subject, and what became of it, in words.
+**Limits**, each an hour, in the help desk's shared throttle: 5 new requests per sender, 30 replies per request and 300 messages per desk; 25 MB a message (`HELPDESK_MAIL_MAX_MB`). The log keeps 30 days, for the desk's managers: when, from whom, the subject, and what became of it, in words.
 
 **A proof of work, when a desk asks for one.** The form comes with a challenge the server signed (ALTCHA's scheme): find the number up to `maxnumber` whose SHA-256 with the salt is the challenge. The browser finds it with WebCrypto in a worker, a file of the site's own, so the page's policy lets it run; it starts when the form loads, so it's usually done before the person is. The salt says which desk and until when (30 minutes), the signature that the server made it, so the server keeps nothing until an answer comes; then it takes the answer once, counted in the shared throttle. No puzzle, no third party, nothing loaded from outside. It doesn't stop a determined bot; it makes each request cost one a moment, with the honeypot, the form token and the limits beside it.
 
@@ -828,7 +828,7 @@ An agent over MCP can act for a person, with that person's token: its changes re
 **Agents of their own.** An agent is a bot account an administrator adds. a4a's own agents (`triage`, `workflow`, `helpdesk`, and D46's `builds`, in `OWN_AGENTS`) act for a4a itself: they take no tokens and no work, and their logins are a4a's to make.
 
 - **Tokens.** An administrator issues an agent its tokens (`POST /users/{agent}/tokens`), with scopes, an expiry and, if wanted, projects, as any token has. A token never does more than its agent's role allows, and a token limited to a project the agent can't see is refused with how to fix it, since it would reach nothing there. The agent never makes its own tokens: a token that leaked can't make itself another. Banning the agent stops all of them.
-- **As itself.** With such a token, the agent's changes are its own. The event's actor says so (`isBot`), the history reads "claude · via MCP" for no one, `me` in a query is the agent, and `get_current_user` says `agent: true`.
+- **As itself.** With such a token, the agent's changes are its own. The event's actor says so (`isBot`), the history reads "claude, over MCP, as itself", `me` in a query is the agent, and `get_current_user` says `agent: true`.
 - **Assignees.** An agent can be assigned issues, as a person can: by anyone who may change the issue, and in a members-only project once it is one of the project's people. `for: me #Unresolved` over its token is its work. a4a's own agents are refused as values of a person field, with what to choose instead. Agents don't watch issues: an agent assigned or mentioned finds a notification in its inbox (D22), never an email, and finds its work by searching.
 
 **Undo.** A change an agent made on its own can be undone by a person who may change the issue, from the issue's history or `POST /events/{id}/undo`.
@@ -844,7 +844,7 @@ An agent over MCP can act for a person, with that person's token: its changes re
 
 **Costs.** A row per change an agent makes, with the values it replaced; a rewritten description is kept whole. Undo refuses rather than merges: someone who changed the issue since has to be asked, not overwritten.
 
-**Revisit when:** an agent's comments should be withdrawable by people, or agents should be told of their work (a notification for an assigned agent, a webhook to wake it), or a change an agent made long ago should be undone across later ones (a merge, field by field).
+**Revisit when:** an agent's comments should be withdrawable by people, or agents should be woken by their work (a webhook or a push to an agent when it's assigned or mentioned; it gets an inbox notification only), or a change an agent made long ago should be undone across later ones (a merge, field by field).
 
 ### D35. Files in an S3-compatible bucket, served in ranges, and shown in place
 
@@ -1981,9 +1981,9 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 - **Writing and reading help (D59):** reads only what its person may see, through the access seam; what people wrote goes to the model as data, and an edit's code, link addresses, raw HTML, mentions and ids are put aside and given back to the byte; nothing is written without its person.
 - **Agents:**
   - An agent's own tokens are issued by administrators, never by the agent; an agent can't undo, and a person's undo never overwrites a later change (D34).
-  - Issue text is untrusted, so the assistant asks before writes.
+  - Issue text is untrusted, so the assistant asks before writes, unless its person lets it act.
   - MCP writes are annotated, so clients can ask too.
-  - There are no deletes over MCP.
+  - MCP deletes no issue, article, file or whiteboard (D8).
   - Every change records actor, channel and token.
 
 ## Limits and assumptions

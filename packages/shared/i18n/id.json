@@ -4012,7 +4012,7 @@
   "problem.ai.writing.summaryNotPostable": "Ringkasan ini tidak dapat dikirim: usianya lebih dari satu jam, atau tidak lagi seperti yang ditulis asisten. Ringkas isu ini lagi, lalu kirim ringkasan yang baru.",
   "problem.ai.writing.tooLong": "Teks ini panjangnya {length, number} karakter, dan asisten memperbaiki atau menulis ulang paling banyak {max, number}. Pilih sebagian teks, lalu minta lagi.",
   "problem.ai.writing.unkept": "Asisten tidak mempertahankan kode, tautan, dan sebutan dalam teks seperti semula. Minta lagi, atau pilih bagian yang lebih kecil.",
-  "problem.aiDisabled": "Fitur AI belum dikonfigurasi di server ini. Atur ANTHROPIC_API_KEY di lingkungan server lalu mulai ulang.",
+  "problem.aiDisabled": "Fitur AI belum dikonfigurasi di server ini. Atur {key} di lingkungan server lalu mulai ulang.",
   "problem.alreadyExists": "Itu sudah ada.",
   "problem.apiImports.allReadAlready": "Semua isu sudah dibaca. Periksa impor, lalu jalankan. Untuk membaca ulang dari awal, impor lagi dari {source}.",
   "problem.apiImports.cameFromFile": "Impor ini berasal dari file. Unggah file itu lagi untuk mengimpornya dari awal.",

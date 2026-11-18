@@ -4012,7 +4012,7 @@
   "problem.ai.writing.summaryNotPostable": "Ce résumé ne peut pas être publié : il date de plus d’une heure, ou n’est plus tel que l’assistant l’a écrit. Résumez à nouveau le ticket, puis publiez ce nouveau résumé.",
   "problem.ai.writing.tooLong": "Le texte fait {length, number} caractères, et l’assistant en corrige ou en réécrit {max, number} au plus. Sélectionnez-en une partie, puis réessayez.",
   "problem.ai.writing.unkept": "L’assistant n’a pas conservé tels quels le code, les liens et les mentions du texte. Réessayez, ou sélectionnez une partie plus courte.",
-  "problem.aiDisabled": "Les fonctions d’IA ne sont pas configurées sur ce serveur. Définissez ANTHROPIC_API_KEY dans l’environnement du serveur, puis redémarrez-le.",
+  "problem.aiDisabled": "Les fonctions d’IA ne sont pas configurées sur ce serveur. Définissez {key} dans l’environnement du serveur, puis redémarrez-le.",
   "problem.alreadyExists": "Cela existe déjà.",
   "problem.apiImports.allReadAlready": "Tous les tickets ont déjà été lus. Vérifiez l’import, puis lancez-le. Pour relire les tickets, importez de nouveau depuis {source}.",
   "problem.apiImports.cameFromFile": "Cet import vient d’un fichier. Envoyez de nouveau le fichier pour le réimporter.",

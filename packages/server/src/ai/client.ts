@@ -57,7 +57,7 @@ function connect(config: Config): AIService {
 
 export function requireAI(app: AppServices): AIService {
   const ai = aiService(app);
-  if (!ai) throw aiDisabled();
+  if (!ai) throw aiDisabled(AI_PROVIDERS[app.config.aiProvider].keyVars[0]);
   return ai;
 }
 

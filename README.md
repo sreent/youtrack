@@ -117,7 +117,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - Search and commands in plain words.
   - Writing help in every text field, in the visual editor and in Markdown: fix spelling and grammar; rewrite shorter, clearer, more formal or friendlier; carry a text on, or draft it from a line (an article from a prompt, a reply to a requester from the request's conversation). Each answer is a suggestion beside what it would replace, to accept, edit or discard; code, links, mentions and ids come back as they went in, and the text keeps its language.
   - Summaries of an issue, an article or a selection, in the reader's language, read only from what they may see; an issue's summary posted as the assistant's comment; a clearer summary suggested for an issue. Each person asks up to `AI_WRITING_MAX_PER_HOUR` times an hour.
-  - An assistant that works through the same tools as MCP and asks before it changes anything.
+  - An assistant that works through the same tools as MCP and asks before it changes anything, unless you let it act.
 - **Projects with their own people**:
   - a project is open to everyone, or seen only by its members and administrators;
   - in it, each person is a viewer (reads and comments), a member (also changes issues) or a manager (also its settings, people, boards and baselines);
