@@ -459,7 +459,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                     ))}
                   </ul>
                 ) : null}
-                <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} />
+                <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} planned />
                 {check.counts.problems > check.problems.length ? <p className="note">{tr('page.import.theFirstProblems', { length: check.problems.length, n: check.counts.problems })}</p> : null}
               </div>
             ) : null}

@@ -128,7 +128,8 @@ export function ValuesTable({ map, onValue, disabled, from = t('imports.mappingT
   );
 }
 
-export function ProblemsTable({ problems, caption }: { problems: ImportProblem[]; caption: string }) {
+/** Each row's problems; `planned` for a dry run's, which say what would happen. */
+export function ProblemsTable({ problems, caption, planned }: { problems: ImportProblem[]; caption: string; planned?: boolean }) {
   if (!problems.length) return null;
   return (
     <div className="figures-scroll" tabIndex={0} role="group" aria-label={caption}>
@@ -147,7 +148,12 @@ export function ProblemsTable({ problems, caption }: { problems: ImportProblem[]
               <td>{p.row}</td>
               <td className="mono">{p.key ?? ''}</td>
               <td>
-                {p.severity === 'error' ? <Badge tone="bad">{t('imports.mappingTable.notImported')}</Badge> : <Badge tone="warn">{t('imports.mappingTable.importedWithoutIt')}</Badge>} {p.message}
+                {p.severity === 'error' ? (
+                  <Badge tone="bad">{planned ? t('imports.mappingTable.wouldNotBeImported') : t('imports.mappingTable.notImported')}</Badge>
+                ) : (
+                  <Badge tone="warn">{planned ? t('imports.mappingTable.wouldBeImportedWithoutIt') : t('imports.mappingTable.importedWithoutIt')}</Badge>
+                )}{' '}
+                {p.message}
                 {p.column ? <span className="problem-hint">{tr('imports.mappingTable.in2', { column: p.column })}</span> : null}
                 {p.hint ? <span className="problem-hint">{p.hint}</span> : null}
               </td>
@@ -173,7 +179,7 @@ export function Tally({
     [planned ? t('imports.mappingTable.toUpdate') : t('imports.mappingTable.updated'), counts.updated],
     [t('imports.mappingTable.unchanged'), counts.unchanged],
     [t('imports.mappingTable.skipped'), counts.skipped],
-    [planned ? t('imports.mappingTable.wouldFail') : t('imports.mappingTable.notImported'), counts.failed],
+    [planned ? t('imports.mappingTable.wouldFail') : t('imports.mappingTable.notImportedTally'), counts.failed],
     [t('imports.mappingTable.comments'), counts.comments],
     // An import from an API brings these one by one; a file's spent time comes as one total.
     ...(counts.work !== undefined ? ([[t('imports.mappingTable.workItems'), counts.work]] as [string, number][]) : []),

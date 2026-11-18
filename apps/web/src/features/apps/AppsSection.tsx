@@ -12,6 +12,7 @@ import { ago, agoSaid } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { formatBytes } from '../attachments/api';
 import { appKeys, base64Of } from './api';
 import { mayWords, moreWords, WIDGET_AT } from './words';
 import { formatList, t, tr } from '../../i18n';
@@ -47,7 +48,7 @@ function Asks({ p }: { p: AppPackagePreview }) {
           ...p.widgets.map((w) => t('apps.appsSection.widgetAt', { at: WIDGET_AT[w.at] ?? 'other', title: w.title })),
           ...p.handlers.map((h) => t('apps.appsSection.aHandler', { title: h.title })),
           ...p.rules.map((r) => t('apps.appsSection.aRuleActingAsIts', { title: r.title })),
-        ]), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, toFixed: (p.bytes / 1024).toFixed(0), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
+        ]), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, size: formatBytes(p.bytes), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
     </div>
   );
 }
