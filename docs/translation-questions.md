@@ -95,6 +95,14 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `page.admin.removePasskeysOf`, the accessible name of "Passkeys entfernen", is "Passkeys entfernen für {name}", so it holds the link's words whole (WCAG 2.5.3); "Passkeys von {name} entfernen" is the natural order.
 - `page.integrations.accountUser`, a GitHub account's type beside "Organisation", is "Benutzer"; "Persönliches Konto" doesn't assume a gender.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Commit-Status** stays English, like "Check-Run" (`page.integrations.statusesLegend` "Commit-Status bei Pull Requests", `statusesOn`): GitHub's German interface says "Commitstatus", without the hyphen, and the plural works unchanged. "Status" alone would collide with an issue's state.
+- `page.group.requirePasskeys` is "Von den Personen dieser Gruppe einen Passkey verlangen", and `page.project.requirePasskeys` "Von allen, die dieses Projekt sehen können, einen Passkey verlangen": the verb-first order of the catalog's other switches. Would "Für die Personen dieser Gruppe …" read more naturally?
+- `page.group.requirePasskeysHelp` ends "…, und eine befreite Person braucht keinen.", building on wave 6's "von der Passkey-Pflicht befreit". Should the noun appear here too ("und eine von der Passkey-Pflicht befreite Person braucht keinen")?
+- `builds.builds.reportCheck` is "Das Ergebnis jedes Laufs an GitHub melden". Is "melden" the right verb for telling a service, or would "berichten" or "übermitteln" say it better?
+- `page.integrations.statusesAudience` says "Ein Status nennt Vorgänge nur mit ihrer ID" — the checks message says "nennt Vorgänge mit ID und Link". Does "mit ihrer ID" read naturally beside it?
+
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -189,6 +197,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `page.integrations.readThrough`, beside an installation's account, is "repositorios leídos a través de ella: {list}", longer than English's "read here:" to say what was read. `page.integrations.accountUser`, a badge, is "usuario"; GitHub's Spanish documentation says "cuenta personal".
 - `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
 - `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
+
 
 ## French
 
@@ -285,6 +294,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `server.helpdesk.relay.whyAnswer` and `whyLink`: the people on a request "participent à" it ("d’autres personnes participent à votre demande auprès de {desk}"), since "suivre" is a4a's word for watching.
 - `page.portal.confirm.copyThem`, "Mettre en copie les personnes choisies", is long for a button, and wraps at 390px.
 
+
 ## Japanese
 
 Terms:
@@ -372,6 +382,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.requestCard.passkeys`, beside the button that removes them, is a label, 「ポータルのログイン用パスキー：2個」, where English has a sentence. Does it read as the requester's passkeys?
 - `page.admin.metadataInUse` calls FIDO's BLOB number 「第{no}号」. Is 「No.{no}」 more usual for a serial?
 
+
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -437,6 +448,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A passkey provider** is a *gestor de chaves de acesso* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), as a password manager is a *gestor de palavras-passe*. Do Portugal's phones say *fornecedor de chaves de acesso*?
 - **Forgejo's and Gitea's settings** are named as their Portuguese pages name them, "em Aplicações" (`builds.builds.forgeKeepsToken`, `tokenTooWide`); an instance in English says "Applications".
 - **The emails' time** is in brackets again, "… foi removida (quarta, 18/11, 14:03 WET)" (`server.passkeys.passwordRemoved`, `server.portalPasskeys.lead`, `removedByTeam`), since it begins with a weekday.
+
 
 ## Korean
 
@@ -553,6 +565,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A lane's own order** is "레인마다 순서를 따로 유지" (`page.board.laneOrder`, `laneOrderOn`, `laneOrderTurnedOn`), and "레인별 순서" in its help. A card's move in an issue's history reads "Platform board에서 BACK-31 위로 옮겼습니다", and "보드에서" where the reader no longer sees the board (`boards.history.moved`, "on a board"). Is "어느 보드에서" better there?
 - `page.admin.metadataInUse` says "번호 {no}" for FIDO's BLOB ("사용 중인 FIDO 메타데이터: 번호 87, 3시간 전 읽음."), since "87번" would read as a count of times. Clear?
 
+
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -658,6 +671,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The setup link is 添加通行密钥的链接** (`page.admin.sendALinkTo`, `addedLinkMailed`, `server.passkeySetup.subjectAgain`), and its page's title 添加通行密钥 (`page.passkeySetup.title`). Its time left comes from Intl as 「3天后」, so the people table's line takes a space before it, 「添加通行密钥的链接 3天后过期」 (`page.admin.linkRunsOut`), and the link's page puts it after a comma, 「此链接仅可使用一次，3天后过期。」 (`page.passkeySetup.until`). Fine?
 - **The portal signs a requester out with 退出门户登录** (`helpdesk.portalPasskeys.notMeDoneAbout`, `server.portalPasskeys.notYou`), where the team's pages say 在所有设备上退出登录.
 - **The page behind the acknowledgement's link** reads 「您就“{summary}”发给 {desk} 的邮件抄送了以下人员。」 (`page.portal.confirm.lead`), with the desk's name unquoted, as the portal's pages say it; the desk's emails quote theirs, 「“BACK 的服务台”」 (`server.helpdesk.relay.whyAnswer`, `whyLink`).
+
 
 ## Vietnamese
 
@@ -777,6 +791,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A desk that takes passkeys "cho đăng nhập bằng khóa truy cập"** (`problem.portal.passkeysOff`, `helpdesk.portalPasskeys.offDesks`), as one that takes passwords does. A requester's help desk passkey is "khóa truy cập bạn dùng cho bộ phận hỗ trợ" (`helpdesk.portalPasskeys.notMeCopied`, `server.portalPasskeys.subject`, `problem.portalPasskeys.teamPasskey`), since "khóa truy cập của bộ phận hỗ trợ" would read as the desk's own.
 - **Smaller choices**: GitHub's account kinds are "cá nhân" and "tổ chức" (`page.integrations.accountUser`, `page.integrations.accountOrganization`), where English says "user"; an installation GitHub says is gone "đã gỡ" (`page.integrations.installationGone`); "họ" stands for one person in "Đã CC 1 người: từ giờ, họ sẽ nhận …" (`page.portal.confirm.copied`), whose plural keeps `other` alone; and `server.portalPasskeys.removedByTeam` keeps `=1`, the one case that names the passkey.
 
+
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -891,6 +906,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Only some authenticators**: an authenticator is *autentikator*, as in "aplikasi autentikator"; its maker the *produsen*; attestation the maker's *jaminan*, as providers *menjamin* in wave 5 (`page.admin.attestationPrivacy`, `problem.passkeys.unattested`, `problem.passkeys.unknownMaker`); and one FIDO reports compromised "tidak lagi aman" (`problem.passkeys.untrustedMaker`). Would an administrator look for *atestasi*?
 - **Passkeys alone**: "Hanya kunci sandi" in the people table (`page.admin.passkeysAlone`), "Masuk hanya dengan kunci sandi" on the profile (`identity.passkeys.passkeysAlone`), and the setup link "tautan untuk menambahkan kunci sandi", which "kedaluwarsa dalam 3 hari" (`page.admin.linkRunsOut`, `page.passkeySetup.until`, `server.passkeySetup.*`). A passkey provider is a *penyedia kunci sandi* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), where Google names its own *Pengelola Sandi*.
 - **Forgejo's and Gitea's "Applications"** stays as their English settings name it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`), though their Indonesian says *Aplikasi*.
+
 
 ## Thai
 
@@ -1007,6 +1023,7 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A requester's passkey is พาสคีย์เฮลป์เดสก์**, and "your help desk sign-in" “การเข้าสู่ระบบเฮลป์เดสก์ของคุณ” (`helpdesk.portalPasskeys.notMeAdded`, `helpdesk.portalPasskeys.notMeCopied`, `server.portalPasskeys.subject`, `problem.portalPasskeys.teamPasskey`). The mailbox that proves a requester is “อีเมลของคุณ”, since กล่องจดหมาย is a4a's inbox (`helpdesk.portalPasskeys.confirmWhy`).
 - **The portal's notes after "added …, last used …" are whole sentences**, with their subject: “พาสคีย์นี้อาจถูกคัดลอก จึงไม่มีใครใช้เข้าสู่ระบบได้”, “พาสคีย์นี้สร้างไว้สำหรับ {host} จึงใช้เข้าสู่ระบบที่นี่ไม่ได้” (`helpdesk.portalPasskeys.mayBeCopied`, `helpdesk.portalPasskeys.elsewhere`), where the team's, after a badge, stay fragments.
 - **A GitHub App's installations** carry the badges “องค์กร”, “ผู้ใช้”, “ไม่มีแล้ว” for gone and “ถูกระงับ” for suspended (`page.integrations.accountOrganization`, `page.integrations.accountUser`, `page.integrations.installationGone`, `page.integrations.installationSuspended`). Is ไม่มีแล้ว clear, or should it say ถอนการติดตั้งแล้ว? Forgejo's and Gitea's “Applications” stays in Latin letters, as their settings show it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`).
+
 
 ## What a catalog can't say yet
 
