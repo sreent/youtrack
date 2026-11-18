@@ -253,6 +253,19 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `helpdesk.portalSignIn.save` is "Enregistrer la connexion", under the heading "Connexion des personnes qui font des demandes". Could it read as saving a login? "Enregistrer les façons de se connecter" is clearer, and longer.
 - **Requesters, plural,** are "les personnes qui font des demandes", as in D56's messages: long in headings (`page.project.portalSignIn`, `helpdesk.portalSignIn.providers`) and the ledger (`activity.ledgerEntry.portalSignInChanged`).
 
+Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
+
+- **Check runs** stay "check run" ("le check run"), as the developers wrote, where GitHub's French documentation says "exécutions de vérifications". A pull request "mentionne" its issues (`server.checks.*`, `page.integrations.checksAudience`), as `page.webhooks.label.pullRequestLinked` says, and an id "ne correspond à aucun ticket", where the developers wrote "nomme".
+- `page.integrations.checksNeedPermission` and `problem.vcs.githubApp.cantWriteChecks` quote GitHub's English label with French spacing, "Checks : Read and write". GitHub shows "Checks: Read and write".
+- **FIDO** takes "la": "les métadonnées de la FIDO", "Selon la FIDO, {name} n’est pas digne de confiance". "L’Alliance FIDO", or "FIDO" alone, are the other ways.
+- **A date that would end a sentence** goes in brackets, so that "nov." and the full stop don't meet: `helpdesk.portalPasskeys.when` ("Ajoutée le 3 nov. (dernière utilisation le 16 nov.)."), `helpdesk.portalPasskeys.notMeWhat`, `page.notMe.what`, `page.notMe.whatPassword`, and `page.admin.metadataInUse` ("Métadonnées de la FIDO utilisées : numéro 82 (lues il y a 3 heures)."). Natural?
+- `page.admin.letOffPasskeys` is a noun, "dispense de clé d’accès", so that nothing agrees with the person, among the people table's notes ("avec authentification à deux facteurs · dispense de clé d’accès"). Clear there?
+- `activity.ledgerEntry.requestCcsChanged` lists a desk's rules as participles after a colon: "…au plus 5 personnes en copie, le Cc d’une nouvelle demande appliqué aussitôt et seuls les messages de l’équipe transmis". Does the last read as "only the team's messages are sent"?
+- **Passkeys alone** is "uniquement": "Se connecter uniquement avec vos clés d’accès" (`identity.passkeys.passkeysAlone`), "Clés d’accès uniquement" in the people table (`page.admin.passkeysAlone`), where the developers wrote "avec vos clés d’accès seules".
+- `page.integrations.readThrough` and `nothingReadThroughYet`, beside an installation's account: "utilisée pour lire octo-org/api et octo-org/web", "pas encore utilisée". Clear?
+- `server.helpdesk.relay.whyAnswer` and `whyLink`: the people on a request "participent à" it ("d’autres personnes participent à votre demande auprès de {desk}"), since "suivre" is a4a's word for watching.
+- `page.portal.confirm.copyThem`, "Mettre en copie les personnes choisies", is long for a button, and wraps at 390px.
+
 ## Japanese
 
 Terms:
