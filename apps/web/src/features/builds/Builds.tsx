@@ -97,7 +97,7 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
       <div className="hook-head">
         <div className="hook-what">
           <span className="hook-url">{source.name}</span>
-          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, v: source.field ?? t('builds.builds.noBuildFieldYet'), v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: agoSaid(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
+          <span className="item-about">{tr('builds.builds.buildsOfFromInto', { project: source.project, t0: (c: ReactNode) => <Link to={`/builds/${source.project}`}>{c}</Link>, from: from, hasField: source.field ? 'yes' : 'no', field: source.field ?? '', v2: source.lastBuildAt ? t('builds.builds.lastBuild', { when: agoSaid(source.lastBuildAt) }) : t('builds.builds.noBuildYet') })}</span>
         </div>
         {source.active ? <Badge tone="good">{t('builds.builds.takesBuilds')}</Badge> : <Badge tone="idle">{t('builds.builds.paused')}</Badge>}
       </div>

@@ -9,7 +9,7 @@ import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { ProjectGroups } from '../groups/ProjectGroups';
 import { aRole, BUILTIN_ROLES, isBuiltinRole, permissionWords, roleHelp, roleLabel } from '../roles/words';
-import { t, tr } from '../../i18n';
+import { sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 const VISIBILITY: { id: ProjectVisibility; name: string; about: string }[] = [
@@ -281,7 +281,8 @@ export function PeopleAndAccess({ project }: { project: Project }) {
   return (
     <div className="stack">
       <Visibility project={project} canEdit={canEdit} />
-      <p className="note section-note">{tr('projects.peopleAndAccess.rolesItsLeadIsA', { join: roles.map((r) => (r.permissions.length ? t('projects.peopleAndAccess.roleMay', { role: aRole(r.id, r.name), permissionWords: permissionWords(r.permissions) }) : t('projects.peopleAndAccess.roleMayNothing', { role: aRole(r.id, r.name) }))).join('; ') })}</p>
+      {/* What each role may do, a sentence each as the role picker's help says it, then who else may. */}
+      <p className="note section-note">{sentences([...roles.map((r) => roleHelp(roles, r.id)), t('projects.peopleAndAccess.itsLeadIsAManager')])}</p>
       {members.isLoading ? <Loading what="loadingLine.projectPeople" /> : null}
       {members.error ? <ErrorNote error={members.error} /> : null}
       {members.data && !list.length ? (

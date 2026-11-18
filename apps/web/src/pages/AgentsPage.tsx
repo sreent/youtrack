@@ -335,11 +335,11 @@ export default function AgentsPage() {
                             <span className="muted">{tx('page.agents.noProjectAnyMore')}</span>
                           )}
                         </td>
-                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('page.agents.never')}</span>}</td>
+                        <td>{t.lastUsedAt ? <time dateTime={t.lastUsedAt}>{ago(t.lastUsedAt)}</time> : <span className="muted">{tx('page.agents.neverUsed')}</span>}</td>
                         <td>
                           <time dateTime={t.createdAt}>{ago(t.createdAt)}</time>
                         </td>
-                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('page.agents.never')}</span>}</td>
+                        <td>{t.expiresAt ? <time dateTime={t.expiresAt}>{dateRead(t.expiresAt)}</time> : <span className="muted">{tx('page.agents.neverExpires')}</span>}</td>
                         <td className="fit">
                           <Confirm
                             small
