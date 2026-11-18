@@ -2,7 +2,7 @@ import type { Confirmed, MyPasskeys, Passkey, PasskeyOptions } from '@a4a/shared
 import { browserSupportsWebAuthn, startAuthentication, startRegistration, WebAuthnError } from '@simplewebauthn/browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { del, get, patch, post } from '../../api/client';
+import { ApiError, del, get, patch, post } from '../../api/client';
 import { agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
@@ -149,6 +149,14 @@ export function PasskeysCard() {
   const refresh = () => void qc.invalidateQueries({ queryKey: passkeyKeys.mine });
   const supported = browserSupportsWebAuthn();
   const fail = (e: unknown) => setSaid({ text: passkeyCancelled(e) ? t('identity.passkeys.cancelled') : errorText(e), bad: true });
+  // The server's clock decides how recent a sign-in is: when it says to confirm first, the page asks.
+  const failOr = (what: NonNullable<typeof pending>) => (e: unknown) => {
+    if (e instanceof ApiError && e.code === 'confirm_needed') {
+      setSaid(null);
+      setPending(what);
+      refresh();
+    } else fail(e);
+  };
 
   const add = useMutation({
     mutationFn: async () => {
@@ -160,7 +168,7 @@ export function PasskeysCard() {
       setSaid({ text: t('identity.passkeys.isAdded', { name: p.name }) });
       refresh();
     },
-    onError: fail,
+    onError: failOr({ what: 'add' }),
   });
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => patch<Passkey>(`/me/passkeys/${id}`, { name }),
@@ -176,7 +184,7 @@ export function PasskeysCard() {
       setSaid({ text: t('identity.passkeys.removed', { name: p.name }) });
       refresh();
     },
-    onError: fail,
+    onError: (e, p) => failOr({ what: 'remove', p })(e),
   });
 
   if (mine.isLoading) return <Loading what="loadingLine.passkeys" />;
