@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "pergunta antes, se o cliente perguntar",
   "page.agents.autonomy": "Autonomia",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "Compile primeiro a ponte numa cópia do a4a, com {command}; depois substitua {path} pelo caminho dessa cópia.",
   "page.agents.canOverwrite": "pode sobrescrever",
   "page.agents.changes": "Alterações",
   "page.agents.chooseAtLeastOneProject": "Escolha pelo menos um projeto.",

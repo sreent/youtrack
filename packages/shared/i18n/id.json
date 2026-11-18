@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "bertanya dulu, jika kliennya mendukung",
   "page.agents.autonomy": "Otonomi",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "Build bridge-nya dulu di salinan a4a dengan {command}, lalu ganti {path} dengan path salinan itu.",
   "page.agents.canOverwrite": "dapat menimpa",
   "page.agents.changes": "Mengubah",
   "page.agents.chooseAtLeastOneProject": "Pilih setidaknya satu proyek.",

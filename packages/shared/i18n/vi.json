@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "hỏi trước, nếu ứng dụng khách hỗ trợ",
   "page.agents.autonomy": "Mức tự chủ",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "Hãy build cầu nối trước trong một bản sao của a4a bằng {command}, rồi thay {path} bằng đường dẫn của bản sao đó.",
   "page.agents.canOverwrite": "có thể ghi đè",
   "page.agents.changes": "Thay đổi",
   "page.agents.chooseAtLeastOneProject": "Chọn ít nhất một dự án.",

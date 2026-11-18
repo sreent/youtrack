@@ -6,19 +6,28 @@ A client that speaks HTTP (Claude Code, Cursor, and most others) needs no bridge
 
 ## Use
 
-Make an API token in a4a, under **Agents and tokens**, then give the client:
+a4a is internal, so the bridge isn't published to npm: build it in a checkout of a4a,
+
+```bash
+pnpm install
+pnpm --filter a4a-mcp build
+```
+
+make an API token in a4a, under **Agents and tokens**, and give the client:
 
 ```json
 {
   "mcpServers": {
     "a4a": {
-      "command": "npx",
-      "args": ["-y", "a4a-mcp"],
+      "command": "node",
+      "args": ["/path/to/a4a/packages/mcp-bridge/dist/index.js"],
       "env": { "A4A_URL": "https://a4a.example.com", "A4A_TOKEN": "a4a_your_token" }
     }
   }
 }
 ```
+
+with the checkout's path in place of `/path/to/a4a`. Don't run it as `npx a4a-mcp`: that would fetch whatever someone else publishes under the name, and hand it your token.
 
 - `A4A_URL`: the address people open a4a at, without `/mcp`. It can also be the first argument.
 - `A4A_TOKEN`: the token. The agent acts as its person, never beyond their role.

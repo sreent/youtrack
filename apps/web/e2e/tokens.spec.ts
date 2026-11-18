@@ -77,7 +77,7 @@ test('the MCP setup for each client carries this server and the token', async ({
   await which.getByRole('button', { name: 'Claude Desktop' }).click();
   await expect(which.getByRole('button', { name: 'Claude Desktop' })).toHaveAttribute('aria-pressed', 'true');
   const desktop = JSON.parse((await connect.getByLabel('For Claude Desktop').textContent())!);
-  expect(desktop).toEqual({ mcpServers: { a4a: { command: 'npx', args: ['-y', 'a4a-mcp'], env: { A4A_URL: BASE_URL, A4A_TOKEN: token } } } });
+  expect(desktop).toEqual({ mcpServers: { a4a: { command: 'node', args: ['/path/to/a4a/packages/mcp-bridge/dist/index.js'], env: { A4A_URL: BASE_URL, A4A_TOKEN: token } } } });
 
   // Copying it puts exactly that on the clipboard.
   await connect.getByRole('button', { name: 'Copy it' }).click();

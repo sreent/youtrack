@@ -55,11 +55,14 @@ const PROMPTS: { name: string; args: string; about: string }[] = [
   },
 ];
 
+/** Where the stdio bridge is once built in a checkout of a4a: it isn't published to npm, as a4a is internal. */
+const BRIDGE = '/path/to/a4a/packages/mcp-bridge/dist/index.js';
+
 function snippet(client: Client, origin: string, token: string): string {
   // not words: a command to paste
   if (client === 'claude-code') return `claude mcp add --transport http a4a ${origin}/mcp --header "Authorization: Bearer ${token}"`;
   if (client === 'http') return JSON.stringify({ mcpServers: { a4a: { url: `${origin}/mcp`, headers: { Authorization: t('page.agents.bearer', { token: token }) } } } }, null, 2);
-  return JSON.stringify({ mcpServers: { a4a: { command: 'npx', args: ['-y', 'a4a-mcp'], env: { A4A_URL: origin, A4A_TOKEN: token } } } }, null, 2);
+  return JSON.stringify({ mcpServers: { a4a: { command: 'node', args: [BRIDGE], env: { A4A_URL: origin, A4A_TOKEN: token } } } }, null, 2);
 }
 
 const CLIENTS: { id: Client; label: string; where: string }[] = [
@@ -264,6 +267,9 @@ export default function AgentsPage() {
                   ))}
                 </div>
                 <p className="note">{current.where}</p>
+                {client === 'desktop' ? (
+                  <p className="note">{tr('page.agents.buildTheBridgeFirst', { command: <code>pnpm --filter a4a-mcp build</code>, path: <code>/path/to/a4a</code> })}</p>
+                ) : null}
                 <div className="stack tight">
                   <pre className="snippet" aria-label={tx('page.agents.for', { label: current.label })}>
                     {snippet(client, origin, token)}

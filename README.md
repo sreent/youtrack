@@ -215,10 +215,10 @@ claude mcp add --transport http a4a http://localhost:3000/mcp --header "Authoriz
 **Claude Desktop, and other stdio-only clients**: use the bridge.
 
 ```json
-{ "mcpServers": { "a4a": { "command": "npx", "args": ["-y", "a4a-mcp"], "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
+{ "mcpServers": { "a4a": { "command": "node", "args": ["/path/to/a4a/packages/mcp-bridge/dist/index.js"], "env": { "A4A_URL": "http://localhost:3000", "A4A_TOKEN": "a4a_your_token" } } } }
 ```
 
-`-y` lets `npx` fetch it without asking, which a client can't answer. It goes to npm as `a4a-mcp`, from [its own folder](packages/mcp-bridge), by the [publish workflow](.github/workflows/publish-mcp-bridge.yml) on an `a4a-mcp-v<version>` tag. Until its first release is there, build it with `pnpm build` and use `"command": "node", "args": ["<repo>/packages/mcp-bridge/dist/index.js"]`.
+a4a is internal, so the bridge isn't published to npm: build it in a checkout of a4a with `pnpm --filter a4a-mcp build`, and put that checkout's path in place of `/path/to/a4a`. Don't run it as `npx a4a-mcp`: that would fetch whatever someone else publishes under the name, and hand it your token.
 
 What agents get is described in [docs/mcp-and-api.md](docs/mcp-and-api.md):
 
@@ -589,7 +589,3 @@ pnpm --filter @a4a/web exec playwright show-trace test-results/<the test>/trace.
 With `CI` set, a failed test is retried twice, its first retry is traced, and the HTML report is written to `apps/web/playwright-report`. a4a's own CI runs the suite with `--trace off`, and keeps the report and the failures' screenshots for a week when a run fails.
 
 A new page joins the tour with one line in `tour.spec.ts`. A new flow is a spec that takes `test` from `e2e/support/fixtures.ts`, so its page's clock is fixed and its console is watched; makes a project of its own (`uniqueKey`), so it runs beside the others; and finds things by their roles and labels.
-
-## License
-
-MIT: see [LICENSE](LICENSE). The MCP bridge (`a4a-mcp`) and the VS Code extension carry the same.

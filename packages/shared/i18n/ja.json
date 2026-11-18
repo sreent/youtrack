@@ -2067,6 +2067,7 @@
   "page.agents.asksFirstIfItsClient": "クライアントが対応していれば、先に確認します",
   "page.agents.autonomy": "自律性",
   "page.agents.bearer": "Bearer {token}",
+  "page.agents.buildTheBridgeFirst": "先にa4aのチェックアウトで{command}を実行してブリッジをビルドし、{path}をそのチェックアウトのパスに置き換えてください。",
   "page.agents.canOverwrite": "上書き可能",
   "page.agents.changes": "変更",
   "page.agents.chooseAtLeastOneProject": "プロジェクトを1つ以上選んでください。",
