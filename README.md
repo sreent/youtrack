@@ -479,7 +479,7 @@ Then download the app package from the Chat page (Download the Teams app), uploa
 pnpm test
 ```
 
-This runs the web app's three checks, then the server's tests on in-memory PGlite, then the VS Code extension's tests. The checks are `check:design` (a4a's look is all Ocean's: its stylesheets may hold no rules of their own), `check:words` (every catalog has English's messages, and no words people read are written into the code) and `check:problems` (every problem the server makes has a key in the catalogs). To run the server's tests against a real Postgres server, where each test file gets its own database:
+This runs the web app's three checks, then the server's tests on in-memory PGlite, then the VS Code extension's tests. The checks are `check:design` (a4a's look is all Ocean's: its stylesheets may hold no rules of their own), `check:words` (every catalog has English's messages, no words people read are written into the code, and in every language a control's name holds the words it shows) and `check:problems` (every problem the server makes has a key in the catalogs). To run the server's tests against a real Postgres server, where each test file gets its own database:
 
 ```bash
 TEST_DATABASE_URL=postgres://user@localhost:5432/postgres pnpm test
