@@ -470,6 +470,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Forgejo's and Gitea's settings** are named as their Portuguese pages name them, "em Aplicações" (`builds.builds.forgeKeepsToken`, `tokenTooWide`); an instance in English says "Applications".
 - **The emails' time** is in brackets again, "… foi removida (quarta, 18/11, 14:03 WET)" (`server.passkeys.passwordRemoved`, `server.portalPasskeys.lead`, `removedByTeam`), since it begins with a weekday.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Um estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): o catálogo escreve "commits" sem traduzir; a documentação do GitLab em português também diz "estado do commit". Fica "estado de commit"?
+- `page.group.requirePasskeys` é "Exigir uma chave de acesso às pessoas do grupo" e `page.project.requirePasskeys` "…a toda a gente que possa ver este projeto". "Exigir a alguém" está correto; "a toda a gente que possa" é subjuntivo natural num rótulo?
+- `page.project.requirePasskeysHelp` começa "A partir do próximo início de sessão, para quem entra com a palavra-passe do próprio a4a." O "para quem" em cadeia com a frase nominal: natural?
+- `builds.builds.reportCheck` é "Comunicar ao GitHub o resultado de cada execução". "Comunicar" num interruptor: natural, ou "reportar"?
+- `page.integrations.statusesTurnedOn` segue os check runs: "Estados de commit ativados: cada pull request recebe um na próxima vez que mudar." O plural "Estados de commit ativados" está claro (ativados é o interruptor, não os estados)?
 
 ## Korean
 
