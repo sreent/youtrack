@@ -63,7 +63,56 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */
-const SUBSCRIBABLE = EVENT_TYPES.filter((t) => t !== 'rule.called');
+type Subscribable = Exclude<(typeof EVENT_TYPES)[number], 'rule.called'>;
+const SUBSCRIBABLE = EVENT_TYPES.filter((t): t is Subscribable => t !== 'rule.called');
+
+/** What the form's checkboxes say, each a label of its own: EVENT_WORDS' are clauses that follow "When" in a sentence. */
+const EVENT_LABELS: Record<Subscribable, string> = {
+  'issue.created': t('page.webhooks.label.issueCreated'),
+  'issue.updated': t('page.webhooks.label.issueUpdated'),
+  'issue.deleted': t('page.webhooks.label.issueDeleted'),
+  'issue.moved': t('page.webhooks.label.issueMoved'),
+  'sla.warning': t('page.webhooks.label.slaWarning'),
+  'sla.breached': t('page.webhooks.label.slaBreached'),
+  'comment.created': t('page.webhooks.label.commentCreated'),
+  'comment.updated': t('page.webhooks.label.commentUpdated'),
+  'comment.deleted': t('page.webhooks.label.commentDeleted'),
+  'link.created': t('page.webhooks.label.linkCreated'),
+  'link.deleted': t('page.webhooks.label.linkDeleted'),
+  'work.logged': t('page.webhooks.label.workLogged'),
+  'work.deleted': t('page.webhooks.label.workDeleted'),
+  'work.updated': t('page.webhooks.label.workUpdated'),
+  'ai.triage.completed': t('page.webhooks.label.aiTriageCompleted'),
+  'baseline.created': t('page.webhooks.label.baselineCreated'),
+  'project.member.added': t('page.webhooks.label.projectMemberAdded'),
+  'project.member.changed': t('page.webhooks.label.projectMemberChanged'),
+  'project.member.removed': t('page.webhooks.label.projectMemberRemoved'),
+  'project.visibility.changed': t('page.webhooks.label.projectVisibilityChanged'),
+  'attachment.added': t('page.webhooks.label.attachmentAdded'),
+  'attachment.removed': t('page.webhooks.label.attachmentRemoved'),
+  'article.created': t('page.webhooks.label.articleCreated'),
+  'article.updated': t('page.webhooks.label.articleUpdated'),
+  'article.deleted': t('page.webhooks.label.articleDeleted'),
+  'sprint.issue_added': t('page.webhooks.label.sprintIssueAdded'),
+  'sprint.issue_removed': t('page.webhooks.label.sprintIssueRemoved'),
+  'commit.linked': t('page.webhooks.label.commitLinked'),
+  'pull_request.linked': t('page.webhooks.label.pullRequestLinked'),
+  'pull_request.updated': t('page.webhooks.label.pullRequestUpdated'),
+  'rule.notified': t('page.webhooks.label.ruleNotified'),
+  'project.group.added': t('page.webhooks.label.projectGroupAdded'),
+  'project.group.changed': t('page.webhooks.label.projectGroupChanged'),
+  'project.group.removed': t('page.webhooks.label.projectGroupRemoved'),
+  'build.recorded': t('page.webhooks.label.buildRecorded'),
+  'project.key.changed': t('page.webhooks.label.projectKeyChanged'),
+  'board.issue_ranked': t('page.webhooks.label.boardIssueRanked'),
+  'request.cc_added': t('page.webhooks.label.requestCcAdded'),
+  'request.cc_removed': t('page.webhooks.label.requestCcRemoved'),
+  'whiteboard.created': t('page.webhooks.label.whiteboardCreated'),
+  'whiteboard.renamed': t('page.webhooks.label.whiteboardRenamed'),
+  'whiteboard.deleted': t('page.webhooks.label.whiteboardDeleted'),
+  'whiteboard.converted': t('page.webhooks.label.whiteboardConverted'),
+  'project.portal_sign_in.changed': t('page.webhooks.label.projectPortalSignInChanged'),
+};
 
 const VERIFY = `import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -274,7 +323,7 @@ function AddHook() {
                     }
                   />
                   <span>
-                    {EVENT_WORDS[t][0]!.toUpperCase() + EVENT_WORDS[t].slice(1)}
+                    {EVENT_LABELS[t]}
                     <small className="field-help mono">{t}</small>
                   </span>
                 </label>
