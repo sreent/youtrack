@@ -15,7 +15,7 @@ import { ganttRows } from '../features/plan/gantt';
 import { Facts, Warnings } from '../features/plan/Timeline';
 import { csvHref, type ReportParams } from '../features/reports/api';
 import { REPORTS, ReportView } from '../features/reports/ReportView';
-import { formatList, t, tr } from '../i18n';
+import { formatItems, formatList, t, tr } from '../i18n';
 import { SprintPicker } from './BoardPage';
 import { WhiteboardView } from './WhiteboardPage';
 
@@ -37,7 +37,7 @@ function fieldText(f: IssueField): string | null {
   };
   const v = f.value as unknown;
   if (v === null || v === undefined) return null;
-  const text = Array.isArray(v) ? v.map(one).filter(Boolean).join(', ') : one(v);
+  const text = Array.isArray(v) ? formatItems(v.map(one).filter(Boolean)) : one(v);
   return text || null;
 }
 

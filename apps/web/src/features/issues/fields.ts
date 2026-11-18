@@ -1,5 +1,6 @@
 import type { IssueField, OptionValue, PeriodValue, UserRef } from '@a4a/shared';
 import { fieldOf } from '../../components/Badges';
+import { formatItems } from '../../i18n';
 
 /** Reading an issue's typed field values without guessing at their shape. */
 
@@ -22,7 +23,7 @@ export function userOf(fields: IssueField[], name: string): UserRef | null {
 export function valueText(f: IssueField): string {
   const v = f.value;
   if (v === null) return '';
-  if (Array.isArray(v)) return v.map((x) => (isUser(x) ? x.name : x.name)).join(', ');
+  if (Array.isArray(v)) return formatItems(v.map((x) => (isUser(x) ? x.name : x.name)));
   if (isOption(v)) return v.name;
   if (isUser(v)) return v.name;
   if (isPeriod(v)) return v.presentation;

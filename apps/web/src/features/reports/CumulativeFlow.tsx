@@ -9,7 +9,7 @@ import type { Flow, FlowState } from '@a4a/shared';
 import { useId } from 'react';
 import { dayMonth } from '../plan/dates';
 import { labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
-import { t, tr } from '../../i18n';
+import { formatItems, t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 260, left: 40, right: 118, top: 12, bottom: 32 };
 
@@ -99,7 +99,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
           {groups.map(({ g, names }) => (
             <li key={g}>
               <span className="chart-swatch" data-standing={g} aria-hidden="true" />
-              {STANDING_WORDS[g]}: {names.join(', ')}
+              {STANDING_WORDS[g]}: {formatItems(names)}
             </li>
           ))}
         </ul>

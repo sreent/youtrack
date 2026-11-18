@@ -8,9 +8,8 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { IssueLink } from '../../app/places';
 import { addDays, dayMonth, diffDays, localToday, span, weekday, type WorkCalendar } from './dates';
-import { andList } from './format';
 import { anchors, DAY, ganttRange, HEAD, linkHead, linkPath, restDays, ROW, rowTop, scale, type GanttTask, type Scale } from './gantt';
-import { t as tw_, tr } from '../../i18n';
+import { formatItems, formatList, t as tw_, tr } from '../../i18n';
 
 interface Props {
   /** The plan's name, for what the chart is called. */
@@ -26,17 +25,21 @@ interface Props {
   scrollKey: string;
 }
 
-/** What the chart shows of a task, in words, for the list's screen-reader text. */
+/**
+ * What the chart shows of a task, in words, for the list's screen-reader text: what follows the name
+ * its link says, each part after the comma the page's language puts between items ("、" in Japanese).
+ */
 function said(t: GanttTask, names: Map<string, string>, today: string): string {
   const parts: string[] = [];
   if (t.kind === 'milestone') parts.push(tw_('plan.gantt.aMilestone2'));
   if (t.critical) parts.push(tw_('plan.gantt.onTheCriticalPath'));
   if (t.late) parts.push(tw_(t.late.due < today ? 'plan.gantt.daysLateWasDue' : 'plan.gantt.daysLateIsDue', { n: t.late.days, when: dayMonth(t.late.due) }));
   if (t.slackTo) parts.push(tw_('plan.gantt.daysOfSlack', { n: t.slackDays }));
-  if (t.after.length) parts.push(tw_('plan.gantt.after', { andList: andList(t.after.map((id) => names.get(id) ?? id)) }));
+  if (t.after.length) parts.push(tw_('plan.gantt.after', { andList: formatList(t.after.map((id) => names.get(id) ?? id)) }));
   if (t.baseline) parts.push(tw_('plan.gantt.plannedFor', { span: span(t.baseline.start, t.baseline.finish) }));
   if (t.whatIf) parts.push(tw_('plan.gantt.inTheWhatIf', { span: span(t.whatIf.start, t.whatIf.finish) }));
-  return parts.length ? `, ${parts.join(', ')}` : '';
+  // The name the link says goes first, so the comma after it is the one Thai sets beside it; then it's cut.
+  return parts.length ? formatItems([t.name, ...parts]).slice(t.name.length) : '';
 }
 
 function Axis({ s, cal, height }: { s: Scale; cal: WorkCalendar; height: number }) {

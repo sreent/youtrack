@@ -13,7 +13,7 @@ import { ScriptField, ScriptRunView, useScriptProblems } from '../workflow/Scrip
 import type { ScriptRun } from '@a4a/shared';
 import { previewRule, ruleChecker, ruleKeys } from './api';
 import { previewWords } from './words';
-import { errorSaid, problemSaid, t, tr } from '../../i18n';
+import { errorSaid, formatList, problemSaid, t, tr } from '../../i18n';
 
 /** What sets a rule off, as the form's first word says it. Each choice is one kind of rule. */
 type When = 'created' | 'updated' | 'commented' | 'hour' | 'day' | 'weekday' | 'guard';
@@ -278,7 +278,7 @@ export function SampleDetail({ sample, guard, commands }: { sample: RulePreview[
   return (
     <div>
       {guard ? null : sample.changes.length ? <ChangeLines changes={sample.changes} /> : commands ? <p className="note">{t('rules.ruleForm.nothingToChangeItIs')}</p> : null}
-      {sample.told ? <p className="note">{sample.told.length ? t('rules.ruleForm.tells', { join: sample.told.map((u) => u.name).join(', ') }) : t('rules.ruleForm.nobodyToTell')}</p> : null}
+      {sample.told ? <p className="note">{sample.told.length ? t('rules.ruleForm.tells', { join: formatList(sample.told.map((u) => u.name)) }) : t('rules.ruleForm.nobodyToTell')}</p> : null}
       {sample.errors.map((err, i) => (
         <p key={err} className="note">
           {errorSaid(sample.errorWords?.[i], err)}

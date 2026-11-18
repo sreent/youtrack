@@ -8,7 +8,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { PERMISSION_ABOUT, PERMISSION_NAMES, roleLabel } from './words';
-import { t } from '../../i18n';
+import { formatItems, t } from '../../i18n';
 
 interface Draft {
   name: string;
@@ -103,7 +103,7 @@ function RoleRow({ role }: { role: RoleDef }) {
             idPrefix={`role-${role.id}`}
           />
         ) : (
-          role.permissions.map((p) => PERMISSION_NAMES[p]).join(', ')
+          formatItems(role.permissions.map((p) => PERMISSION_NAMES[p]))
         )}
         <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
       </td>

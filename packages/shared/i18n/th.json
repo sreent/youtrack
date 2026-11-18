@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "งานที่เสร็จแล้ว ตามต้นทุนที่วางแผนไว้",
   "plan.costs.whatTheWorkHasCost": "ต้นทุนของงานจนถึงตอนนี้",
   "plan.costs.withABaselineA4aMeasures": "เมื่อมีแผนฐาน a4a จะวัดงานที่ทำแล้วเทียบกับแผนที่ตกลงไว้ ว่างานที่วางแผนไว้ถึงตอนนี้เสร็จแล้วเท่าไร มีต้นทุนมากกว่าแผนหรือไม่ (CPI) และเร็วหรือช้ากว่าแผนแค่ไหน (SPI)",
-  "plan.format.and": "{join} และ {v}",
   "plan.format.asItWas": "ตามเดิม",
   "plan.format.daysEarlier": "{n, plural, other {เร็วขึ้น # วัน}}",
   "plan.format.daysLater": "{n, plural, other {ช้าลง # วัน}}",

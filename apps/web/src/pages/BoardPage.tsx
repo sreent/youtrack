@@ -6,7 +6,7 @@ import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
 import { CommandBar } from '../features/issues/CommandBar';
 import { span } from '../features/plan/dates';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 
 function sprintOption(s: Sprint): string {
   const dates = s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : '';
@@ -92,7 +92,7 @@ export default function BoardPage() {
     );
   }
 
-  const projects = v.board.projects.map((p) => p.name).join(', ');
+  const projects = formatList(v.board.projects.map((p) => p.name));
   const kind = v.board.sprintsEnabled ? t('page.board.aSprintBoard') : t('page.board.aKanbanBoard');
   const total = v.columns.reduce((n, c) => n + c.count, 0);
   const points = v.points !== null ? t('page.board.holdsStoryPoints', { v: v.sprint?.name ?? '', named: v.sprint ? 'yes' : 'no', points: v.points }) : '';

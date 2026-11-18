@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "What's done, at what it was planned to cost",
   "plan.costs.whatTheWorkHasCost": "What the work has cost so far",
   "plan.costs.withABaselineA4aMeasures": "With a baseline, a4a measures the work done against the plan as agreed: how much of what was planned by now is done, whether it is costing more than planned (CPI), and how far ahead or behind it is (SPI).",
-  "plan.format.and": "{join} and {v}",
   "plan.format.asItWas": "as it was",
   "plan.format.daysEarlier": "{n, plural, one {# day} other {# days}} earlier",
   "plan.format.daysLater": "{n, plural, one {# day} other {# days}} later",

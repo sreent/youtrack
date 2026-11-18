@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "完了した作業の、計画時のコスト",
   "plan.costs.whatTheWorkHasCost": "これまでに作業にかかったコスト",
   "plan.costs.withABaselineA4aMeasures": "ベースラインがあれば、a4aは完了した作業を合意した計画と比べて測ります。現時点までに計画した作業がどれだけ完了したか、計画よりコストがかかっているか（CPI）、どれだけ先行または遅延しているか（SPI）。",
-  "plan.format.and": "{join}と{v}",
   "plan.format.asItWas": "変更前",
   "plan.format.daysEarlier": "{n, plural, other {#日}}早い",
   "plan.format.daysLater": "{n, plural, other {#日}}遅い",

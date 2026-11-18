@@ -20,9 +20,9 @@ import { DaysAway } from '../away/DaysAway';
 import { FormField } from '../common/bits';
 import { applyLevelling, proposeLevelling, useInvalidatePlan, useResourceLoad, useSchedule } from './api';
 import { dayMonth, mondayOf, span, weekdayName, workCalendar, type WorkCalendar } from './dates';
-import { andList, hours, shift } from './format';
+import { hours, shift } from './format';
 import { WindowChoice, windowRange } from './LoadWindow';
-import { t, tr } from '../../i18n';
+import { formatItems, formatList, t, tr } from '../../i18n';
 
 type Day = ResourceLoad['resources'][number]['days'][number];
 
@@ -34,7 +34,7 @@ export function loadLevel(h: number, capacity: number): number {
 }
 
 function tasksTitle(day: Day): string | undefined {
-  return day.tasks.length ? day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`).join(', ') : undefined;
+  return day.tasks.length ? formatItems(day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`)) : undefined;
 }
 
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
@@ -203,7 +203,7 @@ function Levelling({ projectKey, load, schedule, cal }: { projectKey: string; lo
 
   const names = useMemo(() => new Map(load.resources.map((r) => [r.user.login, r.user.name])), [load]);
   const summaries = useMemo(() => new Map((schedule?.tasks ?? []).map((t) => [t.issue.id, t.issue.summary])), [schedule]);
-  const named = (ids: string[]) => andList(ids.map((id) => (summaries.has(id) ? `${id} ${summaries.get(id)}` : id)));
+  const named = (ids: string[]) => formatList(ids.map((id) => (summaries.has(id) ? `${id} ${summaries.get(id)}` : id)));
   const deadlines = useMemo(() => new Map((schedule?.tasks ?? []).filter((t) => t.deadline).map((t) => [t.issue.id, t.deadline!])), [schedule]);
 
   const level = async () => {

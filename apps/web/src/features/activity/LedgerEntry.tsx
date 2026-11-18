@@ -5,7 +5,7 @@ import { actorWho, Who } from '../../components/Who';
 import { ChangeLines } from '../common/ChangeLines';
 import { dateRead, excerpt, utcSecond } from '../common/format';
 import { aRole } from '../roles/words';
-import { commandNote, formatList, t, t as tx, tr } from '../../i18n';
+import { commandNote, formatItems, formatList, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Grammar = 'reads' | 'writes' | 'changes' | 'outside' | 'own';
@@ -261,9 +261,7 @@ function what(e: TrackerEvent): { text: React.ReactNode; badge: [Grammar, string
         badge: ['changes', t('activity.ledgerEntry.savesABaseline')],
         more: (
           <span className="ledger-note">
-            {[e.data.tasks !== undefined ? t('activity.ledgerEntry.taskCount', { n: Number(e.data.tasks) }) : '', str(e.data.finish) ? t('activity.ledgerEntry.finishing', { dateRead: dateRead(str(e.data.finish)) }) : '']
-              .filter(Boolean)
-              .join(', ')}
+            {formatItems([e.data.tasks !== undefined ? t('activity.ledgerEntry.taskCount', { n: Number(e.data.tasks) }) : '', str(e.data.finish) ? t('activity.ledgerEntry.finishing', { dateRead: dateRead(str(e.data.finish)) }) : ''].filter(Boolean))}
           </span>
         ),
       };

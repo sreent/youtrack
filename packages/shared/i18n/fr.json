@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "Ce qui est fait, au coût qui était prévu",
   "plan.costs.whatTheWorkHasCost": "Ce que le travail a coûté jusqu’ici",
   "plan.costs.withABaselineA4aMeasures": "Avec une référence, a4a mesure le travail fait par rapport au planning convenu : quelle part de ce qui était prévu à ce jour est faite, s’il coûte plus que prévu (CPI), et quelle est son avance ou son retard (SPI).",
-  "plan.format.and": "{join} et {v}",
   "plan.format.asItWas": "comme avant",
   "plan.format.daysEarlier": "{n, plural, one {# jour} other {# jours}} plus tôt",
   "plan.format.daysLater": "{n, plural, one {# jour} other {# jours}} plus tard",

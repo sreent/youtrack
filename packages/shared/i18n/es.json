@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "Lo que está hecho, al costo que se previó",
   "plan.costs.whatTheWorkHasCost": "Lo que ha costado el trabajo hasta ahora",
   "plan.costs.withABaselineA4aMeasures": "Con una línea base, a4a mide el trabajo hecho frente al plan acordado: cuánto de lo previsto hasta ahora está hecho, si está costando más de lo previsto (CPI) y cuánto va por delante o por detrás (SPI).",
-  "plan.format.and": "{join} y {v}",
   "plan.format.asItWas": "como estaba",
   "plan.format.daysEarlier": "{n, plural, one {# día} other {# días}} antes",
   "plan.format.daysLater": "{n, plural, one {# día} other {# días}} más tarde",

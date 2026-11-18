@@ -3771,7 +3771,6 @@
   "plan.costs.whatSDoneAtWhat": "Das Erledigte, zu dem, was es kosten sollte",
   "plan.costs.whatTheWorkHasCost": "Was die Arbeit bisher gekostet hat",
   "plan.costs.withABaselineA4aMeasures": "Mit einer Baseline misst a4a die erledigte Arbeit am vereinbarten Plan: wie viel des bis jetzt Geplanten erledigt ist, ob sie mehr kostet als geplant (CPI) und wie weit sie voraus oder zurück ist (SPI).",
-  "plan.format.and": "{join} und {v}",
   "plan.format.asItWas": "wie es war",
   "plan.format.daysEarlier": "{n, plural, one {# Tag} other {# Tage}} früher",
   "plan.format.daysLater": "{n, plural, one {# Tag} other {# Tage}} später",

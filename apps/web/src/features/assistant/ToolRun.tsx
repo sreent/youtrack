@@ -5,7 +5,7 @@ import { Linked } from '../common/bits';
 import { clock, excerpt, ISSUE_ID } from '../common/format';
 import type { AITool } from '../common/queries';
 import type { ToolStatus } from './live';
-import { t, tr } from '../../i18n';
+import { formatItems, formatList, t, tr } from '../../i18n';
 
 /** One tool call in a run: from a stored message, or as it streams. */
 export interface RunStep {
@@ -32,14 +32,15 @@ export function stepOf(part: Extract<ChatPart, { type: 'tool' }>, at?: string): 
 function aboutInput(input: unknown): string {
   if (!input || typeof input !== 'object') return '';
   const o = input as Record<string, unknown>;
-  const ids = Array.isArray(o.issues) ? (o.issues as unknown[]).map(String).join(', ') : '';
-  if (typeof o.command === 'string') return `“${o.command}”${ids ? t('assistant.toolRun.on', { ids: ids }) : ''}`;
+  const ids = Array.isArray(o.issues) ? (o.issues as unknown[]).map(String) : [];
+  // A command runs on each of them, "on BACK-1 and BACK-2"; on their own, they're listed.
+  if (typeof o.command === 'string') return `“${o.command}”${ids.length ? t('assistant.toolRun.on', { ids: formatList(ids) }) : ''}`;
   if (typeof o.query === 'string' && o.query) return `“${excerpt(o.query, 80)}”`;
   if (typeof o.issue === 'string') return typeof o.other === 'string' ? `${o.issue} ${String(o.relation ?? '')} ${o.other}` : o.issue;
   if (typeof o.summary === 'string') return `“${excerpt(o.summary, 80)}”`;
   if (typeof o.text === 'string') return `“${excerpt(o.text, 60)}”`;
   if (typeof o.project === 'string') return o.project;
-  if (ids) return ids;
+  if (ids.length) return formatItems(ids);
   return '';
 }
 
@@ -128,7 +129,7 @@ function ActedAlone({ steps, onAskFirst }: { steps: RunStep[]; onAskFirst?: () =
         <span className="badge changes">{t('assistant.toolRun.changes')}</span>
         <span>
           {ids.length ? (
-            <>{tr('assistant.toolRun.itChangedAndHistoriesSay', { el: <Linked text={ids.join(', ')} />, n: ids.length })}</>
+            <>{tr('assistant.toolRun.itChangedAndHistoriesSay', { el: <Linked text={formatList(ids)} />, n: ids.length })}</>
           ) : (
             t('assistant.toolRun.itChangedWhatYouAsked')
           )}
