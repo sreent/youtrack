@@ -137,6 +137,18 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - `writing.action` and `writing.suggestion.title`: friendlier is "Más cercano". "Más amable" is the alternative.
 - `server.chat.issue.withReplies`, the thread's checkbox in Slack's form, is "Agregar las respuestas posteriores, hasta 20", which says "up to" where English says "the first 20".
 
+Messages added in wave 5 (passkeys, the portal's sign-in, guests):
+
+- `identity.passkeys.stopped`, the badge on a passkey that may have been copied, is "Bloqueada": "Detenida" read like a person held. Does "Bloqueada" suggest an administrator locked it? "Inutilizada" is the alternative.
+- **Vouching**: an identity provider "responde por" an address (`helpdesk.portalSignIn.domainsHelp`, `throughAny`, `throughSome`, `page.portal.ssoDomain`), as `chat.chat.whoVouchesForIt` has it. "Avala" or "garantiza" are the alternatives.
+- `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "la comprobación de que no es un bot", as the help desk's problems do, where the desk's setting says "Comprobar que lo envía una persona". One name for both?
+- `helpdesk.portalSignIn.clientSecretHelp` keeps the catalog's "Se guarda sellado" for "Kept sealed". "Se guarda cifrado" is the usual Spanish.
+- `page.guestPages.alsoOpenIn`, the heading over what else a project opens to guests, is "También en {name}": "También abierto en {name}" read as if the page itself were open elsewhere. It leaves "open" out.
+- `activity.ledgerEntry.changesHowRequestersSignIn`, a ledger badge, is "cambia el inicio de sesión del portal": it names the portal, not the requesters, to stay short.
+- **A time in an email**: the passkey emails put "el {when}" before a time Intl writes as "lun, 16 nov, 15:05 CET" (`server.passkeys.added`, `removed`, `copied`, `removedByAdmin`). Does "el lun, 16 nov, 15:05 CET" read well?
+- `problem.whiteboards.guestStreams`: a whiteboard open live is "abierta en tiempo real", since "en directo" leans to Spain and "en vivo" to Latin America.
+- **OpenID's words** for requesters' providers: "Emisor" (issuer), "documento de descubrimiento" (Microsoft's Spanish says "documento de detección") and "el URI de redirección" (some write "la URI").
+
 ## French
 
 Terms:
