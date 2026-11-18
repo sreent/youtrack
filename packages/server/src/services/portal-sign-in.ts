@@ -511,6 +511,8 @@ export class PortalSsoError extends Error {
   constructor(
     readonly failure: PortalSsoFailure,
     message: string,
+    /** The desk the sign-in started from, once its state is known: the page offers its ways again. */
+    readonly desk: string | null = null,
   ) {
     super(message);
   }
@@ -562,17 +564,18 @@ export async function finishPortalSso(app: AppServices, query: URLSearchParams, 
   const state = query.get('state') ?? '';
   if (query.get('error')) {
     // Still take the state, so it can't be used after this.
-    if (state) await app.db.delete(portalSsoStates).where(eq(portalSsoStates.id, sha256(state)));
+    const [gone] = state ? await app.db.delete(portalSsoStates).where(eq(portalSsoStates.id, sha256(state))).returning() : [];
     const cancelled = query.get('error') === 'access_denied';
-    throw new PortalSsoError(cancelled ? 'cancelled' : 'failed', cancelled ? 'The sign-in was cancelled' : "The provider didn't sign them in");
+    throw new PortalSsoError(cancelled ? 'cancelled' : 'failed', cancelled ? 'The sign-in was cancelled' : "The provider didn't sign them in", gone?.desk ?? null);
   }
   if (!state || !browserState || !sameText(state, browserState)) throw new PortalSsoError('expired', 'This sign-in was started in another browser or tab, or has run out of time');
   const [pending] = await app.db.delete(portalSsoStates).where(eq(portalSsoStates.id, sha256(state))).returning();
   if (!pending || pending.expiresAt.getTime() < Date.now()) throw new PortalSsoError('expired', 'This sign-in has already been used, or has run out of time');
+  const desk = pending.desk;
   const [row] = await app.db.select().from(portalProviders).where(eq(portalProviders.id, pending.providerId));
-  if (!row) throw new PortalSsoError('refused', 'That provider was removed');
+  if (!row) throw new PortalSsoError('refused', 'That provider was removed', desk);
   const configuration = await configurationOf(app, row).catch(() => {
-    throw new PortalSsoError('failed', `${row.name} can't be reached just now`);
+    throw new PortalSsoError('failed', `${row.name} can't be reached just now`, desk);
   });
   // The URL the provider sent the browser to, as it knows it: the redirect URI with the query it added.
   const current = new URL(portalRedirectUri(app));
@@ -583,13 +586,13 @@ export async function finishPortalSso(app: AppServices, query: URLSearchParams, 
     claims = tokens.claims();
   } catch (e) {
     console.warn(`portal sso: a sign-in through ${row.name} was refused: ${e instanceof Error ? e.message : String(e)}`);
-    throw new PortalSsoError('failed', `${row.name} didn't confirm who they are`);
+    throw new PortalSsoError('failed', `${row.name} didn't confirm who they are`, desk);
   }
-  if (!claims?.sub) throw new PortalSsoError('failed', `${row.name} didn't say who they are`);
+  if (!claims?.sub) throw new PortalSsoError('failed', `${row.name} didn't say who they are`, desk);
   const email = claimText(claims, 'email')?.toLowerCase() ?? null;
   // Only the provider's own "verified" counts: a real true, not a string (D16); Entra ID says it as xms_edov.
-  if (!email || !(claims.email_verified === true || claims.xms_edov === true)) throw new PortalSsoError('unverified', `${row.name} hasn't verified their email`);
-  if (row.domains.length && !row.domains.includes(emailDomain(email))) throw new PortalSsoError('domain', `${row.name} vouches for other domains`);
+  if (!email || !(claims.email_verified === true || claims.xms_edov === true)) throw new PortalSsoError('unverified', `${row.name} hasn't verified their email`, desk);
+  if (row.domains.length && !row.domains.includes(emailDomain(email))) throw new PortalSsoError('domain', `${row.name} vouches for other domains`, desk);
   const name = claimText(claims, 'name') ?? ([claimText(claims, 'given_name'), claimText(claims, 'family_name')].filter(Boolean).join(' ') || undefined);
   const requester = await requesterByEmail(app.db, email, name);
   // The first time this provider signs them in is a new way in on their account: they're told.

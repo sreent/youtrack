@@ -156,8 +156,10 @@ export function PortalSignInSettings({ project }: { project: Project }) {
           <h3 id="portal-providers">{t('helpdesk.portalSignIn.providers')}</h3>
           <p className="note">{t('helpdesk.portalSignIn.providersNote')}</p>
           <div className="cluster">
-            <span className="label">{t('helpdesk.portalSignIn.redirectUri')}</span>
-            <code>{redirect}</code>
+            {/* An input, not a line of code: a long address scrolls inside it rather than past a phone's edge. */}
+            <FormField label={t('helpdesk.portalSignIn.redirectUri')} className="grow">
+              {(id) => <input id={id} readOnly value={redirect} />}
+            </FormField>
             <CopyButton text={redirect} what={t('helpdesk.portalSignIn.redirectUri')} />
           </div>
           {all.length ? (

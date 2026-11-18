@@ -350,9 +350,9 @@ describe('single sign-on through a requesters’ provider', () => {
 
   it('refuses an email the provider hasn’t verified, one outside its domains, and a state used twice or from another browser', async () => {
     const unverified = await throughProvider(browser('10.3.10.1'), { sub: 'yan-1', email: 'yan@example.com', email_verified: 'true' });
-    expect(unverified.location).toBe('/portal?sso=unverified');
-    expect((await throughProvider(browser('10.3.10.2'), { sub: 'yan-2', email: 'yan@example.com' })).location).toBe('/portal?sso=unverified');
-    expect((await throughProvider(browser('10.3.10.3'), { sub: 'yan-3', email: 'yan@elsewhere.org', email_verified: true })).location).toBe('/portal?sso=domain');
+    expect(unverified.location).toBe('/portal?sso=unverified&desk=BACK');
+    expect((await throughProvider(browser('10.3.10.2'), { sub: 'yan-2', email: 'yan@example.com' })).location).toBe('/portal?sso=unverified&desk=BACK');
+    expect((await throughProvider(browser('10.3.10.3'), { sub: 'yan-3', email: 'yan@elsewhere.org', email_verified: true })).location).toBe('/portal?sso=domain&desk=BACK');
     // Entra ID's word for it counts.
     expect((await throughProvider(browser('10.3.10.4'), { sub: 'yan-4', email: 'yan@example.com', xms_edov: true })).location).toBe('/portal?desk=BACK');
     // The state is this browser's, once.

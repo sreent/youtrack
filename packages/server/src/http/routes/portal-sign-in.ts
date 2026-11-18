@@ -255,7 +255,7 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
         setPortalSession(c, runtime, done.session);
         return c.redirect(`/portal${done.desk ? `?desk=${encodeURIComponent(done.desk)}` : ''}`, 302);
       } catch (e) {
-        if (e instanceof PortalSsoError) return c.redirect(back(e.failure, null), 302);
+        if (e instanceof PortalSsoError) return c.redirect(back(e.failure, e.desk), 302);
         console.error('portal sso: the callback failed', e);
         return c.redirect(back('failed', null), 302);
       }
