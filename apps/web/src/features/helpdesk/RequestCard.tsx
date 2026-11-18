@@ -50,6 +50,9 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
   const qc = useQueryClient();
   const groups = useQuery({ queryKey: ['customer-groups', issue.project.key], queryFn: () => get<CustomerGroup[]>(`/projects/${issue.project.key}/customer-groups`), staleTime: 30_000 });
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  // What was chosen shows from the change itself until the save settles: a mutation's own pending
+  // state comes a tick later, and meanwhile a control would show its old value.
+  const [asked, setAsked] = useState<{ group?: string | null; private?: boolean } | null>(null);
   const change = useMutation({
     mutationFn: (body: { group?: string | null; private?: boolean }) => patch<HelpdeskRequest>(`/issues/${issue.id}/request`, body),
     onSuccess: (next) => {
@@ -58,10 +61,11 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
       setSaid({ text: t('helpdesk.sla.saved') });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
+    onSettled: () => setAsked(null),
   });
+  const ask = (body: { group?: string | null; private?: boolean }) => (setAsked(body), change.mutate(body));
+  const busy = asked !== null || change.isPending;
   if (!r.group && !groups.data?.length) return null;
-  // What was chosen shows at once, while it saves.
-  const asked = change.isPending ? change.variables : undefined;
   const groupShown = asked?.group !== undefined ? (asked.group ?? '') : (r.group?.id ?? '');
   const privateShown = asked?.private !== undefined ? asked.private : r.private;
   return (
@@ -69,7 +73,7 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
       {canEdit && groups.data?.length ? (
         <FormField label={t('helpdesk.requestCard.customerGroup')}>
           {(id) => (
-            <select id={id} value={groupShown} disabled={change.isPending} onChange={(e) => change.mutate({ group: e.target.value || null })}>
+            <select id={id} value={groupShown} disabled={busy} onChange={(e) => ask({ group: e.target.value || null })}>
               <option value="">{t('helpdesk.requestCard.noGroup')}</option>
               {groups.data.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -91,7 +95,7 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
       ) : null}
       {r.group && r.group.sharing !== 'none' && canEdit ? (
         <label className="check">
-          <input type="checkbox" checked={privateShown} disabled={change.isPending} onChange={(e) => change.mutate({ private: e.target.checked })} />
+          <input type="checkbox" checked={privateShown} disabled={busy} onChange={(e) => ask({ private: e.target.checked })} />
           {t('helpdesk.requestCard.keepFromGroup', { group: r.group.name })}
         </label>
       ) : null}

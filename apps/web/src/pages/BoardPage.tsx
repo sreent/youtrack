@@ -19,12 +19,16 @@ function LaneOrder({ board }: { board: BoardSettings }) {
   const qc = useQueryClient();
   const helpId = useId();
   const [said, setSaid] = useState('');
+  // What was chosen shows from the click itself until the save settles: a mutation's own pending
+  // state comes a tick later, and meanwhile the box would show its old state.
+  const [asked, setAsked] = useState<boolean | null>(null);
   const save = useMutation({
     mutationFn: (laneOrder: boolean) => patch<BoardSettings>(`/boards/${board.id}`, { laneOrder }),
     onSuccess: async (b) => {
       await qc.invalidateQueries({ queryKey: ['boards'] });
       setSaid(b.laneOrder ? t('page.board.laneOrderTurnedOn') : t('page.board.laneOrderTurnedOff'));
     },
+    onSettled: () => setAsked(null),
   });
   if (!board.manageable) return board.laneOrder ? <p className="note">{t('page.board.laneOrderOn')}</p> : null;
   return (
@@ -32,11 +36,12 @@ function LaneOrder({ board }: { board: BoardSettings }) {
       <label className="choice">
         <input
           type="checkbox"
-          checked={save.isPending ? Boolean(save.variables) : board.laneOrder}
-          disabled={save.isPending}
+          checked={asked ?? board.laneOrder}
+          disabled={asked !== null || save.isPending}
           aria-describedby={helpId}
           onChange={(e) => {
             setSaid('');
+            setAsked(e.target.checked);
             save.mutate(e.target.checked);
           }}
         />
