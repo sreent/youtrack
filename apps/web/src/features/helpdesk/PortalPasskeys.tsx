@@ -6,7 +6,7 @@ import { ApiError, del, get, patch, post, qs } from '../../api/client';
 import { Lone } from '../../app/Auth';
 import { agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
-import { errorText, Said, Scroll } from '../common/bits';
+import { errorText, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { passkeyCancelled } from '../identity/Passkeys';
 import { t } from '../../i18n';
@@ -142,61 +142,58 @@ function ConfirmItsYou({ ways, email, onDone, onCancel }: { ways: PortalPasskeys
   );
 }
 
-function Row({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRename: (name: string) => Promise<unknown>; onRemove: () => void }) {
+/** One passkey, a row of a list that wraps on a phone: its name, when it was added and last used, and what can be done. */
+function Item({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRename: (name: string) => Promise<unknown>; onRemove: () => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(p.name);
+  if (editing) {
+    return (
+      <li className="list-row">
+        <form
+          className="cluster"
+          onSubmit={(e) => {
+            e.preventDefault();
+            // A refusal is said under the list; the field stays open to try again.
+            onRename(name.trim()).then(() => setEditing(false), () => {});
+          }}
+        >
+          <input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('helpdesk.portalPasskeys.newName', { name: p.name })} maxLength={60} required autoFocus />
+          <button type="submit" className="small primary" disabled={busy || !name.trim()}>
+            {t('helpdesk.portalPasskeys.save')}
+          </button>
+          <button type="button" className="small" onClick={() => (setEditing(false), setName(p.name))}>
+            {t('helpdesk.portalPasskeys.cancel')}
+          </button>
+        </form>
+      </li>
+    );
+  }
   return (
-    <tr>
-      <th scope="row" className="row-head">
-        {editing ? (
-          <form
-            className="cluster"
-            onSubmit={(e) => {
-              e.preventDefault();
-              // A refusal is said under the list; the field stays open to try again.
-              onRename(name.trim()).then(() => setEditing(false), () => {});
-            }}
-          >
-            <input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('helpdesk.portalPasskeys.newName', { name: p.name })} maxLength={60} required autoFocus />
-            <button type="submit" className="small primary" disabled={busy || !name.trim()}>
-              {t('helpdesk.portalPasskeys.save')}
-            </button>
-            <button type="button" className="small" onClick={() => (setEditing(false), setName(p.name))}>
-              {t('helpdesk.portalPasskeys.cancel')}
-            </button>
-          </form>
-        ) : (
-          <span className="item-name">{p.name}</span>
-        )}
-        {p.copied || p.synced || p.elsewhere ? (
-          <span className="item-about">
-            {p.copied ? <Badge tone="bad">{t('helpdesk.portalPasskeys.stopped')}</Badge> : p.synced ? <Badge tone="good">{t('helpdesk.portalPasskeys.synced')}</Badge> : null}{' '}
-            {p.copied ? t('helpdesk.portalPasskeys.mayBeCopied') : p.elsewhere ? t('helpdesk.portalPasskeys.elsewhere', { host: p.elsewhere }) : null}
-          </span>
-        ) : null}
-      </th>
-      <td>{agoSaid(p.createdAt)}</td>
-      <td>{p.lastUsedAt ? agoSaid(p.lastUsedAt) : t('helpdesk.portalPasskeys.notUsedYet')}</td>
-      <td className="fit">
-        <span className="cluster">
-          {editing ? null : (
-            <button type="button" className="small" disabled={busy} onClick={() => setEditing(true)} aria-label={t('helpdesk.portalPasskeys.renameIt', { name: p.name })}>
-              {t('helpdesk.portalPasskeys.rename')}
-            </button>
-          )}
-          <Confirm
-            small
-            label={t('helpdesk.portalPasskeys.remove')}
-            name={t('helpdesk.portalPasskeys.removeName', { name: p.name })}
-            title={t('helpdesk.portalPasskeys.removeTitle', { name: p.name })}
-            about={t('helpdesk.portalPasskeys.removeAbout')}
-            confirm={t('helpdesk.portalPasskeys.removeIt')}
-            disabled={busy}
-            onConfirm={onRemove}
-          />
+    <li className="list-row">
+      <span>
+        <span className="item-name">{p.name}</span>{' '}
+        {p.copied ? <Badge tone="bad">{t('helpdesk.portalPasskeys.stopped')}</Badge> : p.synced ? <Badge tone="good">{t('helpdesk.portalPasskeys.synced')}</Badge> : null}{' '}
+        <span className="note">
+          {t('helpdesk.portalPasskeys.when', { added: agoSaid(p.createdAt), used: p.lastUsedAt ? 'yes' : 'no', last: p.lastUsedAt ? agoSaid(p.lastUsedAt) : '' })}
+          {p.copied ? ` ${t('helpdesk.portalPasskeys.mayBeCopied')}` : p.elsewhere ? ` ${t('helpdesk.portalPasskeys.elsewhere', { host: p.elsewhere })}` : null}
         </span>
-      </td>
-    </tr>
+      </span>
+      <span className="cluster">
+        <button type="button" className="small" disabled={busy} onClick={() => setEditing(true)} aria-label={t('helpdesk.portalPasskeys.renameIt', { name: p.name })}>
+          {t('helpdesk.portalPasskeys.rename')}
+        </button>
+        <Confirm
+          small
+          label={t('helpdesk.portalPasskeys.remove')}
+          name={t('helpdesk.portalPasskeys.removeName', { name: p.name })}
+          title={t('helpdesk.portalPasskeys.removeTitle', { name: p.name })}
+          about={t('helpdesk.portalPasskeys.removeAbout')}
+          confirm={t('helpdesk.portalPasskeys.removeIt')}
+          disabled={busy}
+          onConfirm={onRemove}
+        />
+      </span>
+    </li>
   );
 }
 
@@ -269,25 +266,11 @@ export function PortalPasskeysSection({ me }: { me: PortalMe }) {
       <p className="note">{off ? t(off) : t('helpdesk.portalPasskeys.about')}</p>
       {m.on && !supported ? <p className="note">{t('helpdesk.portalPasskeys.notAvailable')}</p> : null}
       {m.passkeys.length ? (
-        <Scroll label={t('helpdesk.portalPasskeys.tableLabel')}>
-          <table className="figures middle">
-            <thead>
-              <tr>
-                <th scope="col">{t('helpdesk.portalPasskeys.name')}</th>
-                <th scope="col">{t('helpdesk.portalPasskeys.added')}</th>
-                <th scope="col">{t('helpdesk.portalPasskeys.lastUsed')}</th>
-                <th scope="col">
-                  <span className="hidden">{t('helpdesk.portalPasskeys.whatYouCanDo')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.passkeys.map((p) => (
-                <Row key={p.id} p={p} busy={busy} onRename={(name) => rename.mutateAsync({ id: p.id, name })} onRemove={() => go({ what: 'remove', p })} />
-              ))}
-            </tbody>
-          </table>
-        </Scroll>
+        <ul className="list" aria-label={t('helpdesk.portalPasskeys.listLabel')}>
+          {m.passkeys.map((p) => (
+            <Item key={p.id} p={p} busy={busy} onRename={(name) => rename.mutateAsync({ id: p.id, name })} onRemove={() => go({ what: 'remove', p })} />
+          ))}
+        </ul>
       ) : m.on ? (
         <p className="note">{t('helpdesk.portalPasskeys.none')}</p>
       ) : null}
