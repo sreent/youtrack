@@ -707,6 +707,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal signs a requester out with 退出门户登录** (`helpdesk.portalPasskeys.notMeDoneAbout`, `server.portalPasskeys.notYou`), where the team's pages say 在所有设备上退出登录.
 - **The page behind the acknowledgement's link** reads 「您就“{summary}”发给 {desk} 的邮件抄送了以下人员。」 (`page.portal.confirm.lead`), with the desk's name unquoted, as the portal's pages say it; the desk's emails quote theirs, 「“BACK 的服务台”」 (`server.helpdesk.relay.whyAnswer`, `whyLink`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **提交状态** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): Gitea 和 GitLab 的中文界面都写“提交状态”。与“检查运行”并列时清楚吗？
+- `page.group.requirePasskeys` 是“要求此组成员使用通行密钥”，`page.project.requirePasskeys` 是“要求所有能看到此项目的人使用通行密钥”。“要求……使用通行密钥”的动词结构自然吗？
+- `page.group.requirePasskeysHelp` 以“凡使用 a4a 自身密码登录的成员”开头。“凡……的”这种书面结构在帮助文字里合适吗？
+- `builds.builds.reportCheck` 是“将每次运行的结果报告给 GitHub”。“报告给”用于自动上报自然吗？
+- `page.integrations.statusesNeedToken` 里“Gitea 和 Forgejo 还需要其 /api/v1 地址”中“其”字用法是否清楚（指 Gitea 和 Forgejo 各自的地址）？
 
 ## Vietnamese
 
