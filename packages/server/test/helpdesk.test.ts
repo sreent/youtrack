@@ -107,13 +107,13 @@ describe('the help desk', () => {
       body: JSON.stringify({ settings: { helpdesk: { firstResponseHours: 8 } } }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { settings: { helpdesk: unknown } }).settings.helpdesk).toEqual({ enabled: false, firstResponseHours: 8, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, signIn: { link: true, password: false, providers: [] } });
+    expect(((await res.json()) as { settings: { helpdesk: unknown } }).settings.helpdesk).toEqual({ enabled: false, firstResponseHours: 8, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null, signIn: { link: true, password: false, providers: [] }, ccsMax: 20, ccsConfirm: true, ccsRelay: false });
     // Anna is a member of WEB, not a manager; she leads BACK, so she manages it.
     await expect(updateProject(as(w.anna), 'WEB', { settings: { helpdesk: { enabled: true } } })).rejects.toMatchObject({ status: 403 });
     expect((await updateProject(as(w.anna), 'BACK', { settings: { helpdesk: { intro: 'Ask the backend team.' } } })).settings.helpdesk.enabled).toBe(true);
     // Changing something else keeps it.
     const p = await updateProject(w.adminCtx, 'BACK', { description: 'APIs and data.' });
-    expect(p.settings.helpdesk).toEqual({ enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.', captcha: false, businessHours: null, waitingStates: [], resumeState: null, signIn: { link: true, password: false, providers: [] } });
+    expect(p.settings.helpdesk).toEqual({ enabled: true, firstResponseHours: 4, intro: 'Ask the backend team.', captcha: false, businessHours: null, waitingStates: [], resumeState: null, signIn: { link: true, password: false, providers: [] }, ccsMax: 20, ccsConfirm: true, ccsRelay: false });
   });
 
   it('shows its form only where it is on, and says the same wherever it is not', async () => {
