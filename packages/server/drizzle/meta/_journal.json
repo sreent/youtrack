@@ -274,6 +274,20 @@
       "when": 1794928239375,
       "tag": "0038_whiteboards",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794962930823,
+      "tag": "0039_portal_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794967091423,
+      "tag": "0040_passkeys",
+      "breakpoints": true
     }
   ]
 }

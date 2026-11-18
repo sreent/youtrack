@@ -6,14 +6,13 @@ import { useBoardView } from '../features/board/api';
 import { Board, type CommandAsk } from '../features/board/Board';
 import { CommandBar } from '../features/issues/CommandBar';
 import { span } from '../features/plan/dates';
-import { t, tr } from '../i18n';
+import { formatItems, formatList, t, tr } from '../i18n';
 
 function sprintOption(s: Sprint): string {
-  const dates = s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : '';
-  return `${s.name}${dates}`;
+  return formatItems(s.startDate && s.endDate ? [s.name, span(s.startDate, s.endDate)] : [s.name]);
 }
 
-function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {
+export function SprintPicker({ sprints, current, onPick }: { sprints: Sprint[]; current: string | null; onPick: (id: string) => void }) {
   const open = sprints.filter((s) => !s.archived);
   const archived = sprints.filter((s) => s.archived);
   const id = useId();
@@ -92,7 +91,7 @@ export default function BoardPage() {
     );
   }
 
-  const projects = v.board.projects.map((p) => p.name).join(', ');
+  const projects = formatList(v.board.projects.map((p) => p.name));
   const kind = v.board.sprintsEnabled ? t('page.board.aSprintBoard') : t('page.board.aKanbanBoard');
   const total = v.columns.reduce((n, c) => n + c.count, 0);
   const points = v.points !== null ? t('page.board.holdsStoryPoints', { v: v.sprint?.name ?? '', named: v.sprint ? 'yes' : 'no', points: v.points }) : '';

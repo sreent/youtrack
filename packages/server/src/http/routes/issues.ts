@@ -57,7 +57,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/issues',
+      path: '/issues', guests: true,
       tags,
       summary: 'Search issues with the query language',
       description:
@@ -68,7 +68,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     ({ ctx, query }) => searchIssues(ctx, query.query, query.offset, query.limit),
   );
   route(app, { method: 'post', path: '/issues', tags, summary: 'Create an issue', description: 'Fields are set by name; send `Idempotency-Key` to make retries safe.', body: CreateIssueBody, response: IssueDetailSchema }, ({ ctx, body }) => createIssue(ctx, body));
-  route(app, { method: 'get', path: '/issues/{id}', tags, summary: 'Get an issue', params: Id, response: IssueDetailSchema }, ({ ctx, params }) => getIssue(ctx, params.id));
+  route(app, { method: 'get', path: '/issues/{id}', guests: true, tags, summary: 'Get an issue', params: Id, response: IssueDetailSchema }, ({ ctx, params }) => getIssue(ctx, params.id));
   route(
     app,
     {
@@ -102,10 +102,10 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     },
     ({ ctx, params, body }) => setIssueVisibility(ctx, params.id, body),
   );
-  route(app, { method: 'get', path: '/issues/{id}/activity', tags, summary: "An issue's history: who changed what, when, and through which channel", params: Id, response: z.array(EventSchema) }, ({ ctx, params }) => issueActivity(ctx, params.id));
+  route(app, { method: 'get', path: '/issues/{id}/activity', guests: true, tags, summary: "An issue's history: who changed what, when, and through which channel", params: Id, response: z.array(EventSchema) }, ({ ctx, params }) => issueActivity(ctx, params.id));
 
   // Comments
-  route(app, { method: 'get', path: '/issues/{id}/comments', tags: ['Comments'], summary: 'List comments', params: Id, response: z.array(CommentSchema) }, ({ ctx, params }) => listComments(ctx, params.id));
+  route(app, { method: 'get', path: '/issues/{id}/comments', guests: true, tags: ['Comments'], summary: 'List comments', params: Id, response: z.array(CommentSchema) }, ({ ctx, params }) => listComments(ctx, params.id));
   route(
     app,
     {
@@ -186,7 +186,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
   );
 
   // Links
-  route(app, { method: 'get', path: '/issues/{id}/links', tags: ['Links'], summary: "An issue's links", params: Id, response: z.array(IssueLinkSchema) }, ({ ctx, params }) => listLinks(ctx, params.id));
+  route(app, { method: 'get', path: '/issues/{id}/links', guests: true, tags: ['Links'], summary: "An issue's links", params: Id, response: z.array(IssueLinkSchema) }, ({ ctx, params }) => listLinks(ctx, params.id));
   route(
     app,
     {
@@ -216,7 +216,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
 
   // Search helpers
   const search = ['Search'];
-  route(app, { method: 'post', path: '/search/parse', tags: search, summary: 'Validate a query and explain it in words', body: z.object({ query: z.string() }), response: ParseQueryResultSchema, status: 200 }, ({ ctx, body }) => {
+  route(app, { method: 'post', path: '/search/parse', guests: true, tags: search, summary: 'Validate a query and explain it in words', body: z.object({ query: z.string() }), response: ParseQueryResultSchema, status: 200 }, ({ ctx, body }) => {
     requireScope(ctx, 'read');
     return parseQueryForApi(ctx, body.query);
   });
@@ -224,7 +224,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
     app,
     {
       method: 'get',
-      path: '/search/suggest',
+      path: '/search/suggest', guests: true,
       tags: search,
       summary: 'Completions for the query at the caret',
       query: z.object({ query: z.string().default(''), caret: z.coerce.number().int().min(0).optional() }),
@@ -236,7 +236,7 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       return { items: suggest(s, query.query, Math.min(query.caret ?? query.query.length, query.query.length)) };
     },
   );
-  route(app, { method: 'post', path: '/search/count', tags: search, summary: 'Count issues matching a query, optionally grouped by a field', body: CountBody, response: CountResultSchema, status: 200 }, ({ ctx, body }) => countIssues(ctx, body.query, body.groupBy));
+  route(app, { method: 'post', path: '/search/count', guests: true, tags: search, summary: 'Count issues matching a query, optionally grouped by a field', body: CountBody, response: CountResultSchema, status: 200 }, ({ ctx, body }) => countIssues(ctx, body.query, body.groupBy));
 
   // Commands
   route(

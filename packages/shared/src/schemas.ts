@@ -14,6 +14,7 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  PORTAL_SIGN_IN_METHODS,
   REQUEST_CC_VIA,
   WHITEBOARD_KINDS,
   WHITEBOARD_LIMITS,
@@ -135,6 +136,8 @@ export const SignInSchema = z
       }),
     ),
     twoFactor: z.boolean().optional().describe('Their password sign-in asks for a code from an authenticator app too (D38)'),
+    passkeys: z.number().int().optional().describe('How many passkeys they sign in with (D62)'),
+    lastSignInAt: timestamp.nullable().optional().describe('When they last signed in, whichever way'),
     provisioned: z.boolean().optional().describe('The identity provider manages this account through SCIM (D38)'),
   })
   .meta({ id: 'SignIn' });
@@ -202,6 +205,7 @@ export const SetupStatusSchema = z
         .nullable()
         .optional()
         .describe('The login and password form checks passwords against this LDAP directory too (D38)'),
+      passkey: z.boolean().optional().describe('People may sign in with a passkey, without a login or password (D62)'),
     }),
     mcpOAuth: z.boolean().describe('Whether MCP clients may sign in with OAuth, instead of carrying a token (D28)'),
   })
@@ -313,6 +317,19 @@ export const BusinessHoursSchema = z
   .meta({ id: 'BusinessHours' });
 export type BusinessHours = z.infer<typeof BusinessHoursSchema>;
 
+/** How a desk's requesters sign in to the portal (D63): today's emailed link, a password, identity providers, or several. */
+export const HelpdeskSignInSchema = z
+  .object({
+    link: z.boolean().describe('A link emailed to them each time, good once for 20 minutes (D45): the default'),
+    password: z.boolean().describe('A password they set by a link sent to their email, and change on the portal'),
+    providers: z
+      .array(z.string().trim().min(1).max(40))
+      .max(10)
+      .describe('The ids of identity providers for requesters (administrators add them at /portal-providers) they may sign in through'),
+  })
+  .meta({ id: 'HelpdeskSignIn' });
+export type HelpdeskSignIn = z.infer<typeof HelpdeskSignInSchema>;
+
 export const HelpdeskSettingsSchema = z
   .object({
     enabled: z.boolean().describe('The public request form at /help/<KEY> takes requests; turning it off closes the form, and requests already filed keep their tracking pages'),
@@ -338,6 +355,7 @@ export const HelpdeskSettingsSchema = z
       .max(100)
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
+    signIn: HelpdeskSignInSchema.describe("How its requesters sign in to the portal (D63), one way at least. A session opens a desk's requests only when it was opened in a way the desk takes"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -387,7 +405,7 @@ export const ProjectSchema = ProjectRefSchema.extend({
   lead: UserRefSchema.nullable(),
   archived: z.boolean(),
   visibility: z.enum(PROJECT_VISIBILITIES).describe('open: everyone sees it and works in it; members: only its people and administrators see it'),
-  settings: ProjectSettingsSchema,
+  settings: ProjectSettingsSchema.describe("Its settings; the plan's budget is null for a reader without the costs permission, a guest among them (D64)"),
   issueCount: z.number().int(),
   openIssueCount: z.number().int(),
   createdAt: timestamp,
@@ -1053,8 +1071,8 @@ export const BoardSchema = z
     columnField: z.string(),
     columns: z.array(BoardColumnSchema),
     swimlaneField: z.string().nullable(),
-    query: z.string().nullable(),
-    backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved'),
+    query: z.string().nullable().describe("Which issues it shows; left out (null) for someone who doesn't see every project on it when it names something they can't see (D64)"),
+    backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved, or left out, as its query is (D64)'),
     pointsField: z.string().nullable().describe('The field its story points are in'),
     sprintsEnabled: z.boolean(),
   })
@@ -1154,6 +1172,7 @@ export const SettingsSchema = z
       .boolean()
       .optional()
       .describe('Every sign-in with a password asks for a code from an authenticator app, and someone without one sets it up first (D38)'),
+    passkeys: z.boolean().optional().describe('People may add passkeys and sign in with them (D62). Off, passkeys sign nobody in, and are kept'),
   })
   .meta({ id: 'Settings' });
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -1161,6 +1180,7 @@ export const SettingsBody = z.object({
   instanceName: z.string().min(1).max(80).optional(),
   defaultTriageMode: z.enum(TRIAGE_MODES).optional(),
   requireTwoFactor: z.boolean().optional(),
+  passkeys: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -1192,13 +1212,13 @@ export const ScheduleTaskSchema = z
     late: z.boolean().describe('Finishes after its due date'),
     scheduledFrom: z.enum(['actual', 'fixed', 'start', 'dependencies', 'project_start']),
     predecessors: z.array(z.string()),
-    plannedCost: z.number(),
-    actualCost: z.number(),
+    plannedCost: z.number().nullable().describe('Null for a reader without the costs permission, a guest among them (D64)'),
+    actualCost: z.number().nullable().describe('Null for a reader without the costs permission (D64)'),
     baseline: z
-      .object({ start: isoDate, finish: isoDate, effortMinutes: z.number().int(), cost: z.number() })
+      .object({ start: isoDate, finish: isoDate, effortMinutes: z.number().int(), cost: z.number().nullable() })
       .nullable(),
     variance: z
-      .object({ startDays: z.number(), finishDays: z.number(), effortMinutes: z.number().int(), cost: z.number() })
+      .object({ startDays: z.number(), finishDays: z.number(), effortMinutes: z.number().int(), cost: z.number().nullable() })
       .nullable(),
   })
   .meta({ id: 'ScheduleTask' });
@@ -1207,7 +1227,7 @@ export type ScheduleTask = z.infer<typeof ScheduleTaskSchema>;
 export const ScheduleSchema = z
   .object({
     project: ProjectRefSchema,
-    calendar: PlanSettingsSchema,
+    calendar: PlanSettingsSchema.describe("The plan's calendar; its budget is null for a reader without the costs permission, a guest among them (D64)"),
     start: isoDate,
     finish: isoDate,
     today: isoDate,
@@ -1219,7 +1239,7 @@ export const ScheduleSchema = z
       .nullable(),
     away: z
       .array(z.object({ assignee: z.string().describe('Login'), days: z.array(z.object({ date: isoDate, part: z.enum(['day', 'morning', 'afternoon']) })) }))
-      .describe("Assignees' days away between the plan's start and finish, drawn on the Gantt (D36, D43)"),
+      .describe("Assignees' days away between the plan's start and finish, drawn on the Gantt (D36, D43); none for a guest, who reaches no people (D64)"),
   })
   .meta({ id: 'Schedule' });
 export type Schedule = z.infer<typeof ScheduleSchema>;
@@ -3121,6 +3141,8 @@ export const SignInStepSchema = z
     step: z
       .enum(['two_factor', 'two_factor_setup'])
       .describe('two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup)'),
+    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it'),
+    passkey: z.boolean().optional().describe('two_factor: one of their passkeys finishes it instead (POST /auth/two-factor/passkey, D62)'),
   })
   .meta({ id: 'SignInStep' });
 export type SignInStep = z.infer<typeof SignInStepSchema>;
@@ -3713,6 +3735,17 @@ export const DeskMailboxBody = z.object({
   fromName: z.string().trim().max(100).nullable().optional(),
 });
 
+/** How one desk signs its requesters in (D63), as its sign-in page and the portal say it. */
+export const PortalDeskSignInSchema = z
+  .object({
+    desk: z.object({ key: z.string(), name: z.string() }),
+    link: z.boolean(),
+    password: z.boolean(),
+    providers: z.array(z.object({ id: z.string(), name: z.string() })),
+  })
+  .meta({ id: 'PortalDeskSignIn' });
+export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
+
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
   .object({
@@ -3721,6 +3754,12 @@ export const PortalMeSchema = z
     groups: z
       .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
       .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+    signedInWith: z
+      .object({ method: z.enum(PORTAL_SIGN_IN_METHODS), provider: z.object({ id: z.string(), name: z.string() }).nullable() })
+      .describe('How this session was opened (D63): it opens the requests of desks that take that way'),
+    password: z.boolean().describe('They have a password'),
+    passwords: z.boolean().describe('A desk here takes passwords, so setting one is of use'),
+    elsewhere: z.array(PortalDeskSignInSchema).describe('Desks with requests of theirs that this session does not open, and how each signs them in'),
   })
   .meta({ id: 'PortalMe' });
 export type PortalMe = z.infer<typeof PortalMeSchema>;
@@ -3981,7 +4020,8 @@ export const ProjectAppSchema = z
     description: z.string(),
     enabled: z.boolean().describe('It runs and shows in this project'),
     off: z.boolean().describe("The project's managers turned it off here"),
-    words: z.array(z.string()),
+    granted: AppPermissionsSchema.describe('What it may do, as the administrator who installed or last updated it accepted'),
+    words: z.array(z.string()).describe('What it may do, in words'),
     settings: z.array(AppSettingDefSchema).describe('Its settings that take a value per project'),
   })
   .meta({ id: 'ProjectApp' });
@@ -4114,6 +4154,10 @@ export const CustomerGroupSchema = z
       .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
     members: z.number().int().describe('Requesters added by hand'),
     openRequests: z.number().int().describe('Its requests not yet resolved'),
+    provider: z
+      .object({ id: z.string(), name: z.string() })
+      .nullable()
+      .describe('The identity provider its people sign in to the portal through at this desk (D63), and no other way; null: as the desk takes'),
   })
   .meta({ id: 'CustomerGroup' });
 export type CustomerGroup = z.infer<typeof CustomerGroupSchema>;
@@ -4124,6 +4168,14 @@ export const CustomerGroupBody = z.object({
   sharing: z.enum(CUSTOMER_SHARING).default('none'),
   businessHours: BusinessHoursSchema.nullable().default(null),
   agents: z.array(z.string().trim().min(1).max(100)).max(20).default([]).describe('Logins, in the order to prefer them'),
+  provider: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .nullable()
+    .optional()
+    .describe("The id of one of the desk's identity providers its people sign in through, and no other way (D63); null for none. Left out keeps it"),
 });
 export type CustomerGroupInput = z.input<typeof CustomerGroupBody>;
 
@@ -4450,3 +4502,185 @@ export interface WhiteboardChangeFrame {
   elements: WhiteboardElement[];
   removed: string[];
 }
+
+// ---------------------------------------------------------------------------
+// The portal's own sign-in (D63): passwords, and identity providers for requesters
+// ---------------------------------------------------------------------------
+
+const providerDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, 'Expected an email domain, such as acme.com');
+
+/** An identity provider for requesters (D63): the server's, made by an administrator, offered by any desk that chooses it. */
+export const PortalProviderSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().describe('What the sign-in page calls it: "Sign in through <name>"'),
+    kind: z.literal('oidc').describe('OpenID Connect, the authorization code flow with PKCE'),
+    issuer: z.string().describe('Its issuer, as its discovery document gives it'),
+    clientId: z.string(),
+    hasSecret: z.boolean().describe('A client secret is kept, sealed; it is never shown again'),
+    scopes: z.string(),
+    domains: z.array(z.string()).describe('The email domains it may vouch for; empty: any. An address outside them is refused'),
+    redirectUri: z.string().describe('Register this with the provider, exactly'),
+    desks: z.array(z.string()).describe('The keys of the desks that offer it, among those the reader sees'),
+    createdAt: timestamp,
+  })
+  .meta({ id: 'PortalProvider' });
+export type PortalProvider = z.infer<typeof PortalProviderSchema>;
+
+export const PortalProviderBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine'),
+  clientId: z.string().trim().min(1).max(500),
+  clientSecret: z.string().min(1).max(2000).nullable().optional().describe('Empty for a public client (PKCE alone)'),
+  scopes: z.string().trim().max(500).optional().describe('Default: openid email profile'),
+  domains: z.array(providerDomain).max(50).default([]),
+});
+export const PortalProviderUpdateBody = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  issuer: z.string().trim().url().max(500).optional(),
+  clientId: z.string().trim().min(1).max(500).optional(),
+  clientSecret: z.string().min(1).max(2000).nullable().optional().describe('A new secret; null removes it; left out keeps it'),
+  scopes: z.string().trim().max(500).optional(),
+  domains: z.array(providerDomain).max(50).optional(),
+});
+
+/** How the portal's sign-in page signs someone in, for a desk or for the portal as a whole (D63). */
+export const PortalSignInMethodsSchema = z
+  .object({
+    desk: z.object({ key: z.string(), name: z.string() }).nullable().describe('The desk asked about, when one takes requests by that key; null otherwise'),
+    link: z.boolean(),
+    password: z.boolean(),
+    providers: z.array(z.object({ id: z.string(), name: z.string(), start: z.string().describe('Where the browser goes to sign in through it') })),
+    captcha: CaptchaChallengeSchema.nullable().describe('A proof of work a password sign-in sends back solved, when a desk that takes passwords asks its form for one (D30)'),
+    mail: z.boolean().describe('Whether this server sends email: links and passwords need it'),
+  })
+  .meta({ id: 'PortalSignInMethods' });
+export type PortalSignInMethods = z.infer<typeof PortalSignInMethodsSchema>;
+
+const portalPassword = z.string().min(8).max(200);
+export const PortalPasswordSignInBody = z.object({
+  email: z.string().trim().email().max(320),
+  password: z.string().min(1).max(200),
+  desk: z.string().trim().max(20).optional().describe('The desk whose page they sign in from'),
+  captcha: CaptchaSolutionSchema.optional(),
+});
+export const PortalPasswordLinkBody = z.object({
+  email: z.string().trim().email().max(320),
+  desk: z.string().trim().max(20).optional(),
+});
+export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword });
+export const PortalPasswordChangeBody = z.object({ current: z.string().min(1).max(200), password: portalPassword });
+// Passkeys (D62)
+// ---------------------------------------------------------------------------
+
+/** A base64url string from a WebAuthn ceremony, capped: no real credential comes near it. */
+const b64url = (max: number) => z.string().max(max).regex(/^[A-Za-z0-9_-]*$/, 'base64url');
+
+export const PasskeySchema = z
+  .object({
+    id: z.string(),
+    name: z.string().describe('What its person calls it: at first, what the authenticator says it is'),
+    createdAt: timestamp,
+    lastUsedAt: timestamp.nullable(),
+    synced: z.boolean().describe('Its passkey provider may copy it to its person’s other devices (backup eligible)'),
+    copied: z.boolean().describe('Its sign count went back: two authenticators hold it, so it signs nobody in again'),
+    elsewhere: z.string().nullable().describe('The address it was made for, when that isn’t this one: it can’t sign in here'),
+  })
+  .meta({ id: 'Passkey' });
+export type Passkey = z.infer<typeof PasskeySchema>;
+
+export const PASSKEYS_OFF = ['instance', 'address', 'passwords', 'account'] as const;
+export type PasskeysOff = (typeof PASSKEYS_OFF)[number];
+
+export const MyPasskeysSchema = z
+  .object({
+    passkeys: z.array(PasskeySchema),
+    on: z.boolean().describe('Whether you may add passkeys and sign in with them here'),
+    off: z
+      .enum(PASSKEYS_OFF)
+      .nullable()
+      .describe('Why not: instance, an administrator turned them off; address, PUBLIC_URL isn’t https; passwords, a4a’s own sign-in is off; account, you sign in with single sign-on'),
+    confirmedUntil: timestamp.nullable().describe('Until when this session may add and remove passkeys without confirming it’s you again'),
+    confirmWith: z.object({
+      password: z.boolean().describe('Your password confirms it'),
+      code: z.boolean().describe('With a code from your authenticator app'),
+      passkey: z.boolean().describe('Or one of your passkeys does'),
+    }),
+  })
+  .meta({ id: 'MyPasskeys' });
+export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
+
+/** What `navigator.credentials.create()` or `.get()` takes, as JSON (WebAuthn's `PublicKeyCredential*OptionsJSON`). */
+export const PasskeyOptionsSchema = z
+  .looseObject({ challenge: z.string(), timeout: z.number().optional(), rpId: z.string().optional() })
+  .describe('Hand it to @simplewebauthn/browser’s startRegistration or startAuthentication as optionsJSON, or decode it for navigator.credentials')
+  .meta({ id: 'PasskeyOptions' });
+export type PasskeyOptions = z.infer<typeof PasskeyOptionsSchema>;
+
+const credentialCommon = {
+  id: b64url(1400),
+  rawId: b64url(1400),
+  type: z.literal('public-key'),
+  authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+};
+
+/** What the browser answers `navigator.credentials.create()` with, as JSON (WebAuthn's `RegistrationResponseJSON`). */
+export const PasskeyRegistrationSchema = z
+  .object({
+    ...credentialCommon,
+    response: z.looseObject({
+      clientDataJSON: b64url(4096),
+      attestationObject: b64url(32_768),
+      transports: z.array(z.string().max(32)).max(10).optional(),
+      authenticatorData: b64url(16_384).optional(),
+      publicKey: b64url(4096).optional(),
+      publicKeyAlgorithm: z.number().optional(),
+    }),
+  })
+  .meta({ id: 'PasskeyRegistration' });
+
+/** What the browser answers `navigator.credentials.get()` with, as JSON (WebAuthn's `AuthenticationResponseJSON`). */
+export const PasskeyAssertionSchema = z
+  .object({
+    ...credentialCommon,
+    response: z.looseObject({
+      clientDataJSON: b64url(4096),
+      authenticatorData: b64url(16_384),
+      signature: b64url(4096),
+      userHandle: b64url(256).optional(),
+    }),
+  })
+  .meta({ id: 'PasskeyAssertion' });
+
+export const AddPasskeyBody = z.object({
+  response: PasskeyRegistrationSchema,
+  name: z.string().trim().min(1).max(60).optional().describe('What to call it; else what the authenticator says it is'),
+});
+export const RenamePasskeyBody = z.object({ name: z.string().trim().min(1).max(60) });
+export const PasskeySignInBody = z.object({ response: PasskeyAssertionSchema });
+export const ConfirmItsYouBody = z.object({
+  password: z.string().min(1).max(200),
+  code: z.string().trim().min(6).max(20).optional().describe('With two-factor sign-in on: a code from the app, or a recovery code'),
+});
+export const ConfirmedSchema = z
+  .object({ confirmedUntil: timestamp.describe('Until when this session may add and remove passkeys') })
+  .meta({ id: 'Confirmed' });
+export type Confirmed = z.infer<typeof ConfirmedSchema>;
+
+/** A "this wasn't me" link from a mail about someone's passkeys, as its page shows it. */
+export const PasskeyAlertSchema = z
+  .object({
+    change: z.enum(['added', 'removed', 'copied']),
+    name: z.string().describe('The passkey’s name'),
+    login: z.string(),
+    changedAt: timestamp,
+    done: z.boolean().describe('The link was followed: its person was signed out everywhere, and the passkey stopped'),
+  })
+  .meta({ id: 'PasskeyAlert' });
+export type PasskeyAlert = z.infer<typeof PasskeyAlertSchema>;

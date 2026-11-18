@@ -13,6 +13,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router';
 import { get, subscribeWhiteboard } from '../api/client';
 import { useMe } from '../api/queries';
+import { usePlaces } from '../app/places';
 import { Avatar } from '../components/Who';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Confirm } from '../features/common/Confirm';
@@ -28,7 +29,7 @@ export default function WhiteboardPage() {
   const detail = useWhiteboard(id);
   if (detail.isLoading) return <Loading what="loadingLine.whiteboard" />;
   if (detail.error || !detail.data) return <ErrorNote error={detail.error} />;
-  return <Board key={detail.data.whiteboard.id} detail={detail.data} />;
+  return <WhiteboardView key={detail.data.whiteboard.id} detail={detail.data} />;
 }
 
 type Dialog =
@@ -41,9 +42,15 @@ type Dialog =
 
 const STEP = 16;
 
-function Board({ detail }: { detail: WhiteboardDetail }) {
+/**
+ * A whiteboard drawn whole. On a guest's page (D64, `usePlaces().guest`) it reads and changes nothing:
+ * nobody is shown looking, its cards open where a guest reads issues, and the way back is the guest's.
+ */
+export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
+  const places = usePlaces();
+  const guest = places.guest;
   const board = detail.whiteboard;
-  const me = useMe().data;
+  const me = useMe({ enabled: !guest }).data;
   const qc = useQueryClient();
   const navigate = useNavigate();
   const uid = useId();
@@ -339,7 +346,8 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
     if (!e) return;
     if (e.kind === 'issue' || e.kind === 'article') {
       const card = cards.get(id);
-      if (card?.shown && card.id) navigate(e.kind === 'issue' ? `/issues/${card.id}` : `/articles/${card.id}`);
+      const href = card?.shown && card.id ? (e.kind === 'issue' ? places.issue(card.id) : places.article(card.id)) : null;
+      if (href) navigate(href);
       return;
     }
     if (!canEdit) return announce(t('page.whiteboard.said.readOnly'));
@@ -496,7 +504,7 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
         <PageHead title={name} />
         <section className="card">
           <p className="note">{t('page.whiteboard.said.gone')}</p>
-          <Link to="/whiteboards">{t('page.whiteboard.backToWhiteboards')}</Link>
+          {guest ? <Link to="/public">{t('page.guestPages.openToAnyone')}</Link> : <Link to="/whiteboards">{t('page.whiteboard.backToWhiteboards')}</Link>}
         </section>
       </>
     );
@@ -507,18 +515,27 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
       <PageHead
         title={name}
         crumbs={
-          <>
-            <Link to="/whiteboards">{t('app.shell.whiteboards')}</Link>
-            <span className="sep" aria-hidden="true">
-              /
-            </span>
-            <Link to={`/whiteboards?project=${encodeURIComponent(key)}`}>{key}</Link>
-            <span className="sep" aria-hidden="true">
-              /
-            </span>
-          </>
+          guest ? (
+            <>
+              <Link to={`/public?project=${encodeURIComponent(key)}`}>{board.project.name}</Link>
+              <span className="sep" aria-hidden="true">
+                /
+              </span>
+            </>
+          ) : (
+            <>
+              <Link to="/whiteboards">{t('app.shell.whiteboards')}</Link>
+              <span className="sep" aria-hidden="true">
+                /
+              </span>
+              <Link to={`/whiteboards?project=${encodeURIComponent(key)}`}>{key}</Link>
+              <span className="sep" aria-hidden="true">
+                /
+              </span>
+            </>
+          )
         }
-        about={canEdit ? t('page.whiteboard.about') : t('page.whiteboard.readOnly', { key })}
+        about={guest ? t('page.guestPages.whiteboardReadOnly') : canEdit ? t('page.whiteboard.about') : t('page.whiteboard.readOnly', { key })}
         actions={
           <>
             {canEdit ? (
@@ -592,14 +609,16 @@ function Board({ detail }: { detail: WhiteboardDetail }) {
             {t('page.whiteboard.outline')}
           </button>
         </div>
-        <ul className="whiteboard-viewers" aria-label={t('page.whiteboard.lookingNow')}>
-          {viewers.map((v) => (
-            <li key={v.user.id}>
-              <Avatar kind={v.user.isBot ? 'agent' : 'person'} name={v.user.name} small />
-              {v.user.id === me?.id ? t('page.whiteboard.you', { name: v.user.name }) : v.user.isBot ? v.user.login : v.user.name}
-            </li>
-          ))}
-        </ul>
+        {guest ? null : (
+          <ul className="whiteboard-viewers" aria-label={t('page.whiteboard.lookingNow')}>
+            {viewers.map((v) => (
+              <li key={v.user.id}>
+                <Avatar kind={v.user.isBot ? 'agent' : 'person'} name={v.user.name} small />
+                {v.user.id === me?.id ? t('page.whiteboard.you', { name: v.user.name }) : v.user.isBot ? v.user.login : v.user.name}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="note" id={`${uid}-keys`}>
           {canEdit ? t('page.whiteboard.keys') : t('page.whiteboard.keysReading')}
         </p>

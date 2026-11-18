@@ -8,7 +8,7 @@ import { ErrorLine, ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { useMachines, workflowKeys } from './api';
-import { problemSaid, t, t as tx, tr } from '../../i18n';
+import { formatItems, problemSaid, t, t as tx, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 interface Row {
@@ -36,7 +36,7 @@ const EMPTY_ROW: Row = { name: '', from: '', to: '', condition: '', command: '' 
 function Words({ t }: { t: StateTransition }) {
   return (
     <li>
-      <strong>{t.name}</strong>: {t.from.join(', ').replace('*', tx('workflow.machines.anyState'))} → {t.to}
+      <strong>{t.name}</strong>: {formatItems(t.from.map((s) => (s === '*' ? tx('workflow.machines.anyState') : s)))} → {t.to}
       {t.condition ? (
         <>{tr('workflow.machines.ifItMatches', { code: <code>{t.condition}</code> })}</>
       ) : null}

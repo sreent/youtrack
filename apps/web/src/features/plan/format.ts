@@ -40,9 +40,3 @@ export function effort(minutes: number, hoursPerDay = 8): string {
   if (!d) return hours(rest);
   return rest ? `${d}d ${hours(rest)}` : `${d}d`;
 }
-
-/** "BACK-12, BACK-15 and BACK-19" */
-export function andList(items: string[]): string {
-  if (items.length <= 1) return items.join('');
-  return t('plan.format.and', { join: items.slice(0, -1).join(', '), v: items[items.length - 1] });
-}

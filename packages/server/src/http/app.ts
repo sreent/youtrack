@@ -18,12 +18,14 @@ import { attachmentRoutes } from './routes/attachments';
 import { authRoutes } from './routes/auth';
 import { agileRoutes } from './routes/agile';
 import { twoFactorRoutes } from './routes/two-factor';
+import { passkeyRoutes } from './routes/passkeys';
 import { boardRoutes } from './routes/boards';
 import { coreRoutes } from './routes/core';
 import { eventRoutes } from './routes/events';
 import { helpdeskRoutes } from './routes/helpdesk';
 import { helpdeskMailRoutes } from './routes/helpdesk-mail';
 import { helpdeskDepthRoutes, portalRoutes } from './routes/helpdesk-depth';
+import { portalSignInRoutes } from './routes/portal-sign-in';
 import { requestCcRoutes } from './routes/request-ccs';
 import { whiteboardRoutes } from './routes/whiteboards';
 import { customerGroupRoutes } from './routes/customer-groups';
@@ -83,6 +85,7 @@ export function createHttpApp(runtime: Runtime) {
 
   authRoutes(api);
   twoFactorRoutes(api);
+  passkeyRoutes(api);
   scimTokenRoutes(api);
   coreRoutes(api);
   issueRoutes(api);
@@ -104,6 +107,7 @@ export function createHttpApp(runtime: Runtime) {
   helpdeskDepthRoutes(api);
   customerGroupRoutes(api);
   portalRoutes(api);
+  portalSignInRoutes(api);
   requestCcRoutes(api);
   whiteboardRoutes(api);
   workflowRoutes(api);

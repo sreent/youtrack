@@ -444,6 +444,7 @@ function projectAppDto(s: SchemaSnapshot, row: AppDbRow, projectId: string): Pro
     description: row.description,
     enabled: appEnabledIn(a, projectId),
     off: a.off.has(projectId),
+    granted: permissionsOf(row.granted),
     words: permissionWords(permissionsOf(row.granted)),
     settings: m.settings.filter((d) => d.scope === 'project'),
   };

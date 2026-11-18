@@ -12,6 +12,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { UserWho } from '../../components/Who';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
+import { quoted } from '../common/format';
 import { formatList, inSentence, problemWords, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -105,7 +106,7 @@ function SubscriptionRow({ s, showTarget, onSaid }: { s: ChatSubscription; showT
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
-  const target = s.project?.name ?? `“${s.search?.name ?? t('chat.chat.aSavedSearch2')}”`;
+  const target = s.project?.name ?? quoted(s.search?.name ?? t('chat.chat.aSavedSearch2'));
   return (
     <tr className={s.ended ? 'muted' : undefined}>
       <th scope="row" className="row-head">

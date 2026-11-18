@@ -10,7 +10,7 @@ import { Confirm } from '../common/Confirm';
 import { previewRule, ruleKeys } from './api';
 import { SampleDetail } from './RuleForm';
 import { previewWords, runWords, Sentence } from './words';
-import { intlLocale, problemSaid, t, tr } from '../../i18n';
+import { formatList, intlLocale, problemSaid, t, tr } from '../../i18n';
 
 /** The rule as its preview takes it; its call only for whoever may make one (others would be told they can't). */
 function input(rule: Rule, canCall: boolean): RuleInput {
@@ -47,7 +47,7 @@ function Last({ rule, run }: { rule: Rule; run: RuleRun | null }) {
       break;
     case 'applied':
       what = run.issue ? (
-        <>{tr('rules.ruleCard.lastActed', { when: when, on: on, v: run.changes.map((c) => c.field).join(', ') || runWords(run) })}</>
+        <>{tr('rules.ruleCard.lastActed', { when: when, on: on, v: formatList(run.changes.map((c) => c.field)) || runWords(run) })}</>
       ) : (
         <>{tr('rules.ruleCard.lastRan', { when: when, message: runWords(run) })}</>
       );

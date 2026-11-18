@@ -61,9 +61,10 @@ export const keys = {
 };
 
 export const useSetupStatus = () => useQuery({ queryKey: keys.setup, queryFn: () => get<SetupStatus>('/auth/setup') });
-export const useMe = () =>
+export const useMe = (opts: { enabled?: boolean } = {}) =>
   useQuery({
     queryKey: keys.me,
+    enabled: opts.enabled ?? true,
     queryFn: async () => {
       const me = await get<Me>('/me');
       // The language on their profile, or the server's default: the page follows it (D49).

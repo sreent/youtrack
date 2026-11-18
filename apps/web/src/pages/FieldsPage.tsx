@@ -121,7 +121,7 @@ function ValueRow({
             label={t('page.fields.delete')}
             title={t('page.fields.deleteTheValueOf', { name: value.name, name2: field.name })}
             about={t('page.fields.nobodyCanBringItBack')}
-            confirm={t('page.fields.deleteIt')}
+            confirm={t('page.fields.deleteTheValue')}
             disabled={remove.isPending}
             onConfirm={() => remove.mutate()}
           />

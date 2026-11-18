@@ -24,8 +24,8 @@ import {
 } from '../features/imports/api';
 import { FromApiForm, OriginSummary, SOURCE_NAME, TokenFields } from '../features/imports/FromApi';
 import { ColumnsTable, ProblemsTable, Tally, ValuesTable, whereFrom } from '../features/imports/MappingTable';
-import { whenRead } from '../features/common/format';
-import { t, tr } from '../i18n';
+import { isToday, whenRead } from '../features/common/format';
+import { listNodes, t, tr } from '../i18n';
 
 const SOURCES: Record<Import['source'], string> = { jira: 'Jira', youtrack: 'YouTrack', csv: t('page.import.aCsvFile'), github: t('page.import.githubIssues'), redmine: 'Redmine', zendesk: 'Zendesk', asana: 'Asana', clickup: 'ClickUp' };
 const FIRST = {
@@ -151,7 +151,7 @@ function Upload() {
                   <Link to={`/import/${i.id}`}>{i.fileName}</Link>
                   <span className="issue-id">{i.project.key}</span>
                 </span>
-                <p className="note">{tr(i.origin ? 'page.import.fromIssues' : 'page.import.fromRows', { fromWords: fromWords(i), n: i.rows, whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: IMPORT_STATUS_WORDS[i.status] ?? i.status })}</p>
+                <p className="note">{tr(i.origin ? 'page.import.fromIssues' : 'page.import.fromRows', { fromWords: fromWords(i), n: i.rows, day: isToday(i.createdAt) ? 'today' : 'other', whenRead: whenRead(i.createdAt), v: i.result ? t('page.import.createdUpdated', { created: i.result.created, updated: i.result.updated }) : '', status: IMPORT_STATUS_WORDS[i.status] ?? i.status })}</p>
               </li>
             ))}
           </ul>
@@ -204,14 +204,19 @@ function Report({ imp }: { imp: Import }) {
           <p className="note">{tr(imp.origin ? 'page.import.linksNamedIssuesNotRead' : 'page.import.linksNamedIssuesNotInFile', { n: r.linksMissing })}</p>
         ) : null}
         {created.data?.items.length ? (
-          <p className="note">{tr('page.import.itMade', { map: created.data.items.slice(0, 12).map((row, i) => (
-              <span key={row.row}>
-                {i ? ', ' : ''}
-                <Link className="issue-id" to={`/issues/${row.issue}`}>
-                  {row.issue}
-                </Link>
-              </span>
-            )), v: created.data.total > 12 ? t('page.import.andMore', { v: created.data.total - 12 }) : '' })}</p>
+          <p className="note">
+            {tr('page.import.itMade', {
+              list: listNodes([
+                ...created.data.items.slice(0, 12).map((row) => (
+                  <Link key={row.row} className="issue-id" to={`/issues/${row.issue}`}>
+                    {row.issue}
+                  </Link>
+                )),
+                // How many more, as the list's last item: "BACK-1, BACK-2 and 30 more".
+                ...(created.data.total > 12 ? [t('page.import.more', { n: created.data.total - 12 })] : []),
+              ]),
+            })}
+          </p>
         ) : null}
       </section>
       {rows.length ? (
@@ -454,7 +459,7 @@ function ImportSteps({ imp }: { imp: Import }) {
                     ))}
                   </ul>
                 ) : null}
-                <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} />
+                <ProblemsTable problems={check.problems} caption={t('page.import.problemsRowByRow')} planned />
                 {check.counts.problems > check.problems.length ? <p className="note">{tr('page.import.theFirstProblems', { length: check.problems.length, n: check.counts.problems })}</p> : null}
               </div>
             ) : null}

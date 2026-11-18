@@ -24,17 +24,20 @@ export async function getSettings(ctx: Ctx): Promise<Settings> {
     defaultTriageMode: ((await getSetting(ctx.db, 'defaultTriageMode')) as TriageMode | undefined) ?? 'suggest',
     publicUrl: ctx.app.config.publicUrl,
     requireTwoFactor: (await getSetting(ctx.db, 'requireTwoFactor')) === true,
+    passkeys: (await getSetting(ctx.db, 'passkeys')) !== false,
   };
 }
 
 export async function updateSettings(
   ctx: Ctx,
-  input: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean },
+  input: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean; passkeys?: boolean },
 ): Promise<Settings> {
   requireScope(ctx, 'admin');
   if (input.instanceName !== undefined) await setSetting(ctx.db, 'instanceName', input.instanceName);
   if (input.defaultTriageMode !== undefined) await setSetting(ctx.db, 'defaultTriageMode', input.defaultTriageMode);
   // From the next sign-in on, every password sign-in asks for a code; someone without an app sets one up then (D38).
   if (input.requireTwoFactor !== undefined) await setSetting(ctx.db, 'requireTwoFactor', input.requireTwoFactor);
+  // Off, passkeys sign nobody in and none are added; they're kept, for when they're on again (D62).
+  if (input.passkeys !== undefined) await setSetting(ctx.db, 'passkeys', input.passkeys);
   return getSettings(ctx);
 }

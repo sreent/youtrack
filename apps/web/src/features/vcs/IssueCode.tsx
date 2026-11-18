@@ -6,7 +6,7 @@ import { Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { whenRead } from '../common/format';
 import { IssueBuilds } from '../builds/Builds';
-import { commandNote, t, tr } from '../../i18n';
+import { commandNote, formatList, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** Under the issue's own key, so the live feed refreshes it with the issue. */
@@ -58,7 +58,7 @@ export function IssueCode({ issue }: { issue: IssueDetail }) {
     <section className="card" aria-labelledby="code-title">
       <div className="section-head">
         <h2 id="code-title">{t('vcs.issueCode.commitsAndPullRequests')}</h2>
-        {sources.length ? <span className="note">{tr('vcs.issueCode.from', { join: sources.join(', ') })}</span> : null}
+        {sources.length ? <span className="note">{tr('vcs.issueCode.from', { join: formatList(sources) })}</span> : null}
       </div>
       {vcs.isLoading ? <Loading what="loadingLine.issueCommits" /> : null}
       {vcs.error ? <ErrorNote error={vcs.error} /> : null}

@@ -14,7 +14,7 @@ import { Badge, fieldOf, StateBadge } from '../components/Badges';
 import { ErrorLine, ErrorNote, Loading, PageHead } from '../components/States';
 import { errorText } from '../features/issues/api';
 import { span } from '../features/plan/dates';
-import { t, tr } from '../i18n';
+import { formatItems, t, tr } from '../i18n';
 
 const backlogKey = (id: string) => ['boards', id, 'backlog'] as const;
 
@@ -154,8 +154,7 @@ function SprintTargets({ board, dragging, onDrop }: { board: Board; dragging: st
         >
           <span className="item-name">{s.name}</span>
           <span className="item-about">
-            {t('count.issues', { n: s.issueCount })}
-            {s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : ''}
+            {formatItems(s.startDate && s.endDate ? [t('count.issues', { n: s.issueCount }), span(s.startDate, s.endDate)] : [t('count.issues', { n: s.issueCount })])}
           </span>
         </li>
       ))}

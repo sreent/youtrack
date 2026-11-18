@@ -70,6 +70,8 @@ export const users = pgTable(
     timeZone: text('time_zone'),
     /** The language they read a4a in (D49): one of LOCALES, or null for their browser's (and, by email, the server's default). */
     locale: text('locale'),
+    /** When they last signed in, whichever way: a password, a passkey or single sign-on (D62). Null: not since this was kept. */
+    lastSignInAt: ts('last_sign_in_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -86,8 +88,18 @@ export const sessions = pgTable(
     createdAt: created(),
     expiresAt: ts('expires_at').notNull(),
     userAgent: text('user_agent'),
+    /**
+     * How it was signed in (D62): `password`, `ldap`, `oidc` or `saml`, then `+totp`, `+recovery` or
+     * `+passkey` for a second step; or `passkey`, both factors at once. Null for sessions from before,
+     * never recent enough to add or remove a passkey until their person confirms it's them (`confirmed`).
+     */
+    signedInWith: text('signed_in_with'),
+    /** The passkey that signed it in, first or second: removing that passkey ends the session. */
+    passkeyId: text('passkey_id'),
+    /** When its person last proved it's them in it: at the sign-in, or since, to add or remove a passkey. */
+    verifiedAt: ts('verified_at').notNull().defaultNow(),
   },
-  (t) => [index('sessions_user').on(t.userId)],
+  (t) => [index('sessions_user').on(t.userId), index('sessions_passkey').on(t.passkeyId)],
 );
 
 export const apiTokens = pgTable(
@@ -1306,13 +1318,16 @@ export const mailOutbox = pgTable(
 // Help desk
 // ---------------------------------------------------------------------------
 
-/** Someone outside the team who asked for help. Not a user: they can't sign in, and aren't assignable. */
+/** Someone outside the team who asked for help. Not a user: they sign in to the portal alone (D45, D63), and aren't assignable. */
 export const requesters = pgTable(
   'requesters',
   {
     id: text('id').primaryKey(),
     email: text('email').notNull(),
     name: text('name').notNull(),
+    /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
+    passwordHash: text('password_hash'),
+    passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -2542,6 +2557,10 @@ export const requesterSessions = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** How it was opened (D63): 'link', 'password' or 'sso'. It opens the requests of desks that take that way. */
+    method: text('method').notNull().default('link'),
+    /** With 'sso', the identity provider it came through. */
+    providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'cascade' }),
     createdAt: created(),
     lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
     expiresAt: ts('expires_at').notNull(),
@@ -2549,7 +2568,7 @@ export const requesterSessions = pgTable(
   (t) => [index('requester_sessions_requester').on(t.requesterId)],
 );
 
-/** A sign-in link sent to a requester: its token as a hash, good once, for a short while. */
+/** A sign-in link sent to a requester, or a link to set their password (D63): its token as a hash, good once, for a short while. */
 export const requesterSignIns = pgTable(
   'requester_sign_ins',
   {
@@ -2557,6 +2576,8 @@ export const requesterSignIns = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** 'sign-in' (D45), or 'password': a link that sets their password. */
+    purpose: text('purpose').notNull().default('sign-in'),
     createdAt: created(),
     expiresAt: ts('expires_at').notNull(),
     usedAt: ts('used_at'),
@@ -2764,6 +2785,8 @@ export const customerGroups = pgTable(
     sharing: text('sharing').notNull().default('none'),
     /** Its own working hours and holidays (BusinessHours), which its requests' SLAs count in; null keeps the desk's. */
     businessHours: jsonb('business_hours'),
+    /** The identity provider its people sign in to the portal through at this desk, and no other way (D63). */
+    providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'restrict' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -3025,4 +3048,137 @@ export const whiteboardViewers = pgTable(
     seenAt: ts('seen_at').notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.whiteboardId, t.session] }), index('whiteboard_viewers_seen').on(t.seenAt)],
+);
+
+// ---------------------------------------------------------------------------
+// The portal's own sign-in (D63): identity providers for requesters, apart from the team's
+// ---------------------------------------------------------------------------
+
+/**
+ * An OpenID Connect provider requesters sign in to the portal through: the server's, made by an
+ * administrator, offered by the desks that choose it. Never the team's (D16): its sessions open the
+ * portal alone.
+ */
+export const portalProviders = pgTable('portal_providers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  issuer: text('issuer').notNull(),
+  clientId: text('client_id').notNull(),
+  /** Sealed with the server's key (lib/secret-box.ts); null for a public client. */
+  clientSecretSealed: text('client_secret_sealed'),
+  scopes: text('scopes').notNull().default('openid email profile'),
+  /** The email domains it may vouch for, in lower case; empty: any. */
+  domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+  createdAt: created(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** A sign-in through a requesters' provider under way: the state's hash, bound to the browser by a cookie, with its PKCE verifier and nonce. */
+export const portalSsoStates = pgTable('portal_sso_states', {
+  id: text('id').primaryKey(),
+  providerId: text('provider_id')
+    .notNull()
+    .references(() => portalProviders.id, { onDelete: 'cascade' }),
+  /** The desk whose page it started from, to come back to. */
+  desk: text('desk'),
+  codeVerifier: text('code_verifier').notNull(),
+  nonce: text('nonce').notNull(),
+  createdAt: created(),
+  expiresAt: ts('expires_at').notNull(),
+});
+
+/** That a provider has signed a requester in (D63): they're known by its verified email; this says when it first did, to tell them. */
+export const requesterIdentities = pgTable(
+  'requester_identities',
+  {
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => portalProviders.id, { onDelete: 'cascade' }),
+    subject: text('subject').notNull(),
+    createdAt: created(),
+    lastAt: ts('last_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requesterId, t.providerId] })],
+);
+
+// ---------------------------------------------------------------------------
+// Passkeys (D62)
+// ---------------------------------------------------------------------------
+
+/**
+ * A person's passkey: a WebAuthn credential, bound to the relying party id it was made for (the host
+ * of PUBLIC_URL then). a4a keeps its public key and sign count; the private key never leaves the
+ * authenticator. A count that goes back means two authenticators hold it: it's `copiedAt`, and signs
+ * nobody in again.
+ */
+export const passkeys = pgTable(
+  'passkeys',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The credential's id, base64url, as the authenticator made it: one credential is one person's. */
+    credentialId: text('credential_id').notNull(),
+    /** Its public key, COSE-encoded, as it was registered. */
+    publicKey: bytea('public_key').notNull(),
+    signCount: bigint('sign_count', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array().notNull().default(sql`'{}'::text[]`),
+    /** It may be synced to the person's other devices (backup eligible), and whether it is (backed up). */
+    multiDevice: boolean('multi_device').notNull().default(false),
+    backedUp: boolean('backed_up').notNull().default(false),
+    /** What kind of authenticator made it (its AAGUID), when it said. */
+    aaguid: text('aaguid'),
+    name: text('name').notNull(),
+    rpId: text('rp_id').notNull(),
+    createdAt: created(),
+    lastUsedAt: ts('last_used_at'),
+    copiedAt: ts('copied_at'),
+  },
+  (t) => [uniqueIndex('passkeys_credential').on(t.credentialId), index('passkeys_user').on(t.userId)],
+);
+
+/**
+ * A ceremony under way: the challenge a4a gave the browser, kept as a hash, for five minutes, taken
+ * once. `purpose` is the ceremony (`register`, `sign-in`, `second-step`, `confirm`); `boundTo` the
+ * browser that asked: its session's id, or the hash of the sign-in ticket its cookie holds.
+ */
+export const passkeyChallenges = pgTable(
+  'passkey_challenges',
+  {
+    id: text('id').primaryKey(),
+    purpose: text('purpose').notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    boundTo: text('bound_to').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: created(),
+  },
+  (t) => [index('passkey_challenges_expires').on(t.expiresAt)],
+);
+
+/**
+ * The "this wasn't me" link in a mail that told someone their passkeys changed: its token, kept as a
+ * hash, minted as the mail is sent. Following it signs them out everywhere and stops the passkey it
+ * names; it only ever takes access away, so whoever holds the mail may use it, once.
+ */
+export const passkeyAlerts = pgTable(
+  'passkey_alerts',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** `added`, `removed` or `copied`. */
+    change: text('change').notNull(),
+    passkeyId: text('passkey_id'),
+    name: text('name').notNull(),
+    changedAt: ts('changed_at').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('passkey_alerts_user').on(t.userId)],
 );

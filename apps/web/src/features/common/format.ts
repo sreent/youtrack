@@ -20,6 +20,11 @@ function sameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+/** Whether a time is today's, which `whenRead` writes as a clock time alone: a message words the two apart (`{day, select, today {…} other {…}}`). */
+export function isToday(iso: string, now = new Date()): boolean {
+  return sameDay(new Date(iso), now);
+}
+
 /** As people read times: today's alone ("10:02"), older ones with their day ("Mon 9 Nov, 10:02"). */
 export function whenRead(iso: string, now = new Date()): string {
   const d = new Date(iso);
@@ -104,3 +109,6 @@ export function periodWords(minutes: number, opts?: Parameters<typeof formatPeri
     .map((p) => new Intl.NumberFormat(intlLocale(), { style: 'unit', unit: PERIOD_UNITS[p.slice(-1) as keyof typeof PERIOD_UNITS], unitDisplay: unitDisplay() }).format(Number(p.slice(0, -1))));
   return new Intl.ListFormat(intlLocale(), { type: 'unit', style: 'narrow' }).format(parts);
 }
+
+/** Words quoted as the page's language quotes them: “…”, German's „…“, French's « … », Japanese's 「…」. */
+export const quoted = (text: string) => t('ui.quoted', { text });

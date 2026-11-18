@@ -79,7 +79,8 @@ export function createTranslator(locale: Locale, messages: Messages): Translator
     if (hit) return hit;
     const source = messages[key];
     if (source === undefined) return null;
-    const made = new IntlMessageFormat(source, locale, undefined, { ignoreTag: false });
+    // Its plurals and numbers by the language's Intl tag: Portugal's Portuguese counts 0 as many, as Brazil's doesn't.
+    const made = new IntlMessageFormat(source, intlTag(locale), undefined, { ignoreTag: false });
     compiled.set(key, made);
     return made;
   };
@@ -206,11 +207,12 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', id: ' ', ja: '', ko: ' ', pt: ' ', th: ' ', vi: ' ', zh: '' };
 
 /**
- * A language's tag for a page's `lang` and for Intl: its code, each language a4a speaks being one for
- * everyone who reads it (one Spanish, one Portuguese).
+ * A language's tag where its country matters, for a page's `lang` and for Intl: a4a's Portuguese is
+ * Portugal's, so a screen reader reads it in a European voice, and dates, numbers and counts are
+ * Portugal's ("16/11/2026", "1234,5", "0 itens"), whatever a runtime's own `pt` is (Brazil's).
  */
 export function langTag(locale: Locale): string {
-  return locale;
+  return locale === 'pt' ? 'pt-PT' : locale;
 }
 
 /**

@@ -1,14 +1,16 @@
 /**
- * The requesters' portal (D45): a requester signs in with a link sent to their email, no password
- * to forget, and sees the requests they made, with public comments only; and those filed under a
- * customer group they're in, where the group shares them (D56), unless one was kept private. They
- * reply on their own requests, and on their group's where it lets its members answer, and open new
- * ones on a desk's form without its proof of work.
+ * The requesters' portal (D45): a requester signs in with a link sent to their email, or as their
+ * desks allow, with a password or through an identity provider (D63, services/portal-sign-in.ts),
+ * and sees the requests they made, with public comments only; and those filed under a customer
+ * group they're in, where the group shares them (D56), unless one was kept private. They reply on
+ * their own requests, and on their group's where it lets its members answer, and open new ones on a
+ * desk's form without its proof of work.
  *
  * A requester is never a member: the portal answers for requests alone, through the access seam's
- * `requesterSees` (services/access.ts), and anything else, or anything not theirs, as missing.
+ * `requesterSees` (services/access.ts), and anything else, or anything not theirs, as missing. A
+ * session opens only the desks that take the way it was opened (`portalSessionOpens`).
  */
-import type { CustomerSharing, PortalDesk, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
+import type { CustomerSharing, PortalDesk, PortalDeskSignIn, PortalMe, PortalRequest, PortalRequestDetail } from '@a4a/shared';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
@@ -19,7 +21,7 @@ import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 import { mailConfigured } from '../notify/state';
-import { requesterMayComment, requesterSees } from './access';
+import { portalSessionOpens, requesterMayComment, requesterSees, type PortalSignedIn } from './access';
 import { groupsOfRequester, requesterByEmail, sharingOf, type GroupRow } from './customer-groups';
 import { botCtx, deskProject, openRequest, postRequesterReply } from './helpdesk';
 import { applyChanges } from './issues';
@@ -29,6 +31,7 @@ import { outsideAuthors, outsideKey } from './request-authors';
 import { readableId, stateNames } from './issue-refs';
 import { projectSettings } from './projects';
 import { translatorFor } from '../i18n';
+import { assertWayTaken, deskSignIn, providerNames, prunePortalSso, requestPasswordLink, startPortalSession } from './portal-sign-in';
 
 const SIGN_IN_PREFIX = 'hdl_';
 const SESSION_PREFIX = 'hds_';
@@ -37,6 +40,8 @@ export const PORTAL_SESSION_MS = 30 * 24 * 3_600_000;
 export const PORTAL_COOKIE = 'a4a_portal';
 
 type RequesterRow = typeof requesters.$inferSelect;
+/** A requester as their portal session knows them: how it was opened decides which desks it opens (D63). */
+export type PortalViewer = RequesterRow & { signedIn: PortalSignedIn };
 
 const missing = () => new AppError(404, 'not_found', "There's no request here", 'Open it from your list of requests.').said('portal.noRequestHere');
 const signedOut = () => new AppError(401, 'unauthenticated', 'Sign in to see your requests', 'Ask for a sign-in link with your email address.').said('portal.signInToSee');
@@ -49,6 +54,7 @@ export async function requestSignIn(app: AppServices, email: string, desk?: stri
   if (!mailConfigured(app)) {
     throw new AppError(503, 'mail_unavailable', "Signing in needs email, and this server doesn't send any", 'Use the link in an email about your request, or ask the team.').said('portal.noEmail');
   }
+  await assertWayTaken(app, desk, 'link');
   const requester = await requesterByEmail(app.db, email);
   await enqueueMail(app.db, app, {
     kind: 'portal-sign-in',
@@ -59,11 +65,21 @@ export async function requestSignIn(app: AppServices, email: string, desk?: stri
   kickMail(app);
 }
 
-/** The team invites a request's requester to the portal: the same link, sent to them. */
+/**
+ * The team invites a request's requester to the portal, the way the desk takes: the same sign-in
+ * link, else a link to set a password (D63). A desk, or the requester's customer group, that signs
+ * people in through a provider alone has nothing to send: they sign in there from the portal.
+ */
 export async function inviteRequester(app: AppServices, issueId: string, deskKey: string): Promise<void> {
-  const [row] = await app.db.select({ requester: requesters }).from(helpdeskRequests).innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId)).where(eq(helpdeskRequests.issueId, issueId));
+  const [row] = await app.db.select({ requester: requesters, request: helpdeskRequests }).from(helpdeskRequests).innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId)).where(eq(helpdeskRequests.issueId, issueId));
   if (!row) throw new AppError(404, 'not_found', 'This issue is no help desk request', 'Only requests have requesters to invite.').said('portal.notARequest');
-  await requestSignIn(app, row.requester.email, deskKey);
+  const s = await app.schema.get();
+  const project = s.projects.get(row.request.projectId);
+  const choice = project ? deskSignIn(project) : { link: true, password: false, providers: [] };
+  const tied = (await groupsOfRequester(app.db, row.requester)).find((g) => g.projectId === row.request.projectId)?.providerId;
+  if (!tied && choice.link) return requestSignIn(app, row.requester.email, deskKey);
+  if (!tied && choice.password) return requestPasswordLink(app, row.requester.email, deskKey);
+  throw new AppError(400, 'bad_request', 'They sign in through an identity provider, which sends no invitation', 'Send them the portal’s address: they sign in there.').said('portal.inviteThroughProvider');
 }
 
 export async function renderPortalSignIn(app: AppServices, mail: MailRow): Promise<RenderedMail | null> {
@@ -101,17 +117,17 @@ export async function redeemSignIn(app: AppServices, token: string): Promise<{ s
   const [used] = await app.db
     .update(requesterSignIns)
     .set({ usedAt: now })
-    .where(and(eq(requesterSignIns.tokenHash, sha256(token)), isNull(requesterSignIns.usedAt), gt(requesterSignIns.expiresAt, now)))
+    .where(and(eq(requesterSignIns.tokenHash, sha256(token)), eq(requesterSignIns.purpose, 'sign-in'), isNull(requesterSignIns.usedAt), gt(requesterSignIns.expiresAt, now)))
     .returning();
   if (!used) throw new AppError(401, 'link_expired', 'This sign-in link has expired or was used', 'Ask for a new one: it comes by email in a minute.').said('portal.linkExpired');
-  const session = randomToken(SESSION_PREFIX, 32);
-  await app.db.insert(requesterSessions).values({ tokenHash: sha256(session), requesterId: used.requesterId, expiresAt: new Date(now.getTime() + PORTAL_SESSION_MS) });
+  const signedIn: PortalSignedIn = { method: 'link', providerId: null };
+  const session = await startPortalSession(app.db, used.requesterId, signedIn, PORTAL_SESSION_MS);
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, used.requesterId));
-  return { session, me: await meOf(app, requester!) };
+  return { session, me: await meOf(app, { ...requester!, signedIn }) };
 }
 
-/** The requester a portal session is theirs, or a 401. Seen at most once a minute, to keep writes down. */
-export async function portalRequester(app: AppServices, session: string | undefined): Promise<RequesterRow> {
+/** The requester a portal session is theirs, and how it was opened, or a 401. Seen at most once a minute, to keep writes down. */
+export async function portalRequester(app: AppServices, session: string | undefined): Promise<PortalViewer> {
   if (!session?.startsWith(SESSION_PREFIX)) throw signedOut();
   const [row] = await app.db
     .select({ requester: requesters, s: requesterSessions })
@@ -122,41 +138,84 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
   }
-  return row.requester;
+  const method = row.s.method === 'password' || row.s.method === 'sso' ? row.s.method : 'link';
+  return { ...row.requester, signedIn: { method, providerId: row.s.providerId ?? null } };
 }
 
 export async function signOut(app: AppServices, session: string | undefined): Promise<void> {
   if (session) await app.db.delete(requesterSessions).where(eq(requesterSessions.tokenHash, sha256(session)));
 }
 
-/** The groups they're in whose members share requests: those are the ones they see others' requests of. */
-async function sharingGroups(app: AppServices, r: RequesterRow): Promise<GroupRow[]> {
-  return (await groupsOfRequester(app.db, r)).filter((g) => g.sharing !== 'none');
+/**
+ * What a session shows its requester: the groups they're in whose members share requests (those
+ * are the ones they see others' requests of), and which desks it opens (D63): those that take the
+ * way it was opened, through the provider their group there signs in through, if it has one.
+ */
+async function viewOf(app: AppServices, r: PortalViewer): Promise<{ sharing: GroupRow[]; opens: (projectId: string) => boolean; tiedAt: Map<string, string> }> {
+  const s = await app.schema.get();
+  const groups = await groupsOfRequester(app.db, r);
+  const tiedAt = new Map(groups.flatMap((g) => (g.providerId ? [[g.projectId, g.providerId] as const] : [])));
+  const opens = (projectId: string) => {
+    const p = s.projects.get(projectId);
+    return Boolean(p) && portalSessionOpens(deskSignIn(p!), tiedAt.get(projectId) ?? null, r.signedIn);
+  };
+  return { sharing: groups.filter((g) => g.sharing !== 'none' && opens(g.projectId)), opens, tiedAt };
 }
 
-async function meOf(app: AppServices, r: RequesterRow): Promise<PortalMe> {
+async function sharingGroups(app: AppServices, r: PortalViewer): Promise<GroupRow[]> {
+  return (await viewOf(app, r)).sharing;
+}
+
+async function meOf(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   const s = await app.schema.get();
-  const groups = (await sharingGroups(app, r)).flatMap((g) => {
+  const view = await viewOf(app, r);
+  const groups = view.sharing.flatMap((g) => {
     const desk = s.projects.get(g.projectId);
     return desk && !desk.archived ? [{ desk: { key: desk.key, name: desk.name }, name: g.name, sharing: g.sharing as 'read' | 'comment' }] : [];
   });
-  return { name: r.name, email: r.email, groups };
+  // Desks with requests of their own this session doesn't open: how each signs them in instead.
+  const asked = await app.db.selectDistinct({ projectId: helpdeskRequests.projectId }).from(helpdeskRequests).where(eq(helpdeskRequests.requesterId, r.id));
+  const closed = asked.map((a) => s.projects.get(a.projectId)).filter((p): p is NonNullable<typeof p> => Boolean(p) && !p!.archived && !view.opens(p!.id));
+  const ways = closed.map((p) => {
+    const tied = view.tiedAt.get(p.id);
+    const choice = deskSignIn(p);
+    return { desk: { key: p.key, name: p.name }, link: !tied && choice.link, password: !tied && choice.password, ids: tied ? [tied] : choice.providers };
+  });
+  const names = await providerNames(app.db, [...new Set([...ways.flatMap((w) => w.ids), ...(r.signedIn.providerId ? [r.signedIn.providerId] : [])])]);
+  const elsewhere: PortalDeskSignIn[] = ways
+    .map(({ ids, ...w }) => ({ ...w, providers: ids.flatMap((id) => (names.has(id) ? [{ id, name: names.get(id)! }] : [])) }))
+    .sort((a, b) => a.desk.name.localeCompare(b.desk.name));
+  const via = r.signedIn.providerId;
+  return {
+    name: r.name,
+    email: r.email,
+    groups,
+    signedInWith: { method: r.signedIn.method, provider: via && names.has(via) ? { id: via, name: names.get(via)! } : null },
+    password: Boolean(r.passwordHash),
+    passwords: [...s.projects.values()].some((p) => !p.archived && projectSettings(p).helpdesk.enabled && deskSignIn(p).password),
+    elsewhere,
+  };
 }
 
-export async function portalMe(app: AppServices, r: RequesterRow): Promise<PortalMe> {
+export async function portalMe(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   return meOf(app, r);
 }
 
-export async function renameRequester(app: AppServices, r: RequesterRow, name: string): Promise<PortalMe> {
+export async function renameRequester(app: AppServices, r: PortalViewer, name: string): Promise<PortalMe> {
   await app.db.update(requesters).set({ name: name.trim().replace(/\s+/g, ' '), updatedAt: new Date() }).where(eq(requesters.id, r.id));
   const [fresh] = await app.db.select().from(requesters).where(eq(requesters.id, r.id));
-  return meOf(app, fresh!);
+  return meOf(app, { ...fresh!, signedIn: r.signedIn });
 }
 
 type Row = { request: typeof helpdeskRequests.$inferSelect; issue: typeof issues.$inferSelect; requester: RequesterRow; copied: boolean };
 type Sharing = Map<string, CustomerSharing>;
 
-async function visibleRows(app: AppServices, r: RequesterRow, groups: Sharing, only?: string): Promise<Row[]> {
+async function visibleRows(app: AppServices, r: PortalViewer, groups: Sharing, only?: string): Promise<Row[]> {
+  // Only at the desks this session opens (D63): at any other, nothing of theirs is here.
+  const s = await app.schema.get();
+  const { opens } = await viewOf(app, r);
+  const desks = [...s.projects.values()].filter((p) => opens(p.id)).map((p) => p.id);
+  if (!desks.length) return [];
   // Theirs, and those they're copied on (D57).
   const theirs = sql`(${helpdeskRequests.requesterId} = ${r.id} OR ${copiedSql(r.email)})`;
   // Their groups': filed under a group of theirs that shares, and not kept private (D56).
@@ -166,13 +225,13 @@ async function visibleRows(app: AppServices, r: RequesterRow, groups: Sharing, o
     .from(helpdeskRequests)
     .innerJoin(issues, eq(issues.id, helpdeskRequests.issueId))
     .innerJoin(requesters, eq(requesters.id, helpdeskRequests.requesterId))
-    .where(and(shared ? sql`(${theirs} OR ${shared})` : theirs, only ? eq(issues.id, only) : undefined))
+    .where(and(inArray(helpdeskRequests.projectId, desks), shared ? sql`(${theirs} OR ${shared})` : theirs, only ? eq(issues.id, only) : undefined))
     .orderBy(desc(issues.updatedAt))
     .limit(only ? 1 : 200);
   // The seam decides, row by row, whatever the query found.
   return rows
     .map((row) => ({ ...row, copied: row.copied === true || String(row.copied) === 'true' }))
-    .filter((row) => requesterSees(row.request, r, groups, row.copied));
+    .filter((row) => opens(row.request.projectId) && requesterSees(row.request, r, groups, row.copied));
 }
 
 /** Whether this address is copied on the request now (D57), as SQL over the request's row. */
@@ -180,7 +239,7 @@ function copiedSql(email: string) {
   return sql`EXISTS (SELECT 1 FROM request_ccs c WHERE c.issue_id = ${helpdeskRequests.issueId} AND c.removed_at IS NULL AND lower(c.email) = ${email.trim().toLowerCase()})`;
 }
 
-async function summaries(app: AppServices, r: RequesterRow, groups: Sharing, rows: Row[]): Promise<PortalRequest[]> {
+async function summaries(app: AppServices, r: PortalViewer, groups: Sharing, rows: Row[]): Promise<PortalRequest[]> {
   const s = await app.schema.get();
   const states = await stateNames(app.db, s, rows.map((x) => x.issue.id));
   const ids = [...new Set(rows.map((x) => x.request.groupId).filter((id): id is string => Boolean(id)))];
@@ -205,13 +264,13 @@ async function summaries(app: AppServices, r: RequesterRow, groups: Sharing, row
   });
 }
 
-export async function portalRequests(app: AppServices, r: RequesterRow): Promise<PortalRequest[]> {
+export async function portalRequests(app: AppServices, r: PortalViewer): Promise<PortalRequest[]> {
   const groups = sharingOf(await sharingGroups(app, r));
   return summaries(app, r, groups, await visibleRows(app, r, groups));
 }
 
 /** A request by its readable id, when they see it; missing otherwise, alike. */
-async function oneRow(app: AppServices, r: RequesterRow, id: string, groups: Sharing): Promise<Row> {
+async function oneRow(app: AppServices, r: PortalViewer, id: string, groups: Sharing): Promise<Row> {
   const s = await app.schema.get();
   const m = /^([A-Za-z][A-Za-z0-9_]*)-(\d+)$/.exec(id.trim());
   const project = m ? s.projectsByKey.get(m[1]!.toUpperCase()) : undefined;
@@ -222,7 +281,7 @@ async function oneRow(app: AppServices, r: RequesterRow, id: string, groups: Sha
   return row;
 }
 
-export async function portalRequest(app: AppServices, r: RequesterRow, id: string): Promise<PortalRequestDetail> {
+export async function portalRequest(app: AppServices, r: PortalViewer, id: string): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   const [summary] = await summaries(app, r, groups, [row]);
@@ -262,7 +321,7 @@ export async function portalRequest(app: AppServices, r: RequesterRow, id: strin
  * the tracking page. A colleague's reaches the request's requester by email too; a4a carries no words
  * of someone copied to anyone (D57).
  */
-export async function portalReply(app: AppServices, r: RequesterRow, id: string, text: string): Promise<PortalRequestDetail> {
+export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   if (!requesterMayComment(row.request, r, groups, row.copied)) {
@@ -278,7 +337,7 @@ export async function portalReply(app: AppServices, r: RequesterRow, id: string,
  * the request, by the help desk's agent in their name, in its history. Only its requester does this
  * here; the team does it on the request's page.
  */
-export async function portalSetPrivate(app: AppServices, r: RequesterRow, id: string, value: boolean): Promise<PortalRequestDetail> {
+export async function portalSetPrivate(app: AppServices, r: PortalViewer, id: string, value: boolean): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   if (row.requester.id !== r.id) {
@@ -290,20 +349,25 @@ export async function portalSetPrivate(app: AppServices, r: RequesterRow, id: st
   return portalRequest(app, r, id);
 }
 
-/** The desks they may open a request at from the portal: open desks they've asked before, or whose page they came from. */
-export async function portalDesks(app: AppServices, r: RequesterRow): Promise<PortalDesk[]> {
+/** The desks they may open a request at from the portal: open desks they've asked before, or whose page they came from, that this session opens. */
+export async function portalDesks(app: AppServices, r: PortalViewer): Promise<PortalDesk[]> {
   const s = await app.schema.get();
+  const view = await viewOf(app, r);
   const used = await app.db.selectDistinct({ projectId: helpdeskRequests.projectId }).from(helpdeskRequests).where(eq(helpdeskRequests.requesterId, r.id));
-  const ids = new Set([...used.map((u) => u.projectId), ...(await sharingGroups(app, r)).map((g) => g.projectId)]);
+  const ids = new Set([...used.map((u) => u.projectId), ...view.sharing.map((g) => g.projectId)]);
   return [...s.projects.values()]
-    .filter((p) => ids.has(p.id) && !p.archived && projectSettings(p).helpdesk.enabled)
+    .filter((p) => ids.has(p.id) && !p.archived && projectSettings(p).helpdesk.enabled && view.opens(p.id))
     .map((p) => ({ key: p.key, name: p.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** A new request from the portal: they're known, so no proof of work; as the form files one. */
-export async function portalNewRequest(app: AppServices, r: RequesterRow, input: { desk: string; summary: string; description: string; private?: boolean }): Promise<PortalRequestDetail> {
+export async function portalNewRequest(app: AppServices, r: PortalViewer, input: { desk: string; summary: string; description: string; private?: boolean }): Promise<PortalRequestDetail> {
   const project = await deskProject(app, input.desk);
+  // A desk this session doesn't open takes nothing from it either: what they ask there, they'd not see.
+  if (!(await viewOf(app, r)).opens(project.id)) {
+    throw new AppError(403, 'method_off', `${project.name} signs you in another way`, 'Sign out, and sign in from its page.').said('portal.deskSignsInAnotherWay', { desk: project.name });
+  }
   const issue = await openRequest(app, project, { name: r.name, email: r.email, summary: input.summary, description: input.description, via: 'form', private: input.private ?? false });
   return portalRequest(app, r, issue.id);
 }
@@ -312,13 +376,14 @@ export async function portalNewRequest(app: AppServices, r: RequesterRow, input:
 export async function prunePortal(db: Db): Promise<void> {
   await db.delete(requesterSessions).where(sql`${requesterSessions.expiresAt} < now()`);
   await db.delete(requesterSignIns).where(sql`${requesterSignIns.expiresAt} < now() - interval '1 day'`);
+  await prunePortalSso(db);
 }
 
 /**
  * The requester copies someone on a request of theirs, on the portal (D57): anyone they choose, as
  * forwarding its emails would. Someone copied on it, or a colleague, can't copy others.
  */
-export async function portalCopy(app: AppServices, r: RequesterRow, id: string, person: { email: string; name?: string }): Promise<PortalRequestDetail> {
+export async function portalCopy(app: AppServices, r: PortalViewer, id: string, person: { email: string; name?: string }): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   if (row.requester.id !== r.id) {

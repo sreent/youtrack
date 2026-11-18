@@ -6,7 +6,7 @@ import { PageHead } from '../components/States';
 import { addDays, localToday, span } from '../features/plan/dates';
 import { csvHref, type ReportParams } from '../features/reports/api';
 import { REPORTS, ReportView } from '../features/reports/ReportView';
-import { t, tr } from '../i18n';
+import { formatItems, t, tr } from '../i18n';
 
 const WINDOWS = [7, 14, 30, 90, 365] as const;
 
@@ -57,8 +57,7 @@ function BurndownControls({ params, set }: { params: URLSearchParams; set: (k: s
           <option value="">{t('page.reports.theCurrentOne')}</option>
           {view.data.sprints.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name}
-              {s.startDate && s.endDate ? `, ${span(s.startDate, s.endDate)}` : ''}
+              {formatItems(s.startDate && s.endDate ? [s.name, span(s.startDate, s.endDate)] : [s.name])}
             </option>
           ))}
         </InlineSelect>

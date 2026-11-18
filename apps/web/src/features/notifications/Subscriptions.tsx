@@ -9,6 +9,7 @@ import { Link } from 'react-router';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said, Scroll } from '../common/bits';
 import { useSubscribe, useSubscriptions, useUpdateSubscription } from './api';
+import { quoted } from '../common/format';
 import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
@@ -264,7 +265,7 @@ export function SubscriptionList() {
           </thead>
           <tbody>
             {subs.data.map((s) => {
-              const name = s.project?.name ?? `“${s.search?.name ?? ''}”`;
+              const name = s.project?.name ?? quoted(s.search?.name ?? '');
               return (
                 <SubscriptionRow
                   key={s.id}

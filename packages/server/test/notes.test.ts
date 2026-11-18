@@ -251,4 +251,27 @@ describe("a rule run's kept notes", () => {
     expect(notesIn(translatorFor('pt'), three, '')).toBe('Avisou Anna, Ben e Carl.');
     expect(notesIn(translatorFor('th'), three, '')).toBe('แจ้ง Anna, Ben และ Carl แล้ว');
   });
+
+  it("says what it changed as the language's list, each field's change with the language's own colon", () => {
+    const said = [
+      { key: 'rules.run.changed', values: { changes: [{ key: 'rules.run.fieldChange', values: { field: 'State', from: 'Open', to: 'Fixed' } }, { key: 'rules.run.fieldChange', values: { field: 'Priority', from: '—', to: 'High' } }] } },
+      {
+        key: 'rules.run.alsoChanged',
+        values: {
+          others: [
+            { key: 'rules.run.otherChanged', values: { issue: 'BACK-12', changes: [{ key: 'rules.run.fieldTo', values: { field: 'State', to: 'Fixed' } }, { key: 'rules.run.fieldTo', values: { field: 'Priority', to: 'High' } }] } },
+            { key: 'rules.run.otherChanged', values: { issue: 'BACK-13', changes: [{ key: 'rules.run.fieldTo', values: { field: 'State', to: 'Fixed' } }] } },
+          ],
+        },
+      },
+    ];
+    const english = 'State: Open → Fixed; Priority: — → High; Also changed BACK-12: State → Fixed, Priority → High; BACK-13: State → Fixed';
+    expect(notesIn(translatorFor('en'), said, english)).toBe('State: Open → Fixed and Priority: — → High. Also changed BACK-12 (State → Fixed and Priority → High) and BACK-13 (State → Fixed).');
+    expect(notesIn(translatorFor('de'), said, english)).toBe('State: Open → Fixed und Priority: — → High. Außerdem geändert: BACK-12 (State → Fixed und Priority → High) und BACK-13 (State → Fixed).');
+    expect(notesIn(translatorFor('fr'), said, english)).toBe('State\u00a0: Open → Fixed et Priority\u00a0: — → High. Elle a aussi modifié BACK-12 (State → Fixed et Priority → High) et BACK-13 (State → Fixed).');
+    expect(notesIn(translatorFor('ja'), said, english)).toBe('State：Open → Fixed、Priority：— → High。ほかにBACK-12（State → Fixed、Priority → High）、BACK-13（State → Fixed）を変更しました。');
+    expect(notesIn(translatorFor('zh'), said, english)).toBe('State：Open → Fixed和Priority：— → High。还更改了 BACK-12（State → Fixed和Priority → High）和BACK-13（State → Fixed）。');
+    // A run kept before its changes were a list keeps the English it joined them with.
+    expect(notesIn(translatorFor('de'), [{ key: 'rules.run.alsoChanged', values: { others: 'BACK-12: State → Fixed' } }], '')).toBe('Außerdem geändert: BACK-12: State → Fixed.');
+  });
 });

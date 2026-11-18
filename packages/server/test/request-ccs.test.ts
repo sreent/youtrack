@@ -19,6 +19,9 @@ import { notifierConsumer } from '../src/notify/notifier';
 import { issueActivity } from '../src/services/activity';
 import { addComment, listComments } from '../src/services/comments';
 import { createCustomerGroup, requesterByEmail } from '../src/services/customer-groups';
+
+/** A requester as a portal session signed in by an emailed link knows them (D45), the way these tests sign in. */
+const viewer = <R extends object>(r: R) => ({ ...r, signedIn: { method: 'link' as const, providerId: null } });
 import { openRequest, requestOf, trackRequest, updateRequest } from '../src/services/helpdesk';
 import { newMailSecret, setDeskAddress } from '../src/services/helpdesk-mail';
 import { createIssue, getIssue, updateIssue } from '../src/services/issues';
@@ -254,7 +257,7 @@ describe('CCs on a help desk request', () => {
     expect(newestTo('dora@example.org').text).toContain('The technician comes at nine.');
     // Nor may the requester, on the portal; the team may.
     const [jane2] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'jane@example.com'));
-    await expect(portalCopy(w.app, jane2!, id, { email: 'bob@example.org' })).rejects.toMatchObject({ status: 409, words: { key: 'requestCcs.theyStopped' } });
+    await expect(portalCopy(w.app, viewer(jane2!), id, { email: 'bob@example.org' })).rejects.toMatchObject({ status: 409, words: { key: 'requestCcs.theyStopped' } });
     expect((await addCc(as(w.anna), id, { email: 'bob@example.org' })).map((c) => c.email)).toContain('bob@example.org');
   });
 
@@ -298,7 +301,7 @@ describe('CCs on a help desk request', () => {
     expect(waiting[0]!.waitingSince).not.toBeNull();
     const [lee] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'lee@example.org'));
     const leeRow = lee ?? (await w.app.db.insert(requesters).values({ id: `r-lee-${serial++}`, email: 'lee@example.org', name: 'Lee' }).returning())[0]!;
-    await portalReply(w.app, leeRow, opened.id, 'It blinks red now.');
+    await portalReply(w.app, viewer(leeRow), opened.id, 'It blinks red now.');
     const after = await getIssue(w.adminCtx, opened.id);
     expect(after.fields.find((f) => f.name === 'State')?.value).toMatchObject({ name: 'Open' });
     expect((await requestOf(w.adminCtx, opened.id)).firstResponse).toMatchObject({ state: 'due', respondedAt: null });
@@ -323,23 +326,23 @@ describe('CCs on a help desk request', () => {
   it("shows a CC the request on the portal, where they reply; only its requester copies others", async () => {
     const [alice] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'alice@example.org'));
     const [jane] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'jane@example.com'));
-    const list = await portalRequests(w.app, alice!);
+    const list = await portalRequests(w.app, viewer(alice!));
     expect(list.find((r) => r.id === id)).toMatchObject({ copied: true, requester: { name: 'Jane Doe', mine: false } });
-    const seen = await portalRequest(w.app, alice!, id);
+    const seen = await portalRequest(w.app, viewer(alice!), id);
     expect(seen.ccs).toBeNull();
     expect(seen.messages.map((m) => m.text)).not.toContain('Internal: the fuser is worn.');
-    expect((await portalReply(w.app, alice!, id, 'The technician has been.')).messages.at(-1)).toMatchObject({ from: 'you' });
-    await expect(portalCopy(w.app, alice!, id, { email: 'ivy@example.org' })).rejects.toMatchObject({ status: 403 });
+    expect((await portalReply(w.app, viewer(alice!), id, 'The technician has been.')).messages.at(-1)).toMatchObject({ from: 'you' });
+    await expect(portalCopy(w.app, viewer(alice!), id, { email: 'ivy@example.org' })).rejects.toMatchObject({ status: 403 });
     // Its requester sees the list, and who copied whom.
-    const theirs = await portalRequest(w.app, jane!, id);
+    const theirs = await portalRequest(w.app, viewer(jane!), id);
     expect(theirs.messages.at(-1)).toMatchObject({ from: 'cc', name: 'Alice Ames' });
     expect(theirs.ccs?.find((c) => c.email === 'alice@example.org')).toMatchObject({ byYou: true });
     // Taken off, they see it no longer, alike with one that doesn't exist.
     await removeCc(as(w.anna), id, 'alice@example.org');
-    await expect(portalRequest(w.app, alice!, id)).rejects.toMatchObject({ status: 404, words: { key: 'portal.noRequestHere' } });
+    await expect(portalRequest(w.app, viewer(alice!), id)).rejects.toMatchObject({ status: 404, words: { key: 'portal.noRequestHere' } });
     // Its requester may copy anyone again, the team's choice to take them off notwithstanding.
     await removeCc(as(w.anna), id, 'p1@example.org');
-    expect((await portalCopy(w.app, jane!, id, { email: 'Alice@example.org', name: 'Alice' })).ccs?.find((c) => c.email === 'alice@example.org')).toMatchObject({ byYou: true });
+    expect((await portalCopy(w.app, viewer(jane!), id, { email: 'Alice@example.org', name: 'Alice' })).ccs?.find((c) => c.email === 'alice@example.org')).toMatchObject({ byYou: true });
     const [row] = await w.app.db.select().from(requestCcs).where(and(eq(requestCcs.issueId, uid), eq(requestCcs.email, 'alice@example.org')));
     expect(row).toMatchObject({ via: 'portal', removedAt: null });
     // A guest isn't told who is copied, as they aren't told who asked.
@@ -360,14 +363,14 @@ describe('CCs and customer groups together (D56, D57)', () => {
     // Milton, of the same company, answers on the portal: his words reach Peter, never Bob.
     const milton = await requesterByEmail(w.app.db, 'milton@initech.example', 'Milton');
     const bobHad = mailsTo('bob@consult.example').length;
-    expect((await portalReply(w.app, milton, tid, 'I have a stapler too.')).messages.at(-1)).toMatchObject({ from: 'you' });
+    expect((await portalReply(w.app, viewer(milton), tid, 'I have a stapler too.')).messages.at(-1)).toMatchObject({ from: 'you' });
     await flush();
     expect(newestTo('peter@initech.example').text).toContain('I have a stapler too.');
     expect(mailsTo('bob@consult.example')).toHaveLength(bobHad);
     // Each page says as whom they wrote.
     expect((await listComments(w.adminCtx, tid)).at(-1)).toMatchObject({ requester: { name: 'Milton', as: 'colleague' } });
     const peter = await requesterByEmail(w.app.db, 'peter@initech.example');
-    expect((await portalRequest(w.app, peter, tid)).messages.at(-1)).toMatchObject({ from: 'colleague', name: 'Milton' });
+    expect((await portalRequest(w.app, viewer(peter), tid)).messages.at(-1)).toMatchObject({ from: 'colleague', name: 'Milton' });
 
     // The team's public reply reaches both, Bob by a reply address of his own.
     await addComment(as(w.anna), tid, 'New cover sheets are on their way.', { visibility: 'public' });
@@ -377,9 +380,9 @@ describe('CCs and customer groups together (D56, D57)', () => {
 
     // Kept from the group, Milton finds it missing; Bob, copied, still sees it and answers.
     await updateRequest(as(w.anna), tid, { private: true });
-    await expect(portalRequest(w.app, milton, tid)).rejects.toMatchObject({ status: 404 });
+    await expect(portalRequest(w.app, viewer(milton), tid)).rejects.toMatchObject({ status: 404 });
     const bob = await requesterByEmail(w.app.db, 'bob@consult.example');
-    expect(await portalRequest(w.app, bob, tid)).toMatchObject({ copied: true, canReply: true });
+    expect(await portalRequest(w.app, viewer(bob), tid)).toMatchObject({ copied: true, canReply: true });
 
     // Peter's reply address answers for Peter, and for a colleague who may answer; never for Bob.
     const peterMail = newestTo('peter@initech.example');

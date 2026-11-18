@@ -3,11 +3,11 @@ import { Link } from 'react-router';
 import { Icon } from '../components/Icon';
 import { Empty, ErrorNote, Loading, PageHead } from '../components/States';
 import { useBoards } from '../features/board/api';
-import { t, tr } from '../i18n';
+import { formatItems, t, tr } from '../i18n';
 
 function projectsOf(b: Board): string {
   if (!b.projects.length) return t('page.boards.noProject');
-  return b.projects.map((p) => `${p.name} (${p.key})`).join(', ');
+  return formatItems(b.projects.map((p) => `${p.name} (${p.key})`));
 }
 
 export default function BoardsPage() {

@@ -5,7 +5,7 @@
  */
 import type { CycleTime } from '@a4a/shared';
 import { useId } from 'react';
-import { Link } from 'react-router';
+import { IssueLink } from '../../app/places';
 import { dayMonth } from '../plan/dates';
 import { column, daysOf, labelled, labelRoom, niceScale, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
 import { formatList, t, tr } from '../../i18n';
@@ -180,9 +180,9 @@ export function CycleTimeReport({ c, compact }: { c: CycleTime; compact?: boolea
               {slowest.map((i) => (
                 <tr key={i.issue}>
                   <th scope="row">
-                    <Link className="issue-id" to={`/issues/${i.issue}`}>
+                    <IssueLink className="issue-id" id={i.issue}>
                       {i.issue}
-                    </Link>{' '}
+                    </IssueLink>{' '}
                     {i.summary}
                     {i.reopened ? <span className="item-about">{t('reports.distribution.reopenedOnTheWay')}</span> : null}
                   </th>
@@ -199,9 +199,9 @@ export function CycleTimeReport({ c, compact }: { c: CycleTime; compact?: boolea
         <p className="note">{tr('reports.distribution.issuesResolvedNeverStarted', { n: c.notStarted.length, states: formatList(c.startStates, 'disjunction'), map: c.notStarted.slice(0, 8).map((i, k) => (
             <span key={i.issue}>
               {k ? ', ' : ''}
-              <Link className="issue-id" to={`/issues/${i.issue}`}>
+              <IssueLink className="issue-id" id={i.issue}>
                 {i.issue}
-              </Link>
+              </IssueLink>
             </span>
           )), v2: c.notStarted.length > 8 ? '…' : '.' })}</p>
       ) : null}

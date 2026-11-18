@@ -67,7 +67,10 @@ export async function plannedChanges(
   return out;
 }
 
-/** Apply what was planned, in order, in the caller's transaction. Changes to the issue itself, and words for the rest. */
+/** What a script changed on an issue other than its own: the issue, by its readable id, and its changes. */
+export type OtherChanged = { issue: string; changes: Change[] };
+
+/** Apply what was planned, in order, in the caller's transaction. Changes to the issue itself, and to each other issue. */
 export async function applyPlanned(
   tx: Db,
   ctx: Ctx,
@@ -75,16 +78,16 @@ export async function applyPlanned(
   issue: IssueRow,
   planned: Planned[],
   data?: Record<string, unknown>,
-): Promise<{ changes: Change[]; others: string[]; activities: Awaited<ReturnType<typeof applyChanges>>['activities'] }> {
+): Promise<{ changes: Change[]; others: OtherChanged[]; activities: Awaited<ReturnType<typeof applyChanges>>['activities'] }> {
   const changes: Change[] = [];
-  const others: string[] = [];
+  const others: OtherChanged[] = [];
   const activities: Awaited<ReturnType<typeof applyChanges>>['activities'] = [];
   for (const p of planned) {
     const fresh = (await findIssue(tx, s, p.issue.id)) ?? p.issue;
     const res = await applyChanges(tx, ctx, fresh, data ? { ...p.spec, data: { ...p.spec.data, ...data } } : p.spec);
     activities.push(...res.activities);
     if (p.issue.id === issue.id) changes.push(...res.changes);
-    else if (res.changes.length) others.push(`${readableId(s, p.issue)}: ${res.changes.map((c) => `${c.field} → ${c.to ?? '—'}`).join(', ')}`);
+    else if (res.changes.length) others.push({ issue: readableId(s, p.issue), changes: res.changes });
   }
   return { changes, others, activities };
 }

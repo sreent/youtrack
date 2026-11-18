@@ -1,4 +1,4 @@
-import type { BusinessHours, CustomerGroup, CustomerGroupMember, CustomerSharing, Project } from '@a4a/shared';
+import type { BusinessHours, CustomerGroup, CustomerGroupMember, CustomerSharing, PortalProvider, Project } from '@a4a/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { del, get, post, put } from '../../api/client';
@@ -28,6 +28,10 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
   const [domains, setDomains] = useState(group?.domains.join(', ') ?? '');
   const [sharing, setSharing] = useState<CustomerSharing>(group?.sharing ?? 'none');
   const [agents, setAgents] = useState<string[]>(group?.agents.map((a) => a.user.login) ?? []);
+  // The identity provider its people sign in through, among the desk's (D63); empty: as the desk takes.
+  const offered = project.settings.helpdesk.signIn.providers;
+  const providers = useQuery({ queryKey: ['portal-providers'], queryFn: () => get<PortalProvider[]>('/portal-providers'), retry: false, enabled: offered.length > 0 });
+  const [provider, setProvider] = useState(group?.provider?.id ?? '');
   const [own, setOwn] = useState(Boolean(bh));
   const [zone, setZone] = useState(bh?.timeZone ?? project.settings.helpdesk.businessHours?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [days, setDays] = useState<number[]>(bh ? [...new Set(bh.hours.map((x) => x.day))] : [1, 2, 3, 4, 5]);
@@ -38,7 +42,7 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
   const save = useMutation({
     mutationFn: () => {
       const hours: BusinessHours | null = own ? { timeZone: zone.trim(), hours: [...days].sort().map((day) => ({ day, from, to })), holidays: list(holidays) } : null;
-      const body = { name, domains: list(domains), sharing, businessHours: hours, agents };
+      const body = { name, domains: list(domains), sharing, businessHours: hours, agents, provider: provider || null };
       return group ? put<CustomerGroup>(`/projects/${project.key}/customer-groups/${group.id}`, body) : post<CustomerGroup>(`/projects/${project.key}/customer-groups`, body);
     },
     onSuccess: (g) => {
@@ -75,6 +79,22 @@ function GroupForm({ project, group, onDone }: { project: Project; group?: Custo
             </select>
           )}
         </FormField>
+        {offered.length || group?.provider ? (
+          <FormField label={t('helpdesk.groups.signsIn')} help={t('helpdesk.groups.signsInHelp')}>
+            {(id, help) => (
+              <select id={id} value={provider} onChange={(e) => setProvider(e.target.value)} aria-describedby={help}>
+                <option value="">{t('helpdesk.groups.asTheDeskTakes')}</option>
+                {(providers.data ?? (group?.provider ? [group.provider] : []))
+                  .filter((x) => offered.includes(x.id) || x.id === group?.provider?.id)
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {t('helpdesk.groups.throughAlone', { name: x.name })}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </FormField>
+        ) : null}
         <fieldset className="unframed stack tight">
           <legend>{t('helpdesk.groups.agents')}</legend>
           <p className="note">{t('helpdesk.groups.agentsHelp')}</p>
@@ -236,6 +256,7 @@ export function CustomerGroups({ project, canEdit }: { project: Project; canEdit
                   open: g.openRequests,
                 })}
               </p>
+              {g.provider ? <p className="note">{t('helpdesk.groups.signsInThrough', { name: g.provider.name })}</p> : null}
               {g.agents.length ? (
                 <ul className="chips" aria-label={t('helpdesk.groups.agents')}>
                   {g.agents.map((a) =>

@@ -16,6 +16,7 @@ import { issues, projectFields, projects } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { badRequest, notFound } from '../lib/errors';
 import { calendarOf } from '../helpdesk/business-time';
+import { checkDeskSignIn } from './portal-sign-in';
 import { newId } from '../lib/ids';
 import { accessChanged, issueSeenSql, projectAccess, requireProject, type AccessView } from './access';
 import { isUniqueViolation, keyHolders } from './project-keys';
@@ -34,7 +35,17 @@ export const DEFAULT_PLAN: PlanSettings = {
 };
 
 /** A help desk is off until a manager of the project turns it on (services/helpdesk.ts). */
-export const DEFAULT_HELPDESK: HelpdeskSettings = { enabled: false, firstResponseHours: null, intro: '', captcha: false, businessHours: null, waitingStates: [], resumeState: null };
+export const DEFAULT_HELPDESK: HelpdeskSettings = {
+  enabled: false,
+  firstResponseHours: null,
+  intro: '',
+  captcha: false,
+  businessHours: null,
+  waitingStates: [],
+  resumeState: null,
+  // Requesters sign in to the portal by a link emailed to them, as before D63.
+  signIn: { link: true, password: false, providers: [] },
+};
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */
 export const DEFAULT_TIME: TimeSettings = { workTypeRequired: false };
@@ -97,6 +108,16 @@ export function projectVisibility(row: ProjectRow): ProjectVisibility {
 
 const NO_ACCESS: ProjectAccess = { role: 'viewer', roleName: 'Viewer', via: 'open', permissions: [], read: false, comment: false, write: false, manage: false };
 
+/**
+ * A project's settings as the caller may read them: its plan's budget is money, and money takes the
+ * costs permission (D37), which a guest never has (D64). Whoever manages the project sees it too: they
+ * keep its settings, and a budget read as none would be saved as none with the rest of the plan's.
+ */
+export function settingsFor(row: ProjectRow, view: AccessView): ProjectSettings {
+  const settings = projectSettings(row);
+  return view.allows(row.id, 'costs') || view.canManage(row.id) ? settings : { ...settings, plan: { ...settings.plan, budget: null } };
+}
+
 /** A project as the caller sees it, with what they may do in it. */
 export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView, c?: { total: number; open: number }): Project {
   const lead = row.leadId ? s.users.get(row.leadId) : undefined;
@@ -108,7 +129,7 @@ export function projectDto(s: SchemaSnapshot, row: ProjectRow, view: AccessView,
     lead: lead ? userRefDto(lead) : null,
     archived: row.archived,
     visibility: projectVisibility(row),
-    settings: projectSettings(row),
+    settings: settingsFor(row, view),
     issueCount: c?.total ?? 0,
     openIssueCount: c?.open ?? 0,
     createdAt: row.createdAt.toISOString(),
@@ -224,6 +245,9 @@ export async function updateProject(
   if (settings.plan.workingDays.length === 0) throw badRequest('At least one working day is required').said('projects.workingDayRequired');
   // A desk's working hours must read before they're kept: a 400 says what's wrong with them (D45).
   calendarOf(settings.helpdesk.businessHours);
+  // How its requesters sign in (D63): one way at least, providers that exist, none a customer group still signs in through.
+  const signIn = helpdesk.signIn ? await checkDeskSignIn(ctx, p, helpdesk.signIn, current.helpdesk.signIn) : null;
+  if (signIn) settings.helpdesk.signIn = signIn.next;
   const slaChanged = ['businessHours', 'waitingStates', 'firstResponseHours'].some((k) => input.settings?.helpdesk && k in input.settings.helpdesk);
   const visibility = input.visibility !== undefined && input.visibility !== projectVisibility(p) ? input.visibility : undefined;
   // Opening a project to guests (D37) is an administrator's call, and only an open project can be:
@@ -250,6 +274,9 @@ export async function updateProject(
         updatedAt: new Date(),
       })
       .where(eq(projects.id, p.id));
+    if (signIn?.changed) {
+      activities.push(await recordActivity(tx, ctx, { type: 'project.portal_sign_in.changed', projectId: p.id, issueId: null, payload: { data: signIn.data } }));
+    }
     if (visibility || guestAccess !== undefined) {
       activities.push(
         await recordActivity(tx, ctx, {

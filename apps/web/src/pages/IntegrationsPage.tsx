@@ -12,7 +12,7 @@ import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
 import { BuildSources } from '../features/builds/Builds';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const vcsKeys = {
@@ -26,14 +26,14 @@ const useDeliveries = (id: string, enabled: boolean) =>
 const PROVIDER = VCS_PROVIDER_NAMES;
 const isBitbucket = (p: VcsProvider) => p === 'bitbucket' || p === 'bitbucket-dc';
 
-/** How a delivery went, with its shape. */
-const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: string }> = {
-  processed: { tone: 'good', word: t('page.integrations.handled') },
-  ignored: { tone: 'idle', word: t('page.integrations.ignored') },
-  duplicate: { tone: 'idle', word: t('page.integrations.hadItAlready') },
-  received: { tone: 'warn', word: t('page.integrations.beingHandled') },
-  refused: { tone: 'bad', word: t('page.integrations.refused') },
-  failed: { tone: 'bad', word: t('page.integrations.failed') },
+/** How a delivery went, with its shape: one that was refused or failed says the status it answered with. */
+const OUTCOME: Record<VcsDeliveryOutcome, { tone: 'good' | 'warn' | 'bad' | 'idle'; word: (code: number) => string }> = {
+  processed: { tone: 'good', word: () => t('page.integrations.handled') },
+  ignored: { tone: 'idle', word: () => t('page.integrations.ignored') },
+  duplicate: { tone: 'idle', word: () => t('page.integrations.hadItAlready') },
+  received: { tone: 'warn', word: () => t('page.integrations.beingHandled') },
+  refused: { tone: 'bad', word: (code) => t('page.integrations.refused', { code }) },
+  failed: { tone: 'bad', word: (code) => t('page.integrations.failed', { code }) },
 };
 
 const STRONG = (c: ReactNode) => <strong>{c}</strong>;
@@ -125,10 +125,7 @@ function Deliveries({ integration }: { integration: VcsIntegration }) {
                 <span className="item-about">{d.test ? t('page.integrations.aTest') : d.deliveryId ? <span className="mono">{d.deliveryId.slice(0, 13)}</span> : null}</span>
               </td>
               <td>
-                <Badge tone={OUTCOME[d.outcome].tone}>
-                  {OUTCOME[d.outcome].word}
-                  {d.outcome === 'refused' || d.outcome === 'failed' ? `, ${d.statusCode}` : ''}
-                </Badge>
+                <Badge tone={OUTCOME[d.outcome].tone}>{OUTCOME[d.outcome].word(d.statusCode)}</Badge>
                 {d.linked || d.applied ? (
                   <span className="item-about">{tr('page.integrations.linked', { linked: d.linked, v: d.applied ? t('page.integrations.commandsApplied', { n: d.applied }) : '' })}</span>
                 ) : null}
@@ -207,7 +204,7 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
                   ? t('page.integrations.withoutItABuildHolds')
                   : t('page.integrations.withoutItA4aReadsThe')
             }
-            confirm={t('page.integrations.removeIt')}
+            confirm={t('page.integrations.removeTheToken')}
             disabled={save.isPending}
             onConfirm={() => save.mutate(null)}
           />
@@ -384,7 +381,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
     onSuccess: refresh,
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
   });
-  const where = integration.projects.length ? t('page.integrations.issuesOf', { join: integration.projects.map((k) => projectNames.get(k) ?? k).join(', ') }) : t('page.integrations.issuesOfEveryProject');
+  const where = integration.projects.length ? t('page.integrations.issuesOf', { join: formatList(integration.projects.map((k) => projectNames.get(k) ?? k)) }) : t('page.integrations.issuesOfEveryProject');
   const bitbucket = isBitbucket(integration.provider);
   return (
     <li className="card hook">

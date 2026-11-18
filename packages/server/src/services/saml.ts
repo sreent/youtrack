@@ -378,6 +378,6 @@ export async function finishSamlSignIn(
     },
   );
   if (cfg.groupsAttribute) await syncProviderGroups(app, user.id, providerGroupNames(attributeValues(profile, cfg.groupsAttribute)));
-  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent);
+  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent, { with: 'saml' });
   return { user, ...session, returnTo };
 }

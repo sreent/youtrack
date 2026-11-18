@@ -198,11 +198,14 @@ export async function removeTwoFactor(db: Db, userId: string): Promise<void> {
 // A sign-in halfway
 // ---------------------------------------------------------------------------
 
-/** What a sign-in whose password was right still owes: a code, setting two-factor up, or nothing. */
-export async function secondStepFor(db: Db, userId: string): Promise<TicketPurpose | null> {
+/**
+ * What a sign-in whose password was right still owes: a code (or a passkey in its place), setting
+ * two-factor up, or nothing. Where everyone is asked for a second step, a passkey is one (D62).
+ */
+export async function secondStepFor(db: Db, userId: string, hasPasskey = false): Promise<TicketPurpose | null> {
   if (await hasTwoFactor(db, userId)) return 'verify';
-  if (await twoFactorRequired(db)) return 'enroll';
-  return null;
+  if (!(await twoFactorRequired(db))) return null;
+  return hasPasskey ? 'verify' : 'enroll';
 }
 
 export async function issueTicket(db: Db, userId: string, purpose: TicketPurpose): Promise<{ token: string; expiresAt: Date }> {

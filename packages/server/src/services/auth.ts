@@ -21,7 +21,7 @@ export async function login(
 ): Promise<{ token: string; user: UserRow; expiresAt: Date }> {
   const user = await passwordUser(db, loginName, password);
   if (!user) throw unauthorized('Wrong login or password').said('wrongLogin');
-  return { ...(await startSession(db, user.id, ttlDays, userAgent)), user };
+  return { ...(await startSession(db, user.id, ttlDays, userAgent, { with: 'password' })), user };
 }
 
 /** The person whose a4a password this is, if they may sign in; null otherwise. Starts nothing. */
@@ -31,11 +31,22 @@ export async function passwordUser(db: Db, loginName: string, password: string):
   return ok ? user : null;
 }
 
+/**
+ * How a session was signed in (D62): the first factor (`password`, `ldap`, `oidc`, `saml`), then a
+ * second step's (`+totp`, `+recovery`, `+passkey`); or `passkey`, both at once. With the passkey it took.
+ */
+export interface SignInHow {
+  with: string;
+  passkeyId?: string | null;
+}
+
 /** A new session, with a token never used before (sign-in never carries an old session over). */
-export async function startSession(db: Db, userId: string, ttlDays: number, userAgent?: string): Promise<{ token: string; expiresAt: Date }> {
+export async function startSession(db: Db, userId: string, ttlDays: number, userAgent?: string, how: SignInHow = { with: 'password' }): Promise<{ token: string; expiresAt: Date }> {
   const token = randomToken('tls_', 32);
   const expiresAt = new Date(Date.now() + ttlDays * 86_400_000);
-  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, userAgent: userAgent?.slice(0, 300) });
+  await db.insert(sessions).values({ id: sha256(token), userId, expiresAt, userAgent: userAgent?.slice(0, 300), signedInWith: how.with, passkeyId: how.passkeyId ?? null });
+  // Not through the people cache: when someone last signed in is read fresh, where it's shown.
+  await db.update(users).set({ lastSignInAt: new Date() }).where(eq(users.id, userId));
   return { token, expiresAt };
 }
 

@@ -7,11 +7,11 @@
 import type { Burndown } from '@a4a/shared';
 import { hoursWords } from '../common/format';
 import { useId } from 'react';
-import { Link } from 'react-router';
+import { IssueLink } from '../../app/places';
 import { Badge } from '../../components/Badges';
 import { dayMonth, span } from '../plan/dates';
 import { hoursOf, labelled, labelRoom, niceScale, pathThrough, plotHeight, plotWidth, useChartWidth, type Frame } from './chart';
-import { t, tr } from '../../i18n';
+import { formatItems, t, tr } from '../../i18n';
 
 const FRAME: Frame = { width: 640, height: 250, left: 46, right: 76, top: 18, bottom: 32 };
 
@@ -187,7 +187,7 @@ export function BurndownChart({ b, compact }: { b: Burndown; compact?: boolean }
             {has.spent ? <td className="num" /> : null}
           </tr>
           {b.days.map((d) => (
-            <tr key={d.date} className={d.date === b.today ? t('reports.burndown.today3') : undefined}>
+            <tr key={d.date} className={d.date === b.today ? 'today' : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
                 {d.date === b.today ? t('reports.burndown.today2') : ''}
@@ -235,7 +235,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
             {b.sprint.name} <span className="note">{tr('reports.burndown.on', { name: b.sprint.board.name })}</span>
           </h2>
           <p className="note">
-            {span(b.sprint.startDate, b.sprint.endDate)}, {t('count.workingDays', { n: b.workingDays })}
+            {formatItems([span(b.sprint.startDate, b.sprint.endDate), t('count.workingDays', { n: b.workingDays })])}
             {b.sprint.goal ? ` · ${b.sprint.goal}` : ''}
           </p>
         </div>
@@ -252,7 +252,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
         </div>
         <div>
           <dt>{t('reports.burndown.scopeChanged2')}</dt>
-          <dd>{b.added || b.removed ? [b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean).join(', ') : t('reports.burndown.no')}</dd>
+          <dd>{b.added || b.removed ? formatItems([b.added ? `+${short(b, b.added)}` : '', b.removed ? `−${short(b, b.removed)}` : ''].filter(Boolean)) : t('reports.burndown.no')}</dd>
         </div>
         {!compact ? (
           <div>
@@ -275,7 +275,7 @@ export function BurndownReport({ b, compact }: { b: Burndown; compact?: boolean 
           <ul>
             {b.changes.map((c, i) => (
               <li key={`${c.at}-${c.issue}-${i}`}>
-                {dayMonth(c.date)}: {kinds[c.kind]} <Link to={`/issues/${c.issue}`}>{c.issue}</Link> {c.summary}, {c.amount > 0 ? '+' : '−'}
+                {dayMonth(c.date)}: {kinds[c.kind]} <IssueLink id={c.issue}>{c.issue}</IssueLink> {c.summary}, {c.amount > 0 ? '+' : '−'}
                 {burnAmount(b, Math.abs(c.amount))}
               </li>
             ))}

@@ -24,8 +24,9 @@ export interface SseClient {
 type Fetcher = (path: string, init: RequestInit) => Response | Promise<Response>;
 
 /** Open GET /api/v1/events/stream on an app (Hono's `request`) and parse frames as they arrive. */
-export async function openStream(request: Fetcher, token: string, opts: { query?: string; lastEventId?: string; /** Another stream than the event feed, e.g. a whiteboard's. */ path?: string } = {}): Promise<SseClient> {
-  const headers: Record<string, string> = { authorization: `Bearer ${token}`, accept: 'text/event-stream' };
+export async function openStream(request: Fetcher, token: string | null, opts: { query?: string; lastEventId?: string; /** Another stream than the event feed, e.g. a whiteboard's. */ path?: string } = {}): Promise<SseClient> {
+  // No token: a guest's stream, sending no credentials (D64).
+  const headers: Record<string, string> = { ...(token ? { authorization: `Bearer ${token}` } : {}), accept: 'text/event-stream' };
   if (opts.lastEventId) headers['last-event-id'] = opts.lastEventId;
   const res = await request(`${opts.path ?? '/api/v1/events/stream'}${opts.query ?? ''}`, { headers });
   if (res.status !== 200 || !res.body) throw new Error(`stream answered ${res.status}: ${await res.text()}`);

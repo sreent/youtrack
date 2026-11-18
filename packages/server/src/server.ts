@@ -11,6 +11,7 @@ import { ruleChores, rulesConsumer } from './workflow/engine';
 import { createHttpApp } from './http/app';
 import { needsSetup, pruneSessions } from './services/auth';
 import { pruneTickets } from './services/two-factor';
+import { prunePasskeyChallenges } from './services/passkeys';
 import { pruneLoginThrottle } from './services/login-throttle';
 import { insertUser } from './services/users';
 import { stopWhiteboardLive } from './events/whiteboard-live';
@@ -58,6 +59,7 @@ export function defaultChores(runtime: Runtime): Chore[] {
     { name: 'login-throttle', everyMs: 5 * 60_000, run: () => pruneLoginThrottle(runtime.db) },
     { name: 'sessions', everyMs: 60 * 60_000, run: () => pruneSessions(runtime.db) },
     { name: 'sign-in tickets', everyMs: 60 * 60_000, run: () => pruneTickets(runtime.db) },
+    { name: 'passkey challenges', everyMs: 15 * 60_000, run: () => prunePasskeyChallenges(runtime.db) },
     ...choreFactories.flatMap((f) => f(runtime)),
     ...ruleChores(runtime),
   ];
