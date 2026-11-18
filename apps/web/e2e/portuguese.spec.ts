@@ -1,7 +1,8 @@
 /**
- * a4a in Portuguese (D49), one for Brazil and Portugal. A person's browser asks for pt-BR and their
- * profile chooses nothing, so the sign-in page and the pages they open are in Portuguese, dates too
- * (the page's lang says pt); and a problem says itself in Portuguese to a browser in Portugal too.
+ * a4a in Portuguese (D49), Portugal's. A person's browser asks for pt-PT and their profile chooses
+ * nothing, so the sign-in page and the pages they open are in Portuguese, dates too (the page's lang
+ * says pt-PT, for a screen reader's voice); and a problem says itself in Portuguese to a browser in
+ * Brazil too.
  * Each page is shot in light, in dark, and at 390px wide, where nothing may spill sideways.
  *
  * The person is one of this file's own, signed in on the Portuguese sign-in page: German's spec
@@ -11,8 +12,8 @@ import type { Page, TestInfo } from '@playwright/test';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expect, test } from './support/fixtures';
 
-// Signed out, in a browser that asks for Brazil's Portuguese: each test signs its own person in.
-test.use({ storageState: { cookies: [], origins: [] }, locale: 'pt-BR' });
+// Signed out, in a browser that asks for Portugal's Portuguese: each test signs its own person in.
+test.use({ storageState: { cookies: [], origins: [] }, locale: 'pt-PT' });
 
 const PASSWORD = 'e2e-person-pass-1';
 
@@ -25,7 +26,7 @@ async function person(api: Api) {
 /** In through the sign-in page, as a person does: in Portuguese, since the browser asks for it. */
 async function signIn(page: Page, login: string) {
   await page.goto('/login');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT');
   await page.getByLabel('Login', { exact: true }).fill(login);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -65,8 +66,8 @@ test('speaks Portuguese where the browser asks for it, dates and all', async ({ 
   await expect(page.getByRole('heading', { name: issue.summary })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Descrição' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Histórico e comentários' })).toBeVisible();
-  // Dates as Brazil writes them: "16 de nov. de 2026".
-  await expect(page.locator('time').filter({ hasText: /^\d{1,2} de \p{L}+\.? de \d{4}$/u }).first()).toBeVisible();
+  // Dates as Portugal writes them: "16/11/2026".
+  await expect(page.locator('time').filter({ hasText: /^\d{2}\/\d{2}\/\d{4}$/ }).first()).toBeVisible();
   await shoot(page, info, 'issue');
 
   await page.goto('/inbox');
@@ -78,16 +79,16 @@ test('speaks Portuguese where the browser asks for it, dates and all', async ({ 
   await expect(page.getByLabel('Idioma')).toHaveValue('');
   await expect(page.getByLabel('Idioma').locator('option:checked')).toHaveText('Idioma do navegador: Português');
   // Each language by its own name, and marked as such for a screen reader.
-  await expect(page.getByLabel('Idioma').locator('option[value="pt"]')).toHaveAttribute('lang', 'pt');
+  await expect(page.getByLabel('Idioma').locator('option[value="pt"]')).toHaveAttribute('lang', 'pt-PT');
   await shoot(page, info, 'profile');
 });
 
-test('says a problem in Portuguese to a browser in Portugal, on the sign-in page too', async ({ browser }, info) => {
+test('says a problem in Portuguese to a browser in Brazil, on the sign-in page too', async ({ browser }, info) => {
   // A context of its own, as German's: the wrong password's 401 is what this test asks for.
-  const context = await browser.newContext({ locale: 'pt-PT', storageState: { cookies: [], origins: [] } });
+  const context = await browser.newContext({ locale: 'pt-BR', storageState: { cookies: [], origins: [] } });
   const page = await context.newPage();
   await page.goto('/login');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT');
   await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
   await page.getByLabel('Login', { exact: true }).fill(`ninguem.${unique()}`);
   await page.getByLabel('Senha', { exact: true }).fill('senha-errada');
