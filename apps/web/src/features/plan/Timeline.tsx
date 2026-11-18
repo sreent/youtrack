@@ -17,7 +17,7 @@ import { t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 /** The plan at a glance: when it ends, against the baseline, its critical path, what's late. */
-function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
+export function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
   const leaves = s.tasks.filter((t) => !t.isSummary);
   const late = leaves.filter((t) => t.late);
   const b = s.baseline;
@@ -55,7 +55,7 @@ function Facts({ s, cal }: { s: Schedule; cal: WorkCalendar }) {
 }
 
 /** What a4a assumed to draw the plan: estimates it didn't have, and the like. */
-function Warnings({ warnings }: { warnings: string[] }) {
+export function Warnings({ warnings }: { warnings: string[] }) {
   if (!warnings.length) return null;
   return (
     <details className="plan-notes">

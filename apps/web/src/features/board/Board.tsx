@@ -8,7 +8,7 @@
  * refuses it. On a touch screen a card is picked up by holding it; a finger that moves first is a
  * swipe through the columns.
  */
-import type { BoardView } from '@a4a/shared';
+import type { BoardView, UserRef } from '@a4a/shared';
 import {
   DndContext,
   MeasuringStrategy,
@@ -26,6 +26,7 @@ import {
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '../../api/client';
+import { IssueLink } from '../../app/places';
 import { useUsers } from '../../api/queries';
 import { Badge, PriorityMeter } from '../../components/Badges';
 import { Icon } from '../../components/Icon';
@@ -118,6 +119,7 @@ function CardInside({
   hintId,
   asCopy,
   quiet,
+  reading,
 }: {
   card: Placed;
   onCommand?: () => void;
@@ -125,13 +127,15 @@ function CardInside({
   hintId?: string;
   asCopy?: boolean;
   quiet?: boolean;
+  /** To read, not to move (D64): its id is words, and its summary opens the issue where the reader reads it. */
+  reading?: boolean;
 }) {
   const { issue } = card;
   const assignee = assigneeOf(issue);
   return (
     <>
       <span className="board-card-head">
-        {asCopy ? (
+        {asCopy || reading ? (
           <span className="issue-id">{issue.id}</span>
         ) : (
           <button
@@ -151,6 +155,10 @@ function CardInside({
       </span>
       {asCopy ? (
         <span className="board-card-summary">{issue.summary}</span>
+      ) : reading ? (
+        <IssueLink className="board-card-summary" id={issue.id}>
+          {issue.summary}
+        </IssueLink>
       ) : (
         <Link className="board-card-summary" to={`/issues/${issue.id}`} draggable={false} tabIndex={quiet ? -1 : undefined}>
           {issue.summary}
@@ -637,6 +645,81 @@ export function Board({ view, onCommand }: { view: BoardView; onCommand: (ask: C
           </div>
         </div>
       </DndContext>
+    </section>
+  );
+}
+
+/** The people a board's cards name, for who a lane of people is, where the reader can't list everyone (a guest, D64). */
+function peopleOnCards(view: BoardView): UserRef[] {
+  const out = new Map<string, UserRef>();
+  for (const column of view.columns) {
+    for (const issue of column.issues) {
+      for (const f of issue.fields) {
+        if (f.type !== 'user') continue;
+        for (const v of Array.isArray(f.value) ? f.value : [f.value]) {
+          if (v && typeof v === 'object' && 'login' in v) out.set((v as UserRef).login, v as UserRef);
+        }
+      }
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * The board to read (D64): its columns and lanes and the cards in them, in its order, with nothing that
+ * moves a card or names anyone the cards don't. Each card's summary opens its issue where the reader
+ * reads issues.
+ */
+export function ReadOnlyBoard({ view }: { view: BoardView }) {
+  const projectFields = useProjectFieldLists(useMemo(() => view.board.projects.map((p) => p.key), [view.board.projects]));
+  const book = useMemo(() => valueBook(view, projectFields, peopleOnCards(view)), [view, projectFields]);
+  const kind = laneKindOf(view, book);
+  const lanes = useMemo(() => lanesOf(view, kind, book), [view, kind, book]);
+  const cards = useMemo(() => placeCards(view, lanes, new Map(), book), [view, lanes, book]);
+  const byCell = useMemo(() => cardsByCell(cards, view.order ?? cards.map((c) => c.issue.id), lanes.length > 0), [cards, view.order, lanes.length]);
+  const uid = useId();
+  const headingId = `${uid}-board`;
+  const counts = view.columns.map((_, c) => cards.filter((x) => x.column === c).length);
+  const cell = (lane: number, column: number, laneLabel: string | null) => (
+    <ol key={column} className="board-cell" aria-label={laneLabel ? `${view.columns[column]!.name}, ${laneLabel}` : view.columns[column]!.name}>
+      {(byCell.get(cellId(lanes.length ? lane : 0, column)) ?? []).map((card) => (
+        <li key={card.issue.id} className={card.resolved ? 'board-card resolved' : 'board-card'} data-issue={card.issue.id}>
+          <CardInside card={card} reading />
+        </li>
+      ))}
+    </ol>
+  );
+  return (
+    <section className="board" aria-labelledby={headingId}>
+      {view.sprint ? (
+        <SprintHead view={view} headingId={headingId} />
+      ) : (
+        <h2 className="hidden" id={headingId}>
+          {view.board.name}
+        </h2>
+      )}
+      <div className={lanes.length ? 'board-scroll held' : 'board-scroll'} tabIndex={0} role="group" aria-label={t('board.board.sColumns', { title: view.sprint?.name ?? view.board.name })}>
+        <div className="board-grid">
+          <div className="board-cols">
+            {view.columns.map((c, i) => (
+              <ColumnHead key={c.name} name={c.name} count={counts[i] ?? 0} limit={c.wipLimit} points={c.points ?? null} />
+            ))}
+          </div>
+          {lanes.length ? (
+            lanes.map((lane, l) => {
+              const id = `${uid}-${lane.key}`;
+              return (
+                <section key={lane.key} className="board-lane" aria-labelledby={id}>
+                  <LaneHead lane={lane} id={id} count={cards.filter((c) => c.lane === l).length} />
+                  <div className="board-cells">{view.columns.map((_, c) => cell(l, c, lane.label))}</div>
+                </section>
+              );
+            })
+          ) : (
+            <div className="board-cells">{view.columns.map((_, c) => cell(0, c, null))}</div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

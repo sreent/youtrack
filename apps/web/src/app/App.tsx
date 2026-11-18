@@ -47,6 +47,11 @@ const OAuthConsentPage = lazy(() => import('../pages/OAuthConsentPage'));
 // Guests (D37): the projects open to anyone, read without signing in.
 const GuestHome = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestHome })));
 const GuestIssue = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestIssue })));
+// And beyond issues (D64): a board, the reports, a plan and a whiteboard.
+const GuestBoard = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestBoard })));
+const GuestReports = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestReports })));
+const GuestPlan = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestPlan })));
+const GuestWhiteboard = lazy(() => import('../pages/GuestPages').then((m) => ({ default: m.GuestWhiteboard })));
 
 export function App() {
   return (
@@ -63,6 +68,11 @@ export function App() {
         <Route path="/oauth/authorize" element={<OAuthConsentPage />} />
         <Route path="/public" element={<GuestHome />} />
         <Route path="/public/issues/:id" element={<GuestIssue />} />
+        <Route path="/public/boards/:id" element={<GuestBoard />} />
+        <Route path="/public/reports" element={<GuestReports />} />
+        <Route path="/public/reports/:kind" element={<GuestReports />} />
+        <Route path="/public/plan/:project" element={<GuestPlan />} />
+        <Route path="/public/whiteboards/:id" element={<GuestWhiteboard />} />
         <Route element={<RequireUser />}>
           <Route index element={<Navigate to="/issues" replace />} />
           <Route path="/inbox" element={<Page><InboxPage /></Page>} />
