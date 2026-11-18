@@ -12,7 +12,7 @@ export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** Each language by its own name, as a person looking for theirs reads it. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', id: 'Bahasa Indonesia', ja: '日本語', ko: '한국어', pt: 'Português (Brasil)', th: 'ไทย', vi: 'Tiếng Việt', zh: '简体中文' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', es: 'Español', fr: 'Français', id: 'Bahasa Indonesia', ja: '日本語', ko: '한국어', pt: 'Português', th: 'ไทย', vi: 'Tiếng Việt', zh: '简体中文' };
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
@@ -206,16 +206,15 @@ export function subscriptionTells(target: 'project' | 'search', events: 'new' | 
 const SENTENCE_GAP: Record<Locale, string> = { en: ' ', de: ' ', es: ' ', fr: ' ', id: ' ', ja: '', ko: ' ', pt: ' ', th: ' ', vi: ' ', zh: '' };
 
 /**
- * A language's tag where its country matters: a4a's Portuguese is Brazil's. A page's `lang` says it,
- * so a screen reader reads it in a Brazilian voice and the browser hyphenates it as Brazil does.
+ * A language's tag for a page's `lang` and for Intl: its code, each language a4a speaks being one for
+ * everyone who reads it (one Spanish, one Portuguese).
  */
 export function langTag(locale: Locale): string {
-  return locale === 'pt' ? 'pt-BR' : locale;
+  return locale;
 }
 
 /**
- * Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has,
- * and its Portuguese the Brazilian way ("16 de nov. de 2026", "1.234,5"), whatever a runtime's own `pt` is.
+ * Intl's tag for a language: a4a's English writes dates and lists the British way, as it always has.
  * Thai's years are Gregorian, as every date a4a takes from people is (a query's, a command's, a date
  * field's), not the Buddhist era's that Intl's `th` counts by (2569 for 2026); its digits are Arabic.
  */

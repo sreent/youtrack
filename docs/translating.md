@@ -1,6 +1,6 @@
 # Translating a4a
 
-a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese, Indonesian and Thai are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
+a4a speaks to each person in their own language (D49 in [architecture.md](architecture.md)). English is the source; German, Spanish, Japanese, French, Korean, Portuguese, Simplified Chinese, Vietnamese, Indonesian and Thai are complete. This page says how a4a sounds in a language, the words German chose for a4a's terms, how to check a language, and how to add one.
 
 ## What is translated, and what isn't
 
@@ -122,7 +122,7 @@ German:
 2. `pnpm --filter @a4a/server exec vitest run test/translation.test.ts`: an email in each recipient's language, the language on `/me`, and a problem's key.
 3. The browser: `e2e/german.spec.ts` takes a German browser through the issues, an issue, the inbox, the profile and the sign-in page, shoots each in light, in dark and at 390px, and fails if a page spills sideways there. Its pictures are in the HTML report (`apps/web/playwright-report`).
 4. Read it. Set your profile's language, or your browser's, and walk the pages you know: the inbox, an issue's history, the plan, a rule's sentence, an email (a test server's `SMTP_URL` to a catcher), the help desk's pages signed out. A message that reads wrong in its place is a piece read on its own: find its key with the words beside it, and its prefix's neighbours.
-5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean, Brazilian Portuguese, Simplified Chinese, Vietnamese, Indonesian or Thai yet. German, Spanish, French and Japanese have had a second reader; the six newer languages have had an editor who read them for what gives a translation away, the pages people see most read whole and the rest swept for its patterns. [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews and edits couldn't settle.
+5. Settle what's left open. No native speaker has read German, Spanish, French, Japanese, Korean, Portuguese, Simplified Chinese, Vietnamese, Indonesian or Thai yet. German, Spanish, French and Japanese have had a second reader; the six newer languages have had an editor who read them for what gives a translation away, the pages people see most read whole and the rest swept for its patterns. [translation-questions.md](translation-questions.md) lists, by language, the choices their reviews and edits couldn't settle.
 
 ## Adding a language
 
@@ -396,9 +396,9 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | writing help; where an issue came from (a chat message) | aide à la rédaction; provenance |
 
 **Checking French.** The checks above, then `e2e/french.spec.ts`: a person of its own signs in through a French browser, and the issues, an issue, the inbox, the profile and a problem on the sign-in page are shot in light, in dark and at 390px. A reviewer who reads French walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
-## Brazilian Portuguese
+## Portuguese
 
-`pt.json` is Brazil's Portuguese, as Brazilian teams read a tracker. Its code is `pt`, and a4a gives Intl and the page's `lang` `pt-BR` (`intlTag`, `langTag`), so dates, numbers and a screen reader's voice are Brazil's whatever a runtime's own `pt` is. Where Jira's Brazilian Portuguese has a word for a tracker's thing, a4a takes it, since that's what Brazilian teams already read: *item* for an issue, *quadro*, *responsável*, *solicitação*, *fluxo de trabalho*, *vincular*.
+`pt.json` is one Portuguese for Brazil and Portugal, as a4a's Spanish is one for Spain and Latin America. Its code is `pt`, and so are its Intl tag and its page's `lang`. Where the two countries say a thing differently, it uses the word both read; where neither reads the other's, Brazil's, which most Portuguese-speaking teams read in their trackers, and the terms table says which. Where Jira's Portuguese has a word for a tracker's thing, a4a takes it, since that's what Portuguese-speaking teams already read: *item* for an issue, *quadro*, *responsável*, *solicitação*, *fluxo de trabalho*, *vincular*.
 
 - **Você**, always: "Salve primeiro", "Seu perfil". Never "tu". Instructions and help are the *você* imperative: "Escolha", "Digite", "Confira", "Peça". But not on everything: where Portuguese leaves the reader to the verb, it does ("No celular ou computador", "Horas por dia", "Dá para adicionar imagens depois de criar o item"), and one sentence says *você* once ("Você pode registrar as suas ausências e as das pessoas…").
 - **Buttons are infinitives**, without an article, as Brazilian software writes them: "Salvar", "Cancelar", "Salvar alterações", "Excluir campo", "Aplicar comando", "Enviar teste". A status line is a participle or a gerund: "Salvo.", "Salvando…", "Senha alterada.". An optional field says so in brackets: "Comentário (opcional)", "Nota (opcional)".
@@ -423,7 +423,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Data stays as named**, field names included where English gives them as examples ("Só State e Assignee"), and so does a field a page falls back on by name (a report's Priority and State); examples of the query and command languages stay as they are, and examples of plain words for the assistant to read are Portuguese.
 - **Dates and numbers** come from Intl: "16 de nov. de 2026", "1.234,5", "há 3 minutos".
 
-| English | Brazilian Portuguese |
+| English | Portuguese |
 |---|---|
 | issue | item (Jira's), masculine: "o item", "os itens" |
 | summary (an issue's title) | título |
@@ -514,7 +514,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 
 **Why *item* for issue**: it's what Jira's Brazilian Portuguese says ("Criar item", "Tipo de item"), so Brazilian teams already read trackers in it, and it's short enough for a badge. *Tarefa* is the Task type's word, *chamado* and *tíquete* read as a support desk's, and *issue*, said in many Brazilian teams, is English.
 
-**Checking Brazilian Portuguese**: the checks above, and `e2e/portuguese.spec.ts`. It signs a person of its own in through the sign-in page of a browser that asks for Brazilian Portuguese, and opens the issues, an issue, the inbox and the profile, with a date as Brazil writes it; it also shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px. A reviewer who reads Portuguese walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), an issue's history (`issues.issueHistory.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
+**Checking Portuguese**: the checks above, and `e2e/portuguese.spec.ts`. It signs a person of its own in through the sign-in page of a browser that asks for Brazilian Portuguese, and opens the issues, an issue, the inbox and the profile, with a date as Brazil writes it; it also shows a problem on the sign-in page. It shoots each page in light, in dark and at 390px. A reviewer who reads Portuguese walks the same pages and the emails (`server.*` keys), and reads each prefix's pieces together, as they join: the ledger (`activity.ledgerEntry.*`), an issue's history (`issues.issueHistory.*`), a rule's sentence (`rules.words.*`) and the notification titles (`server.notify.*`).
 
 ## Korean
 

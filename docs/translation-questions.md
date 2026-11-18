@@ -265,7 +265,7 @@ Messages added in wave 4 (whiteboards, writing help, issues from chat, Asana and
 - `whiteboards.convertDialog.relation` is 「{from}から見た{to}との関係」, so the link phrase chosen under it (depends on) reads in its direction. Too heavy for a label?
 - `whiteboards.tone.plain` is 標準 beside アイデア, 合意済み, 質問, 問題 and 保留: is 通常 better? A note's kind puts its tone in brackets, 「付箋（問題）」, since 「問題の付箋」 reads as "the note in question".
 
-## Brazilian Portuguese
+## Portuguese
 
 `pt.json` was written in one pass, all 5,467 messages, by a model working from English, the code and the section in [translating.md](translating.md), with German's, French's and Japanese's catalogs beside it. Nobody has read it a second time, and no native speaker has read it at all.
 

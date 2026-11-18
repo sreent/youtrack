@@ -148,7 +148,7 @@ export function getLocale(): Locale {
   return translator.locale;
 }
 
-/** Intl's tag for the page's language, the server's own (`intlTag`): English writes dates the British way ("9 Nov"), Portuguese Brazil's, and Thai's years are Gregorian. */
+/** Intl's tag for the page's language, the server's own (`intlTag`): English writes dates the British way ("9 Nov"), and Thai's years are Gregorian. */
 export function intlLocale(): string {
   return intlTag(translator.locale);
 }

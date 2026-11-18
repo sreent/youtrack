@@ -1,7 +1,7 @@
 /**
- * a4a in Brazilian Portuguese (D49). A person's browser asks for pt-BR and their profile chooses
- * nothing, so the sign-in page and the pages they open are in Brazilian Portuguese, dates too (the
- * page's lang says pt-BR, for a screen reader's voice); and a problem says itself in Portuguese.
+ * a4a in Portuguese (D49), one for Brazil and Portugal. A person's browser asks for pt-BR and their
+ * profile chooses nothing, so the sign-in page and the pages they open are in Portuguese, dates too
+ * (the page's lang says pt); and a problem says itself in Portuguese to a browser in Portugal too.
  * Each page is shot in light, in dark, and at 390px wide, where nothing may spill sideways.
  *
  * The person is one of this file's own, signed in on the Portuguese sign-in page: German's spec
@@ -11,7 +11,7 @@ import type { Page, TestInfo } from '@playwright/test';
 import { unique, uniqueKey, type Api } from './support/api';
 import { expect, test } from './support/fixtures';
 
-// Signed out, in a browser that asks for Brazilian Portuguese: each test signs its own person in.
+// Signed out, in a browser that asks for Brazil's Portuguese: each test signs its own person in.
 test.use({ storageState: { cookies: [], origins: [] }, locale: 'pt-BR' });
 
 const PASSWORD = 'e2e-person-pass-1';
@@ -25,7 +25,7 @@ async function person(api: Api) {
 /** In through the sign-in page, as a person does: in Portuguese, since the browser asks for it. */
 async function signIn(page: Page, login: string) {
   await page.goto('/login');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
   await page.getByLabel('Login', { exact: true }).fill(login);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -50,7 +50,7 @@ async function shoot(page: Page, info: TestInfo, name: string) {
   if (size) await page.setViewportSize(size);
 }
 
-test('speaks Brazilian Portuguese where the browser asks for it, dates and all', async ({ page, api }, info) => {
+test('speaks Portuguese where the browser asks for it, dates and all', async ({ page, api }, info) => {
   const login = await person(api);
   const key = uniqueKey('PT');
   await api.createProject({ key, name: `Idioma ${key}` });
@@ -76,18 +76,18 @@ test('speaks Brazilian Portuguese where the browser asks for it, dates and all',
   await page.goto('/me');
   await expect(page.getByRole('heading', { name: 'Seu perfil', exact: true })).toBeVisible();
   await expect(page.getByLabel('Idioma')).toHaveValue('');
-  await expect(page.getByLabel('Idioma').locator('option:checked')).toHaveText('Idioma do navegador: Português (Brasil)');
-  // Each language by its own name, and Brazil's Portuguese marked as such for a screen reader.
-  await expect(page.getByLabel('Idioma').locator('option[value="pt"]')).toHaveAttribute('lang', 'pt-BR');
+  await expect(page.getByLabel('Idioma').locator('option:checked')).toHaveText('Idioma do navegador: Português');
+  // Each language by its own name, and marked as such for a screen reader.
+  await expect(page.getByLabel('Idioma').locator('option[value="pt"]')).toHaveAttribute('lang', 'pt');
   await shoot(page, info, 'profile');
 });
 
-test('says a problem in Brazilian Portuguese, on the sign-in page too', async ({ browser }, info) => {
+test('says a problem in Portuguese to a browser in Portugal, on the sign-in page too', async ({ browser }, info) => {
   // A context of its own, as German's: the wrong password's 401 is what this test asks for.
-  const context = await browser.newContext({ locale: 'pt-BR', storageState: { cookies: [], origins: [] } });
+  const context = await browser.newContext({ locale: 'pt-PT', storageState: { cookies: [], origins: [] } });
   const page = await context.newPage();
   await page.goto('/login');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
   await expect(page.getByRole('heading', { level: 1, name: 'Entrar' })).toBeVisible();
   await page.getByLabel('Login', { exact: true }).fill(`ninguem.${unique()}`);
   await page.getByLabel('Senha', { exact: true }).fill('senha-errada');
