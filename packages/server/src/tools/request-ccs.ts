@@ -30,7 +30,7 @@ const listRequestCcsTool = defineTool({
 const addRequestCcTool = defineTool({
   name: 'add_request_cc',
   title: 'Copy someone on a help desk request',
-  description: `Copy someone outside the team on a help desk request (get_issue shows "request"): from now on they get every public reply and change of state its requester gets, by email, and may answer by email as themselves. Never internal comments. At most ${REQUEST_CCS_MAX} at once; not a4a’s own addresses, the team’s (they watch instead), or the requester’s. Ask the person first: it sends this address the team’s replies.`,
+  description: `Copy someone outside the team on a help desk request (get_issue shows "request"): from now on they get every public reply and change of state its requester gets, by email, and may answer by email as themselves. Never internal comments. At most the desk’s cap at once (get_issue’s "request" says it: ${REQUEST_CCS_MAX} unless its managers chose another); not a4a’s own addresses, the team’s (they watch instead), or the requester’s. Ask the person first: it sends this address the team’s replies.`,
   input: z.object({ issue: issueInput, email: RequestCcBody.shape.email, name: RequestCcBody.shape.name }),
   kind: 'changes',
   idempotent: true,

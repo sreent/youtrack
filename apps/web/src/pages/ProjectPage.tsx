@@ -19,6 +19,7 @@ import { TRIAGE_RUNGS, TRIAGE_WORDS } from '../features/projects/triage';
 import { HelpdeskMail } from '../features/helpdesk/HelpdeskMail';
 import { HelpdeskSettings } from '../features/helpdesk/HelpdeskSettings';
 import { PortalSignInSettings } from '../features/helpdesk/PortalSignIn';
+import { RequestCcSettings } from '../features/helpdesk/RequestCcSettings';
 import { CustomerGroups } from '../features/helpdesk/CustomerGroups';
 import { WorkTypes } from '../features/projects/WorkTypes';
 import { DeskMailboxSettings, SlaSettings } from '../features/helpdesk/Sla';
@@ -291,6 +292,15 @@ export default function ProjectPage() {
             <span className="note">{t('page.project.portalSignInNote')}</span>
           </div>
           <PortalSignInSettings project={p} />
+        </section>
+      ) : null}
+      {canEdit ? (
+        <section className="card" aria-labelledby="request-ccs-settings">
+          <div className="section-head">
+            <h2 id="request-ccs-settings">{t('page.project.copiedOnRequests')}</h2>
+            <span className="note">{t('page.project.copiedOnRequestsNote')}</span>
+          </div>
+          <RequestCcSettings project={p} />
         </section>
       ) : null}
       <section className="card" aria-labelledby="service-levels">
