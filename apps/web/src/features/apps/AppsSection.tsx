@@ -13,17 +13,9 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { appKeys, base64Of } from './api';
-import { t, tr } from '../../i18n';
+import { mayWords, moreWords, WIDGET_AT } from './words';
+import { formatList, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
-
-const EXTENSION_WORDS: Record<string, string> = {
-  'issue-panel': t('apps.appsSection.anIssueSSidePanel'),
-  'issue-below-summary': t('apps.appsSection.belowAnIssueSSummary'),
-  'project-settings': t('apps.appsSection.aProjectSPage'),
-  'main-menu': t('apps.appsSection.aPageOfItsOwn'),
-  dashboard: 'dashboards',
-  'article-panel': t('apps.appsSection.anArticleSSide'),
-};
 
 type Source = { kind: 'upload'; package: string } | { kind: 'catalog'; catalog: string; name: string; version: string };
 
@@ -41,21 +33,21 @@ function Asks({ p }: { p: AppPackagePreview }) {
         </div>
       </div>
       <p className="label">{p.installed ? t('apps.appsSection.itSInstalledAtThis', { version: p.installed.version }) : t('apps.appsSection.itAsksTo')}</p>
-      {p.words.length ? (
+      {p.asks.read.length || p.asks.write.length ? (
         <ul className="app-may" aria-label={t('apps.appsSection.whatItAsksToDo')}>
-          {p.words.map((w) => (
+          {mayWords(p.asks).map((w) => (
             <li key={w}>{w}</li>
           ))}
         </ul>
       ) : (
         <p className="note">{t('apps.appsSection.nothingOfA4aSIt')}</p>
       )}
-      {more ? <p className="approval-note">{tr('apps.appsSection.itAsksForMoreThan', { join: [...more.read.map((r) => t('apps.appsSection.reading', { r: r })), ...more.write.map((r) => t('apps.appsSection.writing', { r: r }))].join(', ') })}</p> : null}
-      <p className="note">{tr('apps.appsSection.itAddsFilesKbSha', { join: [
-          ...p.widgets.map((w) => t('apps.appsSection.on', { title: w.title, v: EXTENSION_WORDS[w.at] ?? w.at })),
+      {more ? <p className="approval-note">{tr('apps.appsSection.itAsksForMoreThan', { join: formatList(moreWords(more)) })}</p> : null}
+      <p className="note">{tr('apps.appsSection.itAddsFilesKbSha', { join: formatList([
+          ...p.widgets.map((w) => t('apps.appsSection.widgetAt', { at: WIDGET_AT[w.at] ?? 'other', title: w.title })),
           ...p.handlers.map((h) => t('apps.appsSection.aHandler', { title: h.title })),
           ...p.rules.map((r) => t('apps.appsSection.aRuleActingAsIts', { title: r.title })),
-        ].join('; '), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, toFixed: (p.bytes / 1024).toFixed(0), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
+        ]), v: p.signedBy ? t('apps.appsSection.signedByTheTrustedKey', { signedBy: p.signedBy }) : t('apps.appsSection.notSigned'), files: p.files, toFixed: (p.bytes / 1024).toFixed(0), slice: p.sha256.slice(0, 12), t0: (c: ReactNode) => <span className="mono">{c}</span> })}</p>
     </div>
   );
 }
@@ -107,7 +99,7 @@ function Decide({ preview, source, onDone, onCancel }: { preview: AppPackagePrev
     },
     onSuccess: (app) => {
       void qc.invalidateQueries({ queryKey: appKeys.all });
-      onDone(updating ? t('apps.appsSection.isUpdatedTo', { title: app.title, version: app.version }) : t('apps.appsSection.isInstalled', { title: app.title, v: app.allProjects ? t('apps.appsSection.forEveryProject') : app.projects.length ? t('apps.appsSection.for2', { join: app.projects.map((p) => p.key).join(', ') }) : t('apps.appsSection.chooseWhereItRuns') }));
+      onDone(updating ? t('apps.appsSection.isUpdatedTo', { title: app.title, version: app.version }) : t('apps.appsSection.isInstalled', { title: app.title, v: app.allProjects ? t('apps.appsSection.forEveryProject') : app.projects.length ? t('apps.appsSection.for2', { join: formatList(app.projects.map((p) => p.key)) }) : t('apps.appsSection.chooseWhereItRuns') }));
     },
     onError: (e) => setSaid(errorText(e)),
   });
@@ -265,7 +257,7 @@ function InstalledApp({ app }: { app: App }) {
       setSaid({ text: errorText(e), bad: true });
     }
   };
-  const where = app.allProjects ? t('apps.appsSection.everyProject') : app.projects.filter((p) => p.enabled).map((p) => p.key).join(', ') || t('apps.appsSection.noProjectYet');
+  const runsIn = app.projects.filter((p) => p.enabled).map((p) => p.key);
   const r = removal.data;
   return (
     <li className="card app-card" aria-labelledby={titleId}>
@@ -282,11 +274,21 @@ function InstalledApp({ app }: { app: App }) {
       </div>
       <p className="label">{t('apps.appsSection.itMay')}</p>
       <ul className="app-may">
-        {app.words.map((w) => (
+        {mayWords(app.granted).map((w) => (
           <li key={w}>{w}</li>
         ))}
       </ul>
-      <p className="note">{tr('apps.appsSection.itsRulesActAsInstalled', { v: app.enabled ? t('apps.appsSection.runsIn', { where: where }) : t('apps.appsSection.offNoneOfItRuns'), login: app.agent.login, when: agoSaid(app.installedAt), v2: app.installedBy ? t('apps.appsSection.by', { name: app.installedBy.name }) : '', v3: app.source.kind === 'catalog' ? t('apps.appsSection.fromACatalog') : '' })}</p>
+      <p className="note">
+        {tr('apps.appsSection.itsRulesActAsInstalled', {
+          v: app.enabled ? t('apps.appsSection.runsIn', { scope: app.allProjects ? 'all' : runsIn.length ? 'some' : 'none', projects: formatList(runsIn) }) : t('apps.appsSection.offNoneOfItRuns'),
+          login: app.agent.login,
+          when: agoSaid(app.installedAt),
+          // Who installed it, where a4a knows: a language may put the person first ("Ada đã cài đặt …").
+          by: app.installedBy ? 'yes' : 'no',
+          name: app.installedBy?.name ?? '',
+          source: app.source.kind,
+        })}
+      </p>
       <div className="cluster">
         <button type="button" className="small" onClick={() => change.mutate({ enabled: !app.enabled })} disabled={change.isPending}>
           {app.enabled ? t('apps.appsSection.turnItOff') : t('apps.appsSection.turnItOn')}
@@ -321,7 +323,7 @@ function InstalledApp({ app }: { app: App }) {
           }}
         >
           <WhereFields every={every} setEvery={setEvery} chosen={chosen} setChosen={setChosen} />
-          {app.projects.some((p) => p.off) ? <p className="note">{tr('apps.appsSection.turnedOffByTheirManagers', { join: app.projects.filter((p) => p.off).map((p) => p.key).join(', ') })}</p> : null}
+          {app.projects.some((p) => p.off) ? <p className="note">{tr('apps.appsSection.turnedOffByTheirManagers', { join: formatList(app.projects.filter((p) => p.off).map((p) => p.key)) })}</p> : null}
           <div className="cluster">
             <button type="submit" className="small primary" disabled={change.isPending}>{t('apps.appsSection.saveWhereItRuns')}</button>
           </div>

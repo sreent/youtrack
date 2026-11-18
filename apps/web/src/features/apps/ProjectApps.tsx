@@ -5,6 +5,7 @@ import { get, put } from '../../api/client';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said } from '../common/bits';
 import { appKeys } from './api';
+import { mayWords } from './words';
 import { t } from '../../i18n';
 
 function ProjectSettings({ app, project }: { app: ProjectApp; project: string }) {
@@ -84,7 +85,7 @@ export function ProjectApps({ project }: { project: string }) {
             </div>
             {a.description ? <p className="note">{a.description}</p> : null}
             <ul className="app-may" aria-label={t('apps.projectApps.whatMayDo', { title: a.title })}>
-              {a.words.map((w) => (
+              {mayWords(a.granted).map((w) => (
                 <li key={w}>{w}</li>
               ))}
             </ul>
