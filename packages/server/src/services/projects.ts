@@ -44,7 +44,7 @@ export const DEFAULT_HELPDESK: HelpdeskSettings = {
   waitingStates: [],
   resumeState: null,
   // Requesters sign in to the portal by a link emailed to them, as before D63.
-  signIn: { link: true, password: false, providers: [] },
+  signIn: { link: true, password: false, providers: [], passkey: false },
 };
 
 /** Work types are offered, not required, until a manager of the project says so (D43). */

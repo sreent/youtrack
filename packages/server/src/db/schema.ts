@@ -2557,15 +2557,23 @@ export const requesterSessions = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
-    /** How it was opened (D63): 'link', 'password' or 'sso'. It opens the requests of desks that take that way. */
+    /** How it was opened (D63): 'link', 'password', 'sso' or 'passkey' (D69). It opens the requests of desks that take that way. */
     method: text('method').notNull().default('link'),
     /** With 'sso', the identity provider it came through. */
     providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'cascade' }),
+    /** With 'passkey', the passkey that opened it: removing that passkey ends it, unless this is the session that removes it (D69). */
+    passkeyId: text('passkey_id'),
+    /**
+     * When its requester last proved, in it, that they hold their mailbox (D69): opened by an emailed
+     * link or a passkey, or confirmed with a passkey since. Ten minutes from then it may add and remove
+     * passkeys. Null for a session opened by a password or a provider, which never may.
+     */
+    confirmedAt: ts('confirmed_at'),
     createdAt: created(),
     lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
     expiresAt: ts('expires_at').notNull(),
   },
-  (t) => [index('requester_sessions_requester').on(t.requesterId)],
+  (t) => [index('requester_sessions_requester').on(t.requesterId), index('requester_sessions_passkey').on(t.passkeyId)],
 );
 
 /** A sign-in link sent to a requester, or a link to set their password (D63): its token as a hash, good once, for a short while. */
@@ -3181,4 +3189,80 @@ export const passkeyAlerts = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_alerts_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Requesters' passkeys (D69): the portal's, apart from the team's (D62)
+// ---------------------------------------------------------------------------
+
+/**
+ * A requester's passkey: a WebAuthn credential for the portal alone, kept apart from members'
+ * (`passkeys`), so the portal's routes read only these and the team's only those. Its user handle
+ * is `hdr:` and the requester's id (`handle`), which no member's handle (their id alone) can be.
+ * A credential id is in one of the two tables at most (services/passkey-credentials.ts).
+ */
+export const requesterPasskeys = pgTable(
+  'requester_passkeys',
+  {
+    id: text('id').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** The credential's id, base64url, as the authenticator made it. */
+    credentialId: text('credential_id').notNull(),
+    /** Its public key, COSE-encoded, as it was registered. */
+    publicKey: bytea('public_key').notNull(),
+    signCount: bigint('sign_count', { mode: 'number' }).notNull().default(0),
+    transports: text('transports').array().notNull().default(sql`'{}'::text[]`),
+    multiDevice: boolean('multi_device').notNull().default(false),
+    backedUp: boolean('backed_up').notNull().default(false),
+    aaguid: text('aaguid'),
+    name: text('name').notNull(),
+    rpId: text('rp_id').notNull(),
+    createdAt: created(),
+    lastUsedAt: ts('last_used_at'),
+    copiedAt: ts('copied_at'),
+  },
+  (t) => [uniqueIndex('requester_passkeys_credential').on(t.credentialId), index('requester_passkeys_requester').on(t.requesterId)],
+);
+
+/**
+ * A requester's passkey ceremony under way: the challenge, kept as a hash, for five minutes, taken
+ * once. `purpose` is `register`, `sign-in` or `confirm`; `boundTo` the browser that asked: its portal
+ * session's token hash, or the hash of the sign-in ticket its cookie holds (`a4a_portal_pk`).
+ */
+export const requesterPasskeyChallenges = pgTable(
+  'requester_passkey_challenges',
+  {
+    id: text('id').primaryKey(),
+    purpose: text('purpose').notNull(),
+    requesterId: text('requester_id').references(() => requesters.id, { onDelete: 'cascade' }),
+    boundTo: text('bound_to').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    createdAt: created(),
+  },
+  (t) => [index('requester_passkey_challenges_expires').on(t.expiresAt)],
+);
+
+/**
+ * The "this wasn't me" link in a mail that told a requester their passkeys changed: its token as a
+ * hash, minted as the mail is sent, good once for two weeks. It only takes access away.
+ */
+export const requesterPasskeyAlerts = pgTable(
+  'requester_passkey_alerts',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** `added`, `removed` or `copied`. */
+    change: text('change').notNull(),
+    passkeyId: text('passkey_id'),
+    name: text('name').notNull(),
+    changedAt: ts('changed_at').notNull(),
+    expiresAt: ts('expires_at').notNull(),
+    usedAt: ts('used_at'),
+    createdAt: created(),
+  },
+  (t) => [index('requester_passkey_alerts_requester').on(t.requesterId)],
 );

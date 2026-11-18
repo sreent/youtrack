@@ -1,10 +1,11 @@
-import type { CustomerGroup, HelpdeskRequest, IssueDetail, Sla } from '@a4a/shared';
+import type { CustomerGroup, HelpdeskRequest, IssueDetail, RemovedPasskeys, Sla } from '@a4a/shared';
 import { Badge } from '../../components/Badges';
 import { Who } from '../../components/Who';
 import { inboxKeys, useRequestInfo } from '../notifications/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { get, patch } from '../../api/client';
+import { api, get, patch } from '../../api/client';
+import { Confirm } from '../common/Confirm';
 import { errorText, FormField, Said } from '../common/bits';
 import { RequestSla } from './Sla';
 import { RequestCcs } from './RequestCcs';
@@ -99,8 +100,47 @@ function RequestGroup({ issue, r, canEdit }: { issue: IssueDetail; r: HelpdeskRe
   );
 }
 
+/**
+ * How many passkeys its requester signs in to the portal with (D69), never which; and, for the desk's
+ * managers and administrators, a way to remove them, as for a lost device.
+ */
+function RequesterPasskeys({ issue, r, canManage }: { issue: IssueDetail; r: HelpdeskRequest; canManage: boolean }) {
+  const qc = useQueryClient();
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const remove = useMutation({
+    mutationFn: () => api<RemovedPasskeys>('DELETE', `/issues/${issue.id}/request/passkeys`),
+    onSuccess: (x) => {
+      setSaid({ text: t('helpdesk.requestCard.passkeysRemoved', { n: x.removed }) });
+      void qc.invalidateQueries({ queryKey: inboxKeys.request(issue.id) });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  if (!r.requester.passkeys && !said) return null;
+  return (
+    <div className="stack tight">
+      {r.requester.passkeys ? (
+        <div className="cluster">
+          <p className="note">{t('helpdesk.requestCard.passkeys', { n: r.requester.passkeys })}</p>
+          {canManage ? (
+            <Confirm
+              small
+              label={t('helpdesk.requestCard.removePasskeys')}
+              title={t('helpdesk.requestCard.removePasskeysTitle', { name: r.requester.name })}
+              about={t('helpdesk.requestCard.removePasskeysAbout', { name: r.requester.name })}
+              confirm={t('helpdesk.requestCard.removePasskeysIt')}
+              disabled={remove.isPending}
+              onConfirm={() => remove.mutate()}
+            />
+          ) : null}
+        </div>
+      ) : null}
+      {said ? <Said text={said.text} tone={said.bad ? 'bad' : undefined} /> : null}
+    </div>
+  );
+}
+
 /** Who asked, through the help desk, where it stands against its first-response target, its customer group (D56), and who is copied (D57). */
-export function RequestCard({ issue, canEdit = false }: { issue: IssueDetail; canEdit?: boolean }) {
+export function RequestCard({ issue, canEdit = false, canManage = false }: { issue: IssueDetail; canEdit?: boolean; canManage?: boolean }) {
   const info = useRequestInfo(issue);
   const r = info.data;
   if (!r) return null;
@@ -108,6 +148,7 @@ export function RequestCard({ issue, canEdit = false }: { issue: IssueDetail; ca
     <section className="card side-card stack tight" aria-labelledby="request-title">
       <h2 id="request-title">{t('helpdesk.requestCard.helpDeskRequest')}</h2>
       <Who kind="person" name={r.requester.name} about={r.requester.email} small />
+      <RequesterPasskeys issue={issue} r={r} canManage={canManage} />
       <RequestGroup issue={issue} r={r} canEdit={canEdit} />
       {r.sla.clocks.length ? <RequestSla issueId={issue.id} r={r} canReply /> : <SlaBadge sla={r.firstResponse} since={r.createdAt} />}
       <p className="note">

@@ -45,6 +45,7 @@ import { localeOfPerson, translatorFor } from '../i18n';
 import { emailTime } from '../notify/words';
 import { deviceLabel } from '../push/service';
 import type { UserRow } from './schema-cache';
+import { credentialFree } from './passkey-credentials';
 import { getSetting } from './settings';
 import { zoneOfUser } from './time-zones';
 
@@ -394,6 +395,8 @@ export async function addPasskey(
     await tx.select({ id: users.id }).from(users).where(eq(users.id, user.id)).for('update');
     const [{ n } = { n: 0 }] = await tx.select({ n: count() }).from(passkeys).where(eq(passkeys.userId, user.id));
     if (Number(n) >= MAX_PASSKEYS) throw tooMany();
+    // A credential a requester has on the portal is theirs (D69): never a member's too.
+    if (!(await credentialFree(tx, info.credential.id))) throw conflict('That passkey is in a4a already', 'Each passkey is added once.').said('passkeys.already');
     const [made] = await tx
       .insert(passkeys)
       .values({

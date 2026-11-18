@@ -19,6 +19,7 @@ import { requireScope, type AppServices, type Ctx, type UserRow } from '../conte
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskMailboxes, helpdeskRequests, helpdeskTokens, issues, requesters, users } from '../db/schema';
 import { assignToGroupAgent, GROUP_CHANGE, groupByRef, groupOfRequester } from './customer-groups';
+import { requesterPasskeyCount } from './portal-passkeys';
 import { publishActivities, type ActivityRow } from '../events/activity';
 import { captchaChallenge } from '../helpdesk/captcha';
 import { randomToken, sha256 } from '../lib/crypto';
@@ -402,7 +403,7 @@ export async function requestOf(ctx: Ctx, issueId: string): Promise<HelpdeskRequ
   const [group] = row.request.groupId ? await ctx.db.select().from(customerGroups).where(eq(customerGroups.id, row.request.groupId)) : [];
   return {
     issue: readableId(s, issue),
-    requester: { name: row.requester.name, email: row.requester.email },
+    requester: { name: row.requester.name, email: row.requester.email, passkeys: await requesterPasskeyCount(ctx.db, row.requester.id) },
     createdAt: row.request.createdAt.toISOString(),
     // D24's first-response target, as its clock now stands (D45); a request from before clocks, as it was.
     firstResponse: first

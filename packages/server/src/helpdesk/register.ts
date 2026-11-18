@@ -7,6 +7,7 @@ import { backgroundFactories, choreFactories } from '../server';
 import { pollsDone, startPoll } from './imap';
 import { pruneInbound } from './inbound';
 import { prunePortal } from '../services/portal';
+import { prunePortalPasskeys } from '../services/portal-passkeys';
 import { slaTick } from '../services/sla';
 import { pruneTeamReplyTokens } from '../services/team-replies';
 import { deskPollsDone, startDeskPolls } from '../services/desk-mailbox';
@@ -16,6 +17,8 @@ choreFactories.push((runtime) => [
   // What time alone brings to SLA targets (D45): at risk, past due. A minute at most late.
   { name: 'helpdesk-sla', everyMs: 60_000, run: async () => void (await slaTick(runtime)) },
   { name: 'helpdesk-portal-prune', everyMs: 6 * 3_600_000, run: () => prunePortal(runtime.db) },
+  // Requesters' passkey challenges nobody answered, and their mails' links past their time (D69).
+  { name: 'portal-passkeys-prune', everyMs: 15 * 60_000, run: () => prunePortalPasskeys(runtime.db) },
   { name: 'team-reply-tokens-prune', everyMs: 24 * 3_600_000, run: () => pruneTeamReplyTokens(runtime.db) },
   // Each desk's own mailbox (D45), in the background, as the shared one is.
   { name: 'helpdesk-desk-imap', everyMs: runtime.config.helpdeskImapPollMs, run: async () => void startDeskPolls(runtime) },

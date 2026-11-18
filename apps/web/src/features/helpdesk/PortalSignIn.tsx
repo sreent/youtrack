@@ -85,6 +85,7 @@ export function PortalSignInSettings({ project }: { project: Project }) {
   useEffect(() => setForm(JSON.parse(savedKey) as typeof current), [savedKey]);
   const dirty = JSON.stringify(form) !== savedKey;
   const none = !form.link && !form.password && !form.providers.length;
+  const passkey = Boolean(form.passkey);
   const save = useMutation({
     mutationFn: () => patch<Project>(`/projects/${project.key}`, { settings: { helpdesk: { signIn: form } } }),
     onSuccess: (p) => {
@@ -129,6 +130,13 @@ export function PortalSignInSettings({ project }: { project: Project }) {
               <small className="field-help">{t('helpdesk.portalSignIn.passwordHelp')}</small>
             </span>
           </label>
+          <label className="choice">
+            <input type="checkbox" checked={passkey} onChange={(e) => setForm((f) => ({ ...f, passkey: e.target.checked }))} />
+            <span>
+              {t('helpdesk.portalSignIn.passkey')}
+              <small className="field-help">{t('helpdesk.portalSignIn.passkeyHelp')}</small>
+            </span>
+          </label>
           {all.map((p) => (
             <label key={p.id} className="choice">
               <input
@@ -148,7 +156,7 @@ export function PortalSignInSettings({ project }: { project: Project }) {
           <button type="submit" className="primary" disabled={!dirty || none || save.isPending}>
             {save.isPending ? t('helpdesk.portalSignIn.saving') : t('helpdesk.portalSignIn.save')}
           </button>
-          <Said text={none ? t('helpdesk.portalSignIn.oneWay') : said?.text} tone={none || said?.bad ? 'bad' : undefined} />
+          <Said text={none ? t(passkey ? 'helpdesk.portalSignIn.passkeyNotAlone' : 'helpdesk.portalSignIn.oneWay') : said?.text} tone={none || said?.bad ? 'bad' : undefined} />
         </div>
       </form>
       {admin ? (

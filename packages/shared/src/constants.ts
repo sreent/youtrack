@@ -251,7 +251,7 @@ export const REQUEST_CCS_MAX = 20;
 export const REQUEST_CC_VIA = ['team', 'email', 'portal'] as const;
 export type RequestCcVia = (typeof REQUEST_CC_VIA)[number];
 /** How a requester's portal session was opened (D63): an emailed link (D45), their password, or an identity provider. */
-export const PORTAL_SIGN_IN_METHODS = ['link', 'password', 'sso'] as const;
+export const PORTAL_SIGN_IN_METHODS = ['link', 'password', 'sso', 'passkey'] as const;
 export type PortalSignInMethod = (typeof PORTAL_SIGN_IN_METHODS)[number];
 
 export const MAX_BULK_ISSUES = 50;

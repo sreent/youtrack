@@ -155,10 +155,10 @@ describe("a desk's choice", () => {
     const web = await desk('WEB');
     const logged = await w.app.db.select().from(activities).where(and(eq(activities.projectId, web.id), eq(activities.type, 'project.portal_sign_in.changed')));
     expect(logged.map((a) => (a.payload as { data: { to: unknown } }).data.to)).toEqual([
-      { link: false, password: true, providers: [] },
-      { link: true, password: false, providers: [] },
-      { link: true, password: true, providers: [] },
-      { link: true, password: false, providers: [] },
+      { link: false, password: true, providers: [], passkey: false },
+      { link: true, password: false, providers: [], passkey: false },
+      { link: true, password: true, providers: [], passkey: false },
+      { link: true, password: false, providers: [], passkey: false },
     ]);
   });
 });
@@ -310,7 +310,7 @@ describe('desks kept apart', () => {
     const atWeb = await openRequest(w.app, await desk('WEB'), { name: 'Wes', email: 'wes@example.org', summary: 'Site is slow', description: '', via: 'form' });
     const b = browser('10.3.8.1');
     const me = (await setPassword(b, 'wes@example.org', 'wes password 1')).body;
-    expect(me.elsewhere).toEqual([{ desk: { key: 'WEB', name: 'Web app' }, link: true, password: false, providers: [] }]);
+    expect(me.elsewhere).toEqual([{ desk: { key: 'WEB', name: 'Web app' }, link: true, password: false, passkey: false, providers: [] }]);
     expect(((await b.req('GET', '/portal/requests')).body as { id: string }[]).map((r) => r.id)).toEqual([atBack.id]);
     const web = await b.req('GET', `/portal/requests/${atWeb.id}`);
     expect([web.status, web.body.error.message]).toEqual([404, "There's no request here"]);
@@ -391,7 +391,7 @@ describe('single sign-on through a requesters’ provider', () => {
       const colleague = await openRequest(w.app, await desk('BACK'), { name: 'Carl', email: 'carl@acme.com', summary: 'Badge reader', description: '', via: 'form' });
       const pw = browser('10.3.11.1');
       const me = (await setPassword(pw, 'rita@acme.com', 'rita password 1')).body;
-      expect(me.elsewhere).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, link: false, password: false, providers: [{ id: provider.id, name: 'Acme SSO' }] }]);
+      expect(me.elsewhere).toEqual([{ desk: { key: 'BACK', name: 'Backend' }, link: false, password: false, passkey: false, providers: [{ id: provider.id, name: 'Acme SSO' }] }]);
       expect((await pw.req('GET', '/portal/requests')).body).toEqual([]);
       expect((await pw.req('GET', `/portal/requests/${filed.id}`)).status).toBe(404);
       const sso = browser('10.3.11.2');
