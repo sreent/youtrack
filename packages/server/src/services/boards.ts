@@ -2,7 +2,7 @@ import type { Board, BoardColumn, BoardView, Issue, Sprint } from '@a4a/shared';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { boardRanks, boards, issues, sprintIssues, sprints } from '../db/schema';
+import { boardLaneRanks, boardRanks, boards, issues, sprintIssues, sprints } from '../db/schema';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { AppError, badRequest, forbidden, notFound } from '../lib/errors';
 import { newId } from '../lib/ids';
@@ -47,6 +47,8 @@ export function boardDto(s: SchemaSnapshot, row: BoardRow): Board {
     backlogQuery: row.backlogQuery,
     pointsField: row.pointsFieldId ? (s.fields.get(row.pointsFieldId)?.name ?? null) : null,
     sprintsEnabled: row.sprintsEnabled,
+    laneOrder: row.laneOrder,
+    manageable: true,
   };
 }
 
@@ -63,27 +65,84 @@ export function sumPoints(items: Issue[], pointsFieldId: string | null): number 
 }
 
 /**
- * Issue rows in board order (D43): those with a rank first, lowest first, then the rest in the
- * order they came (the query's).
+ * Issue rows in board order (D43): those with a place first, by their keys' bytes (D65), then the rest
+ * in the order they came (the query's).
  */
-export async function rankRows<T extends { id: string }>(db: Db, boardId: string, rows: T[]): Promise<{ rows: T[]; ranks: Map<string, number> }> {
+export async function rankRows<T extends { id: string }>(db: Db, boardId: string, rows: T[]): Promise<{ rows: T[]; ranks: Map<string, string> }> {
   if (!rows.length) return { rows, ranks: new Map() };
   const found = await db
-    .select({ issueId: boardRanks.issueId, rank: boardRanks.rank })
+    .select({ issueId: boardRanks.issueId, key: boardRanks.key })
     .from(boardRanks)
     .where(and(eq(boardRanks.boardId, boardId), inArray(boardRanks.issueId, rows.map((r) => r.id))));
-  const ranks = new Map(found.map((r) => [r.issueId, r.rank]));
-  if (!ranks.size) return { rows, ranks };
-  const at = new Map(rows.map((r, i) => [r.id, i]));
-  const ordered = [...rows].sort((a, b) => {
-    const ra = ranks.get(a.id);
-    const rb = ranks.get(b.id);
-    if (ra !== undefined && rb !== undefined) return ra - rb || at.get(a.id)! - at.get(b.id)!;
-    if (ra !== undefined) return -1;
-    if (rb !== undefined) return 1;
-    return at.get(a.id)! - at.get(b.id)!;
+  const ranks = new Map(found.map((r) => [r.issueId, r.key]));
+  return { rows: byKeys(rows, (r) => r.id, ranks), ranks };
+}
+
+/** Rows with a key first, in their keys' byte order, then the rest as they came. */
+function byKeys<T>(rows: T[], idOf: (row: T) => string, keys: ReadonlyMap<string, string>): T[] {
+  if (!keys.size) return rows;
+  const at = new Map(rows.map((r, i) => [idOf(r), i]));
+  return [...rows].sort((a, b) => {
+    const ka = keys.get(idOf(a));
+    const kb = keys.get(idOf(b));
+    if (ka !== undefined && kb !== undefined) return ka < kb ? -1 : ka > kb ? 1 : at.get(idOf(a))! - at.get(idOf(b))!;
+    if (ka !== undefined) return -1;
+    if (kb !== undefined) return 1;
+    return at.get(idOf(a))! - at.get(idOf(b))!;
   });
-  return { rows: ordered, ranks };
+}
+
+/**
+ * Which lane a card is in, as the board's lanes say it (D65): a person by their id (`u:`), a value by
+ * its name (`v:`), or '' for the lane of no value. Read from the card as the reader sees it, so a field
+ * kept from them in its project (D50) leaves it in the lane of no value, where the board shows it.
+ */
+export function laneIdOf(s: SchemaSnapshot, laneFieldId: string, issue: Pick<Issue, 'fields'>): string {
+  const field = s.fields.get(laneFieldId);
+  const v = issue.fields.find((f) => f.fieldId === laneFieldId)?.value;
+  const first = Array.isArray(v) ? v[0] : v;
+  if (!field || !first || typeof first !== 'object') return '';
+  if (field.type === 'user') return 'id' in first && typeof first.id === 'string' ? `u:${first.id}` : '';
+  return 'name' in first && typeof first.name === 'string' ? `v:${first.name.toLowerCase()}` : '';
+}
+
+/** A lane as the API names it (a login, a value's name, or null for none), as `laneIdOf` says it. */
+export function laneIdNamed(s: SchemaSnapshot, laneFieldId: string, name: string | null): string {
+  if (name === null || !name.trim()) return '';
+  if (s.fields.get(laneFieldId)?.type === 'user') {
+    const login = name.trim().toLowerCase();
+    const user = [...s.users.values()].find((u) => u.login.toLowerCase() === login);
+    return user ? `u:${user.id}` : '';
+  }
+  return `v:${name.trim().toLowerCase()}`;
+}
+
+/**
+ * The board's order with each lane's own laid over it (D65): a lane's cards take the places its cards
+ * had in the board's order, among themselves in the lane's order: those placed in the lane first, by
+ * their keys, then the rest in the board's order. So each cell shows its lane's order, and the whole
+ * is the board's order wherever the lanes don't differ from it.
+ */
+export async function laneOrdered<T>(db: Db, boardId: string, rows: T[], idOf: (row: T) => string, laneOf: (row: T) => string): Promise<T[]> {
+  if (!rows.length) return rows;
+  const found = await db
+    .select({ issueId: boardLaneRanks.issueId, lane: boardLaneRanks.lane, key: boardLaneRanks.key })
+    .from(boardLaneRanks)
+    .where(and(eq(boardLaneRanks.boardId, boardId), inArray(boardLaneRanks.issueId, rows.map(idOf))));
+  const places = new Map(found.map((r) => [r.issueId, r]));
+  const lanes = new Map<string, number[]>();
+  rows.forEach((r, i) => lanes.set(laneOf(r), [...(lanes.get(laneOf(r)) ?? []), i]));
+  const out = [...rows];
+  for (const [lane, at] of lanes) {
+    const cards = at.map((i) => rows[i]!);
+    const keys = new Map<string, string>();
+    for (const c of cards) {
+      const place = places.get(idOf(c));
+      if (place?.lane === lane) keys.set(idOf(c), place.key);
+    }
+    byKeys(cards, idOf, keys).forEach((c, k) => (out[at[k]!] = c));
+  }
+  return out;
 }
 
 /** Sprints, counting only the issues the caller can see. */
@@ -185,7 +244,7 @@ async function queryMakesSense(ctx: Ctx, query: string | null): Promise<boolean>
  * the projects they don't see (D64).
  */
 async function boardFor(ctx: Ctx, s: SchemaSnapshot, view: AccessView, row: BoardRow): Promise<Board> {
-  const board = boardDto(s, row);
+  const board = { ...boardDto(s, row), manageable: seesWholeBoard(view, row) && row.projectIds.every((id) => view.allows(id, 'boards')) };
   if (seesWholeBoard(view, row)) return board;
   const [query, backlog] = [await queryMakesSense(ctx, row.query), await queryMakesSense(ctx, row.backlogQuery)];
   return { ...board, query: query ? board.query : null, backlogQuery: backlog ? board.backlogQuery : null };
@@ -233,6 +292,7 @@ export interface BoardInput {
   backlogQuery?: string | null;
   pointsField?: string | null;
   sprintsEnabled?: boolean;
+  laneOrder?: boolean;
 }
 
 function resolveBoardInput(s: SchemaSnapshot, input: BoardInput) {
@@ -280,6 +340,7 @@ export async function createBoard(ctx: Ctx, input: BoardInput): Promise<Board> {
       backlogQuery: r.backlogQuery,
       pointsFieldId: r.pointsFieldId,
       sprintsEnabled: input.sprintsEnabled ?? false,
+      laneOrder: input.laneOrder ?? false,
       ownerId: ctx.actor.user.id,
     })
     .returning();
@@ -289,7 +350,8 @@ export async function createBoard(ctx: Ctx, input: BoardInput): Promise<Board> {
 export async function updateBoard(ctx: Ctx, id: string, input: Partial<BoardInput>): Promise<Board> {
   requireScope(ctx, 'write');
   const { s, view } = await scoped(ctx);
-  const current = boardDto(s, await loadBoard(ctx, id, 'manage'));
+  const before = await loadBoard(ctx, id, 'manage');
+  const current = boardDto(s, before);
   const merged: BoardInput = {
     name: input.name ?? current.name,
     projects: input.projects ?? current.projects.map((p) => p.key),
@@ -300,26 +362,36 @@ export async function updateBoard(ctx: Ctx, id: string, input: Partial<BoardInpu
     backlogQuery: input.backlogQuery === undefined ? current.backlogQuery : input.backlogQuery,
     pointsField: input.pointsField === undefined ? current.pointsField : input.pointsField,
     sprintsEnabled: input.sprintsEnabled ?? current.sprintsEnabled,
+    laneOrder: input.laneOrder ?? current.laneOrder,
   };
   const r = resolveBoardInput(s, merged);
   await assertCanManageBoard(ctx, view, r.projectIds);
-  const [row] = await ctx.db
-    .update(boards)
-    .set({
-      name: merged.name,
-      projectIds: r.projectIds,
-      columnFieldId: r.columnFieldId,
-      columns: r.columns,
-      swimlaneFieldId: r.swimlaneFieldId,
-      query: merged.query ?? null,
-      backlogQuery: r.backlogQuery,
-      pointsFieldId: r.pointsFieldId,
-      sprintsEnabled: merged.sprintsEnabled ?? false,
-      updatedAt: new Date(),
-    })
-    .where(eq(boards.id, id))
-    .returning();
-  return boardDto(s, row!);
+  const row = await ctx.db.transaction(async (txRaw) => {
+    const tx = txRaw as unknown as Db;
+    const [updated] = await tx
+      .update(boards)
+      .set({
+        name: merged.name,
+        projectIds: r.projectIds,
+        columnFieldId: r.columnFieldId,
+        columns: r.columns,
+        swimlaneFieldId: r.swimlaneFieldId,
+        query: merged.query ?? null,
+        backlogQuery: r.backlogQuery,
+        pointsFieldId: r.pointsFieldId,
+        sprintsEnabled: merged.sprintsEnabled ?? false,
+        laneOrder: merged.laneOrder ?? false,
+        updatedAt: new Date(),
+      })
+      .where(eq(boards.id, id))
+      .returning();
+    // Places in lanes of another field are places in lanes the board no longer has (D65). Turning the
+    // lanes' own order off and on keeps them: the board just doesn't read them meanwhile.
+    if (updated && updated.swimlaneFieldId !== before.swimlaneFieldId) await tx.delete(boardLaneRanks).where(eq(boardLaneRanks.boardId, id));
+    return updated;
+  });
+  if (!row) throw notFound('Board').said('notFound.boardUnnamed');
+  return boardDto(s, row);
 }
 
 export async function deleteBoard(ctx: Ctx, id: string): Promise<void> {
@@ -366,6 +438,23 @@ export async function boardCardRows(ctx: Ctx, row: BoardRow, view: AccessView, s
   return (await rankRows(ctx.db, row.id, found.rows)).rows;
 }
 
+/** The board's lane field, when its lanes keep their own order for the caller: it has them, and they see the field (D50). */
+export function ownLanes(s: SchemaSnapshot, row: BoardRow): string | null {
+  return row.laneOrder && row.swimlaneFieldId && s.fields.has(row.swimlaneFieldId) ? row.swimlaneFieldId : null;
+}
+
+/**
+ * The board's cards as the caller sees them, in the order it shows them: the board's (D43), or, where
+ * its lanes keep their own, each lane's (D65); and each card's lane then, by its internal id.
+ */
+export async function boardCards(ctx: Ctx, row: BoardRow, s: SchemaSnapshot, view: AccessView, sprintId: string | null): Promise<{ items: Issue[]; laneOf: Map<string, string> | null }> {
+  const items = await issueDtos(ctx, await boardCardRows(ctx, row, view, sprintId));
+  const laneField = ownLanes(s, row);
+  if (!laneField) return { items, laneOf: null };
+  const laneOf = new Map(items.map((i) => [i.uid, laneIdOf(s, laneField, i)]));
+  return { items: await laneOrdered(ctx.db, row.id, items, (i) => i.uid, (i) => laneOf.get(i.uid)!), laneOf };
+}
+
 export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promise<BoardView> {
   requireScope(ctx, 'read');
   const row = await loadBoard(ctx, id);
@@ -374,9 +463,8 @@ export async function boardView(ctx: Ctx, id: string, sprintId?: string): Promis
   const readable = row.projectIds.filter((pid) => view.canRead(pid));
   const allSprints = await sprintDtos(ctx.db, view, await boardSprintRows(ctx.db, id), s);
   const sprint: Sprint | null = shownSprint(row, allSprints, sprintId);
-  // Cards are in the board's rank, the backlog's (D43).
-  const rows = await boardCardRows(ctx, row, view, sprint?.id ?? null);
-  const items = await issueDtos(ctx, rows);
+  // Cards are in the board's rank, the backlog's (D43), or, where its lanes keep their own, their lane's (D65).
+  const { items } = await boardCards(ctx, row, s, view, sprint?.id ?? null);
   const stored = row.columns as StoredColumn[];
   const columns = board.columns.map((c, i) => {
     const ids = new Set(stored[i]?.valueIds ?? []);

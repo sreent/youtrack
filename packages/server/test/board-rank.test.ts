@@ -1,7 +1,7 @@
 /**
  * Ranking cards on the board itself (D53): within a column and into another at a place, one change
- * to the issue's state and its place; a move a state machine refuses, refused whole; ranks spaced
- * out again when two neighbours are too close for a double; the backlog's permission; two people
+ * to the issue's state and its place; a move a state machine refuses, refused whole; keys written
+ * afresh before one would pass its limit (D65); the backlog's permission; two people
  * ranking one column at once; lanes; the event others see it by; and REST and MCP.
  */
 import type { Board } from '@a4a/shared';
@@ -9,7 +9,7 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { boardRanks, issues as issuesTable } from '../src/db/schema';
 import { createHttpApp } from '../src/http/app';
-import { placeAmong, rankIssue } from '../src/services/agile';
+import { rankIssue } from '../src/services/agile';
 import { eventFeed, issueActivity } from '../src/services/activity';
 import { issueTokenFor } from '../src/services/auth';
 import { boardView, createBoard } from '../src/services/boards';
@@ -19,6 +19,7 @@ import { createProject } from '../src/services/projects';
 import { insertUser } from '../src/services/users';
 import { toolByName } from '../src/tools/registry';
 import { createMachine } from '../src/workflow/machines';
+import { RANK_KEY_LIMIT, keyAt } from '@a4a/shared/ranks';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -41,18 +42,18 @@ async function column(name: string, b = board, ctx = w.as(w.anna)): Promise<stri
 
 const stateOf = async (id: string) => (await getIssue(w.adminCtx, id)).fields.find((f) => f.name === 'State')?.value as { name: string } | null;
 
-/** Every rank on a board, by summary. */
-async function ranks(b = board): Promise<Map<string, number>> {
-  const rows = await w.app.db.select({ summary: issuesTable.summary, rank: boardRanks.rank }).from(boardRanks).innerJoin(issuesTable, eq(issuesTable.id, boardRanks.issueId)).where(eq(boardRanks.boardId, b.id));
-  return new Map(rows.map((r) => [r.summary, r.rank]));
+/** Every key on a board, by summary (D65). */
+async function ranks(b = board): Promise<Map<string, string>> {
+  const rows = await w.app.db.select({ summary: issuesTable.summary, key: boardRanks.key }).from(boardRanks).innerJoin(issuesTable, eq(issuesTable.id, boardRanks.issueId)).where(eq(boardRanks.boardId, b.id));
+  return new Map(rows.map((r) => [r.summary, r.key]));
 }
 
-async function setRank(b: Board, issue: string, rank: number) {
+async function setRank(b: Board, issue: string, key: string) {
   const row = await findVisibleIssue(w.adminCtx, issue);
   await w.app.db
     .insert(boardRanks)
-    .values({ boardId: b.id, issueId: row!.id, rank })
-    .onConflictDoUpdate({ target: [boardRanks.boardId, boardRanks.issueId], set: { rank } });
+    .values({ boardId: b.id, issueId: row!.id, key })
+    .onConflictDoUpdate({ target: [boardRanks.boardId, boardRanks.issueId], set: { key } });
 }
 
 /** Issues made one after another, so their numbers (and the query's order) are theirs. */
@@ -77,50 +78,6 @@ beforeAll(async () => {
   });
 });
 afterAll(async () => w?.close());
-
-describe('the arithmetic of a place', () => {
-  const order = [
-    { id: 'a', rank: 1024 },
-    { id: 'b', rank: 2048 },
-    { id: 'c', rank: 3072 },
-  ];
-  it('takes the middle of the gap, or a step past either end', () => {
-    expect(placeAmong(order, 'x', 'a', 'after', null)).toEqual(new Map([['x', 1536]]));
-    expect(placeAmong(order, 'x', 'a', 'before', null)).toEqual(new Map([['x', 0]]));
-    expect(placeAmong(order, 'x', 'c', 'after', null)).toEqual(new Map([['x', 4096]]));
-    expect(placeAmong(order, 'x', null, 'before', null)).toEqual(new Map([['x', 0]]));
-    // Moving one of them leaves it out of the gap it's measured in.
-    expect(placeAmong(order, 'b', 'c', 'after', null)).toEqual(new Map([['b', 4096]]));
-  });
-
-  it('spaces every rank out again where a double has no room left, or two share one', () => {
-    const tight = [
-      { id: 'a', rank: 1 },
-      { id: 'b', rank: 1 + Number.EPSILON },
-      { id: 'c', rank: 2 },
-    ];
-    const respaced = placeAmong(tight, 'x', 'a', 'after', null);
-    expect([...respaced].sort((p, q) => p[1] - q[1]).map(([id]) => id)).toEqual(['a', 'x', 'b', 'c']);
-    expect([...respaced.values()].every((r) => r % 1024 === 0)).toBe(true);
-    const tied = placeAmong(
-      [
-        { id: 'a', rank: 5 },
-        { id: 'b', rank: 5 },
-      ],
-      'x',
-      'a',
-      'after',
-      null,
-    );
-    expect([...tied].sort((p, q) => p[1] - q[1]).map(([id]) => id)).toEqual(['a', 'x', 'b']);
-  });
-
-  it('gives an anchor without a rank, and those shown above it, places after the ranked ones', () => {
-    const writes = placeAmong([{ id: 'r', rank: 1024 }], 'x', 'u2', 'after', ['r', 'u1', 'x', 'u2', 'u3']);
-    expect([...writes].sort((p, q) => p[1] - q[1]).map(([id]) => id)).toEqual(['u1', 'u2', 'x']);
-    expect(writes.has('u3')).toBe(false);
-  });
-});
 
 describe('ranking on the board', () => {
   it('ranks a card within its column, in one order with the backlog, nothing jumping the first time', async () => {
@@ -247,16 +204,18 @@ describe('ranking on the board', () => {
     expect((await refused(() => rankIssue(w.as(w.anna), sprinted.id, { issue: mike!.id, after: november!.id, column: 'Open', sprint: 'nope' }))).words?.key).toBe('notFound.sprintUnnamed');
   });
 
-  it('spaces the board out again, in one transaction, when two neighbours are too close for a double', async () => {
+  it('writes the board’s keys afresh, in one transaction, before a key would pass its limit', async () => {
     const [oscar, papa, quebec] = await issues('RNK', ['Oscar', 'Papa', 'Quebec'], { State: 'Blocked' });
     const tight = await createBoard(w.as(w.ben), { name: 'Tight board', projects: ['RNK'], columns: [{ name: 'Blocked', values: ['Blocked'] }] });
-    await setRank(tight, oscar!.id, 1);
-    await setRank(tight, papa!.id, 1 + Number.EPSILON);
+    // Two neighbours whose keys leave room only for one longer than the limit (D65).
+    const long = 'a0' + '1'.repeat(RANK_KEY_LIMIT - 2);
+    await setRank(tight, oscar!.id, long);
+    await setRank(tight, papa!.id, long + '1');
     expect(await column('Blocked', tight)).toEqual(['Oscar', 'Papa', 'Quebec']);
     await rankIssue(w.as(w.anna), tight.id, { issue: quebec!.id, after: oscar!.id, column: 'Blocked' });
     expect(await column('Blocked', tight)).toEqual(['Oscar', 'Quebec', 'Papa']);
     const after = await ranks(tight);
-    expect([...after.values()].every((r) => r % 1024 === 0)).toBe(true);
+    expect([...after.values()].every((k) => k.length <= 4)).toBe(true);
     expect(new Set(after.values()).size).toBe(after.size);
   });
 
@@ -264,7 +223,7 @@ describe('ranking on the board', () => {
     const ctx = w.as(w.anna);
     const [romeo, sierra, tango, uniform] = await issues('RNK', ['Romeo', 'Sierra', 'Tango', 'Uniform'], { State: 'In Review' });
     const busy = await createBoard(w.as(w.ben), { name: 'Busy board', projects: ['RNK'], columns: [{ name: 'In Review', values: ['In Review'] }, { name: 'Done', values: ['Fixed'] }] });
-    for (const [i, x] of [romeo, sierra, tango, uniform].entries()) await setRank(busy, x!.id, (i + 1) * 1024);
+    for (const [i, x] of [romeo, sierra, tango, uniform].entries()) await setRank(busy, x!.id, keyAt(i));
     // Both just after Romeo: each lands right after it, the later of the two first.
     await Promise.all([
       rankIssue(ctx, busy.id, { issue: tango!.id, after: romeo!.id, column: 'In Review' }),
@@ -274,8 +233,10 @@ describe('ranking on the board', () => {
     expect(shown[0]).toBe('Romeo');
     expect(shown.slice(1, 3).sort()).toEqual(['Tango', 'Uniform']);
     expect(shown[3]).toBe('Sierra');
-    // Into a gap with no room left, at once: one spaces the board out, the other places itself among what that left.
-    await setRank(busy, sierra!.id, (await ranks(busy)).get('Romeo')! + Number.EPSILON * 1024);
+    // Into a gap that takes a key past its limit, at once: one writes the board's keys afresh, the other places itself among what that left.
+    const romeoKey = (await ranks(busy)).get('Romeo')!;
+    await setRank(busy, romeo!.id, romeoKey + '1'.repeat(RANK_KEY_LIMIT));
+    await setRank(busy, sierra!.id, romeoKey + '1'.repeat(RANK_KEY_LIMIT) + '1');
     await Promise.all([
       rankIssue(ctx, busy.id, { issue: tango!.id, after: romeo!.id, column: 'In Review' }),
       rankIssue(w.as(w.ben), busy.id, { issue: uniform!.id, before: sierra!.id, column: 'In Review' }),

@@ -1075,6 +1075,10 @@ export const BoardSchema = z
     backlogQuery: z.string().nullable().describe('What its backlog holds; null: #Unresolved, or left out, as its query is (D64)'),
     pointsField: z.string().nullable().describe('The field its story points are in'),
     sprintsEnabled: z.boolean(),
+    laneOrder: z
+      .boolean()
+      .describe("Whether each swimlane keeps its own order (D65): cards are ranked among their lane's cards, and the backlog keeps the board's order. Off: one order for the board, its lanes included (D53)"),
+    manageable: z.boolean().describe("Whether you may change the board's settings: you manage boards in every project on it"),
   })
   .meta({ id: 'Board' });
 export type Board = z.infer<typeof BoardSchema>;
@@ -1092,6 +1096,10 @@ export const BoardBody = z.object({
   backlogQuery: z.string().max(1000).nullable().optional().describe('What its backlog holds; #Unresolved by default'),
   pointsField: z.string().nullable().optional().describe('A number or period field to sum as story points'),
   sprintsEnabled: z.boolean().default(false),
+  laneOrder: z
+    .boolean()
+    .optional()
+    .describe("Whether each swimlane keeps its own order (D65), off by default. Turning it off keeps the lanes' places for when it's on again; choosing another swimlane field forgets them"),
 });
 
 export const BoardViewSchema = z
@@ -1108,7 +1116,11 @@ export const BoardViewSchema = z
     ),
     points: z.number().nullable().describe('Story points of every issue shown; null without a points field'),
     swimlanes: z.array(z.string()).describe('Swimlane values in display order (empty when no swimlane field)'),
-    order: z.array(z.string()).describe("Every card's id in the board's order (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it"),
+    order: z
+      .array(z.string())
+      .describe(
+        "Every card's id in the order the board shows them (D43, D53): ranked first, then the rest in the query's order. Each column and lane shows its cards in it. Where lanes keep their own order (D65), each lane's cards are in the lane's order among themselves: placed in the lane first, then the rest in the board's order",
+      ),
   })
   .meta({ id: 'BoardView' });
 export type BoardView = z.infer<typeof BoardViewSchema>;

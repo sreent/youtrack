@@ -3,10 +3,12 @@
  * the board too, D53), story points, velocity, and a sprint’s load against what its people can work.
  */
 import { WELL_KNOWN_FIELDS, type Backlog, type Change, type Issue, type RankInput, type SprintPlan, type Velocity } from '@a4a/shared';
+import { RANK_KEY_LIMIT, keyBetween, keysBetween } from '@a4a/shared/ranks';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { requireScope, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { boardRanks, boards, issues, sprintIssues, sprints, users, workItems } from '../db/schema';
+import { boardLaneRanks, boardMoves, boardRanks, boards, issues, sprintIssues, sprints, users, workItems } from '../db/schema';
+import { translatorFor } from '../i18n';
 import { publishActivities, recordActivity, type ActivityRow } from '../events/activity';
 import { diffDays } from '../lib/dates';
 import { badRequest, notFound } from '../lib/errors';
@@ -16,8 +18,26 @@ import type { PlanResource } from '../planning/types';
 import { todayIn } from '../reports/tz';
 import { searchIssueRows } from '../search/service';
 import { absencesForPlan } from './absences';
-import { assertCanWriteProject, projectAccess } from './access';
-import { MAX_BOARD_ISSUES, boardCardRows, boardSprintRows, loadBoard, loadSprint, pointsOf, rankRows, shownSprint, sprintDtos, sumPoints, type BoardRow } from './boards';
+import { assertCanWriteProject, projectAccess, type AccessView } from './access';
+import {
+  MAX_BOARD_ISSUES,
+  boardCardRows,
+  boardCards,
+  boardSprintRows,
+  laneIdNamed,
+  laneIdOf,
+  loadBoard,
+  loadSprint,
+  ownLanes,
+  pointsOf,
+  rankRows,
+  scoped,
+  shownSprint,
+  sprintDtos,
+  sumPoints,
+  type BoardRow,
+} from './boards';
+import { rewriteKeys } from './rank-keys';
 import { issueRefsById, readableId, type IssueRow } from './issue-refs';
 import { applyChanges, fieldValuesOf, issueDtos, resolveFieldsInput, resolveIssue, type FieldChangeSpec } from './issues';
 import { projectSettings } from './projects';
@@ -28,8 +48,6 @@ import { userRefDto, type ResolvedValue } from './values';
 
 /** What a backlog holds when its board doesn't say. */
 export const DEFAULT_BACKLOG_QUERY = '#Unresolved';
-/** Gaps between ranks: room for many moves before the board's ranks are renumbered. */
-const RANK_STEP = 1024;
 /** The sprints a velocity chart shows, at most: the latest. */
 const VELOCITY_SPRINTS = 12;
 
@@ -37,7 +55,7 @@ const VELOCITY_SPRINTS = 12;
  * The backlog's issues: the board's backlog query in the projects the caller can read, without the
  * issues of its open sprints (not archived, and not over), in rank order.
  */
-async function backlogRows(ctx: Ctx, board: BoardRow): Promise<{ rows: IssueRow[]; ranks: Map<string, number>; total: number; query: string }> {
+async function backlogRows(ctx: Ctx, board: BoardRow): Promise<{ rows: IssueRow[]; ranks: Map<string, string>; total: number; query: string }> {
   const view = await projectAccess(ctx);
   const readable = board.projectIds.filter((id) => view.canRead(id));
   const query = board.backlogQuery ?? DEFAULT_BACKLOG_QUERY;
@@ -77,52 +95,71 @@ interface StoredColumn {
 }
 
 /**
- * Where an issue goes among a board's ranks (D43): the ranks to write to put it just after or
- * just before the anchor, or at the top without one. `order` is the board's ranked issues, lowest
- * first. Ranks are numbers with gaps, and a move takes the middle of the gap. An anchor without a
- * rank first gives itself, and those without one shown above it, places after the ranked ones, in
- * the order shown, so nothing on the screen jumps. When the gap is too small for a double to
- * split, every rank on the board is spaced out again, in the order they're in.
+ * The order a move reads and writes (D65): the board's own (`lane` null), shared by its backlog and its
+ * cards; or one lane's, on a board whose lanes keep their own. Both through an index on (board, [lane,]
+ * key), so a move reads its anchor's key and the next one, and nothing else of the board.
  */
-export function placeAmong(order: readonly { id: string; rank: number }[], issueId: string, anchor: string | null, side: 'after' | 'before', shown: readonly string[] | null): Map<string, number> {
-  const list = order.filter((o) => o.id !== issueId);
-  const writes = new Map<string, number>();
-  if (anchor && !list.some((o) => o.id === anchor)) {
-    const ranked = new Set(list.map((o) => o.id));
-    const seen = (shown ?? []).filter((id) => id !== issueId);
-    const at = seen.indexOf(anchor);
-    const run = at >= 0 ? seen.slice(0, at + 1).filter((id) => !ranked.has(id)) : [anchor];
-    let last = list.at(-1)?.rank ?? 0;
-    for (const id of run) {
-      last += RANK_STEP;
-      list.push({ id, rank: last });
-      writes.set(id, last);
-    }
-  }
-  const i = anchor ? list.findIndex((o) => o.id === anchor) : -1;
-  const pos = !anchor ? 0 : side === 'after' ? i + 1 : i;
-  const prev = list[pos - 1]?.rank;
-  const next = list[pos]?.rank;
-  let rank = prev === undefined && next === undefined ? RANK_STEP : prev === undefined ? next! - RANK_STEP : next === undefined ? prev + RANK_STEP : (prev + next) / 2;
-  const fits = Number.isFinite(rank) && (prev === undefined || rank > prev) && (next === undefined || rank < next);
-  if (!fits) {
-    // No room left between its neighbours (or two share a rank): space the board's ranks out again.
-    list.splice(pos, 0, { id: issueId, rank: 0 });
-    list.forEach((o, k) => writes.set(o.id, (k + 1) * RANK_STEP));
-    rank = (pos + 1) * RANK_STEP;
-  }
-  writes.set(issueId, rank);
-  return writes;
+export interface PlaceOrder {
+  boardId: string;
+  lane: string | null;
 }
 
-/** Whether the issue already sits where it's asked to go: just after or before the anchor, or first. */
-function alreadyThere(order: readonly { id: string; rank: number }[], issueId: string, anchor: string | null, side: 'after' | 'before'): boolean {
-  const at = order.findIndex((o) => o.id === issueId);
-  if (at < 0) return false;
-  const me = order[at]!.rank;
-  if (!anchor) return at === 0 && (order[1]?.rank ?? Infinity) > me;
-  const other = side === 'after' ? order[at - 1] : order[at + 1];
-  return other?.id === anchor && (side === 'after' ? other.rank < me : other.rank > me);
+const tableOf = (o: PlaceOrder) => (o.lane === null ? sql`board_ranks` : sql`board_lane_ranks`);
+const inOrder = (o: PlaceOrder) => (o.lane === null ? sql`board_id = ${o.boardId}` : sql`board_id = ${o.boardId} AND lane = ${o.lane}`);
+const rowsOf = <T>(res: unknown) => (res as { rows: T[] }).rows;
+
+/** The keys some issues have in the order, by issue. */
+async function keysOf(tx: Db, o: PlaceOrder, ids: readonly string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const res = await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)} AND issue_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
+  return new Map(rowsOf<{ issue_id: string; key: string }>(res).map((r) => [r.issue_id, r.key]));
+}
+
+/** The place next to a key: the first after it (or the first of all, for none), or the last before it. */
+async function nextTo(tx: Db, o: PlaceOrder, key: string | null, side: 'after' | 'before'): Promise<{ id: string; key: string } | null> {
+  const res =
+    side === 'after'
+      ? await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key > ${key}`} ORDER BY key, issue_id LIMIT 1`)
+      : await tx.execute(sql`SELECT issue_id, key FROM ${tableOf(o)} WHERE ${inOrder(o)}${key === null ? sql`` : sql` AND key < ${key}`} ORDER BY key DESC, issue_id DESC LIMIT 1`);
+  const row = rowsOf<{ issue_id: string; key: string }>(res)[0];
+  return row ? { id: row.issue_id, key: row.key } : null;
+}
+
+/**
+ * Where an issue goes in an order (D43, D65): the keys to write so it sits just after or just before
+ * the anchor, or first without one; null when it's there already. It reads the anchor's key and the
+ * one next to it, and writes one key. An anchor without a place first gives itself, and those shown
+ * above it without one, places after the placed ones, in the order shown, so nothing on the screen
+ * jumps. A key past `RANK_KEY_LIMIT` is never written: the order's keys are written afresh, under the
+ * board's lock the move holds, and the place is found again among them.
+ */
+export async function placeIn(tx: Db, o: PlaceOrder, issueId: string, anchor: string | null, side: 'after' | 'before', shown: readonly string[] | null, rewritten = false): Promise<Map<string, string> | null> {
+  const writes = new Map<string, string>();
+  let key: string;
+  const anchorKey = anchor ? ((await keysOf(tx, o, [anchor])).get(anchor) ?? null) : null;
+  if (anchor && anchorKey === null) {
+    const seen = (shown ?? []).filter((id) => id !== issueId);
+    const at = seen.indexOf(anchor);
+    const upTo = at >= 0 ? seen.slice(0, at + 1) : [anchor];
+    const placed = await keysOf(tx, o, upTo);
+    const run = upTo.filter((id) => !placed.has(id));
+    const last = (await nextTo(tx, o, null, 'before'))?.key ?? null;
+    const keys = keysBetween(last, null, run.length);
+    run.forEach((id, i) => writes.set(id, keys[i]!));
+    const own = writes.get(anchor)!;
+    key = side === 'after' ? keyBetween(own, null) : keyBetween(keys[run.length - 2] ?? last, own);
+  } else {
+    const next = await nextTo(tx, o, anchorKey, anchor ? side : 'after');
+    // Just after (or before) the anchor already, or first already: nothing to write.
+    if (next?.id === issueId) return null;
+    key = !anchor ? keyBetween(null, next?.key ?? null) : side === 'after' ? keyBetween(anchorKey, next?.key ?? null) : keyBetween(next?.key ?? null, anchorKey);
+  }
+  if (key.length > RANK_KEY_LIMIT && !rewritten) {
+    await rewriteKeys(tx, o.boardId, o.lane ?? undefined);
+    return placeIn(tx, o, issueId, anchor, side, shown, true);
+  }
+  writes.set(issueId, key);
+  return writes;
 }
 
 /** A board's column by its name, as people and agents say it. */
@@ -176,8 +213,68 @@ async function cardFields(tx: Db, ctx: Ctx, s: SchemaSnapshot, board: BoardRow, 
   return resolveFieldsInput(s, project, input, ctx.actor.user.id, todayIn(zoneOf(ctx)), zoneOf(ctx));
 }
 
-/** Rows written a thousand at a time, so a board of any size stays within a statement's parameters. */
-const WRITE_CHUNK = 1000;
+/** Keys written to an order: a card's place in the board's order, or its one place in a lane (D65). */
+async function writeKeys(tx: Db, o: PlaceOrder, rows: [string, string][]): Promise<void> {
+  if (!rows.length) return;
+  if (o.lane === null) {
+    await tx
+      .insert(boardRanks)
+      .values(rows.map(([issueId, key]) => ({ boardId: o.boardId, issueId, key })))
+      .onConflictDoUpdate({ target: [boardRanks.boardId, boardRanks.issueId], set: { key: sql`excluded.key` } });
+    return;
+  }
+  await tx
+    .insert(boardLaneRanks)
+    .values(rows.map(([issueId, key]) => ({ boardId: o.boardId, issueId, lane: o.lane!, key })))
+    .onConflictDoUpdate({ target: [boardLaneRanks.boardId, boardLaneRanks.issueId], set: { lane: sql`excluded.lane`, key: sql`excluded.key` } });
+}
+
+/** What the board showed, for an anchor without a place: its cards in the sprint shown, in order, or its lane's (D65). */
+async function shownOnBoard(ctx: Ctx, board: BoardRow, seen: { s: SchemaSnapshot; view: AccessView }, sprintId: string | null, lane: string | null): Promise<string[]> {
+  if (lane === null) return (await boardCardRows(ctx, board, seen.view, sprintId)).map((r) => r.id);
+  const { items, laneOf } = await boardCards(ctx, board, seen.s, seen.view, sprintId);
+  return items.filter((i) => laneOf?.get(i.uid) === lane).map((i) => i.uid);
+}
+
+/** How long after a line's first move another by the same person on the same board folds into it (D65). */
+export const MOVE_FOLD_MINUTES = 10;
+
+/**
+ * A move's line in its issue's history (D65): folded into the issue's latest line when that is one
+ * by the same person, through the same channel, on the same board, begun within ten minutes, and
+ * nothing else has happened to the issue since; a new one otherwise. Its place is a kept note (D49):
+ * the anchor's id and the board's name as they were, said for each reader with what they may see.
+ */
+async function keepMove(tx: Db, ctx: Ctx, m: { issueId: string; board: BoardRow; anchorId: string | null; anchorRef: string; side: 'above' | 'below' | 'top'; eventId: number }) {
+  const actorId = ctx.actor.authMethod === 'system' && ctx.actor.user.id === 'system' ? null : ctx.actor.user.id;
+  const said = { key: 'boards.history.moved', values: { side: m.side, anchor: m.anchorRef, onBoard: 'yes', board: m.board.name } };
+  const note = translatorFor('en').t(said.key, said.values);
+  const latest = sql`(SELECT id FROM board_moves WHERE issue_id = ${m.issueId} ORDER BY last_event_id DESC LIMIT 1)`;
+  const [open] = await tx
+    .select({ id: boardMoves.id })
+    .from(boardMoves)
+    .where(
+      and(
+        sql`${boardMoves.id} = ${latest}`,
+        eq(boardMoves.boardId, m.board.id),
+        sql`${boardMoves.actorId} IS NOT DISTINCT FROM ${actorId}`,
+        eq(boardMoves.channel, ctx.actor.channel),
+        sql`${boardMoves.tokenName} IS NOT DISTINCT FROM ${ctx.actor.tokenName ?? null}`,
+        sql`${boardMoves.firstAt} > now() - make_interval(mins => ${MOVE_FOLD_MINUTES})`,
+        sql`NOT EXISTS (SELECT 1 FROM activities a WHERE a.issue_id = ${m.issueId} AND a.id > ${boardMoves.lastEventId} AND a.id < ${m.eventId} AND a.type <> 'board.issue_ranked')`,
+      ),
+    )
+    .for('update');
+  const line = { anchorId: m.anchorId, side: m.side, lastEventId: m.eventId, note, said };
+  if (open) {
+    await tx
+      .update(boardMoves)
+      .set({ ...line, moves: sql`${boardMoves.moves} + 1`, lastAt: sql`now()` })
+      .where(eq(boardMoves.id, open.id));
+    return;
+  }
+  await tx.insert(boardMoves).values({ ...line, issueId: m.issueId, boardId: m.board.id, actorId, channel: ctx.actor.channel, tokenName: ctx.actor.tokenName ?? null });
+}
 
 /**
  * Puts an issue just after or just before another in the board's order, or at the top (D43); and,
@@ -186,12 +283,16 @@ const WRITE_CHUNK = 1000;
  * that refuses it refuses the move whole, and the issue keeps its place.
  *
  * - The board's row is locked for the move (FOR NO KEY UPDATE), so two people ranking at once each
- *   place their issue among the ranks the other left, and a respacing never crosses a move.
+ *   place their issue among the keys the other left: two put just after one card both land after it,
+ *   the later first; and keys written afresh never cross a move (D65).
+ * - A move reads its anchor's key and the one next to it, and writes one row (D65).
+ * - On a board whose lanes keep their own order (D65), a card moved on the board takes its place in
+ *   the order of the lane it goes into, or is in; the backlog keeps the board's.
  * - On the board, with neither after nor before, the issue keeps its place: it shows in its new
- *   column where the board's order puts it.
- * - An anchor without a rank is placed among what was shown: the board's cards in the sprint
- *   shown, or the backlog. That's read before the transaction (the search runs on its own
- *   connection; PGlite has one), and only issues that still exist are written.
+ *   column where the board's order (or its lane's) puts it.
+ * - An anchor without a place is placed among what was shown: the board's cards in the sprint
+ *   shown (its lane's, for a lane's order), or the backlog. That's read before the transaction (the
+ *   search runs on its own connection; PGlite has one), and only issues that still exist are written.
  */
 export async function rankIssue(ctx: Ctx, boardId: string, input: RankInput, opts: { dryRun?: boolean } = {}): Promise<RankOutcome> {
   requireScope(ctx, opts.dryRun ? 'read' : 'write');
@@ -218,15 +319,13 @@ export async function rankIssue(ctx: Ctx, boardId: string, input: RankInput, opt
   }
   const sprint = onTheBoard && board.sprintsEnabled ? shownSprint(board, await boardSprintRows(ctx.db, board.id), input.sprint) : null;
   const keepPlace = onTheBoard && !anchor;
-  const anchorRanked = anchor
-    ? (await ctx.db.select({ issueId: boardRanks.issueId }).from(boardRanks).where(and(eq(boardRanks.boardId, board.id), eq(boardRanks.issueId, anchor.id)))).length > 0
-    : true;
-  const shown =
-    anchor && !anchorRanked && !opts.dryRun
-      ? onTheBoard
-        ? (await boardCardRows(ctx, board, await projectAccess(ctx), sprint?.id ?? null)).map((r) => r.id)
-        : (await backlogRows(ctx, board)).rows.map((r) => r.id)
-      : null;
+  // A lane's own order (D65): on the board, the lane the card goes into, or is in, as the caller sees it.
+  const seen = await scoped(ctx);
+  const laneField = onTheBoard ? ownLanes(seen.s, board) : null;
+  const lane = laneField ? (input.lane !== undefined ? laneIdNamed(s, laneField, input.lane) : laneIdOf(seen.s, laneField, (await issueDtos(ctx, [issue]))[0]!)) : null;
+  const order: PlaceOrder = { boardId: board.id, lane };
+  const anchorPlaced = anchor ? (await keysOf(ctx.db, order, [anchor.id])).size > 0 : true;
+  const shown = anchor && !anchorPlaced && !opts.dryRun ? (onTheBoard ? await shownOnBoard(ctx, board, seen, sprint?.id ?? null, lane) : (await backlogRows(ctx, board)).rows.map((r) => r.id)) : null;
 
   if (opts.dryRun) {
     // A preview: the dry run of its fields' change, which writes nothing.
@@ -248,30 +347,17 @@ export async function rankIssue(ctx: Ctx, boardId: string, input: RankInput, opt
     if (applied) out.push(...applied.activities);
     const changes = applied?.changes ?? [];
     if (keepPlace) return { outcome: { changes, placed: false }, recorded: out };
-    const order = (await tx.select().from(boardRanks).where(eq(boardRanks.boardId, board.id)).orderBy(asc(boardRanks.rank), asc(boardRanks.issueId))).map((r) => ({ id: r.issueId, rank: r.rank }));
-    if (alreadyThere(order, issue.id, anchor?.id ?? null, side)) return { outcome: { changes, placed: false }, recorded: out };
-    const writes = placeAmong(order, issue.id, anchor?.id ?? null, side, shown);
-    // Those without a place until now are new rows: each is locked against being deleted meanwhile,
-    // and one that has gone since the board was read is left out.
-    const ranked = new Set(order.map((o) => o.id));
-    const fresh = [...writes.keys()].filter((id) => !ranked.has(id));
-    const alive = new Set(fresh.length ? (await tx.select({ id: issues.id }).from(issues).where(inArray(issues.id, fresh)).for('key share')).map((r) => r.id) : []);
-    if (!ranked.has(issue.id) && !alive.has(issue.id)) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.').said('issues.notFound', { id: input.issue });
-    const updates = [...writes].filter(([id]) => ranked.has(id));
-    for (let k = 0; k < updates.length; k += WRITE_CHUNK) {
-      const rows = updates.slice(k, k + WRITE_CHUNK).map(([id, rank]) => sql`(${id}, ${rank}::double precision)`);
-      // A rank whose issue was deleted meanwhile went with it: the update finds nothing to change.
-      await tx.execute(sql`UPDATE board_ranks AS br SET rank = v.rank FROM (VALUES ${sql.join(rows, sql`, `)}) AS v(issue_id, rank) WHERE br.board_id = ${board.id} AND br.issue_id = v.issue_id`);
-    }
-    const inserts = [...writes].filter(([id]) => alive.has(id)).map(([issueId, rank]) => ({ boardId: board.id, issueId, rank }));
-    for (let k = 0; k < inserts.length; k += WRITE_CHUNK) {
-      await tx
-        .insert(boardRanks)
-        .values(inserts.slice(k, k + WRITE_CHUNK))
-        .onConflictDoUpdate({ target: [boardRanks.boardId, boardRanks.issueId], set: { rank: sql`excluded.rank` } });
-    }
+    const writes = await placeIn(tx, order, issue.id, anchor?.id ?? null, side, shown);
+    if (!writes) return { outcome: { changes, placed: false }, recorded: out };
+    // Each issue given a place is locked against being deleted meanwhile; one gone since the board was
+    // read is left out, and the issue moved gone is missing.
+    const alive = new Set((await tx.select({ id: issues.id }).from(issues).where(inArray(issues.id, [...writes.keys()])).for('key share')).map((r) => r.id));
+    if (!alive.has(issue.id)) throw notFound(`Issue ${input.issue}`, 'Use a readable id such as BACK-12.').said('issues.notFound', { id: input.issue });
+    await writeKeys(tx, order, [...writes].filter(([id]) => alive.has(id)));
     const ref = (await issueRefsById(tx, await ctx.app.schema.get(tx), [issue.id])).get(issue.id);
-    out.push(await recordActivity(tx, ctx, { type: 'board.issue_ranked', projectId: issue.projectId, issueId: issue.id, payload: { issue: ref, data: { boardId: board.id, board: board.name } } }));
+    const ranked = await recordActivity(tx, ctx, { type: 'board.issue_ranked', projectId: issue.projectId, issueId: issue.id, payload: { issue: ref, data: { boardId: board.id, board: board.name } } });
+    out.push(ranked);
+    await keepMove(tx, ctx, { issueId: issue.id, board, anchorId: anchor?.id ?? null, anchorRef: anchor ? readableId(s, anchor) : '', side: !anchor ? 'top' : side === 'after' ? 'below' : 'above', eventId: ranked.id });
     return { outcome: { changes, placed: true }, recorded: out };
   });
   await publishActivities(ctx.app, recorded);
