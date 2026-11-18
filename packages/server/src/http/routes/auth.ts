@@ -24,10 +24,11 @@ import { seedDemo } from '../../db/seed';
 import { serverTimeZone } from '../../reports/tz';
 import { AppError, badRequest, unauthorized } from '../../lib/errors';
 import { projectAccess } from '../../services/access';
-import { createToken, listTokens, login, logout, needsSetup, passwordUser, revokeToken, SESSION_COOKIE, startSession, updateToken } from '../../services/auth';
+import { createToken, listTokens, login, logout, needsSetup, passwordUser, revokeToken, SESSION_COOKIE, startSession, updateToken, type SignInHow } from '../../services/auth';
+import { hasWorkingPasskey, mayHavePasskeys, passkeysOff } from '../../services/passkeys';
 import { ldapSignIn } from '../../services/ldap';
 import type { UserRow } from '../../services/schema-cache';
-import { issueTicket, secondStepFor, TICKET_COOKIE, TICKET_COOKIE_PATH } from '../../services/two-factor';
+import { hasTwoFactor, issueTicket, secondStepFor, TICKET_COOKIE, TICKET_COOKIE_PATH } from '../../services/two-factor';
 import { beginLoginAttempt, waitInWords } from '../../services/login-throttle';
 import { getSetting, setSetting } from '../../services/settings';
 import { insertUser, updateMe, userDto } from '../../services/users';
@@ -71,6 +72,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
         sso: sso ? { name: sso.name, url: '/api/v1/auth/oidc/start' } : null,
         saml: saml ? { name: saml.name, url: '/api/v1/auth/saml/start' } : null,
         ldap: runtime.config.ldap ? { name: runtime.config.ldap.name } : null,
+        passkey: (await passkeysOff(runtime)) === null,
       },
       mcpOAuth: oauthOn(runtime.config),
     };
@@ -121,7 +123,7 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: 'Sign in with login and password (sets a session cookie)',
       description:
-        'The password is a4a’s own, or one an LDAP directory checks. When two-factor sign-in is on for the person, or this server asks it of everyone, the answer is `{ "step": "two_factor" }` or `{ "step": "two_factor_setup" }` and a short-lived cookie; finish with `POST /auth/two-factor/verify`, or `/auth/two-factor/setup` then `/auth/two-factor/setup/confirm`.',
+        'The password is a4a’s own, or one an LDAP directory checks. When two-factor sign-in is on for the person, or this server asks it of everyone, the answer is `{ "step": "two_factor" }` or `{ "step": "two_factor_setup" }` and a short-lived cookie; finish with `POST /auth/two-factor/verify` (a code), `POST /auth/two-factor/passkey` (one of their passkeys, where `passkey` is true), or `/auth/two-factor/setup` then `/auth/two-factor/setup/confirm`.',
       auth: 'none',
       body: LoginBody,
       response: z.union([MeSchema, SignInStepSchema]),
@@ -141,10 +143,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
         return c.json(errorBody('rate_limited', 'Too many sign-in attempts', `Try again in ${waitInWords(attempt.wait)}`, undefined, { key: 'tooManySignIns', values: { minutes: Math.max(1, Math.ceil(attempt.wait / 60)) } }), 429);
       }
       // a4a's own password first, then the directory's (D38).
-      const user = (runtime.config.passwordLogin ? await passwordUser(runtime.db, body.login, body.password) : null) ?? (ldap ? await ldapSignIn(runtime, ldap, body.login, body.password) : null);
+      const own = runtime.config.passwordLogin ? await passwordUser(runtime.db, body.login, body.password) : null;
+      const user = own ?? (ldap ? await ldapSignIn(runtime, ldap, body.login, body.password) : null);
       if (!user) throw unauthorized('Wrong login or password').said('wrongLogin');
       await attempt.succeeded();
-      return afterPassword(c, runtime, user);
+      return afterPassword(c, runtime, user, own ? 'password' : 'ldap');
     },
   );
 
@@ -205,10 +208,11 @@ export function authRoutes(app: OpenAPIHono<HttpEnv>) {
   });
 }
 
-/** A password was right: a session, or first the step two-factor sign-in still asks for (D38). */
-async function afterPassword(c: Context<HttpEnv>, runtime: Runtime, user: UserRow): Promise<Me | SignInStep> {
-  const step = await secondStepFor(runtime.db, user.id);
-  if (!step) return startSessionFor(c, runtime, user);
+/** A password was right: a session, or first the step two-factor sign-in still asks for (D38): a code, or a passkey (D62). */
+async function afterPassword(c: Context<HttpEnv>, runtime: Runtime, user: UserRow, first: 'password' | 'ldap'): Promise<Me | SignInStep> {
+  const passkey = mayHavePasskeys(user) && (await passkeysOff(runtime)) === null && (await hasWorkingPasskey(runtime, user.id));
+  const step = await secondStepFor(runtime.db, user.id, passkey);
+  if (!step) return startSessionFor(c, runtime, user, { with: first });
   const ticket = await issueTicket(runtime.db, user.id, step);
   setCookie(c, TICKET_COOKIE, ticket.token, {
     httpOnly: true,
@@ -217,12 +221,12 @@ async function afterPassword(c: Context<HttpEnv>, runtime: Runtime, user: UserRo
     secure: runtime.config.publicUrl.startsWith('https://'),
     expires: ticket.expiresAt,
   });
-  return { step: step === 'verify' ? 'two_factor' : 'two_factor_setup' };
+  return step === 'verify' ? { step: 'two_factor', code: await hasTwoFactor(runtime.db, user.id), passkey } : { step: 'two_factor_setup' };
 }
 
-/** Signed in: a new session, its cookie, and who they are. */
-export async function startSessionFor(c: Context<HttpEnv>, runtime: Runtime, user: UserRow): Promise<Me> {
-  const session = await startSession(runtime.db, user.id, runtime.config.sessionTtlDays, c.req.header('user-agent'));
+/** Signed in: a new session, its cookie, and who they are. The session says how (D62). */
+export async function startSessionFor(c: Context<HttpEnv>, runtime: Runtime, user: UserRow, how: SignInHow): Promise<Me> {
+  const session = await startSession(runtime.db, user.id, runtime.config.sessionTtlDays, c.req.header('user-agent'), how);
   setSessionCookie(c, runtime.config.publicUrl, session.token, session.expiresAt);
   return meDto({
     app: runtime,

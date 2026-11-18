@@ -25,6 +25,7 @@ import { AppError } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { accessChanged } from './access';
 import { startSession } from './auth';
+import { passkeyCounts } from './passkeys';
 import { providerGroupNames, syncProviderGroups } from './groups';
 import type { UserRow } from './schema-cache';
 import { insertUser } from './users';
@@ -167,7 +168,7 @@ export async function finishSignIn(app: AppServices, query: URLSearchParams, bro
   }
   if (!claims?.sub) throw new SsoError('failed', `${cfg.name} didn't say who you are`);
   const user = await personFor(app, cfg, claims);
-  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent);
+  const session = await startSession(app.db, user.id, app.config.sessionTtlDays, userAgent, { with: 'oidc' });
   return { user, ...session, returnTo: pending.returnTo };
 }
 
@@ -345,6 +346,10 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     }
   };
   const ids = people.map((u) => u.id);
+  const passkeys = await passkeyCounts(db, ids);
+  const lastSignIn = new Map(
+    ids.length ? (await db.select({ id: users.id, at: users.lastSignInAt }).from(users).where(inArray(users.id, ids))).map((r) => [r.id, r.at?.toISOString() ?? null]) : [],
+  );
   const twoFactor = new Set(
     ids.length ? (await db.select({ userId: userTotp.userId }).from(userTotp).where(and(inArray(userTotp.userId, ids), isNotNull(userTotp.confirmedAt)))).map((r) => r.userId) : [],
   );
@@ -353,6 +358,8 @@ export async function signInsOf(app: AppServices, db: Db, people: UserRow[]): Pr
     out.set(u.id, {
       password: Boolean(u.passwordHash),
       twoFactor: twoFactor.has(u.id),
+      passkeys: passkeys.get(u.id) ?? 0,
+      lastSignInAt: lastSignIn.get(u.id) ?? null,
       provisioned: provisioned.has(u.id),
       emailConfirmed: Boolean(u.email) && u.emailVerified,
       identities: links

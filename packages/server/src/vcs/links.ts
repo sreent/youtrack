@@ -50,6 +50,7 @@ export const NOBODY = {
   workWeek: null,
   timeZone: null,
   locale: null,
+  lastSignInAt: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
 } satisfies UserRow;

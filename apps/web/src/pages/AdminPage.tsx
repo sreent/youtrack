@@ -38,9 +38,14 @@ function signsInWith(user: User, ways: SignInWays): { words: string; about: stri
   if (user.isBot) return { words: t('page.admin.tokensOnly'), about: null };
   const providers = [...new Set((user.signIn?.identities ?? []).map((i) => i.provider))];
   const now = [...(user.signIn?.password && ways.passwords ? [t('page.admin.password')] : []), ...providers];
-  const last = (user.signIn?.identities ?? []).map((i) => i.lastSignInAt).filter((t): t is string => Boolean(t)).sort().at(-1);
-  // Two-factor and provisioning (D38) say how, beside where.
-  const also = [user.signIn?.twoFactor ? t('page.admin.withTwoFactor') : null, user.signIn?.provisioned ? t('page.admin.provisioned') : null, last ? t('page.admin.last', { when: agoSaid(last) }) : null].filter(Boolean);
+  const last = [...(user.signIn?.identities ?? []).map((i) => i.lastSignInAt), user.signIn?.lastSignInAt].filter((t): t is string => Boolean(t)).sort().at(-1);
+  // Two-factor, passkeys and provisioning (D38, D62) say how, beside where.
+  const also = [
+    user.signIn?.twoFactor ? t('page.admin.withTwoFactor') : null,
+    user.signIn?.passkeys ? t('page.admin.withPasskeys', { n: user.signIn.passkeys }) : null,
+    user.signIn?.provisioned ? t('page.admin.provisioned') : null,
+    last ? t('page.admin.last', { when: agoSaid(last) }) : null,
+  ].filter(Boolean);
   if (now.length) return { words: formatList(now), about: also.length ? also.join(' · ') : null };
   if (ways.sso && user.email && user.signIn?.emailConfirmed) return { words: t('page.admin.notYet'), about: t('page.admin.findsThemByEmail', { name: ways.sso.name }) };
   if (ways.sso && user.email) return { words: t('page.admin.notYet'), about: t('page.admin.onceTheirEmailIsConfirmed') };
@@ -88,6 +93,14 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
     mutationFn: () => del(`/users/${user.id}/two-factor`),
     onSuccess: () => {
       setSaid({ text: t('page.admin.sTwoFactorSignIn', { name: user.name }) });
+      void qc.invalidateQueries({ queryKey: keys.users });
+    },
+    onError: (e) => setSaid({ text: errorText(e), bad: true }),
+  });
+  const unpasskey = useMutation({
+    mutationFn: () => del(`/users/${user.id}/passkeys`),
+    onSuccess: () => {
+      setSaid({ text: t('page.admin.passkeysRemoved', { name: user.name }) });
       void qc.invalidateQueries({ queryKey: keys.users });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -146,6 +159,9 @@ function PersonRow({ user, isMe, ways }: { user: User; isMe: boolean; ways: Sign
           {how.about ? <span className="item-about">{how.about}</span> : null}
           {user.signIn?.twoFactor && !isMe ? (
             <button type="button" className="link" onClick={() => reset.mutate()} disabled={reset.isPending} aria-label={t('page.admin.resetTwoFactorFor', { name: user.name })}>{t('page.admin.resetTwoFactor')}</button>
+          ) : null}
+          {user.signIn?.passkeys && !isMe ? (
+            <button type="button" className="link" onClick={() => unpasskey.mutate()} disabled={unpasskey.isPending} aria-label={t('page.admin.removePasskeysOf', { name: user.name })}>{t('page.admin.removePasskeys')}</button>
           ) : null}
         </span>
       </td>
@@ -314,7 +330,7 @@ function Instance({ settings }: { settings: Settings }) {
   const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
   useEffect(() => setName(settings.instanceName), [settings.instanceName]);
   const save = useMutation({
-    mutationFn: (body: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean }) => patch<Settings>('/settings', body),
+    mutationFn: (body: { instanceName?: string; defaultTriageMode?: TriageMode; requireTwoFactor?: boolean; passkeys?: boolean }) => patch<Settings>('/settings', body),
     onSuccess: (s, body) => {
       qc.setQueryData(keys.settings, s);
       void qc.invalidateQueries({ queryKey: keys.setup });
@@ -325,7 +341,11 @@ function Instance({ settings }: { settings: Settings }) {
             ? body.requireTwoFactor
               ? t('page.admin.fromTheNextSignIn')
               : t('page.admin.twoFactorSignInIs')
-            : t('page.admin.saved'),
+            : body.passkeys !== undefined
+              ? body.passkeys
+                ? t('page.admin.passkeysOn')
+                : t('page.admin.passkeysOff')
+              : t('page.admin.saved'),
       });
     },
     onError: (e) => setSaid({ text: errorText(e), bad: true }),
@@ -368,6 +388,15 @@ function Instance({ settings }: { settings: Settings }) {
           disabled={save.isPending}
         />
         <span>{t('page.admin.askEveryoneWhoSignsIn')}</span>
+      </label>
+      <label className="choice">
+        <input
+          type="checkbox"
+          checked={save.isPending && save.variables?.passkeys !== undefined ? save.variables.passkeys : settings.passkeys !== false}
+          onChange={(e) => save.mutate({ passkeys: e.target.checked })}
+          disabled={save.isPending}
+        />
+        <span>{t('page.admin.letPeopleUsePasskeys')}</span>
       </label>
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>

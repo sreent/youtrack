@@ -16,6 +16,7 @@ import { SubscriptionList } from '../features/notifications/Subscriptions';
 import { emailKeys, YourEmails } from '../features/vcs/People';
 import { CodeHostAccounts } from '../features/builds/Builds';
 import { TwoFactorCard } from '../features/identity/TwoFactor';
+import { PasskeysCard } from '../features/identity/Passkeys';
 import { ChatAccounts } from '../features/chat/Chat';
 import { t, tr, useLocaleNow } from '../i18n';
 import { isLocale, langTag, LOCALE_NAMES, LOCALES, matchLocale, type Locale } from '@a4a/shared/i18n';
@@ -311,6 +312,15 @@ export default function ProfilePage() {
           <TwoFactorCard />
         </section>
       ) : null}
+      {m.isBot ? null : (
+        <section className="card" aria-labelledby="passkeys">
+          <div className="section-head">
+            <h2 id="passkeys">{t('page.profile.passkeys')}</h2>
+            <span className="note">{t('page.profile.signInWithoutAPassword')}</span>
+          </div>
+          <PasskeysCard />
+        </section>
+      )}
       <section className="card" aria-labelledby="chat-accounts">
         <div className="section-head">
           <h2 id="chat-accounts">{t('page.profile.chatAccounts')}</h2>

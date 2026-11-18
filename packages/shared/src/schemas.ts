@@ -135,6 +135,8 @@ export const SignInSchema = z
       }),
     ),
     twoFactor: z.boolean().optional().describe('Their password sign-in asks for a code from an authenticator app too (D38)'),
+    passkeys: z.number().int().optional().describe('How many passkeys they sign in with (D62)'),
+    lastSignInAt: timestamp.nullable().optional().describe('When they last signed in, whichever way'),
     provisioned: z.boolean().optional().describe('The identity provider manages this account through SCIM (D38)'),
   })
   .meta({ id: 'SignIn' });
@@ -202,6 +204,7 @@ export const SetupStatusSchema = z
         .nullable()
         .optional()
         .describe('The login and password form checks passwords against this LDAP directory too (D38)'),
+      passkey: z.boolean().optional().describe('People may sign in with a passkey, without a login or password (D62)'),
     }),
     mcpOAuth: z.boolean().describe('Whether MCP clients may sign in with OAuth, instead of carrying a token (D28)'),
   })
@@ -1154,6 +1157,7 @@ export const SettingsSchema = z
       .boolean()
       .optional()
       .describe('Every sign-in with a password asks for a code from an authenticator app, and someone without one sets it up first (D38)'),
+    passkeys: z.boolean().optional().describe('People may add passkeys and sign in with them (D62). Off, passkeys sign nobody in, and are kept'),
   })
   .meta({ id: 'Settings' });
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -1161,6 +1165,7 @@ export const SettingsBody = z.object({
   instanceName: z.string().min(1).max(80).optional(),
   defaultTriageMode: z.enum(TRIAGE_MODES).optional(),
   requireTwoFactor: z.boolean().optional(),
+  passkeys: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -3121,6 +3126,8 @@ export const SignInStepSchema = z
     step: z
       .enum(['two_factor', 'two_factor_setup'])
       .describe('two_factor: send a code (POST /auth/two-factor). two_factor_setup: two-factor is required here and not set up yet (POST /auth/two-factor/setup)'),
+    code: z.boolean().optional().describe('two_factor: a code from the authenticator app (or a recovery code) finishes it'),
+    passkey: z.boolean().optional().describe('two_factor: one of their passkeys finishes it instead (POST /auth/two-factor/passkey, D62)'),
   })
   .meta({ id: 'SignInStep' });
 export type SignInStep = z.infer<typeof SignInStepSchema>;
@@ -4450,3 +4457,114 @@ export interface WhiteboardChangeFrame {
   elements: WhiteboardElement[];
   removed: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Passkeys (D62)
+// ---------------------------------------------------------------------------
+
+/** A base64url string from a WebAuthn ceremony, capped: no real credential comes near it. */
+const b64url = (max: number) => z.string().max(max).regex(/^[A-Za-z0-9_-]*$/, 'base64url');
+
+export const PasskeySchema = z
+  .object({
+    id: z.string(),
+    name: z.string().describe('What its person calls it: at first, what the authenticator says it is'),
+    createdAt: timestamp,
+    lastUsedAt: timestamp.nullable(),
+    synced: z.boolean().describe('Its passkey provider may copy it to its person’s other devices (backup eligible)'),
+    copied: z.boolean().describe('Its sign count went back: two authenticators hold it, so it signs nobody in again'),
+    elsewhere: z.string().nullable().describe('The address it was made for, when that isn’t this one: it can’t sign in here'),
+  })
+  .meta({ id: 'Passkey' });
+export type Passkey = z.infer<typeof PasskeySchema>;
+
+export const PASSKEYS_OFF = ['instance', 'address', 'passwords', 'account'] as const;
+export type PasskeysOff = (typeof PASSKEYS_OFF)[number];
+
+export const MyPasskeysSchema = z
+  .object({
+    passkeys: z.array(PasskeySchema),
+    on: z.boolean().describe('Whether you may add passkeys and sign in with them here'),
+    off: z
+      .enum(PASSKEYS_OFF)
+      .nullable()
+      .describe('Why not: instance, an administrator turned them off; address, PUBLIC_URL isn’t https; passwords, a4a’s own sign-in is off; account, you sign in with single sign-on'),
+    confirmedUntil: timestamp.nullable().describe('Until when this session may add and remove passkeys without confirming it’s you again'),
+    confirmWith: z.object({
+      password: z.boolean().describe('Your password confirms it'),
+      code: z.boolean().describe('With a code from your authenticator app'),
+      passkey: z.boolean().describe('Or one of your passkeys does'),
+    }),
+  })
+  .meta({ id: 'MyPasskeys' });
+export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
+
+/** What `navigator.credentials.create()` or `.get()` takes, as JSON (WebAuthn's `PublicKeyCredential*OptionsJSON`). */
+export const PasskeyOptionsSchema = z
+  .looseObject({ challenge: z.string(), timeout: z.number().optional(), rpId: z.string().optional() })
+  .describe('Hand it to @simplewebauthn/browser’s startRegistration or startAuthentication as optionsJSON, or decode it for navigator.credentials')
+  .meta({ id: 'PasskeyOptions' });
+export type PasskeyOptions = z.infer<typeof PasskeyOptionsSchema>;
+
+const credentialCommon = {
+  id: b64url(1400),
+  rawId: b64url(1400),
+  type: z.literal('public-key'),
+  authenticatorAttachment: z.enum(['platform', 'cross-platform']).optional(),
+  clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+};
+
+/** What the browser answers `navigator.credentials.create()` with, as JSON (WebAuthn's `RegistrationResponseJSON`). */
+export const PasskeyRegistrationSchema = z
+  .object({
+    ...credentialCommon,
+    response: z.looseObject({
+      clientDataJSON: b64url(4096),
+      attestationObject: b64url(32_768),
+      transports: z.array(z.string().max(32)).max(10).optional(),
+      authenticatorData: b64url(16_384).optional(),
+      publicKey: b64url(4096).optional(),
+      publicKeyAlgorithm: z.number().optional(),
+    }),
+  })
+  .meta({ id: 'PasskeyRegistration' });
+
+/** What the browser answers `navigator.credentials.get()` with, as JSON (WebAuthn's `AuthenticationResponseJSON`). */
+export const PasskeyAssertionSchema = z
+  .object({
+    ...credentialCommon,
+    response: z.looseObject({
+      clientDataJSON: b64url(4096),
+      authenticatorData: b64url(16_384),
+      signature: b64url(4096),
+      userHandle: b64url(256).optional(),
+    }),
+  })
+  .meta({ id: 'PasskeyAssertion' });
+
+export const AddPasskeyBody = z.object({
+  response: PasskeyRegistrationSchema,
+  name: z.string().trim().min(1).max(60).optional().describe('What to call it; else what the authenticator says it is'),
+});
+export const RenamePasskeyBody = z.object({ name: z.string().trim().min(1).max(60) });
+export const PasskeySignInBody = z.object({ response: PasskeyAssertionSchema });
+export const ConfirmItsYouBody = z.object({
+  password: z.string().min(1).max(200),
+  code: z.string().trim().min(6).max(20).optional().describe('With two-factor sign-in on: a code from the app, or a recovery code'),
+});
+export const ConfirmedSchema = z
+  .object({ confirmedUntil: timestamp.describe('Until when this session may add and remove passkeys') })
+  .meta({ id: 'Confirmed' });
+export type Confirmed = z.infer<typeof ConfirmedSchema>;
+
+/** A "this wasn't me" link from a mail about someone's passkeys, as its page shows it. */
+export const PasskeyAlertSchema = z
+  .object({
+    change: z.enum(['added', 'removed', 'copied']),
+    name: z.string().describe('The passkey’s name'),
+    login: z.string(),
+    changedAt: timestamp,
+    done: z.boolean().describe('The link was followed: its person was signed out everywhere, and the passkey stopped'),
+  })
+  .meta({ id: 'PasskeyAlert' });
+export type PasskeyAlert = z.infer<typeof PasskeyAlertSchema>;
