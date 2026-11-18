@@ -1167,7 +1167,7 @@ A board plans its sprints from a backlog, counts story points, and shows how muc
 
 - **The backlog** is a board's saved query: `backlog_query`, `#Unresolved` when the board doesn't say. It holds what that finds in the board's projects the caller can read, less the issues of the board's open sprints (not archived, and not over). An issue in a sprint that has ended comes back to it, so unfinished work isn't lost from view.
 - **Rank.** An issue's place is the board's (`board_ranks`), one order shared by the backlog and the board's cards.
-  - Ranks are numbers with gaps. A move takes the middle of the gap; when a gap runs out, the board's ranks are spaced out again in the same transaction.
+  - Ranks are numbers with gaps. A move takes the middle of the gap; when a gap runs out, the board's ranks are spaced out again in the same transaction. (Since D65, a rank is a fractional key, and a move reads only the keys beside its place.)
   - An issue without a rank comes after those with one, in the query's order. Placed next to one without a rank, the issue gives that one, and those without one shown above it, places after the ranked ones, in the order shown, so nothing on the screen jumps.
   - People rank by dragging, or from the keyboard: Alt and an arrow moves the issue a place, with what moved said where a screen reader hears it. Placing an issue is work on it: it takes being able to change its issues.
 - **Into a sprint** by dragging an issue from the backlog onto a sprint, with `POST /sprints/{id}/issues`, or with the command `sprint Sprint 4` (and `remove sprint Sprint 4`).
