@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a4a
+  namespace: a4a
+  labels:
+    app.kubernetes.io/name: a4a
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: a4a
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # A new replica migrates the database and is ready before an old one stops.
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: a4a
+    spec:
+      # The 5-second pause below, then a4a's own shutdown, which exits after 10 seconds at most.
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        # The image's node user. The image names it, so Kubernetes needs the number to check runAsNonRoot.
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: a4a
+      containers:
+        - name: a4a
+          image: registry.example.com/a4a:VERSION
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: a4a
+            - secretRef:
+                name: a4a
+          securityContext:
+            allowPrivilegeEscalation: false
+            # a4a writes only to DATA_DIR, /data below.
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Measured: about 200 MB at rest, 300 MB as it starts. Uploads stream, so a file doesn't add its size.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          # Migrations run before the port opens, and a replica waits while another migrates: five minutes here.
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          # 503 while the database doesn't answer, so the replica leaves the Service until it does.
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # The web page, which needs no database: an outage of the database shouldn't restart every replica.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          lifecycle:
+            # Time for the ingress to stop sending requests here before a4a stops taking them.
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        # DATA_DIR. With files in a bucket and SECRET_KEY set, a4a writes nothing here. Files kept on
+        # disk need a volume every replica mounts instead (docs/deploying.md).
+        - name: data
+          emptyDir: {}
