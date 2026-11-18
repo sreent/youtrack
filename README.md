@@ -133,6 +133,7 @@ a4a's own pieces (issue list, query and command bars, field panel, board, Gantt,
   - **LDAP**: the login form checks passwords against your directory too, over ldaps or StartTLS, makes accounts at the first sign-in, and fills groups from memberOf or a group search.
   - **Provisioning by SCIM 2.0**: Microsoft Entra ID (or another provider) adds people and groups, changes them, and bans those it deactivates, between sign-ins.
 - **Two-factor sign-in** for passwords: a code from an authenticator app after the password, set up from a QR code, with single-use recovery codes. An administrator can ask it of everyone who signs in with a password.
+- **Passkeys**: sign in with a fingerprint, a face or a screen lock, without a login, a password or a code, from the browser's autofill or a button; or use one in place of the code after a password. People add, name and remove theirs on their profile, after a recent sign-in, and are emailed each change with a "This wasn't me" link that signs them out everywhere. Administrators see who has them, remove someone's, and can turn them off. They need `PUBLIC_URL` to be https (or localhost), and are for people a4a's own password signs in; single sign-on accounts keep their provider's checks.
 - **Apps**: extensions an administrator installs from a package or a catalog, after reading what each asks for, for every project or some. A project's managers can turn one off in it.
   - **What an app adds**: widgets on an issue's panel, below its summary, a project's page, an article, dashboards or a page of its own; handlers that run in the workflow sandbox; rules that act as the app's own agent; settings for the app and each project.
   - **What it may do**: exactly what its parts use, as granted: read or write issues, comments, articles, fields and time. Its widgets run in sandboxed frames and do for each person only what that person may; history says what came through an app.
@@ -229,7 +230,7 @@ Every change an agent makes is recorded with the token's name, and agents cannot
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `PORT` | `3000` | API, MCP and (in production) the web UI |
-| `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check |
+| `PUBLIC_URL` | `http://localhost:$PORT` | Used in links, MCP snippets and the CSRF check. Its host is passkeys' relying party: they need https (or localhost), and are bound to the host, so moving to another one means adding them again (D62) |
 | `DATABASE_URL` | empty | A Postgres URL. When empty, the embedded PGlite database in `DATA_DIR` is used, which is for one process only |
 | `DATABASE_POOL_SIZE` | `10` | Connections each instance keeps to Postgres; it holds one more for `LISTEN` |
 | `DATABASE_LISTEN_URL` | `DATABASE_URL` | Where that `LISTEN` connection goes, when `DATABASE_URL` points at a pooler in transaction mode (PgBouncer), which drops `LISTEN` |
