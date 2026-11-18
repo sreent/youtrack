@@ -4,6 +4,7 @@ import { renderRequestMail } from '../helpdesk/mails';
 import { renderDigestMail, renderNotificationMail } from '../notify/mails';
 import { renderEmailConfirmMail } from '../services/emails';
 import { renderPortalSignIn } from '../services/portal';
+import { renderPortalAccount, renderPortalPassword } from '../services/portal-sign-in';
 import type { RenderedMail } from './compose';
 import type { MailRow } from './outbox';
 
@@ -21,6 +22,10 @@ export async function renderMail(app: AppServices, row: MailRow): Promise<Render
       return renderEmailConfirmMail(app, row);
     case 'portal-sign-in':
       return renderPortalSignIn(app, row);
+    case 'portal-password':
+      return renderPortalPassword(app, row);
+    case 'portal-account':
+      return renderPortalAccount(app, row);
     default:
       return null;
   }

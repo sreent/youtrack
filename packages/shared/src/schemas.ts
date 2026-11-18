@@ -14,6 +14,7 @@ import {
   EVENT_TYPES,
   FIELD_TYPES,
   HELP_LIMITS,
+  PORTAL_SIGN_IN_METHODS,
   REQUEST_CC_VIA,
   WHITEBOARD_KINDS,
   WHITEBOARD_LIMITS,
@@ -313,6 +314,19 @@ export const BusinessHoursSchema = z
   .meta({ id: 'BusinessHours' });
 export type BusinessHours = z.infer<typeof BusinessHoursSchema>;
 
+/** How a desk's requesters sign in to the portal (D63): today's emailed link, a password, identity providers, or several. */
+export const HelpdeskSignInSchema = z
+  .object({
+    link: z.boolean().describe('A link emailed to them each time, good once for 20 minutes (D45): the default'),
+    password: z.boolean().describe('A password they set by a link sent to their email, and change on the portal'),
+    providers: z
+      .array(z.string().trim().min(1).max(40))
+      .max(10)
+      .describe('The ids of identity providers for requesters (administrators add them at /portal-providers) they may sign in through'),
+  })
+  .meta({ id: 'HelpdeskSignIn' });
+export type HelpdeskSignIn = z.infer<typeof HelpdeskSignInSchema>;
+
 export const HelpdeskSettingsSchema = z
   .object({
     enabled: z.boolean().describe('The public request form at /help/<KEY> takes requests; turning it off closes the form, and requests already filed keep their tracking pages'),
@@ -338,6 +352,7 @@ export const HelpdeskSettingsSchema = z
       .max(100)
       .nullable()
       .describe("The state a requester's answer moves a waiting request to; null leaves its state as it is"),
+    signIn: HelpdeskSignInSchema.describe("How its requesters sign in to the portal (D63), one way at least. A session opens a desk's requests only when it was opened in a way the desk takes"),
   })
   .meta({ id: 'HelpdeskSettings' });
 export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
@@ -3713,6 +3728,17 @@ export const DeskMailboxBody = z.object({
   fromName: z.string().trim().max(100).nullable().optional(),
 });
 
+/** How one desk signs its requesters in (D63), as its sign-in page and the portal say it. */
+export const PortalDeskSignInSchema = z
+  .object({
+    desk: z.object({ key: z.string(), name: z.string() }),
+    link: z.boolean(),
+    password: z.boolean(),
+    providers: z.array(z.object({ id: z.string(), name: z.string() })),
+  })
+  .meta({ id: 'PortalDeskSignIn' });
+export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
+
 /** A requester signed in to the portal (D45). */
 export const PortalMeSchema = z
   .object({
@@ -3721,6 +3747,12 @@ export const PortalMeSchema = z
     groups: z
       .array(z.object({ desk: z.object({ key: z.string(), name: z.string() }), name: z.string(), sharing: z.enum(['read', 'comment']) }))
       .describe("The customer groups they're in that share requests with them, one at most per desk (D56)"),
+    signedInWith: z
+      .object({ method: z.enum(PORTAL_SIGN_IN_METHODS), provider: z.object({ id: z.string(), name: z.string() }).nullable() })
+      .describe('How this session was opened (D63): it opens the requests of desks that take that way'),
+    password: z.boolean().describe('They have a password'),
+    passwords: z.boolean().describe('A desk here takes passwords, so setting one is of use'),
+    elsewhere: z.array(PortalDeskSignInSchema).describe('Desks with requests of theirs that this session does not open, and how each signs them in'),
   })
   .meta({ id: 'PortalMe' });
 export type PortalMe = z.infer<typeof PortalMeSchema>;
@@ -4114,6 +4146,10 @@ export const CustomerGroupSchema = z
       .describe("Its dedicated agents, in order: its members' new requests go to whoever has the fewest open"),
     members: z.number().int().describe('Requesters added by hand'),
     openRequests: z.number().int().describe('Its requests not yet resolved'),
+    provider: z
+      .object({ id: z.string(), name: z.string() })
+      .nullable()
+      .describe('The identity provider its people sign in to the portal through at this desk (D63), and no other way; null: as the desk takes'),
   })
   .meta({ id: 'CustomerGroup' });
 export type CustomerGroup = z.infer<typeof CustomerGroupSchema>;
@@ -4124,6 +4160,14 @@ export const CustomerGroupBody = z.object({
   sharing: z.enum(CUSTOMER_SHARING).default('none'),
   businessHours: BusinessHoursSchema.nullable().default(null),
   agents: z.array(z.string().trim().min(1).max(100)).max(20).default([]).describe('Logins, in the order to prefer them'),
+  provider: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .nullable()
+    .optional()
+    .describe("The id of one of the desk's identity providers its people sign in through, and no other way (D63); null for none. Left out keeps it"),
 });
 export type CustomerGroupInput = z.input<typeof CustomerGroupBody>;
 
@@ -4450,3 +4494,76 @@ export interface WhiteboardChangeFrame {
   elements: WhiteboardElement[];
   removed: string[];
 }
+
+// ---------------------------------------------------------------------------
+// The portal's own sign-in (D63): passwords, and identity providers for requesters
+// ---------------------------------------------------------------------------
+
+const providerDomain = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, 'Expected an email domain, such as acme.com');
+
+/** An identity provider for requesters (D63): the server's, made by an administrator, offered by any desk that chooses it. */
+export const PortalProviderSchema = z
+  .object({
+    id: z.string(),
+    name: z.string().describe('What the sign-in page calls it: "Sign in through <name>"'),
+    kind: z.literal('oidc').describe('OpenID Connect, the authorization code flow with PKCE'),
+    issuer: z.string().describe('Its issuer, as its discovery document gives it'),
+    clientId: z.string(),
+    hasSecret: z.boolean().describe('A client secret is kept, sealed; it is never shown again'),
+    scopes: z.string(),
+    domains: z.array(z.string()).describe('The email domains it may vouch for; empty: any. An address outside them is refused'),
+    redirectUri: z.string().describe('Register this with the provider, exactly'),
+    desks: z.array(z.string()).describe('The keys of the desks that offer it, among those the reader sees'),
+    createdAt: timestamp,
+  })
+  .meta({ id: 'PortalProvider' });
+export type PortalProvider = z.infer<typeof PortalProviderSchema>;
+
+export const PortalProviderBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  issuer: z.string().trim().url().max(500).describe('https; plain http only on this machine'),
+  clientId: z.string().trim().min(1).max(500),
+  clientSecret: z.string().min(1).max(2000).nullable().optional().describe('Empty for a public client (PKCE alone)'),
+  scopes: z.string().trim().max(500).optional().describe('Default: openid email profile'),
+  domains: z.array(providerDomain).max(50).default([]),
+});
+export const PortalProviderUpdateBody = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  issuer: z.string().trim().url().max(500).optional(),
+  clientId: z.string().trim().min(1).max(500).optional(),
+  clientSecret: z.string().min(1).max(2000).nullable().optional().describe('A new secret; null removes it; left out keeps it'),
+  scopes: z.string().trim().max(500).optional(),
+  domains: z.array(providerDomain).max(50).optional(),
+});
+
+/** How the portal's sign-in page signs someone in, for a desk or for the portal as a whole (D63). */
+export const PortalSignInMethodsSchema = z
+  .object({
+    desk: z.object({ key: z.string(), name: z.string() }).nullable().describe('The desk asked about, when one takes requests by that key; null otherwise'),
+    link: z.boolean(),
+    password: z.boolean(),
+    providers: z.array(z.object({ id: z.string(), name: z.string(), start: z.string().describe('Where the browser goes to sign in through it') })),
+    captcha: CaptchaChallengeSchema.nullable().describe('A proof of work a password sign-in sends back solved, when a desk that takes passwords asks its form for one (D30)'),
+    mail: z.boolean().describe('Whether this server sends email: links and passwords need it'),
+  })
+  .meta({ id: 'PortalSignInMethods' });
+export type PortalSignInMethods = z.infer<typeof PortalSignInMethodsSchema>;
+
+const portalPassword = z.string().min(8).max(200);
+export const PortalPasswordSignInBody = z.object({
+  email: z.string().trim().email().max(320),
+  password: z.string().min(1).max(200),
+  desk: z.string().trim().max(20).optional().describe('The desk whose page they sign in from'),
+  captcha: CaptchaSolutionSchema.optional(),
+});
+export const PortalPasswordLinkBody = z.object({
+  email: z.string().trim().email().max(320),
+  desk: z.string().trim().max(20).optional(),
+});
+export const PortalPasswordSetBody = z.object({ token: z.string().min(10).max(200), password: portalPassword });
+export const PortalPasswordChangeBody = z.object({ current: z.string().min(1).max(200), password: portalPassword });

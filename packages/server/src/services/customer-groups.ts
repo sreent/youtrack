@@ -19,7 +19,7 @@ import { and, asc, eq, gte, inArray, isNull, lte, sql, type SQL } from 'drizzle-
 import { adminCtx } from '../app-services';
 import { requireScope, type AppServices, type Ctx } from '../context';
 import type { Db } from '../db/client';
-import { absences, customerGroupAgents, customerGroupDomains, customerGroupMembers, customerGroups, helpdeskRequests, issueFieldValues, issues, requesters, users } from '../db/schema';
+import { absences, customerGroupAgents, customerGroupDomains, customerGroupMembers, customerGroups, helpdeskRequests, issueFieldValues, issues, portalProviders, requesters, users } from '../db/schema';
 import type { ActivityRow } from '../events/activity';
 import { calendarOf } from '../helpdesk/business-time';
 import { AppError, badRequest, conflict, notFound } from '../lib/errors';
@@ -138,6 +138,8 @@ async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupR
     .where(and(inArray(helpdeskRequests.groupId, ids), isNull(issues.resolvedAt), seen))
     .groupBy(helpdeskRequests.groupId);
   const grants = await projectGrantsOf(db, project.id, agents.map((a) => a.userId));
+  const tied = [...new Set(rows.map((g) => g.providerId).filter((id): id is string => Boolean(id)))];
+  const providers = new Map(tied.length ? (await db.select({ id: portalProviders.id, name: portalProviders.name }).from(portalProviders).where(inArray(portalProviders.id, tied))).map((x) => [x.id, x]) : []);
   return rows.map((g) => ({
     id: g.id,
     name: g.name,
@@ -152,6 +154,7 @@ async function dtos(db: Db, s: SchemaSnapshot, project: ProjectRow, rows: GroupR
       }),
     members: Number(members.find((m) => m.id === g.id)?.n ?? 0),
     openRequests: Number(open.find((o) => o.id === g.id)?.n ?? 0),
+    provider: (g.providerId && providers.get(g.providerId)) || null,
   }));
 }
 
@@ -226,7 +229,12 @@ async function checked(ctx: Ctx, project: ProjectRow, input: CustomerGroupInput,
   }
   // Hours that don't read are a 400 that says what's wrong (business-time.ts).
   calendarOf(input.businessHours ?? null);
-  return { name, domains, agents, sharing: (input.sharing ?? 'none') as CustomerSharing, businessHours: input.businessHours ?? null };
+  // Its people sign in through one of the desk's providers, and no other way (D63): left out keeps it.
+  const provider = input.provider === undefined ? undefined : input.provider;
+  if (provider && !projectSettings(project).helpdesk.signIn.providers.includes(provider)) {
+    throw badRequest(`${project.key} doesn't offer that identity provider to its requesters`, 'Choose one the desk offers, under How requesters sign in.').said('customerGroups.providerNotOffered', { project: project.key });
+  }
+  return { name, domains, agents, sharing: (input.sharing ?? 'none') as CustomerSharing, businessHours: input.businessHours ?? null, provider };
 }
 
 function uniqueViolation(e: unknown): boolean {
@@ -238,7 +246,7 @@ async function writeGroup(ctx: Ctx, project: ProjectRow, id: string, c: Awaited<
   try {
     await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
-      const values = { name: c.name, sharing: c.sharing, businessHours: c.businessHours, updatedAt: new Date() };
+      const values = { name: c.name, sharing: c.sharing, businessHours: c.businessHours, ...(c.provider !== undefined ? { providerId: c.provider } : {}), updatedAt: new Date() };
       if (isNew) await tx.insert(customerGroups).values({ id, projectId: project.id, ...values });
       else await tx.update(customerGroups).set(values).where(eq(customerGroups.id, id));
       await tx.delete(customerGroupDomains).where(eq(customerGroupDomains.groupId, id));

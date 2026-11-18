@@ -59,6 +59,7 @@ const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
   'whiteboard.renamed': t('page.webhooks.aWhiteboardIsRenamed'),
   'whiteboard.deleted': t('page.webhooks.aWhiteboardIsDeleted'),
   'whiteboard.converted': t('page.webhooks.issuesAreMadeFromAWhiteboard'),
+  'project.portal_sign_in.changed': t('page.webhooks.howRequestersSignInChanges'),
 };
 
 /** What a webhook can listen for: a rule's call goes only to the webhook the rule names. */

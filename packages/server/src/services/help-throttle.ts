@@ -43,6 +43,8 @@ export const HELP_THROTTLE = {
   portalEmail: { limit: 3, windowMs: 60 * 60_000 },
   /** What a signed-in requester does on the portal: replies and new requests, per requester. */
   portalAct: { limit: 30, windowMs: 60 * 60_000 },
+  /** Sign-ins started through a requesters' identity provider (D63), per address: each stores a row. */
+  portalSso: { limit: 30, windowMs: 15 * 60_000 },
   /** Team replies by email (D45), per person. */
   teamReply: { limit: 60, windowMs: 60 * 60_000 },
 } as const;

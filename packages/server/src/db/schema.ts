@@ -1306,13 +1306,16 @@ export const mailOutbox = pgTable(
 // Help desk
 // ---------------------------------------------------------------------------
 
-/** Someone outside the team who asked for help. Not a user: they can't sign in, and aren't assignable. */
+/** Someone outside the team who asked for help. Not a user: they sign in to the portal alone (D45, D63), and aren't assignable. */
 export const requesters = pgTable(
   'requesters',
   {
     id: text('id').primaryKey(),
     email: text('email').notNull(),
     name: text('name').notNull(),
+    /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
+    passwordHash: text('password_hash'),
+    passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -2542,6 +2545,10 @@ export const requesterSessions = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** How it was opened (D63): 'link', 'password' or 'sso'. It opens the requests of desks that take that way. */
+    method: text('method').notNull().default('link'),
+    /** With 'sso', the identity provider it came through. */
+    providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'cascade' }),
     createdAt: created(),
     lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
     expiresAt: ts('expires_at').notNull(),
@@ -2549,7 +2556,7 @@ export const requesterSessions = pgTable(
   (t) => [index('requester_sessions_requester').on(t.requesterId)],
 );
 
-/** A sign-in link sent to a requester: its token as a hash, good once, for a short while. */
+/** A sign-in link sent to a requester, or a link to set their password (D63): its token as a hash, good once, for a short while. */
 export const requesterSignIns = pgTable(
   'requester_sign_ins',
   {
@@ -2557,6 +2564,8 @@ export const requesterSignIns = pgTable(
     requesterId: text('requester_id')
       .notNull()
       .references(() => requesters.id, { onDelete: 'cascade' }),
+    /** 'sign-in' (D45), or 'password': a link that sets their password. */
+    purpose: text('purpose').notNull().default('sign-in'),
     createdAt: created(),
     expiresAt: ts('expires_at').notNull(),
     usedAt: ts('used_at'),
@@ -2764,6 +2773,8 @@ export const customerGroups = pgTable(
     sharing: text('sharing').notNull().default('none'),
     /** Its own working hours and holidays (BusinessHours), which its requests' SLAs count in; null keeps the desk's. */
     businessHours: jsonb('business_hours'),
+    /** The identity provider its people sign in to the portal through at this desk, and no other way (D63). */
+    providerId: text('provider_id').references(() => portalProviders.id, { onDelete: 'restrict' }),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -3025,4 +3036,58 @@ export const whiteboardViewers = pgTable(
     seenAt: ts('seen_at').notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.whiteboardId, t.session] }), index('whiteboard_viewers_seen').on(t.seenAt)],
+);
+
+// ---------------------------------------------------------------------------
+// The portal's own sign-in (D63): identity providers for requesters, apart from the team's
+// ---------------------------------------------------------------------------
+
+/**
+ * An OpenID Connect provider requesters sign in to the portal through: the server's, made by an
+ * administrator, offered by the desks that choose it. Never the team's (D16): its sessions open the
+ * portal alone.
+ */
+export const portalProviders = pgTable('portal_providers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  issuer: text('issuer').notNull(),
+  clientId: text('client_id').notNull(),
+  /** Sealed with the server's key (lib/secret-box.ts); null for a public client. */
+  clientSecretSealed: text('client_secret_sealed'),
+  scopes: text('scopes').notNull().default('openid email profile'),
+  /** The email domains it may vouch for, in lower case; empty: any. */
+  domains: text('domains').array().notNull().default(sql`'{}'::text[]`),
+  createdAt: created(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** A sign-in through a requesters' provider under way: the state's hash, bound to the browser by a cookie, with its PKCE verifier and nonce. */
+export const portalSsoStates = pgTable('portal_sso_states', {
+  id: text('id').primaryKey(),
+  providerId: text('provider_id')
+    .notNull()
+    .references(() => portalProviders.id, { onDelete: 'cascade' }),
+  /** The desk whose page it started from, to come back to. */
+  desk: text('desk'),
+  codeVerifier: text('code_verifier').notNull(),
+  nonce: text('nonce').notNull(),
+  createdAt: created(),
+  expiresAt: ts('expires_at').notNull(),
+});
+
+/** That a provider has signed a requester in (D63): they're known by its verified email; this says when it first did, to tell them. */
+export const requesterIdentities = pgTable(
+  'requester_identities',
+  {
+    requesterId: text('requester_id')
+      .notNull()
+      .references(() => requesters.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => portalProviders.id, { onDelete: 'cascade' }),
+    subject: text('subject').notNull(),
+    createdAt: created(),
+    lastAt: ts('last_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.requesterId, t.providerId] })],
 );
