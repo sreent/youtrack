@@ -2,11 +2,36 @@
   "name": "a4a-mcp",
   "version": "0.1.0",
   "description": "stdio bridge to an a4a MCP server (for MCP clients that only support stdio)",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "stdio",
+    "a4a",
+    "issue-tracker"
+  ],
+  "homepage": "https://github.com/sreent/youtrack/tree/main/packages/mcp-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/sreent/youtrack/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sreent/youtrack.git",
+    "directory": "packages/mcp-bridge"
+  },
   "type": "module",
   "bin": {
     "a4a-mcp": "./dist/index.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --platform node --target node20 --clean",
     "dev": "tsx src/index.ts",

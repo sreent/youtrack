@@ -59,7 +59,7 @@ function snippet(client: Client, origin: string, token: string): string {
   // not words: a command to paste
   if (client === 'claude-code') return `claude mcp add --transport http a4a ${origin}/mcp --header "Authorization: Bearer ${token}"`;
   if (client === 'http') return JSON.stringify({ mcpServers: { a4a: { url: `${origin}/mcp`, headers: { Authorization: t('page.agents.bearer', { token: token }) } } } }, null, 2);
-  return JSON.stringify({ mcpServers: { a4a: { command: 'npx', args: ['a4a-mcp'], env: { A4A_URL: origin, A4A_TOKEN: token } } } }, null, 2);
+  return JSON.stringify({ mcpServers: { a4a: { command: 'npx', args: ['-y', 'a4a-mcp'], env: { A4A_URL: origin, A4A_TOKEN: token } } } }, null, 2);
 }
 
 const CLIENTS: { id: Client; label: string; where: string }[] = [

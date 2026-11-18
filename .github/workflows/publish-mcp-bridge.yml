@@ -1,0 +1,44 @@
+# Publishes packages/mcp-bridge to npm as a4a-mcp, with provenance (a signed statement of the commit
+# and the workflow that built it): on a tag a4a-mcp-v<version>, the version in its package.json, or
+# by hand. Needs an NPM_TOKEN repository secret that may publish the package.
+name: Publish the MCP bridge
+
+on:
+  push:
+    tags: ['a4a-mcp-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # for npm's provenance
+
+jobs:
+  publish:
+    name: Publish a4a-mcp to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # the version comes from package.json's packageManager
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter a4a-mcp typecheck
+      - run: pnpm --filter a4a-mcp build
+      - name: Check the tag names the package's version, and the package has a license
+        working-directory: packages/mcp-bridge
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "a4a-mcp-v$version" ]; then
+            echo "The tag $GITHUB_REF_NAME doesn't name the package's version, $version"
+            exit 1
+          fi
+          node -e "if (!require('./package.json').license) { console.error('package.json names no license'); process.exit(1) }"
+      - name: Publish
+        working-directory: packages/mcp-bridge
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
