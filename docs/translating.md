@@ -660,6 +660,7 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
   - the ellipsis is ……, two of …, as Chinese sets it: 「正在加载……」;
   - no space between Chinese characters;
   - **one half-width space where Chinese meets a Latin word or a digit**, on either side: 「在 GitHub 上」, 「3 个问题」, 「打开 {id}」, 「最近 {d} 天」. A placeholder is spaced as the name, id, number or date it holds: 「由 {name} 创建」, 「{n} 天」. One that holds a4a's own Chinese words (a built-in role's name, a piece of another message) joins without one. Never a space beside full-width punctuation: 「（{id}）」, 「：{name}」, 「“{name}”」;
+  - a placeholder that holds a name or a4a's own words by turns (a tracker's name or 「文件」, a list of keys or 「所有项目」) goes after full-width punctuation where the sentence allows, so neither gets a stray space: 「来源：{from}」, 「运行范围：{where}。」, 「{name} 将接收：{what}。」;
   - what Intl writes keeps its own spacing: 「2026年11月16日」, 「2.5小时」, 「3分钟前」;
   - " · " between the parts of a line, and code, ids, queries and keyboard keys stay as English writes them.
 - **Plurals**: Chinese has none, so each plural keeps `other` alone, and counts with a measure word: `{n, plural, other {# 个问题}}`. 个 counts issues, projects, fields, values, files, tokens and most things; 人 people (「3 人」), and 位 before a noun (「2 位抄送人」); 项 items, changes and tasks; 条 comments, notifications, rules and messages; 篇 articles; 次 times, builds and deliveries; 天, 小时 and 分钟 are their own words. A plural English words differently for one keeps `=1` where Chinese does too: `{n, plural, =1 {该问题} other {# 个问题}}`.
@@ -676,6 +677,9 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 - **Problems** say what went wrong, then ask for the fix: 「找不到问题 {id}。请使用可读的编号，例如 BACK-12。」 A parser's says what's missing or out of place, as Chinese tools do: 「“sort by”后面缺少“:”」, 「此处不应出现“)”」, 「没有名为“X”的字段。」 问题 is an issue here, never what went wrong: a problem says 无法…, 出错, 不能… or 有误. Free text from elsewhere (a parser's message, another tracker's words, a script's refusal) ends the message after 「错误：」, 「原因：」 or 「回复：」 and brings its own punctuation, so no 。 follows it. A problem held in another's values (`{problems}`, `{reasons}`) is said whole, each sentence with its 。, and Chinese joins them with no gap.
 - **You and your**: a label that names the reader's own things says 我的, as Chinese apps' menus do (「我的令牌」, 「我的仪表板」, 「我的订阅」), or nothing where the owner is plain (「个人资料」). A sentence speaks to the reader as 你 and 你的: 「你的角色是只读的。」
 - **The help desk** is 服务台, and asking it for help 提交请求: 「提交了请求」 in an issue's history, 「通过服务台提交了请求」 in a notification. Its pages and emails for requesters say 您.
+- **A status and what follows from it** are two clauses, or two sentences, as Chinese software says them, not English's colon: 「已断开连接，从现在起该账号下的提交不再归你。」, 「我不在 #eng 中。请用 /invite @a4a 邀请我，然后重试。」 A colon stays where Chinese explains with one: 「这些是你的恢复码：……」.
+- **Something that sends or takes deliveries** (a webhook, an integration, a build source) shows 已启用 or 已暂停, and its buttons say 暂停 and 重新启用.
+- **Another product's screens** keep their English words, and a4a's steps say what to fill in, as Chinese docs do: 「Payload URL 填写上方的 URL」, 「打开 Settings 下的 Webhooks」. A path through menus is joined with >: 「在 Jira 中打开个人资料 > Personal Access Tokens」.
 
 | English | Simplified Chinese |
 |---|---|
@@ -767,6 +771,8 @@ The shots in this repository's container use its only CJK font, WenQuanYi Zen He
 | connect (draw an arrow), make issues (of notes) | 连接; 转为问题 |
 | a note's tones: plain, idea, agreed, question, problem, parked | 普通、想法、已商定、疑问、痛点、暂缓 |
 | writing help; where an issue came from (a chat message) | 写作辅助; 来源 |
+| another tracker (where an import comes from) | 其他工具 |
+| provisioning (SCIM) | 预配: 「用户预配」 |
 
 **Why 问题 for issue**: it's what Jira's Simplified Chinese says, so teams who have used a tracker read it already. 议题 (GitHub's and GitLab's) reads as a topic for discussion, 事项 and 工作项 (Feishu's, PingCode's) are less known to them, and 工单 is a help desk's ticket. 问题 also means "problem", so a4a's problems never use it for what went wrong.
 

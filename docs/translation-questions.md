@@ -454,6 +454,23 @@ Edited for natural phrasing:
 - **The profile's sections**: 「基本信息」 for "You" (`page.profile.you`), 「登录方式」 for "Signing in" (`page.profile.signingIn`), and the role line 「你是管理员，可以更改所有内容。」 (`page.profile.youRe` with `roleAdmin`, `roleMember`, `roleViewer`).
 - **Webhook events as clauses**: 「服务台请求新增抄送时」, 「从项目中移除成员时」 (`page.webhooks.someoneIsCopiedOnARequest`, `someoneIsTakenOutOf`, `aGroupIsTakenOut`), for English's passives.
 
+Edited for natural phrasing, second round:
+
+- **Something that runs shows 已启用**, beside 已暂停, and its button says 重新启用 (`page.webhooks.sends`, `page.integrations.takesDeliveries`, `builds.builds.takesBuilds`, `page.webhooks.turnItBackOn`, `page.integrations.turnItBackOn`, `builds.builds.takeBuildsAgain`). English says "sends", "takes deliveries", "takes builds": would 发送中 or 接收中 read better on the badge?
+- **A time first in a card's line**: 「3分钟前收到最新投递」, 「3分钟前收到最新构建」, 「3分钟前登录过」, 「3分钟前使用过」, 「3分钟前由 Ada 连接」 (`page.integrations.lastDelivery`, `builds.builds.lastBuild`, `page.admin.last`, `identity.provisioning.used`, `page.chat.connectedBy`). Would a label read better here, 「最近投递：3分钟前」, 「上次登录：3分钟前」?
+- **A pull request that is open is 开放中** (`vcs.issueCode.open`), beside 已合并 and 已关闭, as GitLab's Chinese says it; it was 已打开. 打开 or 待合并?
+- **Another tracker is 其他工具** (`page.import.anotherTracker`, `imports.fromApi.readFromAnotherTracker`, `page.import.fromTheOtherTrackerS`), where it was the literal 其他跟踪器. 其他问题跟踪工具 is longer.
+- **Who vouches for a chat subscription is 订阅人** (`chat.chat.whoVouchesForIt`): the column shows who subscribed the channel, whose access the subscription reads with, and "vouches" is lost. 担保人 is literal.
+- **A channel in the picker** reads 「Acme 的 #eng（Slack）」 (`chat.chat.on2`), for "#eng, Acme on Slack".
+- **The administration page's roles** read 「管理员（可更改所有内容）、成员（可查看并更改问题）和查看者（仅可查看）」 (`page.admin.anAdministratorChangesEverything`, `aMemberReadsAndChanges`, `aViewerReads`, joined in `page.admin.rolesATokenNeverDoes`), since Intl joins three clauses with 、 and 和. Natural?
+- **A role's permissions** say 「发表评论」 for "comment on them" and 「管理项目的设置与人员并查看其中所有问题」 for managing (`roles.words.commentOnThem`, `changeItsSettingsAndPeople`), so a list reads 「查看项目的问题、发表评论、报告问题、更改问题和记录工时」 without 问题 at every step.
+- **An account's state** under 账号状态 is 正常 or 已封禁 (`page.admin.access`, `page.admin.allowed`), for English's Access: Allowed or Banned.
+- **Triage's rungs** are 关闭, 仅建议 and 自动执行 (`projects.triage.off`, `suggests`, `acts`), which read in 「分诊：仅建议」 (`page.project.triage`).
+- **How webhook deliveries work** is 投递说明, with 签名, 至少送达一次, 重试 and 其他请求头 as its terms (`page.webhooks.howDeliveriesWork`, `signed`, `atLeastOnce`, `retried`, `alsoSent`).
+- **A field's type** says 单行文本 and 多行文本 for "a line of text" and "text", as Chinese forms do (`projects.projectFields.aLineOfText`, `text`).
+- **Provisioning is 预配**, Microsoft's word, under the heading 用户预配 (`identity.provisioning.provisioning`). 同步 or 自动配置 are the alternatives.
+- **An import's mapping table** heads its columns 「来源：YouTrack」, 「BACK 中的对应项」 and 「匹配方式」, with chips 「按表头匹配」, 「手动选择」 and 「未匹配」 (`imports.mappingTable.in`, `becomesIn`, `how`, `foundFromItsHeader`, `chosen`, `nothingHereYet`).
+
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited by another for natural phrasing (the list at the end of this section), with no native speaker yet.
