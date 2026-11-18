@@ -1,5 +1,5 @@
 /**
- * GitHub as an App (docs/architecture.md, D54).
+ * GitHub as an App (docs/architecture.md, D54, D66).
  *
  * A GitHub integration can read as a GitHub App instead of with a person's token: GitHub's way for a
  * service to act as itself, so reading doesn't stop when the person who made a token leaves, and what
@@ -7,14 +7,18 @@
  *
  * a4a signs a JSON web token with the app's private key (RS256, issued a minute back for clocks that
  * drift, ten minutes long at most, as GitHub asks) and trades it for an installation's token, which
- * GitHub lets live an hour and limits to reading contents here. That token is kept in memory per
- * integration until five minutes before it expires, and never written anywhere: each instance takes
- * its own. Two reads at once share one exchange. A token GitHub refuses before its time (the
- * installation removed, its permissions changed) is dropped and taken again, once (tokens.ts).
+ * GitHub lets live an hour and limits here to what it's for: reading contents, or writing check runs
+ * (D66). That token is kept in memory per installation and purpose until five minutes before it
+ * expires, and never written anywhere: each instance takes its own. Two reads at once share one
+ * exchange. A token GitHub refuses before its time (the installation removed, its permissions
+ * changed) is dropped and taken again, once (tokens.ts).
+ *
+ * An app installed on several accounts reads each repository through that repository's own
+ * installation (D66): asked of GitHub as the app, and kept in memory per repository for an hour.
  *
  * What goes wrong is said plainly, as a problem an administrator can act on: a key GitHub doesn't
  * take, an app not installed on the repository, an installation removed or suspended, an app that
- * may not read contents, or a repository its installation wasn't given.
+ * may not read contents or write checks, or a repository its installation wasn't given.
  */
 import { createHash, createPrivateKey, sign, type KeyObject } from 'node:crypto';
 import { z } from 'zod';
@@ -24,11 +28,14 @@ export const GITHUB_API = 'https://api.github.com';
 const TIMEOUT_MS = 10_000;
 /** A token is used until this long before GitHub says it expires; then a new one is taken. */
 const RENEW_BEFORE_MS = 5 * 60_000;
-/** All a4a reads with an installation's token: a repository's contents (its commits, compared). */
-const READS = { contents: 'read' } as const;
+/** What an installation's token is for, and all it may do: read contents (commits compared), or write check runs (D66). */
+export type TokenPurpose = 'read' | 'checks';
+const PERMISSIONS: Record<TokenPurpose, Record<string, string>> = { read: { contents: 'read' }, checks: { checks: 'write' } };
+/** How long a repository's installation, once found, is taken as it: one moves only when the app is installed again, or the repository moves. */
+const INSTALLATION_TTL_MS = 60 * 60_000;
 /** An app's id (a number), or its client id (Iv1.…, Iv23…). */
 const APP_ID = /^(\d{1,15}|Iv[0-9A-Za-z._-]{2,60})$/;
-const REPOSITORY = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+export const REPOSITORY = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 
 const INSTALL_HINT = 'Check the API’s address: GitHub Enterprise Server’s ends in /api/v3.';
 
@@ -47,11 +54,6 @@ export const appProblems = {
       repository,
     }),
   notInstalled: () => badRequest('The app isn’t installed anywhere yet', 'Install it on the repository from the app’s page on GitHub (Install App).').said('vcs.githubApp.notInstalled'),
-  whichInstallation: (installations: string) =>
-    badRequest(`The app is installed on ${installations}: say which installation to read through`, 'Give its id, the number at the end of its address on GitHub (…/installations/12345678).').said(
-      'vcs.githubApp.whichInstallation',
-      { installations },
-    ),
   installationGone: (id: string) =>
     badRequest(`The app’s installation ${id} is gone`, 'It was uninstalled, or is another app’s. Install the app again, and give the integration its new installation.').said('vcs.githubApp.installationGone', {
       id,
@@ -61,6 +63,10 @@ export const appProblems = {
   cantReadContents: () =>
     badRequest('The app may not read repositories’ contents', 'In the app’s settings on GitHub, give it Contents: Read-only under Repository permissions, then accept the new permissions on its installation.').said(
       'vcs.githubApp.cantReadContents',
+    ),
+  cantWriteChecks: () =>
+    badRequest('The app may not write checks', 'In the app’s settings on GitHub, give it Checks: Read and write under Repository permissions, then accept the new permissions on each of its installations.').said(
+      'vcs.githubApp.cantWriteChecks',
     ),
   notGiven: (id: string, repository: string) =>
     badRequest(`The app’s installation ${id} isn’t given ${repository}`, 'On GitHub, add the repository to the installation’s Repository access, or give it all repositories.').said('vcs.githubApp.notGiven', {
@@ -96,7 +102,7 @@ interface Answer {
   json: unknown;
 }
 
-const repoPath = (repository: string) => repository.split('/').map(encodeURIComponent).join('/');
+export const repoPath = (repository: string) => repository.split('/').map(encodeURIComponent).join('/');
 
 /** One request to GitHub's API: no redirects followed, ten seconds at most, never logged. */
 async function ask(api: string, path: string, bearer: string, body?: unknown): Promise<Answer> {
@@ -137,23 +143,47 @@ function read<T>(schema: z.ZodType<T>, got: Answer, api: string): T {
   return parsed.data;
 }
 
-const Installation = z.object({ id: z.number().int(), account: z.object({ login: z.string() }).nullish(), suspended_at: z.string().nullish() });
+const Installation = z.object({
+  id: z.number().int(),
+  account: z.object({ login: z.string(), type: z.string().nullish() }).nullish(),
+  suspended_at: z.string().nullish(),
+  repository_selection: z.string().nullish(),
+});
 const TokenAnswer = z.object({ token: z.string().min(1), expires_at: z.string() });
 const AppAnswer = z.object({ slug: z.string().nullish() });
 const messageOf = (got: Answer) => String((got.json as { message?: unknown } | null)?.message ?? '');
+
+/** An installation of the app, as a4a keeps and shows it (D66). */
+export interface InstallationFacts {
+  id: string;
+  account: string | null;
+  /** User or Organization, as GitHub says. */
+  accountType: string | null;
+  /** all or selected: which of the account's repositories it was given. */
+  selection: string | null;
+  suspended: boolean;
+}
+
+const factsOf = (i: z.infer<typeof Installation>): InstallationFacts => ({
+  id: String(i.id),
+  account: i.account?.login ?? null,
+  accountType: i.account?.type ?? null,
+  selection: i.repository_selection ?? null,
+  suspended: Boolean(i.suspended_at),
+});
 
 export interface InstallationToken {
   token: string;
   expiresAt: number;
 }
 
-/** An installation's token for the app: an hour long, reading contents only. */
-async function takeToken(api: string, appId: string, key: KeyObject, installationId: string): Promise<InstallationToken> {
-  const got = await ask(api, `/app/installations/${encodeURIComponent(installationId)}/access_tokens`, appJwt(appId, key), { permissions: READS });
+/** An installation's token for the app: an hour long, and only for what it's for (reading contents, or writing checks). */
+async function takeToken(api: string, appId: string, key: KeyObject, installationId: string, purpose: TokenPurpose = 'read'): Promise<InstallationToken> {
+  const got = await ask(api, `/app/installations/${encodeURIComponent(installationId)}/access_tokens`, appJwt(appId, key), { permissions: PERMISSIONS[purpose] });
   if (got.status === 401) throw appProblems.keyRefused(401);
   if (got.status === 404) throw appProblems.installationGone(installationId);
   if (got.status === 403 && /suspend/i.test(messageOf(got))) throw appProblems.suspended(installationId);
-  if (got.status === 422) throw appProblems.cantReadContents();
+  if (got.status === 422) throw purpose === 'checks' ? appProblems.cantWriteChecks() : appProblems.cantReadContents();
   const t = read(TokenAnswer, got, api);
   const expiresAt = Date.parse(t.expires_at);
   return { token: t.token, expiresAt: Number.isFinite(expiresAt) ? expiresAt : Date.now() + 60 * 60_000 };
@@ -171,12 +201,21 @@ export interface AppFound {
   installationId: string;
   account: string | null;
   token: InstallationToken;
+  /** Every installation of the app, to keep and show (D66). */
+  installations: InstallationFacts[];
+}
+
+/** The app's installations, as GitHub lists them: the first hundred. */
+async function listOf(api: string, jwt: string): Promise<z.infer<typeof Installation>[]> {
+  return read(z.array(Installation), await ask(api, '/app/installations?per_page=100', jwt), api);
 }
 
 /**
  * An app an administrator gives an integration, checked before it's kept: GitHub takes its key, it's
- * installed, and its installation may read the repository the integration is named after. The
- * installation is the one given, else the one on that repository, else the app's only one.
+ * installed, and, where the integration is named after a repository, that repository's installation
+ * reads it (D66 keeps D54's check: the name is the administrator's word of where it reads). Each
+ * repository is read through its own installation; the integration's own is the one given, else the
+ * one on its repository, else the app's first that isn't suspended.
  */
 export async function findGithubApp(api: string, given: AppGiven, repository: string | null): Promise<AppFound> {
   const appId = given.appId.trim();
@@ -189,6 +228,7 @@ export async function findGithubApp(api: string, given: AppGiven, repository: st
   const repo = repository && REPOSITORY.test(repository) ? repository : null;
   let installation: z.infer<typeof Installation>;
   let foundOnRepository = false;
+  let all: z.infer<typeof Installation>[] | null = null;
   if (given.installationId) {
     const got = await ask(api, `/app/installations/${encodeURIComponent(given.installationId)}`, jwt);
     if (got.status === 404) throw appProblems.installationGone(given.installationId);
@@ -199,11 +239,10 @@ export async function findGithubApp(api: string, given: AppGiven, repository: st
     installation = read(Installation, got, api);
     foundOnRepository = true;
   } else {
-    const all = read(z.array(Installation), await ask(api, '/app/installations?per_page=100', jwt), api);
+    all = await listOf(api, jwt);
     if (!all.length) throw appProblems.notInstalled();
-    // The first ten, as the account and its id: enough to choose by, short enough to read.
-    if (all.length > 1) throw appProblems.whichInstallation(`${all.slice(0, 10).map((i) => `${i.account?.login ?? '?'} (${i.id})`).join(', ')}${all.length > 10 ? ', …' : ''}`);
-    installation = all[0]!;
+    // Several are no question now (D66): each repository reads through its own.
+    installation = all.find((i) => !i.suspended_at) ?? all[0]!;
   }
   const installationId = String(installation.id);
   if (installation.suspended_at) throw appProblems.suspended(installationId);
@@ -213,39 +252,59 @@ export async function findGithubApp(api: string, given: AppGiven, repository: st
     if (got.status === 404 || got.status === 403) throw appProblems.notGiven(installationId, repo);
     if (got.status >= 300) read(z.unknown(), got, api);
   }
-  return { appId, slug: app.slug ?? null, installationId, account: installation.account?.login ?? null, token };
+  const listed = (all ?? (await listOf(api, jwt))).map(factsOf);
+  const own = factsOf(installation);
+  return { appId, slug: app.slug ?? null, installationId, account: own.account, token, installations: listed.some((i) => i.id === own.id) ? listed : [own, ...listed] };
 }
 
-// The installation tokens a4a holds: in memory, per integration, never written down.
+/** The app's installations as GitHub lists them now: for a test of the integration (D66). */
+export async function appInstallations(c: AppAuth): Promise<InstallationFacts[]> {
+  return (await listOf(c.api, appJwt(c.appId, readKey(c.privateKey)))).map(factsOf);
+}
+
+// The installation tokens a4a holds: in memory, per installation and purpose, never written down.
+// And each repository's installation, found as the app, for an hour.
 // ---------------------------------------------------------------------------------
 
-export interface AppCredentials {
+/** The app, as a4a signs in as it. */
+export interface AppAuth {
   api: string;
   appId: string;
   privateKey: string;
+}
+
+/** The app and an installation of it: the integration's own, or a repository's (D66). */
+export interface AppCredentials extends AppAuth {
   installationId: string;
 }
 
 const held = new Map<string, { token: InstallationToken; fingerprint: string }>();
 const taking = new Map<string, Promise<InstallationToken>>();
+const placed = new Map<string, { facts: InstallationFacts; fingerprint: string; until: number }>();
+const finding = new Map<string, Promise<InstallationFacts>>();
 
-/** What a held token was taken with: another key, app, installation or address makes it stale. */
-const fingerprintOf = (c: AppCredentials) => createHash('sha256').update([c.api, c.appId, c.installationId, c.privateKey.trim()].join('\n')).digest('hex');
+/** What a held token or a found installation was had with: another key, app or address makes it stale. */
+const fingerprintOf = (c: AppAuth) => createHash('sha256').update([c.api, c.appId, c.privateKey.trim()].join('\n')).digest('hex');
+const tokenKey = (integrationId: string, installationId: string, purpose: TokenPurpose) => `${integrationId} ${installationId} ${purpose}`;
+const placeKey = (integrationId: string, repository: string) => `${integrationId} ${repository.toLowerCase()}`;
 
 /**
- * The installation's token for an integration: the one held, until five minutes before it expires,
- * else a new one (`fresh` takes a new one whatever is held). Reads at once share one exchange.
+ * The installation's token for an integration, for one purpose: the one held, until five minutes
+ * before it expires, else a new one (`fresh` takes a new one whatever is held). Reads at once share
+ * one exchange.
  */
-export async function installationToken(integrationId: string, c: AppCredentials, opts: { fresh?: boolean } = {}): Promise<string> {
+export async function installationToken(integrationId: string, c: AppCredentials, opts: { fresh?: boolean; purpose?: TokenPurpose } = {}): Promise<string> {
+  const purpose = opts.purpose ?? 'read';
   const fingerprint = fingerprintOf(c);
-  const kept = held.get(integrationId);
+  const key = tokenKey(integrationId, c.installationId, purpose);
+  const kept = held.get(key);
   if (!opts.fresh && kept?.fingerprint === fingerprint && kept.token.expiresAt - Date.now() > RENEW_BEFORE_MS) return kept.token.token;
-  const flightKey = `${integrationId} ${fingerprint}`;
+  const flightKey = `${key} ${fingerprint}`;
   let flight = taking.get(flightKey);
   if (!flight) {
-    flight = takeToken(c.api, c.appId, readKey(c.privateKey), c.installationId)
+    flight = takeToken(c.api, c.appId, readKey(c.privateKey), c.installationId, purpose)
       .then((token) => {
-        held.set(integrationId, { token, fingerprint });
+        held.set(key, { token, fingerprint });
         return token;
       })
       .finally(() => taking.delete(flightKey));
@@ -256,10 +315,55 @@ export async function installationToken(integrationId: string, c: AppCredentials
 
 /** Hold a token just taken (when an app is given), so the first read doesn't take another. */
 export function holdInstallationToken(integrationId: string, c: AppCredentials, token: InstallationToken): void {
-  held.set(integrationId, { token, fingerprint: fingerprintOf(c) });
+  held.set(tokenKey(integrationId, c.installationId, 'read'), { token, fingerprint: fingerprintOf(c) });
 }
 
-/** Drop what's held for an integration: it changed, went, or GitHub refused its token. */
-export function forgetInstallationToken(integrationId: string): void {
-  held.delete(integrationId);
+/**
+ * Drop what's held for an integration: every token, and where each repository was found, when it
+ * changed or went; one installation's tokens when GitHub refused one.
+ */
+export function forgetInstallationToken(integrationId: string, installationId?: string, purpose?: TokenPurpose): void {
+  for (const key of [...held.keys()]) {
+    const [i, inst, p] = key.split(' ');
+    if (i === integrationId && (!installationId || inst === installationId) && (!purpose || p === purpose)) held.delete(key);
+  }
+  if (installationId) return;
+  for (const key of [...placed.keys()]) if (key.startsWith(`${integrationId} `)) placed.delete(key);
+}
+
+/** Forget where a repository was found: its installation went, or was suspended, and may be another now. */
+export function forgetRepositoryInstallation(integrationId: string, repository: string): void {
+  placed.delete(placeKey(integrationId, repository));
+}
+
+/**
+ * The installation a repository is read through (D66): asked of GitHub as the app (`GET
+ * /repos/{repository}/installation`), and kept for an hour. Lookups at once share one request.
+ * `found` says whether GitHub was asked just now, so the caller keeps what it said.
+ */
+export async function repositoryInstallation(
+  integrationId: string,
+  c: AppAuth,
+  repository: string,
+  opts: { fresh?: boolean } = {},
+): Promise<{ facts: InstallationFacts; found: boolean }> {
+  if (!REPOSITORY.test(repository)) throw appProblems.notInstalledOn(repository);
+  const fingerprint = fingerprintOf(c);
+  const key = placeKey(integrationId, repository);
+  const kept = placed.get(key);
+  if (!opts.fresh && kept?.fingerprint === fingerprint && kept.until > Date.now()) return { facts: kept.facts, found: false };
+  const flightKey = `${key} ${fingerprint}`;
+  let flight = finding.get(flightKey);
+  if (!flight) {
+    flight = (async () => {
+      const got = await ask(c.api, `/repos/${repoPath(repository)}/installation`, appJwt(c.appId, readKey(c.privateKey)));
+      if (got.status === 404) throw appProblems.notInstalledOn(repository);
+      if (got.status === 401 || got.status === 403) throw appProblems.keyRefused(got.status);
+      const facts = factsOf(read(Installation, got, c.api));
+      placed.set(key, { facts, fingerprint, until: Date.now() + INSTALLATION_TTL_MS });
+      return facts;
+    })().finally(() => finding.delete(flightKey));
+    finding.set(flightKey, flight);
+  }
+  return { facts: await flight, found: true };
 }

@@ -802,6 +802,14 @@ export const vcsIntegrations = pgTable('vcs_integrations', {
   /** What GitHub calls the app (its slug) and the account it's installed on, to show. */
   githubAppSlug: text('github_app_slug'),
   githubAccount: text('github_account'),
+  /**
+   * GitHub, as its app (D66): report to each pull request as a check run named "a4a", off by default.
+   * It names the issues the pull request names, by id and link; `checksStates` adds each one's state,
+   * and `checksResolved` makes it fail while a named issue isn't resolved, or an id names none.
+   */
+  checks: boolean('checks').notNull().default(false),
+  checksStates: boolean('checks_states').notNull().default(false),
+  checksResolved: boolean('checks_resolved').notNull().default(false),
   active: boolean('active').notNull().default(true),
   createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
@@ -3181,4 +3189,89 @@ export const passkeyAlerts = pgTable(
     createdAt: created(),
   },
   (t) => [index('passkey_alerts_user').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// githosts (D66): a GitHub App's installations, and its check runs on pull requests
+// ---------------------------------------------------------------------------
+
+/**
+ * The installations of a GitHub integration's app that a4a knows of: all of them when the app is given
+ * or tested, and each as a repository is read through it, since each repository reads through its own
+ * (D66). The page lists them with their accounts. The tokens they're traded for live in memory alone.
+ * Check runs written through one are counted here, so every instance counts as one against its limit.
+ */
+export const vcsInstallations = pgTable(
+  'vcs_installations',
+  {
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    installationId: text('installation_id').notNull(),
+    /** The user or organization it's installed on, and which GitHub says it is (User, Organization). */
+    account: text('account'),
+    accountType: text('account_type'),
+    /** `all` or `selected`: which of the account's repositories it was given. */
+    repositorySelection: text('repository_selection'),
+    suspendedAt: ts('suspended_at'),
+    /** When GitHub last said it's gone (uninstalled, or another app's). */
+    goneAt: ts('gone_at'),
+    /** Repositories a4a has read or reported to through it, the latest first, a few. */
+    repositories: text('repositories').array().notNull().default(sql`'{}'::text[]`),
+    /** Check runs written in the current minute: where it began, and how many. */
+    checksWindowAt: ts('checks_window_at'),
+    checksInWindow: integer('checks_in_window').notNull().default(0),
+    /** GitHub said to wait (its rate limit): nothing is written through it before then. */
+    checksPausedUntil: ts('checks_paused_until'),
+    seenAt: ts('seen_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.integrationId, t.installationId] })],
+);
+
+/**
+ * A pull request's check run (D66): one row per pull request, kept by its deliveries and marked due by
+ * them and by the outbox's consumer when an issue it names changes; the sender on every instance writes
+ * what's due to GitHub, claimed so two never write one at once. `marks` counts what made it due, so a
+ * write that raced a newer change leaves it due.
+ */
+export const vcsChecks = pgTable(
+  'vcs_checks',
+  {
+    id: text('id').primaryKey(),
+    integrationId: text('integration_id')
+      .notNull()
+      .references(() => vcsIntegrations.id, { onDelete: 'cascade' }),
+    repository: text('repository').notNull(),
+    number: integer('number').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull().default(''),
+    branch: text('branch'),
+    /** open, merged or closed: only an open one's check is written. */
+    state: text('state').notNull(),
+    headSha: text('head_sha').notNull(),
+    baseSha: text('base_sha'),
+    /** The ids its commits name, read as the app from GitHub's compare of its base and head, and the head they were read at. */
+    commitIds: text('commit_ids').array().notNull().default(sql`'{}'::text[]`),
+    commitsOf: text('commits_of'),
+    /** The ids it names, as typed (upper case), and the issues they named when last written: a change to one finds it. */
+    mentioned: text('mentioned').array().notNull().default(sql`'{}'::text[]`),
+    issueIds: text('issue_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** GitHub's check run, and the commit it's on: a new head gets a run of its own. */
+    checkRunId: text('check_run_id'),
+    checkSha: text('check_sha'),
+    /** A hash of what was last written, and its conclusion: the same words aren't written twice. */
+    written: text('written'),
+    conclusion: text('conclusion'),
+    writtenAt: ts('written_at'),
+    marks: integer('marks').notNull().default(0),
+    dueAt: ts('due_at'),
+    lockedUntil: ts('locked_until'),
+    attempts: integer('attempts').notNull().default(0),
+    /** Why the last write didn't go, for the integrations page, in the words of a delivery's log. */
+    problem: text('problem'),
+    problemAt: ts('problem_at'),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('vcs_checks_pull').on(t.integrationId, t.repository, t.number), index('vcs_checks_due').on(t.dueAt)],
 );

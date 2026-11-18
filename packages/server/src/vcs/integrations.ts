@@ -7,9 +7,20 @@
  * sign with. GitLab sends the token as it is, so a4a keeps only the token's SHA-256. Neither is
  * ever returned after it is shown. Nor is a Bitbucket access token, which a4a sends to read
  * commits (D33), nor a GitHub App's private key, with which a GitHub integration reads as the app
- * instead of with a person's token (D54): the app is checked with GitHub before it's kept.
+ * instead of with a person's token (D54): the app is checked with GitHub before it's kept. Its
+ * installations are kept to show, and it may report to pull requests as check runs (D66).
  */
-import { VCS_PROVIDER_NAMES, type VcsDelivery, type VcsGithubAppBody, type VcsIntegration, type VcsIntegrationCreated, type VcsProvider, type VcsTestResult } from '@a4a/shared';
+import {
+  VCS_PROVIDER_NAMES,
+  type UpdateVcsIntegrationBody,
+  type VcsDelivery,
+  type VcsGithubAppBody,
+  type VcsInstallation,
+  type VcsIntegration,
+  type VcsIntegrationCreated,
+  type VcsProvider,
+  type VcsTestResult,
+} from '@a4a/shared';
 import type { z } from 'zod';
 import { createHmac } from 'node:crypto';
 import { desc, eq } from 'drizzle-orm';
@@ -19,8 +30,10 @@ import { randomToken, sha256 } from '../lib/crypto';
 import { AppError, badRequest, notFound, pageWords } from '../lib/errors';
 import { newId } from '../lib/ids';
 import { projectByKey, type SchemaSnapshot } from '../services/schema-cache';
+import { checkProblems, markIntegrationChecks } from './checks';
 import { checkBaseUrl } from './commits';
-import { findGithubApp, forgetInstallationToken, GITHUB_API, holdInstallationToken, installationToken } from './github-app';
+import { appInstallations, findGithubApp, forgetInstallationToken, GITHUB_API, holdInstallationToken, installationToken, type InstallationFacts } from './github-app';
+import { forgetInstallations, installationsOf, keepInstallations } from './installations';
 import type { IntegrationRow } from './links';
 import { receive } from './receive';
 import { appCredentials, sealToken } from './tokens';
@@ -29,7 +42,18 @@ export function webhookUrl(app: AppServices, id: string): string {
   return `${app.config.publicUrl}/api/v1/vcs/hooks/${id}`;
 }
 
-function dto(app: AppServices, s: SchemaSnapshot, row: IntegrationRow): VcsIntegration {
+interface Kept {
+  installations: Map<string, VcsInstallation[]>;
+  problems: Map<string, { problem: string; at: Date }>;
+}
+
+/** What an integration's card shows beside its row: its app's installations, and its checks' latest problem (D66). */
+async function keptOf(db: Ctx['db'], ids: string[]): Promise<Kept> {
+  return { installations: await installationsOf(db, ids), problems: await checkProblems(db, ids) };
+}
+
+function dto(app: AppServices, s: SchemaSnapshot, row: IntegrationRow, kept: Kept): VcsIntegration {
+  const problem = kept.problems.get(row.id);
   return {
     id: row.id,
     provider: row.provider as VcsProvider,
@@ -42,7 +66,11 @@ function dto(app: AppServices, s: SchemaSnapshot, row: IntegrationRow): VcsInteg
     hasAccessToken: Boolean(row.accessToken),
     githubApp:
       row.provider === 'github' && row.githubAppId && row.githubInstallationId
-        ? { appId: row.githubAppId, slug: row.githubAppSlug, installationId: row.githubInstallationId, account: row.githubAccount }
+        ? { appId: row.githubAppId, slug: row.githubAppSlug, installationId: row.githubInstallationId, account: row.githubAccount, installations: kept.installations.get(row.id) ?? [] }
+        : null,
+    checks:
+      row.provider === 'github'
+        ? { enabled: row.checks, states: row.checksStates, requireResolved: row.checksResolved, problem: problem?.problem ?? null, problemAt: problem?.at.toISOString() ?? null }
         : null,
     createdAt: row.createdAt.toISOString(),
     lastDeliveryAt: row.lastDeliveryAt?.toISOString() ?? null,
@@ -114,10 +142,11 @@ async function appFields(
   provider: VcsProvider,
   input: { githubApp?: z.infer<typeof VcsGithubAppBody> | null; accessToken?: string | null },
   at: { name: string; baseUrl: string | null },
-): Promise<Partial<AppColumns> & { accessToken?: null }> {
+): Promise<Partial<AppColumns> & { accessToken?: null; checks?: false; installations?: InstallationFacts[] }> {
   if (provider !== 'github') return {};
-  if (input.githubApp === undefined) return input.accessToken?.trim() ? NO_APP : {};
-  if (input.githubApp === null) return NO_APP;
+  // Check runs are written as the app: without one, there are none (D66).
+  if (input.githubApp === undefined) return input.accessToken?.trim() ? { ...NO_APP, checks: false } : {};
+  if (input.githubApp === null) return { ...NO_APP, checks: false };
   if (input.accessToken?.trim()) {
     throw badRequest('Give an access token or a GitHub App, not both', 'An app reads as itself; a token reads as the person who made it.').said('vcs.githubApp.notBoth');
   }
@@ -132,7 +161,37 @@ async function appFields(
     githubAppSlug: found.slug,
     githubAccount: found.account,
     accessToken: null,
+    installations: found.installations,
   };
+}
+
+const checksProblems = {
+  needsApp: () =>
+    badRequest('Check runs are written as a GitHub App', 'Give the integration its GitHub App first: a person’s token can’t write them.').said('vcs.checks.needsApp'),
+};
+
+/**
+ * A GitHub integration's check runs (D66): turned on only where it reads as an app that may write
+ * checks, which a4a asks GitHub by taking a token for them, as it checks the app when it's given.
+ */
+async function checksFields(
+  app: AppServices,
+  row: Pick<IntegrationRow, 'id' | 'provider' | 'baseUrl' | 'accessToken' | 'githubAppId' | 'githubAppKey' | 'githubInstallationId' | 'checks'>,
+  input: z.infer<typeof UpdateVcsIntegrationBody>['checks'],
+): Promise<Partial<Pick<IntegrationRow, 'checks' | 'checksStates' | 'checksResolved'>>> {
+  if (!input) return {};
+  const out: Partial<Pick<IntegrationRow, 'checks' | 'checksStates' | 'checksResolved'>> = {};
+  if (input.states !== undefined) out.checksStates = input.states;
+  if (input.requireResolved !== undefined) out.checksResolved = input.requireResolved;
+  if (input.enabled === false) out.checks = false;
+  if (input.enabled === true) {
+    const c = row.provider === 'github' ? appCredentials(app, row) : null;
+    if (!c) throw checksProblems.needsApp();
+    // May it write checks? Taking a token for them is how GitHub says.
+    await installationToken(row.id, c, { fresh: true, purpose: 'checks' });
+    out.checks = true;
+  }
+  return out;
 }
 
 async function load(ctx: Ctx, id: string): Promise<IntegrationRow> {
@@ -145,7 +204,15 @@ export async function listIntegrations(ctx: Ctx): Promise<VcsIntegration[]> {
   requireScope(ctx, 'admin');
   const s = await ctx.app.schema.get();
   const rows = await ctx.db.select().from(vcsIntegrations).orderBy(desc(vcsIntegrations.createdAt));
-  return rows.map((r) => dto(ctx.app, s, r));
+  const kept = await keptOf(ctx.db, rows.map((r) => r.id));
+  return rows.map((r) => dto(ctx.app, s, r, kept));
+}
+
+/** The installations an app was given with, kept once its integration's row is there (D66). */
+async function keepAppInstallations(ctx: Ctx, id: string, github: { githubAppId?: string | null; installations?: InstallationFacts[] }): Promise<void> {
+  if (github.githubAppId === undefined) return;
+  await forgetInstallations(ctx.db, id);
+  if (github.installations) await keepInstallations(ctx.db, id, github.installations);
 }
 
 export async function createIntegration(
@@ -167,7 +234,7 @@ export async function createIntegration(
   const bitbucket = providerFields(ctx.app, input.provider, input, null);
   const projects = projectIds(s, input.projects ?? []);
   const id = newId();
-  const github = await appFields(ctx.app, id, input.provider, input, { name, baseUrl: bitbucket.baseUrl ?? null });
+  const { installations, ...github } = await appFields(ctx.app, id, input.provider, input, { name, baseUrl: bitbucket.baseUrl ?? null });
   const { secret, kept } = secretFor(input.provider);
   const [row] = await ctx.db
     .insert(vcsIntegrations)
@@ -183,7 +250,8 @@ export async function createIntegration(
       createdById: ctx.actor.user.id,
     })
     .returning();
-  return { ...dto(ctx.app, s, row!), secret };
+  await keepAppInstallations(ctx, id, { githubAppId: github.githubAppId, installations });
+  return { ...dto(ctx.app, s, row!, await keptOf(ctx.db, [id])), secret };
 }
 
 export async function updateIntegration(
@@ -196,6 +264,7 @@ export async function updateIntegration(
     baseUrl?: string | null;
     accessToken?: string | null;
     githubApp?: z.infer<typeof VcsGithubAppBody> | null;
+    checks?: z.infer<typeof UpdateVcsIntegrationBody>['checks'];
   },
 ): Promise<VcsIntegration> {
   requireScope(ctx, 'admin');
@@ -205,8 +274,11 @@ export async function updateIntegration(
   const bitbucket = providerFields(ctx.app, row.provider as VcsProvider, input, row);
   const projects = input.projects !== undefined ? projectIds(s, input.projects) : undefined;
   const name = input.name !== undefined ? input.name.trim() : row.name;
-  const github = await appFields(ctx.app, row.id, row.provider as VcsProvider, input, { name, baseUrl: bitbucket.baseUrl !== undefined ? bitbucket.baseUrl : row.baseUrl });
+  const { installations, ...github } = await appFields(ctx.app, row.id, row.provider as VcsProvider, input, { name, baseUrl: bitbucket.baseUrl !== undefined ? bitbucket.baseUrl : row.baseUrl });
+  // Another app's tokens and installations miss by their fingerprint; none at all, forgotten.
   if (github.githubAppId === null) forgetInstallationToken(row.id);
+  // Checks are turned on as the app the integration has once this change is made.
+  const checks = github.checks === false && !input.checks?.enabled ? { checks: false } : await checksFields(ctx.app, { ...row, ...bitbucket, ...github }, input.checks);
   const [updated] = await ctx.db
     .update(vcsIntegrations)
     .set({
@@ -215,10 +287,14 @@ export async function updateIntegration(
       ...(input.active !== undefined ? { active: input.active } : {}),
       ...bitbucket,
       ...github,
+      ...checks,
     })
     .where(eq(vcsIntegrations.id, row.id))
     .returning();
-  return dto(ctx.app, s, updated!);
+  await keepAppInstallations(ctx, row.id, { githubAppId: github.githubAppId, installations });
+  // What its checks say may have changed with its settings: each open one is written again, if so.
+  if (updated!.checks && (input.checks || input.projects !== undefined)) await markIntegrationChecks(ctx.app, row.id);
+  return dto(ctx.app, s, updated!, await keptOf(ctx.db, [row.id]));
 }
 
 export async function deleteIntegration(ctx: Ctx, id: string): Promise<void> {
@@ -235,7 +311,7 @@ export async function rotateIntegrationSecret(ctx: Ctx, id: string): Promise<Vcs
   const row = await load(ctx, id);
   const { secret, kept } = secretFor(row.provider as VcsProvider);
   const [updated] = await ctx.db.update(vcsIntegrations).set(kept).where(eq(vcsIntegrations.id, row.id)).returning();
-  return { ...dto(ctx.app, s, updated!), secret };
+  return { ...dto(ctx.app, s, updated!, await keptOf(ctx.db, [row.id])), secret };
 }
 
 export async function listVcsDeliveries(ctx: Ctx, id: string, limit = 50): Promise<VcsDelivery[]> {
@@ -313,6 +389,8 @@ async function testApp(app: AppServices, row: IntegrationRow, said: string): Pro
   if (!c) return { delivered: false, message: `${said} But the GitHub App’s key can’t be opened: was SECRET_KEY changed? Give the integration its app again.` };
   try {
     await installationToken(row.id, c, { fresh: true });
+    // Where the app is installed now, as GitHub lists it: the page shows each, and those that went (D66).
+    await keepInstallations(app.db, row.id, await appInstallations(c), { whole: true }).catch(() => {});
     return { message: `${said} a4a took a token as the GitHub App${row.githubAppSlug ? ` ${row.githubAppSlug}` : ''}, so it reads as the app.` };
   } catch (e) {
     if (!(e instanceof AppError)) throw e;

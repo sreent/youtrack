@@ -4737,7 +4737,6 @@
   "problem.vcs.githubApp.onlyGithub": "Integrações com {provider} não leem como um GitHub App. Só uma integração com o GitHub faz isso.",
   "problem.vcs.githubApp.suspended": "A instalação {id} da aplicação está suspensa. Reative-a no GitHub, nas definições da conta em que está instalada, em GitHub Apps.",
   "problem.vcs.githubApp.unreachable": "Não foi possível ligar ao GitHub em {host}. Verifique o endereço da API: o do GitHub Enterprise Server termina em /api/v3.",
-  "problem.vcs.githubApp.whichInstallation": "A aplicação está instalada em {installations}: indique por que instalação ler. Indique o ID, o número no fim do endereço da instalação no GitHub (…/installations/12345678).",
   "problem.vcs.httpsOnly": "O endereço de {host} tem de ser https. Por exemplo, https://{example}.",
   "problem.vcs.integrationNotFound": "Integração não encontrada.",
   "problem.vcs.loginJustTaken": "Esse nome de utilizador em {provider} acabou de ser registado para outra pessoa. Recarregue e veja novamente.",

@@ -4737,7 +4737,6 @@
   "problem.vcs.githubApp.onlyGithub": "Integrasi {provider} tidak dapat membaca sebagai GitHub App; hanya integrasi GitHub yang bisa.",
   "problem.vcs.githubApp.suspended": "Instalasi aplikasi {id} ditangguhkan. Aktifkan kembali di GitHub: buka pengaturan akun tempat aplikasi diinstal, lalu GitHub Apps.",
   "problem.vcs.githubApp.unreachable": "GitHub di {host} tidak dapat dihubungi. Periksa alamat API: alamat GitHub Enterprise Server berakhiran /api/v3.",
-  "problem.vcs.githubApp.whichInstallation": "Aplikasi diinstal di {installations}: tentukan instalasi yang dipakai untuk membaca. Masukkan id-nya, yaitu angka di akhir alamatnya di GitHub (…/installations/12345678).",
   "problem.vcs.httpsOnly": "Alamat {host} harus memakai https, misalnya https://{example}.",
   "problem.vcs.integrationNotFound": "Integrasi tidak ditemukan.",
   "problem.vcs.loginJustTaken": "Nama pengguna {provider} itu baru saja dicatat untuk orang lain. Muat ulang halaman, lalu periksa lagi.",

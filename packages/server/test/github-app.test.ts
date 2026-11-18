@@ -208,10 +208,12 @@ describe('a GitHub integration as a GitHub App', () => {
     const before = gh.exchanges.length;
     expect(await readWith(w.app, row, (t) => getJson(`${api}/repos/acme/backend`, t))).toEqual({ full_name: 'acme/backend' });
     expect(gh.exchanges.length).toBe(before + 1);
-    // A repository its installation wasn't given: the problem says so, without trying forever.
-    const elsewhere = await readWith(w.app, row, (t) => getJson(`${api}/repos/beta/site`, t), 'beta/site').catch((e: unknown) => e);
+    // beta's repository reads through beta's own installation (D66); one the app isn't installed on says so.
+    expect(await readWith(w.app, row, (t) => getJson(`${api}/repos/beta/site`, t), 'beta/site')).toEqual({ full_name: 'beta/site' });
+    expect(gh.exchanges.at(-1)).toMatchObject({ installation: 78 });
+    const elsewhere = await readWith(w.app, row, (t) => getJson(`${api}/repos/gamma/site`, t), 'gamma/site').catch((e: unknown) => e);
     expect(elsewhere).toBeInstanceOf(ReadError);
-    expect((elsewhere as ReadError).message).toContain('installation 77 can’t see beta/site');
+    expect((elsewhere as ReadError).message).toContain('The app isn’t installed on gamma/site');
   });
 
   it('reads the range a CI sends as the app, where the integration has no token', async () => {
@@ -246,9 +248,11 @@ describe('a GitHub integration as a GitHub App', () => {
     // Given an installation that wasn't given the repository it's named after.
     const notGiven = await rest('POST', '/vcs/integrations', { provider: 'github', name: 'acme/backend', baseUrl: api, githubApp: asApp('78') });
     expect(notGiven.body.error).toMatchObject({ key: 'vcs.githubApp.notGiven', values: { id: '78', repository: 'acme/backend' } });
-    // Not named after a repository, with the app on two accounts: which one.
-    const which = await rest('POST', '/vcs/integrations', { provider: 'github', name: 'Everything at Acme', baseUrl: api, githubApp: asApp() });
-    expect(which.body.error).toMatchObject({ key: 'vcs.githubApp.whichInstallation', values: { installations: 'acme (77), beta (78)' } });
+    // Not named after a repository, with the app on two accounts: no question which now, since each repository reads through its own (D66).
+    const several = await rest('POST', '/vcs/integrations', { provider: 'github', name: 'Everything at Acme', baseUrl: api, githubApp: asApp() });
+    expect(several.status).toBe(201);
+    expect(several.body.githubApp.installations.map((i: { account: string }) => i.account)).toEqual(['acme', 'beta']);
+    await w.app.db.delete(vcsIntegrations).where(eq(vcsIntegrations.id, several.body.id));
     const unreachable = await rest('POST', '/vcs/integrations', { provider: 'github', name: 'acme/web', baseUrl: 'http://127.0.0.1:9', githubApp: asApp() });
     expect(unreachable.body.error).toMatchObject({ key: 'vcs.githubApp.unreachable', values: { host: '127.0.0.1:9' } });
     gh.answer = 418;

@@ -4737,7 +4737,6 @@
   "problem.vcs.githubApp.onlyGithub": "{provider} 통합은 GitHub App으로 읽지 않습니다. GitHub 통합만 그렇게 합니다.",
   "problem.vcs.githubApp.suspended": "앱의 설치 {id}이(가) 일시 중지되었습니다. GitHub에서 설치된 계정의 설정 중 GitHub Apps에서 일시 중지를 해제하세요.",
   "problem.vcs.githubApp.unreachable": "{host}에서 GitHub에 연결할 수 없습니다. API 주소를 확인하세요. GitHub Enterprise Server의 주소는 /api/v3으로 끝납니다.",
-  "problem.vcs.githubApp.whichInstallation": "앱이 {installations}에 설치되어 있습니다. 읽을 때 쓸 설치를 지정하세요. GitHub에서 설치 주소 끝의 숫자(…/installations/12345678)가 ID입니다.",
   "problem.vcs.httpsOnly": "{host}의 주소는 https여야 합니다. 예: https://{example}.",
   "problem.vcs.integrationNotFound": "통합을 찾을 수 없습니다.",
   "problem.vcs.loginJustTaken": "{provider}의 그 로그인 ID가 방금 다른 사람에게 기록되었습니다. 새로고침한 다음 다시 확인하세요.",

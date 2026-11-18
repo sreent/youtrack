@@ -2303,16 +2303,43 @@ export const RuleCheckResultSchema = z
 // Version control
 // ---------------------------------------------------------------------------
 
+/** An installation of a GitHub integration's app, as a4a knows it (D66): each repository is read through its own. */
+export const VcsInstallationSchema = z
+  .object({
+    id: z.string().describe("The installation's id, as in its address on GitHub (…/installations/12345678)"),
+    account: z.string().nullable().describe('The user or organization it is installed on'),
+    accountType: z.enum(['user', 'organization']).nullable(),
+    allRepositories: z.boolean().describe("Whether it was given all of the account's repositories, rather than some"),
+    repositories: z.array(z.string()).describe('Repositories a4a has read or reported to through it, the latest first, at most ten'),
+    suspended: z.boolean().describe('GitHub said it is suspended: nothing is read or reported through it until it is unsuspended'),
+    gone: z.boolean().describe('GitHub said it is gone: the app was uninstalled from that account'),
+  })
+  .meta({ id: 'VcsInstallation' });
+export type VcsInstallation = z.infer<typeof VcsInstallationSchema>;
+
 /** A GitHub App a GitHub integration reads as (D54): its private key is never shown. */
 export const VcsGithubAppSchema = z
   .object({
     appId: z.string().describe("The app's id (or its client id), as GitHub shows it on the app's settings page"),
     slug: z.string().nullable().describe("The app's name in GitHub's addresses, e.g. a4a-acme"),
-    installationId: z.string().describe('The installation a4a reads through'),
-    account: z.string().nullable().describe('The user or organization the app is installed on'),
+    installationId: z.string().describe("The integration's own installation: its repository's, the one given, or the app's first. Each repository is read through its own (D66)"),
+    account: z.string().nullable().describe('The user or organization its own installation is on'),
+    installations: z.array(VcsInstallationSchema).describe('The installations of the app a4a knows of, with their accounts (D66)'),
   })
   .meta({ id: 'VcsGithubApp' });
 export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
+
+/** A GitHub integration's check runs on pull requests, as its app (D66). */
+export const VcsChecksSchema = z
+  .object({
+    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a". Off by default; it takes the app\'s Checks: Read and write'),
+    states: z.boolean().describe("Whether the check says each issue's state, beside its id and link"),
+    requireResolved: z.boolean().describe("Whether the check fails while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
+    problem: z.string().nullable().describe('Why the last check run a4a wrote for it didn\'t go, in the words of its deliveries\' log; null when the last went'),
+    problemAt: timestamp.nullable(),
+  })
+  .meta({ id: 'VcsChecks' });
+export type VcsChecks = z.infer<typeof VcsChecksSchema>;
 
 export const VcsIntegrationSchema = z
   .object({
@@ -2326,6 +2353,7 @@ export const VcsIntegrationSchema = z
     baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
     githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
+    checks: VcsChecksSchema.nullable().describe('GitHub: check runs on pull requests, written as its app (D66); null for the other providers'),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2387,6 +2415,14 @@ export const UpdateVcsIntegrationBody = z.object({
   baseUrl: VcsBaseUrl.nullable().optional(),
   accessToken: VcsAccessToken.nullable().optional().describe('A new access token; null removes it. Giving one stops reading as a GitHub App'),
   githubApp: VcsGithubAppBody.nullable().optional(),
+  checks: z
+    .object({
+      enabled: z.boolean().optional().describe('Report to each pull request as a check run named "a4a". Only a GitHub integration that reads as a GitHub App; turning it on checks the app may write checks'),
+      states: z.boolean().optional().describe("Say each issue's state beside its id and link. A check run is seen by whoever sees the repository"),
+      requireResolved: z.boolean().optional().describe("Fail while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
+    })
+    .optional()
+    .describe('Check runs on pull requests, as the app (D66)'),
 });
 
 export const VcsDeliverySchema = z
@@ -3601,6 +3637,12 @@ export const CodeHostSchema = z
     provider: z.enum(CODE_HOSTS),
     name: z.string(),
     available: z.boolean().describe('Whether an administrator has set up signing in there, to connect accounts'),
+    revokes: z
+      .boolean()
+      .nullable()
+      .describe(
+        "Forgejo and Gitea (D66): whether a4a can take back the token it's given as soon as it has asked who you are, because the instance offers revocation; when false, the token stays good until it expires there, and the page says so before you go on. Null for the hosts whose tokens only read who you are",
+      ),
   })
   .meta({ id: 'CodeHost' });
 export type CodeHostInfo = z.infer<typeof CodeHostSchema>;

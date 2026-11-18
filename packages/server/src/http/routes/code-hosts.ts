@@ -10,7 +10,7 @@ const Provider = z.object({ provider: z.string() });
 /** People connecting their own accounts at GitHub, GitLab, Bitbucket (docs/architecture.md, D46), and Forgejo or Gitea (D54). */
 export function codeHostRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Version control'];
-  route(app, { method: 'get', path: '/me/code-hosts', tags, summary: 'Where you can connect your own account', response: z.array(CodeHostSchema) }, ({ ctx }) => Promise.resolve(codeHosts(ctx.app)));
+  route(app, { method: 'get', path: '/me/code-hosts', tags, summary: 'Where you can connect your own account', response: z.array(CodeHostSchema) }, ({ ctx }) => codeHosts(ctx.app));
   route(
     app,
     {

@@ -7,6 +7,7 @@
  *   Fix Safari login (BACK-12 #State Fixed Assignee anna)
  *   BACK-12 #Fixed BACK-14 #Open     two issues, each with its own command
  */
+import { keysOfProject, type SchemaSnapshot } from '../services/schema-cache';
 
 export interface Mention {
   /** The readable id, its key upper-cased: BACK-12. */
@@ -73,4 +74,11 @@ export function splitMessage(message: string): { title: string; body: string } {
   const text = message.replace(/\r\n/g, '\n').trim();
   const nl = text.indexOf('\n');
   return nl < 0 ? { title: text, body: '' } : { title: text.slice(0, nl).trim(), body: text.slice(nl + 1).trim() };
+}
+
+/** The projects whose issue ids an integration looks for, by key, and the keys each had before it was renamed (D52): a commit that names OLD-12 finds NEW-12. */
+export function integrationKeys(s: SchemaSnapshot, projectIds: readonly string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const p of s.projects.values()) if (!projectIds.length || projectIds.includes(p.id)) for (const k of keysOfProject(s, p.id)) out.set(k, p.id);
+  return out;
 }
