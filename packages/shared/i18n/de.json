@@ -1627,7 +1627,7 @@
   "issues.issueHistory.viaMcp": "über MCP",
   "issues.issueHistory.viaNamed": "über {name}",
   "issues.issueHistory.viaTheApi": "über die API",
-  "issues.issueHistory.viaTheApp": "{v, select, an {über eine App} other {über die App {v}}}",
+  "issues.issueHistory.viaTheApp": "über die App {v}",
   "issues.issueHistory.viaTheHelpDesk": "über den Helpdesk",
   "issues.issueHistory.viaTheWeb": "über das Web",
   "issues.issueHistory.visibleTo": "{none, select, yes {für sonst niemanden sichtbar} other {sichtbar für {limited}}}",

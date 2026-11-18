@@ -1900,7 +1900,7 @@
   "notifications.pushSettings.deviceRefused": "{device}: {error}",
   "notifications.pushSettings.devicesPushNotificationsGoTo": "Perangkat tujuan notifikasi push",
   "notifications.pushSettings.everything": "Semuanya",
-  "notifications.pushSettings.itsPushServiceRefusedThe": "layanan push-nya menolak kiriman terakhir: {lastError}",
+  "notifications.pushSettings.itsPushServiceRefusedThe": "layanan push-nya menolak pengiriman terakhir: {lastError}",
   "notifications.pushSettings.lastSent": "terakhir dikirim {when}",
   "notifications.pushSettings.mentionsAndAssignments": "Sebutan dan penugasan",
   "notifications.pushSettings.mentionsAndAssignmentsChangesOn": "Sebutan, penugasan, perubahan pada isu yang Anda pantau, dan langganan Anda.",

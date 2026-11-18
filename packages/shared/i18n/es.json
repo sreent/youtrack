@@ -1627,7 +1627,7 @@
   "issues.issueHistory.viaMcp": "a través de MCP",
   "issues.issueHistory.viaNamed": "a través de {name}",
   "issues.issueHistory.viaTheApi": "a través de la API",
-  "issues.issueHistory.viaTheApp": "{v, select, an {a través de una aplicación} other {a través de la aplicación {v}}}",
+  "issues.issueHistory.viaTheApp": "a través de la aplicación {v}",
   "issues.issueHistory.viaTheHelpDesk": "a través del servicio de asistencia",
   "issues.issueHistory.viaTheWeb": "a través de la web",
   "issues.issueHistory.visibleTo": "{none, select, yes {no visible para nadie más} other {visible para {limited}}}",
