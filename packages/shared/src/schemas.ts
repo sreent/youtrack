@@ -3232,7 +3232,7 @@ export type Backlog = z.infer<typeof BacklogSchema>;
 
 export const RankBody = z.object({
   issue: z.string().max(100).describe('The issue to move (readable id)'),
-  after: z.string().max(100).nullable().optional().describe('Put it just after this issue'),
+  after: z.string().max(100).nullable().optional().describe("Put it just after this issue: in the board's order, or, on the board where lanes keep their own order (D65), in its lane's"),
   before: z.string().max(100).nullable().optional().describe('Put it just before this issue; with neither, at the top (on the board, see column)'),
   // Ranking a card on the board itself (D53): its place and its column, and its lane, in one change.
   column: z

@@ -22,7 +22,7 @@ import { RichField } from '../editor/RichField';
 import { audience, LimitPicker, type Limit } from './VisibleTo';
 import { sourceName } from '../imports/names';
 import { periodWords } from '../common/format';
-import { commandNote, formatList, intlLocale, problemWords, sentences, t, tr } from '../../i18n';
+import { commandNote, formatList, intlLocale, keptNote, problemWords, sentences, t, tr } from '../../i18n';
 import type { ReactNode } from 'react';
 
 type Actor = TrackerEvent['actor'];
@@ -160,6 +160,9 @@ function eventEntry(e: TrackerEvent, byId: Map<number, TrackerEvent>): Entry | n
     case 'sprint.issue_added':
     case 'sprint.issue_removed':
       return { ...base, did: t(e.type === 'sprint.issue_added' ? 'issues.issueHistory.putItInSprint' : 'issues.issueHistory.tookItOutOfSprint', { sprint: String(data.sprint ?? t('issues.issueHistory.aSprint')), on: data.board ? t('issues.issueHistory.on2', { String: String(data.board) }) : '' }) };
+    case 'board.issue_ranked':
+      // Its card's place on a board (D65): a line for a run of moves, naming only what the reader may see.
+      return { ...base, did: keptNote(data.said, data.note) };
     case 'issue.updated':
       if (!e.changes.length) return null;
       return {
