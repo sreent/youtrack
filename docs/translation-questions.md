@@ -396,6 +396,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.requestCard.passkeys`, beside the button that removes them, is a label, 「ポータルのログイン用パスキー：2個」, where English has a sentence. Does it read as the requester's passkeys?
 - `page.admin.metadataInUse` calls FIDO's BLOB number 「第{no}号」. Is 「No.{no}」 more usual for a serial?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **コミットステータス** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHubの日本語UIも「コミットステータス」と書きます。チェック実行との対比で自然ですか？
+- `page.group.requirePasskeys` は「このグループのメンバーにパスキーを必須にする」、`page.project.requirePasskeys` は「このプロジェクトを見られる全員にパスキーを必須にする」。「必須にする」より「必須とする」のほうが formal でしょうか？
+- `page.group.requirePasskeysHelp` の末尾は「免除は管理者が行います。」。主語を示すこの言い方は、他の「管理者が〜します」の文と揃っていますか？
+- `builds.builds.reportCheck` は「各実行の結果をGitHubに報告する」。CIの結果を「報告する」でよいか、「通知する」のほうが自然でしょうか？
+- `page.integrations.statusesAudience` は「ステータスは課題をIDでのみ示し」— チェック実行の説明は「IDとリンクで示し」です。対比として読めますか？
 
 ## Portuguese
 
