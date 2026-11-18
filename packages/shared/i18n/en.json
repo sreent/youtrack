@@ -1132,7 +1132,7 @@
   "helpdesk.portalSignIn.noProvidersAdmin": "No identity providers for requesters yet: add one below.",
   "helpdesk.portalSignIn.oneWay": "Keep one way at least.",
   "helpdesk.portalSignIn.password": "A password",
-  "helpdesk.portalSignIn.passwordHelp": "Requesters set it by a link sent to their email, and change it on the portal. Ten wrong tries in a quarter of an hour lock the address until it ends, and the form’s proof of work is asked when it’s on.",
+  "helpdesk.portalSignIn.passwordHelp": "Requesters set it by a link sent to their email, and change it on the portal. Ten wrong tries in a quarter of an hour lock that email address until the quarter hour is up, and the form’s proof of work is asked when it’s on.",
   "helpdesk.portalSignIn.providerAbout": "{issuer} · {domains, select, any {any address} other {{list}}} · {desks, plural, =0 {no desk offers it} one {# desk offers it} other {# desks offer it}}",
   "helpdesk.portalSignIn.providers": "Identity providers for requesters",
   "helpdesk.portalSignIn.providersNote": "The server’s, apart from the team’s own sign-in: any desk may offer each one. Register the redirect URI with each provider.",
