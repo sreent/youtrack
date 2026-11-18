@@ -227,7 +227,7 @@ export function AverageAgeView({ a, compact }: { a: AverageAge; compact?: boolea
   if (!last) return <p className="note">{tx('reports.moreReports.noDaysToShowYet')}</p>;
   return (
     <div className="stack">
-      <p className="note">{tr('reports.moreReports.ageCountsFromWhenEach', { v: last.open ? tx('reports.moreReports.issuesOpenOn', { n: last.open, dayMonth: dayMonth(last.date), v: last.averageDays === null ? '' : tx('reports.moreReports.oldOnAverage', { daysOf: daysOf(last.averageDays) }) }) : tx('reports.moreReports.nothingOpenOn', { dayMonth: dayMonth(last.date) }) })}</p>
+      <p className="note">{tr('reports.moreReports.ageCountsFromWhenEach', { v: last.open ? tx('reports.moreReports.issuesOpenOn', { n: last.open, dayMonth: dayMonth(last.date), hasAverage: last.averageDays === null ? 'no' : 'yes', daysOf: last.averageDays === null ? '' : daysOf(last.averageDays) }) : tx('reports.moreReports.nothingOpenOn', { dayMonth: dayMonth(last.date) }) })}</p>
       <div className={compact ? 'stack' : 'chart-box'}>
         <AgeChart a={a} compact={compact} />
         {compact ? null : (

@@ -11,7 +11,7 @@ import { Confirm } from '../features/common/Confirm';
 import { CopyButton } from '../features/common/CopyButton';
 import { whenRead } from '../features/common/format';
 import { pageKeys, useDeliveries } from '../features/common/queries';
-import { t, tr } from '../i18n';
+import { formatList, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
 
 const EVENT_WORDS: Record<(typeof EVENT_TYPES)[number], string> = {
@@ -105,9 +105,9 @@ function Deliveries({ hook }: { hook: Webhook }) {
               </td>
               <td>
                 {d.success ? (
-                  <Badge tone="good">{tr('page.webhooks.delivered', { v: d.statusCode ? `, ${d.statusCode}` : '' })}</Badge>
+                  <Badge tone="good">{t('page.webhooks.delivered', { hasCode: d.statusCode ? 'yes' : 'no', code: d.statusCode ?? '' })}</Badge>
                 ) : (
-                  <Badge tone="bad">{tr('page.webhooks.failed', { v: d.statusCode ? `, ${d.statusCode}` : '' })}</Badge>
+                  <Badge tone="bad">{t('page.webhooks.failed', { hasCode: d.statusCode ? 'yes' : 'no', code: d.statusCode ?? '' })}</Badge>
                 )}
                 {d.error && !d.success ? <span className="item-about">{d.error}</span> : null}
               </td>
@@ -154,7 +154,7 @@ function HookCard({ hook, projectName }: { hook: Webhook; projectName?: string }
       <div className="hook-head">
         <div className="hook-what">
           <span className="mono hook-url">{hook.url}</span>
-          <span className="item-about">{tr('page.webhooks.added', { v: all ? t('page.webhooks.everyChange') : t('page.webhooks.when2', { join: hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e).join(t('page.webhooks.or')) }), v2: hook.project ? t('page.webhooks.in', { v: projectName ?? hook.project }) : t('page.webhooks.inEveryProject'), when: agoSaid(hook.createdAt) })}</span>
+          <span className="item-about">{tr('page.webhooks.added', { v: all ? t('page.webhooks.everyChange') : t('page.webhooks.when2', { join: formatList(hook.events.map((e) => EVENT_WORDS[e as keyof typeof EVENT_WORDS] ?? e), 'disjunction') }), v2: hook.project ? t('page.webhooks.in', { v: projectName ?? hook.project }) : t('page.webhooks.inEveryProject'), when: agoSaid(hook.createdAt) })}</span>
         </div>
         {hook.active ? <Badge tone="good">{t('page.webhooks.sends')}</Badge> : <Badge tone="idle">{t('page.webhooks.paused')}</Badge>}
       </div>
@@ -253,7 +253,7 @@ function AddHook() {
           </FormField>
         </div>
         <fieldset className="choice-group columns">
-          <legend>{t('page.webhooks.when')}</legend>
+          <legend>{t('page.webhooks.sendsWhen')}</legend>
           <label className="choice tw:col-span-full">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
             <span>{t('page.webhooks.everyChangeIncludingKindsAdded')}</span>

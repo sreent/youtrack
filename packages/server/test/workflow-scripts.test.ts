@@ -3,6 +3,7 @@
  * one write path every change takes.
  */
 import type { IssueDetail } from '@a4a/shared';
+import { notesIn } from '@a4a/shared/notes';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { runCommand } from '../src/commands/executor';
@@ -21,6 +22,7 @@ import { createAction, issueWorkflow, runAction, runTransition, updateAction } f
 import { RuleEngine } from '../src/workflow/engine';
 import { createMachine, updateMachine } from '../src/workflow/machines';
 import { checkRulePart, createRule, listRuleRuns, previewRule, testRule, updateRule } from '../src/workflow/rules';
+import { translatorFor } from '../src/i18n';
 import { createWorld, type TestWorld } from './helpers';
 
 let w: TestWorld;
@@ -125,7 +127,7 @@ describe('scripted rules', () => {
   });
 
   it('changes an issue linked to the one it runs on: its parent', async () => {
-    await createRule(w.adminCtx, {
+    const rule = await createRule(w.adminCtx, {
       project: 'BACK',
       name: 'Tell the parent',
       kind: 'change',
@@ -138,6 +140,12 @@ describe('scripted rules', () => {
     await updateIssue(w.as(w.anna), child.id, { fields: { State: 'Fixed' } });
     await settle();
     expect(tagsOf(await getIssue(w.adminCtx, parent.id))).toEqual(['subtask-done']);
+    // What it changed there is kept as data, the issue and each of its changes a note (D49), which a page joins as its language does.
+    const [run] = await listRuleRuns(w.adminCtx, { rule: rule.id });
+    const tags = run!.message.match(/Tags → (.*)$/)?.[1];
+    expect(run!.message).toBe(`Also changed ${parent.id}: Tags → ${tags}`);
+    expect(run!.said).toEqual([{ key: 'rules.run.alsoChanged', values: { others: [{ key: 'rules.run.otherChanged', values: { issue: parent.id, changes: [{ key: 'rules.run.fieldTo', values: { field: 'Tags', to: tags } }] } }] } }]);
+    expect(notesIn(translatorFor('ja'), run!.said, run!.message)).toBe(`ほかに${parent.id}（Tags → ${tags}）を変更しました。`);
   });
 
   it('runs on a schedule over the issues its query matches', async () => {

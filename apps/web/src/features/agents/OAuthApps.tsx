@@ -12,7 +12,7 @@ import { ErrorNote, Loading } from '../../components/States';
 import { errorText, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CopyButton } from '../common/CopyButton';
-import { t, tr } from '../../i18n';
+import { formatList, t, tr } from '../../i18n';
 
 /** For clients that sign in by themselves, such as Claude: the address is all they need. */
 export function SignInInstead() {
@@ -80,7 +80,7 @@ export function AllowedApps() {
                 <tr key={g.id}>
                   <td>
                     <strong>{appName(g)}</strong>
-                    <span className="item-about">{tr('agents.oAuthApps.backTo', { join: g.client.redirectHosts.join(', ') })}</span>
+                    <span className="item-about">{tr('agents.oAuthApps.backTo', { join: formatList(g.client.redirectHosts, 'disjunction') })}</span>
                   </td>
                   <td>
                     <span className="chips">

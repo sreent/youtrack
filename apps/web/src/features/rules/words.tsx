@@ -155,7 +155,7 @@ export function Sentence({ rule }: { rule: Parts }) {
   }
   if (rule.kind === 'guard') {
     return (
-      <p className="rule-sentence">{tr('rules.words.whenAChangeWouldMake', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, code2: <code>{rule.requires}</code>, t2: (c: ReactNode) => <span className="rule-word">{c}</span>, v: rule.message ? <>: “{rule.message}”</> : '.' })}</p>
+      <p className="rule-sentence">{tr('rules.words.whenAChangeWouldMake', { t0: (c: ReactNode) => <span className="rule-word">{c}</span>, code: <code>{query}</code>, t1: (c: ReactNode) => <span className="rule-word">{c}</span>, code2: <code>{rule.requires}</code>, t2: (c: ReactNode) => <span className="rule-word">{c}</span>, hasMessage: rule.message ? 'yes' : 'no', message: rule.message ?? '' })}</p>
     );
   }
   // One sentence a language can order as it says it (D49). Which condition it has is a code its message

@@ -123,7 +123,12 @@ export default function TimesheetPage() {
     <>
       <PageHead
         title={tx('page.timesheet.timesheet')}
-        about={tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: periodWords(total) || tx('page.timesheet.nothing'), hoursText: hoursText(planned) })}
+        about={
+          // A week with nothing logged says so in a sentence of its own, not "nothing" where a period goes.
+          periodWords(total)
+            ? tx('page.timesheet.yourWeekFromToLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), v: periodWords(total), hoursText: hoursText(planned) })
+            : tx('page.timesheet.yourWeekFromToNothingLogged', { dayName: dayName(t.days[0]!), dayName2: dayName(t.days[6]!), hoursText: hoursText(planned) })
+        }
         actions={
           <div className="cluster">
             <button type="button" onClick={() => go(addDays(week0, -7))}>{tx('page.timesheet.previousWeek')}</button>

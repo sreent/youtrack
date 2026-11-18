@@ -37,22 +37,19 @@ function tasksTitle(day: Day): string | undefined {
   return day.tasks.length ? day.tasks.map((t) => `${t.issue} ${hours(t.hours)}`).join(', ') : undefined;
 }
 
-const AWAY_WORDS = { morning: t('plan.resources.awayInTheMorning'), afternoon: t('plan.resources.awayInTheAfternoon') } as const;
-
 function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
   const ws = weekStart ? ' week-start' : '';
   // A day someone is away says so; a day of no hours that isn't one is "off". Neither says why.
   if (day.capacity <= 0 && day.hours <= 0) return <td className={`load-cell off${ws}`}>{day.away === 'day' ? t('plan.resources.cellAway') : t('plan.resources.cellOff')}</td>;
   const half = day.away === 'morning' || day.away === 'afternoon' ? day.away : null;
   const part = half ? ' part' : '';
-  const said = half ? `, ${AWAY_WORDS[half]}` : '';
   if (day.hours > day.capacity + 0.01) {
     return (
       <td className={`load-cell over${part}${ws}`} title={tasksTitle(day)}>
         <Icon name="clock" />
         {hours(day.hours)}
         <span>{tr('plan.resources.of', { hours: hours(day.capacity) })}</span>
-        <span className="hidden">{tr('plan.resources.over', { said: said })}</span>
+        <span className="hidden">{t('plan.resources.over', { away: half ?? 'no' })}</span>
       </td>
     );
   }
@@ -61,7 +58,7 @@ function LoadCell({ day, weekStart }: { day: Day; weekStart: boolean }) {
       <td className={`load-cell${part}${ws}`} data-load={loadLevel(day.hours, day.capacity)} title={tasksTitle(day)}>
         {hours(day.hours)}
         <span>{tr('plan.resources.of', { hours: hours(day.capacity) })}</span>
-        <span className="hidden">{said}</span>
+        <span className="hidden">{t('plan.resources.awayHalf', { away: half })}</span>
       </td>
     );
   }

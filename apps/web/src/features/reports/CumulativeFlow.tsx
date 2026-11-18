@@ -124,7 +124,7 @@ export function CumulativeFlowChart({ flow, compact }: { flow: Flow; compact?: b
         </thead>
         <tbody>
           {[...flow.days].reverse().map((d) => (
-            <tr key={d.date} className={d.date === flow.scope.today ? t('reports.cumulativeFlow.today2') : undefined}>
+            <tr key={d.date} className={d.date === flow.scope.today ? 'today' : undefined}>
               <th scope="row">
                 {dayMonth(d.date)}
                 {d.date === flow.scope.today ? t('reports.cumulativeFlow.today') : ''}
