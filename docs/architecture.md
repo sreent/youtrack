@@ -1935,7 +1935,7 @@ D62 gave the team passkeys and left the portal's requesters for later; D63 gave 
 
 **What it costs.**
 - A requester signed in by a password or a provider waits for one email before adding a passkey; without SMTP, no requester can add one, and those added before still sign in.
-- A browser offers someone's team passkeys on the portal and their portal passkeys on the team's page. a4a refuses each and says why, but can't keep the browser from offering them.
+- A browser offers someone's team passkeys on the portal and their portal passkeys on the team's page. a4a refuses each (the portal says it's the team's), but can't keep the browser from offering them.
 - A requester's passkeys are bound to the relying party's id, as D62's are: when the instance moves, they stop.
 - The team's removal ends only the sessions the passkeys opened. Nothing on the team's side ends a requester's other sessions; "This wasn't me" and a new password do.
 
