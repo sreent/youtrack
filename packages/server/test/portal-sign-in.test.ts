@@ -477,7 +477,7 @@ describe('what stays', () => {
       const b = browser('10.3.13.1');
       expect((await b.req('POST', '/portal/password/link', { email: 'dora@example.org', desk: 'BACK' })).status).toBe(202);
       await flush();
-      expect(mailed('dora@example.org', PASSWORD_LINK).subject).toBe('Passwort bei dem Helpdesk von Backend festlegen');
+      expect(mailed('dora@example.org', PASSWORD_LINK).subject).toBe('Passwort beim Helpdesk von Backend festlegen');
     } finally {
       (w.app.config as { defaultLocale: string }).defaultLocale = was;
     }

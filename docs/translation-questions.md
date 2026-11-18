@@ -76,7 +76,6 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `helpdesk.portalSignIn.passwordHelp` calls the form's proof of work "Arbeitsnachweis", where the desk's switch for it says "Sicherstellen, dass ein Mensch sie geschickt hat". "Proof of Work" or "Spamschutz des Formulars" are the alternatives.
 - **Ways to sign in** are "Arten der Anmeldung" (`helpdesk.portalSignIn.ways`, `oneWay`, `server.portalAccount.lead`), and signing in another way "auf eine andere Art". "Anmeldemethoden" is the usual word in IT.
 - `helpdesk.portalSignIn.redirectUri` is "Weiterleitungs-URI"; Microsoft Entra's German says "Umleitungs-URI".
-- `server.portalPassword.subject` reads "Passwort bei dem Helpdesk von Backend festlegen", and its `lead` "bei dem Helpdesk von …": `{where}` comes whole, as "dem Helpdesk von {project}", so German can't say "beim". `packages/server/test/portal-sign-in.test.ts` asserts the subject.
 - `page.guestPages.alsoOpenIn`, the heading over a project's plan, reports, boards and whiteboards on the guest page, is "Außerdem in {name} für alle offen". Natural as a heading?
 - `identity.passkeys.notAvailable` says "Telefon", as two-factor's messages do; "Smartphone" is the more common word now.
 
