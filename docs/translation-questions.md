@@ -324,6 +324,20 @@ Messages added in wave 5 (passkeys, the portal's sign-in, guests):
 - `page.guestPages.noSuchBoard`, `noSuchProject` and `noSuchWhiteboard` keep the issue page's 「ゲストに公開されている、そのような…はありません。」 (`page.guestPages.thereSNoSuchIssue`). 「この…は存在しないか、ゲストには公開されていません。」 reads more naturally, for all four at once.
 - `helpdesk.portalSignIn.passwordHelp` names "the form's proof of work" by the form's own setting, 「人が送信したことを確認する」. Clear, or would プルーフ・オブ・ワーク be expected?
 
+Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth, the portal's passkeys):
+
+- **What people write on a request** is 書き込み in the relay's emails and the desk's switch: 「{name}様がリクエストに書き込みました。」, 「{name}様の書き込み：」 (`server.helpdesk.relay.lead`, `wrote`, `stop`, `whyAnswer`, `helpdesk.ccSettings.relay`). In a company's email it may read like a forum post: コメント (the tracker's word) or 返信 (the portal's) are the alternatives.
+- **An email's Cc and a request's CC** are one word in Japanese. Where they differ, the email's is 「メールのCC」 and whom the requester put there 「CCに入れた人」 (`helpdesk.ccSettings.confirm`, `page.portal.heldNote`, `page.portal.confirm.title`, `server.helpdesk.confirmCopied`, `server.helpdesk.heldForYou`), while a4a's copying stays 「CCに追加」. Is the difference clear?
+- **Let off** is 免除: 「免除する」 and 「パスキー免除」 in the people table (`page.admin.letOff`, `letOffPasskeys`), with the requirement as its object (「{name}のパスキーを免除し…」, `letOffFor`). Its undo, English's "Ask for a passkey", is 「免除を取り消す」 (`page.admin.askForAPasskey`). Natural?
+- **Authenticator** is 認証器, FIDO's Japanese, beside 認証アプリ for authenticator apps, and attestation 「メーカーによる証明（アテステーション）」 (`page.admin.attestationPrivacy`, `problem.passkeys.unattested`). Too technical for an administrator? The fieldset is 「受け付ける認証器」 (`page.admin.onlySomeAuthenticators`).
+- **A check run** is チェック実行, as GitHub's Japanese documentation says, and an issue it names is one it 言及する, as the catalog says of commits (`server.checks.*`, `page.integrations.checks*`). Its titles are sentences without 。 (「3件の課題に言及しています」): would noun phrases (「3件の課題に言及」) suit GitHub's checks list better?
+- `boards.history.moved` says a board the reader can't see as 「あるボードで…」. Natural in an issue's history?
+- **A lane's own order** is 「レーンごとに個別の並び順を使う」 (`page.board.laneOrder` and its siblings), with 並び順 as in 「ボードの並び順」 and ランク付け for ranking. Would 独自の or 専用の read better than 個別の?
+- **The relay's and the hold's emails** say 「ほかの方」, 「この方々」 to customers (`server.helpdesk.relay.whyAnswer`, `server.helpdesk.heldForYou`, which keeps `=1` for 「この方」), while the portal's pages keep 「人」 as they did. Consistent enough?
+- `page.integrations.appInstallations` counts accounts with 件 (「2件のアカウント」), as wave 5 counts desks. Would つ read better?
+- `helpdesk.requestCard.passkeys`, beside the button that removes them, is a label, 「ポータルのログイン用パスキー：2個」, where English has a sentence. Does it read as the requester's passkeys?
+- `page.admin.metadataInUse` calls FIDO's BLOB number 「第{no}号」. Is 「No.{no}」 more usual for a serial?
+
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
