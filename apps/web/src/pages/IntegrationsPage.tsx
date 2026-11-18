@@ -299,9 +299,11 @@ function AppForm({ integration, onSaved, onCancel }: { integration: VcsIntegrati
 /** Where the app is installed, by account: each repository is read through its own installation (D66). */
 function Installations({ app }: { app: VcsGithubApp }) {
   if (!app.installations.length) return null;
+  const live = app.installations.filter((i) => !i.gone).length;
   return (
     <div className="stack tight">
-      <p className="note">{t('page.integrations.appInstallations', { n: app.installations.filter((i) => !i.gone).length })}</p>
+      {/* With every installation gone, their badges say so: no line saying it's installed on none. */}
+      {live ? <p className="note">{t('page.integrations.appInstallations', { n: live })}</p> : null}
       <ul className="stack tight" aria-label={t('page.integrations.installationsList')}>
         {app.installations.map((i) => (
           <li key={i.id} className="cluster">
