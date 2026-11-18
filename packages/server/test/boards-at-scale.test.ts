@@ -35,7 +35,8 @@ import { createWorld, freshPostgres, type TestWorld } from './helpers';
 const ON_POSTGRES = Boolean(process.env.TEST_DATABASE_URL);
 const MIGRATIONS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../drizzle');
 const BIG = 50_000;
-const LOG = '/tmp/claude-0/-home-user/b51280ae-4ca9-58cd-9da6-49b41b0553ed/scratchpad/boards-timings.log';
+/** Where the migration's timings are kept, when someone measuring names a file (D65 says the numbers). */
+const LOG = process.env.BOARDS_TIMINGS_LOG;
 
 let w: TestWorld;
 beforeAll(async () => {
@@ -149,7 +150,7 @@ describe('the migration', () => {
     try {
       const { ms, plan } = await migrateBigBoard(db, (folder) => migratePglite(db as never, { migrationsFolder: folder }));
       expect(plan).toMatch(/board_ranks_key/);
-      writeFileSync(LOG, `PGlite: D65's migration over ${BIG} ranks took ${ms} ms\n`, { flag: 'a' });
+      if (LOG) writeFileSync(LOG, `PGlite: D65's migration over ${BIG} ranks took ${ms} ms\n`, { flag: 'a' });
     } finally {
       await client.close();
     }
@@ -163,7 +164,7 @@ describe('the migration', () => {
       await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
       const { ms, plan } = await migrateBigBoard(db, (folder) => migratePg(db as never, { migrationsFolder: folder }));
       expect(plan).toMatch(/Index (Only )?Scan using board_ranks_key/);
-      writeFileSync(LOG, `Postgres: D65's migration over ${BIG} ranks took ${ms} ms\n`, { flag: 'a' });
+      if (LOG) writeFileSync(LOG, `Postgres: D65's migration over ${BIG} ranks took ${ms} ms\n`, { flag: 'a' });
     } finally {
       await pool.end();
       await fresh.drop();
