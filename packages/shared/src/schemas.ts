@@ -327,6 +327,10 @@ export const HelpdeskSignInSchema = z
       .array(z.string().trim().min(1).max(40))
       .max(10)
       .describe('The ids of identity providers for requesters (administrators add them at /portal-providers) they may sign in through'),
+    passkey: z
+      .boolean()
+      .optional()
+      .describe('A passkey they add on the portal (D69), in place of the link or the password; never the only way. Left out, the desk keeps what it had'),
   })
   .meta({ id: 'HelpdeskSignIn' });
 export type HelpdeskSignIn = z.infer<typeof HelpdeskSignInSchema>;
@@ -2009,7 +2013,11 @@ export type PortalCc = z.infer<typeof PortalCcSchema>;
 export const HelpdeskRequestSchema = z
   .object({
     issue: z.string(),
-    requester: z.object({ name: z.string(), email: z.string() }),
+    requester: z.object({
+      name: z.string(),
+      email: z.string(),
+      passkeys: z.number().int().describe('How many passkeys they sign in to the portal with (D69); never which'),
+    }),
     createdAt: timestamp,
     firstResponse: SlaSchema,
     sla: RequestSlaSchema,
@@ -3810,6 +3818,7 @@ export const PortalDeskSignInSchema = z
     link: z.boolean(),
     password: z.boolean(),
     providers: z.array(z.object({ id: z.string(), name: z.string() })),
+    passkey: z.boolean().describe('A passkey of theirs signs them in there (D69)'),
   })
   .meta({ id: 'PortalDeskSignIn' });
 export type PortalDeskSignIn = z.infer<typeof PortalDeskSignInSchema>;
@@ -4631,6 +4640,7 @@ export const PortalSignInMethodsSchema = z
     providers: z.array(z.object({ id: z.string(), name: z.string(), start: z.string().describe('Where the browser goes to sign in through it') })),
     captcha: CaptchaChallengeSchema.nullable().describe('A proof of work a password sign-in sends back solved, when a desk that takes passwords asks its form for one (D30)'),
     mail: z.boolean().describe('Whether this server sends email: links and passwords need it'),
+    passkey: z.boolean().describe('A passkey signs them in here (D69): the desk takes passkeys (or, with no desk named, some desk does), and this address can have them'),
   })
   .meta({ id: 'PortalSignInMethods' });
 export type PortalSignInMethods = z.infer<typeof PortalSignInMethodsSchema>;
@@ -4797,3 +4807,50 @@ export const CcConfirmedSchema = z
   })
   .meta({ id: 'CcConfirmed' });
 export type CcConfirmed = z.infer<typeof CcConfirmedSchema>;
+
+// ---------------------------------------------------------------------------
+// Requesters' passkeys (D69)
+// ---------------------------------------------------------------------------
+
+/** Why a requester can't add or use passkeys here: the address isn't one browsers make them for, an administrator turned them off, or no desk takes them. */
+export const PORTAL_PASSKEYS_OFF = ['address', 'instance', 'desks'] as const;
+export type PortalPasskeysOff = (typeof PORTAL_PASSKEYS_OFF)[number];
+
+/** A requester's passkeys, as the portal's account page shows them. */
+export const PortalPasskeysSchema = z
+  .object({
+    passkeys: z.array(PasskeySchema),
+    on: z.boolean().describe('Whether they may add passkeys here, and sign in with them'),
+    off: z
+      .enum(PORTAL_PASSKEYS_OFF)
+      .nullable()
+      .describe('Why not: address, PUBLIC_URL isn’t https; instance, an administrator turned passkeys off; desks, no help desk here takes them'),
+    confirmedUntil: timestamp
+      .nullable()
+      .describe('Until when this session may add and remove passkeys: ten minutes from a sign-in by an emailed link or a passkey, or from confirming with a passkey'),
+    confirmWith: z.object({
+      passkey: z.boolean().describe('One of their passkeys confirms it'),
+      link: z.boolean().describe('A new sign-in by a link emailed to them does: this server sends email'),
+    }),
+  })
+  .meta({ id: 'PortalPasskeys' });
+export type PortalPasskeys = z.infer<typeof PortalPasskeysSchema>;
+
+/** A "this wasn't me" link from a mail about a requester's passkeys, as the portal shows it. */
+export const PortalPasskeyAlertSchema = z
+  .object({
+    change: z.enum(['added', 'removed', 'copied']),
+    name: z.string().describe('The passkey’s name'),
+    email: z.string().describe('The requester’s address'),
+    changedAt: timestamp,
+    done: z.boolean().describe('The link was followed: every portal session of theirs ended, and the passkey stopped'),
+  })
+  .meta({ id: 'PortalPasskeyAlert' });
+export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
+const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
+export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk });
+export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
+
+/** How many passkeys the team took from a requester (D69). */
+export const RemovedPasskeysSchema = z.object({ removed: z.number().int() }).meta({ id: 'RemovedPasskeys' });
+export type RemovedPasskeys = z.infer<typeof RemovedPasskeysSchema>;

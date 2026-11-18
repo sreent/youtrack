@@ -75,7 +75,7 @@ export async function inviteRequester(app: AppServices, issueId: string, deskKey
   if (!row) throw new AppError(404, 'not_found', 'This issue is no help desk request', 'Only requests have requesters to invite.').said('portal.notARequest');
   const s = await app.schema.get();
   const project = s.projects.get(row.request.projectId);
-  const choice = project ? deskSignIn(project) : { link: true, password: false, providers: [] };
+  const choice = project ? deskSignIn(project) : { link: true, password: false, providers: [] as string[] };
   const tied = (await groupsOfRequester(app.db, row.requester)).find((g) => g.projectId === row.request.projectId)?.providerId;
   if (!tied && choice.link) return requestSignIn(app, row.requester.email, deskKey);
   if (!tied && choice.password) return requestPasswordLink(app, row.requester.email, deskKey);
@@ -138,7 +138,7 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
   }
-  const method = row.s.method === 'password' || row.s.method === 'sso' ? row.s.method : 'link';
+  const method = row.s.method === 'password' || row.s.method === 'sso' || row.s.method === 'passkey' ? row.s.method : 'link';
   return { ...row.requester, signedIn: { method, providerId: row.s.providerId ?? null } };
 }
 
@@ -179,7 +179,7 @@ async function meOf(app: AppServices, r: PortalViewer): Promise<PortalMe> {
   const ways = closed.map((p) => {
     const tied = view.tiedAt.get(p.id);
     const choice = deskSignIn(p);
-    return { desk: { key: p.key, name: p.name }, link: !tied && choice.link, password: !tied && choice.password, ids: tied ? [tied] : choice.providers };
+    return { desk: { key: p.key, name: p.name }, link: !tied && choice.link, password: !tied && choice.password, passkey: !tied && Boolean(choice.passkey), ids: tied ? [tied] : choice.providers };
   });
   const names = await providerNames(app.db, [...new Set([...ways.flatMap((w) => w.ids), ...(r.signedIn.providerId ? [r.signedIn.providerId] : [])])]);
   const elsewhere: PortalDeskSignIn[] = ways

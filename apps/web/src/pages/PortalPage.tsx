@@ -11,6 +11,7 @@ import { ErrorNote, Loading } from '../components/States';
 import { Avatar, Who } from '../components/Who';
 import { errorText, FormField } from '../features/common/bits';
 import { solveCaptcha } from '../features/helpdesk/pow';
+import { PortalNotMe, PortalPasskeyButton, PortalPasskeysSection, usePortalPasskeySignIn } from '../features/helpdesk/PortalPasskeys';
 import { whenRead } from '../features/common/format';
 import { formatList, intlLocale, t, tr } from '../i18n';
 import type { ReactNode } from 'react';
@@ -31,6 +32,12 @@ function confirmToken(): string {
 function passwordToken(): string {
   const t = window.location.hash.replace(/^#/, '').trim();
   return /^hdp_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
+}
+
+/** A mail's "this wasn't me" link about their passkeys (D69) carries its token the same way. */
+function alertToken(): string {
+  const t = window.location.hash.replace(/^#/, '').trim();
+  return /^hdk_[A-Za-z0-9_-]{43}$/.test(t) ? t : '';
 }
 
 /** The desk whose page this is: named, or the one a request's id names (an email to someone copied links to it, D57). */
@@ -98,6 +105,8 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
   const [error, setError] = useState<unknown>(null);
   const failed = new URLSearchParams(window.location.search).get('sso');
   const failure = failed ? ssoFailure(failed) : null;
+  // A passkey (D69): from the email field's autofill where the browser offers it, and a button.
+  const passkeys = usePortalPasskeySignIn(Boolean(methods.data?.passkey) && !sent, desk, onSignedIn);
   if (methods.error) return <Lone><ErrorNote error={methods.error} /></Lone>;
   if (!methods.data) return <Loone />;
   const m = methods.data;
@@ -160,7 +169,9 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
           {byEmail ? (
             <form className="form" onSubmit={m.password ? signIn : (e) => { e.preventDefault(); void sendLink('link'); }} aria-label={m.password ? t('page.portal.signInWithYourPassword') : t('page.portal.signInWithYourEmail')}>
               <p className="note">{intro}</p>
-              <FormField label={t('page.portal.yourEmail')}>{(id) => <input id={id} type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</FormField>
+              <FormField label={t('page.portal.yourEmail')}>
+                {(id) => <input id={id} type="email" required autoComplete={passkeys.on ? 'username webauthn' : 'email'} value={email} onChange={(e) => setEmail(e.target.value)} />}
+              </FormField>
               {m.password ? (
                 <FormField label={t('page.portal.password')}>
                   {(id) => <input id={id} type="password" autoComplete="current-password" value={password} maxLength={200} onChange={(e) => setPassword(e.target.value)} />}
@@ -186,6 +197,7 @@ function SignIn({ desk, onSignedIn }: { desk: string | undefined; onSignedIn: (m
               </div>
             </form>
           ) : null}
+          <PortalPasskeyButton passkeys={passkeys} />
         </>
       )}
     </Lone>
@@ -279,7 +291,7 @@ function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe)
   return (
     <section className="stack tight" aria-labelledby="portal-sign-in">
       <h2 id="portal-sign-in">{t('page.portal.howYouSignIn')}</h2>
-      <p className="note">{t('page.portal.signedInWith', { method: via.method, provider: via.provider?.name ?? '' })}</p>
+      <p className="note">{via.method === 'passkey' ? t('page.portal.signedInWithPasskey') : t('page.portal.signedInWith', { method: via.method, provider: via.provider?.name ?? '' })}</p>
       {me.elsewhere.map((d) => (
         <div key={d.desk.key} className="cluster">
           <p className="note">
@@ -288,6 +300,7 @@ function HowYouSignIn({ me, onChange }: { me: PortalMe; onChange: (me: PortalMe)
               ways: formatList([
                 ...(d.password ? [t('page.portal.wayPassword')] : []),
                 ...(d.link ? [t('page.portal.wayLink')] : []),
+                ...(d.passkey ? [t('page.portal.wayPasskey')] : []),
                 ...d.providers.map((p) => p.name),
               ], 'disjunction'),
             })}
@@ -717,6 +730,7 @@ export default function PortalPage() {
   const [settingPassword, setSettingPassword] = useState(passwordToken);
   // The link that confirms whom a new request's Cc named (D67): a page of its own, signed in or not.
   const [confirming] = useState(confirmToken);
+  const [alert, setAlert] = useState(alertToken);
   const desk = deskOfPage();
   // A sign-in link opened where the portal already is changes only the address's hash: take it then too.
   useEffect(() => {
@@ -725,6 +739,8 @@ export default function PortalPage() {
       if (next) setToken(next);
       const chosen = passwordToken();
       if (chosen) setSettingPassword(chosen);
+      const told = alertToken();
+      if (told) setAlert(told);
     };
     window.addEventListener('hashchange', taken);
     return () => window.removeEventListener('hashchange', taken);
@@ -732,7 +748,7 @@ export default function PortalPage() {
   const [redeemError, setRedeemError] = useState<unknown>(null);
   // An email to someone copied on a request links to it here (D57): opened once they're signed in.
   const [open, setOpen] = useState<string | null>(() => new URLSearchParams(window.location.search).get('request'));
-  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword && !confirming });
+  const me = useQuery({ queryKey: ['portal', 'me'], queryFn: () => get<PortalMe | null>('/portal/me'), retry: false, enabled: !token && !settingPassword && !confirming && !alert });
   useEffect(() => {
     if (!token) return;
     history.replaceState(null, '', window.location.pathname);
@@ -764,6 +780,7 @@ export default function PortalPage() {
     setSettingPassword('');
     void qc.invalidateQueries({ queryKey: ['portal'], predicate: (q) => q.queryKey[1] !== 'me' });
   };
+  if (alert) return <PortalNotMe token={alert} />;
   if (settingPassword) return <ChoosePassword token={settingPassword} onSignedIn={signedInNow} />;
   if (me.isLoading || (token && me.data === undefined && !me.error)) return <Loone />;
   if (!me.data) {
@@ -828,6 +845,7 @@ export default function PortalPage() {
             </div>
           </form>
           <HowYouSignIn me={m} onChange={(x) => qc.setQueryData(['portal', 'me'], x)} />
+          <PortalPasskeysSection me={m} />
         </div>
       )}
     </Lone>

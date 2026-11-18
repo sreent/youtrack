@@ -8,6 +8,7 @@ import { pollsDone, startPoll } from './imap';
 import { pruneInbound } from './inbound';
 import { prunePortal } from '../services/portal';
 import { pruneHeldCcs } from '../services/request-ccs';
+import { prunePortalPasskeys } from '../services/portal-passkeys';
 import { slaTick } from '../services/sla';
 import { pruneTeamReplyTokens } from '../services/team-replies';
 import { deskPollsDone, startDeskPolls } from '../services/desk-mailbox';
@@ -19,6 +20,8 @@ choreFactories.push((runtime) => [
   { name: 'helpdesk-portal-prune', everyMs: 6 * 3_600_000, run: () => prunePortal(runtime.db) },
   // A new request's Cc nobody settled in 30 days, and its links past their time (D67).
   { name: 'helpdesk-held-ccs-prune', everyMs: 24 * 3_600_000, run: () => pruneHeldCcs(runtime.db) },
+  // Requesters' passkey challenges nobody answered, and their mails' links past their time (D69).
+  { name: 'portal-passkeys-prune', everyMs: 15 * 60_000, run: () => prunePortalPasskeys(runtime.db) },
   { name: 'team-reply-tokens-prune', everyMs: 24 * 3_600_000, run: () => pruneTeamReplyTokens(runtime.db) },
   // Each desk's own mailbox (D45), in the background, as the shared one is.
   { name: 'helpdesk-desk-imap', everyMs: runtime.config.helpdeskImapPollMs, run: async () => void startDeskPolls(runtime) },

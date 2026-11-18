@@ -46,7 +46,7 @@ export const DEFAULT_HELPDESK: HelpdeskSettings = {
   waitingStates: [],
   resumeState: null,
   // Requesters sign in to the portal by a link emailed to them, as before D63.
-  signIn: { link: true, password: false, providers: [] },
+  signIn: { link: true, password: false, providers: [], passkey: false },
   // D57's cap; a new request's Cc nobody vouches for waits for its requester; nobody's words are relayed (D67).
   ccsMax: REQUEST_CCS_MAX,
   ccsConfirm: true,
