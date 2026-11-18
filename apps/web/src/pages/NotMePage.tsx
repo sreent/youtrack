@@ -9,6 +9,7 @@ import { ErrorNote, Loading } from '../components/States';
 import { t } from '../i18n';
 
 const HEADS: Record<PasskeyAlert['change'], string> = {
+  'password-removed': 'page.notMe.passwordRemoved',
   added: 'page.notMe.added',
   removed: 'page.notMe.removed',
   copied: 'page.notMe.copied',
@@ -44,6 +45,8 @@ export default function NotMePage() {
     );
   }
   const d = done ?? described.data;
+  // A password removed (D68) names no passkey, and leaves none to fall back on.
+  const password = d.change === 'password-removed';
   const follow = async () => {
     setBusy(true);
     setError(null);
@@ -58,12 +61,12 @@ export default function NotMePage() {
   return (
     <Lone>
       <h1>{d.done ? t('page.notMe.done') : t(HEADS[d.change])}</h1>
-      <p>{t('page.notMe.what', { name: d.name, login: d.login, date: agoSaid(d.changedAt) })}</p>
+      <p>{password ? t('page.notMe.whatPassword', { login: d.login, date: agoSaid(d.changedAt) }) : t('page.notMe.what', { name: d.name, login: d.login, date: agoSaid(d.changedAt) })}</p>
       {error ? <ErrorNote error={error} /> : null}
       {d.done ? (
         <>
-          <p role="status">{t('page.notMe.doneAbout', { change: d.change, name: d.name })}</p>
-          <p className="note">{t('page.notMe.next')}</p>
+          <p role="status">{password ? t('page.notMe.doneAboutPassword') : t('page.notMe.doneAbout', { change: d.change, name: d.name })}</p>
+          <p className="note">{password ? t('page.notMe.nextNoPassword') : t('page.notMe.next')}</p>
           <div className="cluster">
             <Link className="button primary" to="/login">
               {t('page.notMe.signIn')}
@@ -72,7 +75,7 @@ export default function NotMePage() {
         </>
       ) : (
         <>
-          <p className="note">{t('page.notMe.ifNotYou', { change: d.change })}</p>
+          <p className="note">{password ? t('page.notMe.ifNotYouPassword') : t('page.notMe.ifNotYou', { change: d.change })}</p>
           <div className="cluster">
             <button type="button" className="danger" onClick={() => void follow()} disabled={busy}>
               {busy ? t('page.notMe.signingOut') : t('page.notMe.signMeOut')}

@@ -3,12 +3,13 @@ import { browserSupportsWebAuthn, startAuthentication, startRegistration, WebAut
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError, del, get, patch, post } from '../../api/client';
+import { keys } from '../../api/queries';
 import { agoSaid, Badge } from '../../components/Badges';
 import { ErrorNote, Loading } from '../../components/States';
 import { errorText, FormField, Said, Scroll } from '../common/bits';
 import { Confirm } from '../common/Confirm';
 import { CodeField } from './TwoFactor';
-import { t } from '../../i18n';
+import { formatList, t } from '../../i18n';
 
 export const passkeyKeys = { mine: ['me', 'passkeys'] as const };
 
@@ -108,10 +109,17 @@ function Row({ p, busy, onRename, onRemove }: { p: Passkey; busy: boolean; onRen
         ) : (
           <span className="item-name">{p.name}</span>
         )}
-        {p.copied || p.synced || p.elsewhere ? (
+        {p.copied || p.synced || p.elsewhere || p.listed === false ? (
           <span className="item-about">
             {p.copied ? <Badge tone="bad">{t('identity.passkeys.stopped')}</Badge> : p.synced ? <Badge tone="good">{t('identity.passkeys.synced')}</Badge> : null}{' '}
-            {p.copied ? t('identity.passkeys.mayBeCopied') : p.elsewhere ? t('identity.passkeys.elsewhere', { host: p.elsewhere }) : null}
+            {p.copied
+              ? t('identity.passkeys.mayBeCopied')
+              : p.elsewhere
+                ? t('identity.passkeys.elsewhere', { host: p.elsewhere })
+                : // Only some authenticators are taken now (D68): this one isn't, or a4a never asked its maker.
+                  p.listed === false
+                  ? t(p.attested ? 'identity.passkeys.notListedNow' : 'identity.passkeys.addedBeforeTheList')
+                  : null}
           </span>
         ) : null}
       </th>
@@ -222,6 +230,8 @@ export function PasskeysCard() {
   return (
     <div className="stack">
       {off ? <p className="note">{t(off)}</p> : null}
+      {m.on && m.required ? <p className="note">{t('identity.passkeys.requiredOfYou')}</p> : null}
+      {m.on && m.authenticators ? <p className="note">{t('identity.passkeys.onlyThese', { list: formatList(m.authenticators) })}</p> : null}
       {m.on && !supported ? <p className="note">{t('identity.passkeys.notAvailable')}</p> : null}
       {m.passkeys.length ? (
         <Scroll label={t('identity.passkeys.tableOfYourPasskeys')}>
@@ -265,6 +275,50 @@ export function PasskeysCard() {
           </button>
         </div>
       ) : null}
+      <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
+      <PasskeysAlone m={m} onChanged={refresh} />
+    </div>
+  );
+}
+
+/**
+ * Signing in with passkeys alone (D68): removing your password takes a spare (a second passkey, or
+ * one your provider syncs) and a passkey's proof in the last ten minutes, asked for here if it's due.
+ */
+function PasskeysAlone({ m, onChanged }: { m: MyPasskeys; onChanged: () => void }) {
+  const qc = useQueryClient();
+  const [said, setSaid] = useState<{ text: string; bad?: boolean } | null>(null);
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (m.password?.needs === 'passkey') await passkeyAt<Confirmed>('/me/confirm/passkey/options', '/me/confirm/passkey');
+      await del('/me/password');
+    },
+    onSuccess: () => {
+      setSaid({ text: t('identity.passkeys.passwordRemoved') });
+      onChanged();
+      void qc.invalidateQueries({ queryKey: keys.me });
+    },
+    onError: (e) => setSaid({ text: passkeyCancelled(e) ? t('identity.passkeys.cancelled') : errorText(e), bad: true }),
+  });
+  const p = m.password;
+  if (!p || !m.on || !m.passkeys.length) return null;
+  if (!p.set) return <p className="note">{t('identity.passkeys.youHaveNoPassword')}</p>;
+  return (
+    <div className="stack">
+      <h3>{t('identity.passkeys.passkeysAlone')}</h3>
+      <p className="note">{p.needs === 'spare' ? t('identity.passkeys.keepASpare') : t('identity.passkeys.passkeysAloneAbout')}</p>
+      {p.needs === 'spare' ? null : (
+        <div className="cluster">
+          <Confirm
+            label={t('identity.passkeys.removePassword')}
+            title={t('identity.passkeys.removePasswordTitle')}
+            about={t('identity.passkeys.removePasswordAbout')}
+            confirm={t('identity.passkeys.removeMyPassword')}
+            disabled={remove.isPending}
+            onConfirm={() => remove.mutate()}
+          />
+        </div>
+      )}
       <Said text={said?.text} tone={said?.bad ? 'bad' : undefined} />
     </div>
   );
