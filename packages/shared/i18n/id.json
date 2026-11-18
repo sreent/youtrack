@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {Semua sesi Anda sudah diakhiri.} other {Semua sesi Anda sudah diakhiri, dan “{name}” tidak dapat dipakai lagi untuk masuk.}}",
   "page.notMe.gone": "Tautan ini tidak berlaku lagi",
   "page.notMe.goneAbout": "Tautan ini sudah dipakai, atau sudah lebih dari dua minggu sejak dikirim. Masuk, lalu periksa kunci sandi di profil Anda.",
-  "page.notMe.ifNotYou": "{change, select, removed {Jika bukan Anda yang melakukannya, a4a akan mengakhiri semua sesi akun ini, sehingga siapa pun pelakunya harus masuk lagi.} other {Jika bukan Anda yang melakukannya, a4a akan mengakhiri semua sesi akun ini, dan kunci sandi itu, juga kunci sandi lain yang ditambahkan setelahnya, tidak dapat dipakai lagi untuk masuk.}}",
+  "page.notMe.ifNotYou": "{change, select, removed {Jika bukan Anda yang melakukannya, a4a akan mengakhiri semua sesi akun ini, sehingga siapa pun pelakunya harus masuk lagi.} copied {Jika mungkin ada orang lain yang memilikinya, a4a akan mengakhiri semua sesi akun ini dan menghapus kunci sandi itu.} other {Jika bukan Anda yang melakukannya, a4a akan mengakhiri semua sesi akun ini, dan kunci sandi itu, juga kunci sandi lain yang ditambahkan setelahnya, tidak dapat dipakai lagi untuk masuk.}}",
   "page.notMe.next": "Masuk dengan kata sandi, ubah kata sandi itu, lalu beri tahu administrator apa yang terjadi.",
   "page.notMe.removed": "Kunci sandi dihapus dari akun Anda",
   "page.notMe.signIn": "Masuk",

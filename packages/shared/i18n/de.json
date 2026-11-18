@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {Sie sind überall abgemeldet.} other {Sie sind überall abgemeldet, und der Passkey „{name}“ meldet niemanden mehr an.}}",
   "page.notMe.gone": "Dieser Link funktioniert nicht mehr",
   "page.notMe.goneAbout": "Er wurde schon verwendet oder ist älter als zwei Wochen. Melden Sie sich an und sehen Sie sich Ihre Passkeys in Ihrem Profil an.",
-  "page.notMe.ifNotYou": "{change, select, removed {Waren Sie das nicht, meldet a4a Sie überall ab: Wer es war, muss sich neu anmelden.} other {Waren Sie das nicht, meldet a4a Sie überall ab, und dieser Passkey sowie alle später hinzugefügten melden niemanden mehr an.}}",
+  "page.notMe.ifNotYou": "{change, select, removed {Waren Sie das nicht, meldet a4a Sie überall ab: Wer es war, muss sich neu anmelden.} copied {Könnte jemand anderes ihn haben, meldet a4a Sie überall ab und entfernt den Passkey.} other {Waren Sie das nicht, meldet a4a Sie überall ab, und dieser Passkey sowie alle später hinzugefügten melden niemanden mehr an.}}",
   "page.notMe.next": "Melden Sie sich mit Ihrem Passwort an, ändern Sie es und sagen Sie einem Administrator, was passiert ist.",
   "page.notMe.removed": "Aus Ihrem Konto wurde ein Passkey entfernt",
   "page.notMe.signIn": "Anmelden",

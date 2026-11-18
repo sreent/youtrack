@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {你已在所有设备上退出登录。} other {你已在所有设备上退出登录，“{name}”也已无法用于登录。}}",
   "page.notMe.gone": "此链接已失效",
   "page.notMe.goneAbout": "此链接已使用过，或发出已超过两周。请登录，然后在个人资料中查看你的通行密钥。",
-  "page.notMe.ifNotYou": "{change, select, removed {如果不是你本人操作，a4a 会让你在所有设备上退出登录，这样操作者就必须重新登录。} other {如果不是你本人操作，a4a 会让你在所有设备上退出登录，此通行密钥以及在其之后添加的通行密钥都将无法再用于登录。}}",
+  "page.notMe.ifNotYou": "{change, select, removed {如果不是你本人操作，a4a 会让你在所有设备上退出登录，这样操作者就必须重新登录。} copied {如果其他人可能持有此通行密钥，a4a 会让你在所有设备上退出登录，并移除该通行密钥。} other {如果不是你本人操作，a4a 会让你在所有设备上退出登录，此通行密钥以及在其之后添加的通行密钥都将无法再用于登录。}}",
   "page.notMe.next": "请用密码登录并更改密码，然后把情况告诉管理员。",
   "page.notMe.removed": "已从你的账号移除一个通行密钥",
   "page.notMe.signIn": "登录",

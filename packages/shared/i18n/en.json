@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {You’re signed out everywhere.} other {You’re signed out everywhere, and “{name}” signs nobody in.}}",
   "page.notMe.gone": "This link doesn’t work any more",
   "page.notMe.goneAbout": "It was used already, or it’s more than two weeks old. Sign in and look at your passkeys on your profile.",
-  "page.notMe.ifNotYou": "{change, select, removed {If this wasn’t you, a4a signs you out everywhere, so whoever did it must sign in again.} other {If this wasn’t you, a4a signs you out everywhere, and the passkey signs nobody in, nor any added after it.}}",
+  "page.notMe.ifNotYou": "{change, select, removed {If this wasn’t you, a4a signs you out everywhere, so whoever did it must sign in again.} copied {If someone else may have it, a4a signs you out everywhere and removes the passkey.} other {If this wasn’t you, a4a signs you out everywhere, and the passkey signs nobody in, nor any added after it.}}",
   "page.notMe.next": "Sign in with your password, change it, and tell an administrator what happened.",
   "page.notMe.removed": "A passkey was removed from your account",
   "page.notMe.signIn": "Sign in",

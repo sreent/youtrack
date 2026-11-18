@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {Se cerró tu sesión en todas partes.} other {Se cerró tu sesión en todas partes, y “{name}” no inicia la sesión de nadie.}}",
   "page.notMe.gone": "Este enlace ya no funciona",
   "page.notMe.goneAbout": "Ya se usó o tiene más de dos semanas. Inicia sesión y revisa tus llaves de acceso en tu perfil.",
-  "page.notMe.ifNotYou": "{change, select, removed {Si no fuiste tú, a4a cierra tu sesión en todas partes, así que quien lo hizo tendrá que volver a iniciar sesión.} other {Si no fuiste tú, a4a cierra tu sesión en todas partes, y ni esta llave de acceso ni las que se agregaron después inician la sesión de nadie.}}",
+  "page.notMe.ifNotYou": "{change, select, removed {Si no fuiste tú, a4a cierra tu sesión en todas partes, así que quien lo hizo tendrá que volver a iniciar sesión.} copied {Si alguien más podría tenerla, a4a cierra tu sesión en todas partes y quita la llave de acceso.} other {Si no fuiste tú, a4a cierra tu sesión en todas partes, y ni esta llave de acceso ni las que se agregaron después inician la sesión de nadie.}}",
   "page.notMe.next": "Inicia sesión con tu contraseña, cámbiala y cuéntale a un administrador lo que pasó.",
   "page.notMe.removed": "Se quitó una llave de acceso de tu cuenta",
   "page.notMe.signIn": "Iniciar sesión",

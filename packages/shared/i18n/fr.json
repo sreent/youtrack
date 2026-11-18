@@ -2982,7 +2982,7 @@
   "page.notMe.doneAbout": "{change, select, removed {Toutes vos sessions sont fermées.} other {Toutes vos sessions sont fermées, et « {name} » ne permet plus de se connecter.}}",
   "page.notMe.gone": "Ce lien ne fonctionne plus",
   "page.notMe.goneAbout": "Il a déjà servi, ou date de plus de deux semaines. Connectez-vous et consultez vos clés d’accès dans votre profil.",
-  "page.notMe.ifNotYou": "{change, select, removed {Si ce n’était pas vous, a4a ferme toutes vos sessions : la personne qui l’a fait devra se reconnecter.} other {Si ce n’était pas vous, a4a ferme toutes vos sessions, et ni cette clé d’accès ni celles ajoutées après elle ne permettent plus de se connecter.}}",
+  "page.notMe.ifNotYou": "{change, select, removed {Si ce n’était pas vous, a4a ferme toutes vos sessions : la personne qui l’a fait devra se reconnecter.} copied {Si quelqu’un d’autre a pu l’obtenir, a4a ferme toutes vos sessions et supprime la clé d’accès.} other {Si ce n’était pas vous, a4a ferme toutes vos sessions, et ni cette clé d’accès ni celles ajoutées après elle ne permettent plus de se connecter.}}",
   "page.notMe.next": "Connectez-vous avec votre mot de passe, changez-le, et expliquez à un admin ce qui s’est passé.",
   "page.notMe.removed": "Une clé d’accès a été supprimée de votre compte",
   "page.notMe.signIn": "Se connecter",
