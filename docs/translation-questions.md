@@ -833,6 +833,13 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A desk that takes passkeys "cho đăng nhập bằng khóa truy cập"** (`problem.portal.passkeysOff`, `helpdesk.portalPasskeys.offDesks`), as one that takes passwords does. A requester's help desk passkey is "khóa truy cập bạn dùng cho bộ phận hỗ trợ" (`helpdesk.portalPasskeys.notMeCopied`, `server.portalPasskeys.subject`, `problem.portalPasskeys.teamPasskey`), since "khóa truy cập của bộ phận hỗ trợ" would read as the desk's own.
 - **Smaller choices**: GitHub's account kinds are "cá nhân" and "tổ chức" (`page.integrations.accountUser`, `page.integrations.accountOrganization`), where English says "user"; an installation GitHub says is gone "đã gỡ" (`page.integrations.installationGone`); "họ" stands for one person in "Đã CC 1 người: từ giờ, họ sẽ nhận …" (`page.portal.confirm.copied`), whose plural keeps `other` alone; and `server.portalPasskeys.removedByTeam` keeps `=1`, the one case that names the passkey.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Trạng thái commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): catalog giữ "commit" nguyên văn. GitLab tiếng Việt cũng nói "trạng thái commit". Được chứ?
+- `page.group.requirePasskeys` là "Yêu cầu khóa truy cập đối với người trong nhóm", `page.project.requirePasskeys` là "…với mọi người xem được dự án này". "Yêu cầu … đối với/với" — giới từ nào đúng hơn?
+- `page.project.requirePasskeysHelp` mở đầu "Từ lần đăng nhập tiếp theo, với ai đăng nhập bằng mật khẩu của a4a." Cụm "với ai đăng nhập" đọc có tự nhiên không?
+- `builds.builds.reportCheck` là "Báo cáo kết quả của mỗi lần chạy lên GitHub". "lên GitHub" cho hướng truyền đi: tự nhiên không, hay "tới GitHub"?
+- `page.integrations.statusesAudience` nói "trạng thái chỉ nêu vấn đề bằng mã" — check run thì "bằng mã và liên kết". Đối chiếu vậy rõ không?
 
 ## Indonesian
 
