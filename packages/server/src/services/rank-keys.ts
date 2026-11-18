@@ -1,7 +1,7 @@
 /**
  * A board's keys in SQL (D65): `keyAt(n)` of `@a4a/shared/ranks`, worked out by the database, so a
  * board's keys are written afresh in one statement, its rows never brought out. The migration that
- * turned ranks into keys says the same expression in its own words (0041_board_ranks_keys.sql), and
+ * turned ranks into keys says the same expression in its own words (0044_board_ranks_keys.sql), and
  * the tests hold the three to one answer.
  */
 import { RANK_DIGITS, RANK_KEY_CLASSES } from '@a4a/shared/ranks';

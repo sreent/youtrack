@@ -92,6 +92,7 @@ function migrationsBefore(name: string): string {
   cpSync(MIGRATIONS, dir, { recursive: true });
   const journal = JSON.parse(readFileSync(path.join(dir, 'meta/_journal.json'), 'utf8')) as { entries: { tag: string }[] };
   const at = journal.entries.findIndex((e) => e.tag === name);
+  if (at < 0) throw new Error(`No migration ${name} in the journal`);
   for (const e of journal.entries.slice(at)) rmSync(path.join(dir, `${e.tag}.sql`));
   journal.entries = journal.entries.slice(0, at);
   writeFileSync(path.join(dir, 'meta/_journal.json'), JSON.stringify(journal));
@@ -115,7 +116,7 @@ async function orderBy(db: Db, board: string, by: 'rank' | 'key'): Promise<strin
 
 /** Migrates a database of the old schema holding a board of 50,000 ranks; says how long D65's migration took. */
 async function migrateBigBoard(db: Db, migrate: (folder: string) => Promise<void>): Promise<{ ms: number; plan: string }> {
-  const before = migrationsBefore('0041_board_ranks_keys');
+  const before = migrationsBefore('0044_board_ranks_keys');
   try {
     await migrate(before);
   } finally {
