@@ -1935,7 +1935,7 @@ D54 made a GitHub integration read as a GitHub App, through one installation, an
 **What it costs.**
 - A read for a repository a4a hasn't read lately asks GitHub where it's installed first: one more request an hour per repository per instance. A suspended installation is asked again on its repository's next read, once its token is refused.
 - A check run says less than a4a knows, by design: a team that wants its issues' summaries on its checks opens the project to guests. A limited issue reads as a missing one, so the rule fails a pull request that names one until it's unlimited or no longer named.
-- The rule passes over an issue whose project keeps its State private: its check says nothing of it, so it can't hold a pull request back.
+- An issue whose project keeps its State private is named without a state, and the rule passes over it: a conclusion that turned with a private field would say it, so such an issue can't hold a pull request back.
 - An integration's checks start with each pull request's next change: a4a lists no pull requests when they're turned on. A pull request whose head moved while a4a wasn't told (its delivery lost) keeps its old run until the next.
 - Twenty writes a minute per installation, and fewer when GitHub says so: an issue a hundred open pull requests name takes five minutes to reach them all.
 - Gitea's introspection says the grant's scope even where the instance doesn't enforce it, so on such an instance a token reads as narrowed when it isn't; a4a can check only what the instance says. Where nothing can be revoked, the token lives its hour there, which the profile says.
