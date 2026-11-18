@@ -8,7 +8,9 @@
  *     into what a page says from code (a status line, a label in a ternary).
  *   - a phrase (two words or more) sits anywhere code keeps words for a person: a value, an array,
  *     a ternary, a template, an argument; or a single word does, as a label, a title, a "what";
- *   - an English plural is made by hand (n === 1 ? 'issue' : 'issues'): a message's plural says it.
+ *   - an English plural is made by hand (n === 1 ? 'issue' : 'issues'): a message's plural says it;
+ *   - in any language, a control named by one message (aria-label) doesn't hold, whole and in order,
+ *     the words another shows on it (WCAG 2.5.3: someone who says what they see must reach it).
  * Where a string sits says when it's code: a class name or another attribute nobody reads, a call
  * that takes code, a comparison, a case, an object's key. A string that only looks like words there
  * (a query, a command, a field's name kept as data) says so with a `// not words` comment on its line
@@ -255,6 +257,23 @@ for (const f of walkDir(path.join(root, 'packages/server/src'))) checkFile(f, { 
 for (const f of walkDir(path.join(root, 'packages/shared/src'))) checkFile(f, { web: false });
 
 for (const k of Object.keys(en)) if (!used.has(k) && !DYNAMIC.some((p) => k.startsWith(p))) say('en.json', `keeps ${k}, which nothing says`);
+
+// ---------------------------------------------------------------------------
+// A control's name holds the words it shows (WCAG 2.5.3). The browser suite's axe checks it on the
+// pages it visits, mostly in English; this checks every language: where a button or a link is named
+// by aria-label={t('a', …)} and shows {t('b')}, b's words stand whole, in order, in a.
+// ---------------------------------------------------------------------------
+const plainWords = (s) => s.replace(/\{[^{}]*\}/g, ' q9q ').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+for (const f of walkDir(path.join(root, 'apps/web/src')).filter((f) => f.endsWith('.tsx'))) {
+  for (const [, nameKey, shownKey] of readFileSync(f, 'utf8').matchAll(/aria-label=\{tr?\('([\w.]+)'[^}]*\}[^>]*>\s*\{tr?\('([\w.]+)'\)\}\s*</g)) {
+    for (const [locale, messages] of Object.entries(catalogs)) {
+      const [name, shown] = [messages[nameKey], messages[shownKey]];
+      if (!name || !shown || /[{}]/.test(shown) || /,\s*(select|plural)\s*,/.test(name)) continue;
+      const [n, s] = [plainWords(name), plainWords(shown)];
+      if (!n.includes(s) && !n.replace(/ /g, '').includes(s.replace(/ /g, ''))) say(`i18n/${locale}.json`, `${nameKey} names a control that shows ${shownKey}, “${shown}”, so it should hold those words whole: “${name}”`);
+    }
+  }
+}
 
 if (problems.length) {
   console.error(`${problems.length} problem${problems.length === 1 ? '' : 's'} with a4a's words (D49):\n${(process.env.CHECK_WORDS_ALL ? problems : problems.slice(0, 200)).join('\n')}${problems.length > 200 && !process.env.CHECK_WORDS_ALL ? `\n… and ${problems.length - 200} more (CHECK_WORDS_ALL=1 shows them all)` : ''}`);
