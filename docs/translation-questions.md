@@ -287,6 +287,9 @@ Terms:
 - **A person's handle is their *nome de utilizador*** (`app.auth.login`, `problem.users.loginTaken`), which makes "Use o nome de utilizador da pessoa" long; *login* is the alternative.
 - **Single sign-on is "SSO"** where the sentence already says *iniciar sessão* (`app.auth.singleSignOn`, `page.profile.singleSignOn`), and *início de sessão único (SSO)* in the terms table.
 - **Days away**: Sick is *Baixa médica*, Training *Formação* (`away.words.*`).
+- **Earned value is *valor ganho* (VG)** (`plan.costs.earned*`, `evAc*`, `evPv*`), as Portugal's project managers say it; the other figures keep the abbreviations Brazil's PMBOK gave them (VP, CR, IDC, IDP, VC, VPR, ONT, ENT, EPT, VNT, "No término"). Do Portugal's teams read these, or EV, PV, AC, CPI and SPI?
+- **Provisioning is *aprovisionamento*, a tenant an *inquilino*** (`identity.provisioning.*`, `page.chat.tenant`, `problem.scim.tokenNotFound`), as Microsoft's Portuguese says them.
+- **A commit or a pull request is *associado* to an issue** ("associou o pull request #12", `activity.ledgerEntry.linkedPullRequestTo`, `page.integrations.linked`), apart from a link between issues, a *ligação*.
 
 Phrasing:
 
@@ -299,6 +302,8 @@ Phrasing:
 - **The query's count line still puts the count last** ("Itens no projeto SPR, não resolvidos: 4", `issues.queryBar.found*`): 0 is plural now, but the participles after it agree with the issues, not the count.
 - **The profile** is "Perfil" in the menu and on its page (`app.shell.yourProfile`, `page.profile.yourProfile`); "O seu perfil" is the alternative.
 - **iPhone's own words** are quoted as its Portuguese (Portugal) writes them: "toque em Partilhar, depois em Adicionar ao ecrã principal" (`notifications.pushSettings.onAnIphoneOrIpad`). An iPhone set to Brazil's Portuguese says "Compartilhar" and "Adicionar à Tela de Início".
+- **The reader among people**: a list marks the reader "(eu)" (`plan.resources.you`, `page.whiteboard.you`), the people table " · a sua conta" (`page.admin.you`), and the projects table's column of the reader's role "A sua função" (`page.projects.you`).
+- **A rule names the issue it acts on** where English says "it": "o item pai", "as subtarefas", "os itens que o item {phrase}" (`rules.words.*`, `rules.ruleForm.*`), and the rule problems quote the same words (`problem.rule.subtaskLinkParent`, `subtaskLinkSubtasks`). Is "o item pai" heavy beside "o pai"?
 - **Gender left unguessed** costs length, as it did for Brazil: "quem fez o pedido", "a pessoa responsável", "Este pedido só é visível para si e para a equipa". Check the badges and narrow columns at 390px.
 
 ## Korean

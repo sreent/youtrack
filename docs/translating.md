@@ -410,7 +410,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 - **Choosing** issues in a list or elements on a whiteboard is *selecionar*: "Selecionar todos os 12 itens", "3 selecionados", "Limpar seleção". *Escolher* is for picking one option among several: "Escolha um projeto".
 - **What just happened** is the *pretérito perfeito*: "O token {name} foi revogado.", "{title} foi instalada.", and, where a4a speaks as "we", "Enviámos" with Portugal's accent, apart from the present "enviamos". History and notifications, which carry their time, say it the same way: "comentou", "atribuiu-lhe o item".
 - **An issue is *item***, masculine: "o item", "Reportado por", "resolvido", "item criado". *Tarefa* stays free for the Task type people name, and the assistant's summary of an issue is a *resumo*, so an issue's summary is its *título*.
-- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "quem fez o pedido", "a pessoa responsável", "quem reportou o item", "as pessoas que acompanham", "Este pedido só é visível para si e para a equipa"; and where a name is missing, the bare noun: "Requerente". Nouns that don't change are welcome: *responsável*, *requerente*, *agente*, *membro*, *líder*. A participle about the reader or a person named turns into a verb or a noun: "Sessão iniciada como {name}" (not "conectado"), "Já não subscreve {name}" (not "inscrito"), "recebeu uma menção" (not "foi mencionado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gestor*, *membro*, *leitor*, *convidado*; in a sentence a role follows "a função", "{name} tem agora a função {role}", and a guest is "com acesso de convidado". Whoever must act is "um administrador": "Peça a um administrador que lhe dê acesso."
+- **Gender**: a4a doesn't guess a person's, and nothing agrees with the reader or the actor. Where Portuguese lets a sentence avoid it, it does: "quem fez o pedido", "a pessoa responsável", "quem reportou o item", "as pessoas que acompanham", "Este pedido só é visível para si e para a equipa"; and where a name is missing, the bare noun: "Requerente". Nouns that don't change are welcome: *responsável*, *requerente*, *agente*, *membro*, *líder*. A participle about the reader or a person named turns into a verb or a noun: "Sessão iniciada como {name}" (not "conectado"), "Já não subscreve {name}" (not "inscrito"), "recebeu uma menção" (not "foi mencionado"). Roles stay as their words, as German's and Spanish's do: *administrador*, *gestor*, *membro*, *leitor*, *convidado*; in a sentence a role follows "a função de", "{name} tem agora a função de {role}", "Aqui, a sua função é {role}", and a guest is "com acesso de convidado". Where a list marks the reader among people, it says "(eu)": "Ana (eu)". Whoever must act is "um administrador": "Peça a um administrador que lhe dê acesso."
 - **Typography**: quotation marks are «…», and “…” inside them, as Portugal's print and the EU's Portuguese style write them; straight quotes stay where a command is typed (`subscribe "My bugs"`). The ellipsis is one character (…). No space before ":", "?", ";" or "%" ("50%"), a space before a unit ("30 s", "3,5 h"). Sentence case in headings, labels and buttons; weekdays and months are lower case, as Intl writes them. "e-mail", with its hyphen; "online"; *o* URL.
 - **Counts**: Portugal's rule (CLDR's for `pt-PT`): `one` is 1 alone, so 0 is plural, "0 itens", as English's is. A message that says "um" or "uma" for one says it in `one`: `{n, plural, one {um item} other {# itens}}`; `=1` is kept only where English has one beside `one` (`{n, plural, =1 {} =2 { duas vezes} other { # vezes}}`). A number the page passes bare ("{banned} banned") takes a plural of its own. A participle that would agree with a number turns: "bloqueados: {banned}". The issue list's count line puts the count last ("Itens no projeto SPR, não resolvidos: 4"), since its "resolvidos" and "ordenados" agree with the issues, not the count.
 - **Pieces a page joins**:
@@ -474,6 +474,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | booked (hours in a plan) | alocado: "horas alocadas" |
 | critical path | caminho crítico |
 | baseline | linha de base |
+| earned value, earned | valor ganho (VG), ganho, as Portugal's project managers say it; the other figures keep their abbreviations: VP, CR, IDC, IDP, VC, VPR, ONT, ENT, EPT, VNT |
+| cost and schedule performance (CPI, SPI) | desempenho de custo e de prazo (IDC, IDP) |
 | milestone | marco |
 | what-if | simulação; the button is "E se…" |
 | triage | triagem |
@@ -488,6 +490,7 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | login (a person's handle) | nome de utilizador |
 | user, password | utilizador, palavra-passe |
 | identity provider | fornecedor de identidade |
+| provisioning (SCIM), tenant | aprovisionamento, inquilino (Microsoft's Portuguese) |
 | single sign-on | início de sessão único (SSO); "SSO" where a sentence already says *iniciar sessão* |
 | webhook, delivery | webhook, entrega |
 | post (a4a or a provider sending to an address) | enviar; *publicar* is for chat messages and comments |
@@ -500,6 +503,8 @@ French (`fr.json`) is complete, written for France and Canada alike: no word onl
 | choose, chosen (issues in a list, elements on a whiteboard) | selecionar, selecionado: "3 selecionados", "Limpar seleção"; *escolher* for one option among several |
 | link (between issues), unlink | ligação, ligar; remover a ligação |
 | link, unlink (a chat account) | associar, desassociar |
+| link (a commit or a pull request to an issue) | associar: "associou o pull request #12" |
+| connect, disconnect (an account, a workspace, a server) | ligar, desligar; *ligar-se a* a server |
 | link (a URL) | link |
 | duplicate | duplicado |
 | resolve, resolved, resolution | resolver, resolvido, resolução |
