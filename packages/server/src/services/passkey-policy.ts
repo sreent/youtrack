@@ -86,7 +86,7 @@ const wouldLockOut = () =>
 const cantRequireWhileOff = () =>
   conflict('Passkeys can’t be required while they’re off', 'Turn them on first. Where PUBLIC_URL isn’t https, or a4a’s own passwords are off, they can’t be.').said('passkeys.cantRequireWhileOff');
 export const lastAdmin = () =>
-  conflict('You’d leave no administrator able to sign in', 'Every other administrator owes a passkey and has none, or has no password. Add another passkey first, or let an administrator off.').said('passkeys.lastAdmin');
+  conflict('You’d leave no administrator able to sign in', 'No other administrator has a passkey that signs in here, or is let off. Add another passkey first, or let an administrator off.').said('passkeys.lastAdmin');
 const onlyWayIn = () =>
   conflict('That’s your only passkey, and you have no password', 'Add another passkey first, or set a password on your profile: otherwise nothing signs you in.').said('passkeys.onlyWayIn');
 
@@ -122,6 +122,8 @@ async function adminsWhoSignIn(tx: Db, app: AppServices, policy: { required: Pas
 }
 
 const configOn = (app: AppServices) => Boolean(rpOf(app)) && app.config.passwordLogin;
+/** Whether passkeys sign anyone in now, read through the transaction (a query beside it would wait on it). */
+const passkeysOnIn = async (tx: Db, app: AppServices) => configOn(app) && (await getSetting(tx, 'passkeys')) !== false;
 
 /** The administrator's passkey settings (D62's switch, and D68's policy and list), refused where they'd lock administrators out. */
 export async function applyPasskeySettings(ctx: Ctx, input: { passkeys?: boolean; requirePasskeys?: PasskeysRequired; passkeyAuthenticators?: string[] | null }): Promise<void> {
@@ -140,7 +142,8 @@ export async function applyPasskeySettings(ctx: Ctx, input: { passkeys?: boolean
     if (input.passkeys !== undefined) await setSetting(tx, 'passkeys', input.passkeys);
     // From the next sign-in on; a session already open stays, as two-factor's requirement leaves them (D38).
     if (input.requirePasskeys !== undefined) await setSetting(tx, 'requirePasskeys', input.requirePasskeys);
-    if (input.passkeyAuthenticators !== undefined) await setSetting(tx, 'passkeyAuthenticators', input.passkeyAuthenticators?.length ? [...new Set(input.passkeyAuthenticators)] : null);
+    // None chosen is kept as an empty list: any authenticator.
+    if (input.passkeyAuthenticators !== undefined) await setSetting(tx, 'passkeyAuthenticators', [...new Set(input.passkeyAuthenticators ?? [])]);
   });
   // A list wants FIDO's metadata: read it now, so the page says at once whether it came.
   if (input.passkeyAuthenticators?.length) void refreshMetadata(app).catch((e) => console.warn(`passkeys: reading FIDO's metadata failed: ${String(e)}`));
@@ -152,14 +155,14 @@ export const ownRemovalCheck = (app: AppServices, user: UserRow) => async (tx: D
   if (!me) return;
   const left = working(await tx.select().from(passkeys).where(eq(passkeys.userId, me.id)), rpOf(app));
   if (me.passkeysOnly && !left.length) throw onlyWayIn();
-  if (me.role === 'admin' && (await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: (await passkeysOff(app)) === null })) === 0) throw lastAdmin();
+  if (me.role === 'admin' && (await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: await passkeysOnIn(tx, app) })) === 0) throw lastAdmin();
 };
 
 /** An administrator removes someone's passkeys: refused where it would leave no administrator able to sign in. */
 export const adminRemovalCheck = (app: AppServices, userId: string) => async (tx: Db) => {
   const [target] = await tx.select({ role: users.role }).from(users).where(eq(users.id, userId));
   if (target?.role !== 'admin') return;
-  if ((await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: (await passkeysOff(app)) === null })) === 0) throw lastAdmin();
+  if ((await adminsWhoSignIn(tx, app, { required: await requiredOfWhom(tx), passkeysOn: await passkeysOnIn(tx, app) })) === 0) throw lastAdmin();
 };
 
 /** An administrator lets someone sign in without a passkey where passkeys are required, or takes that back. */
@@ -168,7 +171,7 @@ export async function setPasskeyExempt(ctx: Ctx, userId: string, exempt: boolean
   await ctx.db.transaction(async (raw) => {
     const tx = raw as unknown as Db;
     await tx.update(users).set({ passkeyExemptAt: exempt ? new Date() : null, updatedAt: new Date() }).where(eq(users.id, userId));
-    if (!exempt && (await adminsWhoSignIn(tx, ctx.app, { required: await requiredOfWhom(tx), passkeysOn: (await passkeysOff(ctx.app)) === null })) === 0) throw lastAdmin();
+    if (!exempt && (await adminsWhoSignIn(tx, ctx.app, { required: await requiredOfWhom(tx), passkeysOn: await passkeysOnIn(tx, ctx.app) })) === 0) throw lastAdmin();
   });
   ctx.app.schema.invalidate();
 }
@@ -218,6 +221,8 @@ const noPasswordToRemove = () => conflict('You have no password', 'You sign in w
 export async function removePassword(app: AppServices, user: UserRow, session: SessionRef): Promise<void> {
   const rp = await requireOn(app, user);
   if (!user.passwordHash) throw noPasswordToRemove();
+  // In the order the profile says them: a spare first, then a passkey's proof. The spare is counted again under the lock.
+  if (!spare(working(await app.db.select().from(passkeys).where(eq(passkeys.userId, user.id)), rp))) throw spareFirst();
   if (!confirmedUntil(session) || session.verifiedBy !== 'passkey') throw passkeyProofFirst();
   await app.db.transaction(async (raw) => {
     const tx = raw as unknown as Db;
