@@ -10,6 +10,7 @@ import { visibleSchema } from '../services/access';
 import { listComments } from '../services/comments';
 import { projectFieldDtos } from '../services/fields';
 import { getIssue } from '../services/issues';
+import { listLinkTypes } from '../services/links';
 import { getProject, listProjects } from '../services/projects';
 import { getArticle, searchArticles } from '../services/articles';
 import { issueVcs } from '../vcs/links';
@@ -110,7 +111,7 @@ export function createMcpServer(ctx: Ctx): McpServer {
         resources: (await listProjects(ctx)).map((p) => ({ uri: `a4a://projects/${p.key}`, name: `${p.key} ${p.name}`, mimeType: 'text/markdown' })),
       }),
     }),
-    { title: 'Project schema', description: "A project's fields and values", mimeType: 'text/markdown' },
+    { title: 'Project schema', description: "A project's fields and values, and the link types", mimeType: 'text/markdown' },
     async (uri, vars) => {
       const p = await getProject(ctx, String(vars.key));
       // The fields as the caller sees them: a private one kept from them isn't there (D50).
@@ -118,7 +119,9 @@ export function createMcpServer(ctx: Ctx): McpServer {
       const fields = projectFieldDtos(s, p.id)
         .map((f) => `- **${f.name}** (${f.type}${f.multi ? ', several' : ''}${f.required ? ', required' : ''})${f.values.length ? `: ${f.values.map((v) => v.name + (v.isResolved ? ' (resolved)' : '')).join(', ')}` : ''}`)
         .join('\n');
-      return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: `# ${p.key}: ${p.name}\n\n${p.description}\n\n## Fields\n${fields}` }] };
+      // How issues link, as link_issues and the commands name it: each type's two phrases.
+      const links = (await listLinkTypes(ctx)).map((t) => `- **${t.name}**: ${t.outward === t.inward ? t.outward : `${t.outward} / ${t.inward}`}`).join('\n');
+      return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: `# ${p.key}: ${p.name}\n\n${p.description}\n\n## Fields\n${fields}\n\n## Link types\n${links}` }] };
     },
   );
   server.registerResource(
