@@ -431,14 +431,10 @@ function MoreToRead({ project }: { project: { key: string; name: string } }) {
   return (
     <section className="stack" aria-labelledby="guest-more">
       <h2 id="guest-more">{t('page.guestPages.alsoOpenIn', { name: project.name })}</h2>
-      <ul className="plain cluster">
-        <li>
-          <Link to={`/public/plan/${encodeURIComponent(project.key)}`}>{t('page.guestPages.plan')}</Link>
-        </li>
-        <li>
-          <Link to={`/public/reports/flow?project=${encodeURIComponent(project.key)}`}>{t('page.guestPages.reports')}</Link>
-        </li>
-      </ul>
+      <p className="cluster">
+        <Link to={`/public/plan/${encodeURIComponent(project.key)}`}>{t('page.guestPages.plan')}</Link>
+        <Link to={`/public/reports/flow?project=${encodeURIComponent(project.key)}`}>{t('page.guestPages.reports')}</Link>
+      </p>
       <div className="stack tight">
         <h3>{t('page.guestPages.boards')}</h3>
         {boards.data && !theirs.length ? <p className="note">{t('page.guestPages.noBoards')}</p> : null}

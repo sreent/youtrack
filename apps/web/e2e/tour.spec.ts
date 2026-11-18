@@ -312,6 +312,23 @@ const guestProject = async (api: Api) => {
   return `/public?project=${key}`;
 };
 
+/** A project open to guests with a board, a plan's task and a whiteboard, read signed out (D64). */
+const guestSurfaces = async (api: Api) => {
+  const key = uniqueKey('TG');
+  await api.createProject({ key, name: `Tour ${key}`, template: 'waterfall' });
+  const issue = await api.createIssue({ project: key, summary: 'Dark mode for the mobile app', fields: { Estimation: '2d' } });
+  const board = await api.createBoard({ name: `Tour board ${key}`, projects: [key] });
+  const whiteboard = await api.post<{ id: string }>('/whiteboards', { project: key, name: `Tour sketch ${key}` });
+  await api.post(`/whiteboards/${whiteboard.id}/elements`, {
+    ops: [
+      { op: 'add', id: 'tour-note', kind: 'note', x: 0, y: 0, text: 'Ship it in spring' },
+      { op: 'add', id: 'tour-card', kind: 'issue', x: 260, y: 0, issue: issue.id },
+    ],
+  });
+  await api.patch(`/projects/${key}`, { guestAccess: true });
+  return { key, board: board.id, whiteboard: whiteboard.id };
+};
+
 /** An agent of the tour's own, with a token issued to it (D34). */
 const withAgent = async (api: Api) => {
   await api.createAgent(`tour-${unique()}`);
@@ -494,6 +511,22 @@ for (const mode of MODES) {
       });
       test('a project open to guests', async ({ page, api }) => {
         await visit(page, await guestProject(api), page.getByRole('link', { name: /Dark mode for the mobile app/ }));
+      });
+      test('a board open to guests', async ({ page, api }) => {
+        const g = await guestSurfaces(api);
+        await visit(page, `/public/boards/${g.board}`, page.getByRole('link', { name: 'Dark mode for the mobile app' }));
+      });
+      test('reports open to guests', async ({ page, api }) => {
+        const g = await guestSurfaces(api);
+        await visit(page, `/public/reports/issues-per-field?project=${g.key}`, page.getByRole('region', { name: 'Issues per field' }).getByText(/Normal/));
+      });
+      test('a plan open to guests', async ({ page, api }) => {
+        const g = await guestSurfaces(api);
+        await visit(page, `/public/plan/${g.key}`, page.getByRole('link', { name: 'Dark mode for the mobile app' }));
+      });
+      test('a whiteboard open to guests', async ({ page, api }) => {
+        const g = await guestSurfaces(api);
+        await visit(page, `/public/whiteboards/${g.whiteboard}`, page.getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: /Ship it in spring/ }));
       });
       test('the code after the password', async ({ page, api }) => {
         await visit(page, await atTheCode(api, page), page.getByRole('button', { name: 'Sign in' }), signInWithPassword);
