@@ -83,7 +83,7 @@ function streamTurn(c: Parameters<typeof streamSSE>[0], run: (emit: Emit) => Pro
 
 export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['AI'];
-  route(app, { method: 'get', path: '/ai/status', tags, summary: 'Whether AI features are on, and which model they use', response: AIStatusSchema }, async ({ c }) => {
+  route(app, { method: 'get', path: '/ai/status', tags, summary: 'Whether AI features are on, and which model they use', auth: 'none', response: AIStatusSchema }, async ({ c }) => {
     const runtime = c.get('runtime');
     const ai = aiService(runtime);
     return {

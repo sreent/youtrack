@@ -3,6 +3,7 @@
  * counted, hashed and sniffed; only then, in one transaction, is the row written,
  * the owner's cap checked under its lock, and the activity recorded.
  */
+import { requesterRequest, type PortalViewer } from './portal';
 import type { ArticleRef, Attachment, AttachmentLimits, AttachmentText, IssueRef } from '@a4a/shared';
 import { INLINE_IMAGE_TYPES } from '@a4a/shared';
 import { and, asc, eq, exists, isNotNull, isNull, lt, notExists, or, sql, type SQL } from 'drizzle-orm';
@@ -184,6 +185,21 @@ export async function attachmentForImage(ctx: Ctx, id: string): Promise<Attachme
   return row;
 }
 
+/** A request's picture, to whoever reads it on the portal (D39's revisit): the requester, a
+ * colleague of theirs or someone copied on it, and to nobody else.
+ */
+export async function attachmentForRequester(app: AppServices, r: PortalViewer, id: string): Promise<AttachmentRow> {
+  const [row] = await app.db.select().from(attachments).where(eq(attachments.id, id));
+  if (!row || !row.issueId) throw notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
+  if (!isInline(row.contentType)) throw notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
+  // The portal's seam reads the request by its readable id: the file's column keeps its own.
+  const s = await app.schema.get();
+  const [issue] = await app.db.select({ projectId: issues.projectId, number: issues.number }).from(issues).where(eq(issues.id, row.issueId));
+  if (!issue) throw notFound('Attachment', 'List the files on the issue or article to find its id.').said('attachments.notFoundListFiles');
+  await requesterRequest(app, r, readableId(s, issue)); // missing to anyone who doesn't read the request
+  return row;
+}
+
 /** Its bytes, or those from `start` to `end` (both included), for the content route. */
 export function openAttachmentBytes(app: AppServices, row: AttachmentRow, range?: { start: number; end: number }): Promise<Readable> {
   return readBytes(app, row, range);
@@ -267,7 +283,7 @@ export interface ImportedFile {
  * and under the owner's row lock once the size is known (so two uploads at once can't
  * both squeeze in). Whatever fails, nothing is left behind.
  */
-export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: UploadSource, opts: { imported?: ImportedFile } = {}): Promise<Attachment> {
+export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: UploadSource, opts: { imported?: ImportedFile; /** The portal's upload (D39's revisit): the requester's reply is its own activity, so the file adds none. */ quiet?: boolean } = {}): Promise<Attachment> {
   const s = await ctx.app.schema.get();
   const { attachmentMaxBytes: maxFile, attachmentsPerIssueMaxBytes: cap } = ctx.app.config;
   const name = safeFileName(source.name);
@@ -326,7 +342,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
   const sha256 = inspector.digest();
   const contentType = sniffContentType(inspector.firstBytes());
 
-  let result: { row: AttachmentRow; activity: Awaited<ReturnType<typeof recordActivity>> };
+  let result: { row: AttachmentRow; activity: Awaited<ReturnType<typeof recordActivity>> | null };
   try {
     result = await ctx.db.transaction(async (txRaw) => {
       const tx = txRaw as unknown as Db;
@@ -373,7 +389,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
         })
         .returning();
       if (target.kind !== 'article' && !opts.imported) await tx.update(issues).set({ updatedAt: new Date() }).where(eq(issues.id, target.issue.id));
-      const activity = await recordActivity(tx, ctx, {
+      const activity = opts.quiet ? null : await recordActivity(tx, ctx, {
         type: 'attachment.added',
         projectId: row!.projectId,
         issueId: row!.issueId,
@@ -393,7 +409,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
     await cleanUp();
     throw e;
   }
-  await publishActivities(ctx.app, [result.activity]);
+  if (result.activity) await publishActivities(ctx.app, [result.activity]);
   return (await toDtos(ctx, [result.row]))[0]!;
 }
 
