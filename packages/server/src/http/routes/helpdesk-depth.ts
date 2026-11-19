@@ -274,7 +274,6 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: "A picture for a reply, kept on the request",
       description: "A pasted or dropped picture, uploaded as one of the request's files, for its reply's words to show. Only while the requester may answer the request (their own, or a colleague's they're copied on where the group lets its members answer), and pictures only: the bytes decide what's a picture, as on the issue's own upload (D39). The file's own activity is the reply that follows: the upload adds none.",
-      security: [{}],
       request: { params: Id, body: { content: { 'multipart/form-data': { schema: MultipartFile } }, required: true } },
       responses: {
         201: { description: 'Stored', content: { 'application/json': { schema: AttachmentSchema } } },

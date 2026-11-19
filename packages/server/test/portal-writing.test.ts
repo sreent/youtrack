@@ -152,7 +152,7 @@ describe("the requester's pictures", () => {
     // The sandbox denies the store its fsync, locally (CI's doesn't): read the refusal, and go on
     // when that alone went wrong.
     if (up.status === 400 && (await up.clone().text()).includes('EPERM')) return;
-    expect(up.status).toBe(201);
+    expect(up.status, await up.clone().text()).toBe(201);
     const stored = (await up.json()) as { id: string; inline: boolean; issue: { id: string } };
     expect(stored.inline).toBe(true);
     expect(stored.issue.id).toBe(request);

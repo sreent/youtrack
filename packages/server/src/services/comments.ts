@@ -43,6 +43,7 @@ export async function commentDto(
     requester: outside !== null ? (ctx.actor.guest ? { name: 'The requester', as: 'requester' } : { name: outside.name, as: outside.as }) : null,
     reactions: reacted.get(`comment:${row.id}`) ?? [],
     visibleTo: visibleTo ?? null,
+    aiDrafted: row.aiDrafted,
   };
 }
 

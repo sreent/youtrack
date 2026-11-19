@@ -382,7 +382,7 @@ export async function storeAttachment(ctx: Ctx, target: UploadTarget, source: Up
           size,
           sha256,
           blobKey: key,
-          uploadedById: opts.imported?.uploadedById ?? ctx.actor.user.id,
+          // The portal's upload (quiet) is a requester's: a4a's people have no row for them, so nobody is named.
           channel: ctx.actor.channel,
           tokenName: ctx.actor.tokenName,
           ...(opts.imported ? { createdAt: opts.imported.createdAt } : {}),
