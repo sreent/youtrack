@@ -258,6 +258,11 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
     onKeyDown: (k: React.KeyboardEvent<SVGGElement>) => p.onKey(k, e.id),
     onFocus: () => p.onCurrent(e.id),
     onDoubleClick: () => p.onOpen(e.id),
+    // Read only, a card's one thing to do is open: a single click does it (D64's guest whiteboards,
+    // where a double-click on the canvas didn't reach the card). Editors still select with one and open with two.
+    onClick: () => {
+      if (!p.canEdit && (e.kind === 'issue' || e.kind === 'article')) p.onOpen(e.id);
+    },
   } as const;
   if (e.kind === 'arrow') {
     const line = arrowLine(p.elements, e);

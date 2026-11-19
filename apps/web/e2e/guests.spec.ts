@@ -160,11 +160,11 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   await expect(page.getByText('Hidden compost deal')).toHaveCount(0);
   await looksRight(page);
 
-  // A whiteboard card opens the guest's article page (D64's revisit): the card is a button, a double-click opens it.
+  // A whiteboard card opens the guest's article page (D64's revisit): read only, one click opens the card.
   await page.goto(`/public/whiteboards/${g.whiteboard.id}`);
   const cardButton = page.getByRole('button', { name: new RegExp(`^Article ${guide.id}:`) });
   await expect(cardButton).toBeVisible();
-  await cardButton.dblclick();
+  await cardButton.click();
   await expect(page).toHaveURL(/\/public\/articles\//);
   await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
   await api.patch(`/projects/${g.key}`, { guestAccess: false });
