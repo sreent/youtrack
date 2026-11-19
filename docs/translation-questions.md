@@ -107,6 +107,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` ist “Es kam in eine Suche, der du folgst” — das Zeitform von “folgen”. Sagt es, was Zeit allein tat, oder liest es zu passiv? (“Eine Suche, die du verfolgst, hat ihn jetzt” wäre aktiver.)
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`, `noArticleWords` und `issuesMatching` folgen den Worten der bereits vorhandenen Gast-Seiten. Natürlich? (`issuesMatching`: “Tickets, die auf … passen” — oder lieber “Tickets zur Abfrage”?)
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -214,6 +218,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` es “Entró en una búsqueda que sigues”. ¿Se diría mejor “siguiendo”, o con “apareció en”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` sigue a sus hermanos (“abierto a invitados”). `issuesMatching` es “Incidencias que coinciden con”: ¿o “que cumplen” o “que encajan con”?
 ## French
 
 Terms:
@@ -321,6 +329,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` est “Il est entré dans une recherche que vous suivez”. À côté de la voix passive, la personne voit-elle que c’est le temps qui l’a fait entrer ?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` suit ses soeurs (“ouvert aux invités”). `issuesMatching` est “Tickets correspondant à” : naturel, ou “qui répondent à” ?
 ## Japanese
 
 Terms:
@@ -420,6 +432,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` は「フォロー中の検索条件に該当しました」。通知のタイトルとして「該当」は事務的すぎるか、「含まれるようになりました」のほうが自然か。
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` は既存のゲストページの言い方に合わせました。`issuesMatching` は「{query}」に該当する課題」—「に一致する」「を満たす」のほうがいいですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -498,6 +514,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` é “Entrou numa pesquisa que segue”. É a ordem natural em português, ou diria “passou a constar numa pesquisa que segue”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` segue as irmãs (“aberto a convidados”). `issuesMatching` é “Itens que correspondem a”: natural, ou “que cumprem”?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -625,6 +645,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn`은 “팔로우하는 검색에 포함되었습니다”입니다. 알림 제목에서 “포함”은 기계적으례 들리나요, “해당하게 되었습니다”가 나은가요?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`는 기존 게스트 페이지의 표현을 따랐습니다. `issuesMatching`은 “{query}”에 해당하는 이슈” — “일치하는”이 더 자연스러운가요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -743,6 +767,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` 是“它进入了你关注的一个搜索”。“进入”在通知标题里自然吗，还是“开始符合你关注的搜索条件”更清楚？
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` 沿用了其他访客页的措辞。`issuesMatching` 是“与…匹配的问题”——用“符合”“符合条件”会不会更自然？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -873,6 +901,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` là “Vưa vào một tìm kiếm bạn theo dõi”. “Vưa vào” có nén rõ không?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` theo các trang khách. `issuesMatching` lá “Vấn đ khơp vôi”: tỳ nhiôn không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1000,6 +1032,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` adalah “Masuk ke pencarian yang Anda ikuti”. Apakah “masuk ke” cukup jelas untuk hasil pencarian, atau “kini sesuai dengan” lebih tepat?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` mengikuti halaman tamu yang lain. `issuesMatching` adalah “Isu yang cocok dengan” — atau “sesuai hasil pencarian”?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1128,6 +1164,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
 
 - `server.notify.title.cameIn` คือ “เข้ามาในการค้นหาที่คุณติดตาม” “เข้ามาใน” อ่านเป็นการกระทำของใครหรือไม่ หรือควรเป็น “ตรงกับการค้นหาที่คุณติดตามแล้ว”
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` ตามถ้อยคำของหน้าแขกอื่น `issuesMatching` คือ “อิชชูที่ตรงกับ” — หรือ “ที่ตรงเงื่อนไข” จะดีกว่าไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

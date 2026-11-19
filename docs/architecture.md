@@ -1893,7 +1893,7 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
   - A stream is one request however long it stays open, so the rate limit alone would let one address hold hundreds, each read again on every change. A guest holds four open streams per address, and guests together four hundred, on each instance; past either, 429 says to close one or sign in. The team's streams never run out for it.
   - A card's facts follow their issue on the team's pages through the shell's live events, which guests don't get: a guest's cards are as fresh as the page.
 - **OpenAPI says which routes answer a guest**: their security lists an empty requirement beside the token and the cookie, and their description says so. A test holds that list and `guestMayRequest` to the same routes, D37's included, so neither drifts.
-- **The web**: the guest home's project lists its plan, its reports, its boards and its whiteboards, and each opens on a guest's page (`/public/boards/{id}`, `/public/reports/{kind}`, `/public/plan/{key}`, `/public/whiteboards/{id}`), on the lone page as wide as the window. The pages are the team's own views, drawn read-only: a board with no dragging and no commands (`ReadOnlyBoard`), the Reports page's charts, the timeline's facts and Gantt, and the whiteboard page in a guest's mode. Where their links lead comes from one place (`app/places.tsx`), so a card, a bar or a count opens a guest's own page, or nothing where a guest has none (an article, a report's list of issues), and never a page that asks them to sign in.
+- **The web**: the guest home's project lists its plan, its reports, its boards and its whiteboards, and each opens on a guest's page (`/public/boards/{id}`, `/public/reports/{kind}`, `/public/plan/{key}`, `/public/whiteboards/{id}`), on the lone page as wide as the window. The pages are the team's own views, drawn read-only: a board with no dragging and no commands (`ReadOnlyBoard`), the Reports page's charts, the timeline's facts and Gantt, and the whiteboard page in a guest's mode. Where their links lead comes from one place (`app/places.tsx`), so a card, a bar or a count opens a guest's own page, and never a page that asks them to sign in. An article opens on a page of its own too (`/public/articles/{id}`): a whiteboard's card for it navigates there, and an id in someone's words (an article's body, an issue's description) is a link through the same place. A report's count opens the home as its query's list (`/public` with `q`), the query in the heading, so nothing a guest reads names what they can't reach.
 - **MCP** needs a sign-in, so it's unchanged; chat and email are the team's.
 
 **What it costs.**
@@ -1902,7 +1902,7 @@ D37 let an administrator open a project to anyone: a guest, sending no credentia
 - A guest's plan can hint at an assignee's fewer days by a bar's length (above).
 - A guest's whiteboard cards don't follow their issues live, and four whiteboards at a time are live from one address.
 
-**Revisit when:** guests should read articles on a page of their own (cards and counts would open them), or a count's issues in a list; a project should open only some of its boards or whiteboards to guests, rather than all; or guests should be counted, anonymously, among a whiteboard's lookers.
+**Revisit when:** a project should open only some of its boards or whiteboards to guests, rather than all; or guests should be counted, anonymously, among a whiteboard's lookers. (Articles on a page of their own, cards and counts opening them, and a count's issues in a list came.)
 
 ### D65. Boards at scale, lanes of their own, and a card's place in its history
 
@@ -2242,7 +2242,6 @@ D68 left passkeys required of everyone or of administrators only, and an id that
 Planned, with the seams already in place:
 
 - days away from an HR calendar (D36);
-- a guest's page for an article, so a guest's whiteboard card or link to one opens it, and a report's count opening its issues for a guest (D64);
 - a whiteboard of a person's own, shared with people and groups, or limited to some, words merged as they're typed rather than refused, and freehand drawing and pictures on a whiteboard (D58);
 - the visual editor for a help desk requester's own replies on its public pages, and pictures in a reply that its requester can see (today they read its name), a link tool on the editor's toolbar, and pictures pasted into a new issue before it's created (D39);
 - scripts that call out through a signed webhook, and code shared between a project's scripts (D40);

@@ -5,6 +5,7 @@ import { findRefs } from '@a4a/shared/refs';
 import { useMemo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import { Link } from 'react-router';
+import { usePlaces } from '../app/places';
 import remarkGfm from 'remark-gfm';
 import { useUsers } from '../api/queries';
 import { t } from '../i18n';
@@ -144,20 +145,29 @@ export function Markdown({
     for (const u of users.data ?? []) byLogin.set(u.login.toLowerCase(), { login: u.login, name: u.isBot ? u.login : u.name });
     return outside || !byLogin.size ? [remarkGfm] : [remarkGfm, remarkMentions((l) => byLogin.get(l.toLowerCase()))];
   }, [users.data, outside]);
+  const places = usePlaces();
   const components: Components = {
-    a: ({ href, children, className: cls, title }) =>
-      href?.startsWith('/api/') ? (
+    a: ({ href, children, className: cls, title }) => {
+      // An issue or article id leads wherever its reader reads them (D64): a guest's own page, on a guest's page.
+      const id = href?.startsWith('/') && !outside ? /^\/(issues|articles)\/([^/?#]+)/.exec(href) : null;
+      const to = id
+        ? id[1] === 'issues'
+          ? places.issue(decodeURIComponent(id[2]!))
+          : places.article(decodeURIComponent(id[2]!)) ?? href!
+        : href;
+      return href?.startsWith('/api/') ? (
         // A file of a4a's: fetched by the browser, not routed by the app.
         <a href={href}>{children}</a>
       ) : href?.startsWith('/') && !outside ? (
-        <Link to={href} title={title} className={cls === 'mention' ? 'mention' : ID_LINK.test(href) ? 'issue-id' : undefined}>
+        <Link to={to} title={title} className={cls === 'mention' ? 'mention' : ID_LINK.test(href) ? 'issue-id' : undefined}>
           {children}
         </Link>
       ) : (
         <a href={href} target="_blank" rel="noreferrer noopener">
           {children}
         </a>
-      ),
+      );
+    },
     img: ({ src, alt }) => {
       const source = typeof src === 'string' ? src : '';
       if (!outside && imageAttachment(source)) return <img src={source} alt={alt ?? ''} loading="lazy" decoding="async" />;

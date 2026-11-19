@@ -119,3 +119,47 @@ test('a guest finds nothing of a project that isn’t open to guests', async ({ 
   await expect(page.getByText(`Shed sketch ${g.shut}`)).toHaveCount(0);
   await api.patch(`/projects/${g.key}`, { guestAccess: false });
 });
+
+test("a guest reads an article from a whiteboard card and a body’s link, and a report’s count opens its issues", async ({ page, api }) => {
+  const g = await garden(api);
+  const beans = await api.createIssue({ project: g.key, summary: 'Harden the seedlings' });
+  const guide = await api.post<{ id: string }>('/articles', { project: g.key, title: `When to plant ${g.key}`, body: `Sow after the last frost; ${beans.id} has the schedule.` });
+  const child = await api.post<{ id: string }>('/articles', { project: g.key, title: `Frost dates ${g.key}`, parent: guide.id, body: 'Half Moon Bay: November 15.' });
+  const secret = await api.post<{ id: string }>('/articles', { project: g.key, title: `Seed prices ${g.key}`, body: 'Wholesale only.' });
+  await api.put(`/articles/${secret.id}/visibility`, { visibleTo: { users: [], groups: [] } });
+  await api.post(`/whiteboards/${g.whiteboard.id}/elements`, { ops: [{ op: 'add', id: 'guide-card', kind: 'article', x: 500, y: 0, article: guide.id }] });
+
+  // A whiteboard card opens the guest's article page (D64's revisit).
+  await page.goto(`/public/whiteboards/${g.whiteboard.id}`);
+  await page.getByText(`When to plant ${g.key}`).dblclick();
+  await expect(page).toHaveURL(/\/public\/articles\//);
+  await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
+  await expect(page.getByText(/Sow after the last frost/)).toBeVisible();
+  // Its body's issue id leads to the guest's own issue page, not a sign-in.
+  await expect(page.getByRole('link', { name: new RegExp(beans.id) })).toHaveAttribute('href', `/public/issues/${beans.id}`);
+  await looksRight(page);
+
+  // The article under it, and the path back up.
+  await page.getByRole('link', { name: `Frost dates ${g.key}` }).click();
+  await expect(page).toHaveURL(/\/public\/articles\//);
+  await expect(page.getByRole('heading', { level: 1, name: `Frost dates ${g.key}` })).toBeVisible();
+  await expect(page.getByRole('link', { name: `When to plant ${g.key}` })).toBeVisible();
+
+  // An article kept from guests reads as one that isn't there.
+  await page.goto(`/public/articles/${secret.id}`);
+  await expect(page.getByText('There’s no such article open to guests.')).toBeVisible();
+  await expect(page.getByText(`Seed prices ${g.key}`)).toHaveCount(0);
+  await looksRight(page);
+
+  // A report's count opens its issues, as the query's list (D64's revisit).
+  await page.goto(`/public/reports/issues-per-field?project=${g.key}`);
+  const region = page.getByRole('region', { name: 'Issues per field' });
+  const count = region.getByRole('link', { name: /^\d+$/ }).first();
+  await count.click();
+  await expect(page).toHaveURL(new RegExp(`/public\?q=${encodeURIComponent('project: ' + g.key).replace(/[()]/g, '[$&]')}`));
+  await expect(page.getByRole('heading', { name: new RegExp(`Issues matching ${LDQ}.+${RDQ}`) })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Harden the seedlings/ })).toBeVisible();
+  await expect(page.getByText('Hidden compost deal')).toHaveCount(0);
+  await looksRight(page);
+  await api.patch(`/projects/${g.key}`, { guestAccess: false });
+});
