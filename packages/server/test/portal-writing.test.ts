@@ -184,6 +184,19 @@ describe("the requester's writing help", () => {
     expect(r.text).not.toContain(other);
   });
 
+  it("a reply's saved words say the assistant drafted them, and an edit of their own doesn't", async () => {
+    const reply = async (body: { text: string; aiDrafted?: boolean }) => {
+      const res = await http.request(`/api/v1/portal/requests/${encodeURIComponent(request)}/replies`, { method: 'POST', headers: { cookie: `a4a_portal=${session}`, origin: 'http://portal.test', 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const text = await res.text();
+      expect(res.status, text).toBe(200);
+      return JSON.parse(text) as { messages: { text: string; aiDrafted: boolean }[] };
+    };
+    const drafted = (await reply({ text: 'Please check the June total.', aiDrafted: true })).messages.find((m) => m.text.includes('June total'));
+    expect(drafted?.aiDrafted).toBe(true);
+    const mine = (await reply({ text: 'Never mind, I found it.' })).messages.find((m) => m.text.includes('Never mind'));
+    expect(mine?.aiDrafted).toBe(false);
+  });
+
   it("reads a request that isn't theirs as missing, and counts its own hourly cap", async () => {
     expect((await failure(writeWithPortal(w.app, dina, { action: 'draft', text: '', for: { kind: 'comment', issue: request } }))).status).toBe(404);
     // Her own request, her own hour: Rosa's asks above don't count against it.
