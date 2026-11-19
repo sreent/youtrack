@@ -351,6 +351,7 @@ export async function postRequesterReply(
           comment: text,
           commentVisibility: 'public',
           commentRequester: requester,
+          commentAiDrafted: opts.aiDrafted ?? false,
           ...(fields.length ? { fields } : {}),
           ...(Object.keys(data).length ? { data } : {}),
         },
