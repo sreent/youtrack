@@ -112,6 +112,11 @@ export function Canvas(p: Props) {
   };
 
   const down = (e: React.PointerEvent<SVGSVGElement>) => {
+    // A card on a read-only whiteboard opens with the click: let the pointer be, or its capture
+    // sends the click to the canvas and the card never hears it (D64).
+    const pressed = (e.target as Element).closest('[data-element],[data-resize]');
+    const pressedEl = pressed?.getAttribute('data-element') ? p.elements.get(pressed.getAttribute('data-element')!) : undefined;
+    if (!p.canEdit && pressedEl && (pressedEl.kind === 'issue' || pressedEl.kind === 'article')) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     svg.current?.setPointerCapture?.(e.pointerId);
     if (pointers.current.size >= 2) {
