@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "ผู้ร้องขอ",
   "server.notify.title.andOthers": "{people} และคนอื่นๆ",
   "server.notify.title.assigned": "{who} มอบหมายอิชชูนี้ให้คุณ",
+  "server.notify.title.cameIn": "เข้ามาในการค้นหาที่คุณติดตาม",
   "server.notify.title.changed": "{them} เปลี่ยนแปลง {n, plural, other {# รายการ}}",
   "server.notify.title.commented": "{them} แสดงความคิดเห็น",
   "server.notify.title.commentedAndChanged": "{them} แสดงความคิดเห็นและเปลี่ยนแปลง {n, plural, other {# รายการ}}",

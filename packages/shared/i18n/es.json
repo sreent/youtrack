@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "La persona solicitante",
   "server.notify.title.andOthers": "{people} y otras personas",
   "server.notify.title.assigned": "{who} te la asignó",
+  "server.notify.title.cameIn": "Entró en una búsqueda que sigues",
   "server.notify.title.changed": "{n, plural, one {# cambio} other {# cambios}} de {them}",
   "server.notify.title.commented": "{them} comentaron",
   "server.notify.title.commentedAndChanged": "Comentarios y {n, plural, one {# cambio} other {# cambios}} de {them}",

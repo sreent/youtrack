@@ -103,6 +103,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` is "Das Ergebnis jedes Laufs an GitHub melden". Is "melden" the right verb for telling a service, or would "berichten" or "übermitteln" say it better?
 - `page.integrations.statusesAudience` says "Ein Status nennt Vorgänge nur mit ihrer ID" — the checks message says "nennt Vorgänge mit ID und Link". Does "mit ihrer ID" read naturally beside it?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` ist “Es kam in eine Suche, der du folgst” — das Zeitform von “folgen”. Sagt es, was Zeit allein tat, oder liest es zu passiv? (“Eine Suche, die du verfolgst, hat ihn jetzt” wäre aktiver.)
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -206,6 +210,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` es "Informar a GitHub del resultado de cada ejecución". El catálogo usa "ejecución" para los check runs; para una ejecución de CI, ¿"ejecución" o "corrida" (Latinoamérica)?
 - `page.integrations.statusesLastProblem` sigue el patrón de los check runs: "El último estado de commit, {when}, no se pudo escribir: {problem}". ¿Natural?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` es “Entró en una búsqueda que sigues”. ¿Se diría mejor “siguiendo”, o con “apareció en”?
 ## French
 
 Terms:
@@ -309,6 +317,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` est "Signaler à GitHub le résultat de chaque exécution". "Signaler" convient-il pour un compte-rendu automatique, ou "publier" (comme les check runs) dirait-il mieux ?
 - `page.integrations.statusesNeedToken` emploie le point-virgule avant "Gitea et Forgejo ont aussi besoin…", comme l’anglais. Lisibilité ?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` est “Il est entré dans une recherche que vous suivez”. À côté de la voix passive, la personne voit-elle que c’est le temps qui l’a fait entrer ?
 ## Japanese
 
 Terms:
@@ -404,6 +416,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` は「各実行の結果をGitHubに報告する」。CIの結果を「報告する」でよいか、「通知する」のほうが自然でしょうか？
 - `page.integrations.statusesAudience` は「ステータスは課題をIDでのみ示し」— チェック実行の説明は「IDとリンクで示し」です。対比として読めますか？
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` は「フォロー中の検索条件に該当しました」。通知のタイトルとして「該当」は事務的すぎるか、「含まれるようになりました」のほうが自然か。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -478,6 +494,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` é "Comunicar ao GitHub o resultado de cada execução". "Comunicar" num interruptor: natural, ou "reportar"?
 - `page.integrations.statusesTurnedOn` segue os check runs: "Estados de commit ativados: cada pull request recebe um na próxima vez que mudar." O plural "Estados de commit ativados" está claro (ativados é o interruptor, não os estados)?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` é “Entrou numa pesquisa que segue”. É a ordem natural em português, ou diria “passou a constar numa pesquisa que segue”?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -601,6 +621,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck`는 "각 실행의 결과를 GitHub에 보고"입니다. "보고"가 자연스러운가요, "전송"이나 "알리기"는 어떨까요?
 - `page.integrations.statusesLastProblem`은 "마지막 커밋 상태를 작성하지 못했습니다({when}). 오류: {problem}"로 check run 문장과 같은 꼴입니다. 괄호 안 시간 표기가 자연스러운지도 check run 질문과 함께 살펴주세요.
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn`은 “팔로우하는 검색에 포함되었습니다”입니다. 알림 제목에서 “포함”은 기계적으례 들리나요, “해당하게 되었습니다”가 나은가요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -715,6 +739,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` 是“将每次运行的结果报告给 GitHub”。“报告给”用于自动上报自然吗？
 - `page.integrations.statusesNeedToken` 里“Gitea 和 Forgejo 还需要其 /api/v1 地址”中“其”字用法是否清楚（指 Gitea 和 Forgejo 各自的地址）？
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` 是“它进入了你关注的一个搜索”。“进入”在通知标题里自然吗，还是“开始符合你关注的搜索条件”更清楚？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -841,6 +869,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` là "Báo cáo kết quả của mỗi lần chạy lên GitHub". "lên GitHub" cho hướng truyền đi: tự nhiên không, hay "tới GitHub"?
 - `page.integrations.statusesAudience` nói "trạng thái chỉ nêu vấn đề bằng mã" — check run thì "bằng mã và liên kết". Đối chiếu vậy rõ không?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` là “Vưa vào một tìm kiếm bạn theo dõi”. “Vưa vào” có nén rõ không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -964,6 +996,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` adalah "Laporkan hasil tiap run ke GitHub". Kata "run" dibiarkan dalam bahasa Inggris seperti katalog Builds biasa. Konsisten?
 - `page.integrations.statusesNeedToken` memakai titik dua sebelum "Gitea dan Forgejo juga memerlukan alamat /api/v1." Apakah kalimat majemuk ini terbaca ringan pada layar kecil?
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` adalah “Masuk ke pencarian yang Anda ikuti”. Apakah “masuk ke” cukup jelas untuk hasil pencarian, atau “kini sesuai dengan” lebih tepat?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1088,6 +1124,10 @@ Messages added in wave 7 (passkeys required of a group or a project, a changed r
 - `builds.builds.reportCheck` คือ "รายงานผลของแต่ละการรันไปยัง GitHub" ใช้ "การรัน" ตามที่หน้า Builds ใช้อยู่ สอดคล้องไหม
 - `page.integrations.statusesAudience` ว่า "สถานะจึงระบุอิชชูด้วยรหัสเท่านั้น" ตรงข้ามกับ check run ที่มีลิงก์ อ่านเข้าใจไหม
 
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` คือ “เข้ามาในการค้นหาที่คุณติดตาม” “เข้ามาใน” อ่านเป็นการกระทำของใครหรือไม่ หรือควรเป็น “ตรงกับการค้นหาที่คุณติดตามแล้ว”
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

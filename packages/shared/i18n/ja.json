@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "依頼者",
   "server.notify.title.andOthers": "{people}ほか",
   "server.notify.title.assigned": "{who}があなたに割り当てました",
+  "server.notify.title.cameIn": "フォロー中の検索条件に該当しました",
   "server.notify.title.changed": "{them}が{n, plural, other {#件}}変更しました",
   "server.notify.title.commented": "{them}がコメントしました",
   "server.notify.title.commentedAndChanged": "{them}がコメントし、{n, plural, other {#件}}変更しました",

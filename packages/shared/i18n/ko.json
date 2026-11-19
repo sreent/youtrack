@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "요청자",
   "server.notify.title.andOthers": "{people} 외 여러 명",
   "server.notify.title.assigned": "{who}이(가) 나에게 할당했습니다",
+  "server.notify.title.cameIn": "팔로우하는 검색에 포함되었습니다",
   "server.notify.title.changed": "{them}이(가) {n, plural, other {#건을}} 변경했습니다",
   "server.notify.title.commented": "{them}이(가) 댓글을 남겼습니다",
   "server.notify.title.commentedAndChanged": "{them}이(가) 댓글을 남기고 {n, plural, other {#건을}} 변경했습니다",

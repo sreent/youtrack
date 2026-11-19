@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "Người yêu cầu",
   "server.notify.title.andOthers": "{people} và những người khác",
   "server.notify.title.assigned": "{who} đã giao vấn đề này cho bạn",
+  "server.notify.title.cameIn": "Vừa vào một tìm kiếm bạn theo dõi",
   "server.notify.title.changed": "{them} đã thực hiện {n, plural, other {# thay đổi}}",
   "server.notify.title.commented": "{them} đã bình luận",
   "server.notify.title.commentedAndChanged": "{them} đã bình luận và thực hiện {n, plural, other {# thay đổi}}",

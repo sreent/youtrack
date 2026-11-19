@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "请求人",
   "server.notify.title.andOthers": "{people}等人",
   "server.notify.title.assigned": "{who} 把此问题指派给了你",
+  "server.notify.title.cameIn": "它进入了你关注的一个搜索",
   "server.notify.title.changed": "{them} 做了 {n, plural, other {# 项更改}}",
   "server.notify.title.commented": "{them} 发表了评论",
   "server.notify.title.commentedAndChanged": "{them} 发表了评论，并做了 {n, plural, other {# 项更改}}",

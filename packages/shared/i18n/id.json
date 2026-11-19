@@ -5910,6 +5910,7 @@
   "server.notify.theRequester": "Pemohon",
   "server.notify.title.andOthers": "{people} serta lainnya",
   "server.notify.title.assigned": "{who} menugaskannya kepada Anda",
+  "server.notify.title.cameIn": "Masuk ke pencarian yang Anda ikuti",
   "server.notify.title.changed": "{them} membuat {n, plural, other {# perubahan}}",
   "server.notify.title.commented": "{them} berkomentar",
   "server.notify.title.commentedAndChanged": "{them} berkomentar dan membuat {n, plural, other {# perubahan}}",
