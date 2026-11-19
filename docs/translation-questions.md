@@ -111,6 +111,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle`, `noArticleWords` und `issuesMatching` folgen den Worten der bereits vorhandenen Gast-Seiten. Natürlich? (`issuesMatching`: “Tickets, die auf … passen” — oder lieber “Tickets zur Abfrage”?)
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` und `linkTo` folgen den vorhandenen Werkzeugnamen. `writing.draftedWithTheAssistant` ist “Diese Worte hat der Assistent entworfen.” — passt “entworfen”, oder eher “formuliert”?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -222,6 +226,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` sigue a sus hermanos (“abierto a invitados”). `issuesMatching` es “Incidencias que coinciden con”: ¿o “que cumplen” o “que encajan con”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` y `linkTo` siguen los nombres de las herramientas existentes. `writing.draftedWithTheAssistant` es “El asistente redactó estas palabras.” — ¿o “escribió”?
 ## French
 
 Terms:
@@ -333,6 +341,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` suit ses soeurs (“ouvert aux invités”). `issuesMatching` est “Tickets correspondant à” : naturel, ou “qui répondent à” ?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` et `linkTo` suivent les outils existants. `writing.draftedWithTheAssistant` est “L’assistant a rédigé ces mots.” — naturel, ou “a écrit” ?
 ## Japanese
 
 Terms:
@@ -436,6 +448,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` は既存のゲストページの言い方に合わせました。`issuesMatching` は「{query}」に該当する課題」—「に一致する」「を満たす」のほうがいいですか。
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 系は既存のツール名に合わせました。`writing.draftedWithTheAssistant` は「この文章はアシスタントが下書きしました。」—「作成しました」のほうがいいですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -518,6 +534,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` segue as irmãs (“aberto a convidados”). `issuesMatching` é “Itens que correspondem a”: natural, ou “que cumprem”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` e `linkTo` seguem as ferramentas existentes. `writing.draftedWithTheAssistant` é “O assistente redigiu estas palavras.” — ou “escreveu”?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -649,6 +669,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle`는 기존 게스트 페이지의 표현을 따랐습니다. `issuesMatching`은 “{query}”에 해당하는 이슈” — “일치하는”이 더 자연스러운가요?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 계열은 기존 도구 이름을 따랐습니다. `writing.draftedWithTheAssistant`는 “어시스턴트가 이 문장의 초안을 썼습니다.” — “작성했습니다”가 더 자연스러운가요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -771,6 +795,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` 沿用了其他访客页的措辞。`issuesMatching` 是“与…匹配的问题”——用“符合”“符合条件”会不会更自然？
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` 系列沿用了现有工具名。`writing.draftedWithTheAssistant` 是“这些文字由助手起草。”——用“撰写”会不会更自然？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -905,6 +933,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` theo các trang khách. `issuesMatching` lá “Vấn đ khơp vôi”: tỳ nhiôn không?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` theo các công cụ sẵn có. `writing.draftedWithTheAssistant` là “Trợ lý đã soạn những lời này.” — hay “viết”?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1036,6 +1068,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` mengikuti halaman tamu yang lain. `issuesMatching` adalah “Isu yang cocok dengan” — atau “sesuai hasil pencarian”?
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` mengikuti nama alat yang ada. `writing.draftedWithTheAssistant` adalah “Asisten menyusun kata-kata ini.” — atau “menulis”?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1168,6 +1204,10 @@ Messages added in wave 8 (a Forgejo run's commits read from its compare; what ti
 Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
 
 - `page.guestPages.noSuchArticle` ตามถ้อยคำของหน้าแขกอื่น `issuesMatching` คือ “อิชชูที่ตรงกับ” — หรือ “ที่ตรงเงื่อนไข” จะดีกว่าไหม
+
+Messages added in wave 10 (a requester's editor, the link tool, streamed drafts and the drafted mark):
+
+- `editor.visualEditor.link` ตามชื่อเครื่องมือที่มีอยู่ `writing.draftedWithTheAssistant` คือ “ผู้ช่วยร่างข้อความเหล่านี้” — ควรมีจุดท้ายประโยคตามหลักหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

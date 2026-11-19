@@ -122,6 +122,7 @@ test('an issue is summarised, labelled as the assistant’s, and posted as its c
       requester: null,
       visibleTo: null,
       reactions: [],
+      aiDrafted: false,
     };
     await route.fulfill({ status: 201, json: comment });
   });
