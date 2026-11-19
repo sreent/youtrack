@@ -64,6 +64,7 @@ export function RichField({
   onOtherFiles,
   tall,
   writing,
+  writingEndpoint,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -81,6 +82,8 @@ export function RichField({
   tall?: boolean;
   /** Where the text goes, for writing help (D59): offered only with it, and while the server has an AI provider. */
   writing?: WritingFor;
+  /** Which route the ask goes to: a requester's pages ask the portal's own (D59's revisit). */
+  writingEndpoint?: string;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -105,6 +108,7 @@ export function RichField({
   const fieldEl = () => document.getElementById(id);
   const help = useWritingHelp({
     at: writing,
+    endpoint: writingEndpoint,
     value,
     selected,
     pick: (): Picked | null => {

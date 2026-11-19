@@ -154,6 +154,7 @@ type Asked =
  */
 export function useWritingHelp({
   at,
+  endpoint = '/ai/write',
   value,
   selected,
   pick,
@@ -162,6 +163,8 @@ export function useWritingHelp({
   say,
 }: {
   at: WritingFor | undefined;
+  /** Where the ask goes: the portal's own route for a requester's pages (D59's revisit). */
+  endpoint?: string;
   value: string;
   selected: boolean;
   pick: () => Picked | null;
@@ -187,7 +190,7 @@ export function useWritingHelp({
     setBusy(true);
     setAsked({ kind: 'write', action, original: action === 'continue' ? '' : original, picked });
     try {
-      const r = await post<WriteResult>('/ai/write', { action, text: original, for: at });
+      const r = await post<WriteResult>(endpoint, { action, text: original, for: at });
       setAsked((a) => (a?.kind === 'write' && a.picked === picked ? { ...a, text: lead + r.text + trail } : a));
     } catch (e) {
       setAsked((a) => (a?.kind === 'write' && a.picked === picked ? { ...a, error: errorText(e) } : a));
