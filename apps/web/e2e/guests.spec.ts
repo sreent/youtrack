@@ -121,8 +121,8 @@ test('a guest finds nothing of a project that isn’t open to guests', async ({ 
 });
 
 test("a guest reads an article from a whiteboard card and a body’s link, and a report’s count opens its issues", async ({ page, api, watch }) => {
-  // The kept article answers 404, as one that isn’t there: the page logs it, expectedly.
-  watch.allow(/status of 404/);
+  // What isn't open to guests answers 401 or 404, in the same words either way; the page logs it, expectedly.
+  watch.allow(/status of (401|404)/);
   const g = await garden(api);
   const beans = await api.createIssue({ project: g.key, summary: 'Harden the seedlings' });
   const guide = await api.post<{ id: string }>('/articles', { project: g.key, title: `When to plant ${g.key}`, body: `Sow after the last frost; ${beans.id} has the schedule.` });
