@@ -753,6 +753,7 @@ export async function applyChanges(
       channel: ctx.actor.channel,
       visibility,
       requesterId: spec.commentRequester?.id ?? null,
+      aiDrafted: spec.commentAiDrafted ?? false,
       ...commentLimits,
     });
     activities.push(
