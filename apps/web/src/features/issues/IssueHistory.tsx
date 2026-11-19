@@ -114,6 +114,8 @@ interface Entry {
   undo?: { event: number } & NonNullable<TrackerEvent['undo']>;
   /** A comment's reactions, and its id to react to it (D41). */
   reactions?: { id: string; list: Comment['reactions'] };
+  /** Its saved words came from an accepted suggestion (D59). */
+  aiDrafted?: boolean;
 }
 
 /**
@@ -418,6 +420,8 @@ export function IssueHistory({
   const requester = request.data?.requester.name ?? null;
   const picker = useRef<HTMLInputElement>(null);
   const [text, setText] = useState('');
+  // True while the words are an accepted suggestion: the save keeps the mark (D59).
+  const drafted = useRef(false);
   const [visibility, setVisibility] = useState<CommentVisibility>('internal');
   const [limit, setLimit] = useState<Limit | null>(null);
   const [picked, setPicked] = useState<File[]>([]);
@@ -510,10 +514,12 @@ export function IssueHistory({
       const isPublic = Boolean(requester && canReply && visibility === 'public');
       const comment = await post<Comment>(`/issues/${issue.id}/comments`, {
         text,
+        aiDrafted: drafted.current,
         ...(requester && canReply ? { visibility } : {}),
         ...(limit && !isPublic ? { visibleTo: limit } : {}),
       });
       setText('');
+      drafted.current = false;
       setVisibility('internal');
       setLimit(null);
       const failed: string[] = [];
@@ -636,6 +642,7 @@ export function IssueHistory({
                 onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.issue(issue.id) })}
                 onOtherFiles={pick}
                 writing={{ kind: requester && canReply && visibility === 'public' ? 'reply' : 'comment', issue: issue.id }}
+                drafted={drafted}
               />
             )}
           </FormField>

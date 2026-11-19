@@ -1,7 +1,7 @@
 import type { Article, ArticleDetail, TextSummary } from '@a4a/shared';
 import { toggleTask } from '@a4a/shared/markdown';
 import { useQueryClient } from '@tanstack/react-query';
-import { Fragment, useEffect, useId, useMemo, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ApiError, del, patch, post } from '../api/client';
 import { useProject, useProjects } from '../api/queries';
@@ -502,6 +502,7 @@ function ArticleView() {
         {said ? <Said text={said} /> : null}
         <Beside project={a.project.key} name={a.project.name} current={a.id}>
           <article className="card" aria-label={a.title}>
+            {a.aiDrafted ? <p className="note">{t('writing.draftedWithTheAssistant')}</p> : null}
             {a.body.trim() ? (
               <Markdown text={ticked ?? a.body} className="article-body" headingsFrom={2} onToggleTask={canWrite && ticked === null ? (i, on) => void tick(i, on) : undefined} />
             ) : (
@@ -556,6 +557,8 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
   const [show, setShow] = useState<'write' | 'read'>('write');
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // True while the body is an accepted suggestion: the save keeps the mark (D59).
+  const drafted = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState<number | null>(null);
   const titleId = useId();
@@ -593,7 +596,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
         await qc.invalidateQueries({ queryKey: articleKeys.all });
         navigate(`/articles/${made.id}`, { state: { said: t('page.articles.isWritten', { id: made.id }) } });
       } else {
-        const next = await patch<ArticleDetail>(`/articles/${id}`, { title, body, expectedVersion: loadedVersion ?? undefined });
+        const next = await patch<ArticleDetail>(`/articles/${id}`, { title, body, aiDrafted: drafted.current, expectedVersion: loadedVersion ?? undefined });
         qc.setQueryData(articleKeys.one(next.id), next);
         await qc.invalidateQueries({ queryKey: articleKeys.all });
         navigate(`/articles/${next.id}`, { state: { said: next.version === loadedVersion ? t('page.articles.nothingChangedSoThereIs') : t('page.articles.savedAsVersion', { version: next.version }) } });
@@ -679,6 +682,7 @@ function Editor({ mode }: { mode: 'new' | 'edit' }) {
               uploadTo={mode === 'edit' && id ? `/articles/${id}/attachments` : undefined}
               onUploaded={() => void qc.invalidateQueries({ queryKey: attachmentKeys.article(id ?? '') })}
               writing={{ kind: 'article', article: mode === 'edit' && id ? id : undefined, project: project || undefined, title: title || undefined }}
+              drafted={drafted}
             />
           </div>
           <div className="article-preview" role="region" aria-label={t('page.articles.howItWillRead')}>

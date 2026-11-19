@@ -292,6 +292,7 @@ export async function issueDetail(ctx: Ctx, row: IssueRow): Promise<IssueDetail>
     reactions: reactionMap.get(`issue:${row.id}`) ?? [],
     formerIds,
     description: row.description,
+    descriptionAiDrafted: row.descriptionAiDrafted,
     source,
     visibleTo: visibleTo ?? null,
     updatedBy: updatedBy ? userRefDto(updatedBy) : null,
@@ -391,6 +392,8 @@ export interface ChangeSpec {
   visibleTo?: Limits;
   /** Who sees the comment (D37); not limited when left out. */
   commentVisibleTo?: Limits;
+  /** The comment's saved words came from an accepted suggestion (D59): said beside them. */
+  commentAiDrafted?: boolean;
   /** A help desk request's customer group (D56), by id, or null for none: a change to it, like a field's. */
   requestGroup?: { groupId: string | null };
   /** Whether a help desk request is kept from its customer group's other members (D56). */

@@ -119,9 +119,9 @@ export function issueRoutes(app: OpenAPIHono<HttpEnv>) {
       body: NewCommentBody,
       response: CommentSchema,
     },
-    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility, visibleTo: body.visibleTo }),
+    ({ ctx, params, body }) => addComment(ctx, params.id, body.text, { visibility: body.visibility, visibleTo: body.visibleTo, aiDrafted: body.aiDrafted }),
   );
-  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment, against the version you read', params: z.object({ id: z.string() }), body: UpdateCommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text, body.expectedVersion));
+  route(app, { method: 'patch', path: '/comments/{id}', tags: ['Comments'], summary: 'Edit your comment, against the version you read', params: z.object({ id: z.string() }), body: UpdateCommentBody, response: CommentSchema }, ({ ctx, params, body }) => updateComment(ctx, params.id, body.text, body.expectedVersion, body.aiDrafted));
   route(
     app,
     {

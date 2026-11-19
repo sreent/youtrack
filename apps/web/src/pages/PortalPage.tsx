@@ -367,6 +367,7 @@ function Conversation({ r, me }: { r: PortalRequestDetail; me: PortalMe }) {
                 t1: (c: ReactNode) => <time dateTime={m.at}>{c}</time>,
               })}
             </p>
+            {m.aiDrafted ? <p className="note">{t('writing.draftedWithTheAssistant')}</p> : null}
             <div className="history-comment">
               <Markdown text={m.text} outside />
             </div>
@@ -598,6 +599,8 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
   const q = useQuery({ queryKey: ['portal', 'request', id], queryFn: () => get<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}`), retry: false });
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  // True while the reply's words are an accepted suggestion: the save keeps the mark (D59).
+  const drafted = useRef(false);
   const [error, setError] = useState<unknown>(null);
   if (q.error) return <ErrorNote error={q.error} />;
   if (!q.data) return <Loading what="loadingLine.request" />;
@@ -607,8 +610,9 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
     setBusy(true);
     setError(null);
     try {
-      qc.setQueryData(['portal', 'request', id], await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}/replies`, { text }));
+      qc.setQueryData(['portal', 'request', id], await post<PortalRequestDetail>(`/portal/requests/${encodeURIComponent(id)}/replies`, { text, aiDrafted: drafted.current }));
       setText('');
+      drafted.current = false;
       void qc.invalidateQueries({ queryKey: ['portal', 'requests'] });
     } catch (err) {
       setError(err);
@@ -665,6 +669,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
                 uploadTo={`/portal/requests/${encodeURIComponent(id)}/attachments`}
                 writing={{ kind: 'comment', issue: id }}
                 writingEndpoint="/portal/write"
+                drafted={drafted}
               />
             )}
           </FormField>

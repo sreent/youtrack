@@ -53,11 +53,12 @@ import {
   requestSignIn,
   signOut,
 } from '../../services/portal';
-import { writeWithPortal } from '../../ai/writing';
+import { streamDraftPortal, writeWithPortal } from '../../ai/writing';
 import { receiveFile } from '../../attachments/receive';
 import { formatBytes } from '../../attachments/sniff';
 import { storeAttachment } from '../../services/attachments';
 import { GUEST_USER } from '../../services/guests';
+import { streamDraftText } from './ai';
 import { MultipartFile } from './attachments';
 import { myKinds, setMyKinds, setSubscriptionKinds } from '../../notify/kinds';
 import { deskMailbox, setDeskMailbox } from '../../services/desk-mailbox';
@@ -262,7 +263,7 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       sameOrigin(c);
       const r = await who(c);
       await hit(c, [['portalAct', r.id]], 'Too many replies just now', 'helpdesk.tooManyRepliesNow');
-      return portalReply(c.get('runtime'), r, params.id, body.text);
+      return portalReply(c.get('runtime'), r, params.id, body.text, body.aiDrafted);
     },
   );
   // A reply's pictures (D39's revisit): kept on the request, seen by whoever reads it on the portal.
@@ -310,6 +311,17 @@ export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
       const r = await who(c);
       await hit(c, [['portalAct', r.id]], 'Too much writing help just now', 'helpdesk.tooManyRepliesNow');
       return writeWithPortal(c.get('runtime'), r, body);
+    },
+  );
+  route(
+    app,
+    { method: 'post', path: '/portal/write/stream', tags, summary: "Draft a message to the team, streamed (Server-Sent Events): each finished line as it is written", description: "The requester's own draft, streamed as a person's is: each finished line, checked, as a `draft` event with the text so far; the whole text as `done`, a failure as `error`. The same cap as /portal/write.", auth: 'none', body: WriteBody, status: 200 },
+    async ({ c, body }) => {
+      sameOrigin(c);
+      const runtime = c.get('runtime');
+      const r = await who(c);
+      await hit(c, [['portalAct', r.id]], 'Too much writing help just now', 'helpdesk.tooManyRepliesNow');
+      return streamDraftText(c, (emit) => streamDraftPortal(runtime, r, body, emit));
     },
   );
 

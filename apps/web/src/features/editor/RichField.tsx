@@ -1,6 +1,6 @@
 import type { Attachment, User, WritingFor } from '@a4a/shared';
 import { imagePath } from '@a4a/shared/markdown';
-import { lazy, Suspense, useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState, type MutableRefObject } from 'react';
 import { ApiError } from '../../api/client';
 import { useUsers } from '../../api/queries';
 import { ErrorLine } from '../../components/States';
@@ -69,6 +69,7 @@ export function RichField({
   writing,
   writingEndpoint,
   holdPictures,
+  drafted,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -90,6 +91,8 @@ export function RichField({
   writingEndpoint?: string;
   /** Pictures pasted before there's somewhere to upload them (a new issue): the host holds each, and puts them in once there is (D39). */
   holdPictures?: (files: File[], marks: string[]) => void;
+  /** The host's: true while the text is an accepted suggestion, for the save to keep (D59). */
+  drafted?: MutableRefObject<boolean>;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -105,6 +108,8 @@ export function RichField({
   const change = (next: string) => {
     latest.current = next;
     onChange(next);
+    // Any change but the accept's own clears the mark; the accept sets it right after (D59).
+    if (drafted) drafted.current = false;
   };
 
   // What's selected, for writing help: the visual editor's, or the Markdown's from where to where.
@@ -115,6 +120,7 @@ export function RichField({
   const help = useWritingHelp({
     at: writing,
     endpoint: writingEndpoint,
+    drafted,
     value,
     selected,
     pick: (): Picked | null => {

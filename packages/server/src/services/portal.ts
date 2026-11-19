@@ -313,6 +313,7 @@ export async function portalRequest(app: AppServices, r: PortalViewer, id: strin
         name: c.requesterId ? (other?.name ?? 'Someone') : author ? (author.isBot ? author.login : author.name) : 'The team',
         text: c.text,
         at: c.createdAt.toISOString(),
+        aiDrafted: c.aiDrafted,
       };
     }),
   };
@@ -334,7 +335,7 @@ export async function requesterRequest(app: AppServices, r: PortalViewer, id: st
   return { issue: row.issue, canReply: requesterMayComment(row.request, r, groups, row.copied) };
 }
 
-export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string): Promise<PortalRequestDetail> {
+export async function portalReply(app: AppServices, r: PortalViewer, id: string, text: string, aiDrafted = false): Promise<PortalRequestDetail> {
   const groups = sharingOf(await sharingGroups(app, r));
   const row = await oneRow(app, r, id, groups);
   if (!requesterMayComment(row.request, r, groups, row.copied)) {
@@ -343,7 +344,7 @@ export async function portalReply(app: AppServices, r: PortalViewer, id: string,
   // Theirs, or a colleague's; one copied on it writes as themselves. Signed in, a4a knows who wrote it, so
   // where the desk relays, everyone else on it hears it (D67).
   const colleague = row.requester.id !== r.id && !row.copied;
-  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague, relay: { on: 'portal', sender: r.email, trusted: true } });
+  await postRequesterReply(app, row.issue, { id: r.id, name: r.name }, text, 'page', { colleague, relay: { on: 'portal', sender: r.email, trusted: true }, aiDrafted });
   return portalRequest(app, r, id);
 }
 

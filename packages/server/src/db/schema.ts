@@ -318,6 +318,8 @@ export const issues = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved description came from an accepted suggestion (D59): said beside it, cleared by an edit that doesn't say so. */
+    descriptionAiDrafted: boolean('description_ai_drafted').notNull().default(false),
   },
   (t) => [
     uniqueIndex('issues_project_number').on(t.projectId, t.number),
@@ -436,6 +438,8 @@ export const comments = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved words came from an accepted suggestion (D59): said beside them, cleared by an edit that doesn't say so. */
+    aiDrafted: boolean('ai_drafted').notNull().default(false),
   },
   (t) => [index('comments_issue').on(t.issueId, t.createdAt), index('comments_search').using('gin', t.searchVector)],
 );
@@ -1004,6 +1008,8 @@ export const articles = pgTable(
     limited: boolean('limited').notNull().default(false),
     visibleUserIds: text('visible_user_ids').array().notNull().default(sql`'{}'::text[]`),
     visibleGroupIds: text('visible_group_ids').array().notNull().default(sql`'{}'::text[]`),
+    /** Its saved words came from an accepted suggestion (D59): said beside them, cleared by an edit that doesn't say so. */
+    aiDrafted: boolean('ai_drafted').notNull().default(false),
   },
   (t) => [
     uniqueIndex('articles_project_number').on(t.projectId, t.number),
