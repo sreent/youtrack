@@ -10,8 +10,9 @@
  * Builds come three ways:
  * - A GitHub integration's `workflow_run` deliveries (receive.ts, signed as pushes are): a run of
  *   the chosen workflow on the chosen branch that finishes is a build. Its commits are those since
- *   the source's last build on that branch: asked of GitHub's compare API with the integration's
- *   token, or else those a4a has seen pushed to that branch, by when they were made.
+ *   the source's last build on that branch: asked of the provider's compare API, GitHub's with the
+ *   integration's token or as its app, Forgejo's with the token it holds (D70) — or else those a4a
+ *   has seen pushed to that branch, by when they were made.
  * - A Gitea or Forgejo integration's Actions runs (D55), the same way: Forgejo's own run events,
  *   or Gitea's `workflow_run`. With no token, a run holds what a4a saw pushed, and the commits of
  *   the push that started it, which Forgejo's run carries.
@@ -59,7 +60,7 @@ import { installationToken } from '../vcs/github-app';
 import { NOBODY, type IntegrationRow } from '../vcs/links';
 import { mentions } from '../vcs/mentions';
 import { link, when } from '../vcs/payloads';
-import { appCredentials, readsFromProvider, readWith } from '../vcs/tokens';
+import { appCredentials, readsFromProvider, readWith, tokenOf } from '../vcs/tokens';
 import { queueBuildCheck } from '../vcs/checks';
 
 type SourceRow = typeof buildSources.$inferSelect;
@@ -604,6 +605,26 @@ async function compare(app: AppServices, integration: IntegrationRow, repository
   }
 }
 
+/** What Forgejo (or Gitea) says lies between two commits, read with the integration's token. */
+async function forgejoCompare(app: AppServices, integration: IntegrationRow, repository: string, from: string, to: string): Promise<{ commits: CommitSeen[]; more: number } | { problem: string }> {
+  const token = tokenOf(app, integration.accessToken);
+  if (!token || !integration.baseUrl) return { problem: "the integration holds no token, so a4a can't ask its compare" };
+  const base = integration.baseUrl.replace(/\/+$/, '');
+  const repo = repository.split('/').map(encodeURIComponent).join('/');
+  try {
+    const url = `${base}/repos/${repo}/compare/${encodeURIComponent(from)}...${encodeURIComponent(to)}`;
+    const got = z
+      .object({ commits: z.array(z.object({ sha: z.string(), commit: z.object({ message: z.string().nullish() }) })).default([]) })
+      .parse(await getJson(url, token));
+    const commits = got.commits.slice(0, COMPARE_MAX).map((c) => ({ sha: c.sha, message: c.commit.message ?? null }));
+    return { commits, more: Math.max(0, got.commits.length - commits.length) };
+  } catch (e) {
+    if (e instanceof ReadError) return { problem: `Forgejo's compare couldn't be read: ${e.message}` };
+    if (e instanceof ZodError) return { problem: "Forgejo's compare didn't answer as it does" };
+    throw e;
+  }
+}
+
 /** The commits a4a has seen pushed to a branch of a repository, between two moments. */
 async function seenBetween(db: Db, repository: string, branch: string | null, after: Date | null, upTo: Date | null): Promise<CommitSeen[]> {
   const rows = await db
@@ -636,13 +657,17 @@ async function runCommits(app: AppServices, integration: IntegrationRow, source:
   const pushed: CommitSeen[] = run.pushed.map((c) => ({ sha: c.sha, message: c.message }));
   // Since the last passing build's head commit; one whose head's time isn't known, since it was recorded.
   const since = last ? (last.headAt ?? last.createdAt) : source.createdAt;
-  // Only GitHub's compare is asked, and only of a GitHub integration, with its token or as its App (D54):
-  // no other host's token goes to GitHub.
-  if (last?.headSha && integration.provider === 'github' && readsFromProvider(integration)) {
-    const got = await compare(app, integration, run.repository, last.headSha, run.headSha);
-    if ('commits' in got) return { commits: [...got.commits, head], note: got.more ? `GitHub named ${got.commits.length} of its commits; the ${got.more} before them weren't read` : null };
+  // The provider's own compare, read with what its integration holds: GitHub's, with its token or as
+  // its App (D54); Forgejo's, with the token D70 gave its integrations. No host's token goes to another.
+  const forgejo = integration.provider === 'gitea' && Boolean(tokenOf(app, integration.accessToken) && integration.baseUrl);
+  if (last?.headSha && (integration.provider === 'github' ? readsFromProvider(integration) : forgejo)) {
+    const got = integration.provider === 'github'
+      ? await compare(app, integration, run.repository, last.headSha, run.headSha)
+      : await forgejoCompare(app, integration, run.repository, last.headSha, run.headSha);
+    if ('commits' in got) return { commits: [...got.commits, head], note: got.more ? `${forgejo ? 'Forgejo' : 'GitHub'} named ${got.commits.length} of its commits; the ${got.more} before them weren't read` : null };
+    // The run's own push still names its issues, where the compare couldn't be read.
     const seen = await seenBetween(app.db, run.repository, run.branch, since, run.headAt ?? run.at);
-    return { commits: [...seen, head], note: `${got.problem}; read the commits a4a saw pushed instead` };
+    return { commits: [...seen, ...pushed, head], note: `${got.problem}; read the commits a4a saw pushed instead` };
   }
   // Without a token, or a first build: what a4a saw pushed to the branch since the last build, or since the source began.
   const seen = await seenBetween(app.db, run.repository, run.branch, since, run.headAt ?? run.at);
