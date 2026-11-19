@@ -98,7 +98,7 @@ function downloadHeaders(row: AttachmentRow, asDownload: boolean): Headers {
 export function attachmentRoutes(app: OpenAPIHono<HttpEnv>) {
   route(
     app,
-    { method: 'get', path: '/attachments/limits', guests: true, tags, summary: 'How large files may be, and which are shown in place', response: AttachmentLimitsSchema },
+    { method: 'get', path: '/attachments/limits', auth: 'none', tags, summary: 'How large files may be, and which are shown in place', response: AttachmentLimitsSchema },
     async ({ ctx }) => attachmentLimits(ctx),
   );
   route(
