@@ -165,7 +165,8 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   const cardButton = page.getByRole('button', { name: new RegExp(`^Article ${guide.id}:`) });
   await expect(cardButton).toBeVisible();
   await cardButton.click();
-  await expect(page).toHaveURL(/\/public\/articles\//);
+  // Where the click left us, first: if the card didn't open, this failure's snapshot shows the page.
   await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
+  await expect(page).toHaveURL(/\/public\/articles\//);
   await api.patch(`/projects/${g.key}`, { guestAccess: false });
 });
