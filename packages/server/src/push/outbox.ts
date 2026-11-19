@@ -89,12 +89,13 @@ export async function renderNotificationPush(app: AppServices, notificationId: s
   const s = await app.schema.get();
   // Read fresh: a push goes seconds after the change, within the moment access keeps what it read.
   const { events, reasons } = (await eventsOf(app.db, s, [n.id], { visible: (e) => eventSeen(view, app.db, s, e, { fresh: true }), shape: (e) => eventFor(view, s, e) })).get(n.id) ?? { events: [], reasons: new Map() };
-  if (!events.length) return null;
+  // A fact of time has no events (D31): the push says what the title says, with nothing under it.
+  if (!events.length && kind !== 'subscribed') return null;
   const issue = n.issue as IssueRef;
   const tr = translatorFor(localeOfPerson(app, user));
   const said = notificationTitle(tr, kind, events, reasons);
-  const latest = events[events.length - 1]!;
-  const detail = eventDetail(tr, latest)[0];
+  const latest = events[events.length - 1] ?? null;
+  const detail = latest ? eventDetail(tr, latest)[0] : undefined;
   // The badge: what's unread for them, counted as their inbox counts it.
   const asThem: Ctx = { app, db: app.db, actor: { user, scopes: effectiveScopes(user.role), channel: 'web', tokenId: null, tokenName: null, authMethod: 'system' } };
   const unread = await unreadCount(asThem).catch(() => null);
