@@ -42,6 +42,8 @@ export interface CompiledQuery {
   problems: QueryProblem[];
   /** Whether its dates depend on the time zone it was read in (D31). */
   readsDates?: boolean;
+  /** Whether any term compares with now (`sla:` states), so time alone can move an issue. */
+  readsNow?: boolean;
 }
 
 const TRUE = sql`TRUE`;
@@ -81,6 +83,7 @@ class Compiler {
   problems: QueryProblem[] = [];
   /** Whether a date in it depends on where the asker is: "today" and its kind, or a moment's day. */
   readsDates = false;
+  readsNow = false;
   private today: string;
   private zone: string;
 
@@ -694,6 +697,8 @@ class Compiler {
       );
       return FALSE;
     }
+    // Every SLA state compares with now, so time alone can move an issue in or out (D31).
+    this.readsNow = true;
     const now = this.cc.now ?? new Date();
     const breached = sql`(k.breached_at IS NOT NULL OR (k.met_at IS NULL AND k.due_at IS NOT NULL AND k.due_at <= ${now}))`;
     const state = (value: string): SQL => {
@@ -805,5 +810,5 @@ export function compileQuery(parsed: ParsedQuery, cc: CompileContext): CompiledQ
   const orderBy = c.orderBy(parsed.sort);
   // Report problems left to right, whichever stage found them.
   const problems = [...parsed.problems, ...c.problems].sort((a, b) => a.start - b.start || a.end - b.end);
-  return { where, orderBy, problems, readsDates: c.readsDates };
+  return { where, orderBy, problems, readsDates: c.readsDates, readsNow: c.readsNow };
 }

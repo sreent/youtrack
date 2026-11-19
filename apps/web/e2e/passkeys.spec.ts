@@ -307,3 +307,52 @@ test('an administrator makes an account with no password, and its mailed link ad
   expect(admin.watch.unexpected()).toEqual([]);
   await admin.context.close();
 });
+test('a group or a project can require a passkey of its people', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const admin = await adminWithPasskey(browser);
+  const mira = { login: 'mira', name: 'Mira Grouped', email: 'mira@corp.example', password: 'e2e-mira-pass-1' };
+  expect((await admin.page.request.post('/api/v1/users', { data: { ...mira, role: 'member' }, headers: { origin: server.url } })).status()).toBe(201);
+
+  // The group's switch is among its settings; the administrator holding a passkey lets it turn on.
+  const made = await admin.page.request.post('/api/v1/groups', { data: { name: 'On call' }, headers: { origin: server.url } });
+  const group = (await made.json()) as { id: string };
+  await admin.page.request.post(`/api/v1/groups/${group.id}/members`, { data: { user: mira.login }, headers: { origin: server.url } });
+  await admin.page.goto(`/groups/${group.id}`);
+  const settings = admin.page.getByRole('region', { name: 'The group' });
+  await settings.getByRole('checkbox', { name: 'Require a passkey of its people' }).check();
+  await settings.getByRole('button', { name: 'Save the group' }).click();
+  await expect(settings.getByRole('status')).toHaveText('Saved.');
+  shoot(admin.page, settings, 'group-passkey-requirement');
+
+  // Mira's password sign-in now owes one, and adds it before her session starts.
+  const context = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
+  const watch = await prepareContext(context);
+  const page = await context.newPage();
+  const device = await authenticator(page, { synced: true });
+  await device.present(false);
+  await page.goto('/login');
+  await page.getByLabel('Login').fill(mira.login);
+  await page.getByLabel('Password').fill(mira.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Add a passkey to sign in' })).toBeVisible();
+  await device.present(true);
+  await page.getByRole('main').getByRole('button', { name: 'Add a passkey' }).click();
+  await expect(page).toHaveURL(/\/issues$/);
+  await mail.waitFor(mira.email, (m) => m.headers.get('subject') === 'A passkey was added to your a4a account');
+  expect(watch.unexpected()).toEqual([]);
+  await context.close();
+
+  // A project's own switch, on its page, reaching everyone who can see it.
+  expect(
+    (await admin.page.request.post('/api/v1/projects', { data: { key: 'PASS', name: 'Passkey Guards' }, headers: { origin: server.url } })).status(),
+  ).toBe(201);
+  await admin.page.goto('/projects/PASS');
+  const passkeys = admin.page.getByRole('region', { name: 'Passkeys' });
+  await passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' }).check();
+  await expect(passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
+  shoot(admin.page, passkeys, 'project-passkey-requirement');
+  await admin.page.reload();
+  await expect(admin.page.getByRole('region', { name: 'Passkeys' }).getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
+  expect(admin.watch.unexpected()).toEqual([]);
+  await admin.context.close();
+});

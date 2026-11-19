@@ -20,6 +20,23 @@ export const portalPasskeyKeys = { mine: ['portal', 'passkeys'] as const };
 type RequestOptionsJSON = Parameters<typeof startAuthentication>[0]['optionsJSON'];
 type CreationOptionsJSON = Parameters<typeof startRegistration>[0]['optionsJSON'];
 
+async function portalPasskeyAt<T>(path: string, to: string, where: { desk?: string } = {}): Promise<T> {
+  const first = await post<PasskeyOptions & { legacyRpIds?: string[] }>(path, where);
+  const ids = [first.rpId, ...(first.legacyRpIds ?? [])].filter((id): id is string => Boolean(id));
+  let last: unknown;
+  for (const rpId of ids) {
+    try {
+      const options = rpId === first.rpId ? first : await post<PasskeyOptions>(path, { ...where, rpId });
+      const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON });
+      return await post<T>(to, { response, ...where });
+    } catch (e) {
+      last = e;
+      if (!passkeyCancelled(e)) throw e;
+    }
+  }
+  throw last;
+}
+
 /**
  * Signing in with a passkey from the portal's sign-in page: the browser's autofill on the email field,
  * where it offers passkeys (conditional mediation), asked again every four minutes so its challenge
@@ -34,8 +51,9 @@ export function usePortalPasskeySignIn(wanted: boolean, desk: string | undefined
   finished.current = done;
   const where = desk ? { desk } : {};
   const ask = async (autofill: boolean) => {
+    if (!autofill) return finished.current(await portalPasskeyAt<PortalMe>('/portal/passkey/options', '/portal/passkey', where));
     const options = await post<PasskeyOptions>('/portal/passkey/options', where);
-    const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON, useBrowserAutofill: autofill });
+    const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON, useBrowserAutofill: true });
     finished.current(await post<PortalMe>('/portal/passkey', { response, ...where }));
   };
   const [armed, setArmed] = useState(0);
@@ -112,11 +130,7 @@ function ConfirmItsYou({ ways, email, onDone, onCancel }: { ways: PortalPasskeys
       setBusy(false);
     }
   };
-  const withPasskey = async () => {
-    const options = await post<PasskeyOptions>('/portal/me/confirm/passkey/options');
-    const response = await startAuthentication({ optionsJSON: options as unknown as RequestOptionsJSON });
-    return post<Confirmed>('/portal/me/confirm/passkey', { response });
-  };
+  const withPasskey = async () => portalPasskeyAt<Confirmed>('/portal/me/confirm/passkey/options', '/portal/me/confirm/passkey');
   return (
     <div className="stack tight" role="group" aria-labelledby="portal-confirm">
       <h3 id="portal-confirm">{t('helpdesk.portalPasskeys.confirmTitle')}</h3>

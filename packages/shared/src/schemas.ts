@@ -402,6 +402,7 @@ export type TimeSettings = z.infer<typeof TimeSettingsSchema>;
 export const ProjectSettingsSchema = z
   .object({
     triageMode: z.enum(TRIAGE_MODES),
+    requirePasskeys: z.boolean().describe('Whether people who can access this project owe a passkey when a4a’s own password signs them in (D70)'),
     plan: PlanSettingsSchema,
     helpdesk: HelpdeskSettingsSchema,
     time: TimeSettingsSchema,
@@ -472,6 +473,7 @@ export const UpdateProjectBody = z.object({
   settings: z
     .object({
       triageMode: z.enum(TRIAGE_MODES).optional(),
+      requirePasskeys: z.boolean().optional().describe('Require a passkey of everyone who can access this project (D70)'),
       plan: PlanSettingsSchema.partial().optional(),
       helpdesk: HelpdeskSettingsSchema.partial()
         .extend({
@@ -2403,10 +2405,10 @@ export const VcsGithubAppSchema = z
   .meta({ id: 'VcsGithubApp' });
 export type VcsGithubApp = z.infer<typeof VcsGithubAppSchema>;
 
-/** A GitHub integration's check runs on pull requests, as its app (D66). */
+/** Check runs or commit statuses on pull requests: GitHub's as its app (D66), GitLab's and Forgejo's with their token (D70). */
 export const VcsChecksSchema = z
   .object({
-    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a". Off by default; it takes the app\'s Checks: Read and write'),
+    enabled: z.boolean().describe('Whether a4a reports to each pull request as a check run named "a4a" (GitHub) or a commit status (GitLab, Forgejo). Off by default; GitHub takes the app\'s Checks: Read and write, the others a token that may write statuses'),
     states: z.boolean().describe("Whether the check says each issue's state, beside its id and link"),
     requireResolved: z.boolean().describe("Whether the check fails while an issue it names isn't resolved, or an id names no issue a4a shows; otherwise it's neutral"),
     problem: z.string().nullable().describe('Why the last check run a4a wrote for it didn\'t go, in the words of its deliveries\' log; null when the last went'),
@@ -2427,7 +2429,9 @@ export const VcsIntegrationSchema = z
     baseUrl: z.string().nullable().describe("Bitbucket Data Center's address, where a4a reads the commits a push moved; GitHub Enterprise Server's API address; null for the others"),
     hasAccessToken: z.boolean().describe('Whether a4a has an access token: to read the commits a delivery leaves out (Bitbucket), or those a build holds (GitHub). The token is never shown'),
     githubApp: VcsGithubAppSchema.nullable().describe('GitHub: the GitHub App a4a reads as instead of an access token (D54); null when it reads with a token, or not at all'),
-    checks: VcsChecksSchema.nullable().describe('GitHub: check runs on pull requests, written as its app (D66); null for the other providers'),
+    checks: VcsChecksSchema.nullable().describe(
+      'GitHub: check runs on pull requests, written as its app (D66); GitLab and Forgejo: commit statuses, written with the integration’s access token (D70); null for the other providers',
+    ),
     createdAt: timestamp,
     lastDeliveryAt: timestamp.nullable(),
   })
@@ -2742,6 +2746,7 @@ export const GroupRefSchema = z
       .string()
       .nullable()
       .describe('Its name at the identity provider, when it comes from there: who is in it is then set at each sign-in, never by hand'),
+    requirePasskeys: z.boolean().describe('Whether its people owe a passkey when a4a’s own password signs them in (D70)'),
     size: z.number().int().describe('How many people are in it'),
   })
   .meta({ id: 'GroupRef' });
@@ -2782,11 +2787,13 @@ export const CreateGroupBody = z.object({
     .nullable()
     .optional()
     .describe("Its name at the identity provider (the groups claim's or attribute's value), to take who is in it from there"),
+  requirePasskeys: z.boolean().default(false).describe('Require its people to use a passkey with a4a’s own password sign-in (D70)'),
 });
 export const UpdateGroupBody = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   description: z.string().max(500).optional(),
   providerName: z.string().trim().min(1).max(200).nullable().optional(),
+  requirePasskeys: z.boolean().optional(),
 });
 export const AddGroupMemberBody = z.object({ user: z.string().min(1).describe('Login of the person') });
 
@@ -3591,6 +3598,7 @@ export const BuildSourceSchema = z
     hookUrl: z.string().nullable().describe('generic: where a CI posts its builds'),
     tokenPrefix: z.string().nullable().describe("generic: the token's first characters, to recognise it by"),
     active: z.boolean(),
+    reportCheck: z.boolean().describe('github: report each finished run as a check run on its head commit, as the integration’s GitHub App (D70)'),
     createdAt: timestamp,
     lastBuildAt: timestamp.nullable(),
   })
@@ -3622,6 +3630,7 @@ export const BuildSourceBody = z.object({
     .optional()
     .describe('github: only this workflow, by name or file. gitea: by its file, such as ci.yml (Forgejo names no workflow by name). null: any'),
   active: z.boolean().default(true),
+  reportCheck: z.boolean().default(false).describe('github: report each run’s own result as a GitHub check run on its head commit'),
 });
 export const UpdateBuildSourceBody = z.object({
   name: z.string().trim().min(1).max(120).optional(),
@@ -3629,6 +3638,7 @@ export const UpdateBuildSourceBody = z.object({
   branch: z.string().trim().max(200).nullable().optional(),
   workflow: z.string().trim().max(200).nullable().optional(),
   active: z.boolean().optional(),
+  reportCheck: z.boolean().optional(),
 });
 
 export const BuildIssueSchema = z
@@ -4770,7 +4780,13 @@ export type MyPasskeys = z.infer<typeof MyPasskeysSchema>;
 
 /** What `navigator.credentials.create()` or `.get()` takes, as JSON (WebAuthn's `PublicKeyCredential*OptionsJSON`). */
 export const PasskeyOptionsSchema = z
-  .looseObject({ challenge: z.string(), timeout: z.number().optional(), rpId: z.string().optional() })
+  .looseObject({
+    challenge: z.string(),
+    timeout: z.number().optional(),
+    rpId: z.string().optional(),
+    /** Earlier relying party ids whose passkeys still sign in, the current id first (D70). */
+    legacyRpIds: z.string().array().optional(),
+  })
   .describe('Hand it to @simplewebauthn/browser’s startRegistration or startAuthentication as optionsJSON, or decode it for navigator.credentials')
   .meta({ id: 'PasskeyOptions' });
 export type PasskeyOptions = z.infer<typeof PasskeyOptionsSchema>;
@@ -4918,7 +4934,7 @@ export const PortalPasskeyAlertSchema = z
   .meta({ id: 'PortalPasskeyAlert' });
 export type PortalPasskeyAlert = z.infer<typeof PortalPasskeyAlertSchema>;
 const portalDesk = z.string().trim().max(20).optional().describe('The desk whose page they sign in from: it must take passkeys');
-export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk });
+export const PortalPasskeyOptionsBody = z.object({ desk: portalDesk, rpId: z.string().trim().max(255).optional() });
 export const PortalPasskeySignInBody = PasskeySignInBody.extend({ desk: portalDesk });
 
 /** How many passkeys the team took from a requester (D69). */

@@ -7,8 +7,10 @@
  */
 import type { IssueDetail } from '@a4a/shared';
 import { createHmac, randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { readFileSync } from 'node:fs';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createBuildSource, issueBuilds, listBuilds, rotateBuildToken } from '../src/ci/builds';
 import { activities, buildIssues, builds, fieldValues, vcsDeliveries } from '../src/db/schema';
@@ -78,11 +80,11 @@ function runOf(o: {
 }
 
 /** A delivery as Forgejo signs and names it (services/webhook/shared/payloader.go): every header it sends. */
-async function fromForgejo(event: string, payload: unknown, opts: { secret?: string; delivery?: string } = {}) {
+async function fromForgejo(event: string, payload: unknown, opts: { secret?: string; delivery?: string; hook?: string } = {}) {
   const body = JSON.stringify(payload, null, 2);
   const sig = createHmac('sha256', opts.secret ?? forgejo.secret).update(body).digest('hex');
   const delivery = opts.delivery ?? randomUUID();
-  const res = await http.request(`/api/v1/vcs/hooks/${forgejo.id}`, {
+  const res = await http.request(`/api/v1/vcs/hooks/${opts.hook ?? forgejo.id}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -331,5 +333,77 @@ describe("Gitea's workflow_run, in GitHub's shape", () => {
     });
     expect(await res.json()).toMatchObject({ outcome: 'processed' });
     expect(await buildNamed('70')).toMatchObject({ status: 'success', headSha: c, url: 'https://git.acme.example/acme/infra/actions/runs/70' });
+  });
+});
+
+/** A fake of Gitea and Forgejo's API: it answers the compare only to the token, recording what was asked. */
+async function fakeForgejoApi(token: string) {
+  const compares: { from: string; to: string; auth: string | undefined }[] = [];
+  let commits: { sha: string; commit: { message: string } }[] = [];
+  let refuse = false;
+  const server = createServer((req, res) => {
+    const u = new URL(req.url ?? '/', 'http://git');
+    const send = (status: number, body: unknown) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify(body));
+    const m = /^\/api\/v1\/repos\/([^/]+)\/([^/]+)\/compare\/([^/]+)\.\.\.([^/]+)$/.exec(u.pathname);
+    if (!m) return send(404, { message: 'not found' });
+    if (refuse || (req.headers.authorization ?? '') !== 'Bearer ' + token) return send(401, { message: 'invalid token' });
+    compares.push({ from: decodeURIComponent(m[3] ?? ''), to: decodeURIComponent(m[4] ?? ''), auth: String(req.headers.authorization) });
+    return send(200, { commits });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return {
+    url: 'http://127.0.0.1:' + (server.address() as AddressInfo).port,
+    compares,
+    answer: (list: { sha: string; commit: { message: string } }[]) => (commits = list),
+    refuseNext: () => (refuse = true),
+    takeAgain: () => (refuse = false),
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+describe("a run's commits read from Forgejo's compare", () => {
+  let api: Awaited<ReturnType<typeof fakeForgejoApi>>;
+  let holder: { id: string; secret: string };
+  let src: string;
+
+  beforeAll(async () => {
+    api = await fakeForgejoApi('forgejo-compare-token');
+    holder = await createIntegration(w.adminCtx, { provider: 'gitea', name: 'acme/service', projects: ['BACK'], baseUrl: api.url + '/api/v1', accessToken: 'forgejo-compare-token' });
+    src = (await createBuildSource(w.adminCtx, { kind: 'gitea', name: 'Service CI', project: 'BACK', integration: holder.id, branch: 'main', workflow: 'ci.yml' })).id;
+  });
+  afterAll(() => api.close());
+
+  const service = (o: Parameters<typeof runOf>[0]) => {
+    const body = runOf(o);
+    body.run.repository.full_name = 'acme/service';
+    return body;
+  };
+
+  it('names the issues between the last passing build and this run, asked with the token the integration holds', async () => {
+    const fixed = await newIssue('Compare finds this fix', true);
+    const first = sha();
+    // A first passing build: nothing to compare from, and its run carries no push.
+    api.answer([]);
+    expect((await fromForgejo('workflow_run_success', service({ index: 80, head: first, status: 'success', at: minutes(30), pushed: [] }), { hook: holder.id, secret: holder.secret })).body).toMatchObject({ outcome: 'processed', applied: 0 });
+    expect(api.compares).toEqual([]);
+
+    // The next run: Forgejo's compare, from the last passing build's head to this one's, names the issue the run's push doesn't.
+    const second = sha();
+    api.answer([{ sha: sha(), commit: { message: 'Roll the fix\n\nFixes ' + fixed.id + '\n' } }]);
+    const r = await fromForgejo('workflow_run_success', service({ index: 81, head: second, status: 'success', at: minutes(40), pushed: [] }), { hook: holder.id, secret: holder.secret });
+    expect(r).toMatchObject({ status: 200, body: { outcome: 'processed', applied: 1 } });
+    expect(api.compares).toEqual([{ from: first, to: second, auth: 'Bearer forgejo-compare-token' }]);
+    expect(fieldOf(await getIssue(w.adminCtx, fixed.id), 'Fixed in build')).toBe('81');
+
+    // The token refused: the run's own push names its issues instead, and the log says so.
+    const pushed = await newIssue('The push names this one', true);
+    api.refuseNext();
+    const third = sha();
+    const fallen = await fromForgejo('workflow_run_success', service({ index: 82, head: third, status: 'success', at: minutes(50), pushed: [{ id: third, message: 'Hotfix\n\nFixes ' + pushed.id + '\n' }] }), { hook: holder.id, secret: holder.secret });
+    expect(fallen.body).toMatchObject({ outcome: 'processed', applied: 1 });
+    expect(fieldOf(await getIssue(w.adminCtx, pushed.id), 'Fixed in build')).toBe('82');
+    const [log] = await w.app.db.select().from(vcsDeliveries).where(and(eq(vcsDeliveries.integrationId, holder.id), eq(vcsDeliveries.event, 'workflow_run_success'))).orderBy(desc(vcsDeliveries.createdAt)).limit(1);
+    expect(log?.message).toContain("Forgejo's compare couldn't be read");
+    expect(log?.message).toContain('read the commits a4a saw pushed instead');
   });
 });

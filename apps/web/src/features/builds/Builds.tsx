@@ -83,6 +83,11 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
   const rotate = useMutation({ mutationFn: () => post<BuildSourceCreated>(`/build-sources/${source.id}/token`, {}), onSuccess: (m) => (setMade(m), refresh()), onError: (e) => onSaid({ text: errorText(e), bad: true }) });
+  const report = useMutation({
+    mutationFn: () => patch<BuildSource>(`/build-sources/${source.id}`, { reportCheck: !source.reportCheck }),
+    onSuccess: refresh,
+    onError: (e) => onSaid({ text: errorText(e), bad: true }),
+  });
   const remove = useMutation({ mutationFn: () => del(`/build-sources/${source.id}`), onSuccess: refresh, onError: (e) => onSaid({ text: errorText(e), bad: true }) });
   const runsOf = (unnamed: string) =>
     t('builds.builds.sRunsOfOn', { v: source.integration?.name ?? unnamed, v2: source.workflow ?? t('builds.builds.anyWorkflow'), v3: source.branch ?? t('builds.builds.anyBranch') });
@@ -107,6 +112,13 @@ function SourceCard({ source, onSaid }: { source: BuildSource; onSaid: (s: { tex
           <code className="hook-url">{source.hookUrl}</code>
           <CopyButton text={source.hookUrl} label={t('builds.builds.copyIt')} what={t('builds.builds.theUrl')} />
         </div>
+      ) : null}
+      {source.kind === 'github' ? (
+        <label className="choice">
+          <input type="checkbox" checked={source.reportCheck} disabled={report.isPending} onChange={() => report.mutate()} />
+          <span>{t('builds.builds.reportCheck')}</span>
+          <small className="field-help">{t('builds.builds.reportCheckHelp')}</small>
+        </label>
       ) : null}
       <div className="cluster">
         <button type="button" onClick={() => pause.mutate()} disabled={pause.isPending}>
@@ -135,6 +147,7 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
   const [integration, setIntegration] = useState('');
   const [branch, setBranch] = useState('main');
   const [workflow, setWorkflow] = useState('');
+  const [reportCheck, setReportCheck] = useState(false);
   const [made, setMade] = useState<BuildSourceCreated | null>(null);
   const add = useMutation({
     mutationFn: () =>
@@ -143,6 +156,7 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
         name: name.trim(),
         project,
         ...(kind !== 'generic' ? { integration, branch: branch.trim() || null, workflow: workflow.trim() || null } : {}),
+        ...(kind === 'github' ? { reportCheck } : {}),
       }),
     onSuccess: (m) => {
       void qc.invalidateQueries({ queryKey: buildKeys.sources });
@@ -214,6 +228,13 @@ function AddSource({ integrations }: { integrations: VcsIntegration[] }) {
             </>
           ) : null}
         </div>
+        {kind === 'github' ? (
+          <label className="choice">
+            <input type="checkbox" checked={reportCheck} onChange={(e) => setReportCheck(e.target.checked)} />
+            <span>{t('builds.builds.reportCheck')}</span>
+            <small className="field-help">{t('builds.builds.reportCheckHelp')}</small>
+          </label>
+        ) : null}
         <div className="cluster">
           <button type="submit" className="primary" disabled={add.isPending || !name.trim() || !project || (kind !== 'generic' && !integration)}>
             {add.isPending ? t('builds.builds.adding') : t('builds.builds.takeItsBuilds')}

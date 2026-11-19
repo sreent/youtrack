@@ -95,6 +95,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `page.admin.removePasskeysOf`, the accessible name of "Passkeys entfernen", is "Passkeys entfernen für {name}", so it holds the link's words whole (WCAG 2.5.3); "Passkeys von {name} entfernen" is the natural order.
 - `page.integrations.accountUser`, a GitHub account's type beside "Organisation", is "Benutzer"; "Persönliches Konto" doesn't assume a gender.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Commit-Status** stays English, like "Check-Run" (`page.integrations.statusesLegend` "Commit-Status bei Pull Requests", `statusesOn`): GitHub's German interface says "Commitstatus", without the hyphen, and the plural works unchanged. "Status" alone would collide with an issue's state.
+- `page.group.requirePasskeys` is "Von den Personen dieser Gruppe einen Passkey verlangen", and `page.project.requirePasskeys` "Von allen, die dieses Projekt sehen können, einen Passkey verlangen": the verb-first order of the catalog's other switches. Would "Für die Personen dieser Gruppe …" read more naturally?
+- `page.group.requirePasskeysHelp` ends "…, und eine befreite Person braucht keinen.", building on wave 6's "von der Passkey-Pflicht befreit". Should the noun appear here too ("und eine von der Passkey-Pflicht befreite Person braucht keinen")?
+- `builds.builds.reportCheck` is "Das Ergebnis jedes Laufs an GitHub melden". Is "melden" the right verb for telling a service, or would "berichten" or "übermitteln" say it better?
+- `page.integrations.statusesAudience` says "Ein Status nennt Vorgänge nur mit ihrer ID" — the checks message says "nennt Vorgänge mit ID und Link". Does "mit ihrer ID" read naturally beside it?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` ist “Es kam in eine Suche, der du folgst” — das Zeitform von “folgen”. Sagt es, was Zeit allein tat, oder liest es zu passiv? (“Eine Suche, die du verfolgst, hat ihn jetzt” wäre aktiver.)
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`, `noArticleWords` und `issuesMatching` folgen den Worten der bereits vorhandenen Gast-Seiten. Natürlich? (`issuesMatching`: “Tickets, die auf … passen” — oder lieber “Tickets zur Abfrage”?)
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -190,6 +206,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.portalPasskeys.notMeAdded` and the added case of `server.portalPasskeys.subject` are one sentence, "Se agregó una llave de acceso para iniciar sesión en el servicio de asistencia", for English's "A passkey was added to your help desk sign-in" and "A passkey now signs you in to the help desk".
 - `helpdesk.portalPasskeys.stopped` is "Bloqueada", as `identity.passkeys.stopped` is: wave 5's question above settles both.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): el catálogo escribe "commit" sin traducir en el resto de mensajes; GitLab en español dice "estado de confirmación". ¿Se prefiere "commit"?
+- `page.group.requirePasskeys` es "Exigir una llave de acceso a las personas del grupo" y `page.project.requirePasskeys` "…a todo el que pueda ver este proyecto". ¿"a todo el que" o "a todos los que puedan"? ¿"exigir a alguien" o "exigir de"?
+- `page.group.requirePasskeysHelp` dice "a partir del siguiente inicio" (sin "de sesión" la segunda vez). ¿Bastaría "desde el siguiente inicio de sesión"?
+- `builds.builds.reportCheck` es "Informar a GitHub del resultado de cada ejecución". El catálogo usa "ejecución" para los check runs; para una ejecución de CI, ¿"ejecución" o "corrida" (Latinoamérica)?
+- `page.integrations.statusesLastProblem` sigue el patrón de los check runs: "El último estado de commit, {when}, no se pudo escribir: {problem}". ¿Natural?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` es “Entró en una búsqueda que sigues”. ¿Se diría mejor “siguiendo”, o con “apareció en”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` sigue a sus hermanos (“abierto a invitados”). `issuesMatching` es “Incidencias que coinciden con”: ¿o “que cumplen” o “que encajan con”?
 ## French
 
 Terms:
@@ -285,6 +317,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `server.helpdesk.relay.whyAnswer` and `whyLink`: the people on a request "participent à" it ("d’autres personnes participent à votre demande auprès de {desk}"), since "suivre" is a4a's word for watching.
 - `page.portal.confirm.copyThem`, "Mettre en copie les personnes choisies", is long for a button, and wraps at 390px.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Un statut de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): la documentation de GitLab en français dit "statut de commit". Le catalogue garde "commit" (voir `builds.builds.commits`). Cohérent ?
+- `page.group.requirePasskeys` est "Exiger une clé d’accès des membres du groupe" et `page.project.requirePasskeys` "…de toute personne pouvant voir ce projet". "Exiger quelque chose de quelqu’un" est le tour correct ; le participe "pouvant voir" est-il naturel dans un libellé ?
+- `page.project.requirePasskeysHelp` commence par "À partir de leur prochaine connexion, là où le mot de passe propre à a4a sert à se connecter." Le "là où" se répète dans l’aide du groupe : trop lourd ?
+- `builds.builds.reportCheck` est "Signaler à GitHub le résultat de chaque exécution". "Signaler" convient-il pour un compte-rendu automatique, ou "publier" (comme les check runs) dirait-il mieux ?
+- `page.integrations.statusesNeedToken` emploie le point-virgule avant "Gitea et Forgejo ont aussi besoin…", comme l’anglais. Lisibilité ?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` est “Il est entré dans une recherche que vous suivez”. À côté de la voix passive, la personne voit-elle que c’est le temps qui l’a fait entrer ?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` suit ses soeurs (“ouvert aux invités”). `issuesMatching` est “Tickets correspondant à” : naturel, ou “qui répondent à” ?
 ## Japanese
 
 Terms:
@@ -372,6 +420,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - `helpdesk.requestCard.passkeys`, beside the button that removes them, is a label, 「ポータルのログイン用パスキー：2個」, where English has a sentence. Does it read as the requester's passkeys?
 - `page.admin.metadataInUse` calls FIDO's BLOB number 「第{no}号」. Is 「No.{no}」 more usual for a serial?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **コミットステータス** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHubの日本語UIも「コミットステータス」と書きます。チェック実行との対比で自然ですか？
+- `page.group.requirePasskeys` は「このグループのメンバーにパスキーを必須にする」、`page.project.requirePasskeys` は「このプロジェクトを見られる全員にパスキーを必須にする」。「必須にする」より「必須とする」のほうが formal でしょうか？
+- `page.group.requirePasskeysHelp` の末尾は「免除は管理者が行います。」。主語を示すこの言い方は、他の「管理者が〜します」の文と揃っていますか？
+- `builds.builds.reportCheck` は「各実行の結果をGitHubに報告する」。CIの結果を「報告する」でよいか、「通知する」のほうが自然でしょうか？
+- `page.integrations.statusesAudience` は「ステータスは課題をIDでのみ示し」— チェック実行の説明は「IDとリンクで示し」です。対比として読めますか？
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` は「フォロー中の検索条件に該当しました」。通知のタイトルとして「該当」は事務的すぎるか、「含まれるようになりました」のほうが自然か。
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` は既存のゲストページの言い方に合わせました。`issuesMatching` は「{query}」に該当する課題」—「に一致する」「を満たす」のほうがいいですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -438,6 +502,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Forgejo's and Gitea's settings** are named as their Portuguese pages name them, "em Aplicações" (`builds.builds.forgeKeepsToken`, `tokenTooWide`); an instance in English says "Applications".
 - **The emails' time** is in brackets again, "… foi removida (quarta, 18/11, 14:03 WET)" (`server.passkeys.passwordRemoved`, `server.portalPasskeys.lead`, `removedByTeam`), since it begins with a weekday.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Um estado de commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): o catálogo escreve "commits" sem traduzir; a documentação do GitLab em português também diz "estado do commit". Fica "estado de commit"?
+- `page.group.requirePasskeys` é "Exigir uma chave de acesso às pessoas do grupo" e `page.project.requirePasskeys` "…a toda a gente que possa ver este projeto". "Exigir a alguém" está correto; "a toda a gente que possa" é subjuntivo natural num rótulo?
+- `page.project.requirePasskeysHelp` começa "A partir do próximo início de sessão, para quem entra com a palavra-passe do próprio a4a." O "para quem" em cadeia com a frase nominal: natural?
+- `builds.builds.reportCheck` é "Comunicar ao GitHub o resultado de cada execução". "Comunicar" num interruptor: natural, ou "reportar"?
+- `page.integrations.statusesTurnedOn` segue os check runs: "Estados de commit ativados: cada pull request recebe um na próxima vez que mudar." O plural "Estados de commit ativados" está claro (ativados é o interruptor, não os estados)?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` é “Entrou numa pesquisa que segue”. É a ordem natural em português, ou diria “passou a constar numa pesquisa que segue”?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` segue as irmãs (“aberto a convidados”). `issuesMatching` é “Itens que correspondem a”: natural, ou “que cumprem”?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -553,6 +633,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A lane's own order** is "레인마다 순서를 따로 유지" (`page.board.laneOrder`, `laneOrderOn`, `laneOrderTurnedOn`), and "레인별 순서" in its help. A card's move in an issue's history reads "Platform board에서 BACK-31 위로 옮겼습니다", and "보드에서" where the reader no longer sees the board (`boards.history.moved`, "on a board"). Is "어느 보드에서" better there?
 - `page.admin.metadataInUse` says "번호 {no}" for FIDO's BLOB ("사용 중인 FIDO 메타데이터: 번호 87, 3시간 전 읽음."), since "87번" would read as a count of times. Clear?
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **커밋 상태** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): GitHub 한국어 UI도 "커밋 상태"라고 씁니다. "체크"와 구분되어 자연스러운가요?
+- `page.group.requirePasskeys`는 "이 그룹의 사람들에게 패스키 요구"입니다. 다른 스위치 라벨처럼 명사로 끝나는데, "패스키 필수"처럼 더 짧게 할 수도 있습니다. 어느 쪽이 낫나요?
+- `page.group.requirePasskeysHelp`는 "Single Sign-on과 디렉터리 계정은 계속 공급자 소관이며"라고 씁니다. "소관"은 문서체 느낌인데, "계속 공급자가 관리하며"가 나을까요? (카탈로그의 SSO 표기는 "SSO"입니다.)
+- `builds.builds.reportCheck`는 "각 실행의 결과를 GitHub에 보고"입니다. "보고"가 자연스러운가요, "전송"이나 "알리기"는 어떨까요?
+- `page.integrations.statusesLastProblem`은 "마지막 커밋 상태를 작성하지 못했습니다({when}). 오류: {problem}"로 check run 문장과 같은 꼴입니다. 괄호 안 시간 표기가 자연스러운지도 check run 질문과 함께 살펴주세요.
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn`은 “팔로우하는 검색에 포함되었습니다”입니다. 알림 제목에서 “포함”은 기계적으례 들리나요, “해당하게 되었습니다”가 나은가요?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle`는 기존 게스트 페이지의 표현을 따랐습니다. `issuesMatching`은 “{query}”에 해당하는 이슈” — “일치하는”이 더 자연스러운가요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -659,6 +755,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal signs a requester out with 退出门户登录** (`helpdesk.portalPasskeys.notMeDoneAbout`, `server.portalPasskeys.notYou`), where the team's pages say 在所有设备上退出登录.
 - **The page behind the acknowledgement's link** reads 「您就“{summary}”发给 {desk} 的邮件抄送了以下人员。」 (`page.portal.confirm.lead`), with the desk's name unquoted, as the portal's pages say it; the desk's emails quote theirs, 「“BACK 的服务台”」 (`server.helpdesk.relay.whyAnswer`, `whyLink`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **提交状态** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): Gitea 和 GitLab 的中文界面都写“提交状态”。与“检查运行”并列时清楚吗？
+- `page.group.requirePasskeys` 是“要求此组成员使用通行密钥”，`page.project.requirePasskeys` 是“要求所有能看到此项目的人使用通行密钥”。“要求……使用通行密钥”的动词结构自然吗？
+- `page.group.requirePasskeysHelp` 以“凡使用 a4a 自身密码登录的成员”开头。“凡……的”这种书面结构在帮助文字里合适吗？
+- `builds.builds.reportCheck` 是“将每次运行的结果报告给 GitHub”。“报告给”用于自动上报自然吗？
+- `page.integrations.statusesNeedToken` 里“Gitea 和 Forgejo 还需要其 /api/v1 地址”中“其”字用法是否清楚（指 Gitea 和 Forgejo 各自的地址）？
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` 是“它进入了你关注的一个搜索”。“进入”在通知标题里自然吗，还是“开始符合你关注的搜索条件”更清楚？
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` 沿用了其他访客页的措辞。`issuesMatching` 是“与…匹配的问题”——用“符合”“符合条件”会不会更自然？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -777,6 +889,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **A desk that takes passkeys "cho đăng nhập bằng khóa truy cập"** (`problem.portal.passkeysOff`, `helpdesk.portalPasskeys.offDesks`), as one that takes passwords does. A requester's help desk passkey is "khóa truy cập bạn dùng cho bộ phận hỗ trợ" (`helpdesk.portalPasskeys.notMeCopied`, `server.portalPasskeys.subject`, `problem.portalPasskeys.teamPasskey`), since "khóa truy cập của bộ phận hỗ trợ" would read as the desk's own.
 - **Smaller choices**: GitHub's account kinds are "cá nhân" and "tổ chức" (`page.integrations.accountUser`, `page.integrations.accountOrganization`), where English says "user"; an installation GitHub says is gone "đã gỡ" (`page.integrations.installationGone`); "họ" stands for one person in "Đã CC 1 người: từ giờ, họ sẽ nhận …" (`page.portal.confirm.copied`), whose plural keeps `other` alone; and `server.portalPasskeys.removedByTeam` keeps `=1`, the one case that names the passkey.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Trạng thái commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): catalog giữ "commit" nguyên văn. GitLab tiếng Việt cũng nói "trạng thái commit". Được chứ?
+- `page.group.requirePasskeys` là "Yêu cầu khóa truy cập đối với người trong nhóm", `page.project.requirePasskeys` là "…với mọi người xem được dự án này". "Yêu cầu … đối với/với" — giới từ nào đúng hơn?
+- `page.project.requirePasskeysHelp` mở đầu "Từ lần đăng nhập tiếp theo, với ai đăng nhập bằng mật khẩu của a4a." Cụm "với ai đăng nhập" đọc có tự nhiên không?
+- `builds.builds.reportCheck` là "Báo cáo kết quả của mỗi lần chạy lên GitHub". "lên GitHub" cho hướng truyền đi: tự nhiên không, hay "tới GitHub"?
+- `page.integrations.statusesAudience` nói "trạng thái chỉ nêu vấn đề bằng mã" — check run thì "bằng mã và liên kết". Đối chiếu vậy rõ không?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` là “Vưa vào một tìm kiếm bạn theo dõi”. “Vưa vào” có nén rõ không?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` theo các trang khách. `issuesMatching` lá “Vấn đ khơp vôi”: tỳ nhiôn không?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -892,6 +1020,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **Passkeys alone**: "Hanya kunci sandi" in the people table (`page.admin.passkeysAlone`), "Masuk hanya dengan kunci sandi" on the profile (`identity.passkeys.passkeysAlone`), and the setup link "tautan untuk menambahkan kunci sandi", which "kedaluwarsa dalam 3 hari" (`page.admin.linkRunsOut`, `page.passkeySetup.until`, `server.passkeySetup.*`). A passkey provider is a *penyedia kunci sandi* (`identity.passkeys.keepASpare`, `problem.passkeys.spareFirst`, `server.passkeySetup.leadFirst`), where Google names its own *Pengelola Sandi*.
 - **Forgejo's and Gitea's "Applications"** stays as their English settings name it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`), though their Indonesian says *Aplikasi*.
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **Status commit** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): katalog memakai "commit" tanpa diterjemahkan. GitLab berbahasa Indonesia juga menyebut "status commit". Cukup alami?
+- `page.group.requirePasskeys` adalah "Wajibkan kunci sandi bagi anggota grup ini", dan `page.project.requirePasskeys` "…bagi semua yang dapat melihat proyek ini". "bagi" atau "untuk" yang lebih cocok pada label?
+- `page.group.requirePasskeysHelp` diawali "Saat masuk dengan kata sandi a4a sendiri" — subjeknya "anggotanya" muncul setelahnya. Apakah urutannya terbaca jelas?
+- `builds.builds.reportCheck` adalah "Laporkan hasil tiap run ke GitHub". Kata "run" dibiarkan dalam bahasa Inggris seperti katalog Builds biasa. Konsisten?
+- `page.integrations.statusesNeedToken` memakai titik dua sebelum "Gitea dan Forgejo juga memerlukan alamat /api/v1." Apakah kalimat majemuk ini terbaca ringan pada layar kecil?
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` adalah “Masuk ke pencarian yang Anda ikuti”. Apakah “masuk ke” cukup jelas untuk hasil pencarian, atau “kini sesuai dengan” lebih tepat?
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` mengikuti halaman tamu yang lain. `issuesMatching` adalah “Isu yang cocok dengan” — atau “sesuai hasil pencarian”?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1008,6 +1152,22 @@ Messages added in wave 6 (lanes, checks on pull requests, CCs, passkeys in depth
 - **The portal's notes after "added …, last used …" are whole sentences**, with their subject: “พาสคีย์นี้อาจถูกคัดลอก จึงไม่มีใครใช้เข้าสู่ระบบได้”, “พาสคีย์นี้สร้างไว้สำหรับ {host} จึงใช้เข้าสู่ระบบที่นี่ไม่ได้” (`helpdesk.portalPasskeys.mayBeCopied`, `helpdesk.portalPasskeys.elsewhere`), where the team's, after a badge, stay fragments.
 - **A GitHub App's installations** carry the badges “องค์กร”, “ผู้ใช้”, “ไม่มีแล้ว” for gone and “ถูกระงับ” for suspended (`page.integrations.accountOrganization`, `page.integrations.accountUser`, `page.integrations.installationGone`, `page.integrations.installationSuspended`). Is ไม่มีแล้ว clear, or should it say ถอนการติดตั้งแล้ว? Forgejo's and Gitea's “Applications” stays in Latin letters, as their settings show it (`builds.builds.forgeKeepsToken`, `builds.builds.tokenTooWide`).
 
+Messages added in wave 7 (passkeys required of a group or a project, a changed relying party, a build's own check run, commit statuses on GitLab's and Forgejo's pull requests):
+
+- **สถานะคอมมิต** (`page.integrations.statusesLegend`, `statusesOn`, `problem.vcs.checks.needsToken`): คำนี้ใช้ทั้ง GitHub และ GitLab ภาษาไทย อ่านสอดคล้องกับ "check run" ที่คงภาษาอังกฤษไหม
+- `page.group.requirePasskeys` คือ "กำหนดให้คนในกลุ่มนี้ต้องใช้พาสคีย์" และ `page.project.requirePasskeys` คือ "กำหนดให้ทุกคนที่เห็นโปรเจกต์นี้ได้ต้องใช้พาสคีย์" ยาวพอสำหรับป้ายกำกับหรือไม่ ตัดเป็น "ต้องใช้พาสคีย์" อย่างเดียวได้ไหม
+- `page.group.requirePasskeysHelp` ว่า "บัญชี single sign-on และไดเรกทอรียังเป็นของผู้ให้บริการ" คำ "ไดเรกทอรี" (directory account) ชัดเจนไหม
+- `builds.builds.reportCheck` คือ "รายงานผลของแต่ละการรันไปยัง GitHub" ใช้ "การรัน" ตามที่หน้า Builds ใช้อยู่ สอดคล้องไหม
+- `page.integrations.statusesAudience` ว่า "สถานะจึงระบุอิชชูด้วยรหัสเท่านั้น" ตรงข้ามกับ check run ที่มีลิงก์ อ่านเข้าใจไหม
+
+
+Messages added in wave 8 (a Forgejo run's commits read from its compare; what time alone brings into a search):
+
+- `server.notify.title.cameIn` คือ “เข้ามาในการค้นหาที่คุณติดตาม” “เข้ามาใน” อ่านเป็นการกระทำของใครหรือไม่ หรือควรเป็น “ตรงกับการค้นหาที่คุณติดตามแล้ว”
+
+Messages added in wave 9 (a guest's article page, and a report's count opening its issues):
+
+- `page.guestPages.noSuchArticle` ตามถ้อยคำของหน้าแขกอื่น `issuesMatching` คือ “อิชชูที่ตรงกับ” — หรือ “ที่ตรงเงื่อนไข” จะดีกว่าไหม
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

@@ -379,8 +379,10 @@ function usePasskeySignIn(wanted: boolean, done: (me: Me) => void) {
   const finished = useRef(done);
   finished.current = done;
   const ask = async (autofill: boolean) => {
+    // Conditional UI can wait on only the current domain; a deliberate button press can try the old ones too (D70).
+    if (!autofill) return finished.current(await passkeyAt<Me>('/auth/passkey/options', '/auth/passkey'));
     const options = await post<PasskeyOptions>('/auth/passkey/options');
-    const response = await startAuthentication({ optionsJSON: options as never, useBrowserAutofill: autofill });
+    const response = await startAuthentication({ optionsJSON: options as never, useBrowserAutofill: true });
     finished.current(await post<Me>('/auth/passkey', { response }));
   };
   const [armed, setArmed] = useState(0);

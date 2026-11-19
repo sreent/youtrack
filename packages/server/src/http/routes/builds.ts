@@ -22,7 +22,7 @@ export function buildRoutes(app: OpenAPIHono<HttpEnv>) {
       tags,
       summary: "Take a project's builds from CI (admin)",
       description:
-        "`github`: a GitHub integration's `workflow_run` deliveries, signed as its pushes are: a run of the chosen workflow on the chosen branch that finishes is a build. `generic`: any CI posts each build to the source's `hookUrl` with the `token` returned here, shown only once. A successful build goes in the project's build field, and the resolved issues its commits name get it.",
+        "`github`: a GitHub integration's `workflow_run` deliveries, signed as its pushes are: a run of the chosen workflow on the chosen branch that finishes is a build. `generic`: any CI posts each build to the source's `hookUrl` with the `token` returned here, shown only once. A successful build goes in the project's build field, and the resolved issues its commits name get it. A `github` source can also report each finished run's own result to GitHub as a check run on the commit it built (`reportCheck`), written as the integration's app (D70).",
       body: BuildSourceBody,
       response: BuildSourceCreatedSchema,
     },

@@ -139,6 +139,7 @@ async function signInUser(runtime: Runtime, userId: string): Promise<UserRow | n
 }
 
 const first = (user: UserRow) => (user.passwordHash ? 'password' : 'ldap');
+const RpQuery = z.object({ rpId: z.string().trim().max(255).optional() });
 
 export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Passkeys'];
@@ -155,14 +156,15 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       description:
         'Names nobody: the browser offers the passkeys it holds for this a4a, in its autofill or its own dialog. The challenge is bound to this browser by a short-lived cookie, and works once, for five minutes. Finish with `POST /auth/passkey`.',
       auth: 'none',
+      query: RpQuery,
       response: PasskeyOptionsSchema,
       status: 200,
     },
-    async ({ c }) => {
+    async ({ c, query }) => {
       const runtime = c.get('runtime');
       fromHere(c, runtime);
       holdBack(c, runtime);
-      return signInOptions(runtime, ticketFor(c, runtime));
+      return signInOptions(runtime, ticketFor(c, runtime), query.rpId);
     },
   );
 
@@ -201,17 +203,18 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
       summary: 'A passkey instead of a code: a challenge for the person whose password was right',
       description: 'After `POST /auth/login` answered `{ "step": "two_factor", "passkey": true }`. Finish with `POST /auth/two-factor/passkey`.',
       auth: 'none',
+      query: RpQuery,
       response: PasskeyOptionsSchema,
       status: 200,
     },
-    async ({ c }) => {
+    async ({ c, query }) => {
       const runtime = c.get('runtime');
       fromHere(c, runtime);
       holdBack(c, runtime);
       const ticket = await peekTicket(runtime.db, getCookie(c, TICKET_COOKIE), 'verify');
       const user = ticket && (await signInUser(runtime, ticket.userId));
       if (!ticket || !user) throw signInAgain();
-      return secondStepOptions(runtime, ticket.id, user);
+      return secondStepOptions(runtime, ticket.id, user, query.rpId);
     },
   );
 
@@ -342,11 +345,11 @@ export function passkeyRoutes(app: OpenAPIHono<HttpEnv>) {
 
   route(
     app,
-    { method: 'post', path: '/me/confirm/passkey/options', tags, summary: 'Confirm it’s you with one of your passkeys: a challenge', response: PasskeyOptionsSchema, status: 200 },
-    async ({ c, ctx }) => {
+    { method: 'post', path: '/me/confirm/passkey/options', tags, summary: 'Confirm it’s you with one of your passkeys: a challenge', query: RpQuery, response: PasskeyOptionsSchema, status: 200 },
+    async ({ c, ctx, query }) => {
       const session = await browserSession(c, ctx);
       holdBack(c, c.get('runtime'));
-      return confirmOptions(ctx.app, ctx.actor.user, session);
+      return confirmOptions(ctx.app, ctx.actor.user, session, query.rpId);
     },
   );
 

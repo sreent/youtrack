@@ -3,25 +3,27 @@
  * issues coming in or any change to one in it; who is told, who isn't, and what it says.
  */
 import { eq } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { systemCtx } from '../src/app-services';
 import type { Ctx, UserRow } from '../src/context';
 import { notifications, subscriptionIssues, subscriptions, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
 import { createHttpApp } from '../src/http/app';
 import { MailWorker } from '../src/mail/outbox';
-import { notifierConsumer } from '../src/notify/notifier';
+import { notifierConsumer, recheckSearches } from '../src/notify/notifier';
 import { addComment } from '../src/services/comments';
 import { issueTokenFor } from '../src/services/auth';
 import { createIssue, resolveIssue, updateIssue } from '../src/services/issues';
 import { addMember } from '../src/services/members';
 import { applyUnsubscribe, describeUnsubscribe, listNotifications, updateNotificationSettings } from '../src/services/notifications';
+import { attachField, createField } from '../src/services/fields';
 import { createProject } from '../src/services/projects';
 import { createSavedSearch, updateSavedSearch } from '../src/services/saved-searches';
 import { listSubscriptions, subscribe, unsubscribe, updateSubscription } from '../src/services/subscriptions';
 import { toolByName } from '../src/tools/registry';
 import { subscriptionTells } from '@a4a/shared/i18n';
 import { translatorFor } from '../src/i18n';
+import { todayISO } from '../src/lib/dates';
 import { createWorld, type TestWorld } from './helpers';
 import { fakeSmtp, type FakeSmtp } from './smtp';
 
@@ -376,5 +378,63 @@ describe('over HTTP and MCP', () => {
     const ended = await tool.run(ctx, { saved_search: search.id, events: 'none', email: true });
     expect(ended.summary).toBe('Unsubscribed from issues coming into “Release blockers”');
     expect((await listSubscriptions(as(w.anna))).filter((s) => s.search?.id === search.id)).toEqual([]);
+  });
+});
+
+describe('what time alone brings into a search', () => {
+  it("tells of an issue becoming overdue at the day’s turn, its “new” subscribers alone, and reads no clock-free search", async () => {
+    const field = await createField(w.adminCtx, { name: 'Deadline', type: 'date', multi: false, description: '', values: [] });
+    await attachField(w.adminCtx, 'BACK', field.id, {});
+    const search = await createSavedSearch(as(w.anna), { name: 'Overdue in BACK', query: 'project: BACK Deadline: overdue', shared: true });
+    const mine = await subscribe(as(w.anna), { savedSearch: search.id, events: 'new' });
+    const every = await subscribe(as(w.viewer), { savedSearch: search.id, events: 'all', email: false });
+    // Due today, not overdue yet: nothing in the search, nothing to tell.
+    const issue = await createIssue(as(w.ben), { project: 'BACK', summary: 'The invoice audit', fields: { Deadline: todayISO() } });
+    // A search whose words read no clock is left to the events alone.
+    const plain = await createSavedSearch(as(w.anna), { name: 'Critical anywhere', query: 'Priority: Critical', shared: false });
+    const quiet = await subscribe(as(w.anna), { savedSearch: plain.id, events: 'new' });
+    await flush();
+    expect(await told(w.anna, issue.id)).toEqual([]);
+    expect(await told(w.viewer, issue.id)).toEqual([]);
+
+    // The day turns: the issue becomes overdue with nothing changing, and the chore says so.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 26 * 3_600_000);
+    try {
+      expect(await recheckSearches(w.app)).toBe(1);
+      // Once: what it found is kept, so reading again tells nobody again.
+      expect(await recheckSearches(w.app)).toBe(0);
+      await mailer.drain();
+    } finally {
+      vi.useRealTimers();
+    }
+    const [n] = await told(w.anna, issue.id);
+    expect(n).toMatchObject({
+      kind: 'subscribed',
+      title: 'It came into a search you follow',
+      subscription: { id: mine.id, about: 'issues coming into “Overdue in BACK”', target: 'search', events: 'new', name: 'Overdue in BACK' },
+    });
+    // No event behind it: the issue alone, no lines of changes under it.
+    expect(n!.events).toEqual([]);
+    // 'Every change' hears nothing: time brought it in, nothing changed.
+    expect(await told(w.viewer, issue.id)).toEqual([]);
+    // The email her subscription asked for, with the link that stops its email alone.
+    const mail = smtp.messages.find((m) => m.to.includes('anna@example.com'));
+    expect(mail?.text).toContain('It came into a search you follow');
+    expect(mail?.text).toContain('You get this because you subscribed to issues coming into “Overdue in BACK”.');
+    expect(mail?.text).toContain('Stop emails about issues coming into “Overdue in BACK”');
+
+    // Time takes it out again (the clock put back): nothing is told, and coming back later is news again.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      expect(await recheckSearches(w.app)).toBe(0);
+      const kept = await w.app.db.select().from(subscriptionIssues).where(eq(subscriptionIssues.subscriptionId, mine.id));
+      expect(kept.map((r) => r.issueId)).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+    await unsubscribe(as(w.anna), mine.id);
+    await unsubscribe(as(w.viewer), every.id);
+    await unsubscribe(as(w.anna), quiet.id);
   });
 });

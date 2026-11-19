@@ -36,7 +36,7 @@ import { appInstallations, findGithubApp, forgetInstallationToken, GITHUB_API, h
 import { forgetInstallations, installationsOf, keepInstallations } from './installations';
 import type { IntegrationRow } from './links';
 import { receive } from './receive';
-import { appCredentials, sealToken } from './tokens';
+import { appCredentials, sealToken, tokenOf } from './tokens';
 
 export function webhookUrl(app: AppServices, id: string): string {
   return `${app.config.publicUrl}/api/v1/vcs/hooks/${id}`;
@@ -69,7 +69,7 @@ function dto(app: AppServices, s: SchemaSnapshot, row: IntegrationRow, kept: Kep
         ? { appId: row.githubAppId, slug: row.githubAppSlug, installationId: row.githubInstallationId, account: row.githubAccount, installations: kept.installations.get(row.id) ?? [] }
         : null,
     checks:
-      row.provider === 'github'
+      row.provider === 'github' || row.provider === 'gitlab' || row.provider === 'gitea'
         ? { enabled: row.checks, states: row.checksStates, requireResolved: row.checksResolved, problem: problem?.problem ?? null, problemAt: problem?.at.toISOString() ?? null }
         : null,
     createdAt: row.createdAt.toISOString(),
@@ -97,9 +97,11 @@ function secretFor(provider: VcsProvider): { secret: string; kept: Pick<Integrat
 
 /**
  * The address and access token an integration keeps, for those that read from their provider:
- * Bitbucket (the commits a delivery leaves out, D33) and GitHub (which commits a build holds, D46).
- * Data Center must have an address; Bitbucket Cloud may name another for its API (a proxy), and
- * GitHub Enterprise Server its API's. The others take neither. A token is kept sealed.
+ * Bitbucket (the commits a delivery leaves out, D33), GitHub (which commits a build holds, D46), and
+ * GitLab, Gitea and Forgejo (commit statuses on their pull requests, D70). Data Center must have an
+ * address; Bitbucket Cloud may name another for its API (a proxy), GitHub Enterprise Server its API's,
+ * GitLab its API's when it isn't gitlab.com, and Gitea and Forgejo their /api/v1. The others take
+ * neither. A token is kept sealed.
  */
 function providerFields(
   app: AppServices,
@@ -107,7 +109,7 @@ function providerFields(
   input: { baseUrl?: string | null; accessToken?: string | null; githubApp?: unknown },
   now: Pick<IntegrationRow, 'baseUrl' | 'accessToken'> | null,
 ): Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> {
-  const reads = provider === 'bitbucket' || provider === 'bitbucket-dc' || provider === 'github';
+  const reads = provider === 'bitbucket' || provider === 'bitbucket-dc' || provider === 'github' || provider === 'gitlab' || provider === 'gitea';
   if (provider !== 'github' && input.githubApp) {
     throw badRequest(`${VCS_PROVIDER_NAMES[provider]} integrations don’t read as a GitHub App`, 'Only a GitHub integration does.').said('vcs.githubApp.onlyGithub', { provider: VCS_PROVIDER_NAMES[provider] });
   }
@@ -117,7 +119,14 @@ function providerFields(
     }
     return {};
   }
-  const at = provider === 'github' ? { name: 'GitHub Enterprise Server’s API', example: 'https://github.acme.example/api/v3' } : undefined;
+  const at =
+    provider === 'github'
+      ? { name: 'GitHub Enterprise Server’s API', example: 'https://github.acme.example/api/v3' }
+      : provider === 'gitlab'
+        ? { name: 'GitLab’s API', example: 'https://gitlab.acme.example/api/v4' }
+        : provider === 'gitea'
+          ? { name: 'Gitea or Forgejo’s API', example: 'https://git.acme.example/api/v1' }
+          : undefined;
   const out: Partial<Pick<IntegrationRow, 'baseUrl' | 'accessToken'>> = {};
   if (input.baseUrl !== undefined) out.baseUrl = input.baseUrl === null || !input.baseUrl.trim() ? null : checkBaseUrl(input.baseUrl, at, app.config.vcsAllowHttpLoopback);
   if (input.accessToken !== undefined) out.accessToken = input.accessToken?.trim() ? sealToken(app, input.accessToken.trim()) : null;
@@ -185,6 +194,13 @@ async function checksFields(
   if (input.requireResolved !== undefined) out.checksResolved = input.requireResolved;
   if (input.enabled === false) out.checks = false;
   if (input.enabled === true) {
+    if (row.provider === 'gitlab' || row.provider === 'gitea') {
+      if (!tokenOf(app, row.accessToken) || (row.provider === 'gitea' && !row.baseUrl)) {
+        throw badRequest('Commit statuses need the provider’s API token and address', 'Give the integration an access token that may write commit statuses; Gitea and Forgejo also need their /api/v1 address.').said('vcs.checks.needsToken');
+      }
+      out.checks = true;
+      return out;
+    }
     const c = row.provider === 'github' ? appCredentials(app, row) : null;
     if (!c) throw checksProblems.needsApp();
     // May it write checks? Taking a token for them is how GitHub says.

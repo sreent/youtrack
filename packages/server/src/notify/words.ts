@@ -99,7 +99,8 @@ export function eventDetail(tr: Translator, e: TrackerEvent): string[] {
 /** "Anna Schmidt mentioned you", "Anna Schmidt and Ben Okafor made 4 changes". */
 export function notificationTitle(tr: Translator, kind: NotificationKind, events: TrackerEvent[], reasons: Map<number, NotificationKind>): string {
   const t = tr.t;
-  if (!events.length) return t('server.notify.title.somethingChanged');
+  // A search's chore tells of what time alone brought in: no event behind it, so no one did anything.
+  if (!events.length) return kind === 'subscribed' ? t('server.notify.title.cameIn') : t('server.notify.title.somethingChanged');
   const lead = events.find((e) => reasons.get(e.id) === kind) ?? events[events.length - 1]!;
   const who = actorName(tr, lead);
   switch (kind) {

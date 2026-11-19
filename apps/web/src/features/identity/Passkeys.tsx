@@ -25,11 +25,22 @@ export function passkeyCancelled(e: unknown): boolean {
   return name === 'NotAllowedError' || name === 'AbortError' || (e instanceof WebAuthnError && e.code === 'ERROR_CEREMONY_ABORTED');
 }
 
-/** Ask the browser for one of this person's passkeys, with options from `path`, and post its answer to `to`. */
+/** Ask the browser for one of this person's passkeys, trying earlier domains during a migration (D70). */
 export async function passkeyAt<T>(path: string, to: string): Promise<T> {
-  const options = await post<PasskeyOptions>(path);
-  const response = await startAuthentication({ optionsJSON: options as unknown as Options });
-  return post<T>(to, { response });
+  const first = await post<PasskeyOptions & { legacyRpIds?: string[] }>(path);
+  const ids = [first.rpId, ...(first.legacyRpIds ?? [])].filter((id): id is string => Boolean(id));
+  let last: unknown;
+  for (const rpId of ids) {
+    try {
+      const options = rpId === first.rpId ? first : await post<PasskeyOptions>(`${path}?rpId=${encodeURIComponent(rpId)}`);
+      const response = await startAuthentication({ optionsJSON: options as unknown as Options });
+      return await post<T>(to, { response });
+    } catch (e) {
+      last = e;
+      if (!passkeyCancelled(e)) throw e;
+    }
+  }
+  throw last;
 }
 
 /** Proving it's you again, for adding or removing a passkey: a password (and a code), or a passkey. */

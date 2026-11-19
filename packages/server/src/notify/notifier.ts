@@ -9,13 +9,15 @@
  *   notification, which takes the strongest reason among them; its email waits for the window.
  * - At least once in, once out: the outbox may hand an event over twice, and notification_events
  *   remembers who it reached, so nobody gets the same event twice.
+ * - What time alone brings into a saved search (D31): a chore the lease holder runs reads the
+ *   searches whose words read the clock again, and tells their 'new' subscribers what came in.
  */
 import { choicesFor } from './kinds';
 import { EMAIL_LEVELS, NOTIFICATION_KINDS, type EmailLevel, type IssueRef, type NotificationKind, type TrackerEvent } from '@a4a/shared';
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
-import { activities, notificationEvents, notifications, notificationSettings, users } from '../db/schema';
+import { activities, issues, notificationEvents, notifications, notificationSettings, savedSearches, subscriptionIssues, subscriptions, users } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { enqueueMail } from '../mail/outbox';
@@ -23,6 +25,9 @@ import { enqueuePushes, kickPushSoon } from '../push/outbox';
 import { accessFor, eventFor, eventSeen, keyOfReadableId, projectRolesOf } from '../services/access';
 import { watcherIds } from '../services/watchers';
 import { inboxChanged, mailConfigured } from './state';
+import { prepareQuery } from '../search/service';
+import { issueRefsById } from '../services/issue-refs';
+import { personCtx } from '../services/subscriptions';
 import { projectSubscribed, SEARCH_EVENT_TYPES, searchSubscribed } from './subscribed';
 
 const RANK: Record<NotificationKind, number> = Object.fromEntries(NOTIFICATION_KINDS.map((k, i) => [k, i])) as Record<NotificationKind, number>;
@@ -214,10 +219,64 @@ export async function notifyEvent(app: AppServices, event: TrackerEvent): Promis
   inboxChanged(app, told);
 }
 
+/**
+ * The chore that reads the searches again (D31): what time alone brings into them, an issue
+ * becoming overdue or a day rolling past 'today'. Only a search whose words read the clock is read
+ * (its dates, or an SLA state), as its person would read it, and only its 'new' subscribers are
+ * told: an issue coming in by time is news, not a change, so 'every change' subscribers hear nothing.
+ * What each search finds is kept as the events keep it, so what time takes out is not told as
+ * coming back in later. Returns how many people were told.
+ */
+export async function recheckSearches(app: AppServices): Promise<number> {
+  const subs = await app.db
+    .select({ id: subscriptions.id, userId: subscriptions.userId, email: subscriptions.email, query: savedSearches.query, ownerId: savedSearches.ownerId, shared: savedSearches.shared })
+    .from(subscriptions)
+    .innerJoin(savedSearches, eq(savedSearches.id, subscriptions.savedSearchId))
+    .where(and(isNotNull(subscriptions.savedSearchId), eq(subscriptions.events, 'new')));
+  // A search no longer shared with someone has nothing for them to follow.
+  const live = subs.filter((r) => r.shared || r.ownerId === r.userId);
+  if (!live.length) return 0;
+  const s = await app.schema.get();
+  let told = 0;
+  for (const sub of live) {
+    const user = s.users.get(sub.userId);
+    if (!user || user.banned) continue;
+    const prepared = await prepareQuery(personCtx(app, user), sub.query);
+    if (prepared.compiled.problems.length) continue;
+    if (!prepared.compiled.readsDates && !prepared.compiled.readsNow) continue;
+    const found = await app.db
+      .select({ id: issues.id, projectId: issues.projectId })
+      .from(issues)
+      .where(prepared.compiled.where ?? sql`TRUE`);
+    const inSearch = new Set(found.map((r) => r.id));
+    const had = new Set(
+      (await app.db.select({ issueId: subscriptionIssues.issueId }).from(subscriptionIssues).where(eq(subscriptionIssues.subscriptionId, sub.id))).map((r) => r.issueId),
+    );
+    const wentOut = [...had].filter((id) => !inSearch.has(id));
+    if (wentOut.length) {
+      await app.db.delete(subscriptionIssues).where(and(eq(subscriptionIssues.subscriptionId, sub.id), inArray(subscriptionIssues.issueId, wentOut)));
+    }
+    const cameIn = found.filter((r) => !had.has(r.id));
+    if (!cameIn.length) continue;
+    await app.db.insert(subscriptionIssues).values(cameIn.map((r) => ({ subscriptionId: sub.id, issueId: r.id }))).onConflictDoNothing();
+    const refs = await issueRefsById(app.db, s, cameIn.map((r) => r.id));
+    for (const row of cameIn) {
+      const ref = refs.get(row.id);
+      if (!ref) continue;
+      // A fact of its own, no event to fold: its notification says what time did, in the words
+      // the title has for a search with no event behind it.
+      const fact = { id: null, occurredAt: new Date().toISOString() };
+      if (await deliver(app, fact, ref, sub.userId, 'subscribed', row.id, row.projectId, { id: sub.id, email: sub.email })) told++;
+    }
+  }
+  return told;
+}
+
 /** Fold one event into one person's inbox. False when it had reached them already. */
-async function deliver(
+export async function deliver(
   app: AppServices,
-  event: TrackerEvent,
+  /** An event, or a fact of time with no event behind it (id null): what the search chore tells of. */
+  event: Pick<TrackerEvent, 'occurredAt'> & { id: number | null },
   issue: IssueRef,
   userId: string,
   kind: NotificationKind,
@@ -230,14 +289,19 @@ async function deliver(
 ): Promise<boolean> {
   const at = new Date(event.occurredAt);
   const window = app.config.notifyWindowMs;
+  const eventId = event.id;
   let pushed = false;
   const delivered = await app.db.transaction(async (txRaw) => {
     const tx = txRaw as unknown as Db;
-    const [done] = await tx
-      .select({ id: notificationEvents.eventId })
-      .from(notificationEvents)
-      .where(and(eq(notificationEvents.userId, userId), eq(notificationEvents.eventId, event.id)));
-    if (done) return false;
+    if (eventId === null) {
+      // A fact of time has no event to have reached them already.
+    } else {
+      const [done] = await tx
+        .select({ id: notificationEvents.eventId })
+        .from(notificationEvents)
+        .where(and(eq(notificationEvents.userId, userId), eq(notificationEvents.eventId, eventId)));
+      if (done) return false;
+    }
     // An unread one about the same issue, begun within the window and not yet emailed, takes it.
     const [open] =
       issueId && window > 0
@@ -291,7 +355,9 @@ async function deliver(
         subscriptionId: subscription?.id ?? null,
       });
     }
-    await tx.insert(notificationEvents).values({ userId, eventId: event.id, notificationId, reason: kind });
+    // With no event behind it (a fact of time), there is nothing to remember: the chore's own
+    // keeping of what each search finds is what makes it once.
+    if (eventId !== null) await tx.insert(notificationEvents).values({ userId, eventId, notificationId, reason: kind });
     const prefs = await emailPrefs(tx, userId);
 
     // Its push to each of their devices, a moment from now, if their level sends its kind (D47).

@@ -8,9 +8,9 @@ import { Link } from 'react-router';
 
 export interface Places {
   issue(id: string): string;
-  /** Null where there's no page for it: a guest reads no article page yet. */
+  /** An article's page: a guest reads one too (D64), since a whiteboard's card can name it. */
   article(id: string): string | null;
-  /** The issues a query finds, or null where there's no list to open. */
+  /** The issues a query finds: a guest's list is the home's, with the query (D64). */
   issues(query: string): string | null;
   /** A guest's: nothing shown changes anything, nor reads people. */
   guest: boolean;
@@ -25,8 +25,8 @@ const TEAM: Places = {
 
 export const GUEST_PLACES: Places = {
   issue: (id) => `/public/issues/${id}`,
-  article: () => null,
-  issues: () => null,
+  article: (id) => `/public/articles/${id}`,
+  issues: (query) => `/public?q=${encodeURIComponent(query)}`,
   guest: true,
 };
 

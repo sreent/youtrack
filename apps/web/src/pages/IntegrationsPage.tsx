@@ -162,26 +162,36 @@ const TOKEN_HELP: Partial<Record<VcsProvider, string>> = {
   'bitbucket-dc': t('page.integrations.itsPushesNameTheCommits'),
 };
 
-/** A Bitbucket integration's access token: given, replaced or taken away. Never shown again. */
+/**
+ * An integration's access token: given, replaced or taken away. Never shown again. Bitbucket's reads
+ * the commits its deliveries leave out and GitHub's asks which a build holds; GitLab's, Gitea's and
+ * Forgejo's write commit statuses, and name their API's address beside the token (D70).
+ */
 function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onSaid: (said: { text: string; bad?: boolean }) => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
+  const [api, setApi] = useState(integration.baseUrl ?? '');
+  const statuses = integration.provider === 'gitlab' || integration.provider === 'gitea';
   const save = useMutation({
-    mutationFn: (accessToken: string | null) => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, { accessToken }),
+    mutationFn: (input: { accessToken: string | null; baseUrl?: string | null }) => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, input),
     onSuccess: (i) => {
       void qc.invalidateQueries({ queryKey: vcsKeys.all });
       setOpen(false);
       setToken('');
-      const github = integration.provider === 'github';
+      const kind = integration.provider === 'github' ? 'github' : statuses ? 'statuses' : 'bitbucket';
       onSaid({
         text: i.hasAccessToken
-          ? github
+          ? kind === 'github'
             ? t('page.integrations.savedA4aAsksGithubWhich')
-            : t('page.integrations.savedA4aReadsTheCommits')
-          : github
+            : kind === 'statuses'
+              ? t('page.integrations.savedA4aWritesStatuses')
+              : t('page.integrations.savedA4aReadsTheCommits')
+          : kind === 'github'
             ? t('page.integrations.theTokenIsGoneA')
-            : t('page.integrations.theTokenIsGoneA4a'),
+            : kind === 'statuses'
+              ? t('page.integrations.theTokenIsGoneNoStatuses')
+              : t('page.integrations.theTokenIsGoneA4a'),
       });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
@@ -202,28 +212,40 @@ function AccessToken({ integration, onSaid }: { integration: VcsIntegration; onS
                 ? t('page.integrations.withoutItA4aCanT')
                 : integration.provider === 'github'
                   ? t('page.integrations.withoutItABuildHolds')
-                  : t('page.integrations.withoutItA4aReadsThe')
+                  : statuses
+                    ? t('page.integrations.withoutItA4aWritesNoStatuses')
+                    : t('page.integrations.withoutItA4aReadsThe')
             }
             confirm={t('page.integrations.removeTheToken')}
             disabled={save.isPending}
-            onConfirm={() => save.mutate(null)}
+            onConfirm={() => save.mutate({ accessToken: null })}
           />
         ) : null}
       </>
     );
   }
+  const address = (api.trim() || null) !== integration.baseUrl;
   return (
     <form
       className="cluster"
       onSubmit={(e) => {
         e.preventDefault();
-        if (token.trim()) save.mutate(token.trim());
+        if (token.trim() || address) save.mutate({ accessToken: token.trim() || null, ...(address ? { baseUrl: api.trim() || null } : {}) });
       }}
     >
+      {statuses ? (
+        <FormField
+          label={t(integration.provider === 'gitlab' ? 'page.integrations.gitlabSApiAddress' : 'page.integrations.giteaSApiAddress')}
+          help={t('page.integrations.apiAddressWhereStatuses')}
+          className="inline"
+        >
+          {(id, help) => <input id={id} aria-describedby={help} type="url" value={api} onChange={(e) => setApi(e.target.value)} placeholder="https://git.acme.example/api/v1" className="mono" />}
+        </FormField>
+      ) : null}
       <FormField label={t('page.integrations.accessToken')} className="inline">
-        {(id) => <input id={id} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" required className="mono" />}
+        {(id) => <input id={id} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" {...(statuses ? {} : { required: true })} className="mono" />}
       </FormField>
-      <button type="submit" className="small primary" disabled={!token.trim() || save.isPending}>{t('page.integrations.saveTheToken')}</button>
+      <button type="submit" className="small primary" disabled={(!token.trim() && !address) || save.isPending}>{t('page.integrations.saveTheToken')}</button>
       <button type="button" className="small" onClick={() => setOpen(false)}>{t('page.integrations.cancel')}</button>
     </form>
   );
@@ -318,15 +340,22 @@ function Installations({ app }: { app: VcsGithubApp }) {
   );
 }
 
-/** Check runs on pull requests, written as the app (D66): off by default, and said to whoever sees the repository. */
+/**
+ * Check runs on pull requests, written as the app (D66), or commit statuses through the integration's
+ * token (D70): off by default, and said to whoever sees the repository.
+ */
 function Checks({ integration, onSaid }: { integration: VcsIntegration; onSaid: (said: { text: string; bad?: boolean }) => void }) {
   const qc = useQueryClient();
   const checks = integration.checks;
+  // GitHub writes check runs as its app; GitLab and Forgejo write commit statuses with a token.
+  const word = (github: string, statuses: string) => t(integration.provider === 'github' ? github : statuses);
   const save = useMutation({
     mutationFn: (body: { enabled?: boolean; states?: boolean; requireResolved?: boolean }) => patch<VcsIntegration>(`/vcs/integrations/${integration.id}`, { checks: body }),
     onSuccess: (_i, body) => {
       void qc.invalidateQueries({ queryKey: vcsKeys.all });
-      onSaid({ text: body.enabled === true ? t('page.integrations.checksTurnedOn') : body.enabled === false ? t('page.integrations.checksTurnedOff') : t('page.integrations.checksSettingsSaved') });
+      onSaid({
+        text: body.enabled === true ? word('page.integrations.checksTurnedOn', 'page.integrations.statusesTurnedOn') : body.enabled === false ? word('page.integrations.checksTurnedOff', 'page.integrations.statusesTurnedOff') : word('page.integrations.checksSettingsSaved', 'page.integrations.statusesSettingsSaved'),
+      });
     },
     onError: (e) => onSaid({ text: errorText(e), bad: true }),
   });
@@ -334,10 +363,10 @@ function Checks({ integration, onSaid }: { integration: VcsIntegration; onSaid: 
   return (
     <div className="stack tight">
       <fieldset className="choice-group" disabled={save.isPending}>
-        <legend>{t('page.integrations.checksLegend')}</legend>
+        <legend>{word('page.integrations.checksLegend', 'page.integrations.statusesLegend')}</legend>
         <label className="choice">
           <input type="checkbox" checked={checks.enabled} onChange={(e) => save.mutate({ enabled: e.target.checked })} />
-          <span>{t('page.integrations.checksOn')}</span>
+          <span>{word('page.integrations.checksOn', 'page.integrations.statusesOn')}</span>
         </label>
         <label className="choice">
           <input type="checkbox" checked={checks.states} disabled={!checks.enabled} onChange={(e) => save.mutate({ states: e.target.checked })} />
@@ -348,9 +377,15 @@ function Checks({ integration, onSaid }: { integration: VcsIntegration; onSaid: 
           <span>{t('page.integrations.checksResolved')}</span>
         </label>
       </fieldset>
-      <p className="note">{tr('page.integrations.checksNeedPermission', { t0: STRONG, t1: STRONG })}</p>
-      <p className="note">{t('page.integrations.checksAudience')}</p>
-      {checks.problem && checks.problemAt ? <p className="note">{t('page.integrations.checksLastProblem', { when: agoSaid(checks.problemAt), problem: checks.problem })}</p> : null}
+      {integration.provider === 'github' ? (
+        <p className="note">{tr('page.integrations.checksNeedPermission', { t0: STRONG, t1: STRONG })}</p>
+      ) : (
+        <p className="note">{t('page.integrations.statusesNeedToken')}</p>
+      )}
+      <p className="note">{word('page.integrations.checksAudience', 'page.integrations.statusesAudience')}</p>
+      {checks.problem && checks.problemAt ? (
+        <p className="note">{t(integration.provider === 'github' ? 'page.integrations.checksLastProblem' : 'page.integrations.statusesLastProblem', { when: agoSaid(checks.problemAt), problem: checks.problem })}</p>
+      ) : null}
     </div>
   );
 }
@@ -473,6 +508,11 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
           )}
           <AccessToken integration={integration} onSaid={setSaid} />
         </div>
+      ) : integration.provider === 'gitlab' || integration.provider === 'gitea' ? (
+        // GitLab, Gitea and Forgejo keep a token to write commit statuses on their pull requests (D70).
+        <div className="cluster">
+          <AccessToken integration={integration} onSaid={setSaid} />
+        </div>
       ) : null}
       <div className="cluster">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
@@ -527,14 +567,16 @@ function AddIntegration() {
   const [chosen, setChosen] = useState<Set<string>>(() => new Set());
   const [made, setMade] = useState<VcsIntegrationCreated | null>(null);
   const dc = provider === 'bitbucket-dc';
+  const gl = provider === 'gitlab';
+  const gt = provider === 'gitea';
   const add = useMutation({
     mutationFn: () =>
       post<VcsIntegrationCreated>('/vcs/integrations', {
         provider,
         name: name.trim(),
         projects: every ? [] : [...chosen],
-        ...(dc ? { baseUrl: baseUrl.trim() } : {}),
-        ...(isBitbucket(provider) && token.trim() ? { accessToken: token.trim() } : {}),
+        ...(dc || gl || gt ? { baseUrl: baseUrl.trim() || null } : {}),
+        ...((isBitbucket(provider) || gl || gt) && token.trim() ? { accessToken: token.trim() } : {}),
       }),
     onSuccess: (i) => {
       setMade(i);
@@ -592,9 +634,30 @@ function AddIntegration() {
               />
             )}
           </FormField>
+        ) : gl || gt ? (
+          <FormField
+            label={t(gl ? 'page.integrations.gitlabSApiAddress' : 'page.integrations.giteaSApiAddress')}
+            help={t('page.integrations.apiAddressWhereStatuses')}
+          >
+            {(id, help) => (
+              <input
+                id={id}
+                aria-describedby={help}
+                type="url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder={gl ? 'https://gitlab.acme.example/api/v4' : 'https://git.acme.example/api/v1'}
+                className="mono"
+              />
+            )}
+          </FormField>
         ) : null}
         {isBitbucket(provider) ? (
           <FormField label={dc ? t('page.integrations.anHttpAccessToken') : t('page.integrations.anAccessTokenIfPushes')} help={TOKEN_HELP[provider]}>
+            {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="mono" />}
+          </FormField>
+        ) : gl || gt ? (
+          <FormField label={t('page.integrations.anAccessTokenForStatuses')} help={t('page.integrations.tokenStatusesHelp')}>
             {(id, help) => <input id={id} aria-describedby={help} type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" className="mono" />}
           </FormField>
         ) : null}

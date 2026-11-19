@@ -20,13 +20,13 @@
  *   installation are counted in Postgres, VCS_CHECKS_PER_MINUTE across every instance, and GitHub's
  *   own limits are waited out.
  */
-import type { TrackerEvent } from '@a4a/shared';
+import { VCS_PROVIDER_NAMES, type TrackerEvent } from '@a4a/shared';
 import { createHash } from 'node:crypto';
 import { and, arrayContains, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
-import { activities, vcsChecks, vcsInstallations, vcsIntegrations } from '../db/schema';
+import { activities, buildChecks, buildSources, vcsChecks, vcsInstallations, vcsIntegrations } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { translatorFor } from '../i18n';
 import { AppError, pageWords } from '../lib/errors';
@@ -41,9 +41,10 @@ import { getJson, ReadError } from './commits';
 import { forgetInstallationToken, GITHUB_API, repoPath } from './github-app';
 import type { IntegrationRow } from './links';
 import { integrationKeys, mentions } from './mentions';
-import { appCredentials, asApp } from './tokens';
+import { appCredentials, asApp, tokenOf } from './tokens';
 
 type Row = typeof vcsChecks.$inferSelect;
+type BuildCheckRow = typeof buildChecks.$inferSelect;
 
 export const CHECK_NAME = 'a4a';
 const POLL_MS = 5_000;
@@ -69,8 +70,11 @@ const kicks = new WeakMap<AppServices, () => void>();
 export const kickChecks = (app: AppServices) => kicks.get(app)?.();
 
 /** Whether an integration reports checks: GitHub's, as its app, switched on. */
-export const reportsChecks = (i: Pick<IntegrationRow, 'provider' | 'checks' | 'githubAppId' | 'githubInstallationId'>) =>
-  i.provider === 'github' && i.checks && Boolean(i.githubAppId && i.githubInstallationId);
+export const reportsChecks = (i: Pick<IntegrationRow, 'provider' | 'checks' | 'githubAppId' | 'githubInstallationId' | 'accessToken' | 'baseUrl'>) =>
+  i.checks &&
+  (i.provider === 'github'
+    ? Boolean(i.githubAppId && i.githubInstallationId)
+    : (i.provider === 'gitlab' || i.provider === 'gitea') && Boolean(i.accessToken && (i.provider === 'gitlab' || i.baseUrl)));
 
 export interface PullForCheck {
   repository: string;
@@ -79,8 +83,10 @@ export interface PullForCheck {
   body: string;
   branch: string | null;
   state: 'open' | 'merged' | 'closed';
+  url?: string | null;
   headSha?: string | null;
   baseSha?: string | null;
+  headMessage?: string | null;
 }
 
 /**
@@ -97,6 +103,8 @@ export async function queueCheck(app: AppServices, integration: IntegrationRow, 
     state: pr.state,
     headSha: pr.headSha,
     baseSha: pr.baseSha ?? null,
+    url: pr.url ?? null,
+    headMessage: excerpt(pr.headMessage ?? '', 4000),
     updatedAt: new Date(),
   };
   await app.db
@@ -108,6 +116,32 @@ export async function queueCheck(app: AppServices, integration: IntegrationRow, 
     });
   if (open) kickChecks(app);
   return open;
+}
+
+type BuildSourceForCheck = Pick<typeof buildSources.$inferSelect, 'id' | 'kind' | 'name' | 'vcsIntegrationId' | 'reportCheck'>;
+type BuildForCheck = { id: string; name: string; repository: string | null; headSha: string | null; status: string; url: string | null };
+
+/** Queue a finished run's own result on its head commit (D70). */
+export async function queueBuildCheck(app: AppServices, source: BuildSourceForCheck, build: BuildForCheck): Promise<boolean> {
+  if (source.kind !== 'github' || !source.reportCheck || !source.vcsIntegrationId || !build.repository || !build.headSha) return false;
+  const facts = {
+    sourceName: source.name,
+    repository: build.repository,
+    headSha: build.headSha,
+    name: build.name,
+    status: build.status,
+    url: build.url,
+    updatedAt: new Date(),
+  };
+  await app.db
+    .insert(buildChecks)
+    .values({ id: newId(), buildId: build.id, sourceId: source.id, integrationId: source.vcsIntegrationId, ...facts, marks: 1, dueAt: new Date() })
+    .onConflictDoUpdate({
+      target: buildChecks.buildId,
+      set: { ...facts, sourceId: source.id, integrationId: source.vcsIntegrationId, marks: sql`${buildChecks.marks} + 1`, dueAt: sql`coalesce(${buildChecks.dueAt}, now())`, attempts: 0 },
+    });
+  kickChecks(app);
+  return true;
 }
 
 /** Make these rows due (idempotent: marking twice is marking once), and wake the sender. */
@@ -168,6 +202,8 @@ export interface Worded {
   /** The issues named, by id, and the ids it names as typed: a change to either makes it due. */
   issueIds: string[];
   mentioned: string[];
+  /** The issues named as read (BACK-12), the first of them: what a status's description lists as words. */
+  ids: string[];
   hash: string;
 }
 
@@ -176,11 +212,11 @@ export interface Worded {
  * channel's people do). Through the access seam, as a guest reads: an issue a guest may not see isn't
  * summarised, and one limited to some people isn't named at all.
  */
-export async function wordCheck(app: AppServices, integration: IntegrationRow, check: Pick<Row, 'title' | 'body' | 'branch' | 'commitIds'>): Promise<Worded> {
+export async function wordCheck(app: AppServices, integration: IntegrationRow, check: Pick<Row, 'title' | 'body' | 'branch' | 'commitIds' | 'headMessage'>): Promise<Worded> {
   const s = await app.schema.get();
   const tr = translatorFor(app.config.defaultLocale);
   const keys = new Set(integrationKeys(s, integration.projectIds).keys());
-  const said = mentions([check.title, check.branch ?? '', check.body].join('\n'), keys, false).map((m) => m.id.toUpperCase());
+  const said = mentions([check.title, check.branch ?? '', check.body, check.headMessage].join('\n'), keys, false).map((m) => m.id.toUpperCase());
   const mentioned = [...new Set([...said, ...check.commitIds.map((id) => id.toUpperCase())])];
   const outsider = outsiderCtx(app);
   const view = await projectAccess(outsider);
@@ -201,8 +237,10 @@ export async function wordCheck(app: AppServices, integration: IntegrationRow, c
   const base = app.config.publicUrl.replace(/\/+$/, '');
   let unresolved = 0;
   const lines: string[] = [];
+  const ids: string[] = [];
   for (const issue of named) {
     const id = readableId(s, issue);
+    if (ids.length < LISTED) ids.push(id);
     // A guest reads it: its words are public already, and its link opens without signing in.
     const public_ = view.canRead(issue.projectId);
     const link = `[${id}](${base}${public_ ? '/public' : ''}/issues/${encodeURIComponent(id)})`;
@@ -248,6 +286,7 @@ export async function wordCheck(app: AppServices, integration: IntegrationRow, c
     conclusion,
     issueIds: named.map((i) => i.id),
     mentioned,
+    ids,
     hash: createHash('sha256').update(JSON.stringify([title, summary, conclusion])).digest('hex'),
   };
 }
@@ -288,6 +327,100 @@ async function checksApi(method: 'GET' | 'POST' | 'PATCH', url: string, token: s
   if (res.status === 404) throw new ReadError('GitHub has no such repository, commit or check run for the app (404)', 404);
   if (!res.ok) throw new ReadError(`GitHub answered ${res.status}${json?.message ? `: ${excerpt(String(json.message), 120)}` : ''}`, res.status);
   return json;
+}
+
+const providerApi = (integration: IntegrationRow): string =>
+  integration.provider === 'gitlab' ? (integration.baseUrl ?? 'https://gitlab.com/api/v4').replace(/\/+$/, '') : integration.baseUrl!.replace(/\/+$/, '');
+
+/** GitLab and Gitea/Forgejo use commit statuses; their token and payload shapes differ (D70). */
+async function providerStatusApi(integration: IntegrationRow, method: 'GET' | 'POST', url: string, token: string, body?: unknown): Promise<unknown> {
+  const provider = VCS_PROVIDER_NAMES[integration.provider as 'gitlab' | 'gitea'];
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: {
+        accept: 'application/json',
+        ...(integration.provider === 'gitlab' ? { 'private-token': token } : { authorization: `Bearer ${token}` }),
+        'user-agent': 'a4a',
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      redirect: 'error',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (e) {
+    throw new ReadError(e instanceof Error && e.name === 'TimeoutError' ? `${provider} didn’t answer in ${TIMEOUT_MS / 1000}s` : `${provider} couldn’t be reached`);
+  }
+  const json = (await res.json().catch(() => null)) as { message?: unknown; error?: unknown } | null;
+  const retry = Number(res.headers.get('retry-after'));
+  if (res.status === 429) throw new Wait(Number.isFinite(retry) && retry > 0 ? retry * 1000 : 60_000);
+  const detail = excerpt(String(json?.message ?? json?.error ?? ''), 120);
+  if (!res.ok) throw new ReadError(`${provider} answered ${res.status}${detail ? `: ${detail}` : ''}`, res.status);
+  return json;
+}
+
+const GitlabCompared = z.object({ commits: z.array(z.object({ message: z.string().nullish() })).default([]) });
+const GiteaCompared = z.object({ commits: z.array(z.object({ commit: z.object({ message: z.string().nullish() }) })).default([]) });
+
+async function comparedCommitIds(app: AppServices, integration: IntegrationRow, row: Row, token: string): Promise<string[]> {
+  const api = providerApi(integration);
+  const url =
+    integration.provider === 'gitlab'
+      ? `${api}/projects/${encodeURIComponent(row.repository)}/repository/compare?from=${encodeURIComponent(row.baseSha!)}&to=${encodeURIComponent(row.headSha)}`
+      : `${api}/repos/${repoPath(row.repository)}/compare/${encodeURIComponent(row.baseSha!)}...${encodeURIComponent(row.headSha)}`;
+  const answer = await providerStatusApi(integration, 'GET', url, token);
+  const messages = integration.provider === 'gitlab' ? GitlabCompared.parse(answer).commits.map((c) => c.message ?? '') : GiteaCompared.parse(answer).commits.map((c) => c.commit.message ?? '');
+  const s = await app.schema.get();
+  const keys = new Set(integrationKeys(s, integration.projectIds).keys());
+  return [...new Set(messages.slice(0, COMMITS_READ).flatMap((message) => mentions(message, keys, false).map((x) => x.id.toUpperCase())))];
+}
+
+/** Write one claimed GitLab or Forgejo pull request as a commit status. */
+async function writeCommitStatus(app: AppServices, integration: IntegrationRow, row: Row): Promise<Outcome> {
+  const token = tokenOf(app, integration.accessToken);
+  if (!token) return { problem: `${VCS_PROVIDER_NAMES[integration.provider as 'gitlab' | 'gitea']}’s access token can’t be opened: give it again.` };
+  let commitIds = row.commitIds;
+  const notes: string[] = [];
+  try {
+    if (row.commitsOf !== row.headSha && row.baseSha) {
+      commitIds = await comparedCommitIds(app, integration, row, token);
+      await app.db.update(vcsChecks).set({ commitIds, commitsOf: row.headSha }).where(eq(vcsChecks.id, row.id));
+    }
+  } catch (e) {
+    // The provider asked to slow down: tried again when its wait is over, not held as a problem.
+    if (e instanceof Wait) return { wait: e.ms };
+    if (!(e instanceof ReadError) && !(e instanceof z.ZodError)) throw e;
+    notes.push(`Its commits weren’t read: ${e instanceof ReadError ? e.message : 'the provider’s compare didn’t answer as it does'}`);
+  }
+  const words = await wordCheck(app, integration, { ...row, commitIds });
+  await app.db.update(vcsChecks).set({ issueIds: words.issueIds, mentioned: words.mentioned }).where(eq(vcsChecks.id, row.id));
+  if (row.written === words.hash && row.checkSha === row.headSha && row.checkRunId) return { done: 'same' };
+  const api = providerApi(integration);
+  const target = row.url ?? `${app.config.publicUrl}/issues`;
+  // A status has no summary of its own: its description carries the ids, as plain words, that a check
+  // run's summary lists as links (a guest reads both alike, through the same seam in wordCheck).
+  const description = excerpt(words.ids.length ? `${words.title}: ${words.ids.join(', ')}` : words.title, 255);
+  const body =
+    integration.provider === 'gitlab'
+      ? { state: words.conclusion === 'failure' ? 'failed' : 'success', name: CHECK_NAME, context: CHECK_NAME, ref: row.branch ?? undefined, target_url: target, description }
+      : { state: words.conclusion === 'failure' ? 'failure' : 'success', context: CHECK_NAME, target_url: target, description };
+  const url = integration.provider === 'gitlab' ? `${api}/projects/${encodeURIComponent(row.repository)}/statuses/${encodeURIComponent(row.headSha)}` : `${api}/repos/${repoPath(row.repository)}/statuses/${encodeURIComponent(row.headSha)}`;
+  const slot = integration.provider;
+  try {
+    const wait = await takeTurn(app.db, integration.id, slot, app.config.vcsChecksPerMinute);
+    if (wait) throw new Wait(wait);
+    await providerStatusApi(integration, 'POST', url, token, body);
+    await app.db.update(vcsChecks).set({ checkRunId: `${slot}:${row.headSha}`, checkSha: row.headSha, written: words.hash, conclusion: words.conclusion, writtenAt: new Date(), problem: notes.length ? notes.join(' ') : null, problemAt: notes.length ? new Date() : null }).where(eq(vcsChecks.id, row.id));
+    return { done: 'written' };
+  } catch (e) {
+    if (e instanceof Wait) {
+      await pause(app.db, integration.id, slot, e.ms);
+      return { wait: e.ms };
+    }
+    if (e instanceof ReadError || e instanceof z.ZodError) return { problem: `${row.repository}#${row.number}: ${e instanceof ReadError ? e.message : 'the provider didn’t answer as it does'}.` };
+    throw e;
+  }
 }
 
 const RunAnswer = z.object({ id: z.number().int() });
@@ -334,6 +467,8 @@ type Outcome = { done: 'written' | 'same' | 'skipped' } | { wait: number } | { p
 export async function writeCheck(app: AppServices, row: Row): Promise<Outcome> {
   const [integration] = await app.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, row.integrationId));
   if (!integration || !integration.active || !reportsChecks(integration) || row.state !== 'open') return { done: 'skipped' };
+  // GitLab and Forgejo take a commit status through their own API, a token in the header (D70).
+  if (integration.provider === 'gitlab' || integration.provider === 'gitea') return writeCommitStatus(app, integration, row);
   const c = appCredentials(app, integration);
   if (!c) return { problem: 'The GitHub App’s key can’t be opened: was SECRET_KEY changed? Give the integration its app again.' };
   const api = (integration.baseUrl ?? GITHUB_API).replace(/\/+$/, '');
@@ -410,6 +545,99 @@ export async function writeCheck(app: AppServices, row: Row): Promise<Outcome> {
   }
 }
 
+/** Write a finished build's own result as a check run on the commit it built. */
+export async function writeBuildCheck(app: AppServices, row: BuildCheckRow): Promise<Outcome> {
+  const [source] = await app.db.select().from(buildSources).where(eq(buildSources.id, row.sourceId));
+  const [integration] = await app.db.select().from(vcsIntegrations).where(eq(vcsIntegrations.id, row.integrationId));
+  if (!source?.reportCheck || !integration?.active || integration.provider !== 'github') return { done: 'skipped' };
+  const c = appCredentials(app, integration);
+  if (!c) return { problem: 'The GitHub App’s key can’t be opened: was SECRET_KEY changed? Give the integration its app again.' };
+  const api = (integration.baseUrl ?? GITHUB_API).replace(/\/+$/, '');
+  const repo = `${api}/repos/${repoPath(row.repository)}`;
+  const tr = translatorFor(app.config.defaultLocale);
+  const word = row.status === 'success' ? tr.t('builds.builds.passed') : row.status === 'cancelled' ? tr.t('builds.builds.cancelled') : tr.t('builds.builds.failed');
+  const title = excerpt(`${row.name}: ${word}`, 255);
+  const summary = row.url ? `[${md(row.name)}](${row.url})\n\n${md(row.sourceName)}` : md(`${row.sourceName} · ${row.name}`);
+  const name = excerpt(`a4a: ${row.sourceName}`, 255);
+  const written = createHash('sha256').update(JSON.stringify([name, row.headSha, title, summary, row.status, row.url])).digest('hex');
+  if (row.written === written && row.checkSha === row.headSha && row.checkRunId) return { done: 'same' };
+  const conclusion = row.status === 'success' ? 'success' : row.status === 'cancelled' ? 'cancelled' : 'failure';
+  const body = {
+    name,
+    status: 'completed',
+    conclusion,
+    completed_at: new Date().toISOString(),
+    ...(row.url ? { details_url: row.url } : {}),
+    output: { title, summary },
+  };
+  try {
+    const runId = await asApp(app, integration, c, row.repository, 'checks', async (token, installationId) => {
+      const wait = await takeTurn(app.db, integration.id, installationId, app.config.vcsChecksPerMinute);
+      if (wait) throw new Wait(wait);
+      try {
+        let id = row.checkSha === row.headSha ? row.checkRunId : null;
+        if (!id && row.checkSha === row.headSha) {
+          const runs = RunsAnswer.parse(await checksApi('GET', `${repo}/commits/${encodeURIComponent(row.headSha)}/check-runs?check_name=${encodeURIComponent(name)}&filter=all`, token));
+          id = runs.check_runs.find((r) => r.external_id === row.id)?.id.toString() ?? null;
+        }
+        if (id) {
+          try {
+            await checksApi('PATCH', `${repo}/check-runs/${encodeURIComponent(id)}`, token, body);
+            return id;
+          } catch (e) {
+            if (!(e instanceof ReadError) || e.status !== 404) throw e;
+          }
+        }
+        await app.db.update(buildChecks).set({ checkSha: row.headSha, checkRunId: null }).where(eq(buildChecks.id, row.id));
+        const made = RunAnswer.parse(await checksApi('POST', `${repo}/check-runs`, token, { ...body, head_sha: row.headSha, external_id: row.id }));
+        return String(made.id);
+      } catch (e) {
+        if (e instanceof Wait) await pause(app.db, integration.id, installationId, e.ms);
+        if (e instanceof ReadError && e.status === 403) forgetInstallationToken(integration.id, installationId, 'checks');
+        throw e;
+      }
+    });
+    await app.db.update(buildChecks).set({ checkRunId: runId, checkSha: row.headSha, written, writtenAt: new Date(), problem: null, problemAt: null }).where(eq(buildChecks.id, row.id));
+    return { done: 'written' };
+  } catch (e) {
+    if (e instanceof Wait) return { wait: e.ms };
+    if (e instanceof AppError) return { problem: `${row.repository}: build ${row.name}: as the GitHub App: ${pageWords(e.message, e.hint)}` };
+    if (e instanceof ReadError || e instanceof z.ZodError) return { problem: `${row.repository}: build ${row.name}: ${e instanceof ReadError ? e.message : 'GitHub didn’t answer as it does'}.` };
+    throw e;
+  }
+}
+
+async function claimBuilds(db: Db): Promise<BuildCheckRow[]> {
+  const due = db
+    .select({ id: buildChecks.id })
+    .from(buildChecks)
+    .where(and(isNotNull(buildChecks.dueAt), lte(buildChecks.dueAt, sql`now()`), or(isNull(buildChecks.lockedUntil), lt(buildChecks.lockedUntil, sql`now()`))))
+    .orderBy(asc(buildChecks.dueAt))
+    .limit(BATCH)
+    .for('update', { skipLocked: true });
+  return db.update(buildChecks).set({ lockedUntil: new Date(Date.now() + LEASE_MS) }).where(inArray(buildChecks.id, due)).returning();
+}
+
+export async function sendBuildCheck(app: AppServices, row: BuildCheckRow): Promise<Outcome> {
+  let outcome: Outcome;
+  try {
+    outcome = await writeBuildCheck(app, row);
+  } catch (e) {
+    console.error(`build check ${row.id} failed`, e);
+    outcome = { problem: `${row.repository}: build ${row.name}: something went wrong while writing it; a4a tries again.` };
+  }
+  const again = sql`case when ${buildChecks.marks} = ${row.marks} then null else now() end`;
+  if ('done' in outcome) {
+    await app.db.update(buildChecks).set({ dueAt: again, lockedUntil: null, attempts: 0, ...(outcome.done === 'same' ? { problem: null, problemAt: null } : {}) }).where(eq(buildChecks.id, row.id));
+  } else if ('wait' in outcome) {
+    await app.db.update(buildChecks).set({ dueAt: new Date(Date.now() + outcome.wait), lockedUntil: null }).where(eq(buildChecks.id, row.id));
+  } else {
+    const wait = CHECK_BACKOFF_MS[row.attempts];
+    await app.db.update(buildChecks).set({ dueAt: wait === undefined ? again : new Date(Date.now() + wait), lockedUntil: null, attempts: row.attempts + 1, problem: excerpt(outcome.problem, 1000), problemAt: new Date() }).where(eq(buildChecks.id, row.id));
+  }
+  return outcome;
+}
+
 async function claim(db: Db): Promise<Row[]> {
   const due = db
     .select({ id: vcsChecks.id })
@@ -458,7 +686,7 @@ export async function pruneChecks(app: AppServices): Promise<void> {
   await app.db.delete(vcsChecks).where(and(sql`${vcsChecks.state} <> 'open'`, lt(vcsChecks.updatedAt, new Date(Date.now() - KEEP_CLOSED_DAYS * 86_400_000))));
 }
 
-/** The latest problem of each integration's checks, for the integrations page. */
+/** The latest problem of each integration's checks, pull requests' and builds' alike, for the integrations page. */
 export async function checkProblems(db: Db, integrationIds: string[]): Promise<Map<string, { problem: string; at: Date }>> {
   const out = new Map<string, { problem: string; at: Date }>();
   if (!integrationIds.length) return out;
@@ -469,6 +697,13 @@ export async function checkProblems(db: Db, integrationIds: string[]): Promise<M
     .orderBy(desc(vcsChecks.problemAt))
     .limit(200);
   for (const r of rows) if (!out.has(r.integrationId)) out.set(r.integrationId, { problem: r.problem!, at: r.at! });
+  const built = await db
+    .select({ integrationId: buildChecks.integrationId, problem: buildChecks.problem, at: buildChecks.problemAt })
+    .from(buildChecks)
+    .where(and(inArray(buildChecks.integrationId, integrationIds), isNotNull(buildChecks.problem), isNotNull(buildChecks.problemAt)))
+    .orderBy(desc(buildChecks.problemAt))
+    .limit(200);
+  for (const r of built) if (!out.has(r.integrationId) || out.get(r.integrationId)!.at < r.at!) out.set(r.integrationId, { problem: r.problem!, at: r.at! });
   return out;
 }
 
@@ -524,6 +759,12 @@ export class ChecksSender {
       if (this.stopped) return;
       const batch = await claim(this.app.db);
       for (const row of batch) await sendCheck(this.app, row);
+      if (batch.length < BATCH) break;
+    }
+    for (;;) {
+      if (this.stopped) return;
+      const batch = await claimBuilds(this.app.db);
+      for (const row of batch) await sendBuildCheck(this.app, row);
       if (batch.length < BATCH) return;
     }
   }
