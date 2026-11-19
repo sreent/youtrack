@@ -38,6 +38,9 @@ export const isPicture = (f: File) => RASTER.includes(f.type);
 /** A file's name as Markdown's words for a link or a picture: brackets and backslashes escaped. */
 const words = (name: string) => name.replace(/[\r\n]+/g, ' ').replace(/[\\[\]]/g, '\\$&');
 
+/** A picture's place while it waits for somewhere to upload to, as the editor writes it (D39). */
+export const uploadingMark = (name: string, n: number) => `![Uploading ${words(name)}…](#uploading-${n})`;
+
 export function placedMarkdown(p: Placed): string {
   return `${p.kind === 'image' ? '!' : ''}[${words(p.name)}](${p.href})`;
 }
@@ -65,6 +68,7 @@ export function RichField({
   tall,
   writing,
   writingEndpoint,
+  holdPictures,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -84,6 +88,8 @@ export function RichField({
   writing?: WritingFor;
   /** Which route the ask goes to: a requester's pages ask the portal's own (D59's revisit). */
   writingEndpoint?: string;
+  /** Pictures pasted before there's somewhere to upload them (a new issue): the host holds each, and puts them in once there is (D39). */
+  holdPictures?: (files: File[], marks: string[]) => void;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -171,9 +177,15 @@ export function RichField({
     const mine = onOtherFiles ? files.filter(isPicture) : files;
     if (others.length) onOtherFiles!(others);
     if (!mine.length) return;
-    if (!place) return say(t('editor.richField.saveItFirstThenPictures'), true);
-    const marks = mine.map((f) => `![Uploading ${words(f.name)}…](#uploading-${++seq.current})`);
     const text = latest.current;
+    const marks = mine.map((f) => `![Uploading ${words(f.name)}…](#uploading-${++seq.current})`);
+    if (!place) {
+      if (!holdPictures) return say(t('editor.richField.saveItFirstThenPictures'), true);
+      // A new issue's description: the host holds them, and puts each where its mark is once the issue is there.
+      change(text.slice(0, start) + marks.join('\n') + text.slice(end));
+      holdPictures(mine, marks);
+      return;
+    }
     change(text.slice(0, start) + marks.join('\n') + text.slice(end));
     for (const [i, file] of mine.entries()) {
       const placed = await place(file);

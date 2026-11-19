@@ -105,6 +105,7 @@ interface Active {
   emphasis: boolean;
   strike: boolean;
   code: boolean;
+  link: boolean;
   heading: boolean;
   quote: boolean;
   bullet: boolean;
@@ -112,14 +113,14 @@ interface Active {
   task: boolean;
 }
 
-const NONE: Active = { strong: false, emphasis: false, strike: false, code: false, heading: false, quote: false, bullet: false, ordered: false, task: false };
+const NONE: Active = { strong: false, emphasis: false, strike: false, code: false, link: false, heading: false, quote: false, bullet: false, ordered: false, task: false };
 
 /** Which tools are on where the caret is: its marks, and the blocks it's in (the nearest list says which list). */
 function activeIn(state: EditorState): Active {
   const { $from, empty } = state.selection;
   const marks = empty ? (state.storedMarks ?? $from.marks()) : $from.marks();
   const has = (name: string) => marks.some((m) => m.type.name === name);
-  const out = { ...NONE, strong: has('strong'), emphasis: has('emphasis'), strike: has('strike_through'), code: has('inlineCode') };
+  const out = { ...NONE, strong: has('strong'), emphasis: has('emphasis'), strike: has('strike_through'), code: has('inlineCode'), link: has('link') };
   let list = false;
   for (let d = $from.depth; d > 0; d--) {
     const n = $from.node(d);
@@ -621,6 +622,48 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
 
   const run = (key: Parameters<typeof callCommand>[0], payload?: unknown) => editor.current?.action(callCommand(key as never, payload as never));
 
+  // A link: its whole extent when the caret is in one (to take it off), else the selection, asked for its address.
+  const linkExtent = (state: EditorState): { from: number; to: number } | null => {
+    const mark = state.schema.marks.link;
+    const { $from, empty } = state.selection;
+    if (!empty) return mark && state.doc.rangeHasMark(state.selection.from, state.selection.to, mark) ? { from: state.selection.from, to: state.selection.to } : null;
+    const at = $from.marks().find((m) => m.type === mark);
+    if (!at) return null;
+    let from = $from.pos;
+    let to = $from.pos;
+    while (from > 0 && state.doc.rangeHasMark(from - 1, from, mark)) from--;
+    while (to < state.doc.content.size && state.doc.rangeHasMark(to, to + 1, mark)) to++;
+    return { from, to };
+  };
+  const [linkFor, setLinkFor] = useState<{ from: number; to: number } | null>(null);
+  const [linkHref, setLinkHref] = useState('');
+  const toggleLink = () => {
+    const ed = editor.current;
+    if (!ed) return;
+    const view = ed.ctx.get(editorViewCtx);
+    const extent = linkExtent(view.state);
+    if (extent) {
+      view.dispatch(view.state.tr.removeMark(extent.from, extent.to, view.state.schema.marks.link));
+      view.focus();
+      return;
+    }
+    if (view.state.selection.empty) return;
+    setLinkFor({ from: view.state.selection.from, to: view.state.selection.to });
+    setLinkHref('');
+  };
+  const addLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    const ed = editor.current;
+    if (!ed || !linkFor) return;
+    const view = ed.ctx.get(editorViewCtx);
+    const href = linkHref.trim();
+    if (!href) return;
+    view.dispatch(view.state.tr.addMark(linkFor.from, linkFor.to, view.state.schema.marks.link.create({ href })));
+    view.focus();
+    setLinkFor(null);
+    setLinkHref('');
+  };
+
   // A checklist: the list item the caret is in becomes one (or stops being one); outside a list, a new one.
   const checklist = () => {
     const ed = editor.current;
@@ -672,6 +715,7 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
           <Tool label={t('editor.visualEditor.italic')} glyph="I" pressed={active.emphasis} onClick={() => run(toggleEmphasisCommand.key)} />
           <Tool label={t('editor.visualEditor.struckThrough')} glyph="S" pressed={active.strike} onClick={() => run(toggleStrikethroughCommand.key)} />
           <Tool label={t('editor.visualEditor.code')} icon="code" pressed={active.code} onClick={() => run(toggleInlineCodeCommand.key)} />
+          <Tool label={t('editor.visualEditor.link')} icon="link" pressed={active.link} onClick={toggleLink} />
         </div>
         <div className="editor-tools" role="group" aria-label={t('editor.visualEditor.blocks')}>
           <Tool label={t('editor.visualEditor.heading')} glyph="H" pressed={active.heading} onClick={() => (active.heading ? run(turnIntoTextCommand.key) : run(wrapInHeadingCommand.key, 2))} />
@@ -695,6 +739,19 @@ export default function VisualEditor({ id, value, onChange, label, describedBy, 
             }}
           />
         </div>
+      {/* A link's address (D39's link tool): asked for the selection, the mark put on once it's given. */}
+      {linkFor ? (
+        <form className="editor-link" onSubmit={addLink}>
+          <label>
+            <span>{t('editor.visualEditor.linkTo')}</span>
+            <input autoFocus value={linkHref} onChange={(e) => setLinkHref(e.target.value)} placeholder="https://…" />
+          </label>
+          <div className="cluster">
+            <button type="submit" className="small primary" disabled={!linkHref.trim()}>{t('editor.visualEditor.addLink')}</button>
+            <button type="button" className="small" onClick={() => setLinkFor(null)}>{t('editor.visualEditor.cancel')}</button>
+          </div>
+        </form>
+      ) : null}
         {end ? <span className="grow" /> : null}
         {end}
       </div>
