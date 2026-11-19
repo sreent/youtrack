@@ -353,8 +353,9 @@ test('a group or a project can require a passkey of its people', async ({ browse
   ).toBe(201);
   await admin.page.goto(`/projects/PK${tag.toUpperCase()}`);
   const passkeys = admin.page.getByRole('region', { name: 'Passkeys' });
-  await passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' }).check();
-  await expect(passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
+  const required = passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' });
+  await required.click();
+  await expect(required).toBeChecked();
   await settled(admin.page);
   await admin.page.screenshot({ path: test.info().outputPath('project-passkey-requirement-light.png'), fullPage: true });
   await expectNoSidewaysScroll(admin.page);

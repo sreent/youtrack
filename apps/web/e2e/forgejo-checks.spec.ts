@@ -71,9 +71,9 @@ test('reports to a Forgejo pull request as a commit status named “a4a”', asy
     const on = checks.getByRole('checkbox', { name: 'Report to each pull request as a commit status named “a4a”' });
     await expect(card.getByText(/^They’re written with the integration’s access token/)).toBeVisible();
     await expect(card.getByText(/^Whoever sees the repository reads its commit statuses/)).toBeVisible();
-    await on.check();
+    await on.click();
     // The status says what the server did: if enabling was refused, its words show instead, in the page's snapshot.
-    await expect(card.getByRole('status').filter({ hasText: /Commit statuses are on|the provider’s API token/ })).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByRole('status').filter({ hasText: /Commit statuses are on|the provider’s API token/ })).toBeVisible();
     await expect(on).toBeChecked();
     await expectNoSidewaysScroll(page);
     await expectAccessible(page);
