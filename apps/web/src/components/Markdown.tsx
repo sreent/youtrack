@@ -154,7 +154,7 @@ export function Markdown({
         ? id[1] === 'issues'
           ? places.issue(decodeURIComponent(id[2]!))
           : places.article(decodeURIComponent(id[2]!)) ?? href!
-        : href;
+        : href!;
       return href?.startsWith('/api/') ? (
         // A file of a4a's: fetched by the browser, not routed by the app.
         <a href={href}>{children}</a>

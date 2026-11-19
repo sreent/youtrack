@@ -126,7 +126,7 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   const guide = await api.post<{ id: string }>('/articles', { project: g.key, title: `When to plant ${g.key}`, body: `Sow after the last frost; ${beans.id} has the schedule.` });
   const child = await api.post<{ id: string }>('/articles', { project: g.key, title: `Frost dates ${g.key}`, parent: guide.id, body: 'Half Moon Bay: November 15.' });
   const secret = await api.post<{ id: string }>('/articles', { project: g.key, title: `Seed prices ${g.key}`, body: 'Wholesale only.' });
-  await api.put(`/articles/${secret.id}/visibility`, { visibleTo: { users: [], groups: [] } });
+  await api.context.put(`/api/v1/articles/${secret.id}/visibility`, { data: { visibleTo: { users: [], groups: [] } } });
   await api.post(`/whiteboards/${g.whiteboard.id}/elements`, { ops: [{ op: 'add', id: 'guide-card', kind: 'article', x: 500, y: 0, article: guide.id }] });
 
   // A whiteboard card opens the guest's article page (D64's revisit).
@@ -157,7 +157,7 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   const count = region.getByRole('link', { name: /^\d+$/ }).first();
   await count.click();
   await expect(page).toHaveURL(new RegExp(`/public\?q=${encodeURIComponent('project: ' + g.key).replace(/[()]/g, '[$&]')}`));
-  await expect(page.getByRole('heading', { name: new RegExp(`Issues matching ${LDQ}.+${RDQ}`) })).toBeVisible();
+  await expect(page.getByRole('heading', { name: new RegExp(`Issues matching \u201c.+\u201d`) })).toBeVisible();
   await expect(page.getByRole('link', { name: /Harden the seedlings/ })).toBeVisible();
   await expect(page.getByText('Hidden compost deal')).toHaveCount(0);
   await looksRight(page);
