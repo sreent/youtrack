@@ -65,9 +65,9 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
   const link = /(\/portal#hdl_[A-Za-z0-9_-]{43})/.exec(sent.text)![1]!;
   const ctx = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
   const rp = await ctx.newPage();
+  await aiOn(rp);
   await rp.goto(link);
   await expect(rp.getByRole('heading', { name: 'Your requests' })).toBeVisible();
-  await aiOn(rp);
   await rp.route('**/api/v1/portal/write/stream', async (route) => {
     const frames = [
       'event: draft\ndata: {"text":"Hello, thanks for telling us."}\n\n',
@@ -103,6 +103,8 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
   await expect(card).toBeVisible();
   await expect(card.getByText(/Could you send a copy/)).toBeVisible();
   await card.getByRole('button', { name: 'Accept' }).click();
+  // The accepted words are in the field before it's sent, mark and all.
+  await expect(composer.getByText(/Could you send a copy/)).toBeVisible();
   await rp.getByRole('button', { name: 'Send the reply' }).click();
   await expect(rp.getByText('The assistant drafted these words.')).toBeVisible();
   await expect(rp.getByText(/Could you send a copy/)).toBeVisible();
