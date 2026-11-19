@@ -68,6 +68,11 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
   await aiOn(rp);
   await rp.goto(link);
   await expect(rp.getByRole('heading', { name: 'Your requests' })).toBeVisible();
+  const replies: { aiDrafted?: boolean }[] = [];
+  await rp.route('**/api/v1/portal/requests/*/replies', async (route) => {
+    replies.push(route.request().postDataJSON() as { aiDrafted?: boolean });
+    await route.continue();
+  });
   await rp.route('**/api/v1/portal/write/stream', async (route) => {
     const frames = [
       'event: draft\ndata: {"text":"Hello, thanks for telling us."}\n\n',
@@ -106,6 +111,7 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
   // The accepted words are in the field before it's sent, mark and all.
   await expect(composer.getByText(/Could you send a copy/)).toBeVisible();
   await rp.getByRole('button', { name: 'Send the reply' }).click();
+  expect(replies[0]?.aiDrafted, JSON.stringify(replies)).toBe(true);
   await expect(rp.getByText('The assistant drafted these words.')).toBeVisible();
   await expect(rp.getByText(/Could you send a copy/)).toBeVisible();
   await expectNoSidewaysScroll(rp);
