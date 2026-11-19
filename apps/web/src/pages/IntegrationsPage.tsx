@@ -437,7 +437,7 @@ function GithubReads({ integration, onSaid }: { integration: VcsIntegration; onS
       {!app && integration.hasAccessToken ? <p className="note">{t('page.integrations.aPersonSTokenStopsWorking')}</p> : null}
       {open ? <AppForm integration={integration} onSaved={saved} onCancel={() => setOpen(false)} /> : null}
       {app ? <Installations app={app} /> : null}
-      {app ? <Checks integration={integration} onSaid={onSaid} /> : null}
+
     </>
   );
 }
@@ -496,6 +496,7 @@ function IntegrationCard({ integration, projectNames }: { integration: VcsIntegr
         <CopyButton text={integration.webhookUrl} label={t('page.integrations.copyIt')} what={t('page.integrations.theUrl')} />
       </div>
       {integration.provider === 'github' ? <GithubReads integration={integration} onSaid={setSaid} /> : null}
+      {integration.checks ? <Checks integration={integration} onSaid={setSaid} /> : null}
       {bitbucket ? (
         <div className="cluster">
           {integration.provider === 'bitbucket-dc' && integration.baseUrl ? (

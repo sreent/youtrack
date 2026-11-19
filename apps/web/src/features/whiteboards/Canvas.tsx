@@ -112,6 +112,11 @@ export function Canvas(p: Props) {
   };
 
   const down = (e: React.PointerEvent<SVGSVGElement>) => {
+    // A card on a read-only whiteboard opens with the click: let the pointer be, or its capture
+    // sends the click to the canvas and the card never hears it (D64).
+    const pressed = (e.target as Element).closest('[data-element],[data-resize]');
+    const pressedEl = pressed?.getAttribute('data-element') ? p.elements.get(pressed.getAttribute('data-element')!) : undefined;
+    if (!p.canEdit && pressedEl && (pressedEl.kind === 'issue' || pressedEl.kind === 'article')) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     svg.current?.setPointerCapture?.(e.pointerId);
     if (pointers.current.size >= 2) {
@@ -258,6 +263,11 @@ function Element({ e, p }: { e: WhiteboardElement; p: Props }) {
     onKeyDown: (k: React.KeyboardEvent<SVGGElement>) => p.onKey(k, e.id),
     onFocus: () => p.onCurrent(e.id),
     onDoubleClick: () => p.onOpen(e.id),
+    // Read only, a card's one thing to do is open: a single click does it (D64's guest whiteboards,
+    // where a double-click on the canvas didn't reach the card). Editors still select with one and open with two.
+    onClick: () => {
+      if (!p.canEdit && (e.kind === 'issue' || e.kind === 'article')) p.onOpen(e.id);
+    },
   } as const;
   if (e.kind === 'arrow') {
     const line = arrowLine(p.elements, e);

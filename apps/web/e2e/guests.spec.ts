@@ -120,7 +120,9 @@ test('a guest finds nothing of a project that isn’t open to guests', async ({ 
   await api.patch(`/projects/${g.key}`, { guestAccess: false });
 });
 
-test("a guest reads an article from a whiteboard card and a body’s link, and a report’s count opens its issues", async ({ page, api }) => {
+test("a guest reads an article from a whiteboard card and a body’s link, and a report’s count opens its issues", async ({ page, api, watch }) => {
+  // What isn't open to guests answers 401 or 404, in the same words either way; the page logs it, expectedly.
+  watch.allow(/status of (401|404)/);
   const g = await garden(api);
   const beans = await api.createIssue({ project: g.key, summary: 'Harden the seedlings' });
   const guide = await api.post<{ id: string }>('/articles', { project: g.key, title: `When to plant ${g.key}`, body: `Sow after the last frost; ${beans.id} has the schedule.` });
@@ -129,10 +131,8 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   await api.context.put(`/api/v1/articles/${secret.id}/visibility`, { data: { visibleTo: { users: [], groups: [] } } });
   await api.post(`/whiteboards/${g.whiteboard.id}/elements`, { ops: [{ op: 'add', id: 'guide-card', kind: 'article', x: 500, y: 0, article: guide.id }] });
 
-  // A whiteboard card opens the guest's article page (D64's revisit).
-  await page.goto(`/public/whiteboards/${g.whiteboard.id}`);
-  await page.getByText(`When to plant ${g.key}`).dblclick();
-  await expect(page).toHaveURL(/\/public\/articles\//);
+  // The guest's article page itself (D64): its path, its words, and its body's ids leading to guest pages.
+  await page.goto(`/public/articles/${guide.id}`);
   await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
   await expect(page.getByText(/Sow after the last frost/)).toBeVisible();
   // Its body's issue id leads to the guest's own issue page, not a sign-in.
@@ -156,10 +156,19 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
   const region = page.getByRole('region', { name: 'Issues per field' });
   const count = region.getByRole('link', { name: /^\d+$/ }).first();
   await count.click();
-  await expect(page).toHaveURL(new RegExp(`/public\?q=${encodeURIComponent('project: ' + g.key).replace(/[()]/g, '[$&]')}`));
+  await expect(page).toHaveURL(new RegExp(`/public\\?q=${encodeURIComponent('project: ' + g.key).replace(/[()]/g, '[$&]')}`));
   await expect(page.getByRole('heading', { name: new RegExp(`Issues matching \u201c.+\u201d`) })).toBeVisible();
   await expect(page.getByRole('link', { name: /Harden the seedlings/ })).toBeVisible();
   await expect(page.getByText('Hidden compost deal')).toHaveCount(0);
   await looksRight(page);
+
+  // A whiteboard card opens the guest's article page (D64's revisit): read only, one click opens the card.
+  await page.goto(`/public/whiteboards/${g.whiteboard.id}`);
+  const cardButton = page.getByRole('button', { name: new RegExp(`^Article ${guide.id}:`) });
+  await expect(cardButton).toBeVisible();
+  await cardButton.click();
+  // Where the click left us, first: if the card didn't open, this failure's snapshot shows the page.
+  await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
+  await expect(page).toHaveURL(/\/public\/articles\//);
   await api.patch(`/projects/${g.key}`, { guestAccess: false });
 });
