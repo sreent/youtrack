@@ -14,7 +14,8 @@
  */
 import type { Browser, CDPSession, Locator, Page } from '@playwright/test';
 import { expectAccessible, expectNoSidewaysScroll } from './support/checks';
-import { expect, prepareContext, test } from './support/fixtures';
+import { expect, prepareContext, settled, test } from './support/fixtures';
+import { unique } from './support/api';
 import { startMailServer, startMailingServer, type MailServer, type MailingServer } from './support/mail';
 
 const NOOR = { login: 'noor', name: 'Noor Haddad', email: 'noor@corp.example', password: 'e2e-noor-pass-1' };
@@ -310,11 +311,12 @@ test('an administrator makes an account with no password, and its mailed link ad
 test('a group or a project can require a passkey of its people', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = await adminWithPasskey(browser);
-  const mira = { login: 'mira', name: 'Mira Grouped', email: 'mira@corp.example', password: 'e2e-mira-pass-1' };
+  const tag = unique();
+  const mira = { login: `mira-${tag}`, name: 'Mira Grouped', email: `mira-${tag}@corp.example`, password: 'e2e-mira-pass-1' };
   expect((await admin.page.request.post('/api/v1/users', { data: { ...mira, role: 'member' }, headers: { origin: server.url } })).status()).toBe(201);
 
   // The group's switch is among its settings; the administrator holding a passkey lets it turn on.
-  const made = await admin.page.request.post('/api/v1/groups', { data: { name: 'On call' }, headers: { origin: server.url } });
+  const made = await admin.page.request.post('/api/v1/groups', { data: { name: `On call ${tag}` }, headers: { origin: server.url } });
   const group = (await made.json()) as { id: string };
   await admin.page.request.post(`/api/v1/groups/${group.id}/members`, { data: { user: mira.login }, headers: { origin: server.url } });
   await admin.page.goto(`/groups/${group.id}`);
@@ -322,6 +324,7 @@ test('a group or a project can require a passkey of its people', async ({ browse
   await settings.getByRole('checkbox', { name: 'Require a passkey of its people' }).check();
   await settings.getByRole('button', { name: 'Save the group' }).click();
   await expect(settings.getByRole('status')).toHaveText('Saved.');
+  await settled(admin.page);
   shoot(admin.page, settings, 'group-passkey-requirement');
 
   // Mira's password sign-in now owes one, and adds it before her session starts.
@@ -344,12 +347,13 @@ test('a group or a project can require a passkey of its people', async ({ browse
 
   // A project's own switch, on its page, reaching everyone who can see it.
   expect(
-    (await admin.page.request.post('/api/v1/projects', { data: { key: 'PASS', name: 'Passkey Guards' }, headers: { origin: server.url } })).status(),
+    (await admin.page.request.post('/api/v1/projects', { data: { key: `PK${tag}`, name: 'Passkey Guards' }, headers: { origin: server.url } })).status(),
   ).toBe(201);
-  await admin.page.goto('/projects/PASS');
+  await admin.page.goto(`/projects/PK${tag}`);
   const passkeys = admin.page.getByRole('region', { name: 'Passkeys' });
   await passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' }).check();
   await expect(passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
+  await settled(admin.page);
   shoot(admin.page, passkeys, 'project-passkey-requirement');
   await admin.page.reload();
   await expect(admin.page.getByRole('region', { name: 'Passkeys' }).getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();

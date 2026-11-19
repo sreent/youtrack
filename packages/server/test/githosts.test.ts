@@ -273,6 +273,10 @@ describe('check runs on pull requests', () => {
     w.app.config.vcsChecksPerMinute = 2;
     await w.app.db.update(vcsInstallations).set({ checksWindowAt: null, checksInWindow: 0 });
     for (const n of [20, 21, 22]) await deliver('pull_request', pull({ repository: 'acme/web', number: n, title: `${ids.guest} avatars`, head: sha(String(n % 10)) }));
+    // The sender claims in dueAt order; deliveries made at once share a clock tick, and Postgres
+    // returns tied rows in any order. Pin the order the test reads: 20, then 21, then 22.
+    let due = Date.now() - 3_000;
+    for (const n of [20, 21, 22]) await w.app.db.update(vcsChecks).set({ dueAt: new Date((due += 1_000)) }).where(eq(vcsChecks.number, n));
     const runs = gh.runs.length;
     await sender().drain();
     expect(gh.runs.length).toBe(runs + 2);
