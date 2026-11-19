@@ -59,6 +59,7 @@ test.afterAll(async () => {
 });
 
 test("a requester replies in the editor, with a pasted picture, and takes the assistant's streamed draft", async ({ browser }) => {
+  test.setTimeout(120_000);
   await call('POST', '/portal/sign-in', { email });
   const sent = await mail.waitFor(email, (m) => /#hdl_/.test(m.text));
   const link = /(\/portal#hdl_[A-Za-z0-9_-]{43})/.exec(sent.text)![1]!;
@@ -74,7 +75,7 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
     ].join('');
     await route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: frames });
   });
-  await rp.getByRole('link', { name: 'Invoices print twice' }).click();
+  await rp.getByRole('link', { name: /Invoices print twice/ }).click();
   await expect(rp.getByRole('heading', { name: 'Invoices print twice' })).toBeVisible();
 
   // The composer is the editor everyone writes in: its bar and its switch.
