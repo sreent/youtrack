@@ -108,11 +108,12 @@ export function RichField({
   const described = [describedBy, status ? statusId : null].filter(Boolean).join(' ') || undefined;
 
   const say = (text: string, bad?: boolean) => setStatus(text ? { text, bad } : null);
-  const change = (next: string) => {
+  const change = (next: string, fromHelp = false) => {
+    const same = latest.current === next;
     latest.current = next;
     onChange(next);
-    // Any change but the accept's own clears the mark; the accept sets it right after (D59).
-    if (drafted) drafted.current = false;
+    // Any change but the accept's own, and a re-serialisation of the same text, clears the mark; the accept sets it right after (D59).
+    if (drafted && !fromHelp && !same) drafted.current = false;
   };
 
   // What's selected, for writing help: the visual editor's, or the Markdown's from where to where.
@@ -136,7 +137,7 @@ export function RichField({
         apply: (next) => {
           const now = latest.current;
           if (now.slice(start, end) !== text) return false;
-          change(now.slice(0, start) + next + now.slice(end));
+          change(now.slice(0, start) + next + now.slice(end), true);
           // What was selected is gone: nothing is, until the next selection.
           area.current = { start: 0, end: 0 };
           setSelected(false);
@@ -150,7 +151,7 @@ export function RichField({
         text,
         apply: (next) => {
           if (latest.current !== text) return false;
-          change(carryOn ? carriedOn(text, next) : next);
+          change(carryOn ? carriedOn(text, next) : next, true);
           return true;
         },
       };
