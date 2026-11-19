@@ -209,7 +209,7 @@ export function GuestArticle() {
         <Link to="/public">{t('page.guestPages.openToAnyone')}</Link>
         <SignIn next={`/articles/${id}`} />
       </div>
-      {article.isLoading ? <Loading what="loadingLine.named" name={id} /> : null}
+      {article.isLoading ? <Loading named={id} /> : null}
       {missing ? (
         <>
           <h1>{id}</h1>
