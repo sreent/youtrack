@@ -75,7 +75,7 @@ test("a requester replies in the editor, with a pasted picture, and takes the as
     ].join('');
     await route.fulfill({ status: 200, headers: { 'content-type': 'text/event-stream' }, body: frames });
   });
-  await rp.getByRole('link', { name: /Invoices print twice/ }).click();
+  await rp.getByRole('button', { name: /Invoices print twice/ }).click();
   await expect(rp.getByRole('heading', { name: 'Invoices print twice' })).toBeVisible();
 
   // The composer is the editor everyone writes in: its bar and its switch.
