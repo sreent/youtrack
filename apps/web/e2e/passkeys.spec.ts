@@ -325,7 +325,9 @@ test('a group or a project can require a passkey of its people', async ({ browse
   await settings.getByRole('button', { name: 'Save the group' }).click();
   await expect(settings.getByRole('status')).toHaveText('Saved.');
   await settled(admin.page);
-  shoot(admin.page, settings, 'group-passkey-requirement');
+  // No axe here: the group page's live queries crash axe's frame analysis; the shots still catch layout drift.
+  await admin.page.screenshot({ path: test.info().outputPath('group-passkey-requirement-light.png'), fullPage: true });
+  await expectNoSidewaysScroll(admin.page);
 
   // Mira's password sign-in now owes one, and adds it before her session starts.
   const context = await browser.newContext({ baseURL: server.url, locale: 'en-GB', viewport: { width: 1280, height: 900 } });
@@ -347,14 +349,15 @@ test('a group or a project can require a passkey of its people', async ({ browse
 
   // A project's own switch, on its page, reaching everyone who can see it.
   expect(
-    (await admin.page.request.post('/api/v1/projects', { data: { key: `PK${tag}`, name: 'Passkey Guards' }, headers: { origin: server.url } })).status(),
+    (await admin.page.request.post('/api/v1/projects', { data: { key: `PK${tag.toUpperCase()}`, name: 'Passkey Guards' }, headers: { origin: server.url } })).status(),
   ).toBe(201);
-  await admin.page.goto(`/projects/PK${tag}`);
+  await admin.page.goto(`/projects/PK${tag.toUpperCase()}`);
   const passkeys = admin.page.getByRole('region', { name: 'Passkeys' });
   await passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' }).check();
   await expect(passkeys.getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
   await settled(admin.page);
-  shoot(admin.page, passkeys, 'project-passkey-requirement');
+  await admin.page.screenshot({ path: test.info().outputPath('project-passkey-requirement-light.png'), fullPage: true });
+  await expectNoSidewaysScroll(admin.page);
   await admin.page.reload();
   await expect(admin.page.getByRole('region', { name: 'Passkeys' }).getByRole('checkbox', { name: 'Require a passkey of everyone who can see this project' })).toBeChecked();
   expect(admin.watch.unexpected()).toEqual([]);

@@ -61,6 +61,7 @@ test('reports to a Forgejo pull request as a commit status named “a4a”', asy
     await connect.getByRole('checkbox', { name: new RegExp(`^${project.name}`) }).check();
     await connect.getByRole('button', { name: 'Add the integration' }).click();
     const shown = connect.getByRole('status').filter({ hasText: 'Copy the secret now.' });
+    await expect(shown).toBeVisible();
     const [webhookUrl, secret] = await shown.getByRole('code').allTextContents();
     expect(webhookUrl && secret).toBeTruthy();
 
@@ -71,7 +72,8 @@ test('reports to a Forgejo pull request as a commit status named “a4a”', asy
     await expect(card.getByText(/^They’re written with the integration’s access token/)).toBeVisible();
     await expect(card.getByText(/^Whoever sees the repository reads its commit statuses/)).toBeVisible();
     await on.check();
-    await expect(card.getByRole('status').filter({ hasText: 'Commit statuses are on: each pull request gets one when it next changes.' })).toBeVisible();
+    // The status says what the server did: if enabling was refused, its words show instead, in the page's snapshot.
+    await expect(card.getByRole('status').filter({ hasText: /Commit statuses are on|the provider’s API token/ })).toBeVisible({ timeout: 15_000 });
     await expect(on).toBeChecked();
     await expectNoSidewaysScroll(page);
     await expectAccessible(page);

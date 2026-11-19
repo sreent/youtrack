@@ -131,7 +131,9 @@ test("a guest reads an article from a whiteboard card and a body’s link, and a
 
   // A whiteboard card opens the guest's article page (D64's revisit).
   await page.goto(`/public/whiteboards/${g.whiteboard.id}`);
-  await page.getByRole('button', { name: new RegExp(`^Article ${guide.id}:`) }).dblclick();
+  const cardButton = page.getByRole('button', { name: new RegExp(`^Article ${guide.id}:`) });
+  await expect(cardButton).toBeVisible();
+  await cardButton.dblclick();
   await expect(page).toHaveURL(/\/public\/articles\//);
   await expect(page.getByRole('heading', { level: 1, name: `When to plant ${g.key}` })).toBeVisible();
   await expect(page.getByText(/Sow after the last frost/)).toBeVisible();
