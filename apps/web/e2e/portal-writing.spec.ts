@@ -38,7 +38,7 @@ test.beforeAll(async ({ browser }) => {
   expect(made.status(), await made.text()).toBe(201);
   const { token } = (await made.json()) as { token: string };
   call = async <T>(method: string, path: string, data?: unknown): Promise<T> => {
-    const res = await page.request.fetch(`/api/v1${path}`, { method, data, headers: { authorization: `Bearer ${token}` } });
+    const res = await page.request.fetch(`/api/v1${path}`, { method, data, headers: { authorization: `Bearer ${token}`, ...(method !== 'GET' ? { origin: server.url } : {}) } });
     expect(res.ok(), `${method} ${path}: ${res.status()} ${await res.text()}`).toBe(true);
     return (res.status() === 204 ? null : await res.json()) as T;
   };
