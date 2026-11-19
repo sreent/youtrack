@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "지난 한 시간 동안 어시스턴트에게 도움을 {max, plural, =1 {한 번} other {#번}} 요청했습니다. 어시스턴트가 한 사람에게 답하는 최대 횟수입니다. {minutes, plural, other {#분}} 후에 다시 시도하세요.",
   "problem.ai.writing.lineNeeded": "초안의 바탕이 될 한 줄을 쓰세요. 무엇에 관한 내용인지 한 문장으로 적고 다시 요청하세요.",
   "problem.ai.writing.lineTooLong": "초안의 바탕이 될 줄이 {length, number}자인데, 어시스턴트는 최대 {max, number}자까지 받습니다. 쓸 내용을 한두 문장으로 적고 다시 요청하세요.",
+  "problem.ai.writing.notADraft": "초안만 스트리밍됩니다. 다른 답변은 통째로 와서 비교하고 수락합니다.",
   "problem.ai.writing.nothingToWorkOn": "작업할 텍스트가 없습니다. 내용을 쓰거나 선택한 다음 다시 요청하세요.",
   "problem.ai.writing.selectionTooLong": "텍스트가 {length, number}자인데, 어시스턴트는 최대 {max, number}자까지 요약합니다. 더 적게 선택하고 다시 요청하세요.",
   "problem.ai.writing.summaryNotPostable": "이 요약은 게시할 수 없습니다. 만든 지 한 시간이 넘었거나, 어시스턴트가 쓴 그대로가 아닙니다. 이슈를 다시 요약하고 새 요약을 게시하세요.",

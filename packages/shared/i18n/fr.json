@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "Vous avez demandé de l’aide à l’assistant {max, plural, =1 {une fois} other {# fois}} au cours de la dernière heure, soit le maximum par personne. Réessayez dans {minutes, plural, one {# minute} other {# minutes}}.",
   "problem.ai.writing.lineNeeded": "Écrivez d’abord une ligne qui servira de base. Dites en une phrase de quoi il doit s’agir, puis réessayez.",
   "problem.ai.writing.lineTooLong": "Le texte qui sert de base fait {length, number} caractères, et l’assistant en accepte {max, number} au plus. Dites ce qu’il faut écrire en une phrase ou deux, puis réessayez.",
+  "problem.ai.writing.notADraft": "Seul un brouillon est diffusé. Les autres réponses arrivent entières, à comparer et à accepter.",
   "problem.ai.writing.nothingToWorkOn": "Il n’y a aucun texte sur lequel travailler. Écrivez ou sélectionnez du texte, puis réessayez.",
   "problem.ai.writing.selectionTooLong": "Le texte fait {length, number} caractères, et l’assistant en résume {max, number} au plus. Sélectionnez-en moins, puis réessayez.",
   "problem.ai.writing.summaryNotPostable": "Ce résumé ne peut pas être publié : il date de plus d’une heure, ou n’est plus tel que l’assistant l’a écrit. Résumez à nouveau le ticket, puis publiez ce nouveau résumé.",

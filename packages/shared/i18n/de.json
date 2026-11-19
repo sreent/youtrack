@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "Sie haben den Assistenten in der letzten Stunde {max, plural, one {einmal} other {# Mal}} um Hilfe gebeten; öfter antwortet er niemandem. Versuchen Sie es in {minutes, plural, one {# Minute} other {# Minuten}} erneut.",
   "problem.ai.writing.lineNeeded": "Schreiben Sie eine Zeile, aus der ein Entwurf entstehen soll. Sagen Sie in einem Satz, worum es gehen soll, und fragen Sie erneut.",
   "problem.ai.writing.lineTooLong": "Die Zeile für den Entwurf ist {length, number} Zeichen lang, und der Assistent verarbeitet höchstens {max, number}. Sagen Sie in ein, zwei Sätzen, was er schreiben soll, und fragen Sie erneut.",
+  "problem.ai.writing.notADraft": "Nur ein Entwurf wird gestreamt. Andere Antworten kommen als Ganzes, zum Vergleichen und Übernehmen.",
   "problem.ai.writing.nothingToWorkOn": "Es gibt keinen Text, an dem der Assistent arbeiten kann. Schreiben oder markieren Sie etwas, und fragen Sie erneut.",
   "problem.ai.writing.selectionTooLong": "Der Text ist {length, number} Zeichen lang, und der Assistent fasst höchstens {max, number} zusammen. Markieren Sie weniger davon, und fragen Sie erneut.",
   "problem.ai.writing.summaryNotPostable": "Diese Zusammenfassung kann nicht veröffentlicht werden: Entweder ist sie älter als eine Stunde, oder sie ist nicht mehr so, wie der Assistent sie geschrieben hat. Fassen Sie den Vorgang erneut zusammen, und veröffentlichen Sie die neue Zusammenfassung.",

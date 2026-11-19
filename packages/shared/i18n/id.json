@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "Anda sudah meminta bantuan asisten {max, plural, =1 {sekali} other {# kali}} dalam satu jam terakhir, batas yang berlaku untuk setiap orang. Coba lagi dalam {minutes, plural, other {# menit}}.",
   "problem.ai.writing.lineNeeded": "Tulis satu baris sebagai dasar draf. Jelaskan dalam satu kalimat tentang apa isinya, lalu minta lagi.",
   "problem.ai.writing.lineTooLong": "Baris dasar draf panjangnya {length, number} karakter, dan asisten menerima paling banyak {max, number}. Jelaskan dalam satu atau dua kalimat apa yang perlu ditulis, lalu minta lagi.",
+  "problem.ai.writing.notADraft": "Hanya draf yang dialirkan. Jawaban lain datang utuh, untuk dibandingkan dan diterima.",
   "problem.ai.writing.nothingToWorkOn": "Tidak ada teks untuk dikerjakan. Tulis atau pilih sebagian teks, lalu minta lagi.",
   "problem.ai.writing.selectionTooLong": "Teks ini panjangnya {length, number} karakter, dan asisten meringkas paling banyak {max, number}. Pilih bagian yang lebih pendek, lalu minta lagi.",
   "problem.ai.writing.summaryNotPostable": "Ringkasan ini tidak dapat dikirim: usianya lebih dari satu jam, atau tidak lagi seperti yang ditulis asisten. Ringkas isu ini lagi, lalu kirim ringkasan yang baru.",

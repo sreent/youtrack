@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "Bạn đã nhờ trợ lý giúp {max, plural, other {# lần}} trong một giờ qua, mức tối đa trợ lý trả lời mỗi người. Thử lại sau {minutes, plural, other {# phút}}.",
   "problem.ai.writing.lineNeeded": "Viết một dòng mô tả nội dung cần soạn, trong một câu, rồi yêu cầu lại.",
   "problem.ai.writing.lineTooLong": "Dòng để soạn nháp dài {length, number} ký tự, và trợ lý nhận tối đa {max, number} ký tự. Nói nội dung cần viết trong một hoặc hai câu, rồi yêu cầu lại.",
+  "problem.ai.writing.notADraft": "Chỉ bản nháp được truyền trực tiếp. Các câu trả lời khác đến trọn vẹn, để so sánh và chấp nhận.",
   "problem.ai.writing.nothingToWorkOn": "Không có nội dung nào để xử lý. Viết hoặc chọn một đoạn, rồi yêu cầu lại.",
   "problem.ai.writing.selectionTooLong": "Văn bản dài {length, number} ký tự, và trợ lý chỉ tóm tắt tối đa {max, number} ký tự. Chọn ít hơn, rồi yêu cầu lại.",
   "problem.ai.writing.summaryNotPostable": "Không thể đăng bản tóm tắt này: bản tóm tắt đã quá một giờ, hoặc không còn như trợ lý đã viết. Tóm tắt lại vấn đề, rồi đăng bản mới.",

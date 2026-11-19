@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "Has pedido ayuda al asistente {max, plural, one {una vez} other {# veces}} en la última hora, el máximo por persona. Vuelve a intentarlo dentro de {minutes, plural, one {# minuto} other {# minutos}}.",
   "problem.ai.writing.lineNeeded": "Escribe una línea para el borrador. Di en una frase de qué debe tratar y pídelo de nuevo.",
   "problem.ai.writing.lineTooLong": "La línea para el borrador tiene {length, number} caracteres, y el asistente acepta {max, number} como máximo. Di qué escribir en una o dos frases y pídelo de nuevo.",
+  "problem.ai.writing.notADraft": "Solo un borrador se transmite. Las demás respuestas llegan enteras, para compararlas y aceptarlas.",
   "problem.ai.writing.nothingToWorkOn": "No hay texto con el que trabajar. Escribe o selecciona algo y pídelo de nuevo.",
   "problem.ai.writing.selectionTooLong": "El texto tiene {length, number} caracteres, y el asistente resume {max, number} como máximo. Selecciona menos y pídelo de nuevo.",
   "problem.ai.writing.summaryNotPostable": "Este resumen no se puede publicar: tiene más de una hora o no es como lo escribió el asistente. Resume de nuevo la incidencia y publica el nuevo.",

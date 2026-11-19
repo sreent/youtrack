@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "この1時間に、アシスタントへの依頼が{max, plural, other {#回}}に達しました。これは1人あたりの上限です。{minutes, plural, other {#分}}後にもう一度お試しください。",
   "problem.ai.writing.lineNeeded": "下書きのもとになる文を入力してください。何についての文章にしたいかを一文で書いて、もう一度依頼してください。",
   "problem.ai.writing.lineTooLong": "下書きのもとになる文は{length, number}文字ありますが、アシスタントが受け付けるのは{max, number}文字までです。書いてほしいことを一、二文にまとめて、もう一度依頼してください。",
+  "problem.ai.writing.notADraft": "下書きだけがストリーミングされます。他の回答は全体で届き、比べて受け入れます。",
   "problem.ai.writing.nothingToWorkOn": "対象となる文章がありません。文章を書くか選択してから、もう一度依頼してください。",
   "problem.ai.writing.selectionTooLong": "テキストは{length, number}文字ありますが、アシスタントが要約できるのは{max, number}文字までです。選択範囲を短くして、もう一度依頼してください。",
   "problem.ai.writing.summaryNotPostable": "この要約は投稿できません。作成から1時間以上たっているか、アシスタントが書いた内容から変更されています。課題をもう一度要約して、それを投稿してください。",

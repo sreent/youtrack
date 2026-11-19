@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "过去一小时内，你已向助手求助{max, plural, =1 {一次} other { # 次}}，已达到每人的上限。请{minutes, plural, other { # 分钟}}后重试。",
   "problem.ai.writing.lineNeeded": "请先写一句话作为起草依据，说明要写什么，然后重新请求。",
   "problem.ai.writing.lineTooLong": "用于起草的这段文字有 {length, number} 个字符，而助手最多接受 {max, number} 个。请用一两句话说明要写什么，然后重新请求。",
+  "problem.ai.writing.notADraft": "只有草稿会流式传输。其他回答完整送达，供比较和接受。",
   "problem.ai.writing.nothingToWorkOn": "没有可处理的文字。请输入或选中一些文字，然后重新请求。",
   "problem.ai.writing.selectionTooLong": "文本有 {length, number} 个字符，而助手最多总结 {max, number} 个。请少选一些，然后重新请求。",
   "problem.ai.writing.summaryNotPostable": "无法发布此总结：距生成已超过一小时，或内容已不是助手写的原样。请重新总结该问题，再发布新的总结。",

@@ -4246,6 +4246,7 @@
   "problem.ai.writing.limit": "You’ve asked the assistant for help {max, plural, one {once} other {# times}} in the last hour, as often as it answers anyone. Try again in {minutes, plural, one {# minute} other {# minutes}}.",
   "problem.ai.writing.lineNeeded": "Write a line to draft from. Say what it should be about, in a sentence, and ask again.",
   "problem.ai.writing.lineTooLong": "The line to draft from is {length, number} characters long, and the assistant takes {max, number} at most. Say what to write in a sentence or two, and ask again.",
+  "problem.ai.writing.notADraft": "Only a draft is streamed. Other answers come whole, to compare and accept.",
   "problem.ai.writing.nothingToWorkOn": "There are no words to work on. Write some, or select some, and ask again.",
   "problem.ai.writing.selectionTooLong": "The text is {length, number} characters long, and the assistant summarises {max, number} at most. Select less of it, and ask again.",
   "problem.ai.writing.summaryNotPostable": "This summary can’t be posted: it’s more than an hour old, or not as the assistant wrote it. Summarise the issue again, and post that.",
