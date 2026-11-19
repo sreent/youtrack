@@ -31,7 +31,7 @@ import { createConversation, decide, deleteConversation, getConversation, listCo
 import { aiService, requireAI } from '../../ai/client';
 import { AI_PROVIDERS } from '../../ai/providers';
 import { similarWithJudgement, wordsToCommand, wordsToQuery } from '../../ai/nl';
-import { postSummary, suggestSummary, summarizeArticle, summarizeIssue, summarizeText, writeWithAI } from '../../ai/writing';
+import { postSummary, streamDraft, suggestSummary, summarizeArticle, summarizeIssue, summarizeText, writeWithAI } from '../../ai/writing';
 import { applySuggestion, dismissSuggestion, listPendingSuggestions, listSuggestions, triageIssue } from '../../ai/triage';
 import { requireScope, type Ctx } from '../../context';
 import { TOOLS } from '../../tools/registry';
@@ -162,6 +162,20 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
   );
   route(
     app,
+    {
+      method: 'post',
+      path: '/ai/write/stream',
+      tags,
+      summary: 'Draft a text, streamed (Server-Sent Events): each finished line as it is written',
+      description:
+        "draft streams its words as the model writes them: each finished line, checked (ids the reader can't see taken out) before it reaches the reader, as a `draft` event with the text so far; the whole text as `done`, a failure as `error`. The same cap as /ai/write. Other actions aren't streamed: they come whole, to compare and accept.",
+      body: WriteBody,
+      status: 200,
+    },
+    async ({ c, ctx, body }) => streamDraftText(c, (emit) => streamDraft(ctx, body, emit)),
+  );
+  route(
+    app,
     { method: 'post', path: '/ai/summarize', tags, summary: 'Summarise a text, such as a selection, in the reader’s language', body: SummarizeTextBody, response: TextSummarySchema, status: 200 },
     ({ ctx, body }) => summarizeText(ctx, body.text, body.language),
   );
@@ -247,6 +261,50 @@ export function aiRoutes(app: OpenAPIHono<HttpEnv>) {
       return streamTurn(c, (emit) => decide(ctx, params.id, body.decisions, emit));
     },
   );
+}
+
+/** Stream a draft's text as SSE (D59's revisit): each finished line as `draft`, the whole text as `done`, a failure as `error`. */
+export function streamDraftText(c: Parameters<typeof streamSSE>[0], run: (emit: (text: string) => void) => Promise<{ text: string; model: string }>) {
+  c.header('x-accel-buffering', 'no');
+  return streamSSE(c, async (stream) => {
+    const queue: string[] = [];
+    let wake: (() => void) | null = null;
+    let finished = false;
+    let outcome: { text: string; model: string } | null = null;
+    let failure: string | null = null;
+    const work = run((text) => {
+      queue.push(text);
+      wake?.();
+    })
+      .then((r) => {
+        outcome = r;
+      })
+      .catch((e: unknown) => {
+        failure = e instanceof Error ? e.message : String(e);
+      })
+      .finally(() => {
+        finished = true;
+        wake?.();
+      });
+    while (!stream.aborted) {
+      while (queue.length) await stream.writeSSE({ event: 'draft', data: JSON.stringify({ text: queue.shift()! }) });
+      if (finished) break;
+      let quiet = false;
+      await new Promise<void>((r) => {
+        wake = r;
+        setTimeout(() => {
+          quiet = true;
+          r();
+        }, 15_000).unref?.();
+      });
+      wake = null;
+      if (quiet && !queue.length && !finished && !stream.aborted) await stream.write(': keep-alive\n\n');
+    }
+    await work;
+    if (stream.aborted) return;
+    if (failure) await stream.writeSSE({ event: 'error', data: JSON.stringify({ message: failure }) });
+    else await stream.writeSSE({ event: 'done', data: JSON.stringify(outcome) });
+  });
 }
 
 /** Fail before opening a stream when the request can't work at all. */
