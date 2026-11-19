@@ -70,6 +70,7 @@ export function RichField({
   writingEndpoint,
   holdPictures,
   drafted,
+  skipLimits,
 }: {
   id: string;
   /** The field's name, said by the visual editor (a label can't name an editable region). */
@@ -93,10 +94,12 @@ export function RichField({
   holdPictures?: (files: File[], marks: string[]) => void;
   /** The host's: true while the text is an accepted suggestion, for the save to keep (D59). */
   drafted?: MutableRefObject<boolean>;
+  /** The portal's fields: its server answers no guest for the limits, so they're not asked (the server still enforces them). */
+  skipLimits?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>(storedMode);
   const [status, setStatus] = useState<{ text: string; bad?: boolean } | null>(null);
-  const limits = useAttachmentLimits();
+  const limits = useAttachmentLimits(!skipLimits);
   const everyone = useUsers({ enabled: !people });
   const latest = useRef(value);
   latest.current = value;

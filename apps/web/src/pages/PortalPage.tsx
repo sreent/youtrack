@@ -670,6 +670,7 @@ function RequestView({ id, me, onBack }: { id: string; me: PortalMe; onBack: () 
                 writing={{ kind: 'comment', issue: id }}
                 writingEndpoint="/portal/write"
                 drafted={drafted}
+                skipLimits
               />
             )}
           </FormField>
@@ -738,6 +739,7 @@ function NewRequest({ desks, me, onMade }: { desks: PortalDesk[]; me: PortalMe; 
             people={[]}
             writing={{ kind: 'comment', title: summary || undefined }}
             writingEndpoint="/portal/write"
+            skipLimits
           />
         )}
       </FormField>
