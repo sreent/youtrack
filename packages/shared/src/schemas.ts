@@ -395,6 +395,10 @@ export type HelpdeskSettings = z.infer<typeof HelpdeskSettingsSchema>;
 export const TimeSettingsSchema = z
   .object({
     workTypeRequired: z.boolean().describe('Whether work logged in the project must say its type (D43)'),
+  timesheetApproval: z
+    .enum(['every', 'any'])
+    .optional()
+    .describe("Who approves a week of time that holds this project's work (D43's revisit): 'every', its managers among the managers of every project the week holds work in (the default); 'any', a manager of any project the week holds work in"),
   })
   .meta({ id: 'TimeSettings' });
 export type TimeSettings = z.infer<typeof TimeSettingsSchema>;

@@ -31,6 +31,10 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
     mutationFn: (on: boolean) => patch(`/projects/${project.key}`, { settings: { time: { workTypeRequired: on } } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.project(project.key) }),
   });
+  const approval = useMutation({
+    mutationFn: (rule: 'every' | 'any') => patch(`/projects/${project.key}`, { settings: { time: { timesheetApproval: rule } } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.project(project.key) }),
+  });
   const list = types.data ?? [];
   return (
     <div className="stack">
@@ -74,6 +78,13 @@ export function WorkTypes({ project, canEdit }: { project: Project; canEdit: boo
               onChange={(e) => required.mutate(e.target.checked)}
             />
             <span>{tx('projects.workTypes.workLoggedHereMustSay')}</span>
+          </label>
+          <label className="form-field">
+            <span>{tx('projects.workTypes.approvalLabel')}</span>
+            <select value={project.settings.time.timesheetApproval ?? 'every'} onChange={(e) => approval.mutate(e.target.value as 'every' | 'any')}>
+              <option value="every">{tx('projects.workTypes.approvalEvery')}</option>
+              <option value="any">{tx('projects.workTypes.approvalAny')}</option>
+            </select>
           </label>
         </>
       ) : project.settings.time.workTypeRequired ? (
