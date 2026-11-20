@@ -436,7 +436,7 @@ describe('the batch answer', () => {
 });
 describe('freehand drawings and pictures (D58’s revisit)', () => {
   it('a stroke is one ink element, in its own box; a picture is uploaded to the whiteboard and read by its readers alone', async () => {
-    const board = await createWhiteboard(anna, { project: 'BACK', name: 'Sketches' });
+    const board = await createWhiteboard(anna, { project: 'SECRET', name: 'Sketches' });
     const ink = await applyWhiteboardBatch(anna, board.id, { ops: [{ op: 'add', id: 'ink-00001', kind: 'ink', x: 10, y: 20, w: 60, h: 40, points: '0,0 30,10 60,40' }] });
     expect(ink.refused).toEqual([]);
     const drawn = (await getWhiteboard(anna, board.id)).elements.find((e) => e.id === 'ink-00001');

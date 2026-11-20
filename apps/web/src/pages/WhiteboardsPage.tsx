@@ -25,14 +25,14 @@ export default function WhiteboardsPage() {
   const projects = useProjects().data ?? [];
   const writable = projects.filter((p: Project) => p.access.write && !p.archived);
   const [name, setName] = useState('');
-  const [where, setWhere] = useState('');
+  const [where, setWhere] = useState<string | null>(null);
   const [share, setShare] = useState<'everyone' | 'limited'>('everyone');
   const [sharedWith, setSharedWith] = useState<Limit>({ users: [], groups: [] });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const target = where || (writable.some((p) => p.key === project) ? project : (writable[0]?.key ?? ''));
+  const target = where ?? (writable.some((p) => p.key === project) ? project : (writable[0]?.key ?? ''));
   return (
     <>
       <PageHead title={t('page.whiteboards.title')} about={t('page.whiteboards.about')} />
@@ -63,7 +63,7 @@ export default function WhiteboardsPage() {
               </FormField>
               <FormField label={t('page.whiteboards.project')} help={t('page.whiteboards.projectHelp')}>
                 {(id, help) => (
-                  <select id={id} aria-describedby={help} value={target} onChange={(e) => setWhere(e.target.value)}>
+                  <select id={id} aria-describedby={help} value={where ?? target} onChange={(e) => setWhere(e.target.value)}>
                     <option value="">{t('page.whiteboards.myOwn')}</option>
                     {writable.map((p) => (
                       <option key={p.key} value={p.key}>
