@@ -612,7 +612,7 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
               <button type="button" onClick={() => pickFile.current?.click()}>
                 {t('page.whiteboard.picture')}
               </button>
-              <input ref={pickFile} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(e) => {
+              <input ref={pickFile} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" aria-hidden="true" tabIndex={-1} onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = '';
                 if (f) void picture(f);

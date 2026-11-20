@@ -16,6 +16,7 @@ import { issueTokenFor } from '../src/services/auth';
 import { createIssue, deleteIssue, getIssue } from '../src/services/issues';
 import { addMember, removeMember } from '../src/services/members';
 import { createProject, updateProject } from '../src/services/projects';
+import { insertUser } from '../src/services/users';
 import {
   applyWhiteboardBatch,
   convertWhiteboard,
@@ -460,7 +461,10 @@ describe('freehand drawings and pictures (D58’s revisit)', () => {
     // Its bytes: the whiteboard's readers see them; a stranger hears of nothing.
     const seen = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${tokens.anna}` } });
     expect(seen.status).toBe(200);
-    const stranger = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${tokens.vera}` } });
+    // Its bytes: the whiteboard's readers see them; someone outside its project hears of nothing.
+    const out = await insertUser(w.app.db, { login: 'outsider', name: 'Out Sider', role: 'member' });
+    const outToken = (await issueTokenFor(w.app.db, out.id, { name: 'outsider', scopes: ['read', 'write'] })).token;
+    const stranger = await http.request(`/api/v1/attachments/${att.id}/content`, { headers: { authorization: `Bearer ${outToken}` } });
     expect(stranger.status).toBe(404);
     // A file that isn't a picture, and one not on this board, are refused.
     const logForm = new FormData();
