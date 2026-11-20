@@ -401,8 +401,8 @@ export async function renderPortalPassword(app: AppServices, mail: MailRow): Pro
   await app.db.insert(requesterSignIns).values({ tokenHash: sha256(token), requesterId: requester.id, purpose: 'password', expiresAt: new Date(Date.now() + PASSWORD_LINK_TTL_MS) });
   const s = await app.schema.get();
   const desk = p.desk ? s.projectsByKey.get(p.desk) : undefined;
-  // In the help desk's language, as its other emails to a requester are (D49).
-  const tr = deskTranslator(app);
+  // In the requester's own language when their browser asked for one (D63's revisit); else the desk's (D49).
+  const tr = deskTranslator(app, requester.locale);
   const where = desk ? tr.t('server.portal.deskOf', { project: desk.name }) : tr.t('server.portal.theDesk');
   const has = requester.passwordHash ? 'yes' : 'no';
   const subject = tr.t('server.portalPassword.subject', { where, has });
@@ -514,7 +514,7 @@ export async function renderPortalAccount(app: AppServices, mail: MailRow): Prom
   const p = mail.payload as { requesterId?: string; what?: Told; provider?: string | null };
   const [requester] = await app.db.select().from(requesters).where(eq(requesters.id, String(p.requesterId ?? '')));
   if (!requester) return null;
-  const tr = deskTranslator(app);
+  const tr = deskTranslator(app, requester.locale);
   const what = p.what === 'provider' || p.what === 'passwordChanged' ? p.what : 'passwordSet';
   const values = { what, provider: p.provider ?? '', email: requester.email };
   const subject = tr.t('server.portalAccount.subject', values);

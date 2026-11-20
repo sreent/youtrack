@@ -16,7 +16,7 @@ import type { AppServices } from '../context';
 import type { Db } from '../db/client';
 import { comments, customerGroups, helpdeskRequests, issues, requesterSessions, requesterSignIns, requesters } from '../db/schema';
 import { AUTOMATIC, composeMail, type RenderedMail } from '../mail/compose';
-import { langTag } from '@a4a/shared/i18n';
+import { langTag, matchLocale } from '@a4a/shared/i18n';
 import { enqueueMail, kickMail, type MailRow } from '../mail/outbox';
 import { randomToken, sha256 } from '../lib/crypto';
 import { AppError } from '../lib/errors';
@@ -127,7 +127,7 @@ export async function redeemSignIn(app: AppServices, token: string): Promise<{ s
 }
 
 /** The requester a portal session is theirs, and how it was opened, or a 401. Seen at most once a minute, to keep writes down. */
-export async function portalRequester(app: AppServices, session: string | undefined): Promise<PortalViewer> {
+export async function portalRequester(app: AppServices, session: string | undefined, acceptLanguage?: string | null): Promise<PortalViewer> {
   if (!session?.startsWith(SESSION_PREFIX)) throw signedOut();
   const [row] = await app.db
     .select({ requester: requesters, s: requesterSessions })
@@ -137,6 +137,14 @@ export async function portalRequester(app: AppServices, session: string | undefi
   if (!row) throw signedOut();
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
     await app.db.update(requesterSessions).set({ lastSeenAt: new Date() }).where(eq(requesterSessions.tokenHash, row.s.tokenHash));
+  }
+  // Their own language (D63's revisit): the browser's, when it is one a4a speaks; the emails follow it.
+  if (acceptLanguage) {
+    const asked = matchLocale(acceptLanguage, app.config.defaultLocale);
+    if (asked !== row.requester.locale) {
+      await app.db.update(requesters).set({ locale: asked }).where(eq(requesters.id, row.requester.id));
+      row.requester.locale = asked;
+    }
   }
   const method = row.s.method === 'password' || row.s.method === 'sso' || row.s.method === 'passkey' ? row.s.method : 'link';
   return { ...row.requester, signedIn: { method, providerId: row.s.providerId ?? null } };

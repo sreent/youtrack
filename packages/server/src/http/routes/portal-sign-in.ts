@@ -171,7 +171,7 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
       await hit(c, [['portalIp', ip(c)]], 'Too many sign-ins from your address', 'helpdesk.tooManySignIns');
       const { session: token } = await setPasswordWithLink(runtime, body.token, body.password, PORTAL_SESSION_MS);
       setPortalSession(c, runtime, token);
-      return portalMe(runtime, await portalRequester(runtime, token));
+      return portalMe(runtime, await portalRequester(runtime, token, c.req.header('accept-language')));
     },
   );
 
@@ -190,11 +190,11 @@ export function portalSignInRoutes(app: OpenAPIHono<HttpEnv>) {
     async ({ c, body }) => {
       const runtime = c.get('runtime');
       sameOrigin(c);
-      const r = await portalRequester(runtime, session(c));
+      const r = await portalRequester(runtime, session(c), c.req.header('accept-language'));
       const attempt = await passwordAttempt(c, r.email);
       await changePassword(runtime, r.id, session(c)!, body.current, body.password);
       await attempt.succeeded();
-      return portalMe(runtime, await portalRequester(runtime, session(c)));
+      return portalMe(runtime, await portalRequester(runtime, session(c), c.req.header('accept-language')));
     },
   );
 

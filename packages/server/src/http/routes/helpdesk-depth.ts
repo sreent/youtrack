@@ -166,7 +166,7 @@ export function helpdeskDepthRoutes(app: OpenAPIHono<HttpEnv>) {
 export function portalRoutes(app: OpenAPIHono<HttpEnv>) {
   const tags = ['Help desk portal'];
   const session = (c: Context<HttpEnv>) => getCookie(c, PORTAL_COOKIE);
-  const who = (c: Context<HttpEnv>) => portalRequester(c.get('runtime'), session(c));
+  const who = (c: Context<HttpEnv>) => portalRequester(c.get('runtime'), session(c), c.req.header('accept-language'));
   const Id = z.object({ id: z.string().min(1).max(40) });
 
   route(

@@ -159,6 +159,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - Das Entfalten: `server.chat.issue.isShared` = „hat den Vorgang geteilt“ — passt das Verb auf der Karte?
+
+With the requester's own language:
+
+- Die Sprache der Requester: die E-Mails folgen jetzt der Sprache des Browsers (auf dem Requester gespeichert). Keine neuen Wörter; eine Frage: soll der Portal-Seite ein Sprachwähler sichtbar sein, oder reicht der Browser?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -318,6 +322,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - El despliegue: `server.chat.issue.isShared` = “compartió la incidencia” — ¿encaja el verbo en la tarjeta?
+
+With the requester's own language:
+
+- El idioma del solicitante: los correos siguen ahora el del navegador (guardado en el solicitante). Sin palabras nuevas; una pregunta: ¿la página del portal debería mostrar un selector de idioma, o basta el navegador?
 ## French
 
 Terms:
@@ -477,6 +485,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - Le dépliage : `server.chat.issue.isShared` = “a partagé le ticket” — le verbe convient-il sur la carte ?
+
+With the requester's own language:
+
+- La langue du demandeur : les courriels suivent désormais celle du navigateur (gardée sur le demandeur). Pas de mots nouveaux ; une question : la page du portail devrait-elle offrir un choix de langue, ou le navigateur suffit-il ?
 ## Japanese
 
 Terms:
@@ -628,6 +640,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - 展開: `server.chat.issue.isShared` = “がチケットを共有しました” — カードの動詞として自然ですか。
+
+With the requester's own language:
+
+- 依頼者の言語: メールはブラウザーの言語に従うようになりました（依頼者に保存）。新しい言葉はありません。質問: ポータルに言語の選択を表示すべきですか、ブラウザーだけで十分ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -758,6 +774,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - O desdobrar: `server.chat.issue.isShared` = “partilhou a tarefa” — o verbo assenta na carta?
+
+With the requester's own language:
+
+- A língua do requerente: os emails seguem agora a do navegador (guardada no requerente). Sem palavras novas; uma pergunta: a página do portal deve mostrar um seletor de língua, ou o navegador basta?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -937,6 +957,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - 펼침: `server.chat.issue.isShared` = “님이 이슈를 공유했습니다” — 카드의 동사로 자연스럽나요?
+
+With the requester's own language:
+
+- 요청자의 언어: 이메일이 이제 브라우저의 언어를 따릅니다(요청자에 저장). 새 문구는 없습니다. 질문: 포털 페이지에 언어 선택기를 보여줘야 할까요, 브라우저로 충분할까요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -1107,6 +1131,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - 展开：`server.chat.issue.isShared` = “分享了该问题” ——卡片上的动词自然吗？
+
+With the requester's own language:
+
+- 请求者的语言：邮件现在跟随浏览器的语言（保存在请求者上）。没有新词。问题：门户页面是否应显示语言选择器，还是浏览器就够了？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1289,6 +1317,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - Mở rộng: `server.chat.issue.isShared` = “đã chia sẻ vấn đề” — động từ trên thẻ có ổn không?
+
+With the requester's own language:
+
+- Ngôn ngữ của người yêu cầu: email giờ theo ngôn ngữ trình duyệt (lưu trên người yêu cầu). Không có từ mới. Câu hỏi: trang cổng có nên hiện bộ chọn ngôn ngữ, hay trình duyệt là đủ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1468,6 +1500,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - Membentangkan: `server.chat.issue.isShared` = “membagikan tiketnya” — apakah kata kerjanya pas di kartu?
+
+With the requester's own language:
+
+- Bahasa peminta: email kini mengikuti bahasa peramban (disimpan pada peminta). Tanpa kata baru. Pertanyaan: perlukah halaman portal menampilkan pemilih bahasa, atau peramban cukup?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1648,6 +1684,10 @@ Messages added with the load grid's team:
 Messages added with Teams' link unfurling:
 
 - การขยาย: `server.chat.issue.isShared` = “แชร์ตั๋วแล้ว” — คำกริยาบนการ์ดเหมาะสมไหม
+
+With the requester's own language:
+
+- ภาษาของผู้ร้อง: อีเมลตามภาษาของเบราว์เซอร์แล้ว (เก็บไว้ที่ผู้ร้อง) ไม่มีคำใหม่ คำถาม: หน้าพอร์ทัลควรมีตัวเลือกภาษาหรือไม่ หรือเบราว์เซอร์ก็พอ
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

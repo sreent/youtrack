@@ -24,8 +24,8 @@ import type { SchemaSnapshot } from '../services/schema-cache';
  * The language a desk's emails are in: the server's, since a requester has no profile (D49) and a
  * desk no language of its own. Its requester and everyone copied on a request read the same.
  */
-export function deskTranslator(app: AppServices): Translator {
-  return translatorFor(app.config.defaultLocale);
+export function deskTranslator(app: AppServices, locale?: string | null): Translator {
+  return translatorFor(locale ?? app.config.defaultLocale);
 }
 
 type Payload = { issueId?: string; commentId?: string; from?: string | null; to?: string | null; resolved?: boolean; ccId?: string };
@@ -46,8 +46,8 @@ export async function renderRequestMail(app: AppServices, row: MailRow): Promise
   if (row.kind !== 'request-received' && request.emailMutedAt) return null;
   const s = await app.schema.get();
   const project = s.projects.get(issue.projectId);
-  // A requester has no profile: the desk's language, the server's (D49).
-  const tr = deskTranslator(app);
+  // Their own language when their browser asked for one (D63's revisit); else the desk's, the server's (D49).
+  const tr = deskTranslator(app, requester.locale);
   const desk = project ? tr.t('server.helpdesk.deskOf', { project: project.name }) : tr.t('server.helpdesk.theDesk');
 
   let subject = `Re: ${issue.summary}`;

@@ -1402,6 +1402,8 @@ export const requesters = pgTable(
     name: text('name').notNull(),
     /** Their portal password (D63), as scrypt hashes members' (lib/crypto.ts); null for none. It opens the portal alone. */
     passwordHash: text('password_hash'),
+    /** Their own language (D63's revisit): the portal's emails follow it, as their browser asked; null for the desk's. */
+    locale: text('locale'),
     passwordSetAt: ts('password_set_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),

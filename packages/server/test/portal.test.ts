@@ -5,8 +5,9 @@
  */
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { users } from '../src/db/schema';
+import { requesters, users } from '../src/db/schema';
 import { OutboxWorker } from '../src/events/worker';
+import { deskTranslator } from '../src/helpdesk/mails';
 import { helpdeskConsumer } from '../src/helpdesk/consumer';
 import { createHttpApp } from '../src/http/app';
 import { MailWorker } from '../src/mail/outbox';
@@ -32,8 +33,8 @@ async function flush() {
 
 function browser(ip: string) {
   let cookie = '';
-  const req = async (method: string, path: string, body?: unknown, opts: { origin?: string | null } = {}) => {
-    const headers: Record<string, string> = { 'x-forwarded-for': ip };
+  const req = async (method: string, path: string, body?: unknown, opts: { origin?: string | null; headers?: Record<string, string> } = {}) => {
+    const headers: Record<string, string> = { 'x-forwarded-for': ip, ...(opts.headers ?? {}) };
     if (cookie) headers.cookie = cookie;
     if (opts.origin !== null && method !== 'GET') headers.origin = opts.origin ?? BASE;
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -161,5 +162,16 @@ describe('the portal', () => {
     expect(res.status).toBe(204);
     await flush();
     expect(signInToken('ida@example.net')).toMatch(/^hdl_/);
+  });
+});
+describe("the requester's own language (D63's revisit)", () => {
+  it('keeps the browser\'s, and the desk\'s emails follow it', async () => {
+    const b = await signedIn('anna@acme.example', '10.0.0.9');
+    await b.req('GET', '/portal/me', undefined, { headers: { 'accept-language': 'de' } });
+    const [r] = await w.app.db.select().from(requesters).where(eq(requesters.email, 'anna@acme.example'));
+    expect(r!.locale).toBe('de');
+    // An email to them now reads German.
+    const tr = deskTranslator(w.app, r!.locale);
+    expect(tr.locale).toBe('de');
   });
 });
