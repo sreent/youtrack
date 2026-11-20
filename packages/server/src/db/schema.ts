@@ -1081,13 +1081,13 @@ export const attachments = pgTable(
   'attachments',
   {
     id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    // An issue's file, or a comment's (which also names the comment's issue), or an article's.
+    /** The issue's or the article's project; a whiteboard's picture keeps its board instead. */
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    // An issue's file, or a comment's (which also names the comment's issue), or an article's, or a whiteboard's picture (D58's revisit).
     issueId: text('issue_id').references(() => issues.id, { onDelete: 'cascade' }),
     commentId: text('comment_id').references(() => comments.id, { onDelete: 'cascade' }),
     articleId: text('article_id').references(() => articles.id, { onDelete: 'cascade' }),
+    whiteboardId: text('whiteboard_id').references(() => whiteboards.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     contentType: text('content_type').notNull(),
     size: bigint('size', { mode: 'number' }).notNull(),
@@ -1105,7 +1105,7 @@ export const attachments = pgTable(
     index('attachments_article').on(t.articleId, t.createdAt),
     index('attachments_comment').on(t.commentId),
     uniqueIndex('attachments_blob').on(t.blobKey),
-    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL)`),
+    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.issueId} IS NULL) <> (${t.whiteboardId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL) AND (${t.projectId} IS NOT NULL OR ${t.whiteboardId} IS NOT NULL)`),
   ],
 );
 
@@ -3049,6 +3049,10 @@ export const whiteboardElements = pgTable(
     articleId: text('article_id').references(() => articles.id, { onDelete: 'set null' }),
     /** An arrow made into a link between its issues: the link as it reads from the arrow's start. */
     linked: text('linked'),
+    /** A freehand drawing's stroke (D58's revisit): points in its own box, `x,y x,y`... */
+    points: text('points'),
+    /** A picture on the whiteboard: its attachment, uploaded and kept like every file. */
+    attachmentId: text('attachment_id').references(() => attachments.id, { onDelete: 'set null' }),
     /** The whiteboard's change that last changed it. */
     seq: bigint('seq', { mode: 'number' }).notNull(),
     version: integer('version').notNull().default(1),
