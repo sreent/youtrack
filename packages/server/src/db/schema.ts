@@ -1105,7 +1105,7 @@ export const attachments = pgTable(
     index('attachments_article').on(t.articleId, t.createdAt),
     index('attachments_comment').on(t.commentId),
     uniqueIndex('attachments_blob').on(t.blobKey),
-    check('attachments_one_owner', sql`(${t.issueId} IS NULL) <> (${t.articleId} IS NULL) AND (${t.issueId} IS NULL) <> (${t.whiteboardId} IS NULL) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL) AND (${t.projectId} IS NOT NULL OR ${t.whiteboardId} IS NOT NULL)`),
+    check('attachments_one_owner', sql`((${t.issueId} IS NOT NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NOT NULL AND ${t.whiteboardId} IS NULL) OR (${t.issueId} IS NULL AND ${t.articleId} IS NULL AND ${t.whiteboardId} IS NOT NULL)) AND (${t.commentId} IS NULL OR ${t.issueId} IS NOT NULL) AND (${t.projectId} IS NOT NULL OR ${t.whiteboardId} IS NOT NULL)`),
   ],
 );
 

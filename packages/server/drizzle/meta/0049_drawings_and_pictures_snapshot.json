@@ -2398,7 +2398,7 @@
    "checkConstraints": {
     "attachments_one_owner": {
      "name": "attachments_one_owner",
-     "value": "(\"attachments\".\"issue_id\" IS NULL) <> (\"attachments\".\"article_id\" IS NULL) AND (\"attachments\".\"comment_id\" IS NULL OR \"attachments\".\"issue_id\" IS NOT NULL)"
+     "value": "((\"attachments\".\"issue_id\" IS NOT NULL AND \"attachments\".\"article_id\" IS NULL AND \"attachments\".\"whiteboard_id\" IS NULL) OR (\"attachments\".\"issue_id\" IS NULL AND \"attachments\".\"article_id\" IS NOT NULL AND \"attachments\".\"whiteboard_id\" IS NULL) OR (\"attachments\".\"issue_id\" IS NULL AND \"attachments\".\"article_id\" IS NULL AND \"attachments\".\"whiteboard_id\" IS NOT NULL)) AND (\"attachments\".\"comment_id\" IS NULL OR \"attachments\".\"issue_id\" IS NOT NULL) AND (\"attachments\".\"project_id\" IS NOT NULL OR \"attachments\".\"whiteboard_id\" IS NOT NULL)"
     }
    },
    "isRLSEnabled": false
