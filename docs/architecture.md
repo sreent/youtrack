@@ -922,7 +922,7 @@ A person's days away are whole days, or the morning or the afternoon of one. The
 - The backward pass reuses the forward pass's length. That's off only when a half day falls between the earliest and the latest a task could start.
 - A plan's people's days away are read with the plan: one query.
 
-**Revisit when:** days away should come from an HR system (iCal or its API), as the same rows. (People working part time on a pattern have a working week of their own: D43.)
+**Revisit when:** days away should come from several HR systems, or hold which person each came as; a feed is one per person, set by an administrator. (People working part time on a pattern have a working week of their own: D43.)
 
 ### D37. Access in depth: who sees an issue or a comment, roles as permissions, and guests
 
@@ -2243,11 +2243,8 @@ D68 left passkeys required of everyone or of administrators only, and an id that
 
 Planned, with the seams already in place:
 
-- days away from an HR calendar (D36);
-- scripts that call out through a signed webhook, and code shared between a project's scripts (D40);
-- chat beyond Teams and Slack (Google Chat, Mattermost), Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
+- Google Chat or Mattermost, Teams' own link unfurling (a message extension), and a channel's posts updated in place as their issue changes (D42);
 - a thread's replies in an issue made from a Teams message (through Microsoft Graph), and a message's files brought into the issue rather than linked (D60);
-- a team's capacity beyond a sprint's assignees, and timesheets submitted and approved (D43);
 - SAML for requesters' identity providers, a desk's own provider limited to its customers, and the desk's emails in a requester's own language (D63);
 - customers that several desks serve, a requester in several groups at a desk, and members told of their group's requests (D56);
 - builds from GitLab's and Bitbucket's pipelines as GitHub's workflow runs come, a build's commits by the commit graph rather than by time, and GitHub Issues' reactions in an import (D46);

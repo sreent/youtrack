@@ -166,6 +166,7 @@ export const UserSchema = UserRefSchema.extend({
     .describe("Their working week: hours on each weekday, Sunday first. Null: the plan's working days at their capacity"),
   createdAt: timestamp,
   signIn: SignInSchema.optional().describe('How they sign in: only in what administrators get'),
+  hrCalendar: z.string().nullable().optional().describe("Their HR calendar's iCal feed (D36's revisit): only in what administrators get"),
 }).meta({ id: 'User' });
 export type User = z.infer<typeof UserSchema>;
 
@@ -258,6 +259,12 @@ export const UpdateUserBody = z.object({
   hourlyRate: z.number().min(0).nullable().optional(),
   capacityHoursPerDay: z.number().min(0).max(24).optional(),
   workWeek: workWeek.nullable().optional().describe('Hours on each weekday, Sunday first; null for the plan\'s working days'),
+  hrCalendar: z
+    .string()
+    .url()
+    .nullable()
+    .optional()
+    .describe("Their HR calendar (D36's revisit): an iCal feed whose days away are filed for them; administrators set it"),
 });
 
 export const ApiTokenSchema = z

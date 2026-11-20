@@ -50,6 +50,7 @@ export const NOBODY = {
   hourlyRate: null,
   capacityHoursPerDay: 0,
   workWeek: null,
+  hrCalendar: null,
   timeZone: null,
   locale: null,
   lastSignInAt: null,

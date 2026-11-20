@@ -133,13 +133,15 @@ export async function updateUser(
     timeZone?: string | null;
     /** One of LOCALES, or null for their browser's (D49). */
     locale?: string | null;
+    /** Their HR calendar (D36's revisit): an iCal feed; administrators set it. */
+    hrCalendar?: string | null;
   },
 ): Promise<User> {
   const s = await ctx.app.schema.get();
   const target = s.users.get(idOrLogin) ?? findUser(s, idOrLogin, ctx.actor.user.id);
   if (!target) throw notFound(`User ${idOrLogin}`).said('notFound.user', { id: idOrLogin });
   const self = target.id === ctx.actor.user.id;
-  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined || input.passkeyExempt !== undefined;
+  const adminOnly = input.role !== undefined || input.banned !== undefined || input.hourlyRate !== undefined || input.passkeyExempt !== undefined || input.hrCalendar !== undefined;
   if (!self || adminOnly) requireScope(ctx, 'admin');
   else requireScope(ctx, 'write');
   if (self && input.role && input.role !== 'admin' && target.role === 'admin') {
@@ -166,6 +168,7 @@ export async function updateUser(
       ...(input.hourlyRate !== undefined ? { hourlyRate: input.hourlyRate } : {}),
       ...(input.capacityHoursPerDay !== undefined ? { capacityHoursPerDay: input.capacityHoursPerDay } : {}),
       ...(input.workWeek !== undefined ? { workWeek: input.workWeek } : {}),
+      ...(input.hrCalendar !== undefined ? { hrCalendar: input.hrCalendar } : {}),
       ...(input.timeZone !== undefined ? { timeZone: input.timeZone } : {}),
       ...(input.locale !== undefined ? { locale: input.locale } : {}),
       updatedAt: new Date(),

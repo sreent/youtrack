@@ -135,6 +135,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Die einstellbare Genehmigung: `projects.workTypes.approvalEvery` = „Seine Manager, unter den Managern jedes Projekts, in dem die Woche Arbeit enthält“ — liest sich die lange Beschriftung natürlich?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (HR-Kalender): `page.admin.hrCalendar` = „HR-Kalender“ und `problem.absences.fromHr` = „Diese Tage kommen aus dem HR-Kalender...“ — klingt die Erklärung natürlich?
 ## Spanish
 
 One Spanish for Spain and Latin America, as [translating.md](translating.md) says. These lean one way:
@@ -270,6 +274,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - La aprobación configurable: `projects.workTypes.approvalEvery` = “Sus gestores, entre los gestores de cada proyecto donde la semana tiene trabajo” — ¿natural, pese a lo largo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendario de RR. HH.): `page.admin.hrCalendar` = “Calendario de RR. HH.” y el rechazo “Estos días vienen del calendario de RR. HH...” — ¿naturales?
 ## French
 
 Terms:
@@ -405,6 +413,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - L'approbation configurable : `projects.workTypes.approvalEvery` = “Ses gestionnaires, parmi les gestionnaires de chaque projet où la semaine a du travail” — naturel malgré la longueur ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendrier RH) : `page.admin.hrCalendar` = “Calendrier RH” et le refus “Ces jours viennent du calendrier RH...” — naturels ?
 ## Japanese
 
 Terms:
@@ -532,6 +544,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 設定可能な承認: `projects.workTypes.approvalEvery` = “その週の作業を含む全プロジェクトのマネージャーのうち、このプロジェクトのマネージャー” — 長いですが自然ですか。
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（HR カレンダー）: `page.admin.hrCalendar` = “HR カレンダー”、拒否の文言 = “この日々は HR カレンダーから...” — 自然ですか。
 ## Portuguese
 
 `pt.json` was written for Brazil in one pass by a model working from English, then edited by a model for natural Brazilian phrasing. It is now Portugal's Portuguese: a third pass, by a model again and not a native speaker, converted every message to Portuguese as Portugal's software writes it (Microsoft's and Google's interfaces in Portugal the model), read part by part in the order people see them: sign-in and the frame, issues, boards, the inbox and its emails, the help desk, the problems, then the rest. No one from Portugal has read it. These are the choices a native speaker should settle.
@@ -638,6 +654,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - A aprovação configurável: `projects.workTypes.approvalEvery` = “Os seus gestores, entre os gestores de cada projeto onde a semana tem trabalho” — natural, apesar de longo?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (calendário de RH): `page.admin.hrCalendar` = “Calendário de RH” e a recusa “Estes dias vêm do calendário de RH...” — naturais?
 ## Korean
 
 Korean was translated in one pass, from English, the code and [translating.md](translating.md), by a model working alone, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Its messages were checked by machine for what a catalog must keep (every placeholder, tag, select case and `#`, Korean's one plural category) and read in a browser through the sign-in page, the issues, an issue, the inbox and the profile.
@@ -793,6 +813,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 설정 가능한 승인: `projects.workTypes.approvalEvery` = “그 주의 작업이 있는 모든 프로젝트의 관리자 중 이 프로젝트의 관리자” — 길지만 자연스럽나요?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18(HR 달력): `page.admin.hrCalendar` = “HR 달력”, 거부 문구 = “이 날짜들은 HR 달력에서...” — 자연스럽나요?
 ## Simplified Chinese
 
 The whole catalog was translated in one pass by a model, working from English, the code, [translating.md](translating.md) and the other catalogs, then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it. Everything below is open.
@@ -939,6 +963,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - 可配置的审批: `projects.workTypes.approvalEvery` = “它的管理者，且是该周有工作的每个项目的管理者”——虽然长，读起来自然吗？
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18（人事日历）: `page.admin.hrCalendar` = “人事日历”，拒绝说明 = “这些日子来自人事日历...” ——自然吗？
 ## Vietnamese
 
 Translated whole by one model, from English, the code and [translating.md](translating.md), then edited twice by models for natural phrasing (the lists under "Edited for natural phrasing"), with no native speaker yet.
@@ -1097,6 +1125,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Duyệt có thể cấu hình: `projects.workTypes.approvalEvery` = “Người quản lý của nó, trong số người quản lý của mọi dự án mà tuần đó có việc” — dài nhưng tự nhiên chứ?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (lịch nhân sự): `page.admin.hrCalendar` = “Lịch nhân sự” và lời từ chối = “Những ngày này đến từ lịch nhân sự...” — tự nhiên chứ?
 ## Indonesian
 
 Indonesian was translated in one pass, by a model working from English, the code and [translating.md](translating.md). A second and a third read, by models again, edited it for natural phrasing (the lists under "Edited for natural phrasing"); no native speaker has read it yet.
@@ -1252,6 +1284,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - Persetujuan yang dapat diatur: `projects.workTypes.approvalEvery` = “Manajernya, di antara manajer setiap proyek yang pekan itu memuat pekerjaan” — apakah alami meski panjang?
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (kalender SDM): `page.admin.hrCalendar` = “Kalender SDM” dan penolakan = “Hari-hari ini datang dari kalender SDM...” — apakah alami?
 ## Thai
 
 Thai was written in one pass by a writer who isn't a native speaker, as the others were; nobody who reads Thai daily has checked it. The Thai section of [translating.md](translating.md#thai) gives the reasons for each choice below.
@@ -1408,6 +1444,10 @@ Messages added in wave 16 (the script library's page):
 Messages added with the configurable approval rule:
 
 - การอนุมัติที่ตั้งค่าได้: `projects.workTypes.approvalEvery` = “ผู้จัดการของมัน ในกลุ่มผู้จัดการของทุกโปรเจกต์ที่สัปดาห์นั้นมีงาน” — ยาวแต่เป็นธรรมชาติไหม
+
+Messages added in wave 18 (the HR calendar):
+
+- Wave 18 (ปฏิทิน HR): `page.admin.hrCalendar` = “ปฏิทิน HR” และข้อความปฏิเสธ = “วันเหล่านี้มาจากปฏิทิน HR...” — ธรรมชาติหรือไม่
 ## What a catalog can't say yet
 
 These need the code to change, not a catalog:

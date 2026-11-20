@@ -83,6 +83,8 @@ export const users = pgTable(
      * days at their capacity. The timesheet, the load grid, scheduling and levelling use it.
      */
     workWeek: jsonb('work_week').$type<number[]>(),
+  /** Their HR calendar (D36's revisit): an iCal feed an administrator sets, whose days away are filed for them. */
+  hrCalendar: text('hr_calendar'),
     /** Their time zone (IANA), for "today" in their searches, their digest's hour and their email's times. Null: the server's. */
     timeZone: text('time_zone'),
     /** The language they read a4a in (D49): one of LOCALES, or null for their browser's (and, by email, the server's default). */
@@ -1587,6 +1589,10 @@ export const absences = pgTable(
     half: text('half'),
     /** 'holiday' | 'sick' | 'training' | 'other': seen only by the person, administrators and whoever entered it. */
     kind: text('kind').notNull(),
+    /** 'entered' by a person, or 'hr': filed from the person's HR calendar (D36's revisit), which alone changes it. */
+    source: text('source').notNull().default('entered'),
+    /** The HR calendar event's UID, so one event is never filed twice. */
+    externalId: text('external_id'),
     note: text('note').notNull().default(''),
     version: integer('version').notNull().default(1),
     createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
