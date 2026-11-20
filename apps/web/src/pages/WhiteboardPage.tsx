@@ -18,6 +18,7 @@ import { Avatar } from '../components/Who';
 import { ErrorNote, Loading, PageHead } from '../components/States';
 import { Confirm } from '../features/common/Confirm';
 import { deleteWhiteboard, renameWhiteboard, sendBatch, useWhiteboard, useWhiteboardCards, whiteboardKeys } from '../features/whiteboards/api';
+import { SharingDialog } from '../features/whiteboards/SharingDialog';
 import { Canvas, MAX_SCALE, MIN_SCALE, type View } from '../features/whiteboards/Canvas';
 import { CardDialog, ConnectDialog, ConvertDialog, NoteDialog, TextDialog } from '../features/whiteboards/Dialogs';
 import { addStep, applyOps, bounds, contentsOf, editStep, mergeServer, moveStep, newElementId, removeStep, SIZES, KIND_KEY, TONE_KEY, type Step } from '../features/whiteboards/model';
@@ -68,6 +69,7 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
   const [outline, setOutline] = useState(true);
   const [said, setSaid] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [sharing, setSharing] = useState(false);
   const streamSeq = useRef(board.seq);
   const undoStack = useRef<Step[]>([]);
   const redoStack = useRef<Step[]>([]);
@@ -496,7 +498,7 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
   const textDialog = dialog?.kind === 'text' ? dialog : null;
   const textTitles = { text: textDialog?.edit ? 'whiteboards.textDialog.editText' : 'whiteboards.textDialog.addText', section: textDialog?.edit ? 'whiteboards.textDialog.renameSection' : 'whiteboards.textDialog.addSection', label: 'whiteboards.textDialog.labelArrow', rename: 'page.whiteboard.renameTitle' } as const;
   const textLabels = { text: 'whiteboards.textDialog.text', section: 'whiteboards.textDialog.title', label: 'whiteboards.textDialog.label', rename: 'page.whiteboard.name' } as const;
-  const key = board.project.key;
+  const key = board.project?.key ?? '';
 
   if (gone) {
     return (
@@ -517,12 +519,12 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
         crumbs={
           guest ? (
             <>
-              <Link to={`/public?project=${encodeURIComponent(key)}`}>{board.project.name}</Link>
+              <Link to={`/public?project=${encodeURIComponent(key)}`}>{board.project?.name}</Link>
               <span className="sep" aria-hidden="true">
                 /
               </span>
             </>
-          ) : (
+          ) : board.project ? (
             <>
               <Link to="/whiteboards">{t('app.shell.whiteboards')}</Link>
               <span className="sep" aria-hidden="true">
@@ -533,11 +535,23 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
                 /
               </span>
             </>
+          ) : (
+            <>
+              <Link to="/whiteboards">{t('app.shell.whiteboards')}</Link>
+              <span className="sep" aria-hidden="true">
+                /
+              </span>
+            </>
           )
         }
-        about={guest ? t('page.guestPages.whiteboardReadOnly') : canEdit ? t('page.whiteboard.about') : t('page.whiteboard.readOnly', { key })}
+        about={guest ? t('page.guestPages.whiteboardReadOnly') : canEdit ? t('page.whiteboard.about') : board.project ? t('page.whiteboard.readOnly', { key }) : t('page.whiteboard.readOnlyPersonal', { owner: board.owner?.name ?? '' })}
         actions={
           <>
+            {board.access.share ? (
+              <button type="button" onClick={() => setSharing(true)}>
+                {t('page.whiteboards.whoReadsIt')}
+              </button>
+            ) : null}
             {canEdit ? (
               <button type="button" onClick={() => setDialog({ kind: 'text', what: 'rename', edit: null })}>
                 {t('page.whiteboard.rename')}
@@ -555,6 +569,7 @@ export function WhiteboardView({ detail }: { detail: WhiteboardDetail }) {
           </>
         }
       />
+      {sharing ? <SharingDialog board={board} onClose={() => setSharing(false)} /> : null}
       <section className="whiteboard" aria-labelledby={`${uid}-canvas`}>
         <h2 id={`${uid}-canvas`} className="hidden">
           {t('page.whiteboard.canvas')}
