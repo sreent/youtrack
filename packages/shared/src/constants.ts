@@ -48,10 +48,10 @@ export type Scope = (typeof SCOPES)[number];
 export const CHANNELS = ['web', 'api', 'mcp', 'assistant', 'automation', 'system', 'helpdesk', 'vcs', 'chat', 'ci', 'email', 'app'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-/** The chats a4a talks in (D42): Microsoft Teams, through a bot, and Slack, through an app. */
-export const CHAT_PLATFORMS = ['teams', 'slack'] as const;
+/** The chats a4a talks in (D42): Microsoft Teams, through a bot; Slack, through an app; Matrix, through a homeserver's bot account. */
+export const CHAT_PLATFORMS = ['teams', 'slack', 'matrix'] as const;
 export type ChatPlatform = (typeof CHAT_PLATFORMS)[number];
-export const CHAT_PLATFORM_NAMES: Record<ChatPlatform, string> = { teams: 'Microsoft Teams', slack: 'Slack' };
+export const CHAT_PLATFORM_NAMES: Record<ChatPlatform, string> = { teams: 'Microsoft Teams', slack: 'Slack', matrix: 'Matrix' };
 
 /**
  * The kinds of change a channel can hear of (D42): a new issue, its state, who it's assigned to, a

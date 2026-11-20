@@ -22,6 +22,7 @@ import { meets } from '../workflow/match';
 import { ChatCallError, stopError, stopReason } from './common';
 import { pruneChatIssues } from './issues';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
+import { matrixPost } from './matrix';
 import { slackPost } from './slack';
 import { teamsChannelPost, teamsSend } from './teams';
 
@@ -195,6 +196,9 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
     if (where.workspace.platform === 'teams') {
       if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The team has no service URL', 'chat.stop.noServiceUrl'));
       ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, event));
+    } else if (where.workspace.platform === 'matrix') {
+      if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The homeserver has no address', 'chat.stop.noServiceUrl'));
+      ref = await matrixPost(app, where.workspace, where.channel.externalId, issue, event);
     } else {
       ref = await slackPost(app, where.workspace, where.channel.externalId, issue, event);
     }

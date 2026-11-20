@@ -5,6 +5,7 @@ import {
   ChatLinkSchema,
   ChatStatusSchema,
   ChatSubscriptionSchema,
+  ConnectMatrixBody,
   ConnectSlackBody,
   CreateChatSubscriptionBody,
   UpdateChatSubscriptionBody,
@@ -26,6 +27,7 @@ import {
   updateChatSubscription,
 } from '../../chat/service';
 import { firstTime } from '../../chat/issues';
+import { connectMatrix, disconnectMatrix, matrixWorkspace, refreshMatrixRooms } from '../../chat/matrix';
 import { connectSlack, disconnectSlack, slackCommand, slackEvent, slackInteraction, slackIssueShortcut, slackIssueSubmitted, slackLinked, verifySlackRequest } from '../../chat/slack';
 import { handleTeamsActivity, teamsLinked, verifyTeamsRequest, type TeamsActivity } from '../../chat/teams';
 import { requireScope } from '../../context';
@@ -60,6 +62,42 @@ export function chatRoutes(app: OpenAPIHono<HttpEnv>) {
     await disconnectSlack(ctx);
     return null;
   });
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/chat/matrix',
+      tags,
+      summary: 'Connect the Matrix homeserver',
+      description: "With the bot account's access token, kept sealed. One homeserver per a4a. Its rooms become the channels a4a can post to. Administrators only.",
+      body: ConnectMatrixBody,
+      response: ChatStatusSchema,
+      status: 200,
+    },
+    ({ ctx, body }) => connectMatrix(ctx, body),
+  );
+  route(app, { method: 'delete', path: '/chat/matrix', tags, summary: 'Disconnect the Matrix homeserver', description: 'Its subscriptions stop, and the token is forgotten.', status: 204 }, async ({ ctx }) => {
+    await disconnectMatrix(ctx);
+    return null;
+  });
+  route(
+    app,
+    {
+      method: 'post',
+      path: '/chat/matrix/rooms',
+      tags,
+      summary: 'Read the rooms the bot account is in, as channels',
+      description: 'Administrators only: a room joined since is listed after this, and a room left stops being a channel on the next post.',
+      response: ChatStatusSchema,
+      status: 200,
+    },
+    async ({ ctx }) => {
+      const ws = await matrixWorkspace(ctx.app);
+      if (ws) await refreshMatrixRooms(ctx.app, ws.name);
+      return chatStatus(ctx);
+    },
+  );
+
   route(
     app,
     { method: 'get', path: '/chat/teams/app-package', tags, summary: 'The Teams app package', description: "A zip to upload in Teams' admin center: the manifest naming this a4a's bot, and its icons. Administrators only." },
