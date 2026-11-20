@@ -229,7 +229,7 @@ export async function teamsSend(app: AppServices, serviceUrl: string, conversati
 
 /** A channel's post, changed in place as its issue changes (D42's revisit): the same activity, new body. */
 export async function teamsUpdate(app: AppServices, serviceUrl: string, conversationId: string, messageId: string, activity: Record<string, unknown>): Promise<void> {
-  await connector(app, serviceUrl, 'PATCH', `${conv(conversationId)}/activities/${encodeURIComponent(messageId)}`, activity);
+  await connector(app, serviceUrl, 'PATCH', `${conv(conversationId)}/${encodeURIComponent(messageId)}`, activity);
 }
 
 /** The bot's personal chat with someone, made if it isn't there yet. */
