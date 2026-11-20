@@ -194,7 +194,7 @@ export async function dryRunScript(
   const applies: ScriptRun['applies'] = [];
   const refs = await issueRefsById(actor.db, s, [issue.id]);
   for (const a of out.intents.applies) {
-    const one: ScriptIntents = { applies: [a], comments: [], refusal: null, logs: [] };
+    const one: ScriptIntents = { applies: [a], comments: [], refusal: null, logs: [], calls: [] };
     try {
       const [p] = await plannedChanges(actor, actor.db, s, issue, input.issue, one, { meId: opts.meId });
       const ref = p!.issue.id === issue.id ? refs.get(issue.id)! : (await issueRefsById(actor.db, s, [p!.issue.id])).get(p!.issue.id)!;
