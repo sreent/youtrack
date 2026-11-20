@@ -234,6 +234,10 @@ export async function createPortalProvider(
     clientSecretSealed: input.clientSecret ? seal(keySource(ctx.app), input.clientSecret) : null,
     scopes: scopesOf(input.scopes),
     domains: [...new Set(input.domains ?? [])],
+    kind: 'oidc',
+    samlEntryPoint: null,
+    samlCert: null,
+    samlEntityId: null,
     createdAt: now,
     updatedAt: now,
   };
