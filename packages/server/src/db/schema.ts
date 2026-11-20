@@ -2382,6 +2382,19 @@ export const chatLinkTokens = pgTable(
  * What a4a posts to channels: a row first, written by the outbox's consumer, sent after, at least once,
  * as mail is (mail_outbox). One per channel per event, whichever subscriptions matched it.
  */
+export const chatPosts = pgTable(
+  'chat_posts',
+  {
+    id: text('id').primaryKey(),
+    channelId: text('channel_id').notNull().references(() => chatChannels.id, { onDelete: 'cascade' }),
+    issueId: text('issue_id').notNull(),
+    /** The post as its provider knows it (Slack's ts, Teams' activity id, Matrix's event id). */
+    messageId: text('message_id').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('chat_posts_channel_issue').on(t.channelId, t.issueId)],
+);
+
 export const chatOutbox = pgTable(
   'chat_outbox',
   {

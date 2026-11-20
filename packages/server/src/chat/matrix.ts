@@ -192,3 +192,17 @@ export async function syncMatrix(app: AppServices): Promise<void> {
     }
   }
 }
+/** A room's post, changed in place as its issue changes (D42's revisit): the same event, new content. */
+export async function matrixUpdate(app: AppServices, ws: WorkspaceRow, roomId: string, eventId: string, issue: CardIssue, event: TrackerEvent): Promise<void> {
+  const tr = channelTr(app);
+  const change = cardChange(event, tr);
+  const text = fallbackText(issue, tr, change);
+  await matrixCall(app, tokenOf(app, ws), ws.serviceUrl!, `/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${encodeURIComponent(eventId)}`, {
+    msgtype: 'm.text',
+    body: `* ${text}`,
+    format: 'org.matrix.custom.html',
+    formatted_body: `<p>${text}</p>`,
+    'm.new_content': { msgtype: 'm.text', body: text, format: 'org.matrix.custom.html', formatted_body: `<p>${text}</p>` },
+    'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
+  }, 'PUT');
+}

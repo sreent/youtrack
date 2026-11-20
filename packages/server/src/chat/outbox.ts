@@ -12,7 +12,7 @@ import type { ChatChangeKind, TrackerEvent } from '@a4a/shared';
 import { and, asc, eq, inArray, isNull, lt, lte, notInArray, or, sql } from 'drizzle-orm';
 import type { AppServices } from '../context';
 import type { Db } from '../db/client';
-import { activities, chatChannels, chatOutbox, chatSubscriptions, chatWorkspaces, comments, helpdeskRequests, issues, savedSearches } from '../db/schema';
+import { activities, chatChannels, chatOutbox, chatPosts, chatSubscriptions, chatWorkspaces, comments, helpdeskRequests, issues, savedSearches } from '../db/schema';
 import type { OutboxConsumer } from '../events/worker';
 import { newId } from '../lib/ids';
 import { prepareQuery } from '../search/service';
@@ -22,9 +22,9 @@ import { meets } from '../workflow/match';
 import { ChatCallError, stopError, stopReason } from './common';
 import { pruneChatIssues } from './issues';
 import { issueForCard, markChannelGone, markWorkspaceRemoved, whyNotFor } from './service';
-import { matrixPost, syncMatrix } from './matrix';
-import { slackPost } from './slack';
-import { teamsChannelPost, teamsSend } from './teams';
+import { matrixPost, matrixUpdate, syncMatrix } from './matrix';
+import { slackPost, slackUpdate } from './slack';
+import { teamsChannelPost, teamsSend, teamsUpdate } from './teams';
 
 type Row = typeof chatOutbox.$inferSelect;
 
@@ -193,6 +193,22 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
   }
   try {
     let ref: string | null;
+    // A post already in the channel (D42's revisit): its issue changed again, so it changes in place.
+    const [prior] = await app.db.select().from(chatPosts).where(and(eq(chatPosts.channelId, where.channel.id), eq(chatPosts.issueId, job.issueId)));
+    if (prior) {
+      if (where.workspace.platform === 'teams') {
+        if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The team has no service URL', 'chat.stop.noServiceUrl'));
+        await teamsUpdate(app, where.workspace.serviceUrl, where.channel.externalId, prior.messageId, teamsChannelPost(app, issue, event));
+      } else if (where.workspace.platform === 'matrix') {
+        if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The homeserver has no address', 'chat.stop.noServiceUrl'));
+        await matrixUpdate(app, where.workspace, where.channel.externalId, prior.messageId, issue, event);
+      } else {
+        await slackUpdate(app, where.workspace, where.channel.externalId, prior.messageId, issue, event);
+      }
+      await app.db.update(chatPosts).set({ updatedAt: new Date() }).where(eq(chatPosts.id, prior.id));
+      await settle(app.db, row.id, { status: 'sent', sentAt: new Date(), messageRef: prior.messageId, lastError: null });
+      return 'sent';
+    }
     if (where.workspace.platform === 'teams') {
       if (!where.workspace.serviceUrl) throw stopError('removed', stopReason('The team has no service URL', 'chat.stop.noServiceUrl'));
       ref = await teamsSend(app, where.workspace.serviceUrl, where.channel.externalId, teamsChannelPost(app, issue, event));
@@ -201,6 +217,12 @@ export async function sendChatPost(app: AppServices, row: Row, now = new Date())
       ref = await matrixPost(app, where.workspace, where.channel.externalId, issue, event);
     } else {
       ref = await slackPost(app, where.workspace, where.channel.externalId, issue, event);
+    }
+    if (ref) {
+      await app.db
+        .insert(chatPosts)
+        .values({ id: newId(), channelId: where.channel.id, issueId: job.issueId, messageId: ref })
+        .onConflictDoNothing({ target: [chatPosts.channelId, chatPosts.issueId] });
     }
     await settle(app.db, row.id, { status: 'sent', sentAt: new Date(), messageRef: ref, lastError: null });
     return 'sent';
